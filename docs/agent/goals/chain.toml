@@ -40,7 +40,7 @@ milestone = "M8"
 preflight = "docker"
 retired = "2026-09-05"
 
-# The second, and the one it costs the most: ADR 0067 verifies four of the five drivers against real
+# The second, and the one it costs the most: `rule:core-classes/db-one-api` verifies four of the five drivers against real
 # servers, so the driver preflights a reachable Docker daemon before this goal's first session and stops
 # the run naming it rather than grinding against a check that cannot pass.
 [[goal]]
@@ -61,7 +61,7 @@ retired = "2026-09-05"
 # all, so goal 6's handoff backlog stops existing the moment goal 6 goes green -- which is how
 # `§18 stream` came to be filed under "goal 5's" six goals after goal 5 closed. Every item here is
 # a gap a shipped feature already carries, written down in the module that owns it, and claimed by
-# no entry on this chain: the `db.open` wildcard ADR 0067 § 3 writes and nothing reads, `nvs
+# no entry on this chain: the `db.open` wildcard `rule:core-classes/db-capabilities` writes and nothing reads, `nvs
 # check` never building the grants its own § 10 diagnostic needs, a cycle closed through an array
 # surviving ADR 0116 § 2's sweep, ADR 0076 § 6's four log-record fields, ADR 0073 § 3's fleet
 # lease, spec § 18's `stream`/`streamAs`, the two rules that were waiting on a diagnostic band
@@ -95,7 +95,7 @@ milestone = "post-parity"
 preflight = "docker"
 retired = "2026-09-06"
 
-# Post-parity: ADR 0131's temporary-directory sweep. It rides the same chain after the program's gate
+# Post-parity: `rule:core-classes/temporary-dir-sweep`'s temporary-directory sweep. It rides the same chain after the program's gate
 # because its server half — the post-response sweep and the boot orphan sweep — needs the `nvs-server`
 # goal 6 creates. Docker preflight because its floor carries goals 4-6's container-backed checks.
 [[goal]]
@@ -115,7 +115,7 @@ milestone = "post-parity"
 preflight = "docker"
 retired = "2026-09-06"
 
-# Post-parity: `Core\Db\Schema`, closing ADR 0067's own *Revisiting* item. It is last for a reason that
+# Post-parity: `Core\Db\Schema`, closing `rule:core-classes/db-one-api`'s own *Revisiting* item. It is last for a reason that
 # is not tidiness. Its acceptance property — apply a schema, introspect it back, get an empty plan —
 # needs every driver finished, and SQLite has no connection path before goal 5 ends. And its stage 7
 # retires `nvs queue migrate`'s four hand-written dialect lists, which goal 5 writes and freezes the
@@ -314,7 +314,7 @@ milestone = "M8"
 preflight = "docker"
 
 # The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
-# and ADR 0122's WHATWG parser both wait on `Core\Xml`'s tree, and ADR 0122 § 4 is titled
+# and `rule:core-classes/html-parsing`'s WHATWG parser both wait on `Core\Xml`'s tree, and `rule:core-classes/html-parsing` is titled
 # *Unscheduled, and lands with `Core\Xml`* -- three gaps, one tree, one goal. It is last of the
 # three M8 entries because it is the biggest and shares no file with them, so a run that has to
 # stop stops with the cheap two landed.

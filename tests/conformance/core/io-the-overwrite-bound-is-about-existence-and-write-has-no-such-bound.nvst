@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::writeStream's `overwrite` bound is about a file existing and not about what is in it — an empty file refuses as a full one does — and with it set the member answers what Core\IO::write answers on every state of the path, which is the whole difference between the two whole-file writers — ADR 0105 § 4, spec § 14
+Core\IO::writeStream's `overwrite` bound is about a file existing and not about what is in it — an empty file refuses as a full one does — and with it set the member answers what Core\IO::write answers on every state of the path, which is the whole difference between the two whole-file writers — `rule:core-classes/io-write-stream`, spec § 14
 --FILE--
 <?nvs
 // Two members write a whole file, and only one of them asks first. The

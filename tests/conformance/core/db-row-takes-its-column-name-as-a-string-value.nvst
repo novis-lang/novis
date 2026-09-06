@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Db\Row` member takes its column as a `string` value the caller computes, and a column *number* is not a spelling of one — ADR 0067 § 6, spec § 18
+Every `Core\Db\Row` member takes its column as a `string` value the caller computes, and a column *number* is not a spelling of one — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 // The argument side of the same roster the other three cases pin from the

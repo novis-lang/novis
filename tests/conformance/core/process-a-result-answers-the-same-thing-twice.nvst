@@ -1,10 +1,10 @@
 --TEST--
-Every `Core\Process\Result` member answers the same thing on a second call — a captured stream is a value the result holds, not a pipe that drains, and all three members are asserted to agree with themselves — ADR 0044 § 1
+Every `Core\Process\Result` member answers the same thing on a second call — a captured stream is a value the result holds, not a pipe that drains, and all three members are asserted to agree with themselves — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // One question asked of all three members, so that a member which grew its own
 // answer fails here while still reading correctly on its own line — the
-// *agreement* shape, over the rule ADR 0044 § 1 states once for the whole
+// *agreement* shape, over the rule `rule:core-classes/process-run` states once for the whole
 // class: `run` waits for the child, drains both pipes and builds a result out
 // of what it read, so nothing the child owned is still open by the time a
 // program has a result at all.

@@ -1,5 +1,5 @@
 --TEST--
-Core\Db\Schema's array form is canonical: what fromArray reads, toArray answers back, key for key and in order — ADR 0145 § 1
+Core\Db\Schema's array form is canonical: what fromArray reads, toArray answers back, key for key and in order — `rule:core-classes/schema-is-a-value`
 --FILE--
 <?nvs
 // § 1 gives a schema three interchangeable spellings — built, serialized,

@@ -189,7 +189,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
-    // And the fifth: ADR 0067 § 4's walk over a statement's rows, whose next row
+    // And the fifth: `rule:core-classes/db-statement-members`'s walk over a statement's rows, whose next row
     // does not exist until the walk asks the server for it. `crate::db::stream`
     // is the argument, and it is the same one the three above make.
     (
@@ -315,7 +315,7 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// same way.
 ///
 /// The one caller is a `mixed` parameter that has to tell one `Core` class from
-/// everything else: [`crate::db`]'s bind reads ADR 0067 § 5's `Core\Db\InList`
+/// everything else: [`crate::db`]'s bind reads `rule:core-classes/db-parameters`'s `Core\Db\InList`
 /// out of a `array<mixed>` whose other elements are ordinary values. A member
 /// whose parameter is *declared* as a class needs none of this — the checker
 /// has already answered it.

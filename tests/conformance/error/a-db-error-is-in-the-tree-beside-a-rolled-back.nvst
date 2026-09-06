@@ -1,8 +1,8 @@
 --TEST--
-`Core\Db\DbError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name, by its parent's and by the root's, and never by the sibling `Core\Db\RolledBack` — spec § 18, ADR 0067 § 8
+`Core\Db\DbError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name, by its parent's and by the root's, and never by the sibling `Core\Db\RolledBack` — spec § 18, `rule:core-classes/db-error`
 --FILE--
 <?nvs
-// ADR 0067 § 8: one class for every refusal the database itself made, rather
+// `rule:core-classes/db-error`: one class for every refusal the database itself made, rather
 // than one class per condition — the condition is a normalised `kind`.
 try {
     throw new Core\Db\DbError("duplicate key value violates a unique constraint");
@@ -26,7 +26,7 @@ try {
 }
 
 // The two § 18 names are siblings, not one name: a handler for the rollback the
-// program asked for does not swallow a refusal it never chose. ADR 0067 § 7 is
+// program asked for does not swallow a refusal it never chose. `rule:core-classes/db-transactions` is
 // the other half.
 try {
     throw new Core\Db\DbError("canceling statement due to statement timeout");

@@ -41,7 +41,7 @@ implements** — read it first. The design is settled; a session takes it rather
    reports as distinct from `null`. Five places restate the invariant this replaces and must read as
    ADR 0147 does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
    two tests, `core_lib.rs`'s `shape_fills`, `uri.rs`'s `written`, and `value.rs`'s `Tag::Unset`.
-2. **`Core\Uri` gains `queryParameter` and `withQueryParameter`** — ADR 0147 § 5's second level.
+2. **`Core\Uri` gains `queryParameter` and `withQueryParameter`** — `rule:core-classes/uri-removable-components`'s second level.
    `queryParameter(string $name): mixed` and `withQueryParameter(string $name, mixed $value): Uri`,
    both composing `parseQuery`, `buildQuery` and `with` rather than adding a mechanism, so a query
    string gains no second canonicalization. A `null` value removes the pair, which `buildQuery`
@@ -91,7 +91,7 @@ both sides, and the widening side wins:
    is the served case only. It is presentation rather than containment, which is why it waited, and it
    is one item rather than a stage of its own.
 2. **`[limits] max_output` bounds a capture.** `crates/nvs-stdlib/src/process.rs` gap 1:
-   [ADR 0044](../../adr/0044-core-process-argv-only-no-shell.md) § 1 reuses that directive rather than
+   `rule:core-classes/process-run` reuses that directive rather than
    adding a cap and nothing reads it, so what bounds a child's stdout today is the request's memory
    limit. `Core\IO::read` is the same question with the same answer, and the module doc says the same
    signature closes both — so both are closed here or neither is.

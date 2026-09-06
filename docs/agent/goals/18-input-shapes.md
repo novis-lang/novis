@@ -39,7 +39,7 @@ field gets `as ?T` (`rule:expressions/nullable-conversion`) and answers `null` w
 `as T` would have thrown. Nothing new enters the conversion table. A key the shape does not name is
 ignored (`rule:types/shape-type`'s width subtyping, unchanged); a required key that is absent, and a value that
 does not convert, are failures — and **every failure of one call is collected into one `ParseError`**,
-each named by its dotted path, which is the shape [ADR 0071](../../adr/0071-derived-codecs.md)'s derived
+each named by its dotted path, which is the shape `rule:core-classes/derive-attribute`'s derived
 hydration already throws. `Core\Request::postAs<T>({name?: string}): T` and `queryAs<T>` are that member
 over the form and the query string, whole or at one bracket-named subtree.
 
@@ -86,7 +86,7 @@ is already in the file being edited.
    only arrays and scalars — followed by exactly this walk, so it calls it rather than keeping its own.
    Two field-error conventions in one runtime is how a program learns to catch two things.
 3. **The failure is collected, not the first one** — one `ParseError` carrying every field that failed,
-   each with its dotted path (`user.address.city`), built the way ADR 0071's derived hydration builds its.
+   each with its dotted path (`user.address.city`), built the way `rule:core-classes/derive-attribute`'s derived hydration builds its.
    A handler maps it to `400`; a form UI reads the list.
 4. **What is a failure**: an absent required key, and a value `as` refuses. What is not: an absent
    optional key, an extra key, and a `?T` field whose value `as ?T` answers `null` for.

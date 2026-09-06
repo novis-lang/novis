@@ -1,4 +1,4 @@
-# ADR 0122 — HTML parsing is a WHATWG entry on `Core\Html`, over `Core\Xml`'s tree
+# `rule:core-classes/html-parsing` — HTML parsing is a WHATWG entry on `Core\Html`, over `Core\Xml`'s tree
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::consume throws when the shared store is not there, and never answers allowed — ADR 0075 §§ 3 and 5
+Core\RateLimit::consume throws when the shared store is not there, and never answers allowed — `rule:core-classes/ratelimit-gcra` and `rule:core-classes/ratelimit-unreachable-store-throws`
 --FILE--
 <?nvs
 // § 5 is the load-bearing choice in the whole ADR: a security control that

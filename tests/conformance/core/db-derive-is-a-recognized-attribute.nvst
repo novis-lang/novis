@@ -1,5 +1,5 @@
 --TEST--
-`#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — ADR 0071 §§ 1, 3
+`#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
 // § 1: a compiler-recognized attribute is matched *nominally*, so the `use`d

@@ -1,5 +1,5 @@
 --TEST--
-Every one of `Core\Db\Row`'s eleven typed readers answers `?T`, so a NULL column is dealt with at the read rather than at the first use — ADR 0067 § 6, spec § 18
+Every one of `Core\Db\Row`'s eleven typed readers answers `?T`, so a NULL column is dealt with at the read rather than at the first use — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 // One question asked of all fourteen members at once: what does a reader
@@ -10,7 +10,7 @@ Every one of `Core\Db\Row`'s eleven typed readers answers `?T`, so a NULL column
 var $db = Core\Db::connect("main");
 
 // A `tainted` column name is accepted everywhere a name is taken: a label is a
-// lookup key, so what comes back carries the qualifiers ADR 0067 § 9 gives the
+// lookup key, so what comes back carries the qualifiers `rule:core-classes/db-column-types` gives the
 // *column* and never the ones the name arrived with.
 tainted string $outside = "owner";
 

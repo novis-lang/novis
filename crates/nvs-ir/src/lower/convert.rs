@@ -373,7 +373,7 @@ impl<'a> Lowering<'a> {
                  admitted and never lowered. Three targets do not reach this table at all, each \
                  because what decides it is a *label* one `Ty` has erased: a declared class is \
                  `Self::lower_checked_downcast`, an `array<U>` is `Self::lower_array_restamp` \
-                 and ADR 0024 § 5's `Core\\Html\\Markup` is `Self::lower_markup_lift`, all \
+                 and `rule:core-classes/html-auto-escape`'s `Core\\Html\\Markup` is `Self::lower_markup_lift`, all \
                  callers of it rather than rows of it. See the crate docs' known gaps"
             ),
         }
@@ -823,7 +823,7 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_checked_downcast(v, &class, inner, ty.span, env, cur);
                 }
-                // ADR 0024 § 5's `"<b>" as Core\Html\Markup`, and it is here
+                // `rule:core-classes/html-auto-escape`'s `"<b>" as Core\Html\Markup`, and it is here
                 // for the downcast's reason exactly: both targets erase to
                 // `Ty::Object`, so only the written name tells a class that is
                 // *tested* from the one class that is *built*. See
@@ -1214,8 +1214,7 @@ impl<'a> Lowering<'a> {
         (out, Ty::Object)
     }
 
-    /// Whether `ty` names [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's `Core\Html\Markup` — the one class target this crate lowers by
+    /// Whether `ty` names `rule:core-classes/html-auto-escape`'s `Core\Html\Markup` — the one class target this crate lowers by
     /// *building* rather than by testing.
     ///
     /// [`super::closure::declared_class`] cannot answer it and should not:
@@ -1239,8 +1238,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's `"<b>" as Core\Html\Markup` — the sink's only raw-write bypass,
+    /// `rule:core-classes/html-auto-escape`'s `"<b>" as Core\Html\Markup` — the sink's only raw-write bypass,
     /// and the one conversion in this crate whose result is *constructed*.
     ///
     /// **Nothing is decided here.** § 5's rule is that the operand is a source

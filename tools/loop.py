@@ -3334,7 +3334,7 @@ def preflight(kind):
     """An external precondition a goal names, checked before its first session rather than after
     its first six hours.
 
-    Only one exists: `preflight = "docker"`, for the goal whose drivers ADR 0067 verifies against
+    Only one exists: `preflight = "docker"`, for the goal whose drivers `rule:core-classes/db-one-api` verifies against
     real servers. A run that grinds against a check that cannot pass is worse than one that stops
     in the first minute, and the failure is loud on purpose -- a skipped driver matrix leaves the
     four network drivers unproven while every other check goes green.

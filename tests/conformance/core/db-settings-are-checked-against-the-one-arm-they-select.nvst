@@ -1,8 +1,8 @@
 --TEST--
-A settings literal is held to the one arm it selects, so `host` beside `Driver::Sqlite` is refused while compiling and so is the server arm's key set under that driver — ADR 0135 § 2, ADR 0067 § 3
+A settings literal is held to the one arm it selects, so `host` beside `Driver::Sqlite` is refused while compiling and so is the server arm's key set under that driver — ADR 0135 § 2, `rule:core-classes/db-capabilities`
 --FILE--
 <?nvs
-// ADR 0067 § 3: a SQLite connection is a file. Its arm declares no `host` at
+// `rule:core-classes/db-capabilities`: a SQLite connection is a file. Its arm declares no `host` at
 // all, because there is no server to send credentials to — and ADR 0135 § 3's
 // merged list *does* declare one, since the server arm does. So this is the
 // exact literal a check against the merged key set accepts and § 2's arm

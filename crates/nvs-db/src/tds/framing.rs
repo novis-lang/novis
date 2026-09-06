@@ -21,7 +21,7 @@ use super::*;
 /// inside a parser that would read the payload as tokens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PacketType {
-    /// A statement as text — ADR 0067 § 1 allows this for the commands that
+    /// A statement as text — `rule:core-classes/db-one-api` allows this for the commands that
     /// bind nothing, never for a caller's SQL.
     SqlBatch,
     /// A procedure call, which is what a prepared statement's execution is on
@@ -32,12 +32,12 @@ pub enum PacketType {
     /// Cancel whatever is running. Its payload is empty, so the message is the
     /// header alone.
     Attention,
-    /// `BEGIN`/`COMMIT`/`ROLLBACK` and ADR 0067 § 7's savepoints, which are a
+    /// `BEGIN`/`COMMIT`/`ROLLBACK` and `rule:core-classes/db-transactions`'s savepoints, which are a
     /// request of their own here rather than text.
     TransactionManager,
     /// The credential, once the socket is encrypted.
     Login7,
-    /// The version and capability exchange, and the tunnel ADR 0067 § 3's TLS
+    /// The version and capability exchange, and the tunnel `rule:core-classes/db-capabilities`'s TLS
     /// handshake rides inside.
     PreLogin,
 }

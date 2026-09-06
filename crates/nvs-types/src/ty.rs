@@ -383,7 +383,7 @@ pub struct CoreShapeField {
     pub required: bool,
     /// ADR 0135 § 3's qualifier classification, which lands on the **field**
     /// and never on the parameter: `Db\Settings`'s `host` is a [`Qual::Sink`]
-    /// because ADR 0067 § 3 makes an address one, while the parameter holding
+    /// because `rule:core-classes/db-capabilities` makes an address one, while the parameter holding
     /// it classifies nothing at all.
     ///
     /// `None` where the registry's own type carries no classification — every

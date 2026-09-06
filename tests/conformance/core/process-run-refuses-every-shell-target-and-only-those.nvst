@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process::run` refuses `.bat`, `.cmd` and `.ps1` in any letter case and on every platform, and refuses nothing else by kind — asserted by counting a sweep, so a member that let one through fails here while still answering plausibly to each row on its own — ADR 0044 § 4
+`Core\Process::run` refuses `.bat`, `.cmd` and `.ps1` in any letter case and on every platform, and refuses nothing else by kind — asserted by counting a sweep, so a member that let one through fails here while still answering plausibly to each row on its own — `rule:core-classes/process-refuses-a-shell-target`
 --FILE--
 <?nvs
 // Every target below is granted and none of them exists. That is the point:

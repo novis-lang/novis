@@ -3066,7 +3066,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
         [
             "ArithmeticError",
             "Comparable",
-            // ADR 0086 § 4's refusal to block, ADR 0067 § 8's driver failure
+            // ADR 0086 § 4's refusal to block, `rule:core-classes/db-error`'s driver failure
             // and § 7's deliberate rollback, and `rule:testing/failure-ledger`'s assertion
             // failure — the exception tree's four namespaced entries, classes
             // in it for the reason `nvs_hir::errors::TREE` gives.

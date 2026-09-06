@@ -1,4 +1,4 @@
-//! `nvs queue migrate` — [ADR 0084] § 2's two tables, as the explicit operator command that owns
+//! `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s two tables, as the explicit operator command that owns
 //! them.
 //!
 //! § 2 gives the runtime one jobs table and one dead-letter table and has them created from here and
@@ -28,7 +28,7 @@
 //! alternative and buys nothing: a task exists there so ADR 0072 § 1's children have a parent, and
 //! a migration spawns nothing and shares nothing.
 //!
-//! **The `db.connect` capability is deliberately not asked.** [ADR 0067] § 3 grants an
+//! **The `db.connect` capability is deliberately not asked.** `rule:core-classes/db-capabilities` grants an
 //! *application* permission to open a named block, and it is keyed on the entry file this command
 //! does not have; the principal here is the operator who ran it over configuration only a trusted
 //! account may write ([ADR 0103] § 6). A capability bounds the program, so asking it of the
@@ -51,8 +51,6 @@
 //! Applying adds one connection, held for that dialect's statements and closed with the process; it opens
 //! no pool, because a pool exists to be reused by a second request and this is a command.
 //!
-//! [ADR 0067]: ../../../docs/adr/0067-core-db.md
-//! [ADR 0084]: ../../../docs/adr/0084-durable-background-jobs.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -69,7 +67,7 @@ use crate::render_diagnostics;
 /// The block's `driver` field as the driver it names, or the refusal an operator sees instead.
 ///
 /// **Two failures rather than one**, because they are two mistakes: a `driver` no backend answers to
-/// is a typo in a value ADR 0067 § 2 closes, and a backend Novis knows but § 2's schema has no
+/// is a typo in a value `rule:core-classes/db-connection-is-named` closes, and a backend Novis knows but § 2's schema has no
 /// dialect for is a deployment that is early rather than wrong. Which drivers have a list is
 /// [`nvs_stdlib::queue::migration`]'s answer and not this command's — the schema lives beside the
 /// statements that read its columns, and so does the roster of dialects it is written in.
@@ -83,7 +81,7 @@ fn dialect_of(name: &str, written: Option<&str>) -> Option<(nvs_db::Driver, &'st
             "error: `[db.{name}]` names the `{written}` driver, which Novis has no backend for"
         );
         eprintln!(
-            "note: ADR 0067's five are {}",
+            "note: `rule:core-classes/db-one-api`'s five are {}",
             nvs_db::Driver::ALL
                 .iter()
                 .map(|one| format!("`{}`", one.matrix_name()))
@@ -147,7 +145,7 @@ pub(crate) fn migrate(
                      jobs table belongs in"
                 );
                 eprintln!(
-                    "note: write ADR 0084 § 2's block, as `connection = \"main\"`, or name a \
+                    "note: write `rule:core-classes/queue-storage-is-a-table`'s block, as `connection = \"main\"`, or name a \
                      `[db.<name>]` here with `--connection <name>`"
                 );
                 return ExitCode::FAILURE;
@@ -181,7 +179,7 @@ pub(crate) fn migrate(
 
     if dry_run {
         println!(
-            "-- ADR 0084 § 2's schema for `[db.{name}]` in {}'s dialect, as {} statements in this \
+            "-- `rule:core-classes/queue-storage-is-a-table`'s schema for `[db.{name}]` in {}'s dialect, as {} statements in this \
              order.",
             driver.display_name(),
             list.len()
@@ -209,7 +207,7 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(10);
 /// statements to [`run_all`].
 ///
 /// **A macro because the three arms differ in names and not in shape.**
-/// [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) § 5
+/// `rule:core-classes/db-drivers-are-an-enum`
 /// makes the five drivers an enum with one `match` per entry point rather than a `Driver` trait, so
 /// there is no type parameter to write this as a generic function over — and writing it out three
 /// times would be one body with `Pg`, `MySql` and `Maria` in it plus three copies of every refusal
@@ -253,7 +251,7 @@ macro_rules! open_and_apply {
 /// Opens `block` with the driver it names and runs that dialect's list on it, statement by
 /// statement.
 ///
-/// One statement at a time and never one string with several `;` in it: [ADR 0067] § 1's driver
+/// One statement at a time and never one string with several `;` in it: `rule:core-classes/db-one-api`'s driver
 /// takes a statement, and a multi-statement text is exactly what that ADR's § 10 refuses on a
 /// literal query. Each answer is drained to the end of its stream before the next one starts,
 /// because a connection is only usable at a message boundary and an abandoned portal is not one.
@@ -316,7 +314,7 @@ fn run_all(
     mut run: impl FnMut(&str) -> std::io::Result<()>,
 ) -> ExitCode {
     println!(
-        "-- ADR 0084 § 2's schema, applied to `[db.{name}]` at {address}: {} statements.",
+        "-- `rule:core-classes/queue-storage-is-a-table`'s schema, applied to `[db.{name}]` at {address}: {} statements.",
         list.len()
     );
     for step in list {

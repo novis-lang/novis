@@ -1,0 +1,18 @@
+Every pattern compiles to the **linear tier** if the linear engine can express it, and to the
+**backtracking tier** otherwise. The choice is made by the engine, never by the developer and never
+by a modifier: there is no way to ask for backtracking, only to write a pattern that requires it.
+
+The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
+`Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy
+value, and never truncates the search — a search that stopped early and a search that found nothing
+are different facts, and PHP's `preg_*` conflates them into `false`. Per
+`rule:errors/escalation-ladder` this is an ordinary throw rather than a resource-limit fatal, so the
+request may catch it and answer 400. The linear tier has no budget, because it needs none.
+
+What this costs is that a pattern's performance class is a property of the pattern rather than
+something a caller can override. That is the trade taken deliberately: an engine choice a developer
+cannot see is the failure mode the whole design exists to avoid.
+
+The budget's default is a stated constant today rather than a configuration key, because there is no
+configuration subsystem in front of it yet — `crates/nvs-stdlib/src/regex.rs` names it and records
+the gap.

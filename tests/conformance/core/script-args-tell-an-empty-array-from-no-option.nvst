@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::args()` keeps the two absences apart: a child spawned with `args: []` reads an array of zero, and one spawned with no option at all reads `null` — ADR 0012 § 6
+`Core\Script::args()` keeps the two absences apart: a child spawned with `args: []` reads an array of zero, and one spawned with no option at all reads `null` — `rule:core-classes/script-args`
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

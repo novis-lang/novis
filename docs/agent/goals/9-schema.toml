@@ -186,7 +186,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib/src/queue.rs", "tests/db"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- ADR 0133's carrier rule, accepted 2026-09-02, after M4 reported `Core\Html` done. It is
 # FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
-# plain `string` is escaped a second time by ADR 0024 § 5's sink, and every `Core\Html` case written
+# plain `string` is escaped a second time by `rule:core-classes/html-auto-escape`'s sink, and every `Core\Html` case written
 # before the return type changes is written against the wrong rule. Item 1 in loop-goal.md.
 #
 # The two guard tests below must EXIST and pass. The `nvs-types` one is the half that cannot be read off
@@ -215,7 +215,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- ADR 0071's pass over a second format. It goes first because § 6's `queryAs<T>` is written
+# Stage 0 -- `rule:core-classes/derive-attribute`'s pass over a second format. It goes first because § 6's `queryAs<T>` is written
 # against it, and a row mapping written without it is written twice.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -240,7 +240,7 @@ tests = [
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- ADR 0056's tiering. It changes what an EXISTING pattern does, so every regex case written
+# Stage 0 -- `rule:core-classes/regex-two-tiers`'s tiering. It changes what an EXISTING pattern does, so every regex case written
 # before it lands is written against the wrong engine, and a catastrophic pattern that silently works
 # today is a case that silently stops working later.
 # ---------------------------------------------------------------------------------------------------
@@ -1498,7 +1498,7 @@ stage = "1 floor"
 name = "nvs-types (the derive gaps)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 2 -- ADR 0071 §§ 2 and 7, the three gaps derive.rs's own module doc lists. Each is a diagnostic
+  # Item 2 -- `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`, the three gaps derive.rs's own module doc lists. Each is a diagnostic
   # at the DECLARATION; a field with no decoder refused at the `decodeAs<T>` that runs is the bug.
   "a_derive_field_whose_type_has_no_codec_is_refused_where_it_is_declared",
   "a_class_that_hand_writes_both_codec_halves_is_refused",
@@ -1655,7 +1655,7 @@ cases = [
   # Stage 0
   "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
   "tests/conformance/reject/an-implementor-without-a-no-argument-constructor-is-named.nvst",
-  # Stage 2. ADR 0071's three gaps, each refused where the class is declared.
+  # Stage 2. `rule:core-classes/derive-attribute`'s three gaps, each refused where the class is declared.
   "tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst",
   "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
   "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
@@ -2325,7 +2325,7 @@ tests = [
   # Item 4 -- the check `Core\Path::normalize` structurally cannot make.
   "within_resolves_and_then_proves_containment",
   "within_refuses_a_path_that_escapes_through_dotdot_or_a_symlink",
-  # Item 5 -- ADR 0105 § 4, and goal 6's uploads are its second caller.
+  # Item 5 -- `rule:core-classes/io-write-stream`, and goal 6's uploads are its second caller.
   "write_stream_defaults_to_no_overwrite",
   "a_write_stream_that_fails_midway_removes_the_partial_file",
   # ADR 0052 -- by construction, not by a blocklist.
@@ -2350,7 +2350,7 @@ stage = "1 floor"
 name = "nvs-stdlib (Core\\Process)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # ADR 0044 -- argv-only, with no shell-string form AT ALL. There is nothing to escape because there is
+  # `rule:core-classes/process-is-argv-only` -- argv-only, with no shell-string form AT ALL. There is nothing to escape because there is
   # nothing to escape into.
   "there_is_no_shell_string_form_of_run_or_spawn",
   "a_windows_batch_or_powershell_target_is_refused",
@@ -2475,7 +2475,7 @@ tests = [
 # The origin these five lines need is the DRIVER's, not the example's. `tools/loop.py` holds one
 # `tools/origin.py` open per leg around the whole sweep -- on Windows for the native fixtures, and a
 # second inside the distro for the WSL leg and the valgrind sweep, because a WSL loopback is its own.
-# The example spawns nothing of its own: `Core\Process::run` runs a program to completion (ADR 0044),
+# The example spawns nothing of its own: `Core\Process::run` runs a program to completion (`rule:core-classes/process-is-argv-only`),
 # and Novis's own server is ADR 0097's, a later milestone -- so an example that started its origin
 # would be an example nobody could run until then. `origin.py` holds every answer 25ms, which is what
 # makes the last line decided by arithmetic rather than by a race between a 1ms budget and a
@@ -2858,7 +2858,7 @@ tests = [
 ]
 
 # § 2's memo is asked of `Core\Db::connect`, and that member is nvs-stdlib's. This check exists rather
-# than a name in the block above because ADR 0132 § 1 points the crate edge nvs-stdlib -> nvs-db: the
+# than a name in the block above because `rule:core-classes/db-crate-boundary` points the crate edge nvs-stdlib -> nvs-db: the
 # memo is a table on `nvs_runtime::Ctx` that `Core\Db::connect` reads, and no -p nvs-db test can see
 # either half of that. Moving a name to the crate that owns the behaviour is the fix; inventing a test
 # where the name was filed is not.
@@ -2991,7 +2991,7 @@ want = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the other four drivers, against real servers. MariaDB is a DISTINCT driver, argued at length
-# in ADR 0067's Context and not a simplification to rediscover.
+# in `rule:core-classes/db-one-api`'s Context and not a simplification to rediscover.
 #
 # Both of those servers now present the `certs` leaf PostgreSQL and MySQL do -- MariaDB by the same three
 # flags, SQL Server through an `mssql.conf` its own compose comment explains -- so `tools/db-matrix.py`
@@ -3013,7 +3013,7 @@ name = "nvs-db (per-driver specifics)"
 args = ["test", "-p", "nvs-db"]
 tests = [
   # This name replaced `execute_many_uses_the_bulk_protocol_on_mariadb`, and the replacement IS the item:
-  # ADR 0067 § 4 now runs `executeMany` as N executions on every driver and argues at length why a
+  # `rule:core-classes/db-statement-members` now runs `executeMany` as N executions on every driver and argues at length why a
   # bulk command cannot reproduce what the loop lets a caller observe. The ADR wins over this file.
   # Do not restore the old name expecting `COM_STMT_BULK_EXECUTE` to appear -- read § 4 first, and
   # note that it names the one fact (does `BULK_UNIT_RESULTS` continue past a refusal?) that reopens it.
@@ -3092,8 +3092,8 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 
 # `-p nvs-stdlib` and not `-p nvs-db`, which is where these names were first filed: what they assert
-# is the statement roster in `crates/nvs-stdlib/src/queue.rs` -- ADR 0084 § 2's schema has one home
-# and that is it -- and ADR 0132 § 1 fixes the crate graph so that `nvs-db` cannot name `nvs-stdlib`
+# is the statement roster in `crates/nvs-stdlib/src/queue.rs` -- `rule:core-classes/queue-storage-is-a-table`'s schema has one home
+# and that is it -- and `rule:core-classes/db-crate-boundary` fixes the crate graph so that `nvs-db` cannot name `nvs-stdlib`
 # at all, in a test target or anywhere else. `crates/nvs-stdlib/tests/queue.rs` sees both crates and
 # runs the statements a worker runs; `tools/db-matrix.py`'s `SUITES` is what points it at a server
 # beside `nvs-db`'s own suite, and with no `NVS_DB_MATRIX_DRIVER` set every case there skips.
@@ -3207,7 +3207,7 @@ want = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- the corpus and the migration floor, and this is the second-largest jump in the program.
-# The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs ADR 0067
+# The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs `rule:core-classes/db-one-api`
 # replaces are now IN the inventory rather than a named hole beside it: 227 names, a fifth of the whole
 # table, all of them this goal's. Modelled at 98%; the floor is 94.
 # The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above derives the whole curve.
@@ -3716,7 +3716,7 @@ stage = "1 floor"
 # lives in `nvs-stdlib`, and `crates/nvs-server/Cargo.toml` does not name that crate -- so none of the four
 # could ever have run where they were filed. The crossing between cores is `nvs_stdlib::bus` and the two
 # threads a case spawns are what two cores are, so the server is not in the picture at all.
-name = "nvs-stdlib (ADR 0083 § 4 -- Core\\Topic, across every core)"
+name = "nvs-stdlib (`rule:core-classes/topic` -- Core\\Topic, across every core)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_publish_reaches_a_subscriber_on_another_core",

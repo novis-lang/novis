@@ -1,5 +1,5 @@
 --TEST--
-`query` refuses a `tainted` statement and binds a `tainted` value freely, so untrusted data reaches a database only through a placeholder — ADR 0024 § 4, ADR 0067 §§ 1 and 5
+`query` refuses a `tainted` statement and binds a `tainted` value freely, so untrusted data reaches a database only through a placeholder — ADR 0024 § 4, `rule:core-classes/db-one-api` and `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
 // ADR 0024 § 4 is the whole injection story for `Core\Db\Connection`: the
@@ -7,7 +7,7 @@
 // process cannot be written into the statement at all, and a bound parameter
 // accepts the same value freely. There is no escaper to launder one with —
 // `PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have no
-// equivalent (ADR 0067 § 1), which is only tenable because the second half of
+// equivalent (`rule:core-classes/db-one-api`), which is only tenable because the second half of
 // this case compiles.
 tainted string $outside = "ada";
 

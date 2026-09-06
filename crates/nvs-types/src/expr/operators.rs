@@ -100,7 +100,7 @@ pub(crate) fn infer_conversion(
     let string_target = nullable_inner_target(result, env).unwrap_or(result);
     if matches!(env.interner.get(string_target), Ty::String) {
         require_stringable_object(inner_ty, inner.span, env);
-        // ADR 0133 § 3: the carrier renders, so the row above admits it — and
+        // `rule:core-classes/html-to-source`: the carrier renders, so the row above admits it — and
         // `Markup as string` is precisely the keystroke that reopens the hole.
         reject_carrier_as_text(inner_ty, inner.span, env);
     }
@@ -342,7 +342,7 @@ pub(crate) fn binary_result(
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        // ADR 0024 § 5's and ADR 0086 § 2's composition rules are ahead of the
+        // `rule:core-classes/html-auto-escape`'s and ADR 0086 § 2's composition rules are ahead of the
         // arithmetic table rather than rows of it: a carrier is a class, and
         // every class beside an arithmetic operator is refused two lines down.
         BinaryOp::Add => carrier_composition_result(lhs, rhs, span, env)
@@ -952,7 +952,7 @@ fn reject_unrowed_arithmetic_operand(
         // section, because the way to lift the other operand differs — one
         // escapes for HTML, the other substitutes control bytes for a terminal.
         EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_HTML_MARKUP_CLASS) => {
-            "ADR 0024 § 5 composes `Markup` with `Markup` and nothing else: lift the other \
+            "`rule:core-classes/html-auto-escape` composes `Markup` with `Markup` and nothing else: lift the other \
              operand with `as Markup` if it is a source literal, or escape it with \
              `Core\\Html::escape(...)` — `+` is not a sink and will not escape it for you"
         }
@@ -963,7 +963,7 @@ fn reject_unrowed_arithmetic_operand(
         }
         EqDomain::Object => {
             "Novis has no operator overloading: `rule:types/arithmetic` names two classes in its arithmetic \
-             rows and both are sink carriers — ADR 0024 § 5's `Core\\Html\\Markup` and ADR 0086 \
+             rows and both are sink carriers — `rule:core-classes/html-auto-escape`'s `Core\\Html\\Markup` and ADR 0086 \
              § 2's `Core\\Cli\\Text` — so for every other class the operation belongs in a method \
              on it"
         }
@@ -1046,8 +1046,7 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
     }
 }
 
-/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-/// § 5's `Markup + Markup` is `Markup` and
+/// `rule:core-classes/html-auto-escape`'s `Markup + Markup` is `Markup` and
 /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
 /// `Text + Text` is `Text` — the only rows of any operator table whose operands
 /// are a class, and the only arithmetic-shaped pairs that are not arithmetic at
@@ -1836,7 +1835,7 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         return;
     };
     if qname.is_core() {
-        // ADR 0024 § 5's `as Core\Html\Markup` is that section's own row and
+        // `rule:core-classes/html-auto-escape`'s `as Core\Html\Markup` is that section's own row and
         // `crate::expr::quals` owns it end to end — a source-literal `string`
         // and nothing else, `E_MARKUP_REQUIRES_LITERAL` for anything computed.
         // It is the one `Core` target whose conversion is decided by a rule
@@ -2473,8 +2472,7 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-/// §§ 2 and 3, at the five sites that would turn a `Core\Html\Markup` back
+/// `rule:core-classes/html-escape-answers-markup` and `rule:core-classes/html-to-source`, at the five sites that would turn a `Core\Html\Markup` back
 /// into text *without* the sink being the one asking: `.`, `.=`, an
 /// interpolated piece and `as string`.
 ///

@@ -1,4 +1,4 @@
-# ADR 0044 — `Core\Process` is the one argv-only way to run another program; no shell, ever
+# `rule:core-classes/process-is-argv-only` — `Core\Process` is the one argv-only way to run another program; no shell, ever
 
 - **Status:** Accepted
 - **Date:** 2026-08-22

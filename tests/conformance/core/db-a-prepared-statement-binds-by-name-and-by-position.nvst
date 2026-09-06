@@ -1,5 +1,5 @@
 --TEST--
-A statement binds by position from a list-keyed array and by name from a string-keyed one, and a `:name` written twice reads one value the call site supplied once — ADR 0067 § 5
+A statement binds by position from a list-keyed array and by name from a string-keyed one, and a `:name` written twice reads one value the call site supplied once — `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
 // SQLite needs no server, so this case really prepares, binds and steps rather

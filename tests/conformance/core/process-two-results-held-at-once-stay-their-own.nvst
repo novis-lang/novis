@@ -1,5 +1,5 @@
 --TEST--
-Two `Core\Process\Result`s held at once each keep their own run's status and output — the same program started twice with different arguments, and both results read only after both children have exited — ADR 0044 § 1
+Two `Core\Process\Result`s held at once each keep their own run's status and output — the same program started twice with different arguments, and both results read only after both children have exited — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // `Core\Process::run` builds its result out of the `Output` the wait handed

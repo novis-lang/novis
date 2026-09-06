@@ -165,7 +165,7 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
 ///
 /// The three answers the emitter has to tell apart, in one fixture: a type it
 /// maps (`uint`, floor and all), a type it does not (a class, whose fields are
-/// ADR 0071's codec rather than this document's guess), and `void`, which
+/// `rule:core-classes/derive-attribute`'s codec rather than this document's guess), and `void`, which
 /// carries no `content` at all. The third is the one that would go wrong
 /// silently — an empty schema means *any body*, and *no body* is a different
 /// promise to a generated client.

@@ -410,7 +410,7 @@ fn static_props(
 /// `secret` either, which is the safe direction only because the fallback is
 /// reached by a class the checker never typed at all: a declared `secret`
 /// property always reaches [`ExprTypeTable::property_types`].
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s field list joined
+/// `rule:core-classes/derive-attribute`'s field list joined
 /// to `layout`'s slot order — the one place both tables are in hand, and the
 /// same join for either format ([`crate::ir::Class::codec`] and
 /// [`crate::ir::Class::db_codec`] differ in which table they come out of and in
@@ -734,7 +734,7 @@ pub fn lower_program(
                 public_fields: layout.public_fields.clone(),
                 conforms: layout.conforms.clone(),
                 methods: layout.methods.clone(),
-                // ADR 0071's field list, joined to this class's slot order — the
+                // `rule:core-classes/derive-attribute`'s field list, joined to this class's slot order — the
                 // one place both tables are in hand. A field the layout has no
                 // slot for is dropped rather than mis-indexed: `nvs_types::derive`
                 // has already reported the declaration that caused it, and

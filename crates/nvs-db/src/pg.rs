@@ -73,7 +73,7 @@
 //! pays nothing extra" made literal: there is no prepare round trip to save,
 //! because the prepare travels with the execution.
 //!
-//! The `Sync` at the end is what makes ADR 0132 § 4's per-driver call come out
+//! The `Sync` at the end is what makes `rule:core-classes/db-connection-busy-state`'s per-driver call come out
 //! in PostgreSQL's favour. It is already on the wire before any answer is read,
 //! so the server *will* end this statement with a `ReadyForQuery` whatever
 //! happens in between — a syntax error at `Parse`, a constraint violation at
@@ -167,7 +167,7 @@ const READ_CHUNK: usize = 16 * 1024;
 pub struct PgTarget<'a> {
     /// The name the server's certificate is checked against.
     pub host: &'a str,
-    /// The role to log in as. ADR 0067 § 3 accepts `tainted` here freely: it is
+    /// The role to log in as. `rule:core-classes/db-capabilities` accepts `tainted` here freely: it is
     /// a length-prefixed protocol field, never parsed text.
     pub user: &'a str,
     /// The role's password, used only to derive a SCRAM proof.
@@ -221,7 +221,7 @@ pub const DEFAULT_PORT: u16 = 5432;
 
 impl std::fmt::Debug for PgTarget<'_> {
     /// Everything but the password, which is a `secret` at the language level
-    /// (ADR 0067 § 3) and is not printed in any rendering.
+    /// (`rule:core-classes/db-capabilities`) and is not printed in any rendering.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PgTarget")
             .field("host", &self.host)
@@ -388,7 +388,7 @@ impl<S: Read + Write> Wire<S> {
 
     /// Bounds every wait on this wire by `at`, or lifts the bound.
     ///
-    /// ADR 0067 § 4's statement deadline, filed exactly where
+    /// `rule:core-classes/db-statement-members`'s statement deadline, filed exactly where
     /// [`PgConn::connect`]'s handshake deadline already is — one clock, on the
     /// thing that waits. It bounds the *conversation* and not a call: a
     /// statement is a prepare, an execute and every row of the answer over one
@@ -407,7 +407,7 @@ impl<S: Read + Write> Wire<S> {
 
     /// Writes everything buffered in `out`, empties it, and flushes.
     ///
-    /// One function because a half-written message is the shape ADR 0132 § 4
+    /// One function because a half-written message is the shape `rule:core-classes/db-connection-busy-state`
     /// calls poison, and `write_all` is the only spelling that cannot leave
     /// one. `out` is emptied whether or not the write succeeded: what it holds
     /// after a failure is a fragment nothing may send later.
@@ -508,7 +508,7 @@ impl PgConn {
             wire,
             state: Cell::new(State::Idle),
             cancel,
-            // ADR 0067 § 1's size, already read off the `[db.<name>]` block by
+            // `rule:core-classes/db-one-api`'s size, already read off the `[db.<name>]` block by
             // `statement_cache_for` and carried here on the target —
             // this path takes a number and has no opinion about where an
             // unwritten field's default comes from.
@@ -541,7 +541,7 @@ impl PgConn {
 
     /// Runs one statement, borrowing the connection until its rows are drained.
     ///
-    /// `params` are ADR 0067 § 5's bound values, each already rendered in the
+    /// `params` are `rule:core-classes/db-parameters`'s bound values, each already rendered in the
     /// text format the module doc chose, and `None` is SQL `NULL`. Nothing is
     /// interpolated into `sql` — this signature is the shape of the goal's
     /// standing decision that emulated prepares do not exist in any form, and
@@ -553,8 +553,7 @@ impl PgConn {
     ///
     /// # Errors
     ///
-    /// `InvalidInput` when the connection is not [`State::Idle`] — ADR 0067
-    /// § 4's second concurrent statement, which `nvs-stdlib` words as a
+    /// `InvalidInput` when the connection is not [`State::Idle`] — `rule:core-classes/db-statement-members`'s second concurrent statement, which `nvs-stdlib` words as a
     /// `LogicError`. Otherwise the server's own error, which leaves the
     /// connection idle and poolable, or a wire failure, which poisons it.
     pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<PgRows<'_>> {
@@ -565,7 +564,7 @@ impl PgConn {
     /// the read state is parked on this connection and the rows come off it one
     /// [`Self::stream_next_row`] at a time.
     ///
-    /// The wire half of ADR 0067 § 4's `stream`. It is the same batch
+    /// The wire half of `rule:core-classes/db-statement-members`'s `stream`. It is the same batch
     /// [`Self::query`] sends and reaches [`State::Streaming`] the same way; the
     /// only difference is where the state a row is read against lives, and
     /// [`PgCursor`] owns why that has to be here rather than in a borrow. The
@@ -829,7 +828,7 @@ fn request_tls<S: Read + Write>(stream: &mut S) -> io::Result<()> {
         b'S' => Ok(()),
         b'N' => Err(io::Error::new(
             io::ErrorKind::ConnectionRefused,
-            "the server offers no TLS, and ADR 0067 § 3's VerifyFull has no spelling for connecting \
+            "the server offers no TLS, and `rule:core-classes/db-capabilities`'s VerifyFull has no spelling for connecting \
              without it: configure `ssl = on` on the server",
         )),
         b'E' => Err(io::Error::new(
@@ -893,7 +892,7 @@ fn authenticate<S: Read + Write>(
         [
             ("user", target.user),
             ("database", target.database),
-            // ADR 0067 § 3's third default: text columns arrive as valid UTF-8
+            // `rule:core-classes/db-capabilities`'s third default: text columns arrive as valid UTF-8
             // by construction rather than by inspection, which is what ADR
             // 0009's guarantee needs.
             ("client_encoding", "UTF8"),
@@ -1123,7 +1122,7 @@ pub(crate) fn kind_of(code: &str) -> DbErrorKind {
 ///
 /// PostgreSQL destroys the unnamed portal at the next `Sync`, so nothing
 /// accumulates on the server between calls and there is nothing to deallocate.
-/// The *statement* is named by [`StatementCache`] whenever ADR 0067 § 1's cache
+/// The *statement* is named by [`StatementCache`] whenever `rule:core-classes/db-one-api`'s cache
 /// is on, and this remains the spelling of the unnamed one — which is what a
 /// capacity of zero, and only that, still sends.
 const UNNAMED: &str = "";
@@ -1153,7 +1152,7 @@ pub struct PgColumn {
 /// One row, still in the bytes the wire framed it out of.
 ///
 /// No column has been parsed and none is copied: [`PgRow::column`] hands back a
-/// slice of the message body, which the row owns. ADR 0067 § 9's decoders are
+/// slice of the message body, which the row owns. `rule:core-classes/db-column-types`'s decoders are
 /// what read them, one column at a time, in whatever order the caller's target
 /// type asks for.
 pub struct PgRow {
@@ -1589,7 +1588,7 @@ impl PgScalar<'_> {
 /// SQL `NULL` — [`PgColumn::decode`]'s direction, reversed.
 ///
 /// **The rendering is here and the refusal is not.** Which Novis values may be
-/// bound at all is [ADR 0067](/docs/adr/0067-core-db.md) § 5's
+/// bound at all is `rule:core-classes/db-parameters`'s
 /// question and `nvs-stdlib`'s to word, because that is where the call's own
 /// spelling is known; what a driver owns is the octets each accepted one
 /// becomes, and those differ per backend even where the Novis type does not.
@@ -2398,7 +2397,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
 /// A statement's read state: what the portal described, what ended it, and the
 /// event it is being timed by — everything a row needs that is not the wire.
 ///
-/// It is a type of its own because ADR 0067 § 4's rows are reached two ways and
+/// It is a type of its own because `rule:core-classes/db-statement-members`'s rows are reached two ways and
 /// only one of them can hold a borrow:
 ///
 /// - The **buffered** members drain their rows inside the call that started the
@@ -2408,7 +2407,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
 ///   advanced by a *later* call, with nothing of the connection borrowed in
 ///   between. A borrow cannot span that, so its copy of this state is parked on
 ///   the connection ([`PgConn::stream`]) and [`State::Streaming`] is what
-///   refuses the second statement instead — the same refusal ADR 0132 § 4 gives
+///   refuses the second statement instead — the same refusal `rule:core-classes/db-connection-busy-state` gives
 ///   every driver, read off the state rather than off a lifetime.
 ///
 /// Both drive [`next_row_of`], which is the one place in this driver a
@@ -2428,7 +2427,7 @@ pub(crate) struct PgCursor {
 /// A statement's result stream, and the connection it is borrowed from.
 ///
 /// Alive, this is [`State::Streaming`]: the wire holds messages belonging to
-/// this statement, and ADR 0067 § 4 refuses a second one. Drained by
+/// this statement, and `rule:core-classes/db-statement-members` refuses a second one. Drained by
 /// [`PgRows::next_row`] or dropped, it is [`State::Idle`] again — the module doc
 /// owns why abandonment is ordinary here rather than poison.
 ///
@@ -2677,7 +2676,7 @@ impl<S: Read + Write> Drop for PgRows<'_, S> {
     ///
     /// The `Sync` went out with the statement, so the `ReadyForQuery` that ends
     /// it is coming whether or not anybody read the rows in between: draining
-    /// to it is deterministic, and ADR 0132 § 4 is explicit that a driver which
+    /// to it is deterministic, and `rule:core-classes/db-connection-busy-state` is explicit that a driver which
     /// can do that returns the connection to the pool instead of closing it.
     /// A read that fails on the way poisons it, through the same helper every
     /// other read here uses.
@@ -2688,14 +2687,14 @@ impl<S: Read + Write> Drop for PgRows<'_, S> {
     }
 }
 
-/// Writes ADR 0067 § 1's one round trip and reads up to the first row.
+/// Writes `rule:core-classes/db-one-api`'s one round trip and reads up to the first row.
 ///
 /// `Parse`, `Bind`, `Describe`, `Execute` and `Sync` go into one buffer and out
 /// in one flush, and this returns once the portal has described itself — which
 /// is the point rows may start arriving and [`State::Streaming`] is true.
 ///
 /// `cache` is what decides whether the `Parse` is in that buffer at all. On a
-/// hit it is not — the round trip ADR 0067 § 1 says PostgreSQL already does not
+/// hit it is not — the round trip `rule:core-classes/db-one-api` says PostgreSQL already does not
 /// pay — and the batch opens at `Bind` against a name the server is already
 /// holding. On a miss that had to evict, the victim's `Close` rides in the
 /// *same* buffer: the batch's own `Sync` is what bounds it, so deallocating a
@@ -2727,7 +2726,7 @@ fn open_portal<S: Read + Write>(
     // `crate::span`'s module doc owns why that is a signature and not a rule.
     let span = QuerySpan::opened(Driver::Postgres, sql);
 
-    // The arity is the parameter count, which ADR 0067 § 5's `inList` expansion
+    // The arity is the parameter count, which `rule:core-classes/db-parameters`'s `inList` expansion
     // has already moved by the time the SQL reaches here.
     let arity = params.len();
     let prepared = cache.prepare(sql, arity);
@@ -2832,7 +2831,7 @@ fn open_portal<S: Read + Write>(
 }
 
 /// [`open_portal`] with the read state lent out beside a borrow of the
-/// connection: the shape every buffered member of ADR 0067 § 4 wants, and the
+/// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants, and the
 /// one `Core\Db\Connection::stream` is the single caller that cannot use.
 ///
 /// # Errors
@@ -2853,7 +2852,7 @@ fn start_statement<'a, S: Read + Write>(
     })
 }
 
-/// ADR 0067 § 4's `executeMany`: one `Parse`, N `Bind`/`Execute` pairs, and the
+/// `rule:core-classes/db-statement-members`'s `executeMany`: one `Parse`, N `Bind`/`Execute` pairs, and the
 /// affected counts summed.
 ///
 /// All of it goes out in **one flush**, which is the whole reason § 4 has a
@@ -2916,7 +2915,7 @@ fn execute_many<S: Read + Write>(
             io::ErrorKind::InvalidInput,
             format!(
                 "one executeMany bound {arity} parameters in its first set and {} in another, and \
-                 ADR 0067 § 4's one prepare has one parameter count",
+                 `rule:core-classes/db-statement-members`'s one prepare has one parameter count",
                 odd.len()
             ),
         ));
@@ -3410,7 +3409,7 @@ fn simple_command<S: Read + Write>(
 ///
 /// Every read in the extended-query path goes through this, because the rule is
 /// one rule: a message that did not arrive leaves no boundary to resume from,
-/// and ADR 0132 § 4 closes such a connection rather than resetting it.
+/// and `rule:core-classes/db-connection-busy-state` closes such a connection rather than resetting it.
 ///
 /// # Errors
 ///
@@ -3465,7 +3464,7 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
     Ok(columns)
 }
 
-/// ADR 0067 § 4's refusal of a second statement, and the one place its wording
+/// `rule:core-classes/db-statement-members`'s refusal of a second statement, and the one place its wording
 /// lives.
 ///
 /// **It names both fixes, always**, because § 4 requires the refusal to: the
@@ -3488,7 +3487,7 @@ pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(
-            "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows one at \
+            "a statement was written to a connection that is {:?}, and `rule:core-classes/db-statement-members` allows one at \
              a time: read the first statement's rows into memory (`->all()`), or open a \
              `{{shared: false}}` connection so this statement has one of its own",
             state.get()
@@ -3981,7 +3980,7 @@ mod tests {
         assert_eq!(peer.sent, vec![vec![0, 0, 0, 8, 0x04, 0xd2, 0x16, 0x2f]]);
     }
 
-    /// The refusal ADR 0067 § 3 is written for: a server with no TLS is not
+    /// The refusal `rule:core-classes/db-capabilities` is written for: a server with no TLS is not
     /// silently used in the clear, which is what `sslmode=prefer` does.
     #[test]
     fn a_server_that_offers_no_tls_is_refused_rather_than_used_in_the_clear() {
@@ -4063,7 +4062,7 @@ mod tests {
         pairs
     }
 
-    /// ADR 0067 § 9's "connection charset forces UTF-8", which is two claims
+    /// `rule:core-classes/db-column-types`'s "connection charset forces UTF-8", which is two claims
     /// and needs both: the connection asks for UTF-8 before it can be sent
     /// anything, and a text body is checked anyway.
     ///
@@ -4365,7 +4364,7 @@ mod tests {
         out
     }
 
-    /// ADR 0067 § 1's cache on the wire: the round trip PostgreSQL stops paying
+    /// `rule:core-classes/db-one-api`'s cache on the wire: the round trip PostgreSQL stops paying
     /// on the second execution is the `Parse` that is no longer in the batch.
     #[test]
     fn a_cached_statement_is_parsed_once_and_bound_by_name_after() {
@@ -4474,7 +4473,7 @@ mod tests {
     /// portal unnamed, which is the order the message carries the two in.
     ///
     /// Naming them the other way round binds the unnamed statement, which is
-    /// parsed only when the cache is disabled — so with ADR 0067 § 1's default
+    /// parsed only when the cache is disabled — so with `rule:core-classes/db-one-api`'s default
     /// capacity every connection's first statement draws SQLSTATE 26000, while
     /// every test on [`no_cache`] passes.
     #[test]
@@ -4557,7 +4556,7 @@ mod tests {
         found
     }
 
-    /// ADR 0067 § 1's "emulated prepares do not exist in any form", asserted
+    /// `rule:core-classes/db-one-api`'s "emulated prepares do not exist in any form", asserted
     /// over **every** way a value reaches the wire rather than one path at a
     /// time: a path added later fails here without anyone remembering to come
     /// back, which is the whole point of sweeping.
@@ -4704,7 +4703,7 @@ mod tests {
         assert_eq!(state.get(), State::Idle);
     }
 
-    /// ADR 0067 § 1's "PostgreSQL's extended protocol pays nothing extra",
+    /// `rule:core-classes/db-one-api`'s "PostgreSQL's extended protocol pays nothing extra",
     /// asserted as bytes: all five messages go out in **one** flush, so there is
     /// no prepare round trip to save. Asserted by walking the length prefixes
     /// because every tag letter also occurs inside the SQL.
@@ -4753,7 +4752,7 @@ mod tests {
         out
     }
 
-    /// ADR 0067 § 4's fourth row on the wire: **one** `Parse` for N executions,
+    /// `rule:core-classes/db-statement-members`'s fourth row on the wire: **one** `Parse` for N executions,
     /// all of it in one flush, and the counts summed. The `Sync` per execution
     /// is the section's "no transaction of its own" — one for the whole batch
     /// would make a failure at the last set roll back every set before it.
@@ -4861,10 +4860,10 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
-    /// The four values of ADR 0132 § 4, walked by one statement: `Idle` before,
+    /// The four values of `rule:core-classes/db-connection-busy-state`, walked by one statement: `Idle` before,
     /// `Streaming` while rows are unread, and `Idle` again once the
     /// `ReadyForQuery` the `Sync` guaranteed has been read. A `NULL` column is
-    /// `None` and not an empty slice — the distinction ADR 0067 § 9 maps to
+    /// `None` and not an empty slice — the distinction `rule:core-classes/db-column-types` maps to
     /// `?T`.
     #[test]
     fn rows_stream_until_command_complete_and_the_connection_returns_to_idle() {
@@ -5054,7 +5053,7 @@ mod tests {
         }
     }
 
-    /// ADR 0067 § 4's one member that does not buffer, asserted as a **memory
+    /// `rule:core-classes/db-statement-members`'s one member that does not buffer, asserted as a **memory
     /// bound** rather than as a row count.
     ///
     /// A row count is what a buffering driver passes: it hands back every row,
@@ -5125,7 +5124,7 @@ mod tests {
         );
     }
 
-    /// ADR 0067 § 4's refusal, and the half of it that matters is that
+    /// `rule:core-classes/db-statement-members`'s refusal, and the half of it that matters is that
     /// **nothing reaches the wire**: writing a second statement over an
     /// unfinished one is the shape § 4 exists to prevent, not merely one it
     /// reports.
@@ -5144,7 +5143,7 @@ mod tests {
         }
     }
 
-    /// ADR 0067 § 4's refusal is a **`LogicError`** — a mistake in the program
+    /// `rule:core-classes/db-statement-members`'s refusal is a **`LogicError`** — a mistake in the program
     /// rather than a failure of the connection — and this is the half of that
     /// the driver decides.
     ///
@@ -5268,7 +5267,7 @@ mod tests {
         }
     }
 
-    /// ADR 0132 § 4's per-driver call, in PostgreSQL's favour: a caller that
+    /// `rule:core-classes/db-connection-busy-state`'s per-driver call, in PostgreSQL's favour: a caller that
     /// stops reading leaves the connection `Idle` and poolable, because the
     /// `Sync` that ends the statement was already on the wire before the first
     /// row arrived.
@@ -6404,7 +6403,7 @@ mod tests {
         )
     }
 
-    /// ADR 0067 § 9's scalar rows, PostgreSQL's half of them: the whole table
+    /// `rule:core-classes/db-column-types`'s scalar rows, PostgreSQL's half of them: the whole table
     /// asserted a row at a time, including the rows that reach it by *not*
     /// being in the OID list — 25 is `text` and 114 is `json`, and both arrive
     /// at the last row's `tainted string` along with every type this driver
@@ -6850,7 +6849,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0067](/docs/adr/0067-core-db.md)'s § *Context* defect,
+    /// `rule:core-classes/db-one-api`'s § *Context* defect,
     /// pinned: **no column § 9 gives a number decodes to a string**, whatever
     /// the value.
     ///

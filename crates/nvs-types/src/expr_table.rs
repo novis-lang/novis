@@ -660,8 +660,7 @@ pub enum ExprInfo {
     SecretEquality,
     /// `$a + $b` over two sink carriers of the same kind, keyed by the `+`
     /// expression's own span —
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's `Markup + Markup` and
+    /// `rule:core-classes/html-auto-escape`'s `Markup + Markup` and
     /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
     /// `Text + Text`, which [`crate::expr::operators`] admits as one rule.
     ///
@@ -1077,7 +1076,7 @@ impl ExprTypeTable {
         self.methods.get(&span).map(String::as_str)
     }
 
-    /// Records the class labelled `label` as carrying ADR 0071's derive
+    /// Records the class labelled `label` as carrying `rule:core-classes/derive-attribute`'s derive
     /// attribute for `format`, with the field list [`crate::derive`] read off
     /// its declaration.
     ///
@@ -1341,7 +1340,7 @@ impl ExprTypeTable {
         self.require_targets.insert(span, target);
     }
 
-    /// Records which of ADR 0056's two engines the literal pattern at `span`
+    /// Records which of `rule:core-classes/regex-two-tiers`'s two engines the literal pattern at `span`
     /// compiles on — [`crate::intrinsics`]'s fold settling § 3's second
     /// effect while checking, rather than leaving the first call to discover
     /// it.

@@ -45,8 +45,7 @@ impl QueryWatch {
     /// The same, for a caller that holds the block's *name* rather than the
     /// `Value` § 2's `Connection` carries it as.
     ///
-    /// [`crate::queue`] is that caller: its connection is named by ADR 0084
-    /// § 2's `[queue] connection` and reached by key, so there is no `Value` to
+    /// [`crate::queue`] is that caller: its connection is named by `rule:core-classes/queue-storage-is-a-table`'s `[queue] connection` and reached by key, so there is no `Value` to
     /// read a name out of. `None` is § 2's unnamed `open` and means the same
     /// thing here as there — nothing to look a threshold up under.
     pub(crate) fn named(ctx: &nvs_runtime::Ctx, block: Option<&str>) -> QueryWatch {
@@ -147,7 +146,7 @@ pub(super) fn file_span(
 ///
 /// `nvs_db::QuerySpan::name` owns why the driver cannot do this itself. The
 /// block is the `Statement`'s own, so a `connect`'d connection names itself and
-/// ADR 0067 § 2's unnamed `open` — which has no block at all — leaves the field
+/// `rule:core-classes/db-connection-is-named`'s unnamed `open` — which has no block at all — leaves the field
 /// empty rather than carrying a made-up name.
 ///
 /// It takes the name and not the `Value`, so [`crate::queue`]'s statements —

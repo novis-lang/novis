@@ -1,5 +1,5 @@
 --TEST--
-`rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the closure's own return cannot leave the transaction committed — ADR 0067 § 7
+`rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the closure's own return cannot leave the transaction committed — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // SQLite runs this for real, so the `BEGIN` and the `ROLLBACK` below are really

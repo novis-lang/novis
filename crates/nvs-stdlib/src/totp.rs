@@ -74,7 +74,7 @@
 //! that needs base32, which belongs in `Core\Encoding` beside the other
 //! `bytes`↔`string` conversions and is not here. And it does not decide what a
 //! failed code costs — rate limiting a second factor is `Core\RateLimit`'s
-//! ([ADR 0075](/docs/adr/0075-core-ratelimit.md)), because only the
+//! (`rule:core-classes/ratelimit-two-members`), because only the
 //! application knows whether six wrong codes is a typo or an attack.
 //!
 //! # Constant time

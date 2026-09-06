@@ -18,7 +18,7 @@ single jump in the program, and that is not incidental: it is the measure of the
 ## Stage 0 — the catch-up, and it is the regex tiering
 
 1. **The regex engine is two-tier, and the tiering is a rule.**
-   [ADR 0056](../../adr/0056-regex-engine-policy.md): a linear-time engine by default, backtracking only
+   `rule:core-classes/regex-two-tiers`: a linear-time engine by default, backtracking only
    for patterns it cannot express and only under a **throwing step budget**, with a literal pattern's tier
    settled at compile time and the *pattern* argument refusing `tainted`. Goal 1 shipped `Core\Regex`
    against one engine and folded its literal patterns; this changes what an existing pattern *does*, so it
@@ -44,7 +44,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    structurally cannot make, because normalising a path says nothing about where it ended up. A `tainted`
    path becomes trusted here or nowhere.
 5. **`Core\IO::writeStream` is where a stream reaches disk** —
-   [ADR 0105](../../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4. Any
+   `rule:core-classes/io-write-stream`. Any
    `Iterable<bytes>` to a file in one member; `overwrite` defaults to `false`; **a write that fails
    mid-stream removes the partial file.** Goal 6's uploads are its second caller and this is where it is
    built.
@@ -68,7 +68,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 ## Stage 3 — processes and the terminal
 
-8. **`Core\Process`**, per [ADR 0044](../../adr/0044-core-process-argv-only-no-shell.md): `run()`/`spawn()`,
+8. **`Core\Process`**, per `rule:core-classes/process-is-argv-only`: `run()`/`spawn()`,
    **argv-only with no shell-string form at all**, a Windows batch/PowerShell-target refusal, coroutine-
    suspending waits behind the `process.exec` gate. A tainted `$path` or `$argv` element is a compile-time
    diagnostic. The suspending wait is goal 2's blocking pool — a child process has no readiness to wait on.
@@ -135,7 +135,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     store over the network, Redis by default, gated by `net.connect`. **Two methods and not one API with a
     flag**, so the choice is visible in review. Values cross by the graph copy goal 2 built — not a third
     mechanism.
-20. **`Core\RateLimit`.** [ADR 0075](../../adr/0075-core-ratelimit.md): GCRA over the shared store as
+20. **`Core\RateLimit`.** `rule:core-classes/ratelimit-two-members`: GCRA over the shared store as
     `consume`, per-core and approximate as `shed`, **no configuration at all**, and an unreachable store
     **throwing rather than deciding *allowed***. `governor` is the `shed` tier essentially unchanged; the
     shared tier's atomic script is ours, and § 6 says why no crate exists for it.
@@ -307,7 +307,7 @@ there by the switch that left it and folded forward at every switch since.
   `consume` declare `net.connect`, which is what makes the two classes capability-bearing at all. `rule:testing/capability-closure-test` is the home of why this is a row rather than an entry on an allowlist.
 - **A verified signature does not launder.** ADR 0060 § 5. This one is stated here because it reads like
   an oversight and is a decision.
-- **An unreachable store throws; it never decides *allowed*.** ADR 0075 § 5. The failure mode is the
+- **An unreachable store throws; it never decides *allowed*.** `rule:core-classes/ratelimit-unreachable-store-throws`. The failure mode is the
   application's to choose, in the file that knows whether the limit is a quota or a lock.
 - **Two writers that agree today is the bug.** `Core\Log` and the engine floor are one serialiser reached
   twice, exactly as goal 2's graph copy is one walk reached twice.

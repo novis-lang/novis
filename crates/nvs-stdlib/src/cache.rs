@@ -63,7 +63,7 @@
 //!
 //! The door is [`open_configured`] rather than the member, because it has a
 //! second caller: `Core\RateLimit::consume` limits over the same store — a
-//! deployment has one — and ADR 0075 §§ 1 and 5 both write that member standing
+//! deployment has one — and `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` both write that member standing
 //! alone, so it opens the store itself instead of requiring `shared()` to have
 //! been called first. Both callers ask for the same grant at the same host and
 //! reuse the same per-core socket; what differs is the sentence each appends to
@@ -683,7 +683,7 @@ fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(
 /// not one this client reads, or when `net.connect` does not cover its host —
 /// each a deployment that has not been configured rather than the world saying
 /// no. A thrown `IOError` for a store that is configured and cannot be reached,
-/// which is the class ADR 0075 § 5's fail-open `catch` holds.
+/// which is the class `rule:core-classes/ratelimit-unreachable-store-throws`'s fail-open `catch` holds.
 pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(), Fault> {
     let Some(url) = configured(ctx, URL) else {
         return Err(Fault::thrown(format!(
@@ -711,7 +711,7 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
 ///
 /// A thrown `IOError` for a store this core never opened, for one that cannot
 /// be reached, and for one that refuses the command. Never an answer that looks
-/// like absence: ADR 0075 § 5's standing rule is that an unreachable store
+/// like absence: `rule:core-classes/ratelimit-unreachable-store-throws`'s standing rule is that an unreachable store
 /// throws, because the failure mode belongs to the application that knows
 /// whether the entry was a cache or a lock.
 pub(crate) fn on_shared<T>(

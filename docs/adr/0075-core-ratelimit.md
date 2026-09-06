@@ -1,4 +1,4 @@
-# ADR 0075 — `Core\RateLimit`: limit what only the application knows, and name the weak tier differently
+# `rule:core-classes/ratelimit-two-members` — `Core\RateLimit`: limit what only the application knows, and name the weak tier differently
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

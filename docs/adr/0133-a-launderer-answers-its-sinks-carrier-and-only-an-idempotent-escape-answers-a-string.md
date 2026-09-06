@@ -31,7 +31,7 @@
 
 ## Context
 
-- [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5 makes HTML the one sink that launders *for*
+- `rule:core-classes/html-auto-escape` makes HTML the one sink that launders *for*
   you: `echo` under an HTTP request accepts only `Core\Html\Markup`, and every non-`Markup` interpolation is
   escaped and lifted with no call in the source. § 3, written for the sinks that refuse rather than
   transform, makes `Core\Html::escape` answer a plain `string`.
@@ -136,7 +136,7 @@ and which this is not.
 ### 4. `Core\Html::sanitize` answers `Markup`
 
 [ADR 0051 § 3](0051-standard-library-tiers.md) owes `Core\Html` a sanitizer and
-[ADR 0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s tree is what it waits
+`rule:core-classes/html-parsing`'s tree is what it waits
 on. Its return type is fixed here rather than there, while it costs a sentence: it answers
 `Core\Html\Markup`.
 

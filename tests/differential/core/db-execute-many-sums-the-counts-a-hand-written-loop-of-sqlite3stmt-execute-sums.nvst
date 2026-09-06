@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::executeMany prepares once and runs one execution per set, summing the counts a hand-written SQLite3Stmt loop sums — and it is not a transaction, so a set that fails leaves the sets before it written — ADR 0067 §§ 1, 4
+Core\Db::executeMany prepares once and runs one execution per set, summing the counts a hand-written SQLite3Stmt loop sums — and it is not a transaction, so a set that fails leaves the sets before it written — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
 // § 4's batch is the member PHP has no name for: the twin is the loop every

@@ -1,5 +1,5 @@
 --TEST--
-Core\Ast::parse answers the parser's own edges and refuses what the compiler refuses — ADR 0019 § 3
+Core\Ast::parse answers the parser's own edges and refuses what the compiler refuses — `rule:core-classes/ast-is-inert`
 --FILE--
 <?nvs
 // The text always starts in HTML mode, exactly as a compiled file does, so

@@ -179,7 +179,7 @@ code action. A duration unit and an open tag can be nothing else, which is why t
 The only reordering in this ADR is § 6's `use` block. Methods, properties, class constants and enum cases
 keep the order their author wrote, and no "group by visibility, constants before properties before methods"
 rule is adopted — **because declaration order is observable in Novis, so reordering would change what a
-program prints and sends.** [ADR 0071](0071-derived-codecs.md) § 2 makes a derived codec's encode order the
+program prints and sends.** `rule:core-classes/derive-field-list` makes a derived codec's encode order the
 property declaration order, on purpose and for ETags and cached fixtures;
 `rule:testing/bench-counters` makes the test runner's report order the declaration
 order of the cases. PER has no member-ordering rule to defer to in any case — the convention people
@@ -233,7 +233,7 @@ diff-visible code action; it is not something a formatter does on save.
   semantically identical files would still differ byte-for-byte after formatting, which undercuts the
   entire point of having one canonical formatter.
 - **Canonical class-member ordering**, PHP-CS-Fixer's `ordered_class_elements` or similar. Rejected in
-  § 11, on evidence rather than taste: [ADR 0071](0071-derived-codecs.md) § 2 makes property declaration
+  § 11, on evidence rather than taste: `rule:core-classes/derive-field-list` makes property declaration
   order the encode order of a derived codec, and `rule:testing/bench-counters`
   makes it the test report order, so a formatter that reordered members would change a program's output
   bytes. [ADR 0094](0094-visibility-is-written-at-every-member-declaration.md) § 5 already settled the

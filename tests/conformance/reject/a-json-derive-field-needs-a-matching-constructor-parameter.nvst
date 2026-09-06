@@ -1,5 +1,5 @@
 --TEST--
-a `#[Json\Derive]` field must be a constructor parameter of the same name and the same type, because a decode is an ordinary `new` — ADR 0071 § 2
+a `#[Json\Derive]` field must be a constructor parameter of the same name and the same type, because a decode is an ordinary `new` — `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

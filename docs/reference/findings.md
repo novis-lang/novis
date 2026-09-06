@@ -232,17 +232,17 @@ in that goal. An item's owner is the row it sits in.
       integer behind it — so the decode is a membership test producing that integer, and a case
       name on the wire is refused exactly as any other non-case is. `nvs-codegen` resolves a class
       label to a descriptor once every class of the unit is defined, and `nvs_stdlib::json`'s
-      `decode_nested`/`decode_list`/`scalar` report under ADR 0071 § 5's dotted path —
+      `decode_nested`/`decode_list`/`scalar` report under `rule:core-classes/derive-reports-every-field`'s dotted path —
       `address.city`, `tags.3`, `authors.0.name`, `seen.2`.
       *ref-attr `derive-array-and-enum-field`, `derive-decode-nested-and-float`*
 - [x] **D8** A promoted constructor parameter is not a `#[Json\Derive]` field — a class with only
-      promoted state is refused E0758; ADR 0071 § 1's own example uses promotion. `nvs_types::derive`
+      promoted state is refused E0758; `rule:core-classes/derive-attribute`'s own example uses promotion. `nvs_types::derive`
       now reads both spellings of a declaration through one view, in the members' own order;
       `crate::layout` had given a promoted parameter a slot for some time and only its module doc
       still said otherwise. *`derive-promoted-ctor`*
 - [x] **D9** Private properties are JSON fields under `#[Json\Derive]` (`{"name":"a","n":1}` for a
       `private int $n`). *`derive-private-property`*
-      Correct, and decided in writing: ADR 0071 § 2's first bullet says the field list is the declared
+      Correct, and decided in writing: `rule:core-classes/derive-field-list`'s first bullet says the field list is the declared
       property list, "private ones included", because visibility answers who may *reach* a value and a
       wire format is not that question. The refusal this finding wondered about is the failure it would
       cause, not prevent — a codec that dropped a field the day it gained a `private` changes a document
@@ -254,7 +254,7 @@ in that goal. An item's owner is the row it sits in.
       one place already — `docs/reference/lang/90-attributes.md`'s `#[Core\Json\Derive]` section, whose
       field bullet reads "whatever their visibility" — and `docs/reference/core/Json.md` now names it on
       the `decodeAs<T>` sentence a caller actually reads first, where the same page had also outlived
-      ADR 0071 § 1's `array<U>` top level. *`json-derive-encodes-declared-fields`*
+      `rule:core-classes/derive-attribute`'s `array<U>` top level. *`json-derive-encodes-declared-fields`*
 - [x] **D10** `#[Api]` fields `tags`, `security`, `errors`, `example` are checked but absent from the
       `nvs build --openapi` document. *ref-probe/api2*
       A `nvs_types::Route` carries all four: `check_api` hands back what each of its four walks
@@ -270,7 +270,7 @@ in that goal. An item's owner is the row it sits in.
 - [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
       `Core\Script` is a registered class now and `args()` is its one row. It answers `mixed` rather
-      than ADR 0012 § 6's original `array<mixed>` — `args:` narrows nothing at the call site — and
+      than `rule:core-classes/script-args`'s original `array<mixed>` — `args:` narrows nothing at the call site — and
       `null` rather than an empty array for a child spawned without the option; § 6 states both, and
       `nvs_stdlib::script`'s module doc owns why.
 - [x] **D13** `spawn script` default `output` is `'capture'`, not inherit. *refp/spawn/main.nvs*
@@ -399,7 +399,7 @@ in that goal. An item's owner is the row it sits in.
 - [x] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
       and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.
-- [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("ADR 0056's two engines",
+- [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("`rule:core-classes/regex-two-tiers`'s two engines",
       "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `tools/reference.py`
       strips the parenthesised form `(`rule:classes/comparable`)`; the inline ones need rewording in the cards.
 

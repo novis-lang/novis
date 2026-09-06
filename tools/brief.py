@@ -475,7 +475,7 @@ LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
 
 def rootward(text):
-    """`[ADR 0056](0056-regex-engine-policy.md)` -> `ADR 0056 (docs/adr/0056-...)`. The table
+    """``rule:core-classes/regex-two-tiers`` -> ``rule:core-classes/regex-two-tiers` (docs/adr/0056-...)`. The table
     lives in docs/adr/, so its link targets are relative to that; a reader of this output is at
     the repository root and wants a path they can open."""
 

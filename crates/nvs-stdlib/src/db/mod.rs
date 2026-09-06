@@ -1,7 +1,7 @@
 //! `Core\Db` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 18's entry points, over [`nvs_db`]'s wire half.
 //!
-//! [ADR 0067](/docs/adr/0067-core-db.md) is authoritative for every
+//! `rule:core-classes/db-one-api` is authoritative for every
 //! semantic and § 18 for every signature. What belongs here is the two
 //! decisions this side of the boundary owns: what an `InList` *is* once it is a
 //! value a program holds, and what `quoteIdentifier` can honestly promise from
@@ -9,7 +9,7 @@
 //!
 //! # `inList` is a carrier, and the expansion stays on the wire
 //!
-//! ADR 0067 § 5 makes `Core\Db::inList($values)` the explicit marker that a
+//! `rule:core-classes/db-parameters` makes `Core\Db::inList($values)` the explicit marker that a
 //! bound parameter expands into a parenthesised run of placeholders, because
 //! automatic expansion would make the *SQL text* depend on a runtime value's
 //! type. The marker has to survive as a value from the call that builds it to
@@ -63,7 +63,7 @@
 //!
 //! # A statement's `timeout` is a deadline on the socket
 //!
-//! [ADR 0067](/docs/adr/0067-core-db.md) § 4 gives `query`, `queryAs`,
+//! `rule:core-classes/db-statement-members` gives `query`, `queryAs`,
 //! `execute`, `executeMany` and `stream` a `{timeout?: Duration}`, and says
 //! nothing about what bounds it. There were two candidates and this module is
 //! where the choice is recorded, because it is a property of the implementation
@@ -104,7 +104,7 @@
 //!   § 13's reset, which is the one exchange no program's clock may bound.
 //! - **A statement that runs out of time throws `IOError` and spends the
 //!   connection.** It was given up on part way through a message, so the wire is
-//!   poisoned by ADR 0132 § 4's own rule and the connection does not rejoin the
+//!   poisoned by `rule:core-classes/db-connection-busy-state`'s own rule and the connection does not rejoin the
 //!   pool. That is the honest cost of the bound and the reference cards say so.
 //! - **On `stream` the deadline bounds the walk**, not the call that opens it:
 //!   it stays filed while the portal is open, so it covers every `advance()` up
@@ -141,7 +141,7 @@
 //! 2. **Five drivers open, and everything past the handshake follows on every
 //!    one of them.**
 //!    `connect`
-//!    branches on the block's `driver` — ADR 0067 § 2 — so a `postgres` block,
+//!    branches on the block's `driver` — `rule:core-classes/db-connection-is-named` — so a `postgres` block,
 //!    a `mysql` block, a `mariadb` block and an `mssql` one each reach their own
 //!    target, their own default port and their own `nvs_db::Connection`
 //!    variant, and `open` branches the same ways on the settings hash's own
@@ -277,7 +277,7 @@
 //!    are refused per row instead. Both bands the checker would take a code
 //!    from (`E04xx`, `E07xx`) are full, so they are the helper's until a band
 //!    is opened. Two smaller ones ride with them: a constructor parameter no
-//!    codec field fills is a fatal rather than ADR 0071 § 3's default, for
+//!    codec field fills is a fatal rather than `rule:core-classes/derive-field-list`'s default, for
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
 //!    `ParseError` because `Db\DbError` has no `issues` slot to carry them —
 //!    gap 4's other half, spec § 10 giving it that property too.
@@ -371,7 +371,7 @@ pub(crate) const TRANSACTION_NAME: &str = r"Core\Db\Transaction";
 /// A [`TRANSACTION`]'s third slot: whether the `transaction()` call that built
 /// it is still running.
 ///
-/// ADR 0067 § 7's first hazard, and the reason a [`TRANSACTION`] carries state
+/// `rule:core-classes/db-transactions`'s first hazard, and the reason a [`TRANSACTION`] carries state
 /// at all — one is passable down a call stack, so a program can hold one past
 /// the call that owned it and every member has to say no.
 const SCOPE_SLOT: &str = "open";
@@ -443,7 +443,7 @@ const ROWS_COLUMNS_AT: usize = 2;
 pub(crate) const ROW_NAME: &str = r"Core\Db\Row";
 
 /// `Core\Db\Schema`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
-/// ADR 0145 § 1's value.
+/// `rule:core-classes/schema-is-a-value`'s value.
 pub(crate) const SCHEMA_NAME: &str = r"Core\Db\Schema";
 
 /// The one slot a [`SCHEMA`] holds: that schema's canonical array form,
@@ -455,7 +455,7 @@ const SCHEMA_ARRAY_SLOT: &str = "array";
 const SCHEMA_ARRAY_AT: usize = 0;
 
 /// `Core\Db\Plan`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
-/// ADR 0145 § 6's document, and what `planAgainst` answers.
+/// `rule:core-classes/schema-plan`'s document, and what `planAgainst` answers.
 pub(crate) const PLAN_NAME: &str = r"Core\Db\Plan";
 
 /// The one slot a [`PLAN`] holds: its steps, in the order they must run.
@@ -550,7 +550,7 @@ const AFFECTED_SLOT: &str = "affected";
 /// command whose tag carries no count at all.
 const CHANGED_SLOT: &str = "changed";
 
-/// Its third: ADR 0067 § 4's `lastId`, `null` for a statement that returned no
+/// Its third: `rule:core-classes/db-statement-members`'s `lastId`, `null` for a statement that returned no
 /// integer first column — which is every statement without a `RETURNING`
 /// clause.
 const LAST_ID_SLOT: &str = "lastId";

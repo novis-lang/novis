@@ -1,8 +1,8 @@
 --TEST--
-neither way of writing a command line reaches `Core\Process::run` — the whole shell string is one argument short of the signature and a packed argument list is not an `array<string>`, so nothing is escaped because there is nothing to escape into — ADR 0044 § 1
+neither way of writing a command line reaches `Core\Process::run` — the whole shell string is one argument short of the signature and a packed argument list is not an `array<string>`, so nothing is escaped because there is nothing to escape into — `rule:core-classes/process-run`
 --FILE--
 <?nvs
-// ADR 0044 § 1: there is no command-line form of this member anywhere in the
+// `rule:core-classes/process-run`: there is no command-line form of this member anywhere in the
 // surface, so both of the ways a port would reach for one are refused while
 // compiling rather than escaped at run time.
 

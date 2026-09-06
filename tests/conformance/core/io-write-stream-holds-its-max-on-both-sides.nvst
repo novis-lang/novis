@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::writeStream accepts a stream exactly as long as `max` and refuses the one a byte past it, and the refused write leaves nothing on disk — the bound named on both sides, and the partial-file rule asserted by the `exists` after the throw rather than by the throw itself — ADR 0105 § 4
+Core\IO::writeStream accepts a stream exactly as long as `max` and refuses the one a byte past it, and the refused write leaves nothing on disk — the bound named on both sides, and the partial-file rule asserted by the `exists` after the throw rather than by the throw itself — `rule:core-classes/io-write-stream`
 --FILE--
 <?nvs
 // The same twelve bytes twice, under two ceilings one apart. A member that
@@ -11,7 +11,7 @@ array<bytes> $chunks = ["aaaa" as bytes, "bbbb" as bytes, "cccc" as bytes];
 Core\IO::writeStream("fits.txt", $chunks, {max: 12});
 echo "fits: ", Core\IO::read("fits.txt"), "\n";
 
-// ADR 0105 § 4's second rule. Two of the three chunks had already reached the
+// `rule:core-classes/io-write-stream`'s second rule. Two of the three chunks had already reached the
 // file when the third passed the ceiling, so a member that only threw would
 // leave eight bytes behind that nothing ever wrote on purpose -- and the
 // `exists` is the only thing that can tell that apart from this one.

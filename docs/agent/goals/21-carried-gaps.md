@@ -66,12 +66,12 @@ Files: `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, the three `spec-*-ou
 
 One file set: `crates/nvs-config/src/capability.rs`, `crates/nvs-cli/src/main.rs`,
 `crates/nvs-types/src/check.rs` and `crates/nvs-types/src/intrinsics.rs`. Both items are
-[ADR 0067](../../adr/0067-core-db.md) § 3 and § 10, and both are *priority 1* — a capability that
+`rule:core-classes/db-capabilities` and § 10, and both are *priority 1* — a capability that
 silently does nothing is the failure mode the whole grant system exists to prevent.
 
 5. **`db.open`'s host grant learns the leading-label wildcard the ADR writes.**
    `crates/nvs-config/src/capability.rs:269`'s `host_granted` is
-   `entry.eq_ignore_ascii_case(host)` and nothing else, so ADR 0067 § 3's own worked configuration —
+   `entry.eq_ignore_ascii_case(host)` and nothing else, so `rule:core-classes/db-capabilities`'s own worked configuration —
    `db.open = ["*.tenants.internal"]`, line 116 of that ADR — matches no host at all. It fails
    *closed*, so this is a config an operator writes in good faith that denies everything, not a hole
    something gets through. The rule is in that stage's standing decisions below;
@@ -82,7 +82,7 @@ silently does nothing is the failure mode the whole grant system exists to preve
    `crates/nvs-cli/src/main.rs:623`'s `front_end` builds no `nvs_types::Env::grants`, so
    `run_check` at `:695` calls `check_program` with `None` and
    `crates/nvs-types/src/check.rs:108`'s `check_program_granted` — which is written, correct and
-   tested — has no caller outside `crates/nvs-types/tests/`. ADR 0067's *Verification* names
+   tested — has no caller outside `crates/nvs-types/tests/`. `rule:core-classes/db-one-api`'s *Verification* names
    "an `open` host matching no grant" as an **M8 `nvs check` acceptance item**, and M8's four goals
    have all been written without it. `crates/nvs-types/src/intrinsics.rs`'s known gap 6 is struck when
    it lands.
@@ -109,7 +109,7 @@ One file set: `crates/nvs-stdlib/src/db/`, `crates/nvs-db/src/`, `crates/nvs-con
 
 8. **`stream` and `streamAs` at constant memory, and the connection-busy `LogicError`.**
    Spec § 18's two remaining rows, the last two keys of stage 2's part-two list, and
-   [ADR 0067](../../adr/0067-core-db.md)'s own *Verification* names them in its per-driver M8 bullet:
+   `rule:core-classes/db-one-api`'s own *Verification* names them in its per-driver M8 bullet:
    "large-result streaming at constant memory, and the connection-busy `LogicError`". They answer an
    `Iterable<…>`, so `nvs_stdlib::cursor` and `nvs_stdlib::instance`'s dispatch roster are the shape,
    not a new one — `crates/nvs-stdlib/src/db/mod.rs`'s known gap 5 is the inventory.
@@ -163,7 +163,7 @@ One file set: `crates/nvs-server/src/schedule.rs`, `crates/nvs-stdlib/src/cache.
 One file set: `crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-types/`,
 `crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/db/`.
 
-14. **ADR 0133 § 3's `$reason` must be a source literal, refused where it is written.**
+14. **`rule:core-classes/html-to-source`'s `$reason` must be a source literal, refused where it is written.**
     `crates/nvs-stdlib/src/html.rs`'s known gap says the rule "waits on a decision about the band
     layout" because `E0499` and `E0799` are both full. That decision was taken: the `E08xx` band is
     open at `crates/nvs-diagnostics/src/lib.rs:2953` and holds one code, `E0801`. The blocker is
@@ -211,7 +211,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
 
 - **This goal opens no new ADR number.** It may fold an amendment into
   [ADR 0067](../../adr/0067-core-db.md) § 13 (item 10's pool bounds),
-  [ADR 0067](../../adr/0067-core-db.md) § 3 (item 5's wildcard, if the ADR's own wording needs
+  `rule:core-classes/db-capabilities` (item 5's wildcard, if the ADR's own wording needs
   sharpening to match what lands) and `docs/spec/01-core-library.md` § 12 (item 19), and no others.
   Everything else is decided-and-recorded in the module doc that already owns the gap.
 - **Item 5's wildcard rule, decided here.** A grant entry beginning `*.` matches a host whose name

@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::connect refuses a zero `timeout` before it asks `db.connect` anything, and `{shared: false}` opens nothing the grant does not already cover — ADR 0067 § 2, ADR 0074 § 5, ADR 0118 § 2
+Core\Db::connect refuses a zero `timeout` before it asks `db.connect` anything, and `{shared: false}` opens nothing the grant does not already cover — `rule:core-classes/db-connection-is-named`, ADR 0074 § 5, ADR 0118 § 2
 --FILE--
 <?nvs
 // Nothing is configured in this run, so `db.connect` grants nothing and every

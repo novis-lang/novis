@@ -1,9 +1,9 @@
 //! What a `[db.<name>]` block still owes once it has deserialized: the two paths that name a file,
-//! resolved — one of them trust-checked as well — and the two durations ADR 0067 states in prose —
+//! resolved — one of them trust-checked as well — and the two durations `rule:core-classes/db-one-api` states in prose —
 //! § 13's pool bounds and § 11's `slow_query` threshold — read into numbers. All of it at boot.
 //!
 //! The paths are [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
-//! ADR 0067 § 3's TLS leg verifies a server's certificate against, and
+//! `rule:core-classes/db-capabilities`'s TLS leg verifies a server's certificate against, and
 //! [`Database::path`](crate::tree::Database::path), the file a SQLite block opens. Both are here
 //! rather than in [`mod@crate::secret`] because neither is a secret: nothing about a CA bundle, or
 //! about a database file's *name*, is confidential, and § 7's whole shape — one value, materialized
@@ -30,7 +30,7 @@
 //! [`is_relative_file`] is and owns, three of SQLite's spellings not being paths.
 //!
 //! **A path a *program* supplies is not resolved here and is deliberately not resolved like this
-//! one.** `Db\Settings.path` reaches `Core\Db::open` as ADR 0067 § 3's path sink, needing
+//! one.** `Db\Settings.path` reaches `Core\Db::open` as `rule:core-classes/db-capabilities`'s path sink, needing
 //! `fs.read`/`fs.write`, and it stays relative to the process rather than to a configuration file
 //! the program never named — `nvs_stdlib::db`'s `sqlite_settings` is that half. The asymmetry is the
 //! same one § 3 draws about an address: what an operator wrote in root-owned configuration is

@@ -20,14 +20,14 @@ including the steps `apply` refuses.
 `crates/nvs-db/src/sql.rs:72`.
 
 - [ ] **The ADR, this goal's one slot and its first slice.** It closes
-      [ADR 0067](../../adr/0067-core-db.md)'s *Revisiting* item — *"a portable `Core\Db\Schema`, if
+      `rule:core-classes/db-one-api`'s *Revisiting* item — *"a portable `Core\Db\Schema`, if
       migration tooling in `nvs` itself needs it"* — takes over
-      [ADR 0084](../../adr/0084-durable-background-jobs.md) § 2's schema, and carries the placement
+      `rule:core-classes/queue-storage-is-a-table`'s schema, and carries the placement
       argument through [ADR 0051](../../adr/0051-standard-library-tiers.md) tests 2, 1 and 6. Take the
       number that is free when the slice starts.
 - [ ] **The vocabulary in a new `crates/nvs-db/src/schema.rs`** — table, columns, primary key, unique
       constraints, indexes, and the column-type enum that is
-      [ADR 0067](../../adr/0067-core-db.md) § 9's map in the write direction. The read direction is
+      `rule:core-classes/db-column-types`'s map in the write direction. The read direction is
       already on disk and tested, so the named test holding the two together is what keeps it one table
       used both ways.
 - [ ] **The array round-trip** — `fromArray(toArray(x)) == x` over every construct. It is the property

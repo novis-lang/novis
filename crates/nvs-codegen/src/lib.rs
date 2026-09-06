@@ -1091,7 +1091,7 @@ impl Classes {
         for class in classes {
             out.define(class, &by_label);
         }
-        // ADR 0071 § 2's nested field names a class that may be defined after
+        // `rule:core-classes/derive-field-list`'s nested field names a class that may be defined after
         // the one holding it — or be that same class, since § 2 makes
         // recursion the data's problem rather than the table's — so the codec
         // is joined only once every descriptor above exists.
@@ -1099,7 +1099,7 @@ impl Classes {
         out
     }
 
-    /// Fills in every class's ADR 0071 codecs — the JSON one and the row one
+    /// Fills in every class's `rule:core-classes/derive-attribute` codecs — the JSON one and the row one
     /// alike, each with its nested fields' descriptors resolved — the pass
     /// [`nvs_runtime::ClassTable::set_codec`]'s docs describe.
     ///

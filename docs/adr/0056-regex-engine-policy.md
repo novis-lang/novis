@@ -1,4 +1,4 @@
-# ADR 0056 — Regex runs on a linear-time engine by default; backtracking is opt-in and budgeted
+# `rule:core-classes/regex-two-tiers` — Regex runs on a linear-time engine by default; backtracking is opt-in and budgeted
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

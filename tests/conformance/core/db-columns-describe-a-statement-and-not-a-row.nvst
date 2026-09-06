@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Rows::columns` answers what the statement described, one `Core\Db\Column` per column, so a caller has its headings before it knows whether there are rows under them — ADR 0067 § 9, spec § 18
+`Core\Db\Rows::columns` answers what the statement described, one `Core\Db\Column` per column, so a caller has its headings before it knows whether there are rows under them — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 // Asserted as *types* rather than as values, as every case over `Core\Db` is:

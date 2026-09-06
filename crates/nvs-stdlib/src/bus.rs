@@ -1,5 +1,5 @@
 //! The hand-off between cores —
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 4's "a
+//! `rule:core-classes/topic`'s "a
 //! publish from a connection on core 3 reaches subscribers on core 0", as the
 //! one place the thread-per-core design is crossed on purpose.
 //!

@@ -133,7 +133,7 @@ pub struct Case {
     ///
     /// A line is an argument whatever it contains, so a space, a quote or a
     /// backslash in one needs no escaping and gets none: this format has no
-    /// shell, exactly as [ADR 0044](/docs/adr/0044-core-process-argv-only-no-shell.md)
+    /// shell, exactly as `rule:core-classes/process-is-argv-only`
     /// gives `Core\Process` none. Empty lines are dropped, which is what makes a
     /// section written with a blank line under the header the same as an absent
     /// one — and so an *empty* argument is the one thing this section cannot

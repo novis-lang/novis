@@ -272,7 +272,7 @@ pub(super) fn text_of(value: &[u8], marker: usize) -> io::Result<&str> {
             io::ErrorKind::InvalidInput,
             format!(
                 "the value bound at {} is not UTF-8, and this driver sends every parameter as \
-                 `nvarchar` — ADR 0067 § 9's `bytes` needs an encoding of its own here rather \
+                 `nvarchar` — `rule:core-classes/db-column-types`'s `bytes` needs an encoding of its own here rather \
                  than a reinterpretation of these bytes as UCS-2",
                 Dialect::SqlServer.marker(marker)
             ),

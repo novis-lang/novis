@@ -49,7 +49,7 @@ pub(super) fn isolation_of(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Queryable::transaction(callable $fn, {isolation?, readOnly?,
-    /// retries?}): T` — ADR 0067 § 7's whole shape, and the only way to open a
+    /// retries?}): T` — `rule:core-classes/db-transactions`'s whole shape, and the only way to open a
     /// transaction on this surface.
     ///
     /// **The closure form is what removes the failure mode**, which § 7 argues
@@ -535,7 +535,7 @@ pub(super) fn transacted(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db\Transaction::rollBack(string $reason): void` — ADR 0067 § 7's
+    /// `Core\Db\Transaction::rollBack(string $reason): void` — `rule:core-classes/db-transactions`'s
     /// second hazard, closed by doing both things at once.
     ///
     /// **The flag is what the owning frame acts on and the throw is what the
@@ -699,7 +699,7 @@ mod tests {
     use super::*;
     use nvs_runtime::{Ctx, OutputSink, call};
 
-    /// ADR 0067 § 7's two halves, and the second is the one a forwarding body
+    /// `rule:core-classes/db-transactions`'s two halves, and the second is the one a forwarding body
     /// would pass while still drifting.
     ///
     /// **A transaction is a closure**: [`TRANSACTION_ROW`] takes one
@@ -828,7 +828,7 @@ mod tests {
         );
     }
 
-    /// ADR 0067 § 7's second hazard, asserted at the seam where Doctrine's
+    /// `rule:core-classes/db-transactions`'s second hazard, asserted at the seam where Doctrine's
     /// `setRollbackOnly()` loses: the decision is on the receiver, so throwing
     /// it away does not undo it.
     ///
@@ -1058,7 +1058,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// ADR 0067 § 7's `{retries: n}`, at the seam that belongs to no driver: a
+    /// `rule:core-classes/db-transactions`'s `{retries: n}`, at the seam that belongs to no driver: a
     /// deadlock inside the closure re-runs it, and the second attempt's answer
     /// is the call's.
     ///
@@ -1179,7 +1179,7 @@ mod tests {
         discard(block);
     }
 
-    /// ADR 0067 § 7's backoff, asserted as bounds over the whole ladder rather
+    /// `rule:core-classes/db-transactions`'s backoff, asserted as bounds over the whole ladder rather
     /// than as numbers: the draw is random, so there is no value to name.
     ///
     /// **Both halves are asserted because either alone passes for the wrong

@@ -2255,7 +2255,7 @@ mod tests {
             return;
         };
         let mut snapshot = nvs_config::Snapshot::default();
-        // ADR 0067 § 3's grant, for the one name the fixture opens. `net.*` is
+        // `rule:core-classes/db-capabilities`'s grant, for the one name the fixture opens. `net.*` is
         // deliberately not granted beside it: a `[db.<name>]` endpoint is
         // operator-written and so is pre-approved against ADR 0058's denied
         // ranges (`nvs_config::tree::CapDb`), and a test that granted both could

@@ -3,11 +3,11 @@
 Goals 1–6 of [the plan](../../implementation-plan.md) are one continuous unattended run: **PHP core
 feature parity, all five SQL drivers, concurrency, governance and the server.** This directory holds it,
 cut into six goals, and [chain.toml](chain.toml) is the order the driver walks them in. A seventh,
-post-parity goal — [ADR 0131](../../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)'s
+post-parity goal — `rule:core-classes/temporary-dir-sweep`'s
 temporary-directory sweep — rides the same chain after the program's gate, because its server half needs
 the `nvs-server` goal 6 creates. An eighth, [`Core\Program::id()`](8-program-id.md), follows it: one
 member exposing the program fingerprint over hashes the artifact cache already computes. A ninth,
-[`Core\Db\Schema`](9-schema.md), closes [ADR 0067](../../adr/0067-core-db.md)'s own *Revisiting* item and
+[`Core\Db\Schema`](9-schema.md), closes `rule:core-classes/db-one-api`'s own *Revisiting* item and
 sits there because its acceptance property needs every driver goal 5 builds to be finished. A tenth,
 [a typed `callable`](10-typed-callable.md), follows it: `rule:types/callable-signature`
 gives the type a function value's parameters and return, and it goes after every goal that *writes*
@@ -144,7 +144,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [4 core-part-ii](4-core-part-ii.md) | M8, non-database | `nvs-stdlib`, `nvs-host` |
 | [5 database](5-database.md) | M8, database | **`nvs-db`** (new), `nvs-stdlib`, `nvs-types` |
 | [6 server](6-server.md) | M7 | **`nvs-server`** (new), `nvs-stdlib`, `nvs-host` |
-| [7 temp-sweep](7-temp-sweep.md) | post-parity, ADR 0131 | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
+| [7 temp-sweep](7-temp-sweep.md) | post-parity, `rule:core-classes/temporary-dir-sweep` | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
 | [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
@@ -158,12 +158,12 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
-| [21 carried-gaps](21-carried-gaps.md) | post-parity, ADR 0067/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
+| [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
 | [22 warm-start](22-warm-start.md) | post-parity, ADR 0042 | `nvs-codegen`, `nvs-cli`, `nvs-config` |
 | [23 per-core](23-per-core.md) | M7, one ADR slot + ADR 0097/0017 amendments | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
 | [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + ADR 0142 § 6's deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
-| [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + ADR 0122 § 4's fold | `nvs-stdlib`, `nvs-diagnostics` |
+| [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s fold | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | [29 signed-urls](29-signed-urls.md) | M8, ADR 0146 + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
@@ -246,12 +246,12 @@ TOML for a doubled floor before restarting.
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
   inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
-  the three APIs [ADR 0067](../../adr/0067-core-db.md) replaces are now inside the audit rather than a
+  the three APIs `rule:core-classes/db-one-api` replaces are now inside the audit rather than a
   named hole beside it. Goals 7 through 11 going green, in chain order, is then what ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**
-- **Goal 5's Docker preflight fails.** ADR 0067 verifies the drivers against real servers, so the driver
+- **Goal 5's Docker preflight fails.** `rule:core-classes/db-one-api` verifies the drivers against real servers, so the driver
   checks for a reachable daemon before the first session of that goal and stops the run naming it. A run
   that grinds for six hours against a check that cannot pass is worse than one that stops in the first
   minute.

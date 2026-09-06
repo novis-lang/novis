@@ -56,7 +56,7 @@
 //! Framing; the block that says which server to frame *to*, since [`TdsTarget`]
 //! reads a `[db.<name>]` block the way every other driver's target does; and
 //! the handshake as far as encryption — [`prelogin`] asks for it and
-//! [`negotiate_tls`] tunnels ADR 0067 § 3's TLS handshake inside PRELOGIN
+//! [`negotiate_tls`] tunnels `rule:core-classes/db-capabilities`'s TLS handshake inside PRELOGIN
 //! packets, after which the socket is an ordinary [`NvsTls`] stream carrying
 //! ordinary TDS packets; [`login7_request`], the credential-carrying message
 //! that rides that session and is the reason § 3's TLS is not optional here;
@@ -80,7 +80,7 @@
 //! [`batch_command`], the one path in this module that is text rather than an
 //! RPC, and [`begin`]'s own doc owns the two rules that are this dialect's
 //! alone — a session-scoped isolation level this driver has to put back, and no
-//! read-only transaction to offer at all. Every member ADR 0067 declares is
+//! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
 //! therefore reachable on this backend.
 //!
 //! # The one gap, and it is a bind rather than a read
@@ -221,13 +221,13 @@ pub const DEFAULT_PORT: u16 = 1433;
 pub struct TdsTarget<'a> {
     /// The name the server's certificate is checked against.
     pub host: &'a str,
-    /// The login to authenticate as. ADR 0067 § 3 accepts `tainted` here
+    /// The login to authenticate as. `rule:core-classes/db-capabilities` accepts `tainted` here
     /// freely: LOGIN7 carries it as a length-prefixed field, never as parsed
     /// text.
     pub user: &'a str,
     /// The password. On this protocol it goes out *as* a password rather than
     /// as a challenge response — obfuscated by LOGIN7's nibble swap, which is
-    /// not encryption — which is why ADR 0067 § 3's TLS is not optional here in
+    /// not encryption — which is why `rule:core-classes/db-capabilities`'s TLS is not optional here in
     /// the way it merely defaults elsewhere.
     pub password: &'a str,
     /// The database LOGIN7 selects.
@@ -240,7 +240,7 @@ pub struct TdsTarget<'a> {
     /// The PEM bundle whose anchors this server's certificate is verified
     /// against, or the compiled-in Mozilla set where the block names none.
     ///
-    /// Not a way to turn verification off — ADR 0067 § 3 has no spelling for
+    /// Not a way to turn verification off — `rule:core-classes/db-capabilities` has no spelling for
     /// that. What it changes is *whose* certificates are believed.
     pub tls_ca_file: Option<&'a Path>,
     /// The zone a `datetime2` or `datetime` off this connection is read in, as
@@ -339,7 +339,7 @@ impl<'a> TdsTarget<'a> {
 
 impl std::fmt::Debug for TdsTarget<'_> {
     /// Everything but the password, which is a `secret` at the language level
-    /// (ADR 0067 § 3) and is not printed in any rendering.
+    /// (`rule:core-classes/db-capabilities`) and is not printed in any rendering.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TdsTarget")
             .field("host", &self.host)
@@ -624,7 +624,7 @@ mod tests {
         );
     }
 
-    /// ADR 0067 § 2's discriminant, from this side of it.
+    /// `rule:core-classes/db-connection-is-named`'s discriminant, from this side of it.
     ///
     /// Every driver's resolver owes this case, and the reason it is not
     /// redundant with `crate::mysql`'s is the direction: what is asserted is

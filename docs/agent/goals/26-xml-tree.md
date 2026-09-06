@@ -2,7 +2,7 @@
 
 `Core\Xml` is one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor,
 and it is **the largest single unowned item in the repository** — because it is not free-standing.
-[ADR 0122](../../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) § 4 is
+`rule:core-classes/html-parsing` is
 titled *Unscheduled, and lands with `Core\Xml`*, and `crates/nvs-stdlib/src/html.rs`'s own *Known gaps*
 says `Core\Html::sanitize` and the WHATWG parser "both wait on that tree existing at all". Three gaps,
 one tree, one goal.
@@ -19,7 +19,7 @@ run that has to stop stops with the cheap two landed.
 
 1. **`crates/nvs-stdlib/src/html.rs`'s *Known gaps*** states the wait explicitly and is rewritten when
    the wait ends — not amended with an overlay.
-2. **ADR 0122 § 4 is the *Unscheduled* section**, and this entry existing is what makes it wrong. The
+2. **`rule:core-classes/html-parsing` is the *Unscheduled* section**, and this entry existing is what makes it wrong. The
    fold is into that ADR's own body, naming this goal, per the rule that an ADR's body always states
    the current position.
 
@@ -29,7 +29,7 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 ## Stage 2 — the tree, and it is one node family
 
-1. **One node family**, per ADR 0122 § 2's *One tree, two front doors*: element, text, comment,
+1. **One node family**, per `rule:core-classes/html-parsing`'s *One tree, two front doors*: element, text, comment,
    processing instruction, document. `Core\Html`'s parser and `Core\Xml`'s parser produce the same
    nodes, and that is the whole reason this goal is one goal.
 2. **The tree materialises and the stream does not**, and no operation is available through both —
@@ -58,12 +58,12 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 ## Stage 4 — the WHATWG parser, on `Core\Html`
 
-1. **`html5ever` through a Novis-owned tree builder**, per ADR 0122 § 3 — the engine is the crate, the
+1. **`html5ever` through a Novis-owned tree builder**, per `rule:core-classes/html-parsing` — the engine is the crate, the
    tree is ours, and the boundary between them is where stage 2's node family is enforced.
 2. **Never-failing**, per the spec § 17 row: tag soup produces a document, because the WHATWG algorithm
    has no failure mode. A parser that can throw would make sanitizing untrusted markup conditional on
    the attacker's cooperation.
-3. **It is an entry on `Core\Html`, never a mode of `Core\Xml`** — ADR 0122 § 1, and the alternative it
+3. **It is an entry on `Core\Html`, never a mode of `Core\Xml`** — `rule:core-classes/html-parsing`, and the alternative it
    rejects is exactly the flag this must not become.
 
 ## Stage 5 — `Core\Html::sanitize`, which is why the tree matters
@@ -82,9 +82,9 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Standing decisions
 
 - **This goal may open one ADR number**, for `Core\Xml`'s own surface — the tree/stream split and the
-  entity and expansion refusals. ADR 0122 is already written and gains only the § 4 fold; it is not
+  entity and expansion refusals. `rule:core-classes/html-parsing` is already written and gains only the § 4 fold; it is not
   reopened.
-- **There is no HTML mode on the XML parser and no XML mode on the HTML one.** ADR 0122 § 1 decided
+- **There is no HTML mode on the XML parser and no XML mode on the HTML one.** `rule:core-classes/html-parsing` decided
   this and its *Alternatives rejected* says why; a session that finds the two-parsers-one-tree shape
   inconvenient has found the shape working as intended.
 - **No entity resolution reaches the outside world, ever** — not behind a capability, not behind a

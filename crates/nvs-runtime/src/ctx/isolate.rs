@@ -90,8 +90,7 @@ impl Ctx {
             .push(delivery)
     }
 
-    /// Whether this connection missed a delivery and is to be closed — ADR 0083
-    /// § 4's bound, as the one question `Core\Socket::receive()` asks before it
+    /// Whether this connection missed a delivery and is to be closed — `rule:core-classes/topic`'s bound, as the one question `Core\Socket::receive()` asks before it
     /// waits on anything.
     ///
     /// `false` for every context that never subscribed to a topic, with no
@@ -115,8 +114,7 @@ impl Ctx {
         self.deliveries.as_ref().and_then(|inbox| inbox.pop())
     }
 
-    /// This connection's delivery queue, made if it has none yet — ADR 0083
-    /// § 4's subscriber table is what asks, and holds the [`std::rc::Weak`]
+    /// This connection's delivery queue, made if it has none yet — `rule:core-classes/topic`'s subscriber table is what asks, and holds the [`std::rc::Weak`]
     /// half of what this answers.
     ///
     /// A handle rather than the values themselves, because a subscription

@@ -1,4 +1,4 @@
-# ADR 0071 — Derived codecs: an explicit attribute generates `Json\Codec`/`Db\Codec`, and a decode reports every failed field
+# `rule:core-classes/derive-attribute` — Derived codecs: an explicit attribute generates `Json\Codec`/`Db\Codec`, and a decode reports every failed field
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -47,7 +47,7 @@
   `JsonSerializable` lacks, and which is why every PHP project hand-writes hydration.
 - Having required the decode half, the ADR left the cost of it unaddressed. A ten-property DTO costs twenty
   hand-written lines that restate the property declarations directly above them, and every one of those
-  lines is a place a renamed property silently stops round-tripping. [ADR 0067](0067-core-db.md) § 6 has the
+  lines is a place a renamed property silently stops round-tripping. `rule:core-classes/db-column-types` has the
   identical shape for `fromRow`, so the same DTO pays twice.
 - What 0063 § 4 actually rejected is worth being exact about, because it is easy to read as rejecting this:
   *structural* encoding — a rule under which a class's public properties are its wire format with nothing
@@ -190,7 +190,7 @@ equal would need an escape hatch immediately.
 - **`name`** renames one field's key or column. There is no whole-class naming *policy* — no
   `namingStrategy: "snake_case"` — because that is a mode string ([ADR 0063](0063-core-api-conventions.md)
   R11) and because it would make a wire format depend on a setting rather than on the source. The default is
-  the property's own name, exactly, matching [ADR 0067](0067-core-db.md) § 6's existing "no snake-to-camel
+  the property's own name, exactly, matching `rule:core-classes/db-column-types`'s existing "no snake-to-camel
   mapping layer" rule for columns.
 - **`skip: true`** removes the field from the codec entirely: not encoded, not read on decode, and exempt
   from § 2's constructor-parameter requirement. A skipped field that *is* a constructor parameter must have
@@ -241,7 +241,7 @@ that is not an error — allocates nothing for it.
   `tainted string $name`. The rule is checked where the qualifier is statically known, which is the
   **call site**, not inside the codec: `Json::decodeAs<T>` over a `tainted string`, and every
   `queryAs<T>`/`streamAs<T>` (whose rows are `tainted` unconditionally, per
-  [ADR 0067](0067-core-db.md) § 6), diagnose a `T` whose text-carrying fields are unqualified, naming the
+  `rule:core-classes/db-column-types`), diagnose a `T` whose text-carrying fields are unqualified, naming the
   field. Only `string` and `bytes` carry a qualifier, so an `int`, `decimal`, enum or `Instant` field needs
   nothing.
 - **`secret` is refused at the declaration, not silently omitted.** A `secret` property on a class carrying
@@ -261,7 +261,7 @@ attribute with no effect is a mistake, not a no-op ([ADR 0029](0029-identifier-c
 standing preference for a hard error over a suppressed one).
 
 - **`#[Db\Derive]` is one-directional.** `Core\Db\Codec` declares `fromRow` only; there is no `toRow`,
-  because a write is [ADR 0067](0067-core-db.md)'s explicit statement plus bound parameters, and generating
+  because a write is `rule:core-classes/db-one-api`'s explicit statement plus bound parameters, and generating
   an `INSERT` is the ORM that ADR settled against.
 - **`Core\Serialize` gets nothing** (`rule:classes/two-copy-depths`). It is the
   user-facing half of the one graph-copy operation the `spawn` boundary already runs: it handles every

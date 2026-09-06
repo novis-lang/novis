@@ -147,7 +147,7 @@ pub enum Param {
     /// A `Core\Uuid` capture, converted: the sixteen octets, in the order the
     /// canonical text writes them. The bytes rather than a type, because the
     /// type is `nvs_stdlib::uuid`'s — this is the argument its `of_octets`
-    /// already takes, which is the same seam ADR 0067 § 9's `UUID` column
+    /// already takes, which is the same seam `rule:core-classes/db-column-types`'s `UUID` column
     /// crosses on.
     Uuid([u8; 16]),
 }

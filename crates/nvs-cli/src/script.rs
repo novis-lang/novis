@@ -1030,7 +1030,7 @@ mod tests {
         );
     }
 
-    /// A context granting every write and naming `root` as ADR 0131 § 2's owned
+    /// A context granting every write and naming `root` as `rule:core-classes/temporary-dir-sweep`'s owned
     /// root, written the way an operator writes both — the grant because
     /// `Core\IO::temporaryDir` asks `fs.write` for the path it is about to
     /// create (ADR 0118 § 2), and the root because the default is the platform
@@ -1057,7 +1057,7 @@ mod tests {
         ctx
     }
 
-    /// ADR 0131 § 3 read end to end: a whole script asks for a temporary
+    /// `rule:core-classes/temporary-dir-sweep` read end to end: a whole script asks for a temporary
     /// directory, fills it, ends — and the owned root holds nothing.
     ///
     /// `-p nvs-runtime` already pins the sweep per context, which is the same

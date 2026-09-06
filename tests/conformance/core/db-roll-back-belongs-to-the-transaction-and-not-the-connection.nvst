@@ -1,9 +1,9 @@
 --TEST--
-`rollBack` is a member of the transaction alone, because ADR 0067 § 7 removes the connection-level one along with `commit` and `inTransaction` — ADR 0067 § 7, spec § 18
+`rollBack` is a member of the transaction alone, because `rule:core-classes/db-transactions` removes the connection-level one along with `commit` and `inTransaction` — `rule:core-classes/db-transactions`, spec § 18
 --FILE--
 <?nvs
 // The boundary on both sides: `rollBack` is a member of the transaction and of
-// nothing else. ADR 0067 § 7 removes the connection-level `beginTransaction`,
+// nothing else. `rule:core-classes/db-transactions` removes the connection-level `beginTransaction`,
 // `commit`, `rollBack` and `inTransaction` outright — nesting is what removed
 // the reason each of them existed — so the only place a rollback can be asked
 // for is inside the scope that owns one.

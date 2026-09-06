@@ -7,7 +7,7 @@
 //! `rule:programs/implementing` scan ADR 0077's route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
-//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so both
+//! `rule:core-classes/derive-attribute`'s rule, so both
 //! names sit on [`crate::derive::ATTRIBUTES`] and are matched *nominally* after
 //! [`nvs_hir::resolve_ref`]. [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule — the
 //! name is a shape-typed `type` alias — is the rule for the userland names,

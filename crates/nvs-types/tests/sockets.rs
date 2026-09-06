@@ -65,7 +65,7 @@ fn a_received_frames_payload_is_tainted_until_laundered() {
     assert!(!laundered.has_errors(), "{laundered:?}");
 }
 
-/// ADR 0083 § 4: "a topic name refuses `tainted` … a name derived from user
+/// `rule:core-classes/topic`: "a topic name refuses `tainted` … a name derived from user
 /// input is how one tenant subscribes to another's stream. A name is built from
 /// checked values or it does not compile."
 ///

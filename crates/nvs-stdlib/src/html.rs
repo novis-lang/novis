@@ -27,11 +27,11 @@
 //!
 //! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 gives
 //! this class two more things than it has: `sanitize` and
-//! [ADR 0122](/docs/adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s
+//! `rule:core-classes/html-parsing`'s
 //! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
 //! existing at all.
 //!
-//! ADR 0133 § 3 asks two things of [`nvs_core_html_to_source`]'s `$reason` and
+//! `rule:core-classes/html-to-source` asks two things of [`nvs_core_html_to_source`]'s `$reason` and
 //! each is enforced in the one place that can answer it. **A computed reason is
 //! refused where it is written**, by `nvs_types::reasons` under `E0805` — that
 //! is a judgement about the *source*, and there is nothing the body could read
@@ -43,7 +43,7 @@
 //! `Core\Secret::reveal`'s own position on the same question
 //! ([`crate::secret`]).
 //!
-//! [`MARKUP`] is registered *and* reachable: ADR 0024 § 5's three ways to
+//! [`MARKUP`] is registered *and* reachable: `rule:core-classes/html-auto-escape`'s three ways to
 //! obtain one are all here — [`MARKUP_SYMBOL`] for `as Markup` on a source
 //! literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, and the escape
 //! itself, which ADR 0133 § 1 turned from the first two's poor relation into
@@ -79,7 +79,7 @@
 //!
 //! # Why the bidi row is here and not in `nvs_render`
 //!
-//! ADR 0024 § 5's last bullet puts an unterminated bidirectional control on
+//! `rule:core-classes/html-auto-escape`'s last bullet puts an unterminated bidirectional control on
 //! this member: escaping the five characters says nothing about *display
 //! order*, so a payload that reverses the rendering of the text after it
 //! survives the escape untouched.
@@ -100,7 +100,7 @@ use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0024 § 3's launderer for the HTML sink, and ADR 0133 § 3's one way back
+/// ADR 0024 § 3's launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
@@ -138,7 +138,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// cannot drift apart if there is only one string.
 pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 
-/// ADR 0024 § 5's `Core\Html\Markup` — the HTML sink's only raw-write bypass.
+/// `rule:core-classes/html-auto-escape`'s `Core\Html\Markup` — the HTML sink's only raw-write bypass.
 ///
 /// **Memberless, and that is the design rather than an unfinished roster.**
 /// § 5 gives three ways to obtain one and every one of them is a language
@@ -167,7 +167,7 @@ pub(crate) const MARKUP: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// The symbol `<literal> as Core\Html\Markup` lowers to — ADR 0024 § 5's lift
+/// The symbol `<literal> as Core\Html\Markup` lowers to — `rule:core-classes/html-auto-escape`'s lift
 /// of a trusted source literal into [`MARKUP`].
 ///
 /// No [`CoreMethod`] row, for the same reason [`MARKUP`] has no members at
@@ -184,7 +184,7 @@ pub(crate) const MARKUP: CoreClass = CoreClass {
 /// a helper row.
 pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 
-/// The symbol `Markup + Markup` lowers to — ADR 0024 § 5's composition rule,
+/// The symbol `Markup + Markup` lowers to — `rule:core-classes/html-auto-escape`'s composition rule,
 /// which is the second and last way a program obtains a [`MARKUP`].
 ///
 /// Row-less for [`MARKUP_SYMBOL`]'s reason and by the same argument: `+` is
@@ -310,7 +310,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Why the unchanged case still carries the argument's own bytes
     ///
-    /// ADR 0024 § 5 makes this the sink's *only* behaviour: every non-`Markup`
+    /// `rule:core-classes/html-auto-escape` makes this the sink's *only* behaviour: every non-`Markup`
     /// interpolation into an HTML response passes through here, whether or not
     /// it is tainted. So the input with nothing to escape is not an edge case,
     /// it is most of a page — and handing that path's bytes straight to the
@@ -369,7 +369,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `"<b>" as Core\Html\Markup` — ADR 0024 § 5's lift, and the whole of
+    /// `"<b>" as Core\Html\Markup` — `rule:core-classes/html-auto-escape`'s lift, and the whole of
     /// what [`MARKUP_SYMBOL`] does.
     ///
     /// The *trust* decision is not here and cannot be: `nvs_types::expr::quals`
@@ -422,7 +422,7 @@ fn markup_slot(value: Value, position: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$a + $b` over two `Core\Html\Markup` — ADR 0024 § 5's composition
+    /// `$a + $b` over two `Core\Html\Markup` — `rule:core-classes/html-auto-escape`'s composition
     /// rule, and the whole of what [`MARKUP_CONCAT_SYMBOL`] does.
     ///
     /// **Nothing is checked and nothing is escaped**, which is the rule rather
@@ -455,8 +455,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Html::toSource(Core\Html\Markup $markup, string $reason): string`
-    /// — [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-    /// § 3's one way back out of the carrier.
+    /// — `rule:core-classes/html-to-source`'s one way back out of the carrier.
     ///
     /// **There is no `Markup as string` conversion, and this is why there is a
     /// member instead.** A cast would reopen the hole in a keystroke —
@@ -506,7 +505,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// What an unterminated directional control becomes — ADR 0024 § 5's last
+/// What an unterminated directional control becomes — `rule:core-classes/html-auto-escape`'s last
 /// bullet, which writes the character out.
 ///
 /// The same replacement `nvs_render::text` uses for it, and deliberately not a
@@ -520,7 +519,7 @@ mod tests {
     use super::*;
     use crate::registry::CLASSES;
 
-    /// ADR 0024 § 5's carrier, in the two facts neither crate that acts on it
+    /// `rule:core-classes/html-auto-escape`'s carrier, in the two facts neither crate that acts on it
     /// can check for itself: `nvs_runtime::CARRIER_TEXT_SLOT` is the index
     /// this class's registered layout gives `text`, and this class's name is
     /// one `nvs_runtime` renders raw. `Core\Cli\Text` asserts the same pair
@@ -616,7 +615,7 @@ mod tests {
         );
     }
 
-    /// ADR 0133 § 2, asked of the whole route rather than of the row: the
+    /// `rule:core-classes/html-escape-answers-markup`, asked of the whole route rather than of the row: the
     /// carrier `escape` answers is the one the HTML sink writes raw, its slot
     /// is the one the bytes go into, and the class it names is registered.
     ///
@@ -647,7 +646,7 @@ mod tests {
             "and the escaped bytes go in the slot that sink reads"
         );
 
-        // The composition half, which ADR 0133 § 2 says is already built: an
+        // The composition half, which `rule:core-classes/html-escape-answers-markup` says is already built: an
         // escaped fragment is usable with `+` without a second escape, so the
         // operator table has to have the row the answer's type needs.
         assert!(
@@ -744,7 +743,7 @@ mod tests {
         );
     }
 
-    /// ADR 0133 § 3's escape hatch, in the three things that make it one: it is
+    /// `rule:core-classes/html-to-source`'s escape hatch, in the three things that make it one: it is
     /// the **only** member that takes a `Markup` and answers a `string`, it
     /// takes a written reason, and the reason is ordinary text rather than a
     /// second qualified position.
@@ -769,7 +768,7 @@ mod tests {
         assert_eq!(
             ways_out,
             vec![r"Core\Html::toSource"],
-            "ADR 0133 § 3 gives the carrier one exit, and it is named for what \
+            "`rule:core-classes/html-to-source` gives the carrier one exit, and it is named for what \
              it hands back"
         );
 

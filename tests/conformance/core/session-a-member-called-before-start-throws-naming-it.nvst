@@ -3,7 +3,7 @@ Every `Core\Session` member but `start` throws while the request has started no 
 --FILE--
 <?nvs
 // ADR 0139 § 1: "a member called before `start` throws naming it". That is the
-// whole of what ADR 0012 § 4 was buying — "this request uses sessions" is a
+// whole of what `rule:core-classes/session-is-started-explicitly` was buying — "this request uses sessions" is a
 // line in the source — and it is worth nothing if the first `get` can silently
 // start one. So none of the six below opens a session: all six refuse.
 uint $refused = 0;

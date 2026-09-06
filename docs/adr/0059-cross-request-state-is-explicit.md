@@ -99,7 +99,7 @@ shared tier or the database.
 
 This is enforced rather than documented: `Core\Session`'s configurable backends do not include the local
 tier as an option. Two of the things named above now have their own homes over the shared tier rather than
-being left to the application: **rate limits** are [ADR 0075](0075-core-ratelimit.md)'s
+being left to the application: **rate limits** are `rule:core-classes/ratelimit-two-members`'s
 `Core\RateLimit::consume`, and the **fleet lease** a scheduled job takes is
 [ADR 0073](0073-scheduled-work-is-config.md) § 3's.
 

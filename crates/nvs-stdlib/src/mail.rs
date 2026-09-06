@@ -25,7 +25,7 @@
 //! 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7's sense,
 //! and mailing what a user typed is the point.
 //!
-//! # The endpoint is a name, not a host — ADR 0067 § 3's shape
+//! # The endpoint is a name, not a host — `rule:core-classes/db-capabilities`'s shape
 //!
 //! `$endpoint` selects a `[mail.<name>]` block in root-owned `nvs.toml`, granted by name under the
 //! `mail.send` capability. There is no host parameter, no port and no credential on the surface, so
@@ -34,7 +34,7 @@
 //! [`Qual::Sink`] for that last inch — a `tainted` block name is a program letting input choose
 //! between deployments — and it is the only qualifier this class refuses.
 //!
-//! ADR 0067 § 3 is where that shape comes from and also why the address is **not** put through
+//! `rule:core-classes/db-capabilities` is where that shape comes from and also why the address is **not** put through
 //! [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied ranges: an address
 //! an operator wrote into root-owned configuration carries the same authority as the grant itself,
 //! and a mail relay lives at `127.0.0.1` or on a container network precisely inside the set § 3

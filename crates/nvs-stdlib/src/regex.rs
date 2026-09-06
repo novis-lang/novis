@@ -1,5 +1,5 @@
 //! `Core\Regex` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 5, over [ADR 0056](/docs/adr/0056-regex-engine-policy.md)'s
+//! § 5, over `rule:core-classes/regex-two-tiers`'s
 //! two engines.
 //!
 //! That ADR's body is the rule and this module is its implementation; nothing
@@ -11,7 +11,7 @@
 //! is recorded rather than made here — what belongs here is what each one is
 //! doing:
 //!
-//! * **`regex`** is ADR 0056 § 1's linear tier. A finite-automata engine with
+//! * **`regex`** is `rule:core-classes/regex-two-tiers`'s linear tier. A finite-automata engine with
 //!   no backtracking to exhaust, so [`Compiled::Linear`] needs no budget and
 //!   is given none.
 //! * **`fancy-regex`** is § 2's backtracking tier, reached only by a pattern
@@ -21,11 +21,11 @@
 //!   engines would not. That shared core is the reason this pair rather than,
 //!   say, `pcre2` behind a C shim: ADR 0051 § 4's second question asks what a
 //!   C dependency buys, and the answer here would be a *second* opinion about
-//!   pattern syntax, which is what ADR 0056 exists to avoid.
+//!   pattern syntax, which is what `rule:core-classes/regex-two-tiers` exists to avoid.
 //!
 //! # Tiering happens at the first call, not while checking
 //!
-//! ADR 0056 § 3 makes a **literal** pattern's tier a compile-time fact, over
+//! `rule:core-classes/regex-literal-tiering` makes a **literal** pattern's tier a compile-time fact, over
 //! `rule:expressions/intrinsic-literals`'s
 //! literal-folding mechanism. That mechanism is not built, so today every
 //! pattern — literal or assembled — takes the run-time path in [`compiled`]:
@@ -72,7 +72,7 @@
 //!    a union has nowhere to hold a mark, so those seven refuse by the default
 //!    rather than by a rule a reader can find, and a union that ever wanted
 //!    [`Qual::Launder`] would have no slot for it.
-//! 2. **The step budget is a constant, not a directive.** ADR 0056 § 2 puts
+//! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
 //!    the default in `nvs.toml` under ADR 0005's ordinary rules, and there is
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
 //!    default, stated once, and reading it from config is a change to that one
@@ -777,7 +777,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // The two tiers
 // ============================================================================
 
-/// ADR 0056 § 2's step budget for the backtracking tier, and gap 3's constant.
+/// `rule:core-classes/regex-two-tiers`'s step budget for the backtracking tier, and gap 3's constant.
 ///
 /// `fancy-regex`'s own default, kept rather than lowered: it is the figure
 /// that crate's adversarial-pattern tests are written against, and picking a
@@ -790,7 +790,7 @@ const BACKTRACK_BUDGET: usize = 1_000_000;
 /// this module's own docs own the reasoning and what it spends.
 const CACHE_CAPACITY: usize = 256;
 
-/// One compiled pattern, in whichever tier ADR 0056 § 1 placed it.
+/// One compiled pattern, in whichever tier `rule:core-classes/regex-two-tiers` placed it.
 ///
 /// The tier is not a user-visible property of the value: no member below
 /// branches on it for anything but which engine's API to call, and neither
@@ -858,7 +858,7 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 /// # Errors
 ///
 /// A `Fault::thrown` naming the pattern when **neither** engine can compile
-/// it, which is ADR 0056 § 5's "a construct neither engine supports is
+/// it, which is `rule:core-classes/regex-syntax`'s "a construct neither engine supports is
 /// diagnosed, never silently ignored" — at run time today, since gap 1 above
 /// owns the compile-time half. The message carries the backtracking engine's
 /// own complaint, because it is the more permissive of the two: a pattern the
@@ -892,14 +892,14 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
     Ok(built)
 }
 
-/// `pattern` under `flags`, offered to ADR 0056's two engines in that order —
+/// `pattern` under `flags`, offered to `rule:core-classes/regex-two-tiers`'s two engines in that order —
 /// the whole of what "compiling a pattern" is, with no cache and no `Fault`
 /// around it so that both callers can reach it.
 ///
 /// # The routing rule
 ///
 /// **A pattern changes tier for one reason only: the linear engine's parser
-/// refused a construct.** That is the whole of ADR 0056 § 1's "if the linear
+/// refused a construct.** That is the whole of `rule:core-classes/regex-two-tiers`'s "if the linear
 /// engine can express it", and stating it as *which error* rather than *any
 /// error* is what makes the tier a semantic property of the pattern instead of
 /// a performance heuristic. `regex` refuses for two kinds of reason and only
@@ -944,7 +944,7 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 }
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
-/// ADR 0056 § 3's compile-time fact and not the automaton —
+/// `rule:core-classes/regex-literal-tiering`'s compile-time fact and not the automaton —
 /// `rule:expressions/intrinsic-literals`'s fold,
 /// which reads a **literal** pattern while checking and reports § 3's
 /// diagnostic instead of the throw [`compiled`] would have made.
@@ -993,7 +993,7 @@ pub enum Tier {
     Backtracking,
 }
 
-/// ADR 0056 § 2's throw: the backtracking tier ran out of steps.
+/// `rule:core-classes/regex-two-tiers`'s throw: the backtracking tier ran out of steps.
 ///
 /// Never a falsy return and never a truncated search — the whole point of that
 /// section is that PHP's `pcre.backtrack_limit` turns a hang into a wrong
@@ -1687,7 +1687,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Escapes every character either engine gives a meaning to, so the result
     /// matches `$literal` and nothing else. PHP's optional `$delimiter`
-    /// argument has no equivalent, because ADR 0056 § 5 removed the
+    /// argument has no equivalent, because `rule:core-classes/regex-syntax` removed the
     /// `/…/` delimiter syntax it existed for: a pattern here is a pattern, not
     /// a pattern wrapped in punctuation.
     ///
@@ -1765,7 +1765,7 @@ mod tests {
 
     /// The tier is chosen by the pattern, never by the caller, and it is a
     /// **semantic** property of the pattern rather than a performance
-    /// heuristic — ADR 0056 § 1, and [`build`]'s routing rule.
+    /// heuristic — `rule:core-classes/regex-two-tiers`, and [`build`]'s routing rule.
     ///
     /// Asserted over two whole tables by collecting the strays rather than
     /// read off one line: a pattern that quietly changed tier still answers
@@ -1850,7 +1850,7 @@ mod tests {
     }
 
     /// A pattern neither engine can compile throws rather than matching
-    /// nothing — ADR 0056 § 5's "never silently ignored".
+    /// nothing — `rule:core-classes/regex-syntax`'s "never silently ignored".
     #[test]
     fn a_pattern_neither_engine_accepts_throws() {
         let err = compiled("(unclosed", NO_FLAGS, "matches")
@@ -1863,10 +1863,10 @@ mod tests {
     /// `fancy-regex` delegating the loop back to the linear engine, and forty
     /// `a`s followed by a `b` the pattern can never reach is 2^40 paths — far
     /// enough past [`BACKTRACK_BUDGET`] that no machine's speed enters into
-    /// it, which is ADR 0056's own reason for bounding steps and not seconds.
+    /// it, which is `rule:core-classes/regex-two-tiers`'s own reason for bounding steps and not seconds.
     const CATASTROPHIC: &str = r"^(a|a?)+\1$";
 
-    /// ADR 0056 § 2: the backtracking tier runs under [`BACKTRACK_BUDGET`],
+    /// `rule:core-classes/regex-two-tiers`: the backtracking tier runs under [`BACKTRACK_BUDGET`],
     /// attached where the program is **built** — so it is on every pattern
     /// that reaches the tier, rather than on the ones a member remembered to
     /// bound. A subject inside the budget still answers.
@@ -1894,7 +1894,7 @@ mod tests {
         assert!(message.contains(CATASTROPHIC), "{message}");
     }
 
-    /// ADR 0056 § 2's load-bearing half: exhausting the budget **throws**,
+    /// `rule:core-classes/regex-two-tiers`'s load-bearing half: exhausting the budget **throws**,
     /// and never answers "no match".
     ///
     /// A call site that wrote the pattern as a check reads a falsy answer as

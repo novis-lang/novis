@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, ADR 0071 § 5, `rule:types/bytes`
+`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, `rule:core-classes/derive-reports-every-field`, `rule:types/bytes`
 --FILE--
 <?nvs
-// ADR 0071 § 5: participation in a wire format is written, never inferred, so
+// `rule:core-classes/derive-reports-every-field`: participation in a wire format is written, never inferred, so
 // the attribute is the whole difference between these two classes.
 #[Core\Json\Derive]
 final class Row {

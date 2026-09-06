@@ -724,7 +724,7 @@ fn rows_attached(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &Env<'_>) -> Vec
 /// § 9 attaches a data row to a `#[Test]` method and to nothing else: this is
 /// every other member carrying one, refused where the marker is written.
 ///
-/// A marker that quietly did nothing is what ADR 0071 § 1's closed, recognized
+/// A marker that quietly did nothing is what `rule:core-classes/derive-attribute`'s closed, recognized
 /// roster exists to prevent — an attribute the compiler acts on either acts or
 /// says why it cannot.
 fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {

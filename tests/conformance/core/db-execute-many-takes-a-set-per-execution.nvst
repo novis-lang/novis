@@ -1,5 +1,5 @@
 --TEST--
-`executeMany` takes one `$params` array per execution and `execute`'s own flat array is not one of them, so nothing has to guess how a batch was meant to be split — ADR 0067 §§ 4 and 5, spec § 18
+`executeMany` takes one `$params` array per execution and `execute`'s own flat array is not one of them, so nothing has to guess how a batch was meant to be split — `rule:core-classes/db-statement-members` and `rule:core-classes/db-parameters`, spec § 18
 --FILE--
 <?nvs
 var $db = Core\Db::connect("main");

@@ -1,4 +1,4 @@
-# ADR 0128 — A PDF page is a decode source of the image component
+# `rule:core-classes/pdf-page-is-an-image-source` — A PDF page is a decode source of the image component
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

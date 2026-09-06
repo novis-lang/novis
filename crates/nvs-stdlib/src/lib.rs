@@ -204,7 +204,7 @@ mod crypto;
 mod csrf;
 mod csv;
 mod cursor;
-// `pub` for [`db::check_literal_query`], which is ADR 0067 § 10's half of the
+// `pub` for [`db::check_literal_query`], which is `rule:core-classes/db-literal-query-checking`'s half of the
 // intrinsic pass and the only thing `nvs-types` reads here — for `cap`'s reason
 // exactly: the checker's refusal holds no second copy of a grammar this crate
 // already owns.
@@ -238,7 +238,7 @@ mod password;
 pub mod path;
 mod process;
 mod program;
-// `pub` for [`queue::MIGRATION_POSTGRES`] and its MySQL sibling alone: ADR 0084 § 2's schema is written
+// `pub` for [`queue::MIGRATION_POSTGRES`] and its MySQL sibling alone: `rule:core-classes/queue-storage-is-a-table`'s schema is written
 // beside the statements that read its columns, and `nvs queue migrate` in `nvs-cli` is a second
 // crate that has to run it — in whichever dialect the block it was pointed at speaks. The
 // members themselves are reached the way every other class's are, through [`registry`].
@@ -276,7 +276,7 @@ pub mod uri;
 pub mod uuid;
 mod validate;
 
-/// ADR 0071's derived-codec field list, re-exported from where it is
+/// `rule:core-classes/derive-attribute`'s derived-codec field list, re-exported from where it is
 /// *consumed*.
 ///
 /// The struct lives in `nvs-runtime` because that is the deepest crate that
@@ -330,7 +330,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             script::AWAIT_SYMBOL,
         ])
         // The sink carriers' three row-less symbols, which are constructs
-        // rather than members for the same reason those two are: ADR 0024 § 5's
+        // rather than members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
         // lift is `as` on a source literal, and § 5's `Markup + Markup` and ADR
         // 0086 § 2's `Text + Text` are an operator. Each is reachable only from
         // the lowering of the construct that spells it, which is what a row
@@ -464,8 +464,7 @@ mod tests {
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
                 // ADR 0006's `spawn script` — in its two entry forms, which
-                // are two symbols and one construct — and `await`, ADR 0024
-                // § 5's `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
+                // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
                 // `Text + Text`: six symbols behind five constructs, each
                 // syntax rather than a call, so none of them has a row
                 // either — see `script`'s, `html`'s and `cli`'s module docs.
@@ -484,7 +483,7 @@ mod tests {
     /// `rule:classes/no-traits`'s
     /// `by` delegation, whose entire content is that the two rows *are* one
     /// member: `Core\Db\Transaction implements Queryable by $connection`
-    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 7, and the first
+    /// (`rule:core-classes/db-transactions`, and the first
     /// `Core` type to use the construct) declares the interface once on the
     /// connection and forwards it, so a second body under a second symbol
     /// would be exactly the drift the delegation exists to prevent. The price

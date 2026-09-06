@@ -1,5 +1,5 @@
 --TEST--
-A table the schema value does not declare is reported with the SQL that would drop it, and neither `applySafe` nor `applyIncludingRisky` ever runs that step — ADR 0145 § 7
+A table the schema value does not declare is reported with the SQL that would drop it, and neither `applySafe` nor `applyIncludingRisky` ever runs that step — `rule:core-classes/schema-absence-never-destroys`
 --FILE--
 <?nvs
 // § 7's rule is that absence never destroys, because a database an application

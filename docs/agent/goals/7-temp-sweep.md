@@ -1,6 +1,6 @@
-# Loop goal 7 — ADR 0131's temporary-directory sweep
+# Loop goal 7 — `rule:core-classes/temporary-dir-sweep`'s temporary-directory sweep
 
-Land [ADR 0131](../../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md):
+Land `rule:core-classes/temporary-dir-sweep`:
 every directory `Core\IO::temporaryDir` hands out dies with its script, swept by the runtime without ever
 throwing; a dead process's leftovers are reclaimed at `nvs serve` boot and under `nvs tmp clean`, keyed on
 owner liveness and never on age. The ADR is **written and accepted** — this goal implements it and does
@@ -26,7 +26,7 @@ has no force flag.
 
 ## Stage 0 — the catch-up
 
-Nothing. ADR 0131 landed with its spec § 14 amendment in the same change; no fixture predates the rule.
+Nothing. `rule:core-classes/temporary-dir-sweep` landed with its spec § 14 amendment in the same change; no fixture predates the rule.
 
 ## Stage 1 — the floor
 
@@ -71,7 +71,7 @@ nothing, exits 0 when there is nothing to do. No force flag, per the standing de
 
 ## Standing decisions
 
-- **ADR 0131 is the design and is not reopened.** Its sections are the items above; a conflict between
+- **`rule:core-classes/temporary-dir-sweep` is the design and is not reopened.** Its sections are the items above; a conflict between
   this file and the ADR is a bug in this file. No new ADR numbers in this goal.
 - **Pid-liveness has a per-platform edge** (recycled pids, access-denied on `OpenProcess`). Any
   ambiguity resolves toward *skip* — under-delete, never over-delete — decided-and-recorded in the

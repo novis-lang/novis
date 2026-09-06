@@ -77,7 +77,7 @@ Goal 19's whole acceptance list — the parity program, never traded.
    database and this one is a socket.
 2. **`AF_UNIX` connect in `mysql.rs`, `maria.rs` and `pg.rs`.** One transport added under three
    drivers that each keep their existing wire; `conn.rs` is where the two transports meet, and
-   [ADR 0132](../../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)'s sans-IO split is
+   `rule:core-classes/db-drivers-are-an-enum`'s sans-IO split is
    what makes this an addition at the edge rather than a second codec.
 3. **Postgres derives `<host>/.s.PGSQL.<port>`**, per § 5, asserted against the path the driver connects
    to rather than against a successful connection — the derivation is what is under test.

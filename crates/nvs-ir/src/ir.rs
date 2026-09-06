@@ -142,7 +142,7 @@ pub struct Class {
     /// which exists until a function has been compiled, which is why only the
     /// bit that has no source below the front end travels here.
     pub methods: Vec<(String, String, bool)>,
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// `rule:core-classes/derive-attribute`'s derived JSON
     /// codec, in declaration order — empty for a class carrying no
     /// `#[Json\Derive]`, which is every class in a program that never writes
     /// the attribute.
@@ -155,7 +155,7 @@ pub struct Class {
     /// encoder and decoder can work an instance without asking the program
     /// anything.
     pub codec: Vec<nvs_types::CodecField>,
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// `rule:core-classes/derive-attribute`'s derived **row**
     /// codec — [`Self::codec`]'s twin for `#[Db\Derive]`, joined to the same
     /// slot order in the same place and carried through to
     /// `nvs_runtime::ClassDesc::db_codec`, which owns why the two lists are
@@ -175,7 +175,7 @@ pub struct Class {
     /// **This crate emits no instruction for it.** `nvs-codegen` copies it
     /// onto `nvs_runtime::ClassDesc` and `nvs_runtime::NvsObj::new` writes the
     /// slots, which is the only shape that reaches [`InstKind::New`],
-    /// [`InstKind::NewDynamic`] and ADR 0071's native decoder alike — see
+    /// [`InstKind::NewDynamic`] and `rule:core-classes/derive-attribute`'s native decoder alike — see
     /// `nvs_types::defaults`, which owns why an initializer cannot be spliced
     /// between allocation and construction.
     pub defaults: Vec<(usize, nvs_types::FieldDefault)>,
@@ -1892,7 +1892,7 @@ pub enum Helper {
     /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
     /// with `result: None` and every other variant's "the result is a fresh
     /// `Ty::Str` nothing else owns" release policy does not apply to it.
-    /// ADR 0024 § 5's auto-escaping sink is the *HTTP response* write, not
+    /// `rule:core-classes/html-auto-escape`'s auto-escaping sink is the *HTTP response* write, not
     /// this one — whether `echo` under `nvs serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,

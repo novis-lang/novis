@@ -79,7 +79,7 @@
 //!
 //! # `args()` answers `mixed`, and `null` for a script nobody spawned
 //!
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 6 is what
+//! `rule:core-classes/script-args` is what
 //! replaced ADR 0006's `$_ARGS` with a method call, and its body states the
 //! return type this module implements: **`mixed`**, not an array of anything.
 //! `spawn script`'s `args:` is checked against no expected type at all —
@@ -129,14 +129,13 @@ pub(crate) const HANDLE: CoreClass = CoreClass {
 /// `0` for a spawn that never started one.
 const PENDING: usize = 0;
 
-/// `Core\Script`'s registry row — the class [ADR 0012] § 6 named when it
+/// `Core\Script`'s registry row — the class `rule:core-classes/script-args` named when it
 /// replaced `$_ARGS` with a method call. See [`crate::registry::CLASSES`].
 ///
 /// A class in its own right beside `Core\Script\Handle`, exactly as
 /// `Core\Time` sits beside `Core\Time\Instant`: the handle is what a spawn
 /// answers with, and this is what the child asks.
 ///
-/// [ADR 0012]: ../../../../docs/adr/0012-no-superglobals.md
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Script",
     methods: &[
@@ -858,7 +857,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script::args(): mixed` — ADR 0012 § 6's replacement for `$_ARGS`,
+    /// `Core\Script::args(): mixed` — `rule:core-classes/script-args`'s replacement for `$_ARGS`,
     /// and the read half of `spawn script <path> with(args: …)`.
     ///
     /// The module doc is the one home of what this answers and why the type is

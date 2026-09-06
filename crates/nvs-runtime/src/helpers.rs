@@ -2419,8 +2419,7 @@ crate::nvs_helper! {
     /// affordable: the bytes replaced here are commands the terminal consumes
     /// and shows to nobody, so substituting them makes `echo` show *more* of
     /// what arrived rather than less. That asymmetry with
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 5's HTML `&`→`&amp;` is stated in 0086's *Context*.
+    /// `rule:core-classes/html-auto-escape`'s HTML `&`→`&amp;` is stated in 0086's *Context*.
     ///
     /// The table is idempotent — a Control Picture is not a control byte — so
     /// output that has already passed a sink, `Core\Out::capture`'s buffer most

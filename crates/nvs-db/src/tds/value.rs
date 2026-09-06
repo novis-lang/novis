@@ -286,7 +286,7 @@ pub fn decode_column(column: &TdsColumn, value: Option<&[u8]>) -> io::Result<Opt
 ///   [`TdsScalar::Instant`] carries local fields on both drivers.
 ///
 /// A non-Unicode `char`/`varchar`/`text` is read as UTF-8 and refused when it
-/// is not. SQL Server has no session charset to force — ADR 0067 § 3's
+/// is not. SQL Server has no session charset to force — `rule:core-classes/db-capabilities`'s
 /// guarantee is `utf8mb4` on one protocol and nothing on this one — so the
 /// column's collation decides its code page, and transcoding an arbitrary one
 /// would be a character table this crate does not carry. A UTF-8 collation
@@ -380,7 +380,7 @@ pub fn scalar<'a>(column: &TdsColumn, value: Option<&'a [u8]>) -> io::Result<Tds
         TY_VARIANT | TY_UDT => {
             return Err(malformed(format!(
                 "column `{name}` is a `sql_variant` or a CLR type, which this driver has no \
-                 reading for — cast it in the statement to a type ADR 0067 § 9's table names"
+                 reading for — cast it in the statement to a type `rule:core-classes/db-column-types`'s table names"
             )));
         }
         // `char`, `varchar`, `text` — and every type byte this driver has no

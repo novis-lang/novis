@@ -131,7 +131,7 @@ impl QuerySpan {
     /// Names the `[db.<name>]` block this statement ran on.
     ///
     /// Separate from [`QuerySpan::opened`] because the driver does not know it:
-    /// ADR 0067 § 2 puts the name on the *config block*, and a connection built
+    /// `rule:core-classes/db-connection-is-named` puts the name on the *config block*, and a connection built
     /// from a program-supplied `Db\Settings` through `open` has no name at all.
     /// So the layer that resolved the name puts it on, and a span without one
     /// is the honest answer rather than a placeholder.

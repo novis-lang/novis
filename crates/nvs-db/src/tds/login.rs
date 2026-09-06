@@ -32,7 +32,7 @@ pub(super) const MAX_FIELD_CHARS: u16 = 128;
 ///
 /// MS-TDS calls the result an encrypted password. It is not one — the
 /// transformation is fixed, public and its own inverse — which is why
-/// [`TdsTarget::password`] says ADR 0067 § 3's TLS is not optional on this
+/// [`TdsTarget::password`] says `rule:core-classes/db-capabilities`'s TLS is not optional on this
 /// backend in the way it merely defaults elsewhere.
 pub(super) const PASSWORD_XOR: u8 = 0xA5;
 
@@ -214,7 +214,7 @@ pub(super) fn placed(
 /// default governs, and § 8 reads error numbers rather than message text;
 /// `SSPI` belongs to integrated security, which [`OPTION_FLAGS_2`] turns off;
 /// `AtchDBFile` attaches a database file by path, which is a capability
-/// nothing in ADR 0067 grants; and `ChangePassword` changes the login's
+/// nothing in `rule:core-classes/db-one-api` grants; and `ChangePassword` changes the login's
 /// password as a side effect of connecting. `ClientID` is a six-byte MAC
 /// address and goes out as zeroes for `HostName`'s reason — it is a stable
 /// identifier for the machine, sent to buy nothing.

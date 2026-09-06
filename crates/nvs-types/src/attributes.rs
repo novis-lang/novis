@@ -113,7 +113,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         // which the constant walk above has just done.
         return;
     };
-    // ADR 0071 § 1's compiler-recognized attributes are the one exemption to
+    // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are the one exemption to
     // § 1's "the name is a shape-typed alias", and it is a closed,
     // `Core`-owned roster rather than an escape hatch: such a name is matched
     // *nominally*, so what its payload may hold is the recognizing pass's own
@@ -200,7 +200,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 
 /// One recognized attribute's payload, checked against its roster of options.
 ///
-/// The walk every ADR 0071 § 1 name that carries a payload shares, because a
+/// The walk every `rule:core-classes/derive-attribute` name that carries a payload shares, because a
 /// recognized name is matched *nominally* and so has no shape to be checked
 /// against: what it may hold is a roster its own module declares — `rule:testing/test-attribute`'s is [`crate::testing`]'s, ADR 0086 § 6's two are [`crate::commands`]',
 /// ADR 0077 § 1's is [`crate::routes`]'. Three answers per field and they are
@@ -282,7 +282,7 @@ fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
 /// is checked against it.
 ///
 /// `qname` is [`check_attribute`]'s own resolution of `name`, which has
-/// already taken ADR 0071 § 1's recognized roster out of this function's way.
+/// already taken `rule:core-classes/derive-attribute`'s recognized roster out of this function's way.
 fn resolve_shape_alias(
     qname: &nvs_hir::QName,
     name: &Name,

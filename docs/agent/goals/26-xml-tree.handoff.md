@@ -7,17 +7,17 @@ it has landed yet.** Goal 25's whole list is this goal's Stage 1 floor.
 
 **This is the largest single unowned item in the repository**, because it is not free-standing.
 `crates/nvs-stdlib/src/html.rs`'s *Known gaps* says `Core\Html::sanitize` and
-[ADR 0122](../../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s WHATWG
-parser "both wait on that tree existing at all", and ADR 0122 § 4 is titled *Unscheduled, and lands
+`rule:core-classes/html-parsing`'s WHATWG
+parser "both wait on that tree existing at all", and `rule:core-classes/html-parsing` is titled *Unscheduled, and lands
 with `Core\Xml`*. Three gaps, one tree, one goal — and this entry existing is what makes that § 4
-wrong, so the fold into ADR 0122's body is stage 0's work.
+wrong, so the fold into `rule:core-classes/html-parsing`'s body is stage 0's work.
 
 ## Next group
 
 **Stage 2: the tree** — one file set: the new `crates/nvs-stdlib/src/xml.rs`,
 `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] **One node family** — element, text, comment, processing instruction, document (ADR 0122 § 2).
+- [ ] **One node family** — element, text, comment, processing instruction, document (`rule:core-classes/html-parsing`).
       `Core\Html`'s parser and `Core\Xml`'s produce the same nodes, which is the whole reason this is
       one goal rather than two.
 - [ ] **The tree materialises and the stream does not, and no operation is available through both.**
@@ -35,7 +35,7 @@ wrong, so the fold into ADR 0122's body is stage 0's work.
 - **Stage 3 (the stream)** is a reader and a writer holding one window rather than the document — the
   property that makes the split worth having. The writer enforces nesting from its own state, so an
   unclosed element at the end is an error and not a document.
-- **Stage 4 (the parser)** is `html5ever` through a Novis-owned tree builder (ADR 0122 § 3), and it is
+- **Stage 4 (the parser)** is `html5ever` through a Novis-owned tree builder (`rule:core-classes/html-parsing`), and it is
   **never-failing**: tag soup produces a document, because a parser that can throw makes sanitizing
   untrusted markup conditional on the attacker's cooperation. It is an entry on `Core\Html`, never a
   mode of `Core\Xml` (§ 1).

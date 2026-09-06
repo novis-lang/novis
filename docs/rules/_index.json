@@ -49,6 +49,11 @@
       "topic": "classes",
       "title": "Classes",
       "order": 100
+    },
+    {
+      "topic": "core-classes",
+      "title": "The Core classes",
+      "order": 110
     }
   ]
 }

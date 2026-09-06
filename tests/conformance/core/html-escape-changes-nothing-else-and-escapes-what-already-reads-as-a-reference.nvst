@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, `rule:errors/ambiguous-input-refused`, ADR 0133 § 2
+`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, `rule:errors/ambiguous-input-refused`, `rule:core-classes/html-escape-answers-markup`
 --FILE--
 <?nvs
 // The other side of the boundary the sibling case pins. A launderer that
@@ -7,7 +7,7 @@
 // touched, and this asks the question by *comparison* rather than by printing
 // the answer: a member that rewrote one extra code point fails here while its
 // own line still looks right. The comparison goes through `toSource`, because
-// ADR 0133 § 2 gives the answer a type `==` has no row against a `string` for.
+// `rule:core-classes/html-escape-answers-markup` gives the answer a type `==` has no row against a `string` for.
 string $plain = "ordinary text, punctuation included: a-b_c/d.e (f) [g] {h} 100% ~ | ^";
 echo Core\Html::toSource(Core\Html::escape($plain), "comparing the escape against its input") == $plain
      ? "same" : "changed", "\n";

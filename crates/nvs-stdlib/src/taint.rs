@@ -15,7 +15,7 @@
 //! member is the case that rule cannot cover: the developer has validated the
 //! value themselves and needs to say so. It is modeled on this project's own
 //! `unsafe` policy — forbidden by default, rare, greppable, and never a silent
-//! cast. [ADR 0067](/docs/adr/0067-core-db.md) § 3 is where it is
+//! cast. `rule:core-classes/db-capabilities` is where it is
 //! load-bearing rather than a fallback: `Settings.host` refuses `tainted` and
 //! **has no launderer**, because no string check can establish that a hostname
 //! is safe to send credentials to, and a malicious server answers any query
@@ -110,7 +110,7 @@ nvs_runtime::nvs_helper! {
     /// `Qual::Launder` row carries and the one place it is answered this way:
     /// ADR 0063 R11's four grammars, `Core\Db`'s query text, an outbound URL,
     /// a filesystem path, an environment variable's name, and — the case that
-    /// earns the row — `Settings.host`, which ADR 0067 § 3 leaves with no
+    /// earns the row — `Settings.host`, which `rule:core-classes/db-capabilities` leaves with no
     /// launderer of its own. `nvs_stdlib::registry`'s `Qual` doc comment
     /// argues once why naming all of them is allowed here and nowhere else.
     ///

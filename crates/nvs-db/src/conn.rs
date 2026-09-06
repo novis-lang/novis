@@ -2,7 +2,7 @@
 //!
 //! [ADR 0132 § 5](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
-//! in this project's priority order: the set is **closed** (ADR 0067 § 12 makes
+//! in this project's priority order: the set is **closed** (`rule:core-classes/db-one-api` makes
 //! a new backend an ADR rather than a plugin, and wasm extensions cannot host
 //! one anyway, so open-set extensibility is the one property a trait buys and
 //! this design does not want it); a trait wide enough for all five would be
@@ -45,7 +45,7 @@ use crate::tds::Wire as TdsWire;
 /// the set at.
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
-/// auth plugins, error tables and bulk protocol, and ADR 0067 argues that at
+/// auth plugins, error tables and bulk protocol, and `rule:core-classes/db-one-api` argues that at
 /// length. The spellings here are also the ones `NVS_DB_MATRIX_DRIVER`,
 /// `tools/db-matrix.py --driver` and a `[db.<name>]` block's own `driver` field
 /// use, so that roster has one home — see [`Driver::matrix_name`].
@@ -64,7 +64,7 @@ pub enum Driver {
 }
 
 impl Driver {
-    /// Every driver, in the order ADR 0067's own tables use.
+    /// Every driver, in the order `rule:core-classes/db-one-api`'s own tables use.
     ///
     /// The matrix harness iterates this rather than a list of its own, so a
     /// sixth backend cannot be added to the language without appearing in the
@@ -202,7 +202,7 @@ pub enum BlockError<'a> {
     /// is a caller's bug rather than an operator's.
     SecretUnread,
     /// A field belonging to another driver, written on this one. Silently
-    /// ignoring it is ADR 0067 § 2's discriminated union giving way.
+    /// ignoring it is `rule:core-classes/db-connection-is-named`'s discriminated union giving way.
     Unusable {
         /// The block's key, as an operator wrote it.
         field: &'static str,
@@ -319,7 +319,7 @@ pub enum State {
     Idle,
     /// A buffered statement is in flight, and only its own call may write.
     Executing,
-    /// Rows remain unread. A second statement here is ADR 0067 § 4's
+    /// Rows remain unread. A second statement here is `rule:core-classes/db-statement-members`'s
     /// `LogicError`.
     Streaming,
     /// The wire is *not* at a known message boundary — a deadline fired
@@ -332,7 +332,7 @@ impl State {
     /// Whether a new statement may be written on a connection in this state.
     ///
     /// Only [`State::Idle`] permits one. The driver builds the refusal itself,
-    /// in one place per driver and naming both of ADR 0067 § 4's fixes —
+    /// in one place per driver and naming both of `rule:core-classes/db-statement-members`'s fixes —
     /// `pg.rs`'s `second_statement` owns that wording. `nvs-stdlib` re-words it
     /// as § 4's `LogicError`, because the fault class is its own and so is the
     /// call site's spelling, which only the standard library knows.
@@ -605,7 +605,7 @@ impl std::fmt::Display for ServerError {
     /// such field, and the number that *is* this backend's code is already in
     /// the sentence the server wrote.
     ///
-    /// Bound parameters are not among them and never will be — ADR 0067 § 8
+    /// Bound parameters are not among them and never will be — `rule:core-classes/db-error`
     /// makes a `Throwable` message a `secret` sink, and this sentence is what
     /// reaches one.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -635,7 +635,7 @@ pub struct PgConn {
     /// no variant here for "not yet encrypted": a connection that did not
     /// upgrade was never built.
     pub(crate) wire: Wire,
-    /// ADR 0132 § 4's busy state. A plain [`Cell`]: no atomic and no lock,
+    /// `rule:core-classes/db-connection-busy-state`'s busy state. A plain [`Cell`]: no atomic and no lock,
     /// because a task never migrates and a connection is owned by one request
     /// at a time, which `nvs-host`'s `!Send` scheduler makes true rather than
     /// hoped.
@@ -645,7 +645,7 @@ pub struct PgConn {
     /// unrepeatable: the key arrives once, during the handshake, and a
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
-    /// ADR 0067 § 1's LRU of server-side prepared statements, keyed by SQL text
+    /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements, keyed by SQL text
     /// plus expansion arity.
     ///
     /// It is on the connection because a prepared statement is a name on one
@@ -653,7 +653,7 @@ pub struct PgConn {
     /// other's server has never heard of. It survives this driver's reset,
     /// which is § 13's whole reason for not sending `DISCARD ALL`.
     pub(crate) cache: StatementCache,
-    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a zone-less
+    /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a zone-less
     /// `TIMESTAMP` column off this connection is read in.
     ///
     /// Held rather than re-derived because the decode of that row happens in
@@ -661,7 +661,7 @@ pub struct PgConn {
     /// becomes, and [`PgTarget`](crate::pg::PgTarget) does not outlive the
     /// handshake. Four bytes a connection, against a config lookup a column.
     pub(crate) time_zone: i32,
-    /// How many of ADR 0067 § 7's transactions are open on this connection: 0
+    /// How many of `rule:core-classes/db-transactions`'s transactions are open on this connection: 0
     /// for none, 1 for the outermost `BEGIN`, and one more per nested
     /// `transaction()` — each of which is a `SAVEPOINT` named by the depth it
     /// opened at.
@@ -675,7 +675,7 @@ pub struct PgConn {
     /// The read state of a statement whose rows a *held cursor* is walking,
     /// parked here rather than lent out inside a borrow of this connection.
     ///
-    /// ADR 0067 § 4's buffered members drain their rows inside the one call
+    /// `rule:core-classes/db-statement-members`'s buffered members drain their rows inside the one call
     /// that started the statement, so [`crate::PgRows`] can keep this beside a
     /// borrow of the connection and let the borrow checker be what refuses a
     /// second statement. `Core\Db\Connection::stream` cannot borrow anything: a
@@ -715,7 +715,7 @@ pub struct MySqlConn {
     /// of: MySQL numbers the packets of one command and a mismatch is a wire
     /// nothing can find a boundary in.
     pub(crate) wire: MyWire,
-    /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
+    /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
     /// What the two ends agreed this connection can do — the client's set
     /// intersected with the server's greeting.
@@ -725,7 +725,7 @@ pub struct MySqlConn {
     /// an `EOF` packet or by an `OK`, are read off these bits. A driver that
     /// re-derived them per packet would be deciding it twice.
     pub(crate) capabilities: CapabilityFlags,
-    /// ADR 0067 § 1's LRU of server-side prepared statements, keyed by SQL text
+    /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements, keyed by SQL text
     /// plus expansion arity.
     ///
     /// [`PgConn::cache`]'s twin, holding the handle this protocol hands back:
@@ -735,13 +735,13 @@ pub struct MySqlConn {
     /// and `crate::mysql`'s `reset_session` is where the two are emptied
     /// together, so no caller can invalidate one and forget the other.
     pub(crate) cache: StatementCache<crate::mysql::Prepared>,
-    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a zone-less
+    /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a zone-less
     /// `DATETIME` or `TIMESTAMP` off this connection is read in.
     ///
     /// Held for [`PgConn::time_zone`]'s reason: the decode of that row happens
     /// in `nvs-stdlib`, and the target does not outlive the handshake.
     pub(crate) time_zone: i32,
-    /// How many of ADR 0067 § 7's transactions are open on this connection —
+    /// How many of `rule:core-classes/db-transactions`'s transactions are open on this connection —
     /// [`PgConn::depth`]'s twin, counted by the same rule and spent on
     /// different commands.
     ///
@@ -756,7 +756,7 @@ pub struct MySqlConn {
 /// A MariaDB connection: `mysql_common`'s codec, its own auth plugins, its own
 /// error table and `RETURNING`.
 ///
-/// Its own driver rather than a MySQL flag — ADR 0067 argues that at length and
+/// Its own driver rather than a MySQL flag — `rule:core-classes/db-one-api` argues that at length and
 /// treating it as a flag is a design error, not a simplification.
 #[derive(Debug)]
 pub struct MariaConn {
@@ -765,24 +765,24 @@ pub struct MariaConn {
     ///
     /// One protocol is framed once. What differs between the two servers is
     /// carried on that wire as `crate::mysql::Backend`: the name a refusal
-    /// reports and ADR 0067 § 8's table its codes are read against, which for
+    /// reports and `rule:core-classes/db-error`'s table its codes are read against, which for
     /// MariaDB is `crate::maria`'s and not MySQL's.
     pub(crate) wire: MyWire,
-    /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
+    /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
     /// What the two ends agreed this connection can do — [`MySqlConn`]'s field
     /// and its reason, MariaDB's packets being as self-describing as MySQL's,
     /// which is to say not at all.
     pub(crate) capabilities: CapabilityFlags,
-    /// ADR 0067 § 1's LRU of server-side prepared statements.
+    /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements.
     ///
     /// [`MySqlConn::cache`]'s twin down to the handle type: `COM_STMT_PREPARE`
     /// answers with a statement id on either server, and § 13's
     /// `COM_RESET_CONNECTION` drops the statements along with everything else.
     pub(crate) cache: StatementCache<crate::mysql::Prepared>,
-    /// ADR 0067 § 9's declared zone, as seconds east of UTC.
+    /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC.
     pub(crate) time_zone: i32,
-    /// How many of ADR 0067 § 7's transactions are open — [`MySqlConn::depth`]'s
+    /// How many of `rule:core-classes/db-transactions`'s transactions are open — [`MySqlConn::depth`]'s
     /// twin, spent on the same commands.
     pub(crate) depth: Cell<u32>,
 }
@@ -807,23 +807,23 @@ pub struct TdsConn {
     /// told the handshake is done — and it stays in the type because `rustls`
     /// cannot be handed a different stream than the one it handshook over.
     pub(crate) wire: TdsWire,
-    /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`].
+    /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
-    /// ADR 0067 § 9's declared zone, as seconds east of UTC — what a `datetime`
+    /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a `datetime`
     /// or `datetime2` off this connection is read in.
     ///
     /// Held for [`PgConn::time_zone`]'s reason, and **not** also sent: this is
     /// the one driver with no session time zone to send it to, which
     /// [`crate::tds::TdsTarget::time_zone`] owns.
     pub(crate) time_zone: i32,
-    /// ADR 0067 § 1's statement cache, keyed on SQL text plus expansion arity.
+    /// `rule:core-classes/db-one-api`'s statement cache, keyed on SQL text plus expansion arity.
     ///
     /// Its handle is [`crate::tds::TdsPlan`] rather than the bare number
     /// `sp_prepexec` answers with, and that type's own doc owns why one number
     /// is not enough to decide a hit on this protocol. § 13's reset empties it,
     /// as MySQL's does and unlike PostgreSQL's.
     pub(crate) cache: StatementCache<crate::tds::TdsPlan>,
-    /// How many of ADR 0067 § 7's transactions are open — [`MySqlConn::depth`]'s
+    /// How many of `rule:core-classes/db-transactions`'s transactions are open — [`MySqlConn::depth`]'s
     /// twin, spent on `BEGIN TRANSACTION` and `SAVE TRANSACTION`.
     pub(crate) depth: Cell<u32>,
     /// Whether this session sits at an isolation level a `transaction()` asked
@@ -857,11 +857,11 @@ pub struct SqliteConn {
     /// [`nvs_host::blocking::run`] puts on the closure. It is never contended —
     /// [`State`] below gives one request the connection at a time.
     pub(crate) handle: Arc<Mutex<rusqlite::Connection>>,
-    /// ADR 0132 § 4's busy state; the reasoning is on [`PgConn`]. SQLite carries it for
+    /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`]. SQLite carries it for
     /// the same reason the others do even with no wire to be mid-message on:
-    /// ADR 0067 § 4's `LogicError` is a property of the API, not of a socket.
+    /// `rule:core-classes/db-statement-members`'s `LogicError` is a property of the API, not of a socket.
     pub(crate) state: Cell<State>,
-    /// How many of ADR 0067 § 7's transaction levels are open, exactly as
+    /// How many of `rule:core-classes/db-transactions`'s transaction levels are open, exactly as
     /// [`PgConn::depth`] counts them.
     ///
     /// SQLite has `BEGIN` and `SAVEPOINT` like every other backend § 7 reaches,
@@ -870,7 +870,7 @@ pub struct SqliteConn {
     /// differs from PostgreSQL's, which is what a refused outermost `COMMIT`
     /// leaves behind.
     pub(crate) depth: Cell<u32>,
-    /// ADR 0067 § 9's declared zone, in seconds east of UTC.
+    /// `rule:core-classes/db-column-types`'s declared zone, in seconds east of UTC.
     ///
     /// Read from the block by the same `time_zone_for` every other driver goes
     /// through, and — as on SQL Server — sent nowhere, because there is no
@@ -884,8 +884,7 @@ pub struct SqliteConn {
 /// each variant owns its own state machine, its own error-code table and its
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
 ///
-/// `clippy::large_enum_variant` is allowed here and the reasoning is ADR 0132
-/// § 5's third argument, unchanged: a `Box` around a variant is an allocation
+/// `clippy::large_enum_variant` is allowed here and the reasoning is `rule:core-classes/db-drivers-are-an-enum`'s third argument, unchanged: a `Box` around a variant is an allocation
 /// and an indirection on every message this enum's own hot path reads, and the
 /// lint is measuring a transitional shape rather than a real disparity —
 /// [`PgConn`] carries a TLS session because its driver landed first, and the
@@ -920,7 +919,7 @@ impl Connection {
         }
     }
 
-    /// Where this connection's wire is — ADR 0132 § 4.
+    /// Where this connection's wire is — `rule:core-classes/db-connection-busy-state`.
     #[must_use]
     pub fn state(&self) -> State {
         match self {
@@ -988,7 +987,7 @@ impl Connection {
         Ok(())
     }
 
-    /// Whether a new statement may be written now — ADR 0067 § 4.
+    /// Whether a new statement may be written now — `rule:core-classes/db-statement-members`.
     #[must_use]
     pub fn may_start_statement(&self) -> bool {
         self.state().may_start_statement()
@@ -1036,7 +1035,7 @@ mod tests {
 
     /// The slot a request holds while one connection under `key` is open.
     ///
-    /// `key` is ADR 0067 § 2's, whichever of its two spellings computed it —
+    /// `key` is `rule:core-classes/db-connection-is-named`'s, whichever of its two spellings computed it —
     /// [`Ticket::for_block`] is the only constructor of a pool key, and takes
     /// the string rather than deciding it.
     fn lease(generation: &Arc<Snapshot>, key: &str) -> Lease {
@@ -1148,7 +1147,11 @@ mod tests {
             assert!(!seen.contains(&name), "two drivers answer to {name}");
             seen.push(name);
         }
-        assert_eq!(seen.len(), 5, "ADR 0067 § 12 closes the set at five");
+        assert_eq!(
+            seen.len(),
+            5,
+            "`rule:core-classes/db-one-api` closes the set at five"
+        );
         assert_eq!(Driver::from_matrix_name("oracle"), None);
     }
 

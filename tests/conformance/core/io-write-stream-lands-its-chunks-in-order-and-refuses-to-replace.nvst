@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::writeStream lands its chunks in order as one file, and a second write to the same name refuses unless `overwrite` says otherwise — the default asserted by what is still on disk after the refusal rather than by the throw on its own — ADR 0105 § 4, spec § 14
+Core\IO::writeStream lands its chunks in order as one file, and a second write to the same name refuses unless `overwrite` says otherwise — the default asserted by what is still on disk after the refusal rather than by the throw on its own — `rule:core-classes/io-write-stream`, spec § 14
 --FILE--
 <?nvs
 // Three chunks, one file: what a caller gets is `write`'s result over a source
@@ -11,7 +11,7 @@ Core\IO::writeStream("out.txt", $chunks);
 echo "wrote: ", Core\IO::read("out.txt"), "\n";
 echo "size: ", Core\IO::size("out.txt") as string, "\n";
 
-// ADR 0105 § 4's first rule. The refusal is not the claim -- what is, is that
+// `rule:core-classes/io-write-stream`'s first rule. The refusal is not the claim -- what is, is that
 // the file still holds what the first call put there, which is the difference
 // between refusing and truncating before refusing.
 array<bytes> $second = ["replaced" as bytes];

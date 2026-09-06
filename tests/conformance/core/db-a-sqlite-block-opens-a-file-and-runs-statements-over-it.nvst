@@ -1,5 +1,5 @@
 --TEST--
-A `[db.<name>]` block naming `sqlite` opens off its own arm of § 2's discriminated union — a file where the other four have an address — and § 4's `execute`, `executeMany` and `query` run over it — ADR 0067 §§ 2, 4, 5, 9
+A `[db.<name>]` block naming `sqlite` opens off its own arm of § 2's discriminated union — a file where the other four have an address — and § 4's `execute`, `executeMany` and `query` run over it — `rule:core-classes/db-connection-is-named`, `rule:core-classes/db-statement-members`, `rule:core-classes/db-parameters` and `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // The only `Core\Db` case in this tree that reaches a *running* database.

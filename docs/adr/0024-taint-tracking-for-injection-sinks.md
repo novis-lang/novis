@@ -154,7 +154,7 @@ needs; they are not the definition, and a new sink does not need an ADR to becom
   parameterize) go through `Core\Db::quoteIdentifier()` or an allowlist check instead. **One bound
   parameter is always one value**; an `IN` list is spelled `Core\Db::inList($values)`, which expands to a
   placeholder list rather than letting a runtime value's type reshape the SQL text
-  ([ADR 0067](0067-core-db.md) § 5). Values read back out of a database are themselves `tainted` under this
+  (`rule:core-classes/db-parameters`). Values read back out of a database are themselves `tainted` under this
   ADR's standing source rule, which is what closes stored injection by the same mechanism as reflected.
 - **`Core\Process`'s command execution** (M8+, behind the capability gate already named in the plan) takes
   an executable path and an argv array, each element requiring the plain type — and, more fundamentally,
@@ -280,7 +280,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   blanket `tainted`** is an open stdlib question, deferred to whichever milestone designs each class's real
   API — the same deferral `rule:statements/no-host-populated-variables` already used for `Core\Request`'s exact
   method signatures. `Core\Db` result rows are settled: they are `tainted`
-  ([ADR 0067](0067-core-db.md) § 6), by this ADR's own standing rule.
+  (`rule:core-classes/db-column-types`), by this ADR's own standing rule.
 - **The exact laundering-function roster** (`Core\Html::escape`, a matching attribute-context escaper,
   `Core\Db::quoteIdentifier`, `Core\Taint::assertTrusted`, and whatever `Core\Process`/`Core\Fs` need) is
   stdlib design due at M8, illustrative only here, the same status

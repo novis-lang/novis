@@ -198,7 +198,7 @@ fn params() -> Params {
     Params::new(M_COST, T_COST, P_COST, None).expect("the module's own constants are in range")
 }
 
-/// Spec § 16's password hashing, and ADR 0033 § 3's second escape hatch.
+/// Spec § 16's password hashing, and `rule:core-classes/secret-reveal`'s second escape hatch.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Password",
     methods: &[

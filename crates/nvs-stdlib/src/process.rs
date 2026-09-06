@@ -1,10 +1,10 @@
-//! `Core\Process` — [ADR 0044](/docs/adr/0044-core-process-argv-only-no-shell.md)'s
+//! `Core\Process` — `rule:core-classes/process-is-argv-only`'s
 //! one way to run another program, over
 //! [`nvs_runtime::capability::exec`](nvs_runtime::capability::exec)'s door.
 //!
 //! # Decision: there is no shell-string form, so there is nothing here to escape
 //!
-//! ADR 0044 is the whole of it, and the shape of this module is what enforces
+//! `rule:core-classes/process-is-argv-only` is the whole of it, and the shape of this module is what enforces
 //! it: `run` takes a `string $path` and an `array<string> $argv`, and no member
 //! of this class takes a command line. PHP's `exec`, `system`, `shell_exec`,
 //! `passthru` and the backtick operator are all *one* member here, because the
@@ -16,7 +16,7 @@
 //!
 //! # Decision: the result is a `Core`-owned instance, not a shape
 //!
-//! ADR 0044 § 1 writes `$result->exitCode()` and `$result->stderr()`, and this
+//! `rule:core-classes/process-run` writes `$result->exitCode()` and `$result->stderr()`, and this
 //! module answers with exactly that: [`RESULT`] is an ordinary
 //! [`crate::instance`] class with three zero-argument members over three slots.
 //! A shape — `{exitCode, stdout, stderr}`, read as properties — was the
@@ -27,7 +27,7 @@
 //! decoded `text()`) would have to go. `Core\Regex\Match` is the precedent, for
 //! the same reasons stated there.
 //!
-//! **Captured output is `bytes`, never `string`** — ADR 0044 § 1, over
+//! **Captured output is `bytes`, never `string`** — `rule:core-classes/process-run`, over
 //! `rule:types/bytes`'s UTF-8 guarantee,
 //! which cannot be assumed of an arbitrary child's output. A caller who knows
 //! the output is text writes `as string`, which is the checked conversion that
@@ -35,7 +35,7 @@
 //!
 //! # Decision: the wait happens off the core, and nothing else about it moved
 //!
-//! ADR 0044 § 5. A child process has no readiness a reactor can poll — no
+//! `rule:core-classes/process-run`. A child process has no readiness a reactor can poll — no
 //! descriptor of ours becomes ready when it exits — so waiting for one is
 //! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 6's
 //! other case, and [`nvs_host::blocking::run`] is the only spelling of it in
@@ -51,7 +51,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`[limits] max_output` does not bound the capture yet.** ADR 0044 § 1
+//! 1. **`[limits] max_output` does not bound the capture yet.** `rule:core-classes/process-run`
 //!    reuses that directive rather than adding a cap, and nothing reads it in
 //!    this tree — so what bounds a capture today is the request's memory limit,
 //!    which these two buffers are charged against like any other allocation.
@@ -85,7 +85,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         name: "run",
         names: &["path", "argv"],
         // The path is a sink for `Core\IO`'s reason and one more of its own:
-        // ADR 0044 § 1 says `$path` and every element of `$argv` are plain
+        // `rule:core-classes/process-run` says `$path` and every element of `$argv` are plain
         // `string`, because a name the program did not choose is the whole of
         // what a command injection is. The elements carry no mark of their own
         // — `nvs_types::core_lib::qual_of` reads no nested classification, and
@@ -167,7 +167,7 @@ const STDERR_SLOT: usize = 2;
 /// is negative, so the value cannot collide with one.
 const SIGNALLED: i32 = -1;
 
-/// ADR 0044 § 1's `ProcessResult` — what [`nvs_core_process_run`] answers with.
+/// `rule:core-classes/process-run`'s `ProcessResult` — what [`nvs_core_process_run`] answers with.
 ///
 /// Three members over three slots and no static member at all: a result is only
 /// ever produced by a run. This module's docs own why it is an instance rather
@@ -341,7 +341,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// The child's status and both of its streams, waited for **off this core** —
-/// ADR 0044 § 5, and this module's *Decision: the wait happens off the core*.
+/// `rule:core-classes/process-run`, and this module's *Decision: the wait happens off the core*.
 ///
 /// Both streams are read to the end before the status is taken, which is what
 /// [`Child::wait_with_output`] is for: waiting first and reading after
@@ -440,7 +440,7 @@ mod tests {
         matches!(ty, CoreTy::Str | CoreTy::Text(_))
     }
 
-    /// ADR 0044 § 1, asserted over the whole roster rather than off `run`'s signature: **no member
+    /// `rule:core-classes/process-run`, asserted over the whole roster rather than off `run`'s signature: **no member
     /// of this class takes a command line**, and what proves it is that every member naming a
     /// program carries exactly one text parameter — the name — with its arguments in an
     /// `array<string>` beside it. A `spawn` that arrived later with a second text parameter, or
@@ -476,7 +476,7 @@ mod tests {
             assert_eq!(
                 argvs, 1,
                 "`{}` names a program and takes no `array<string>` of arguments, so its caller has \
-                 nowhere to put them but inside the name — ADR 0044 § 1",
+                 nowhere to put them but inside the name — `rule:core-classes/process-run`",
                 method.name
             );
         }
@@ -491,7 +491,7 @@ mod tests {
         );
     }
 
-    /// ADR 0044 § 4, driven through the door [`super::nvs_core_process_run`] calls, on a context
+    /// `rule:core-classes/process-refuses-a-shell-target`, driven through the door [`super::nvs_core_process_run`] calls, on a context
     /// that grants everything — so a refusal here cannot be the capability denial wearing the same
     /// class. Both halves of the rule: the three kinds are refused **however they are spelled**,
     /// since the extension is lower-cased before it is matched, and the refusal names the kind in
@@ -543,7 +543,7 @@ mod tests {
         );
     }
 
-    /// ADR 0044 § 5, in the only two ways it is observable: the core is **given back** while the
+    /// `rule:core-classes/process-run`, in the only two ways it is observable: the core is **given back** while the
     /// child runs, and the wait lands on the blocking pool rather than on the worker.
     ///
     /// The neighbour is what makes the first half an assertion rather than a hope. A wait that

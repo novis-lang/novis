@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spelling of its options bag and with an empty source as readily as a full one — so a member that reached its stream before it reached the door would answer something else on the last of them — ADR 0105 § 4, ADR 0118 §§ 1-2
+Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spelling of its options bag and with an empty source as readily as a full one — so a member that reached its stream before it reached the door would answer something else on the last of them — `rule:core-classes/io-write-stream`, ADR 0118 §§ 1-2
 --FILE--
 <?nvs
 // The claim is an ordering, and counting is what turns it into one. Four of

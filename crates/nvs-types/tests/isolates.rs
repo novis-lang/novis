@@ -227,7 +227,7 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
 /// The bound on the other side is the line above it: the same value binds and
 /// is read, so what is refused is the crossing and not the value.
 ///
-/// ADR 0083 § 4's bus is asserted here rather than beside § 4's other qualifier
+/// `rule:core-classes/topic`'s bus is asserted here rather than beside § 4's other qualifier
 /// rules (`sockets.rs`) because it is the same copy: "a published value is
 /// copied by `rule:classes/graph-copy`'s graph copy", so `Core\Topic::publish` is a third
 /// carrier of the rule this test's first half asks about, and the two are

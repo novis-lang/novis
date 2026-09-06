@@ -80,7 +80,7 @@ class MyError extends IOError {
         assert_eq!(&class.fields[..PROPERTIES.len()], PROPERTIES, "{label}");
     }
 
-    // ADR 0071 § 5's `issues` and ADR 0067 § 8's `kind` are properties classes
+    // `rule:core-classes/derive-reports-every-field`'s `issues` and `rule:core-classes/db-error`'s `kind` are properties classes
     // below the root declare, and the runtime writes each by index too — so
     // their slots are held by the same agreement the four above are. Both
     // constants are equal, and are asserted against their own class rather

@@ -10,7 +10,7 @@
 ## What this is, and what it is not
 
 It is a **harness, not a test**. Every assertion belongs to the crate that owns what it asserts,
-written once against the shape ADR 0067's *Verification* section names; this file's whole job is to
+written once against the shape `rule:core-classes/db-one-api`'s *Verification* section names; this file's whole job is to
 point those suites at five endpoints, one driver at a time, and print one `<driver>: ok` line each.
 Which suites, and why it is no longer only `nvs-db`'s, is `SUITES` below. `docs/agent/loop-goal.md`
 § *The harness this goal owes* is why it exists before the first driver rather than after: a driver
@@ -43,7 +43,7 @@ Discrete fields in the environment, never a connection string:
     NVS_DB_MATRIX_CA         the PEM bundle vouching for that server, exported below
     NVS_DB_MATRIX_PATH       sqlite only, a scratch file this tool creates and removes
 
-ADR 0067 § 2 makes `Db\\Settings` five types rather than one loose shape, and Novis has no DSN
+`rule:core-classes/db-connection-is-named` makes `Db\\Settings` five types rather than one loose shape, and Novis has no DSN
 anywhere in its surface. A harness that invented one would be the first place a DSN *parser* had to
 exist, and the crate would then be tested through a spelling no program can use.
 
@@ -107,7 +107,7 @@ TEST_TIMEOUT = 900
 #:
 #: Two rather than one, because what a server has to answer no longer all lives in `nvs-db`: ADR
 #: 0084's queue statements are `nvs_stdlib::queue`'s -- § 2's schema has one home and that is it --
-#: and ADR 0132 § 1 forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need, so
+#: and `rule:core-classes/db-crate-boundary` forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need, so
 #: they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them. Narrowed to
 #: that one target on purpose: the rest of `nvs-stdlib`'s suite asks a server nothing, and every
 #: driver leg would pay for it.
@@ -119,7 +119,7 @@ SUITES = (
 
 @dataclass(frozen=True)
 class Driver:
-    """One column of ADR 0067's matrix: a driver, and where its server is."""
+    """One column of `rule:core-classes/db-one-api`'s matrix: a driver, and where its server is."""
 
     name: str
     #: The compose service to bring up, or `None` for the driver that has no server.
@@ -353,7 +353,7 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="run nvs-db's assertions against ADR 0067's five drivers, one process each",
+        description="run nvs-db's assertions against `rule:core-classes/db-one-api`'s five drivers, one process each",
     )
     ap.add_argument("--all", action="store_true", help="every driver in the matrix")
     ap.add_argument("--driver", action="append", default=[], metavar="NAME",

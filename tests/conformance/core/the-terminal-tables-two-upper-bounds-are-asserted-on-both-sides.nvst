@@ -27,8 +27,8 @@ string $nbsp = Core\Str::fromCodePoint(0xA0);
 echo Core\Cli::escape($nbsp) == $nbsp ? "nbsp passed" : "nbsp replaced", "\n";
 
 // And U+007D, just under `DEL`'s neighbour, together with an ordinary letter:
-// the table transforms no visible text, which is the asymmetry with ADR 0024
-// § 5's HTML `&`→`&amp;` that makes this default affordable.
+// the table transforms no visible text, which is the asymmetry with `rule:core-classes/html-auto-escape`
+// 's HTML `&`→`&amp;` that makes this default affordable.
 echo Core\Cli::escape("}~ ok"), "\n";
 --EXPECT--
 ~

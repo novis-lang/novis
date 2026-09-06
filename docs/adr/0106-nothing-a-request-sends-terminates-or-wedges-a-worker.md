@@ -62,7 +62,7 @@ three:
 - **A core that never comes back.** Nothing here crashes. A safepoint bounds Novis code between helpers, but
   a helper whose runtime is O(input) is a single call with no safepoint inside it, and a blocking syscall
   on a thread-per-core runtime stalls every coroutine pinned to that core.
-  [ADR 0056](0056-regex-engine-policy.md) already named this shape exactly right for one member — a
+  `rule:core-classes/regex-two-tiers` already named this shape exactly right for one member — a
   catastrophic pattern "is not a slow request; it is a lost core" — and the observation generalises past
   regex.
 

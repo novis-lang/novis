@@ -112,7 +112,7 @@ extension-specific relaxation, so the two cannot drift.
   compiler.
 - **First-party extensions must declare correctly or be over-strict**, and over-strict is the safe failure.
   The intl component declares nothing at all and gets contagion, which is right: a formatted tainted number
-  is still tainted, and reaches HTML output through ADR 0024 § 5's auto-escaping like any other value.
+  is still tainted, and reaches HTML output through `rule:core-classes/html-auto-escape`'s auto-escaping like any other value.
 - **An extension cannot be a launderer, which is a real capability loss** and is not hidden here. A
   community HTML sanitizer cannot present itself as one. The alternatives are for the sanitizer to be
   adopted into `Core\Html` — where we own it, and where ADR 0024 § 3 already anticipates the roster growing

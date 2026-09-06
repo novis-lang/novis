@@ -193,7 +193,7 @@ pub(crate) enum Encoder {
     Sqlite(fn(Value) -> std::io::Result<nvs_db::SqliteValue>),
 }
 
-/// ADR 0067 § 5's dialect and § 9's encoder for one driver.
+/// `rule:core-classes/db-parameters`'s dialect and § 9's encoder for one driver.
 ///
 /// Pure and separate from [`rendering_of`] so the pairing is testable with no
 /// connection in hand: `a_driver_is_bound_in_its_own_dialect` is what holds it
@@ -210,7 +210,7 @@ pub(crate) enum Encoder {
 /// while SQLite had no encoder and was this crate's roster of the drivers
 /// nothing binds for at all; every driver `nvs-db` has written now binds, so
 /// there is no absent case left to carry. It was never [`crate::queue`]'s
-/// roster: ADR 0084 § 2's schema is written for three drivers and this binds for
+/// roster: `rule:core-classes/queue-storage-is-a-table`'s schema is written for three drivers and this binds for
 /// five, so that module's `no_dialect` splits on its own `migration` instead.
 pub(crate) fn rendering_for(driver: nvs_db::Driver) -> (nvs_db::Dialect, Encoder) {
     let encode = match driver {
@@ -356,7 +356,7 @@ fn bounds_for_settings(
 mod tests {
     use super::*;
 
-    /// ADR 0067 § 5's rewrite and § 9's encoding are **one** choice per driver,
+    /// `rule:core-classes/db-parameters`'s rewrite and § 9's encoding are **one** choice per driver,
     /// and the pairing is what a statement bound half one way fails on — at the
     /// server if it is lucky, since `?` and `$1` are both valid text and `t` and
     /// `1` are both valid bytes.

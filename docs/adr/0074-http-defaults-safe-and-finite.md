@@ -43,8 +43,8 @@
 - Novis already removes whole classes of bug by making the safe thing the only representable thing — SQL
   injection ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)), SSRF
   ([ADR 0058](0058-outbound-request-policy.md)), shell injection
-  ([ADR 0044](0044-core-process-argv-only-no-shell.md)), ReDoS
-  ([ADR 0056](0056-regex-engine-policy.md)), `alg: none`
+  (`rule:core-classes/process-is-argv-only`), ReDoS
+  (`rule:core-classes/regex-two-tiers`), `alg: none`
   ([ADR 0060](0060-application-security-protocols.md)). Response headers and outbound timeouts are the two
   places left where the *default* is what hurts, and where every application re-solves the same problem
   with the same middleware copied from the same blog post.
@@ -101,7 +101,7 @@ rather than transcription:
   that is right is application-specific. `frame-ancestors 'none'` is the one directive that is safe for
   every application, because it governs who may frame the response rather than what the response may load.
   The XSS half of what a CSP buys is closed structurally in Novis by
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5's auto-escaping HTML sink, which is a stronger
+  `rule:core-classes/html-auto-escape`'s auto-escaping HTML sink, which is a stronger
   guarantee than a policy header and does not depend on being configured.
 
 ### 2. Inbound: CORS is closed, and one combination has no correct meaning
@@ -200,7 +200,7 @@ path, which R2 exists to avoid. The prefix keeps the grouping legible at a call 
 there is no `deadline: null` and no `0` meaning unbounded, and omitting the field inherits `[http.client]
 deadline` rather than removing the bound. So an unbounded outbound call is not something a program can
 express, in the same way a shell string is not something `Core\Process` can express
-([ADR 0044](0044-core-process-argv-only-no-shell.md)) — the guarantee comes from the absence of a spelling,
+(`rule:core-classes/process-is-argv-only`) — the guarantee comes from the absence of a spelling,
 not from a check.
 
 `deadline` covers the **whole call**: connection, every redirect hop, every retry attempt and every backoff
@@ -273,7 +273,7 @@ regardless, and refusing it would buy nothing.
   true that a compromised handler can disable its own response's protections. It could already write any
   header it wanted; this changes nothing about that, but it will be raised as an objection.
 - **No default CSP will disappoint people** who expected a `default-src` policy in the box. § 1 says why,
-  and [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5 is the answer for the part that matters.
+  and `rule:core-classes/html-auto-escape` is the answer for the part that matters.
 - **A finite default deadline will time out a call somebody expected to take five minutes.** A long-poll or
   a large upload names its own `deadline`, which is one field — and having to name it is the point.
 - **Four more configuration blocks** (priority 4), on top of a file that is already growing. Each is a table
@@ -298,7 +298,7 @@ regardless, and refusing it would buy nothing.
   and a boot warning is read once.
 - **Edge concerns in `nvs.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
   Rejected as this ADR's business: a proxy in front of Novis does those earlier and better, which is the same
-  line [ADR 0075](0075-core-ratelimit.md) draws for flood limiting. M7 still caps a request body, because
+  line `rule:core-classes/ratelimit-two-members` draws for flood limiting. M7 still caps a request body, because
   that is memory it allocates itself ([ADR 0097](0097-development-server-and-proxied-origin.md) § 8, where
   the cap is `[limits] request_body` rather than a directive of its own). **That line covers size and rate,
   and explicitly not two other things.** It does not cover **parsing** — request smuggling *is* a
@@ -329,7 +329,7 @@ regardless, and refusing it would buy nothing.
 - **Circuit breaking** — refusing outbound calls to an endpoint that has been failing — was considered and
   not taken. It needs per-endpoint state shared across a core, which is
   [ADR 0059](0059-cross-request-state-is-explicit.md)'s territory, and its interaction with
-  [ADR 0075](0075-core-ratelimit.md)'s approximate tier should be argued once for both rather than twice.
+  `rule:core-classes/ratelimit-two-members`'s approximate tier should be argued once for both rather than twice.
 - **Per-attempt observability** — whether a retried call reports one span or one per attempt — is
   [ADR 0076](0076-observability-export.md)'s question, and it should say so rather than being decided here.
 

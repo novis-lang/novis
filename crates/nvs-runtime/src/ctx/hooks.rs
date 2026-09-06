@@ -645,8 +645,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3's ordering against [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+    /// `rule:core-classes/temporary-dir-sweep`'s ordering against [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
     /// queue, asserted from the one side that can observe it: the last user
     /// code still finds the directory it was handed, and the teardown behind it
     /// is what takes it away.

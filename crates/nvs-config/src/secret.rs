@@ -111,7 +111,7 @@ pub struct Materialized {
 #[derive(Clone, Copy, Debug)]
 pub struct SecretPair {
     /// The block the pair is written in, where `*` stands for the one segment an operator names —
-    /// `db.*` for ADR 0067's `[db.<name>]`. Every key and every diagnostic is built out of this.
+    /// `db.*` for `rule:core-classes/db-one-api`'s `[db.<name>]`. Every key and every diagnostic is built out of this.
     pub block: &'static str,
     /// The value's own segment. Its `_file` sibling is this plus `_file`, and § 7 gives no way to
     /// spell either half differently.

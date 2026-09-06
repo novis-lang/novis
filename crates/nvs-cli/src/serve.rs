@@ -114,7 +114,7 @@ pub(crate) fn run(
         crate::render_diagnostics(&mut diags, &sources);
     }
 
-    // ADR 0131 § 4's orphan sweep, the moment the root is knowable and long
+    // `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, the moment the root is knowable and long
     // before a socket exists. [`sweep_orphans`] owns why it is here, why no
     // other subcommand does it, and why nothing it finds can refuse this start.
     sweep_orphans(&snapshot.config);
@@ -654,7 +654,7 @@ impl nvs_server::Fires for Scheduled {
     }
 }
 
-/// [ADR 0131] § 4's orphan sweep — one of the two places in the product that
+/// `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep — one of the two places in the product that
 /// runs it, and the reason a hard-killed script's leftovers ever go away.
 ///
 /// **Boot, and no other invocation.** A `nvs run` does not sweep and neither
@@ -678,7 +678,6 @@ impl nvs_server::Fires for Scheduled {
 /// because a stale directory could not be removed is the outage this sweep
 /// exists to avoid, not one it may cause.
 ///
-/// [ADR 0131]: /docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 fn sweep_orphans(config: &nvs_config::Config) {
     let root = nvs_runtime::capability::temp_root(Some(config));
     for (path, error) in nvs_runtime::sweep::refusals(nvs_runtime::sweep::orphans(&root)) {
@@ -801,7 +800,7 @@ mod tests {
             .expect("the case writes a block this tree has")
     }
 
-    /// ADR 0131 § 4's boot sweep, asserted from both directions in one case
+    /// `rule:core-classes/temporary-dir-orphan-sweep`'s boot sweep, asserted from both directions in one case
     /// because the sweep has exactly one way to be wrong in each.
     ///
     /// The dead owner's entry going is the feature. The live owner's entry

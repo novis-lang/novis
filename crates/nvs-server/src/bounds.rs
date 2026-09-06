@@ -32,7 +32,7 @@
 //!   the same reason — ADR 0106 § 13's arithmetic sizes a slot against what one
 //!   isolate may hold, and § 1 gives a connection isolate exactly that budget.
 //! - **Connections per tenant** is not a bound of this server's at all, which
-//!   is what § 7's parenthetical says: [ADR 0075](/docs/adr/0075-core-ratelimit.md)
+//!   is what § 7's parenthetical says: `rule:core-classes/ratelimit-two-members`
 //!   applies to the upgrade request "like any other", so a per-tenant ceiling is
 //!   the rate limit an application already declares on the route that upgrades.
 //!   A second one here would be a second policy over the same request.
@@ -213,7 +213,7 @@ mod tests {
     /// § 7's eight are not fields and are asserted beside them: the process
     /// ceiling is
     /// [`Slot`]'s and is exercised here at a ceiling of one, and the per-tenant
-    /// bound is ADR 0075's rate limit on the upgrade request, which is an
+    /// bound is `rule:core-classes/ratelimit-two-members`'s rate limit on the upgrade request, which is an
     /// application's declaration and not a number this server holds.
     #[test]
     fn every_connection_bound_is_finite_with_nothing_configured() {

@@ -1,8 +1,8 @@
 --TEST--
-A settings literal may ask for a weaker `tls` and is refused rather than quietly given the stronger one, and the SQLite arm is a shape the checker accepts and this build cannot open — ADR 0067 § 3, ADR 0135 § 2
+A settings literal may ask for a weaker `tls` and is refused rather than quietly given the stronger one, and the SQLite arm is a shape the checker accepts and this build cannot open — `rule:core-classes/db-capabilities`, ADR 0135 § 2
 --FILE--
 <?nvs
-// ADR 0067 § 3's third closed hole. PHP's `pdo_pgsql` defaults to
+// `rule:core-classes/db-capabilities`'s third closed hole. PHP's `pdo_pgsql` defaults to
 // `sslmode=prefer` and connects in plaintext whenever the server says so; here
 // the weak spelling exists, is writable, and is answered by a refusal that
 // names what it asked for. Verifying more than a caller asked for would be a
@@ -29,7 +29,7 @@ try {
 // The other arm of `Db\Settings`, which takes a `path` and declares no `host`
 // at all. It type-checks, which is what makes it an arm, and it opens -- so
 // what refuses it here is the same thing that refused the arm above: this
-// deployment grants no `db.open` at all. ADR 0067 § 3 asks that grant about the
+// deployment grants no `db.open` at all. `rule:core-classes/db-capabilities` asks that grant about the
 // *path* on this arm, there being no host to ask it about.
 try {
     var $file = Core\Db::open({
@@ -43,6 +43,6 @@ try {
 
 echo "still running", "\n";
 --EXPECT--
-Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — ADR 0067 § 3 has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
+Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
 Core\Db::open needs the capability `db.open` for /srv/shop/shop.db, which is not granted
 still running

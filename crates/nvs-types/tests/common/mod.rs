@@ -207,7 +207,7 @@ pub(crate) fn check_src(src: &str) -> Diagnostics {
 }
 
 /// [`check_src`] with a deployment's `[capabilities]` block in front of the
-/// checker — ADR 0067 § 10's "read at boot on the machine that compiles",
+/// checker — `rule:core-classes/db-literal-query-checking`'s "read at boot on the machine that compiles",
 /// which is the only input to a check that is not the program.
 ///
 /// `None` is what every other fixture passes and is *not* an empty grant set;

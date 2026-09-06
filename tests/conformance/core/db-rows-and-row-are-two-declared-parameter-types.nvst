@@ -1,5 +1,5 @@
 --TEST--
-Every `Rows` and `Row` reader is reached through a declared parameter, so where the value came from does not decide what it can answer — and a `?Row` is not a `Row` — ADR 0067 § 6, spec § 18
+Every `Rows` and `Row` reader is reached through a declared parameter, so where the value came from does not decide what it can answer — and a `?Row` is not a `Row` — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 // The agreement question: a result set and a row are *types*, so the two

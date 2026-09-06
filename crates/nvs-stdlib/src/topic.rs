@@ -1,5 +1,4 @@
-//! `Core\Topic` — [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-//! § 4's bus, as the only way two connections meet.
+//! `Core\Topic` — `rule:core-classes/topic`'s bus, as the only way two connections meet.
 //!
 //! § 3 gives a connection one wait over two sources; this is the second one.
 //! A connection joins a topic by name, a publish copies a value to everyone who
@@ -171,7 +170,7 @@ use crate::socket::{release_crossed, retained};
 /// message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Topic";
 
-/// `Core\Topic`'s registry rows — ADR 0083 § 4's three, and see
+/// `Core\Topic`'s registry rows — `rule:core-classes/topic`'s three, and see
 /// [`crate::registry::CLASSES`].
 ///
 /// A namespace class with no instance members and no slots, because a
@@ -521,7 +520,7 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Topic::subscribe(string $topic): void` — ADR 0083 § 4's first row.
+    /// `Core\Topic::subscribe(string $topic): void` — `rule:core-classes/topic`'s first row.
     ///
     /// The name is checked, then the host, then the table — and that order is
     /// this module's own decision rather than an accident of writing.
@@ -534,8 +533,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Topic::publish(string $topic, mixed $value): uint` — ADR 0083
-    /// § 4's second row, and the only member of this class that asks nothing
+    /// `Core\Topic::publish(string $topic, mixed $value): uint` — `rule:core-classes/topic`'s second row, and the only member of this class that asks nothing
     /// about the program calling it.
     ///
     /// The name, then the crossing, then the walk. The crossing stands before
@@ -594,7 +592,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Topic::unsubscribe(string $topic): void` — ADR 0083 § 4's third
+    /// `Core\Topic::unsubscribe(string $topic): void` — `rule:core-classes/topic`'s third
     /// row, and [`nvs_core_topic_subscribe`]'s exact undoing.
     ///
     /// It refuses what its twin refuses and nothing more: a name it does not
@@ -722,7 +720,7 @@ mod tests {
     }
 
     /// A publish reaches every live subscriber on this core, answers how many,
-    /// and hands each one a copy of its own — ADR 0083 § 4.
+    /// and hands each one a copy of its own — `rule:core-classes/topic`.
     ///
     /// The publisher here is not a connection, which is this module's second
     /// decision: a topic is how two connections meet, and an ordinary program
@@ -743,7 +741,7 @@ mod tests {
     }
 
     /// A publish from one core reaches the subscribers on another and answers a
-    /// count that includes them — ADR 0083 § 4's "a publish from a connection
+    /// count that includes them — `rule:core-classes/topic`'s "a publish from a connection
     /// on core 3 reaches subscribers on core 0".
     ///
     /// The two threads are what a server's two cores are, and the channels
@@ -784,7 +782,7 @@ mod tests {
         );
     }
 
-    /// Each subscriber is handed a value of its own — ADR 0083 § 4's
+    /// Each subscriber is handed a value of its own — `rule:core-classes/topic`'s
     /// "subscribers share nothing with the publisher or with each other",
     /// asserted as the two payloads not being one allocation.
     ///
@@ -880,7 +878,7 @@ mod tests {
 
     /// The table is keyed by name and holds one entry per live connection, so
     /// two connections on one topic are two subscribers and one connection
-    /// subscribing twice is still one — ADR 0083 § 4.
+    /// subscribing twice is still one — `rule:core-classes/topic`.
     ///
     /// The second half is what a publish would otherwise get wrong: a
     /// fan-out over a row with a duplicate in it delivers the same value to
@@ -922,7 +920,7 @@ mod tests {
 
     /// Leaving a topic this connection never joined is not an error, and
     /// leaving one nobody else is on takes the row out of the table rather
-    /// than leaving an empty one — ADR 0083 § 4's queue is per subscriber, so
+    /// than leaving an empty one — `rule:core-classes/topic`'s queue is per subscriber, so
     /// a topic with no subscriber is nothing at all.
     #[test]
     fn unsubscribing_from_a_topic_that_was_never_joined_is_the_state_it_asks_for() {
@@ -935,7 +933,7 @@ mod tests {
         assert_eq!(subscriber_count("room:brief"), 0);
     }
 
-    /// ADR 0083 § 4's priority-1 rule, on both halves at once: a subscriber
+    /// `rule:core-classes/topic`'s priority-1 rule, on both halves at once: a subscriber
     /// that never reads is **closed**, and the publisher fanning out to it is
     /// unaffected — not blocked, not failed, and still reaching everybody else.
     ///

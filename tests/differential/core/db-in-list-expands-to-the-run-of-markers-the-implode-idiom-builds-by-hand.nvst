@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::inList binds a run of values at one placeholder, answering what PHP's implode-of-question-marks idiom answers over IN and NOT IN — and refusing the empty list the idiom builds a syntax error out of — ADR 0067 § 5
+Core\Db::inList binds a run of values at one placeholder, answering what PHP's implode-of-question-marks idiom answers over IN and NOT IN — and refusing the empty list the idiom builds a syntax error out of — `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
 // § 5's marker is the explicit form of the idiom every PHP codebase writes by

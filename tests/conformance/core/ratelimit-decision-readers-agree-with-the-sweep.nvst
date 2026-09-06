@@ -1,5 +1,5 @@
 --TEST--
-A Core\RateLimit\Decision's three readers agree with the sweep that produced them, over two windows of different widths — ADR 0075 §§ 2 and 3
+A Core\RateLimit\Decision's three readers agree with the sweep that produced them, over two windows of different widths — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
 // § 3's four fields are four readers over one decision, and each of them reads

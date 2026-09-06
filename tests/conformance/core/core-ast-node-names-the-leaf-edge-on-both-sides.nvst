@@ -1,5 +1,5 @@
 --TEST--
-A Core\Ast\Node with no children answers an empty list rather than an absence, named beside the interior node it hangs off — ADR 0019 § 3
+A Core\Ast\Node with no children answers an empty list rather than an absence, named beside the interior node it hangs off — `rule:core-classes/ast-is-inert`
 --FILE--
 <?nvs
 // The *bound* shape, over the edge every walk of this tree ends at. `children`

@@ -26,7 +26,7 @@ class Describe {
 Describe::of("Point");
 Describe::of("Nowhere");
 
-// ADR 0019 § 1: the two doors are two ways to the same descriptor, so the
+// `rule:core-classes/reflect`: the two doors are two ways to the same descriptor, so the
 // description must not depend on which one was used. Asserted as an agreement
 // between them rather than as two right-looking answers.
 var $byName = Core\Reflect::forClass("Point");

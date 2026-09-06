@@ -1,5 +1,5 @@
 --TEST--
-Core\Db\Schema::fromArray refuses a type outside the vocabulary and a value the form has no place for, rather than carrying either through — ADR 0145 §§ 1-2
+Core\Db\Schema::fromArray refuses a type outside the vocabulary and a value the form has no place for, rather than carrying either through — `rule:core-classes/schema-is-a-value` and `rule:core-classes/schema-vocabulary-is-closed`
 --FILE--
 <?nvs
 // § 2's vocabulary is closed and there is no raw escape hatch anywhere inside a
@@ -9,7 +9,7 @@ Core\Db\Schema::fromArray refuses a type outside the vocabulary and a value the 
 // where the caller who wrote the array is still on the stack.
 
 // A vendor's own type name is exactly what the vocabulary does not carry: the
-// column type enum is ADR 0067 § 9's type map in the write direction, and a
+// column type enum is `rule:core-classes/db-column-types`'s type map in the write direction, and a
 // spelling outside it is refused rather than passed through to a server that
 // might have accepted it.
 try {
@@ -61,7 +61,7 @@ array<mixed> $accepted = [
 echo Core\Json::encode(Core\Db\Schema::fromArray($accepted)->toArray()), "\n";
 --EXPECT--
 Core\Db\Schema::fromArray(): `serial` is not one of the column types the vocabulary contains
-Core\Db\Schema::fromArray(): the array["tables"][0]["columns"][0]["default"] holds `null`, where a key a schema does not set is left out instead. A schema array holds only strings, integers, floats, booleans and arrays of those — ADR 0145 § 2's vocabulary is closed and there is nowhere in it to put anything else
+Core\Db\Schema::fromArray(): the array["tables"][0]["columns"][0]["default"] holds `null`, where a key a schema does not set is left out instead. A schema array holds only strings, integers, floats, booleans and arrays of those — `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is closed and there is nowhere in it to put anything else
 Core\Db\Schema::fromArray(): `notes; drop table users` is not a bare identifier — a letter or `_`, then letters, digits or `_`
 Core\Db\Schema::fromArray(): identity column `id` is not in its table's primary key, which SQLite requires and the other four assume
 {"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true}],"primary_key":["id"],"unique":[],"indexes":[]}]}

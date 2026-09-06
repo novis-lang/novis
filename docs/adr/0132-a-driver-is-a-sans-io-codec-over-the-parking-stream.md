@@ -1,4 +1,4 @@
-# ADR 0132 — A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait
+# `rule:core-classes/db-drivers-are-an-enum` — A driver is a sans-IO codec plus its own state machine over the parking stream, and the five are an enum rather than a trait
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

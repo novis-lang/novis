@@ -106,10 +106,10 @@ pub enum Fault {
     /// such property reaches its slot through this one variant.
     ///
     /// Two fill it today, and a third owes a caller rather than a variant:
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's `issues` on
+    /// `rule:core-classes/derive-reports-every-field`'s `issues` on
     /// `ParseError`, so a member that found *several* things wrong with one
     /// input tells a form about all four bad fields rather than the first, and
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's `kind` on
+    /// `rule:core-classes/db-error`'s `kind` on
     /// `Core\Db\DbError`, so a `catch` branches on the condition the server
     /// named rather than on the wording of the message. A sibling variant per
     /// property was the alternative and was rejected: each one costs an arm in
@@ -126,7 +126,7 @@ pub enum Fault {
     /// would have to release on every replacement path.
     ///
     /// The pairs are boxed rather than held inline, which is
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's measurement: a
+    /// `rule:core-classes/db-error`'s measurement: a
     /// `Box<[_]>` is two words where one `(slot, value)` pair is three, so this
     /// carries any number of properties in **less** width than it carried one,
     /// and every helper's `Result` is narrower for it. The allocation is paid
@@ -185,7 +185,7 @@ impl Fault {
     /// [`Self::thrown_with_slot`] for a class filling more than one of its own
     /// properties — `Core\Db\DbError`'s normalised `kind` beside the raw
     /// `sqlState` the driver read it off
-    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
+    /// (`rule:core-classes/db-error`).
     ///
     /// Takes over every value's reference.
     #[must_use]
@@ -197,7 +197,7 @@ impl Fault {
         Self::ThrownWithSlots(class, message.into(), slots.into_boxed_slice())
     }
 
-    /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — ADR 0071 § 5's
+    /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — `rule:core-classes/derive-reports-every-field`'s
     /// "report every bad field at once", which is the caller this shape was
     /// first written for. Spelled once here rather than at each of
     /// `nvs_stdlib::json`'s five sites, none of which should have to name a
@@ -302,7 +302,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 /// A sort cannot hand back a half-permuted array; where the operation has no
 /// such point the bound belongs on the *input* instead, which is ADR 0106 § 5's
 /// second constraint and what
-/// [ADR 0056](/docs/adr/0056-regex-engine-policy.md) already did for
+/// `rule:core-classes/regex-two-tiers` already did for
 /// patterns. Between two iterations of *this* loop is such a point by
 /// construction, because `body` has returned.
 ///

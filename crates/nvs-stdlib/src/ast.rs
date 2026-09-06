@@ -1,5 +1,4 @@
-//! `Core\Ast` — [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-//! § 3's door onto the compiler's own parser, and the inert tree it answers
+//! `Core\Ast` — `rule:core-classes/ast-is-inert`'s door onto the compiler's own parser, and the inert tree it answers
 //! with.
 //!
 //! # Decision: one grammar, reached rather than reimplemented
@@ -85,7 +84,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         names: &["source"],
         // Neutral, and not a sink: the answer names productions rather than
         // carrying the argument's content, and nothing executes what it
-        // describes (ADR 0019 § 3). The day known gap 2 lets a node answer its
+        // describes (`rule:core-classes/ast-is-inert`). The day known gap 2 lets a node answer its
         // own text is the day this becomes `Qual::Contagious`.
         params: &[CoreTy::Text(Qual::Neutral)],
         defaults: &[],
@@ -267,7 +266,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Ast::parse(string $source): Core\Ast\Node` — ADR 0019 § 3's one
+    /// `Core\Ast::parse(string $source): Core\Ast\Node` — `rule:core-classes/ast-is-inert`'s one
     /// grammar, reached at run time.
     ///
     /// The whole body is the call and the shaping: `nvs_syntax` does the
@@ -388,7 +387,7 @@ mod tests {
         }
     }
 
-    /// ADR 0019 § 3's second rule, which is the one that has to be *shown*
+    /// `rule:core-classes/ast-is-inert`'s second rule, which is the one that has to be *shown*
     /// rather than stated: a program can walk a parsed tree, and there is
     /// nothing on it or around it that turns the tree back into behaviour.
     ///
@@ -413,7 +412,7 @@ mod tests {
                     assert!(
                         !mentions(param, NODE_NAME) && !mentions(param, NAME),
                         "{}::{} takes a parsed tree, which would be the path back \
-                         into execution ADR 0019 § 3 closes",
+                         into execution `rule:core-classes/ast-is-inert` closes",
                         class.name,
                         member.name
                     );

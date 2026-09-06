@@ -1,5 +1,4 @@
-//! `Core\Secret` — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-//! § 3's one narrow escape hatch, and nothing else.
+//! `Core\Secret` — `rule:core-classes/secret-reveal`'s one narrow escape hatch, and nothing else.
 //!
 //! Every refusal ADR 0033 § 4 states already tells the author to call
 //! `Core\Secret::reveal(..., "reason")`; this module is the class that help
@@ -11,7 +10,7 @@
 //!
 //! # Why two members rather than one overload
 //!
-//! ADR 0033 § 3 writes `reveal(secret string, string $reason): string` "and a
+//! `rule:core-classes/secret-reveal` writes `reveal(secret string, string $reason): string` "and a
 //! `bytes` overload". The registry has no overloading — one row per member name
 //! — and the two alternatives to a second name are both worse. A union
 //! parameter would have to answer `string|bytes`, so every call site would pay
@@ -30,14 +29,14 @@
 //! `secret` reason is then refused by the ordinary rule, which is what a
 //! program that wrote the credential into its own justification deserves.
 //!
-//! Deliberately **not** required to be a literal. ADR 0033 § 3 asks for a
+//! Deliberately **not** required to be a literal. `rule:core-classes/secret-reveal` asks for a
 //! written reason and models the member on `Core\Taint::assertTrusted`, which
 //! does not require one either; a rule refusing a `const` holding the reason
 //! would buy no confidentiality, since the call is greppable by its own name.
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0033 § 3's escape hatch, one row per qualifiable base.
+/// `rule:core-classes/secret-reveal`'s escape hatch, one row per qualifiable base.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Secret",
     methods: &[

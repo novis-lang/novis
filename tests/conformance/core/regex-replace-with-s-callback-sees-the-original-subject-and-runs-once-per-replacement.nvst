@@ -1,5 +1,5 @@
 --TEST--
-Core\Regex::replaceWith hands its callback a whole Match whose offsets index the original subject, and calls it exactly once per replacement it performs — ADR 0056 § 5
+Core\Regex::replaceWith hands its callback a whole Match whose offsets index the original subject, and calls it exactly once per replacement it performs — `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
 // § 5's `replaceWith` row. `regex-replace-with-hands-each-match-to-a-callback`

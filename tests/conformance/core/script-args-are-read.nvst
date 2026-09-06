@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::args()` is the read half of `spawn script … with(args: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — ADR 0012 § 6, ADR 0006 § *Decision*
+`Core\Script::args()` is the read half of `spawn script … with(args: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, ADR 0006 § *Decision*
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -8,7 +8,7 @@
 spawn = true
 --FILE reader.nvs--
 <?nvs
-// ADR 0012 § 6: the child asks for its argument rather than finding it in an
+// `rule:core-classes/script-args`: the child asks for its argument rather than finding it in an
 // ambient `$_ARGS`. The answer is typed `mixed`, which is why a plain string
 // is a legal thing to have been passed — `args:` narrows nothing at the call
 // site, so nothing narrower would be true here.

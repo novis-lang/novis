@@ -56,7 +56,7 @@
 - **The interaction that made this dangerous is already settled.**
   `rule:attributes/structural-retrieval` makes attribute *retrieval* structural, so a
   naive route scan would also match a third-party framework's own `#[Route(path:, method:)]` literals and
-  double-register routes it does not own. [ADR 0071](0071-derived-codecs.md) § 1 answered it generally: a
+  double-register routes it does not own. `rule:core-classes/derive-attribute` answered it generally: a
   **compiler-recognized** attribute is matched **nominally**, against a closed `Core`-owned list. This ADR
   only has to add a name to that list.
 - **The boundary is the hard part, and it was settled with the user.** A router that dispatches has opinions
@@ -87,10 +87,10 @@ class UserController {
 
 An ordinary `rule:attributes/inert-metadata` `type` alias and an ordinary attachment —
 nothing about the mechanism is new. What is new is one entry on
-[ADR 0071](0071-derived-codecs.md) § 1's closed list: the compiler acts on the attribute only when its name
+`rule:core-classes/derive-attribute`'s closed list: the compiler acts on the attribute only when its name
 **resolves** to `Core\Route`, so a userland `type Route = {...};` is not it however it is spelled, and a
 framework carrying its own `Route`-shaped literal is not it either. That list's roster lives in
-[ADR 0071](0071-derived-codecs.md) § 1 and is not restated here — a count kept in two places is a count that
+`rule:core-classes/derive-attribute` and is not restated here — a count kept in two places is a count that
 goes stale ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9).
 
 - **`method` is an enum case** ([ADR 0063](0063-core-api-conventions.md) R11), not a string, and an enum
@@ -253,7 +253,7 @@ of stopping short:
   no naming rule and no directory layout.
 - **No return-value-to-response rule.** What a handler returns is between it and whoever called it.
 - **No middleware, no filters, no groups, no route-level rate limit** — the last one specifically, because
-  [ADR 0075](0075-core-ratelimit.md) § 4 declines to decide what a limit *does* for the same reason.
+  `rule:core-classes/ratelimit-two-members` declines to decide what a limit *does* for the same reason.
 - **No `HEAD`-implies-`GET`, no automatic `OPTIONS`, no trailing-slash normalisation.** Each is a real
   convention and each is somebody's wrong default. The M7 server decides them above this table, visibly, and
   [0097](0097-development-server-and-proxied-origin.md) § 7 is where it did: `HEAD` runs as `GET` with the
@@ -304,7 +304,7 @@ without one gets no `route` label rather than a cardinality bomb.
   router and use `url()` alone, or ignore all of it — and none of those choices is penalised.
 - **`url()` is a real launderer**, so building a link from user-supplied data has a correct spelling that a
   reviewer can see.
-- **Two ADRs pay off here at once.** [ADR 0071](0071-derived-codecs.md)'s nominal-matching rule is what
+- **Two ADRs pay off here at once.** `rule:core-classes/derive-attribute`'s nominal-matching rule is what
   stops a framework's own `#[Route]` literals being double-registered, and it cost one sentence there
   instead of a breaking change after M9.
 
@@ -328,7 +328,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **No `HEAD`/`OPTIONS`/trailing-slash convention** means the server layer has to decide, and two
   deployments may decide differently. Deliberate, and it is a place where "no opinion" costs the user an
   opinion.
-- **A second compiler-recognized attribute**, one ADR after the first. [ADR 0071](0071-derived-codecs.md)'s
+- **A second compiler-recognized attribute**, one ADR after the first. `rule:core-classes/derive-attribute`'s
   *Consequences* already named this exact risk — cheap to add is how an attribute set becomes an
   undocumented second language surface — and the closed list only works if every entry is argued.
 
@@ -337,7 +337,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **A runtime registry** (`$router->get("/users/{id}", …)`), the PHP status quo. Rejected: it moves all three
   compile-time checks to runtime, needs a generated cache file to be fast, and the registration order
   becomes semantically load-bearing.
-- **Structural attribute matching**, consistent with `rule:attributes/structural-retrieval`. Rejected by [ADR 0071](0071-derived-codecs.md) § 1 already: a framework's own `Route`-shaped literal
+- **Structural attribute matching**, consistent with `rule:attributes/structural-retrieval`. Rejected by `rule:core-classes/derive-attribute` already: a framework's own `Route`-shaped literal
   would register routes Novis does not own, and the fix after M9 would be a breaking change to attribute
   retrieval.
 - **`:name` placeholders.** Rejected in § 2: `:` is legal inside a path segment, so it needs an escape rule,

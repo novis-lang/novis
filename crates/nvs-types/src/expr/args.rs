@@ -78,7 +78,7 @@ pub(crate) fn check_args_typed(
     let mut arg_types = Vec::with_capacity(list.len());
     for (arg, &slot) in list.iter().zip(&slots) {
         let expected = declared_for(slot, &sig, env.interner);
-        // ADR 0088 § 2's admission and ADR 0033 § 3's, asked at the one position
+        // ADR 0088 § 2's admission and `rule:core-classes/secret-reveal`'s, asked at the one position
         // that can answer either — a parameter a registry row classified. The
         // two axes are independent, so the marks are asked separately and a
         // `Qual::Reveal` parameter answers yes to both. Every other argument in
@@ -504,7 +504,7 @@ impl Admitted {
 
 /// [`check_arg`] for an argument at a parameter whose classification admits a
 /// qualifier the declared type does not spell — ADR 0088 § 2's `tainted`
-/// admission ([`admits_tainted_argument`]) or ADR 0033 § 3's `secret` one
+/// admission ([`admits_tainted_argument`]) or `rule:core-classes/secret-reveal`'s `secret` one
 /// ([`admits_secret_argument`]), each cleared only where its own mark says so.
 ///
 /// The argument is inferred against the parameter's declared type exactly as
@@ -548,7 +548,7 @@ fn check_arg_admitting_quals(
 /// parameter, or a [`Qual::Reveal`] one.
 ///
 /// `Reveal` is here for `Contagious`'s reason and not for [`Qual::Launder`]'s:
-/// ADR 0033 § 3's mark removes `secret`, which says nothing about where the
+/// `rule:core-classes/secret-reveal`'s mark removes `secret`, which says nothing about where the
 /// value came from, so `Core\Secret::reveal` over a `tainted secret string`
 /// answers a `tainted string`. A `Reveal` that did not carry contagion would
 /// launder the other axis for free, which is the one thing an escape hatch on
@@ -690,7 +690,7 @@ pub(crate) fn check_options_arg(
 ///
 /// **The check is the ordinary one and stays so.** The declared type is the
 /// plain atom, so [`is_assignable`] refuses a `tainted` value with no help
-/// from the mark; what the mark buys is the *diagnostic*. ADR 0067 § 3 gives a
+/// from the mark; what the mark buys is the *diagnostic*. `rule:core-classes/db-capabilities` gives a
 /// host no launderer — no string check can establish that an address is safe
 /// to send a credential to — so a reader told only "expected `string`, found
 /// `tainted string`" has nowhere to go, and `Core\Taint::assertTrusted` is the
@@ -1486,11 +1486,11 @@ pub(crate) fn written_class_of(
     };
     if let Ty::Class(qname, _) = env.interner.get(element) {
         let qname = qname.clone();
-        // ADR 0067 § 9's own question about the class, which is a question
+        // `rule:core-classes/db-column-types`'s own question about the class, which is a question
         // about the whole program and so is only *recorded* here — see
         // [`crate::derive::check_row_sites`]. `Core\Json::decodeAs` is the
         // other row on this roster and deliberately gets no site: its list form
-        // is legitimate (a JSON array document) and ADR 0071's own decoders
+        // is legitimate (a JSON array document) and `rule:core-classes/derive-attribute`'s own decoders
         // report what they cannot read, so the two members do not share a rule
         // even though they share this lookup.
         if method == "queryAs" {
@@ -1515,7 +1515,7 @@ pub(crate) fn written_class_of(
         )
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
-            "ADR 0071 § 2: a decode is an ordinary `new`, so the type argument names the \
+            "`rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so the type argument names the \
              class to construct — write a class carrying the deriving attribute its format \
              asks for, or `array<C>` of one for a document that is a JSON array",
         ),

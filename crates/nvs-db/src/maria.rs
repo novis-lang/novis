@@ -11,7 +11,7 @@
 //! this driver with, what a vendor error code means
 //! ([ADR 0067 § 8](/docs/adr/0067-core-db.md): "MariaDB needs its own
 //! code table, not MySQL's"), and — the slice after this one — `RETURNING`,
-//! which MySQL does not have. ADR 0067 argues at
+//! which MySQL does not have. `rule:core-classes/db-one-api` argues at
 //! length that treating those as flags on a MySQL connection is a design error;
 //! the split here is that argument, and `crate::mysql::Backend` is the one
 //! place the shared framing asks which server it is framing for.
@@ -215,7 +215,7 @@ pub(crate) fn plugin_or_refuse(name: &[u8]) -> io::Result<AuthPlugin<'static>> {
 pub struct MariaTarget<'a> {
     /// The name the server's certificate is checked against.
     pub host: &'a str,
-    /// The user to log in as, accepting `tainted` per ADR 0067 § 3.
+    /// The user to log in as, accepting `tainted` per `rule:core-classes/db-capabilities`.
     pub user: &'a str,
     /// The user's password, used only to derive a challenge response.
     pub password: &'a str,
@@ -224,12 +224,12 @@ pub struct MariaTarget<'a> {
     /// The PEM bundle whose anchors this server's certificate is verified
     /// against, or the compiled-in Mozilla set where the block names none.
     ///
-    /// Not a way to turn verification off — ADR 0067 § 3 has no spelling for
+    /// Not a way to turn verification off — `rule:core-classes/db-capabilities` has no spelling for
     /// that.
     pub tls_ca_file: Option<&'a Path>,
-    /// ADR 0067 § 9's declared zone, as a whole number of seconds east of UTC.
+    /// `rule:core-classes/db-column-types`'s declared zone, as a whole number of seconds east of UTC.
     pub time_zone: i32,
-    /// ADR 0067 § 1's `statement_cache`, read off the block by the same reader
+    /// `rule:core-classes/db-one-api`'s `statement_cache`, read off the block by the same reader
     /// both other drivers go through.
     pub statement_cache: usize,
 }
@@ -313,7 +313,7 @@ impl<'a> MariaTarget<'a> {
 
 impl std::fmt::Debug for MariaTarget<'_> {
     /// Everything but the password, which is a `secret` at the language level
-    /// (ADR 0067 § 3) and is not printed in any rendering.
+    /// (`rule:core-classes/db-capabilities`) and is not printed in any rendering.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MariaTarget")
             .field("host", &self.host)
@@ -405,7 +405,7 @@ impl MariaConn {
         self.time_zone
     }
 
-    /// ADR 0067 § 1's round trips for one statement, and the columns its result
+    /// `rule:core-classes/db-one-api`'s round trips for one statement, and the columns its result
     /// set turned out to have.
     ///
     /// The two-line delegation the playbook prescribes, into the *same*

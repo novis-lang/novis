@@ -404,7 +404,7 @@ resolve by type and rows by name. Where both could answer one parameter — a ro
 supplies its type — the **row** wins: it was written against this method's own parameter list, while a
 fixture answers every method of the class at once.
 
-**Enforcement.** `#[TestWith]` is one of [ADR 0071](0071-derived-codecs.md) § 1's compiler-recognized
+**Enforcement.** `#[TestWith]` is one of `rule:core-classes/derive-attribute`'s compiler-recognized
 names (`Core\Test\TestWith`), matched nominally like the two markers above it, and it is the one of them
 that may repeat on a declaration. `nvs_types::testing::resolve_parameters` is where a row meets the method
 it is attached to, and every way the two can fail to line up is `E0738`, one code because it is one

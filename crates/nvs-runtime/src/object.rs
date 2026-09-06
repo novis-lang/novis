@@ -287,7 +287,7 @@ pub struct ClassDesc {
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
     methods: Vec<MethodRow>,
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// `rule:core-classes/derive-attribute`'s derived JSON
     /// field list, in declaration order — empty for every class not carrying
     /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
     /// descriptor.
@@ -308,7 +308,7 @@ pub struct ClassDesc {
     /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
     /// terms.
     codec_classes: Vec<*const ClassDesc>,
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// `rule:core-classes/derive-attribute`'s derived **row**
     /// field list — [`Self::codec`]'s twin for `#[Db\Derive]`, and empty for
     /// every class not carrying it.
     ///
@@ -327,8 +327,7 @@ pub struct ClassDesc {
     /// every class with no codec.
     ///
     /// Carried beside [`Self::codec`] rather than derived from it because a
-    /// skipped field ([ADR 0071](/docs/adr/0071-derived-codecs.md)
-    /// § 3) leaves a parameter no field names, and a decoder that silently
+    /// skipped field (`rule:core-classes/derive-field-list`) leaves a parameter no field names, and a decoder that silently
     /// shortened its argument list would call the constructor with the wrong
     /// arity.
     ctor_arity: usize,
@@ -343,7 +342,7 @@ pub struct ClassDesc {
     /// This is the whole of what a property initializer *is* at run time:
     /// [`NvsObj::new`] writes these slots straight after nulling them, so a
     /// default reaches an instance however it was built — a compiled `new`,
-    /// [`construct`] from native code, or ADR 0071's derived decoder. Compiled
+    /// [`construct`] from native code, or `rule:core-classes/derive-attribute`'s derived decoder. Compiled
     /// code emits no initializer at all; `nvs_types::defaults` owns why.
     defaults: Vec<(usize, FieldDefault)>,
     /// The one [`Tag`] each field slot's *declared* type admits, in slot
@@ -561,7 +560,7 @@ impl FieldDefault {
 }
 
 /// What one [`CodecField`] decodes to: the closed set of runtime
-/// representations [ADR 0071](/docs/adr/0071-derived-codecs.md) § 2's
+/// representations `rule:core-classes/derive-field-list`'s
 /// codec-reachable types collapse to once the checker's qualifiers and
 /// nominal identity are erased.
 ///
@@ -588,7 +587,7 @@ pub enum CodecTy {
     /// `mixed` — whatever the document held, unchecked
     /// (`rule:types/declaration`).
     Mixed,
-    /// Another class that carries a codec of its own — ADR 0071 § 2's "another
+    /// Another class that carries a codec of its own — `rule:core-classes/derive-field-list`'s "another
     /// class that itself has a codec", decoded by running that class's own
     /// field list over the nested JSON object.
     ///
@@ -597,7 +596,7 @@ pub enum CodecTy {
     /// [`CodecField::class`] and the descriptor it resolves to on
     /// [`ClassDesc::codec_class`].
     Class,
-    /// An `array<T>` of one of the wire types above — ADR 0071 § 2's list
+    /// An `array<T>` of one of the wire types above — `rule:core-classes/derive-field-list`'s list
     /// field, decoded by running the *element's* wire type once per position.
     ///
     /// The element rides on [`CodecField::element`] rather than inside this
@@ -607,7 +606,7 @@ pub enum CodecTy {
     /// `array<array<T>>` to [`Self::Opaque`] on that account, so
     /// [`CodecField::element`] is never itself a `List`.
     List,
-    /// An enum — ADR 0071 § 2's enum field, decoded as a membership test
+    /// An enum — `rule:core-classes/derive-field-list`'s enum field, decoded as a membership test
     /// rather than as a construction: `rule:enums/representation` reserves an enum tag that
     /// nothing writes, so a case at run time *is* the integer behind it (see
     /// [`crate::value_truthy`]'s own note), and what a decode produces is that
@@ -630,7 +629,7 @@ pub enum CodecTy {
 /// object to construct and no case name to look up, because a case is
 /// indistinguishable from its backing integer by the time it is a [`Value`];
 /// a document holding an integer no case declares is a bad document, reported
-/// as one of ADR 0071 § 5's issues rather than as a fault.
+/// as one of `rule:core-classes/derive-reports-every-field`'s issues rather than as a fault.
 #[derive(Clone, Debug)]
 pub struct EnumCases {
     /// Whether the enum is `uint`-backed, which is the whole of what decides
@@ -659,8 +658,7 @@ pub struct CodecField {
     pub key: String,
     /// The field slot an encode reads and a decode's `new` ends up writing.
     pub slot: usize,
-    /// This field's position in the constructor's parameter list — ADR 0071
-    /// § 2's "every field is a same-named constructor parameter", resolved to
+    /// This field's position in the constructor's parameter list — `rule:core-classes/derive-field-list`'s "every field is a same-named constructor parameter", resolved to
     /// an index so a decoder needs no name lookup.
     pub param: usize,
     /// What a decode has to produce for this field.
@@ -709,7 +707,7 @@ impl ClassDesc {
     /// carries. Every structural test that would answer the same question
     /// ("no methods, no codec, no constructor") is also true of an ordinary
     /// class a program wrote and did not opt into a wire format, and
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 7 requires
+    /// `rule:core-classes/derive-generates-what-is-missing` requires
     /// those to stay refused. `$` cannot start an Novis identifier, so no
     /// declared class collides with the prefix — the guarantee the label
     /// itself already relies on.
@@ -884,7 +882,7 @@ impl ClassDesc {
         self.methods.len()
     }
 
-    /// ADR 0071's derived JSON field list, in declaration order — empty for a
+    /// `rule:core-classes/derive-attribute`'s derived JSON field list, in declaration order — empty for a
     /// class carrying no `#[Json\Derive]`.
     ///
     /// Declaration order is the encode order, which is what makes an encoded
@@ -908,7 +906,7 @@ impl ClassDesc {
         }
     }
 
-    /// ADR 0071's derived **row** field list, in declaration order — empty for
+    /// `rule:core-classes/derive-attribute`'s derived **row** field list, in declaration order — empty for
     /// a class carrying no `#[Db\Derive]`.
     ///
     /// Unlike [`Self::codec`] the order is not an output order: there is no
@@ -1174,13 +1172,13 @@ impl ClassTable {
         desc.defaults = defaults;
     }
 
-    /// Fills in `id`'s ADR 0071 derived-codec field list — see
+    /// Fills in `id`'s `rule:core-classes/derive-attribute` derived-codec field list — see
     /// [`ClassDesc::codec`].
     ///
     /// Separate from [`ClassTable::define`] because the two facts come from
     /// two different `nvs-ir` tables, and — unlike [`ClassTable::set_defaults`]
     /// — because `classes` names descriptors this table may not have defined
-    /// yet: ADR 0071 § 2's nested field admits a class of the unit's own
+    /// yet: `rule:core-classes/derive-field-list`'s nested field admits a class of the unit's own
     /// making, its own type included, so `nvs-codegen` calls this in a second
     /// pass over classes it has all defined rather than while defining one.
     ///
@@ -1216,7 +1214,7 @@ impl ClassTable {
         desc.ctor_arity = ctor_arity;
     }
 
-    /// Fills in `id`'s ADR 0071 derived **row** field list — [`set_codec`]'s
+    /// Fills in `id`'s `rule:core-classes/derive-attribute` derived **row** field list — [`set_codec`]'s
     /// twin for `#[Db\Derive]`, on the same terms and called from the same
     /// second pass.
     ///

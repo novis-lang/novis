@@ -28,7 +28,7 @@ pub(super) fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
             [
                 Value::str(NvsStr::new(column.name.as_bytes())),
                 column_type_value(column.column_type()),
-                // ADR 0067 § 9's own answer, stated at the one place that can
+                // `rule:core-classes/db-column-types`'s own answer, stated at the one place that can
                 // state it: [`COLUMN_NULLABLE_DOC`] is where a program's author
                 // reads what the `true` means.
                 Value::bool(true),
@@ -149,7 +149,7 @@ pub(super) fn column_type_case(of: nvs_db::ColumnType) -> &'static str {
     }
 }
 
-/// One column's Novis value: ADR 0067 § 9's whole type map, with the five rows
+/// One column's Novis value: `rule:core-classes/db-column-types`'s whole type map, with the five rows
 /// whose Novis type is a class instance built here.
 ///
 /// This is the second half of one decode and not a second decode. `nvs-db`

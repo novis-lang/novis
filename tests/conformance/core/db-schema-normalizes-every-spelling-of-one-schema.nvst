@@ -1,5 +1,5 @@
 --TEST--
-Core\Db\Schema::fromArray normalizes what it reads, so a sparse array and a differently ordered one answer the same canonical form — ADR 0145 § 1
+Core\Db\Schema::fromArray normalizes what it reads, so a sparse array and a differently ordered one answer the same canonical form — `rule:core-classes/schema-is-a-value`
 --FILE--
 <?nvs
 // § 1's canonical form is **ordered**, not merely structural: key order is part

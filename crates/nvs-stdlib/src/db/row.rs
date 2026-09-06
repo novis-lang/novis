@@ -87,8 +87,8 @@ pub(super) fn row_object(
     }
 }
 
-/// One row built into the class `queryAs<T>`'s call site wrote — ADR 0071 § 5's
-/// accumulate-then-construct, over a row whose columns ADR 0067 § 9's type map
+/// One row built into the class `queryAs<T>`'s call site wrote — `rule:core-classes/derive-reports-every-field`'s
+/// accumulate-then-construct, over a row whose columns `rule:core-classes/db-column-types`'s type map
 /// has already decoded.
 ///
 /// **Every field is a check and not a parse**, which is the whole difference
@@ -132,7 +132,7 @@ pub(super) unsafe fn hydrate(
             ThrownClass::Logic,
             format!(
                 "{QUERY_AS}: `{}` carries no `#[Db\\Derive]`, so there is no column mapping to \
-                 build one from — ADR 0071 § 1's opt-in is that attribute, and this is the \
+                 build one from — `rule:core-classes/derive-attribute`'s opt-in is that attribute, and this is the \
                  refusal a compile-time diagnostic would be better at (`nvs_stdlib::db`'s known \
                  gap 8)",
                 desc.name()
@@ -195,7 +195,7 @@ pub(super) unsafe fn hydrate(
             ),
         ));
     }
-    // ADR 0071 § 3's skipped field with a constructor default, exactly as
+    // `rule:core-classes/derive-field-list`'s skipped field with a constructor default, exactly as
     // `Core\Json::decodeAs` meets it: the default is a constant the *call site*
     // emits and there is no call site here, so this is loud rather than a
     // `null` that would be right for one declaration in ten.
@@ -229,7 +229,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
             Ok(held)
         } else {
             Err(
-                "the column is SQL NULL and the field is not declared `?T` — ADR 0067 § 9 reads a \
+                "the column is SQL NULL and the field is not declared `?T` — `rule:core-classes/db-column-types` reads a \
                  NULL back as `null` whatever the column's type is"
                     .to_owned(),
             )
@@ -265,7 +265,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
 }
 
 /// One value against one wire type: itself where it already is that type, the
-/// same number under the other integer tag where ADR 0067 § 6's "losslessly or
+/// same number under the other integer tag where `rule:core-classes/db-column-types`'s "losslessly or
 /// throws" allows it, and § 5's message otherwise.
 ///
 /// `class` is the rendered name the *declaration* carried, where `ty` is a
@@ -407,7 +407,7 @@ pub(super) fn converted(
 /// field's declared type in hand rather than a reader's name.
 pub(super) fn wanted(want: &str, held: Value) -> String {
     format!(
-        "the column came back as {} and this field declares {want} — ADR 0067 § 9's type map is \
+        "the column came back as {} and this field declares {want} — `rule:core-classes/db-column-types`'s type map is \
          what each column reads back as",
         held.tag().map_or_else(
             || format!("tag {}", held.tag_byte()),
@@ -422,7 +422,7 @@ pub(super) fn wanted(want: &str, held: Value) -> String {
 /// a field and a reader say the same thing about the same value.
 pub(super) fn lossy(want: &str, holds: &str) -> String {
     format!(
-        "the column holds {holds}, so reading it as {want} would not be the same value — ADR 0067 \
+        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-one-api` \
          § 6 converts losslessly or throws"
     )
 }
@@ -551,14 +551,14 @@ pub(super) fn typed_column<'a>(
     Ok((name, (value.tag() != Some(Tag::Null)).then_some(value)))
 }
 
-/// A typed reader's refusal for a column it will not convert — ADR 0067 § 6's
+/// A typed reader's refusal for a column it will not convert — `rule:core-classes/db-column-types`'s
 /// "lossless conversion or throws", said with what the column actually is.
 pub(super) fn wrong_column_type(member: &str, name: &[u8], value: Value, want: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Logic,
         format!(
             "{ROW_NAME}::{member}: the column `{}` came back as {} and this reader answers {want} \
-             only — ADR 0067 § 6 converts losslessly or throws, and `->get()` plus `as` is the \
+             only — `rule:core-classes/db-column-types` converts losslessly or throws, and `->get()` plus `as` is the \
              universal path",
             String::from_utf8_lossy(name),
             value.tag().map_or_else(
@@ -576,13 +576,13 @@ pub(super) fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fau
         ThrownClass::Logic,
         format!(
             "{ROW_NAME}::{member}: the column `{}` holds {holds}, so reading it as `{member}` \
-             would not be the same value — ADR 0067 § 6 converts losslessly or throws",
+             would not be the same value — `rule:core-classes/db-column-types` converts losslessly or throws",
             String::from_utf8_lossy(name)
         ),
     )
 }
 
-/// What one of [ADR 0067](/docs/adr/0067-core-db.md) § 6's *requests*
+/// What one of `rule:core-classes/db-column-types`'s *requests*
 /// makes of the value a column's natural type already produced.
 ///
 /// Three answers rather than two, because the two refusals are different
@@ -887,7 +887,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$row->get(string $name): mixed` — one column, whatever ADR 0067 § 9's
+    /// `$row->get(string $name): mixed` — one column, whatever `rule:core-classes/db-column-types`'s
     /// type map made of it, and the universal path the typed readers narrow.
     fn nvs_core_db_row_get(_ctx, args: [2]) {
         let columns = row_columns(args, "get")?;
@@ -1143,7 +1143,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$write->lastId(): ?uint` — ADR 0067 § 4's id, which on PostgreSQL is
+    /// `$write->lastId(): ?uint` — `rule:core-classes/db-statement-members`'s id, which on PostgreSQL is
     /// whatever a `RETURNING` clause handed back and belongs to this write
     /// rather than to the connection.
     fn nvs_core_db_write_last_id(_ctx, args: [1]) {
@@ -1169,7 +1169,7 @@ mod tests {
     }
 
     /// One [`Requested`] answer as a word, so a case below reads as the sentence
-    /// ADR 0067 § 6 writes rather than as a `match` arm.
+    /// `rule:core-classes/db-column-types` writes rather than as a `match` arm.
     fn answered<T: std::fmt::Debug>(requested: &Requested<T>) -> String {
         match requested {
             Requested::Is(value) => format!("{value:?}"),
@@ -1178,7 +1178,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 6's first named crossing:
+    /// `rule:core-classes/db-column-types`'s first named crossing:
     /// **`TINYINT(1)` is naturally `int` and reads as `bool` on request, with a
     /// stored `7` throwing.**
     ///
@@ -1401,7 +1401,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 6's refusal for
+    /// `rule:core-classes/db-column-types`'s refusal for
     /// `queryAs<T>`: a wrong type, a missing column or a NULL in a field
     /// declared non-nullable throws **naming every offending column, not the
     /// first**.
@@ -1459,7 +1459,9 @@ mod tests {
         };
 
         let Fault::ThrownWithSlots(ThrownClass::Parse, message, slots) = refused else {
-            panic!("§ 6's mismatch is ADR 0071 § 5's `ParseError` carrying `issues`")
+            panic!(
+                "§ 6's mismatch is `rule:core-classes/derive-reports-every-field`'s `ParseError` carrying `issues`"
+            )
         };
         assert!(
             message.contains("3 column(s) of `Account`"),
@@ -1478,7 +1480,7 @@ mod tests {
              report all four bad fields rather than the first"
         );
 
-        // ADR 0071 § 5's `path` is the column, and the order is the field
+        // `rule:core-classes/derive-reports-every-field`'s `path` is the column, and the order is the field
         // declaration order — read off `crate::issue::FIELDS`' slot order
         // rather than guessed, since that agreement is the one that would fail
         // silently.

@@ -1,5 +1,5 @@
 --TEST--
-`Markup + Markup` is `Markup`, so trusted fragments compose without a second decision — ADR 0024 § 5
+`Markup + Markup` is `Markup`, so trusted fragments compose without a second decision — `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
 // § 5: composing trusted fragments is what templating already does, so it

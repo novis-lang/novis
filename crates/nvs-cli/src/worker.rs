@@ -1,4 +1,4 @@
-//! The in-process worker [ADR 0084] § 2's `[queue] workers` starts: a task beside the script's, on
+//! The in-process worker `rule:core-classes/queue-storage-is-a-table`'s `[queue] workers` starts: a task beside the script's, on
 //! the scheduler this run already turns.
 //!
 //! ## Why a task, and why this crate
@@ -79,7 +79,6 @@
 //! [`nvs_stdlib::queue::MIGRATION_POSTGRES`]'s own doc owns that decision and what a deeper array would cost.
 //!
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
-//! [ADR 0084]: ../../../docs/adr/0084-durable-background-jobs.md
 
 use std::cell::Cell;
 use std::io;
@@ -814,8 +813,7 @@ fn nap() -> Woken {
 /// the arm of [`Wire`] it belongs to.
 ///
 /// **A macro for [`crate::queue`]'s `open_and_apply` reason** — the three arms differ in names and
-/// not in shape, and [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
-/// § 5 makes the drivers an enum rather than a trait, so there is no type parameter to write this as
+/// not in shape, and `rule:core-classes/db-drivers-are-an-enum` makes the drivers an enum rather than a trait, so there is no type parameter to write this as
 /// a generic function over. It is not that macro because every refusal here is a `warning:` that
 /// returns no worker where that one is an `error:` that returns an exit code.
 macro_rules! open_as {
@@ -972,10 +970,10 @@ enum Dialect<'a> {
 /// arm copying the first line for line.
 ///
 /// `nvs-stdlib` has the same enum for the same reason and it is `pub(crate)` there, so this is not
-/// a duplicate that could have been shared: ADR 0132 § 1's crate graph puts the two on opposite
+/// a duplicate that could have been shared: `rule:core-classes/db-crate-boundary`'s crate graph puts the two on opposite
 /// sides of a boundary, and what is shared is the statements they send.
 enum Framed<'a> {
-    /// ADR 0067 § 1's two round trips as MySQL frames them.
+    /// `rule:core-classes/db-one-api`'s two round trips as MySQL frames them.
     MySql(&'a mut nvs_db::MySqlConn),
     /// The same two, framed as MariaDB.
     MariaDb(&'a mut nvs_db::MariaConn),
@@ -998,7 +996,7 @@ impl Framed<'_> {
         }
     }
 
-    /// ADR 0067 § 7's `START TRANSACTION`, which is what a [`nvs_stdlib::queue::Split`] means.
+    /// `rule:core-classes/db-transactions`'s `START TRANSACTION`, which is what a [`nvs_stdlib::queue::Split`] means.
     fn begin(
         &mut self,
         isolation: Option<nvs_db::Isolation>,

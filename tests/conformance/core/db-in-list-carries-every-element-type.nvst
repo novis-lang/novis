@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::inList takes a run of any element type, a nested array included, because what an element is is the type map's question and not the marker's — ADR 0067 §§ 5, 9
+Core\Db::inList takes a run of any element type, a nested array included, because what an element is is the type map's question and not the marker's — `rule:core-classes/db-parameters` and `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // § 5's "one parameter is always one value" cuts both ways. A list bound

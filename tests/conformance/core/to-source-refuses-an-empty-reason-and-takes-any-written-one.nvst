@@ -1,8 +1,8 @@
 --TEST--
-`Core\Html::toSource` refuses an empty reason and accepts any written one — ADR 0133 § 3
+`Core\Html::toSource` refuses an empty reason and accepts any written one — `rule:core-classes/html-to-source`
 --FILE--
 <?nvs
-// ADR 0133 § 3's second half: the hatch is rare, greppable, and carries a
+// `rule:core-classes/html-to-source`'s second half: the hatch is rare, greppable, and carries a
 // written reason at the site. An empty reason is refused, because a reason
 // nobody had to write is a reason nobody wrote — the same argument `unsafe`
 // carries in this project's own policy.

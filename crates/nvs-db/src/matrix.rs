@@ -1,7 +1,7 @@
 //! Where this crate's own tests find a real server: the `NVS_DB_MATRIX_*`
 //! fields `tools/db-matrix.py` sets, read in one place.
 //!
-//! ADR 0067's *Verification* section asks for a five-driver matrix against real
+//! `rule:core-classes/db-one-api`'s *Verification* section asks for a five-driver matrix against real
 //! servers rather than mocks. `tools/db-matrix.py` brings them up from
 //! `tests/db/compose.yaml`, reads the ports and credentials back out of that
 //! file — so it holds no copy of either — and runs `cargo test -p nvs-db` once
@@ -9,7 +9,7 @@
 //! deliberately: a single run with five endpoints would report "3 failed" and
 //! leave which server broke to a reader of the output.
 //!
-//! **The contract is discrete fields and never a DSN.** ADR 0067 § 2 makes
+//! **The contract is discrete fields and never a DSN.** `rule:core-classes/db-connection-is-named` makes
 //! `Db\Settings` five types rather than one loose shape, and Novis has no
 //! connection string anywhere in its surface; a harness that invented one would
 //! be the first place a DSN *parser* had to exist, and this crate would then be

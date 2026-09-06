@@ -344,7 +344,7 @@ pub(crate) fn infer(
             if *op == BinaryOp::Concat {
                 require_stringable(lhs_ty, lhs.span, env);
                 require_stringable(rhs_ty, rhs.span, env);
-                // ADR 0133 § 2: `.` has no row for the HTML carrier, which is
+                // `rule:core-classes/html-escape-answers-markup`: `.` has no row for the HTML carrier, which is
                 // the refusal that makes `+` the composition operator rather
                 // than one of two.
                 reject_carrier_as_text(lhs_ty, lhs.span, env);

@@ -1,5 +1,5 @@
 --TEST--
-ADR 0067 § 7's `transaction` runs on a SQLite connection as it does on the other four drivers, and a nested one is a `SAVEPOINT` whose rollback undoes its own level and leaves the level around it to commit — ADR 0067 §§ 7, 8
+`rule:core-classes/db-transactions`'s `transaction` runs on a SQLite connection as it does on the other four drivers, and a nested one is a `SAVEPOINT` whose rollback undoes its own level and leaves the level around it to commit — `rule:core-classes/db-transactions` and `rule:core-classes/db-error`
 --FILE--
 <?nvs
 // The only case in this tree that runs § 7 against a *live* database. SQLite

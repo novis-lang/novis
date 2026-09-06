@@ -90,13 +90,13 @@ pub struct Config {
     pub extension: Vec<Extension>,
     /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,
-    /// `[io]` — the root the runtime creates temporary directories under (ADR 0131 § 2).
+    /// `[io]` — the root the runtime creates temporary directories under (`rule:core-classes/temporary-dir-sweep`).
     pub io: Option<Io>,
     /// `[log]` — the handler ladder's rungs (`rule:errors/escalation-ladder`) and the record's shape (`rule:errors/diagnostic-record`).
     pub log: Option<Log>,
     /// `[http.*]` — the five sub-blocks ADRs 0020 § 7 and 0074 own.
     pub http: Option<Http>,
-    /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2), and the `pool = false`
+    /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.
     pub db: Databases,
     /// `[mail.<name>]` — one named SMTP endpoint per sub-table (`rule:programs/framework-core-half`).
@@ -107,7 +107,7 @@ pub struct Config {
     pub deferred: Option<Deferred>,
     /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
     pub schedule: Vec<Schedule>,
-    /// `[queue]` — the durable job queue and the `[db.<name>]` it stores rows in (ADR 0084 § 2).
+    /// `[queue]` — the durable job queue and the `[db.<name>]` it stores rows in (`rule:core-classes/queue-storage-is-a-table`).
     pub queue: Option<Queue>,
     /// `[metrics]` — the metrics exporter (ADR 0076 § 6).
     pub metrics: Option<Metrics>,
@@ -254,7 +254,7 @@ pub struct Capabilities {
     pub process: Option<CapProcess>,
     /// `debug.trace` and `debug.profile` (`rule:testing/debug-probes`).
     pub debug: Option<CapDebug>,
-    /// `db.connect`, `db.open` and `db.schema` (ADR 0067 § 3).
+    /// `db.connect`, `db.open` and `db.schema` (`rule:core-classes/db-capabilities`).
     pub db: Option<CapDb>,
     /// `mail.send` (`rule:programs/framework-core-half`).
     pub mail: Option<CapMail>,
@@ -313,7 +313,7 @@ pub struct CapDebug {
     pub profile: Option<Setting>,
 }
 
-/// The `db.*` grants — ADR 0067 § 3.
+/// The `db.*` grants — `rule:core-classes/db-capabilities`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapDb {
@@ -323,7 +323,7 @@ pub struct CapDb {
     /// Which hosts a program-supplied `Db\Settings` may reach; these stay subject to that policy.
     pub open: Option<Setting>,
     /// Which `[db.<name>]` blocks a program may issue DDL to — `Core\Db\Schema::applySafe` and its
-    /// risky twin (ADR 0145 § 9). Named like `connect` and not like `open`, because what it gates is
+    /// risky twin (`rule:core-classes/schema-apply-capability`). Named like `connect` and not like `open`, because what it gates is
     /// a block and not an address; opening a connection is not permission to change what is behind
     /// it, so it does not follow from `connect`.
     pub schema: Option<Setting>,
@@ -346,7 +346,7 @@ pub struct Debug {
     /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so a
     /// request may narrow this and can never turn a bit on.
     pub mode: Option<Vec<String>>,
-    /// ADR 0131 § 5 — `true` and the end-of-script sweep logs each path it would have deleted
+    /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
     /// silent leak. `System` and reloadable per `crate::directive`, which is what lets an operator
     /// flip it on around one problematic request and off again; there is deliberately no
@@ -355,7 +355,7 @@ pub struct Debug {
     pub keep_temporary: Option<bool>,
 }
 
-/// `[io]` — ADR 0131 § 2's owned root: the one directory `Core\IO::temporaryDir` creates under.
+/// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::temporaryDir` creates under.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Io {
@@ -568,7 +568,7 @@ pub struct Databases {
     /// meaning, because bounds unscoped would be a default set for a pool whose key is a
     /// credential hash and could not be sized against any one server.
     pub pool: Option<Pool>,
-    /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2).
+    /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`).
     #[serde(flatten)]
     pub blocks: BTreeMap<String, Database>,
 }
@@ -587,9 +587,9 @@ impl std::ops::DerefMut for Databases {
     }
 }
 
-/// One `[db.<name>]` block — ADR 0067 § 2, where the name and not the settings is the key.
+/// One `[db.<name>]` block — `rule:core-classes/db-connection-is-named`, where the name and not the settings is the key.
 ///
-/// **Recorded gap: ADR 0067 states `Db\Settings` as a language type and never writes the config
+/// **Recorded gap: `rule:core-classes/db-one-api` states `Db\Settings` as a language type and never writes the config
 /// block out**, so this roster is every field that ADR names in prose (§ 2's "SQLite takes a `path`
 /// and has no `host`, `port`, `user` or `password`", § 4's `Settings.database` and `.user`,
 /// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 11's `slow_query`,
@@ -600,7 +600,7 @@ impl std::ops::DerefMut for Databases {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Database {
-    /// Which of ADR 0067's drivers this block selects.
+    /// Which of `rule:core-classes/db-one-api`'s drivers this block selects.
     pub driver: Option<String>,
     /// SQLite's file, resolved against the directory of the file it is written in (ADR 0103 § 5).
     pub path: Option<String>,
@@ -632,7 +632,7 @@ pub struct Database {
     /// trust-checks it at boot rather than at connect time, and a bundle another account can write
     /// is a boot refusal.
     pub tls_ca_file: Option<String>,
-    /// How many server-side prepared statements one connection keeps alive (ADR 0067 § 1).
+    /// How many server-side prepared statements one connection keeps alive (`rule:core-classes/db-one-api`).
     ///
     /// Unset is the driver's own default rather than a number written here, because the size that
     /// suits a request is a property of the protocol and not of this file. A written `0` is not a
@@ -652,7 +652,7 @@ pub struct Database {
     /// by *the same facts*.
     pub slow_query: Option<Setting>,
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
-    /// (ADR 0067 § 9), defaulting to UTC.
+    /// (`rule:core-classes/db-column-types`), defaulting to UTC.
     ///
     /// An offset and never a zone name — `"+02:00"`, `"-05:30"`, `"UTC"` — because § 9 sends it to
     /// the server as a numeric offset, and a named zone needs server-side tables that usually are
@@ -757,7 +757,7 @@ pub struct Deferred {
     pub deadline: Option<String>,
 }
 
-/// `[queue]` — ADR 0084 § 2's durable job queue, which is a table in a database an operator names.
+/// `[queue]` — `rule:core-classes/queue-storage-is-a-table`'s durable job queue, which is a table in a database an operator names.
 ///
 /// Every key is `System`: the queue is armed at boot and a request may not move it, for ADR 0073's
 /// reason on `[[schedule]]` beside it — work a request could redirect is work a request could

@@ -358,7 +358,7 @@ fn a_relative_path_resolves_against_the_file_it_is_written_in() {
     assert_eq!(resolved.files.len(), 3);
 }
 
-/// § 5 again, on the key ADR 0067 § 3 makes a whole database out of: a `[db.<name>] path` written in
+/// § 5 again, on the key `rule:core-classes/db-capabilities` makes a whole database out of: a `[db.<name>] path` written in
 /// an included file names a file beside *that* file, not beside whatever directory a request happens
 /// to be running in. It is asserted here rather than in `tests/db.rs` because the rule under test is
 /// § 5's and not § 3's — `crates/nvs-config/src/db.rs`'s module doc owns why the bundle beside it is

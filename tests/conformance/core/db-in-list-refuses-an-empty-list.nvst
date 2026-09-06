@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::inList refuses an empty list rather than picking between "match nothing" and "match everything", and the refusal is the length alone — ADR 0067 § 5
+Core\Db::inList refuses an empty list rather than picking between "match nothing" and "match everything", and the refusal is the length alone — `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
 // § 5: an empty list matches nothing inside `IN` and everything inside
@@ -30,6 +30,6 @@ if (Core\Arr::isEmpty($none)) {
     Core\Db::inList($none);
 }
 --EXPECT--
-Core\Db::inList() was given an empty list, and ADR 0067 § 5 refuses one: an empty list matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot tell which it is in, and the caller has to branch
+Core\Db::inList() was given an empty list, and `rule:core-classes/db-parameters` refuses one: an empty list matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot tell which it is in, and the caller has to branch
 a run of one null is not an empty list
 the caller branches

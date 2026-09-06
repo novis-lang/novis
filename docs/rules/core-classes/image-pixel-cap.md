@@ -1,0 +1,20 @@
+Before any pixel buffer is allocated, the component reads the **declared** dimensions — width times
+height times frames for an animated input, the declared canvas for an SVG, the selected page's box at
+the requested resolution for a PDF — and refuses an image over `[image] max_pixels` with a throw
+naming the cap and the declared size. A decompression bomb is refused from what the file claims,
+never discovered by exhausting memory.
+
+It is a throw rather than a resource-limit fatal, because a rejected upload is an ordinary outcome
+the application answers with a status code. A call may pass its own cap **only to lower** it, the
+same monotone rule extension manifests take.
+
+Bytes that are not an image the roster decodes throw a parse error; a codec fault beyond that is a
+trap the sandbox contains.
+
+What it spends, per request that calls the component: the encoded input, at most two frames at the
+cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all inside the
+extension's own memory cap, which is sized from the pixel cap at load, and none of which outlives the
+request. There are no threads in a guest, so a bulk import parallelises across coroutines and cores
+rather than inside one call.
+
+**Not shipped.** No image component exists in the tree.

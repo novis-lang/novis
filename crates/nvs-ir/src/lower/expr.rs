@@ -542,7 +542,7 @@ impl<'a> Lowering<'a> {
     }
     /// `echo $a, $b;` — writes each operand's bytes to standard output in
     /// order, with no separator and no escaping: `docs/agent/loop-goal.md`
-    /// records that ADR 0024 § 5's auto-escaping sink is the HTTP *response*
+    /// records that `rule:core-classes/html-auto-escape`'s auto-escaping sink is the HTTP *response*
     /// write, not this one, and that whether `echo` under a future
     /// `nvs serve` becomes that sink is an M7 decision this does not
     /// pre-empt.

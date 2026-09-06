@@ -2,7 +2,7 @@
 `Core\Reflect\ClassInfo::call` reaches an inherited `public` method, still refuses an inherited `private` one, and answers the same through both doors onto a description — ADR 0019 §§ 1-2
 --FILE--
 <?nvs
-// ADR 0019 § 1's two doors reach one descriptor, so *what a description does*
+// `rule:core-classes/reflect`'s two doors reach one descriptor, so *what a description does*
 // must not depend on which door was used — `describe`'s own reasoning, asked
 // here of the acting half rather than of the reading half. The class table the
 // check reads is the flattened one, so an inherited method is the class's own

@@ -32,7 +32,7 @@ pub(super) fn connection_of(value: Value, member: &str) -> Result<(u64, Value), 
     Ok((key, crate::instance::slot(receiver, BLOCK_AT)))
 }
 
-/// The same pair off a [`TRANSACTION`], plus ADR 0067 § 7's first hazard.
+/// The same pair off a [`TRANSACTION`], plus `rule:core-classes/db-transactions`'s first hazard.
 ///
 /// The scope check is here rather than in each member because it is the
 /// interface's rule and not any one member's: a `$tx` that escaped its
@@ -89,7 +89,7 @@ pub(super) fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Faul
 /// it does to the SQL text, and the values the bind reads out of it.
 ///
 /// The two are one walk's answers and are carried together because the rewriter
-/// is told the arity **before** anything is encoded — ADR 0067 § 5's expansion
+/// is told the arity **before** anything is encoded — `rule:core-classes/db-parameters`'s expansion
 /// changes the text, and § 1's statement cache keys on the text it changed it
 /// to, so an `inList`'s width has to be known a round trip early.
 pub(super) struct Bound {
@@ -105,8 +105,7 @@ pub(super) struct Bound {
     values: Vec<Value>,
 }
 
-/// One element of `$params`, read as either an ordinary value or ADR 0067
-/// § 5's expansion marker.
+/// One element of `$params`, read as either an ordinary value or `rule:core-classes/db-parameters`'s expansion marker.
 pub(super) fn bound_of(value: Value) -> Bound {
     if !crate::instance::is_instance(value, &IN_LIST) {
         return Bound {
@@ -153,8 +152,7 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// fixes by writing the call differently. `Other` is the server's own refusal,
 /// carrying its `SQLSTATE` and message. Everything left is the wire.
 ///
-/// The middle one is `Core\Db\DbError` — [ADR 0067](/docs/adr/0067-core-db.md)
-/// § 8's single class for every refusal the server made, sitting beside
+/// The middle one is `Core\Db\DbError` — `rule:core-classes/db-error`'s single class for every refusal the server made, sitting beside
 /// `Core\Db\RolledBack` in spec § 10's tree so that a `catch` can tell a
 /// refusal the program did not choose from one it did. Nothing about the
 /// message changes with the class, and § 8 requires it to carry no bound value.
@@ -335,7 +333,7 @@ pub(super) fn error_kind_case(of: nvs_db::DbErrorKind) -> &'static str {
     }
 }
 
-/// The refusal for a column of one of ADR 0067 § 9's five class-typed rows
+/// The refusal for a column of one of `rule:core-classes/db-column-types`'s five class-typed rows
 /// holding a value the `Core\Time` type it maps to has no representation for.
 ///
 /// § 9's last paragraph is the rule: a structured column that does not parse
@@ -360,7 +358,7 @@ pub(super) fn unrepresentable_column(named: &str, column: &str, row: &str) -> Fa
 /// rewritten text, and its values encoded in the order that text asks for them.
 ///
 /// The two members that send one differ **only in what they do with the
-/// answer**. ADR 0067 § 4 gives `query` and `execute` one signature and one
+/// answer**. `rule:core-classes/db-statement-members` gives `query` and `execute` one signature and one
 /// binding rule, so everything up to the send is [`statement_of`] and the
 /// members are the two ways of reading a stream that has already started —
 /// which is also why a write's values are checked exactly as a read's are, with
@@ -427,7 +425,7 @@ impl Binds {
     }
 }
 
-/// Everything ADR 0067 §§ 4 and 5 do to a call before it reaches the socket:
+/// Everything `rule:core-classes/db-statement-members` and `rule:core-classes/db-parameters` do to a call before it reaches the socket:
 /// § 18's `$params` rule, the rewrite, and the encoding.
 ///
 /// **Both halves are the receiver's own driver's**, which is the one thing a
@@ -586,7 +584,7 @@ pub(super) fn statement_in(
     })
 }
 
-/// ADR 0067 § 4's batch: one statement the wire is ready for, and one encoded
+/// `rule:core-classes/db-statement-members`'s batch: one statement the wire is ready for, and one encoded
 /// set of values per execution it is about to get.
 ///
 /// It is deliberately not a `Vec<Statement>`. Every set rewrites to the *same*
@@ -688,7 +686,7 @@ pub(super) fn batch_of(
                     ThrownClass::Logic,
                     format!(
                         "{named}: the set at {at} binds `{}` where the first set binds `{first}`, \
-                         and ADR 0067 § 1's cache is keyed on the statement's expansion — so two \
+                         and `rule:core-classes/db-one-api`'s cache is keyed on the statement's expansion — so two \
                          sets whose `inList`s differ in width are two statements and not one \
                          batch, and each of them wants its own call",
                         one.sql
@@ -711,7 +709,7 @@ pub(super) fn batch_of(
 mod tests {
     use super::*;
 
-    /// The same agreement for ADR 0067 § 8's `ErrorKind`, and it fails the same
+    /// The same agreement for `rule:core-classes/db-error`'s `ErrorKind`, and it fails the same
     /// two ways: a case [`error_kind_case`] never names is a condition a
     /// program can `match` on and never receive, and a name it produces that
     /// [`ERROR_KIND`] does not register is [`error_kind_value`]'s `expect`

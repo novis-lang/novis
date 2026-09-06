@@ -1,5 +1,4 @@
-//! `Core\Db\Schema` — [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-//! § 1's canonical array form, as a value a program holds.
+//! `Core\Db\Schema` — `rule:core-classes/schema-is-a-value`'s canonical array form, as a value a program holds.
 //!
 //! [`nvs_db::schema`] already owns the vocabulary, the builders and the array
 //! form's own ordered [`Node`] tree, and that crate is sans-io and holds no
@@ -49,7 +48,7 @@ fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
             ThrownClass::Logic,
             format!(
                 "Core\\Db\\Schema::fromArray(): {at} holds {holds}. A schema array holds only \
-                 strings, integers, floats, booleans and arrays of those — ADR 0145 § 2's \
+                 strings, integers, floats, booleans and arrays of those — `rule:core-classes/schema-vocabulary-is-closed`'s \
                  vocabulary is closed and there is nowhere in it to put anything else"
             ),
         )
@@ -168,7 +167,7 @@ fn value_of(node: &nvs_db::schema::Node) -> Value {
 /// schema no backend would accept or two would accept differently, and which of
 /// those it is does not depend on anything outside the program — the array is
 /// one the program wrote or one it read out of its own file. The facts are the
-/// driver crate's, which holds no Novis-facing name (ADR 0132 § 1), and the
+/// driver crate's, which holds no Novis-facing name (`rule:core-classes/db-crate-boundary`), and the
 /// call is named here.
 fn refused(member: &str, why: &nvs_db::schema::SchemaError) -> Fault {
     Fault::thrown_as(
@@ -178,8 +177,7 @@ fn refused(member: &str, why: &nvs_db::schema::SchemaError) -> Fault {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db\Schema::fromArray(array<mixed> $array): Db\Schema` — ADR 0145
-    /// § 1's serialized spelling, and the door every schema value comes through.
+    /// `Core\Db\Schema::fromArray(array<mixed> $array): Db\Schema` — `rule:core-classes/schema-is-a-value`'s serialized spelling, and the door every schema value comes through.
     ///
     /// The array is validated by the builders themselves —
     /// [`nvs_db::schema::Schema::from_array`] reads the form and hands it to
@@ -235,7 +233,7 @@ fn schema_of(receiver: Value, member: &str) -> Result<nvs_db::schema::Schema, Fa
 
 /// One catalog read, as the rows `Core\Db::query` would have answered.
 ///
-/// **The whole of ADR 0145 § 4's introspection is two ordinary statements**, so
+/// **The whole of `rule:core-classes/schema-introspection`'s introspection is two ordinary statements**, so
 /// this reuses the five arms every other statement in this crate goes through
 /// rather than growing a sixth path: [`nvs_db::catalog::query`] is the text,
 /// the driver decodes it, and what comes back is one string-keyed array per row
@@ -421,7 +419,7 @@ fn collect_rows<T>(
     Ok(out)
 }
 
-/// ADR 0145 § 4's live introspection: the database behind `key`, as the schema
+/// `rule:core-classes/schema-introspection`'s live introspection: the database behind `key`, as the schema
 /// value the diff compares against.
 ///
 /// Two reads and no parser, which is § 4's whole rule — the catalog is
@@ -478,7 +476,7 @@ fn introspected(
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "{named}: this database holds something ADR 0145 § 2's vocabulary cannot name, so \
+                "{named}: this database holds something `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary cannot name, so \
                  no plan against it would be total: {why}"
             ),
         )
@@ -511,7 +509,7 @@ fn planned(ctx: &mut nvs_runtime::Ctx, args: &[Value], named: &str) -> Result<nv
 /// for it. `Core\Db::open`'s connections are the ones with no block: their
 /// endpoint came out of the program rather than out of root-owned
 /// configuration, which is exactly the difference § 3 of
-/// [ADR 0067](/docs/adr/0067-core-db.md) splits the two grants on.
+/// `rule:core-classes/db-one-api` splits the two grants on.
 ///
 /// # Errors
 ///
@@ -580,7 +578,7 @@ fn applied(
 /// One statement of a step, sent as [`nvs_core_db_connection_execute`] sends a
 /// write.
 ///
-/// One statement per call rather than one step per call, because ADR 0067 § 4
+/// One statement per call rather than one step per call, because `rule:core-classes/db-statement-members`
 /// has no multi-statement form on any driver and SQLite's rebuild is four
 /// statements — [`mod@super::plan`]'s doc owns why `sql()` joins them for a
 /// reader and this does not.
@@ -662,8 +660,7 @@ pub(super) fn unsafe_step(plan: &nvs_db::Plan) -> Option<Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$schema->planAgainst(Db\Connection $connection): Db\Plan` — ADR 0145
-    /// § 9's read.
+    /// `$schema->planAgainst(Db\Connection $connection): Db\Plan` — `rule:core-classes/schema-apply-capability`'s read.
     ///
     /// **Planning is not privileged.** It issues § 4's two catalog queries
     /// through the connection a program already holds, under the `db.connect`
@@ -681,7 +678,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$schema->applySafe(Db\Connection $connection): void` — ADR 0145 § 9's
+    /// `$schema->applySafe(Db\Connection $connection): void` — `rule:core-classes/schema-apply-capability`'s
     /// first entry point.
     ///
     /// Refuses the **whole** plan if any step it would run is not `Safe`, and
@@ -744,7 +741,7 @@ mod tests {
         crate::instance::build(&SCHEMA, [value_of(&schema.to_array())])
     }
 
-    /// ADR 0145 § 9's first sentence: planning is an ordinary read, under the
+    /// `rule:core-classes/schema-apply-capability`'s first sentence: planning is an ordinary read, under the
     /// `db.connect` the program already holds.
     ///
     /// **Asserted as the absence of a refusal, on a context that grants

@@ -113,7 +113,7 @@ not an example to read for inspiration.
    whose declared type has no decoder is `CodecTy::Opaque` refused at the `decodeAs<T>` that runs rather
    than at the declaration that wrote it. All three are diagnostics at the declaration.
    [derive.rs:40](../../../crates/nvs-types/src/derive.rs) is where they are written down.
-   [ADR 0071](../../adr/0071-derived-codecs.md) §§ 2, 7.
+   `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`.
 3. **`#[Route]` builds a table while compiling.** [ADR 0077](../../adr/0077-compile-time-routing.md) §§ 1–3
    and 5: matched nominally like every other name on `ATTRIBUTES`, the path grammar of § 2, a parameter's
    type coming from the method and being what launders it, and the table built by Stage 0's scan. Its

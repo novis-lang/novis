@@ -143,10 +143,10 @@ pub fn check_program_granted(
     // never inside it: a `Core\Router::url` in the entry file routinely names a
     // route § 5's scan finds in a later one. See `crate::links`.
     let mut links = Vec::new();
-    // ADR 0071 § 2's field-type question, accumulated for the same reason and
+    // `rule:core-classes/derive-field-list`'s field-type question, accumulated for the same reason and
     // resolved in the same place — see `crate::derive::resolve_field_types`.
     let mut codec_sites = Vec::new();
-    // ADR 0067 § 9's question about a `queryAs<T>`'s class, accumulated for the
+    // `rule:core-classes/db-column-types`'s question about a `queryAs<T>`'s class, accumulated for the
     // same reason and resolved in the same place — see
     // `crate::derive::check_row_sites`.
     let mut row_sites = Vec::new();
@@ -194,7 +194,7 @@ pub fn check_program_granted(
     // § 4's fold, which is the second pass over the same table and the reason
     // the table is collected across the files rather than per file.
     crate::links::resolve(&routes, &links, exprs, diags);
-    // ADR 0071 § 2's second pass over the same table, after every deriving
+    // `rule:core-classes/derive-field-list`'s second pass over the same table, after every deriving
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.
     crate::derive::resolve_field_types(&codec_sites, &signatures, interner, exprs, diags);

@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — ADR 0067 § 4, ADR 0071 § 2, spec § 18
+`queryAs<T>` answers a `Core\Db\Rows<T>` at the class its call site wrote, where `query` answers `Rows<Row>` — `rule:core-classes/db-statement-members`, `rule:core-classes/derive-field-list`, spec § 18
 --FILE--
 <?nvs
 // Spec § 18: `Rows` is one generic class and not two. `query` fixes its `T` at

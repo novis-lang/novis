@@ -28,7 +28,7 @@
   and already resolves a `Core` accessor during checking;
   [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
   missing is only the decision that the compiler may know a few `Core` methods by name.
-- The motivating case is [ADR 0056](0056-regex-engine-policy.md). Deciding a pattern's engine tier at
+- The motivating case is `rule:core-classes/regex-two-tiers`. Deciding a pattern's engine tier at
   compile time is what lets `nvs check` report — or an operator's `nvs.toml` refuse — a pattern that can be
   made to backtrack. That is a security property, not an optimisation, and it is unavailable without this
   mechanism.
@@ -49,12 +49,12 @@ The initial list:
 
 | Intrinsic | Validated | Prepared |
 |---|---|---|
-| `Core\Regex::compile` | pattern syntax; engine tier ([ADR 0056](0056-regex-engine-policy.md) § 3) | the compiled program |
+| `Core\Regex::compile` | pattern syntax; engine tier (`rule:core-classes/regex-literal-tiering`) | the compiled program |
 | `Core\Uri::parse` | RFC/WHATWG well-formedness | the parsed components |
 | `Core\Time\DateTime::format` / `Core\Time::parse` | CLDR pattern syntax | the parsed format plan |
 | `Core\Time\Duration::parse` | the duration grammar (`rule:types/duration-literal`) | the resolved nanosecond count |
 | `Core\Str::format` | format-string syntax; placeholder count and types against the argument list | the parsed format plan |
-| `Core\Db\Connection`'s and `Core\Db\Transaction`'s `query` / `queryAs` / `execute` | placeholder count and positional-vs-named consistency against a literal params array ([ADR 0067](0067-core-db.md) § 10) | nothing: the vendors' SQL is not parsed, and § 10 says why |
+| `Core\Db\Connection`'s and `Core\Db\Transaction`'s `query` / `queryAs` / `execute` | placeholder count and positional-vs-named consistency against a literal params array (`rule:core-classes/db-literal-query-checking`) | nothing: the vendors' SQL is not parsed, and § 10 says why |
 
 The type check on `Core\Str::format`'s placeholders is worth naming separately: it turns
 `printf`-style argument mismatches — a whole family of PHP bugs — into compile errors.
@@ -111,7 +111,7 @@ still a call and still probes normally.
   grows only when someone adds an entry deliberately, never by a library declaring itself special.
 - **`nvs check` gets meaningfully stronger** without new syntax: malformed patterns, malformed URIs,
   malformed format strings and `printf`-style argument mismatches all move from run time to check time.
-- **[ADR 0056](0056-regex-engine-policy.md) § 3 becomes implementable.** Without this, "refuse backtracking
+- **`rule:core-classes/regex-literal-tiering` becomes implementable.** Without this, "refuse backtracking
   patterns" would be a runtime check that has already lost the argument.
 - **Pattern compilation leaves the request path**, which is a latency win (priority 3) but a secondary one;
   the early diagnostics are the reason this exists.
@@ -129,7 +129,7 @@ still a call and still probes normally.
   foldable. More general, and it would let Tier 2 subsystems and extensions benefit. Rejected on priority 1
   and 4: it turns "the compiler knows four names" into "the compiler runs library-designated code during
   compilation", which is both a larger attack surface and a much harder thing to reason about.
-- **Do nothing; validate at run time as PHP does.** No coupling at all. Rejected: it leaves ADR 0056's
+- **Do nothing; validate at run time as PHP does.** No coupling at all. Rejected: it leaves `rule:core-classes/regex-two-tiers`'s
   central security control unimplementable, and it keeps a family of errors that are statically decidable
   in the class of errors discovered in production.
 - **Fold eagerly, evaluating whole calls where possible.** Simpler to describe than § 3's split. Rejected:

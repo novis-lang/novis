@@ -14,8 +14,7 @@ use super::*;
 /// `Core\Db::connect`, as its own refusals spell it.
 pub(super) const CONNECT: &str = r"Core\Db::connect";
 
-/// `Core\Db::open`, as its own refusals spell it — including the two ADR 0067
-/// § 3 gives it and gives `connect` no equivalent of.
+/// `Core\Db::open`, as its own refusals spell it — including the two `rule:core-classes/db-capabilities` gives it and gives `connect` no equivalent of.
 pub(super) const OPEN: &str = r"Core\Db::open";
 
 /// `Core\Db\Connection::query`, as its own refusals spell it.
@@ -95,7 +94,7 @@ pub(super) fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, 
 
 /// Where a block's `host` and `port` are, as one address.
 ///
-/// **Pinned here and asked nothing else**, which is ADR 0067 § 3: the endpoint
+/// **Pinned here and asked nothing else**, which is `rule:core-classes/db-capabilities`: the endpoint
 /// was written into root-owned configuration by the same authority that granted
 /// `db.connect`, so it is pre-approved and is *not* additionally checked against
 /// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied
@@ -146,7 +145,7 @@ pub(super) fn address_of(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db::connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection`
-    /// — ADR 0067 § 2's named connection, memoized for the request.
+    /// — `rule:core-classes/db-connection-is-named`'s named connection, memoized for the request.
     ///
     /// **The grant is asked first**, before the configuration is read at all,
     /// which is `Core\Mail::send`'s ordering and is the same property: a
@@ -324,11 +323,11 @@ pub(crate) fn open_named(
     let driver = nvs_db::Driver::from_config_name(written);
     let opened = match pooled {
         Some(warm) => warm,
-        // ADR 0067 § 2's `driver` decides which handshake goes out, and it is
+        // `rule:core-classes/db-connection-is-named`'s `driver` decides which handshake goes out, and it is
         // read here rather than inside a driver: the openers share nothing but
         // this shape — their own target, their own default port, their own
         // `Connection` variant — and one resolver answering for all of them is
-        // the trait ADR 0132 § 5 declines to write.
+        // the trait `rule:core-classes/db-drivers-are-an-enum` declines to write.
         //
         // Every other spelling goes to PostgreSQL, including the block that
         // writes no `driver` at all and the one whose `driver` no backend
@@ -468,7 +467,7 @@ pub(super) fn settings_driver(value: &Value) -> Result<nvs_db::Driver, Fault> {
 ///
 /// A thrown `RuntimeError` for any of [`TLS`]'s weaker three. That enum's doc
 /// owns why they are refused rather than honoured; the short of it is that
-/// ADR 0067 § 3's TLS default is not configurable to the unsafe value, and a
+/// `rule:core-classes/db-capabilities`'s TLS default is not configurable to the unsafe value, and a
 /// connection that verified more than it was asked to would be a promise made
 /// quietly.
 pub(super) fn settings_tls(value: &Value) -> Result<(), Fault> {
@@ -487,7 +486,7 @@ pub(super) fn settings_tls(value: &Value) -> Result<(), Fault> {
     };
     Err(Fault::thrown(format!(
         "{OPEN}: `tls` asks for `Tls::{asked}`, and this runtime opens every TCP connection at \
-         `Tls::VerifyFull` — ADR 0067 § 3 has no spelling for verifying less. A private \
+         `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private \
          certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose \
          certificates are believed and not whether they are checked"
     )))
@@ -533,7 +532,7 @@ pub(super) fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Resu
     })
 }
 
-/// The memo key one settings literal opens under — ADR 0067 § 2's "a hash of
+/// The memo key one settings literal opens under — `rule:core-classes/db-connection-is-named`'s "a hash of
 /// every settings field", where `connect`'s key is the name an operator wrote.
 ///
 /// **It cannot collide with a `connect` key**, which is the one property this
@@ -625,7 +624,7 @@ pub(super) fn block_settings_key(block: &nvs_config::tree::Database) -> Option<S
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection`
-    /// — ADR 0067 § 2's connection the *program* describes.
+    /// — `rule:core-classes/db-connection-is-named`'s connection the *program* describes.
     ///
     /// **The whole difference from `connect` is which authority wrote the
     /// endpoint**, and § 3 turns that into two checks this body makes and that
@@ -641,7 +640,7 @@ nvs_runtime::nvs_helper! {
     /// The two drivers' resolvers already own every refusal a set of fields can
     /// earn — a field belonging to another driver, a blank password, a zone
     /// that is not an offset — and re-deciding any of it here would be a second
-    /// answer to a question ADR 0067 § 2 has one of. What this body decides is
+    /// answer to a question `rule:core-classes/db-connection-is-named` has one of. What this body decides is
     /// only what the config path has no equivalent of: the two checks above,
     /// and the `tls` key, which no block has.
     ///
@@ -1033,7 +1032,7 @@ pub(super) fn open_deadline(args: &[Value]) -> Result<Option<std::time::Instant>
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db::inList(array<mixed> $values): Db\InList` — ADR 0067 § 5's
+    /// `Core\Db::inList(array<mixed> $values): Db\InList` — `rule:core-classes/db-parameters`'s
     /// explicit expansion marker.
     ///
     /// The body is the refusal and a carrier around the argument: what the
@@ -1060,7 +1059,7 @@ nvs_runtime::nvs_helper! {
         if count == 0 {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
-                "Core\\Db::inList() was given an empty list, and ADR 0067 § 5 refuses one: an \
+                "Core\\Db::inList() was given an empty list, and `rule:core-classes/db-parameters` refuses one: an \
                  empty list matches nothing inside `IN` and everything inside `NOT IN`, the \
                  rewriter cannot tell which it is in, and the caller has to branch"
                     .to_owned(),
@@ -1084,7 +1083,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// [`nvs_db::is_bare_identifier`] is the rule and its one home: the same
 /// judgement decides what may enter a
-/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
+/// `rule:core-classes/schema-is-a-value`
 /// schema value, and a second copy here would be two answers to the question
 /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) allows one
 /// answer to. The *length* half of that module's rule is deliberately not
@@ -1273,7 +1272,7 @@ mod tests {
         assert!(base.starts_with('\u{0}'));
     }
 
-    /// ADR 0067 § 2's memoization, asserted where it is written: a second
+    /// `rule:core-classes/db-connection-is-named`'s memoization, asserted where it is written: a second
     /// `Core\Db::connect("main")` in one request answers the connection the
     /// first one opened, and performs no handshake of its own.
     ///
@@ -1463,7 +1462,7 @@ mod tests {
         );
     }
 
-    /// ADR 0067 § 3's asymmetry, asserted as the **contrast** it is: the very
+    /// `rule:core-classes/db-capabilities`'s asymmetry, asserted as the **contrast** it is: the very
     /// loopback address ADR 0058 § 3's door refuses is the address
     /// `Core\Db::connect` opens to, on a deployment that grants `db.connect`
     /// and writes nothing under `[capabilities.net]` at all.
@@ -1520,7 +1519,7 @@ mod tests {
         );
 
         // And the second way: buy the host back, and § 3's range table is what
-        // refuses. That is the check ADR 0067 § 3 says a named endpoint is not
+        // refuses. That is the check `rule:core-classes/db-capabilities` says a named endpoint is not
         // additionally put through — where every database on `10/8`, a
         // container network or loopback lives.
         let mut reachable = Ctx::new(OutputSink::Sink);
@@ -1538,8 +1537,9 @@ mod tests {
         // The path `Core\Db::connect` actually takes, on the deployment that
         // granted neither `net` key: it answers the address both refusals above
         // just named.
-        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main")
-            .expect("a `connect`-named endpoint is pre-approved — ADR 0067 § 3");
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main").expect(
+            "a `connect`-named endpoint is pre-approved — `rule:core-classes/db-capabilities`",
+        );
         assert_eq!(
             pinned,
             SocketAddr::from(([127, 0, 0, 1], 5432)),
@@ -1547,7 +1547,7 @@ mod tests {
         );
     }
 
-    /// ADR 0067 § 3's other side, and the same address: a target
+    /// `rule:core-classes/db-capabilities`'s other side, and the same address: a target
     /// `Core\Db::open` was *granted* is still refused when it resolves into one
     /// of ADR 0058 § 3's denied ranges, because a program-supplied address
     /// stays subject to that policy in full.
@@ -1581,8 +1581,9 @@ mod tests {
         )
         .expect("`db.open` grants the host by name, and this deployment granted it");
 
-        let by_range = nvs_runtime::capability::pinned_address(&ctx, HOST, OPEN)
-            .expect_err("a granted host is not a permitted address — ADR 0067 § 3");
+        let by_range = nvs_runtime::capability::pinned_address(&ctx, HOST, OPEN).expect_err(
+            "a granted host is not a permitted address — `rule:core-classes/db-capabilities`",
+        );
         let said = format!("{by_range:?}");
         assert!(
             // `::open` and not [`OPEN`] itself: this is the `Debug` rendering
@@ -1595,8 +1596,9 @@ mod tests {
         // And the same address down `connect`'s path, on a deployment that
         // grants no `net` key either: pre-approved, because an operator wrote
         // the endpoint into root-owned configuration.
-        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main")
-            .expect("a `connect`-named endpoint is pre-approved — ADR 0067 § 3");
+        let pinned = address_of(HOST, Some(5432), nvs_db::pg::DEFAULT_PORT, "main").expect(
+            "a `connect`-named endpoint is pre-approved — `rule:core-classes/db-capabilities`",
+        );
         assert_eq!(
             pinned,
             SocketAddr::from(([127, 0, 0, 1], 5432)),

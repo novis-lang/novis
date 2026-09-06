@@ -136,7 +136,7 @@ missing or mistyped one is the ordinary `E0401` mismatch rather than an attribut
 payload § 2 has already refused is not then checked against the shape — the author is told about the value
 they wrote before they are told what it failed to satisfy.
 
-The one exemption is [ADR 0071](0071-derived-codecs.md) § 1's **compiler-recognized** attributes
+The one exemption is `rule:core-classes/derive-attribute`'s **compiler-recognized** attributes
 (`Core\Json\Derive`, `Core\Json\Field`, and whatever that closed, `Core`-owned roster grows), which are
 matched nominally by the compiler and name no shape at all; what their payloads may hold is
 `nvs_types::derive`'s own option check. The roster is closed and `Core`-owned precisely so this stays an

@@ -59,7 +59,7 @@
 //!   to lower one — see that module's own docs for the full design and why
 //!   `nvs-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
-//! - [`mod@derive`] — `derive::check_class_derive`: ADR 0071's derive pass —
+//! - [`mod@derive`] — `derive::check_class_derive`: `rule:core-classes/derive-attribute`'s derive pass —
 //!   which classes carry `#[Json\Derive]`, matched *nominally* against a
 //!   closed `Core`-owned list, and what the field list and wire keys of each
 //!   are. Runs from [`check`]'s walk because that is what holds the namespace
@@ -390,8 +390,7 @@ pub(crate) struct Env<'a> {
     /// [`crate::retrieval::AttributeTable`].
     pub attributes: &'a crate::retrieval::AttributeTable<'a>,
     /// The `[capabilities]` block of the configuration the *compiling* machine
-    /// read, or `None` where nothing read one — [ADR 0067](/docs/adr/0067-core-db.md)
-    /// § 10's "`nvs.toml` is read at boot on the machine that compiles",
+    /// read, or `None` where nothing read one — `rule:core-classes/db-literal-query-checking`'s "`nvs.toml` is read at boot on the machine that compiles",
     /// which is the only thing in front of this pass that is not the program.
     ///
     /// **`None` says nothing rather than denying**, and
@@ -434,7 +433,7 @@ pub(crate) struct Env<'a> {
     /// filling that table is this one. See [`crate::links`] for why the lookup
     /// cannot be made where the call is written.
     pub links: &'a mut Vec<crate::links::LinkSite>,
-    /// ADR 0071 § 2's codec-reachable question, one entry per field the derive
+    /// `rule:core-classes/derive-field-list`'s codec-reachable question, one entry per field the derive
     /// pass keeps, asked after the walk rather than where the property is
     /// declared.
     ///

@@ -1,5 +1,5 @@
 --TEST--
-A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `time`, a `uuid`, a `decimal` and a `boolean` answer their own values, a `blob` answers the octets it is, and a cell the declaration does not describe throws — ADR 0067 §§ 6, 9
+A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `time`, a `uuid`, a `decimal` and a `boolean` answer their own values, a `blob` answers the octets it is, and a cell the declaration does not describe throws — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // § 9's last sentence is this backend's whole type map: "SQLite has no date or

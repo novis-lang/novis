@@ -1,4 +1,4 @@
-# ADR 0131 — A temporary directory dies with its script, and the runtime's sweep never throws
+# `rule:core-classes/temporary-dir-sweep` — A temporary directory dies with its script, and the runtime's sweep never throws
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

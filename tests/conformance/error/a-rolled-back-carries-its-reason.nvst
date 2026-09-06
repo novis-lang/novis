@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\RolledBack` is a class in spec § 10's tree under `RuntimeError`, and its `reason` is the string it was constructed with — spec § 18, ADR 0067 § 7
+`Core\Db\RolledBack` is a class in spec § 10's tree under `RuntimeError`, and its `reason` is the string it was constructed with — spec § 18, `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // § 18 gives the class one property of its own beyond the root's four, and

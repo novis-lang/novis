@@ -1,5 +1,5 @@
 --TEST--
-Core\Regex::compile answers a Pattern that every Pattern|string member reads exactly as it reads the source string, and its options are the inline flag groups — ADR 0056 §§ 2, 5
+Core\Regex::compile answers a Pattern that every Pattern|string member reads exactly as it reads the source string, and its options are the inline flag groups — `rule:core-classes/regex-two-tiers` and `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
 // § 5's `compile` row and the six rows typed `Pattern|string`. What a compiled

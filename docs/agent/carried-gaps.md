@@ -41,12 +41,12 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 | Gap | Owner | Where the detail lives |
 |---|---|---|
-| `nvs check` builds no grants, so ADR 0067 § 10's host diagnostic fires for nobody | 21 | `crates/nvs-types/src/intrinsics.rs` gap 6 |
+| `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | 21 | `crates/nvs-types/src/intrinsics.rs` gap 6 |
 | A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, ADR 0116 § 2 |
 | `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
 | `{timeout?: Duration}` is in both spec signatures and in neither registry row | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
 | `scope = "fleet"` parses, boots and is not armed | 21 | `crates/nvs-server/src/schedule.rs` § *What is not armed*, ADR 0073 § 3 |
-| ADR 0133 § 3's computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
+| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
 | ADR 0042's artifact cache is written, tested and has no caller | 22 | `crates/nvs-cli/src/cache.rs` § *Known gaps* |
@@ -55,7 +55,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
 | `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | 24 | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
 | `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | 25 | the same file; ADR 0051 § 3 puts all three at Tier 0 |
-| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and ADR 0122's parser | 26 | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, ADR 0122 § 4 |
+| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and `rule:core-classes/html-parsing`'s parser | 26 | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, `rule:core-classes/html-parsing` |
 | ~110 module-doc `# Known gaps` items name no owner and are in no index | 27 | this file's own contract, applied one level down |
 | `Core\Uri::with` replaces a component and cannot remove one | 28 | `crates/nvs-stdlib/src/uri.rs` gap 1 |
 | `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | 28 | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |

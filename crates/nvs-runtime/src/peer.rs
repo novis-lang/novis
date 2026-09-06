@@ -34,7 +34,7 @@
 //!
 //! # Decision: the queue is bounded, and the overflow closes the subscriber
 //!
-//! ADR 0083 § 4's priority-1 rule: each subscriber's queue is capped, the
+//! `rule:core-classes/topic`'s priority-1 rule: each subscriber's queue is capped, the
 //! publisher is never blocked, and an overflow closes *that* subscriber. An
 //! [`Inbox`] therefore holds [`INBOX_CAP`] deliveries and refuses the next one,
 //! and the refusal is **sticky** — [`Inbox::overflowed`] stays true once it has
@@ -160,7 +160,7 @@ thread_local! {
 
 /// How many subscribers **this core** has closed for missing a delivery.
 ///
-/// ADR 0083 § 4's metric, as the number an exporter would read. It is a core's
+/// `rule:core-classes/topic`'s metric, as the number an exporter would read. It is a core's
 /// own count and never a process-wide one, which is where
 /// [ADR 0076](/docs/adr/0076-observability-export.md) § 7 already charges a
 /// series; the module doc records that nothing exports it yet.
@@ -362,7 +362,7 @@ pub enum Closing {
     /// The connection ended the way it was meant to — its loop finished, or the
     /// isolate did. RFC 6455's 1000.
     Done,
-    /// ADR 0083 § 4: this subscriber's delivery queue overflowed, so it is
+    /// `rule:core-classes/topic`: this subscriber's delivery queue overflowed, so it is
     /// closed rather than tolerated. RFC 6455's 1008, *policy violation*, which
     /// is the code for a peer whose behaviour the server will not carry —
     /// specifically not 1001 or 1011, which say the server is going away or

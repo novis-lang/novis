@@ -1,5 +1,5 @@
 --TEST--
-All three `Core\Topic` members refuse an empty name, and they agree on the sentence rather than each having grown its own — ADR 0083 § 4
+All three `Core\Topic` members refuse an empty name, and they agree on the sentence rather than each having grown its own — `rule:core-classes/topic`
 --FILE--
 <?nvs
 // The empty name is the one no publisher can mean and no subscriber can be

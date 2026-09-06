@@ -62,7 +62,7 @@ pub const SLOT_COUNT: usize = 4;
 
 /// The slot `ParseError::$issues` occupies — the one property any class in the
 /// tree declares beyond the root's four
-/// ([ADR 0071](/docs/adr/0071-derived-codecs.md) § 5).
+/// (`rule:core-classes/derive-reports-every-field`).
 ///
 /// `ParseError` inherits exactly [`SLOT_COUNT`] slots and adds this one, so a
 /// descriptor with more than [`SLOT_COUNT`] fields is the only shape it can
@@ -72,7 +72,7 @@ pub const SLOT_COUNT: usize = 4;
 pub const ISSUES_SLOT: usize = SLOT_COUNT;
 
 /// The slot `Core\Db\DbError::$kind` occupies —
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 8's normalised condition,
+/// `rule:core-classes/db-error`'s normalised condition,
 /// which `nvs_stdlib::db`'s `statement_failure` fills through
 /// [`Ctx::raise_with_slots`].
 ///
@@ -86,7 +86,7 @@ pub const KIND_SLOT: usize = SLOT_COUNT;
 
 /// The slot `Core\Db\DbError::$sqlState` occupies — the five-character code the
 /// server sent, beside the [`KIND_SLOT`] normalised from it
-/// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
+/// (`rule:core-classes/db-error`).
 ///
 /// Derived from [`KIND_SLOT`] where that constant is deliberately *not* derived
 /// from [`ISSUES_SLOT`]: these two are properties of one class in declaration
@@ -109,7 +109,7 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 
 /// The slot `Core\Db\DbError::$constraint` occupies — the constraint the
 /// server's condition names, where it names one
-/// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
+/// (`rule:core-classes/db-error`).
 ///
 /// `nvs_db::ServerError::constraint` is where PostgreSQL's comes from, and it
 /// is `Option` there for the same reason this is `?string` here: a unique
@@ -122,7 +122,7 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
 /// The slot `Core\Db\DbError::$sql` occupies — the statement that was refused,
-/// as the program wrote it ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
+/// as the program wrote it (`rule:core-classes/db-error`).
 ///
 /// § 8 lets the text ride the throw where it lets no bound value ride it: the
 /// SQL is developer-authored and the values are the request's, which is
@@ -136,7 +136,7 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
 /// The slot `Core\Db\RolledBack::$reason` occupies —
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's abandoned transaction,
+/// `rule:core-classes/db-transactions`'s abandoned transaction,
 /// worded by the program that abandoned it.
 ///
 /// Equal to [`ISSUES_SLOT`] and [`KIND_SLOT`], and derived the same way rather
@@ -214,7 +214,7 @@ pub enum ThrownClass {
     /// "no spelling for an unbounded wait" on a second surface.
     CliNotInteractive,
     /// `Core\Db\DbError` — the database refused a statement, a connection or a
-    /// commit ([ADR 0067](/docs/adr/0067-core-db.md) § 8): every
+    /// commit (`rule:core-classes/db-error`): every
     /// failure `Core\Db` reports that the program did not itself choose.
     ///
     /// One class rather than ten, because § 8 normalises the condition into a
@@ -225,7 +225,7 @@ pub enum ThrownClass {
     /// requires to carry no bound value.
     DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
-    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 7), propagated out of
+    /// (`rule:core-classes/db-transactions`), propagated out of
     /// the closure that owned it.
     ///
     /// It is not a driver failure and deliberately not the same class as one:

@@ -137,7 +137,7 @@ pub(crate) fn infer_method_call(
     // reports and replaces nothing.
     if let Some((owner, name, _)) = &resolved {
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);
-        // ADR 0133 § 3's written reason, at the same point and matched the same
+        // `rule:core-classes/html-to-source`'s written reason, at the same point and matched the same
         // way — the one pass that refuses an argument *for* being dynamic. See
         // [`crate::reasons`], whose module doc owns why that is not the rule
         // above read backwards.
@@ -395,7 +395,7 @@ pub(crate) fn infer_static_call(
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);
-        // ADR 0133 § 3's written reason — `Core\Html::toSource` is a static
+        // `rule:core-classes/html-to-source`'s written reason — `Core\Html::toSource` is a static
         // call, so this is the arm that actually reports it. See
         // [`crate::reasons`].
         crate::reasons::check_call(owner, name, args, ctx, env);
@@ -408,7 +408,7 @@ pub(crate) fn infer_static_call(
         // *written shape* still decides whether it is accepted. See
         // [`super::isolate::check_core_isolate_call`].
         super::isolate::check_core_isolate_call(owner, name, args, &arg_types, &slots, env);
-        // ADR 0083 § 4's bus, the third carrier of the same graph copy: a
+        // `rule:core-classes/topic`'s bus, the third carrier of the same graph copy: a
         // published value is copied into every subscriber, so it takes the
         // crossing refusal `args:` takes one line above. Slots for the same
         // reason that call reads them. See

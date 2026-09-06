@@ -1,5 +1,5 @@
 --TEST--
-An isolate's argument is its own and is not ambient: two children spawned with different values disagree, a grandchild spawned with no `args:` reads `null` while its parent still reads what it was given, and a second read answers the same value — ADR 0012 § 6, ADR 0006 § *Decision*
+An isolate's argument is its own and is not ambient: two children spawned with different values disagree, a grandchild spawned with no `args:` reads `null` while its parent still reads what it was given, and a second read answers the same value — `rule:core-classes/script-args`, ADR 0006 § *Decision*
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

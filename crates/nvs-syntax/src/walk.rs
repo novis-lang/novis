@@ -1,7 +1,6 @@
 //! The parse tree as a walkable shape: one entry per node, its production's
 //! name and the nodes it contains — what
-//! [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-//! § 3's `Core\Ast::parse` hands a running program.
+//! `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
 //!
 //! # Decision: the walk lives beside the grammar, not beside the `Core` class
 //!
@@ -16,14 +15,14 @@
 //! What crosses the crate boundary is therefore [`Node`], a rose tree of
 //! `&'static str` kinds owning nothing of the source. `nvs_stdlib` turns that
 //! into `Core\Ast\Node` instances and never sees an AST type — which is also
-//! what keeps ADR 0019 § 3's inertness structural rather than promised: there
+//! what keeps `rule:core-classes/ast-is-inert`'s inertness structural rather than promised: there
 //! is no [`crate::ast::Expr`] on the other side of this function to reach a
 //! lowering with.
 //!
 //! # Decision: a node is a statement, an expression, or a member of a
 //! declaration
 //!
-//! Those are the productions ADR 0019 § 3's own examples name
+//! Those are the productions `rule:core-classes/ast-is-inert`'s own examples name
 //! (`Core\Ast\ClassDecl`, `Core\Ast\MethodDecl`). Everything else the grammar
 //! carries — a type, a name, a modifier, an attribute, a parameter, a match
 //! arm, a catch clause, a `foreach` binding — is a *property* of the node it
@@ -89,7 +88,7 @@ impl Node {
 /// Parses `source` exactly as the compiler parses a file of that name, and
 /// answers the walk over it.
 ///
-/// One grammar, ADR 0019 § 3: this calls [`parse_file`], so a construct that
+/// One grammar, `rule:core-classes/ast-is-inert`: this calls [`parse_file`], so a construct that
 /// compiles parses here and a construct the parser refuses is refused here.
 /// The root node is the file, whose children are its top-level statements.
 ///

@@ -54,7 +54,7 @@ and `exif` have their answer drafted per concept in
 [ADR 0120 § 11](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), which
 becomes one row per name here the day the inventory lists them. The
 three database extensions came off that list when the build gained them: `mysqli`, `pgsql` and `sqlite3`
-are 236 named functions [ADR 0067](../adr/0067-core-db.md) now owes an audited row each, rather than one
+are 236 named functions `rule:core-classes/db-one-api` now owes an audited row each, rather than one
 prose claim about four APIs. Most of the rest are already covered wholesale by a `Replaces` cell in
 [01-core-library.md](01-core-library.md); none is covered *provably* until it appears here.
 
@@ -456,7 +456,7 @@ dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)).
 ## Regular expressions
 
 The engine policy — two tiers, a step budget, why the *pattern* is a sink and the subject is not — is
-[ADR 0056](../adr/0056-regex-engine-policy.md). Two shapes account for every row: `preg_match`'s
+`rule:core-classes/regex-two-tiers`. Two shapes account for every row: `preg_match`'s
 `$matches` out-parameter becomes a returned `?Match` (R3), and there are no `PREG_*` flag constants, so
 each flag is either an option in the trailing shape or a member of its own (R11).
 
@@ -620,7 +620,7 @@ context have nothing left to be.
 | `file` | member | `Core\IO::lines`, which is lazy where PHP's array is not; the whole-array shape is what `Core\Arr` does to it afterwards |
 | `readfile` | member | `Core\IO::read` and then `Core\Cli::write` or a `Core\Response` body. Reading and writing are two members, never one that does both to two different places |
 | `fpassthru` | member | the same pair, over the handle `Core\IO::open` returns |
-| `tmpfile` | member | `Core\IO::temporaryDir` and `Core\IO::open` inside it. There is no `temporaryFile`, because a program that needs one needs somewhere to put the second ([ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)) |
+| `tmpfile` | member | `Core\IO::temporaryDir` and `Core\IO::open` inside it. There is no `temporaryFile`, because a program that needs one needs somewhere to put the second (`rule:core-classes/temporary-dir-sweep`) |
 | `tempnam` | member | `Core\IO::temporaryDir`, then the name is the program's to choose inside it — never a name handed back for someone else to race for |
 | `sys_get_temp_dir` | member | `Core\IO::temporaryDir`, which **creates** a private directory that the runtime removes when the script ends, rather than naming a shared one every process can write |
 
@@ -708,7 +708,7 @@ context have nothing left to be.
 | `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
 | `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
 | `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
-| `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4) |
+| `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file (`rule:core-classes/io-write-stream`) |
 | `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
 | `set_include_path` | dropped | same, and it is process-global besides |
 | `stream_resolve_include_path` | dropped | same. Resolving a path the program does name is `Core\IO::canonicalize`, and proving it is inside a base is `Core\IO::within` |
@@ -835,7 +835,7 @@ differ only in what they do with the output, all of them concatenating a command
 job is to escape what was concatenated.
 
 `Core\Out::capture` ([01 § 12](01-core-library.md)) answers the first with a buffer scoped to a closure,
-nesting by call nesting, always swallowing. [ADR 0044](../adr/0044-core-process-argv-only-no-shell.md)
+nesting by call nesting, always swallowing. `rule:core-classes/process-is-argv-only`
 answers the second by never accepting a shell string at all, which is why `escapeshellarg` and
 `escapeshellcmd` are dropped with nothing to point at: there is no string to escape.
 
@@ -858,12 +858,12 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `flush` | dropped | a response is written by the runtime when the handler returns. Streaming one is `Core\Response`'s body, which is a value the program produces rather than a global buffer it pushes |
 | `output_add_rewrite_var` | dropped | it edits every URL in the response body on the way out. `Core\Router::url` builds URLs and nothing rewrites them afterwards |
 | `output_reset_rewrite_vars` | dropped | same |
-| `exec` | member | `Core\Process::run`, which takes a program and an `array<string>` of arguments — never a command line ([ADR 0044](../adr/0044-core-process-argv-only-no-shell.md)) — and needs `process.exec` |
+| `exec` | member | `Core\Process::run`, which takes a program and an `array<string>` of arguments — never a command line (`rule:core-classes/process-is-argv-only`) — and needs `process.exec` |
 | `system` | member | `Core\Process::run`. PHP's four spawning functions differ only in what they do with the output, which is a property of the result and not a reason for four names (R17) |
 | `passthru` | member | `Core\Process::run`, then `Core\Cli::write` |
 | `shell_exec` | member | `Core\Process::run`. The backtick operator goes with it: there is no shell |
 | `escapeshellarg` | dropped | **nothing to escape.** A command is a program plus an argument vector, so the quoting rules this function encodes — different on Windows, different again inside `cmd.exe` — have no input |
-| `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct ADR 0044 exists to remove |
+| `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct `rule:core-classes/process-is-argv-only` exists to remove |
 | `proc_open` | member | `Core\Process::spawn`, which answers with a handle rather than an array of pipes indexed by a descriptor spec |
 | `proc_get_status` | member | that handle's own members — a process describes itself, rather than being described by a second function that takes it |
 | `proc_terminate` | member | the same handle |
@@ -968,7 +968,7 @@ identify.
 | `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
 | `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half (`rule:testing/debug-probes`) |
 | `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
-| `token_get_all` | member | `Core\Ast::parse`, which calls the compiler's own lexer and parser and answers with a typed, inert tree rather than an untyped token array ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 3) |
+| `token_get_all` | member | `Core\Ast::parse`, which calls the compiler's own lexer and parser and answers with a typed, inert tree rather than an untyped token array (`rule:core-classes/ast-is-inert`) |
 | `token_name` | dropped | there is no token array whose integer kinds need naming: a node's kind is its type |
 | `get_resource_type` | dropped | there is no `resource` (R14) — anything with a lifetime is an object, and its type is its class |
 | `get_resource_id` | dropped | same; identity across a collection is `Core\ObjectMap`'s key |
@@ -1091,11 +1091,11 @@ XSLTProcessor, with libxml's process-global error bucket and entity loader under
 `Core\Xml` ([01 § 17](01-core-library.md)) is one API with two halves — a **tree** that materialises and a
 **streaming** reader/writer that does not — and, unusually for this file, both halves are kept: they are
 different jobs, not twins, and no operation is available through both. The tree is the same node family
-`Core\Html`'s parser produces ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)).
+`Core\Html`'s parser produces (`rule:core-classes/html-parsing`).
 
 Three rules collapse the table. A parse **throws** on a malformed document
 (`rule:errors/ambiguous-input-refused`, and
-[ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) § 1 for why
+`rule:core-classes/html-parsing` for why
 HTML's parser is the opposite), so there is no error bucket to enable and read back. Anything with a
 lifetime is an object rather than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), which
 removes the create/free/set-option roster around the parser. And the SAX handler table is an *iteration*
@@ -1105,7 +1105,7 @@ so eleven registered callbacks become arms in a loop body that can also just sto
 The rule that is this section's own is that **the parser reaches nothing**. An external entity, the DTD a
 document names, a schema location — none is fetched, and there is no capability, argument or configuration
 that turns resolution on. The reference survives as data, the way
-[ADR 0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) § 2
+`rule:core-classes/spreadsheet-has-no-io`
 keeps one. This is not a safe default that was chosen carefully; it is a spelling that does not exist, and
 it is where XXE and [ADR 0052](../adr/0052-closed-doors.md)'s closed doors meet — a parser that resolved
 would be making a request nobody wrote, through the stream wrappers that door closes and around
@@ -1236,7 +1236,7 @@ one row here that grows a member rather than losing one.
 | `long2ip` | dropped | the inverse, including for the negative `int` a 32-bit `ip2long` produced |
 | `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it ([ADR 0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)) |
 | `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)'s finite outbound |
-| `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)) |
+| `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags (`rule:core-classes/html-parsing`) |
 | `get_browser` | dropped | it matches a `User-Agent` against a `browscap.ini` the operator is asked to keep current. The header is `Core\Request::header`; behaviour keyed on a parsed browser identity belongs to a package, not to a `Core` member over a data file that ages |
 | `mail` | member | `Core\Mail::send` — an SMTP client with structured headers over an operator-named endpoint, rather than a `sendmail` binary and a header string a caller can inject a second recipient into ([01 § 16](01-core-library.md)) |
 
@@ -1287,7 +1287,7 @@ confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists 
 | PHP | Outcome | Novis |
 |---|---|---|
 | `filter_var` | member | `Core\Validate`'s predicates — `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii`, `isPrintable`, each `(subject, …): bool` — replacing the validate half and its 20 `FILTER_*` constants ([01 § 12](01-core-library.md)) |
-| `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` ([ADR 0071](../adr/0071-derived-codecs.md)) rather than mixing the value, `null` and `false` in one array |
+| `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` (`rule:core-classes/derive-attribute`) rather than mixing the value, `null` and `false` in one array |
 | `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings (`rule:statements/no-host-populated-variables`), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
 | `filter_input_array` | dropped | both of those at once, over a spec array |
 | `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](../adr/0063-core-api-conventions.md)) |
@@ -1351,7 +1351,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `phpinfo` | dropped | the configuration, extension list and build detail as one HTML page, and the disclosure named above. One key at a time is `Core\Config::get` ([01 § 15](01-core-library.md)) |
 | `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
 | `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
-| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured ([ADR 0067](../adr/0067-core-db.md), [ADR 0064](../adr/0064-configuration-file-format.md)), which is a different question and the one that was being asked |
+| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured (`rule:core-classes/db-one-api`, [ADR 0064](../adr/0064-configuration-file-format.md)), which is a different question and the one that was being asked |
 | `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact ([ADR 0048](../adr/0048-portable-single-file-executables.md)) |
 | `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](../adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
@@ -1362,11 +1362,11 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](../adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
 | `parse_ini_string` | dropped | the same over a string, with the same answer |
-| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers [ADR 0052](../adr/0052-closed-doors.md) closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component ([ADR 0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
+| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers [ADR 0052](../adr/0052-closed-doors.md) closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component (`rule:core-classes/image-pixel-model`), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
 | `getimagesizefromstring` | dropped | the same over bytes, and the same split |
 | `image_type_to_mime_type` | dropped | maps PHP's `IMAGETYPE_*` integers to a MIME string. `Core\Mime` answers from the bytes, rather than from a constant the caller was already holding |
 | `image_type_to_extension` | dropped | the same table in the other direction. An extension is a naming convention, and names are built with `Core\Path` |
-| `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file ([ADR 0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 11) |
+| `iptcparse` | dropped | IPTC metadata out of an APP13 marker the caller sliced out by hand. Image metadata is read by the component already holding the decoded file (`rule:core-classes/image-pixel-model`) |
 | `iptcembed` | dropped | writes it back by splicing bytes into a JPEG, same owner and the same reason |
 | `hash_hmac_file` | member | `Core\Hash::hmac` over the bytes `Core\IO::read` returns, or over the digest stream where the file does not fit — the same R17 split `hash_file` takes above |
 
@@ -1374,7 +1374,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 
 ## Databases: the `mysqli` extension
 
-Two rules of [ADR 0067](../adr/0067-core-db.md) empty most of this extension, and neither is about MySQL.
+Two rules of `rule:core-classes/db-one-api` empty most of this extension, and neither is about MySQL.
 
 **There is no `prepare` step** (§ 1). `query` and `execute` take the SQL and the parameters in one call and
 each connection holds an LRU cache of server-side prepared statements, so every statement is prepared and
@@ -1401,22 +1401,22 @@ site left.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `mysqli_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than carrying a host, a user and a password in program source ([ADR 0067](../adr/0067-core-db.md) § 2). A connection built at request time — one database per tenant — is `Core\Db::open` |
+| `mysqli_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than carrying a host, a user and a password in program source (`rule:core-classes/db-connection-is-named`). A connection built at request time — one database per tenant — is `Core\Db::open` |
 | `mysqli_init` | dropped | half a connection: an object that exists only to be configured before `mysqli_real_connect` opens it. There is no unopened `Db\Connection`, so there is no gap between the two calls to configure anything in |
 | `mysqli_real_connect` | dropped | the other half of that two-step, and the only one of the pair that takes flags. `Core\Db::connect` is the whole of it |
 | `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds ([ADR 0067](../adr/0067-core-db.md) §§ 2, 13) — and the runtime reads it, not the program |
 | `mysqli_set_opt` | dropped | an alias of `mysqli_options` |
-| `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured ([ADR 0067](../adr/0067-core-db.md) § 2); the paths are the operator's |
-| `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one ([ADR 0067](../adr/0067-core-db.md) § 2) |
+| `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured (`rule:core-classes/db-connection-is-named`); the paths are the operator's |
+| `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one (`rule:core-classes/db-connection-is-named`) |
 | `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential ([ADR 0067](../adr/0067-core-db.md) § 13), so two users are two connections and never one connection twice |
 | `mysqli_select_db` | dropped | switches the default database mid-session. The database is a field of the config block or of `Db\Settings`, and a program that needs two of them opens two connections |
 | `mysqli_set_charset` | dropped | a `string` is UTF-8 (`rule:types/bytes`) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
 | `mysqli_character_set_name` | dropped | reads that setting back |
 | `mysqli_get_charset` | dropped | the same, as an object with the collation beside it |
-| `mysqli_real_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer ([ADR 0067](../adr/0067-core-db.md) § 12). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
+| `mysqli_real_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
 | `mysqli_escape_string` | dropped | an alias of it, and the same answer |
 | `mysqli_ping` | dropped | asks whether a connection is still alive so the caller can reconnect around it. The pool answers that itself: a connection is retired at `lifetime`, and one whose reset fails is destroyed rather than handed out ([ADR 0067](../adr/0067-core-db.md) § 13) |
-| `mysqli_connect_errno` | dropped | the last connect failure as a driver code, read after a call that returned `false`. A failed connect throws `Db\DbError`, carrying `kind`, `sqlState` and `driverCode` ([ADR 0067](../adr/0067-core-db.md) § 8) |
+| `mysqli_connect_errno` | dropped | the last connect failure as a driver code, read after a call that returned `false`. A failed connect throws `Db\DbError`, carrying `kind`, `sqlState` and `driverCode` (`rule:core-classes/db-error`) |
 | `mysqli_connect_error` | dropped | the same failure as a message |
 | `mysqli_errno` | dropped | the last statement's failure as a driver code; the same answer |
 | `mysqli_error` | dropped | the same as a message |
@@ -1447,42 +1447,42 @@ site left.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `mysqli_prepare` | dropped | there is no `prepare` step ([ADR 0067](../adr/0067-core-db.md) § 1): the SQL and the parameters arrive together and the connection's LRU cache holds the server-side statement. Every statement is prepared, so a second spelling buys nothing the cache does not already give |
+| `mysqli_prepare` | dropped | there is no `prepare` step (`rule:core-classes/db-one-api`): the SQL and the parameters arrive together and the connection's LRU cache holds the server-side statement. Every statement is prepared, so a second spelling buys nothing the cache does not already give |
 | `mysqli_stmt_init` | dropped | makes the object `mysqli_stmt_prepare` then fills in. There is no statement object to make |
 | `mysqli_stmt_prepare` | dropped | prepares into it, and the same answer |
-| `mysqli_stmt_bind_param` | dropped | binds parameters by reference, in one call whose type string has to match their count. Parameters are one `array<mixed>` passed at the call, and by-reference binding is refused permanently ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_bind_param` | dropped | binds parameters by reference, in one call whose type string has to match their count. Parameters are one `array<mixed>` passed at the call, and by-reference binding is refused permanently (`rule:core-classes/db-one-api`) |
 | `mysqli_stmt_bind_result` | dropped | binds columns to variables by reference, under the same refusal. A row is read by name |
-| `mysqli_stmt_execute` | member | `Core\Db\Queryable::execute` for a write and `Core\Db\Queryable::query` for a select — SQL and parameters in the one call ([ADR 0067](../adr/0067-core-db.md) § 4) |
+| `mysqli_stmt_execute` | member | `Core\Db\Queryable::execute` for a write and `Core\Db\Queryable::query` for a select — SQL and parameters in the one call (`rule:core-classes/db-statement-members`) |
 | `mysqli_execute` | dropped | an alias of `mysqli_stmt_execute` |
 | `mysqli_execute_query` | member | `Core\Db\Queryable::query` — PHP 8.2's prepare, bind and execute in one call, which is the shape every Novis statement already has |
 | `mysqli_stmt_get_result` | member | `Core\Db\Queryable::query`, which answers with `Db\Rows` and needs no second call to reach it |
 | `mysqli_stmt_fetch` | dropped | fetches one row into the variables `bind_result` bound. `Db\Rows` is iterated, or read whole with `->all()` |
-| `mysqli_stmt_store_result` | dropped | buffers the result set after the fact. `query` buffers and `stream` does not, decided where the statement is written rather than a call later ([ADR 0067](../adr/0067-core-db.md) § 4) |
+| `mysqli_stmt_store_result` | dropped | buffers the result set after the fact. `query` buffers and `stream` does not, decided where the statement is written rather than a call later (`rule:core-classes/db-statement-members`) |
 | `mysqli_stmt_free_result` | dropped | frees that buffer. A `Db\Rows` is released with the rest of the request's memory |
-| `mysqli_stmt_close` | dropped | closes the prepared statement. The statement cache owns that lifetime ([ADR 0067](../adr/0067-core-db.md) § 1) |
+| `mysqli_stmt_close` | dropped | closes the prepared statement. The statement cache owns that lifetime (`rule:core-classes/db-one-api`) |
 | `mysqli_stmt_reset` | dropped | resets one for re-execution, which is what the cache hands back |
-| `mysqli_stmt_attr_set` | dropped | `PDO::ATTR_*` under another name, refused permanently ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_attr_set` | dropped | `PDO::ATTR_*` under another name, refused permanently (`rule:core-classes/db-one-api`) |
 | `mysqli_stmt_attr_get` | dropped | reads one of those attributes back |
-| `mysqli_stmt_send_long_data` | dropped | sends one parameter to the server in chunks. LOB streaming is deferred, with its trigger in that ADR's *Revisiting* ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_send_long_data` | dropped | sends one parameter to the server in chunks. LOB streaming is deferred, with its trigger in that ADR's *Revisiting* (`rule:core-classes/db-one-api`) |
 | `mysqli_stmt_data_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred the same way, and `->all()` is an ordinary `array<Row>` to index |
 | `mysqli_stmt_num_rows` | member | `Db\Rows`'s `->count()` |
 | `mysqli_stmt_affected_rows` | member | `Db\Write`'s readonly `affected` |
-| `mysqli_stmt_insert_id` | member | `Db\Write`'s readonly `lastId`, which belongs to the write that produced it rather than to the connection ([ADR 0067](../adr/0067-core-db.md) § 7) |
+| `mysqli_stmt_insert_id` | member | `Db\Write`'s readonly `lastId`, which belongs to the write that produced it rather than to the connection (`rule:core-classes/db-transactions`) |
 | `mysqli_stmt_field_count` | member | `Db\Rows`'s `->columns()`, whose length is that count |
 | `mysqli_stmt_result_metadata` | member | the same `->columns()`, as `array<Column>` — a name, a `ColumnType` and a nullability per column |
 | `mysqli_stmt_param_count` | dropped | how many placeholders the prepared statement wants. The question exists only because binding is a separate step from writing the SQL |
-| `mysqli_stmt_errno` | dropped | the statement's last failure as a driver code. A failed statement throws `Db\DbError` ([ADR 0067](../adr/0067-core-db.md) § 8) |
+| `mysqli_stmt_errno` | dropped | the statement's last failure as a driver code. A failed statement throws `Db\DbError` (`rule:core-classes/db-error`) |
 | `mysqli_stmt_error` | dropped | the same as a message |
 | `mysqli_stmt_error_list` | dropped | the same as an array of them |
 | `mysqli_stmt_sqlstate` | dropped | the same as a SQLSTATE |
 | `mysqli_stmt_get_warnings` | dropped | the warnings one statement raised, as an object to walk. A condition worth acting on throws `Db\DbError`; one that is not is the server's to log |
-| `mysqli_stmt_more_results` | dropped | asks whether a stored procedure left another result set. Multiple result sets are deferred ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `mysqli_stmt_more_results` | dropped | asks whether a stored procedure left another result set. Multiple result sets are deferred (`rule:core-classes/db-one-api`) |
 | `mysqli_stmt_next_result` | dropped | advances to it, and the same answer |
 | `mysqli_query` | member | `Core\Db\Queryable::query` for a select and `Core\Db\Queryable::execute` for a write — the split PHP leaves to the caller's `is_bool($result)` check, made in the member name |
-| `mysqli_real_query` | dropped | fires a query and leaves the result on the server for `store_result` or `use_result` to claim. `query` buffers and `stream` streams, and neither needs a second call ([ADR 0067](../adr/0067-core-db.md) § 4) |
+| `mysqli_real_query` | dropped | fires a query and leaves the result on the server for `store_result` or `use_result` to claim. `query` buffers and `stream` streams, and neither needs a second call (`rule:core-classes/db-statement-members`) |
 | `mysqli_store_result` | dropped | claims it buffered, which is what `query` already did |
-| `mysqli_use_result` | member | `Core\Db\Queryable::stream`, which reads in constant memory and holds the connection until it is drained ([ADR 0067](../adr/0067-core-db.md) § 4) |
-| `mysqli_multi_query` | dropped | runs several statements separated by `;` in one call — the amplifier that turns one injection into a compromise, refused permanently ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `mysqli_use_result` | member | `Core\Db\Queryable::stream`, which reads in constant memory and holds the connection until it is drained (`rule:core-classes/db-statement-members`) |
+| `mysqli_multi_query` | dropped | runs several statements separated by `;` in one call — the amplifier that turns one injection into a compromise, refused permanently (`rule:core-classes/db-one-api`) |
 | `mysqli_more_results` | dropped | asks whether that chain has another result set; nothing produces one |
 | `mysqli_next_result` | dropped | advances to the next one, the same |
 
@@ -1494,33 +1494,33 @@ site left.
 | `mysqli_fetch_assoc` | member | `Db\Rows`'s `->first()` for one row, and iterating it for the rest. A `Db\Row` is read by name, which is the half of `fetch_array` that survives |
 | `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument ([ADR 0063](../adr/0063-core-api-conventions.md) R17), and rows are read by name |
 | `mysqli_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
-| `mysqli_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row ([ADR 0067](../adr/0067-core-db.md) § 6), rather than assigning whatever columns arrived onto a `stdClass` |
+| `mysqli_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row (`rule:core-classes/db-column-types`), rather than assigning whatever columns arrived onto a `stdClass` |
 | `mysqli_fetch_column` | member | `Db\Rows`'s `->value()` for a single cell, and `->column()` for one column of every row |
 | `mysqli_fetch_field` | member | `Db\Rows`'s `->columns()`, as `array<Column>` — there is no field cursor to advance between calls |
 | `mysqli_fetch_fields` | member | the same `->columns()`, which is already all of them |
 | `mysqli_fetch_field_direct` | member | the same, indexed |
-| `mysqli_fetch_lengths` | dropped | the byte length of each column of the last row fetched, a question the text protocol made necessary. A value arrives at its natural Novis type ([ADR 0067](../adr/0067-core-db.md) § 6), and its size is an ordinary question about that value |
-| `mysqli_num_rows` | member | `Db\Rows`'s `->count()`, known because `query` buffers ([ADR 0067](../adr/0067-core-db.md) § 4) |
+| `mysqli_fetch_lengths` | dropped | the byte length of each column of the last row fetched, a question the text protocol made necessary. A value arrives at its natural Novis type (`rule:core-classes/db-column-types`), and its size is an ordinary question about that value |
+| `mysqli_num_rows` | member | `Db\Rows`'s `->count()`, known because `query` buffers (`rule:core-classes/db-statement-members`) |
 | `mysqli_num_fields` | member | `Db\Rows`'s `->columns()`, whose length is that count |
 | `mysqli_field_count` | dropped | the column count of the connection's *last* result — connection-level state about a query that has already returned. `->columns()` belongs to the result itself |
 | `mysqli_field_seek` | dropped | moves a cursor over the field list, which `->columns()` returns as an array |
 | `mysqli_field_tell` | dropped | reads that cursor back |
-| `mysqli_data_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred ([ADR 0067](../adr/0067-core-db.md) § 12), and `->all()` is an ordinary array to index |
+| `mysqli_data_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred (`rule:core-classes/db-one-api`), and `->all()` is an ordinary array to index |
 | `mysqli_free_result` | dropped | frees the result set. A `Db\Rows` is released with the rest of the request's memory |
 | `mysqli_affected_rows` | member | `Db\Write`'s readonly `affected` |
-| `mysqli_insert_id` | member | `Db\Write`'s readonly `lastId`. Connection-level `lastInsertId` state is refused ([ADR 0067](../adr/0067-core-db.md) § 12), so the id belongs to the write that produced it and cannot be read after an unrelated statement |
-| `mysqli_get_warnings` | dropped | the connection's warning list, as an object to walk after a call that succeeded. A condition worth acting on throws `Db\DbError` ([ADR 0067](../adr/0067-core-db.md) § 8); one that is not is the server's to log |
+| `mysqli_insert_id` | member | `Db\Write`'s readonly `lastId`. Connection-level `lastInsertId` state is refused (`rule:core-classes/db-one-api`), so the id belongs to the write that produced it and cannot be read after an unrelated statement |
+| `mysqli_get_warnings` | dropped | the connection's warning list, as an object to walk after a call that succeeded. A condition worth acting on throws `Db\DbError` (`rule:core-classes/db-error`); one that is not is the server's to log |
 | `mysqli_warning_count` | dropped | how many of them there are |
 
 ### Transactions
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `mysqli_begin_transaction` | member | `Core\Db\Queryable::transaction`, which takes a closure: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\DbError` ([ADR 0067](../adr/0067-core-db.md) § 7). The closure form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back |
+| `mysqli_begin_transaction` | member | `Core\Db\Queryable::transaction`, which takes a closure: a normal return commits, a throw rolls back and propagates, and a failed commit throws `Db\DbError` (`rule:core-classes/db-transactions`). The closure form is forced because there are no destructors, so an object-scoped transaction would have no point at which to roll back |
 | `mysqli_commit` | dropped | the closure returning is the commit. A separate `commit` would be a second way to end the same transaction |
-| `mysqli_rollback` | dropped | a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed ([ADR 0067](../adr/0067-core-db.md) § 7) |
+| `mysqli_rollback` | dropped | a throw out of the closure is the rollback. `$tx->rollBack(string $reason)` sets a rollback-only flag *and* throws `Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed (`rule:core-classes/db-transactions`) |
 | `mysqli_autocommit` | dropped | switches the connection between implicit and explicit transactions, for statements written before the switch and after it alike. A statement outside `transaction()` is its own transaction and one inside is not, so there is no mode to hold |
-| `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction ([ADR 0067](../adr/0067-core-db.md) § 7) |
+| `mysqli_savepoint` | dropped | a nested `transaction()` on the same connection issues `SAVEPOINT` itself, which is what lets a library wrap its own writes and stay callable from inside a caller's transaction (`rule:core-classes/db-transactions`) |
 | `mysqli_release_savepoint` | dropped | releases one by name; the nesting owns both ends of it |
 
 ---
@@ -1530,7 +1530,7 @@ site left.
 120 functions, of which the oracle build marks **24 deprecated** — PHP's own pre-4.2 spellings, kept beside
 the names that replaced them. Each of those takes its modern spelling's outcome unchanged and says so in one
 clause, so what is actually being decided here is 96 names. Four rules of
-[ADR 0067](../adr/0067-core-db.md) account for most of them, and none is about PostgreSQL.
+`rule:core-classes/db-one-api` account for most of them, and none is about PostgreSQL.
 
 **A connection is named by an operator** (§ 2). `pg_connect` takes a *connection string* — the host, the
 user and the password assembled in program source, which is the shape a root-owned `[db.<name>]` block
@@ -1553,7 +1553,7 @@ between. The polling loop those functions are the parts of is the scheduler's.
 migration tooling fail [ADR 0051](../adr/0051-standard-library-tiers.md) test 6 outright.
 
 Three families are **deferred rather than refused**, with the trigger in that ADR's *Revisiting*: `COPY`,
-`LISTEN`/`NOTIFY`, and large objects under LOB streaming ([ADR 0067](../adr/0067-core-db.md) § 12). Their
+`LISTEN`/`NOTIFY`, and large objects under LOB streaming (`rule:core-classes/db-one-api`). Their
 rows say what replaces them today, because a deferral a migrating program cannot act on is a dropped call
 with better manners.
 
@@ -1561,25 +1561,25 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than parsing a connection string built in program source ([ADR 0067](../adr/0067-core-db.md) § 2). A connection assembled at request time — one database per tenant — is `Core\Db::open`, whose host is a sink with no launderer (§ 3) |
+| `pg_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than parsing a connection string built in program source (`rule:core-classes/db-connection-is-named`). A connection assembled at request time — one database per tenant — is `Core\Db::open`, whose host is a sink with no launderer (§ 3) |
 | `pg_pconnect` | dropped | the same connect, reusing a connection the process kept from an earlier request. Pooling is the runtime's: a released connection rejoins a per-core pool only after a reset that is a security boundary, and a failed reset destroys the connection rather than handing the next request the last one's state ([ADR 0067](../adr/0067-core-db.md) § 13) |
 | `pg_connect_poll` | dropped | drives an asynchronous handshake to completion by polling it. The handshake suspends the coroutine and resumes when the socket is ready, so there is no half-open connection for a program to hold |
 | `pg_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown |
 | `pg_ping` | dropped | asks whether the connection is still alive so the caller can reconnect around it. A connection is retired at `lifetime` regardless of health and one whose reset fails is destroyed ([ADR 0067](../adr/0067-core-db.md) § 13), so a connection a request is handed is one the pool has already vouched for |
-| `pg_connection_status` | dropped | `CONNECTION_OK` or `CONNECTION_BAD`, for the caller to branch on after a call that returned `false`. A connection that cannot be established throws `Db\DbError` with a normalised `kind` ([ADR 0067](../adr/0067-core-db.md) § 8) |
-| `pg_connection_busy` | dropped | whether an asynchronous query is still running on this connection. A statement is issued and awaited in one call ([ADR 0067](../adr/0067-core-db.md) § 4), so a connection the program is holding is never mid-statement |
+| `pg_connection_status` | dropped | `CONNECTION_OK` or `CONNECTION_BAD`, for the caller to branch on after a call that returned `false`. A connection that cannot be established throws `Db\DbError` with a normalised `kind` (`rule:core-classes/db-error`) |
+| `pg_connection_busy` | dropped | whether an asynchronous query is still running on this connection. A statement is issued and awaited in one call (`rule:core-classes/db-statement-members`), so a connection the program is holding is never mid-statement |
 | `pg_connection_reset` | dropped | closes and reopens the connection behind the same handle. The reset belongs to the pool and is stated as a property — afterwards no transaction, no temporary table, no session variable, no `SET ROLE`, no advisory lock and no listener ([ADR 0067](../adr/0067-core-db.md) § 13) — rather than as something a program remembers to call |
-| `pg_host` | dropped | reads back the host the connection string named. The host is a key in the connection's config block, written by whoever has production access ([ADR 0067](../adr/0067-core-db.md) § 2), and a program that could read it could log it |
+| `pg_host` | dropped | reads back the host the connection string named. The host is a key in the connection's config block, written by whoever has production access (`rule:core-classes/db-connection-is-named`), and a program that could read it could log it |
 | `pg_port` | dropped | the same for the port |
 | `pg_dbname` | dropped | the same for the database name |
 | `pg_options` | dropped | the same for the connection string's `options` field |
 | `pg_tty` | dropped | the same for a field PostgreSQL stopped using in 7.4; it answers with the empty string |
 | `pg_version` | member | `Db\Connection`'s readonly `serverVersion`, for the half of PHP's array that is about the server. The client and protocol versions in the other half are `libpq`'s, and the driver here is Novis's own |
-| `pg_parameter_status` | dropped | one of the server's settings as reported during the handshake — `server_encoding`, `TimeZone`, `integer_datetimes`. Every one that changes how a value arrives is fixed by the driver instead of reported to the program: the charset is forced to UTF-8 and a zone-less timestamp reads in the zone the connection declares ([ADR 0067](../adr/0067-core-db.md) §§ 3, 9) |
-| `pg_change_password` | dropped | hashes a password and issues `ALTER USER` with it. Credentials belong to the operator ([ADR 0067](../adr/0067-core-db.md) § 2), and an application that genuinely administers a database writes that statement as a statement |
+| `pg_parameter_status` | dropped | one of the server's settings as reported during the handshake — `server_encoding`, `TimeZone`, `integer_datetimes`. Every one that changes how a value arrives is fixed by the driver instead of reported to the program: the charset is forced to UTF-8 and a zone-less timestamp reads in the zone the connection declares (`rule:core-classes/db-capabilities` and `rule:core-classes/db-column-types`) |
+| `pg_change_password` | dropped | hashes a password and issues `ALTER USER` with it. Credentials belong to the operator (`rule:core-classes/db-connection-is-named`), and an application that genuinely administers a database writes that statement as a statement |
 | `pg_client_encoding` | dropped | reads the connection's client encoding back. A `string` is UTF-8 (`rule:types/bytes`) and the driver forces the connection to match, so text columns arrive as valid UTF-8 by construction |
 | `pg_clientencoding` | dropped | the deprecated spelling, and the same answer |
-| `pg_set_client_encoding` | dropped | changes it mid-session, with no option to reach the unsafe value ([ADR 0067](../adr/0067-core-db.md) § 3). A charset a program can change at runtime is what made `SET NAMES` a documented way around an escaper |
+| `pg_set_client_encoding` | dropped | changes it mid-session, with no option to reach the unsafe value (`rule:core-classes/db-capabilities`). A charset a program can change at runtime is what made `SET NAMES` a documented way around an escaper |
 | `pg_setclientencoding` | dropped | the deprecated spelling, and the same answer |
 | `pg_socket` | dropped | the connection's underlying socket, for the program to wait on itself. The socket is a parking stream the runtime owns: waiting on it hands the core to another request rather than blocking this one |
 | `pg_get_pid` | dropped | the backend process id, whose two uses are cancelling that backend's query and matching a `NOTIFY`. Both are below, and neither is a call site here |
@@ -1591,13 +1591,13 @@ with better manners.
 |---|---|---|
 | `pg_query` | member | `Core\Db\Queryable::query` for a select and `Core\Db\Queryable::execute` for a write — the split PHP leaves to the caller's own check of the result, made in the member name. The query text refuses `tainted` while bound parameters accept it freely ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4) |
 | `pg_exec` | member | PHP's own alias of it, and the same two members |
-| `pg_query_params` | member | the same two members. PHP needs a second spelling because `pg_query` has no parameters at all; here the SQL and the parameters arrive in one call and always bind ([ADR 0067](../adr/0067-core-db.md) § 1), so the distinction has no second form to be |
-| `pg_prepare` | dropped | names a server-side prepared statement for later execution. There is no prepare step: the connection's own LRU cache is keyed by SQL text plus expansion arity, so every statement is prepared and none is prepared by the program ([ADR 0067](../adr/0067-core-db.md) § 1) |
+| `pg_query_params` | member | the same two members. PHP needs a second spelling because `pg_query` has no parameters at all; here the SQL and the parameters arrive in one call and always bind (`rule:core-classes/db-one-api`), so the distinction has no second form to be |
+| `pg_prepare` | dropped | names a server-side prepared statement for later execution. There is no prepare step: the connection's own LRU cache is keyed by SQL text plus expansion arity, so every statement is prepared and none is prepared by the program (`rule:core-classes/db-one-api`) |
 | `pg_execute` | dropped | runs one of those by the name it was given. The SQL text is that name, and the cache is the connection's |
-| `pg_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `pg_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`) |
 | `pg_escape_literal` | dropped | the same, adding the quotes. Both spellings exist so that a value can be pasted into SQL text, which is the thing the query parameter's refusal of `tainted` prevents |
 | `pg_escape_identifier` | member | `Core\Db::quoteIdentifier` — the one case binding cannot carry, a table or column name chosen at runtime |
-| `pg_escape_bytea` | dropped | encodes bytes for pasting into SQL. A `bytes` value binds like any other parameter, and a `BYTEA` column arrives as `tainted bytes` ([ADR 0067](../adr/0067-core-db.md) § 9) |
+| `pg_escape_bytea` | dropped | encodes bytes for pasting into SQL. A `bytes` value binds like any other parameter, and a `BYTEA` column arrives as `tainted bytes` (`rule:core-classes/db-column-types`) |
 | `pg_unescape_bytea` | dropped | decodes that text form back again. Nothing hands a program the text form: the driver decodes the column |
 
 ### The asynchronous half
@@ -1606,7 +1606,7 @@ with better manners.
 |---|---|---|
 | `pg_send_query` | dropped | issues a query without waiting for it, so the process can do something else meanwhile. A statement suspends its coroutine and the core runs another request's work, so every statement is already this one and `Core\Db\Queryable::query` is its whole spelling |
 | `pg_send_query_params` | dropped | the same with parameters, which is not an option to choose here either |
-| `pg_send_prepare` | dropped | the asynchronous half of a step that does not exist ([ADR 0067](../adr/0067-core-db.md) § 1) |
+| `pg_send_prepare` | dropped | the asynchronous half of a step that does not exist (`rule:core-classes/db-one-api`) |
 | `pg_send_execute` | dropped | the same for running one of those by name |
 | `pg_get_result` | dropped | collects the result of whichever of those is in flight. The result is the return value of the call that issued the statement |
 | `pg_consume_input` | dropped | reads whatever the socket has so a polling loop can make progress. The loop is the scheduler's, and a Novis program never writes one |
@@ -1618,7 +1618,7 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_num_rows` | member | `Db\Rows`'s `->count()`, known because `query` buffers ([ADR 0067](../adr/0067-core-db.md) § 4) |
+| `pg_num_rows` | member | `Db\Rows`'s `->count()`, known because `query` buffers (`rule:core-classes/db-statement-members`) |
 | `pg_numrows` | member | the same, under the deprecated spelling |
 | `pg_num_fields` | member | `Db\Rows`'s `->columns()`, whose length is that count |
 | `pg_numfields` | member | the same, under the deprecated spelling |
@@ -1630,12 +1630,12 @@ with better manners.
 | `pg_fetch_assoc` | member | `Db\Rows`'s `->first()` for one row, and iterating it for the rest. A `Db\Row` is read by name, which is the half of `pg_fetch_array` that survives |
 | `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument ([ADR 0063](../adr/0063-core-api-conventions.md) R17), and rows are read by name |
 | `pg_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
-| `pg_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row ([ADR 0067](../adr/0067-core-db.md) § 6), rather than assigning whatever columns arrived onto a `stdClass` |
-| `pg_fetch_result` | member | `Db\Rows`'s `->value()` for a single cell. PHP addresses it by a row number and a field; a `Db\Row`'s typed readers name the column and throw naming it when the value does not convert ([ADR 0067](../adr/0067-core-db.md) § 6) |
+| `pg_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row (`rule:core-classes/db-column-types`), rather than assigning whatever columns arrived onto a `stdClass` |
+| `pg_fetch_result` | member | `Db\Rows`'s `->value()` for a single cell. PHP addresses it by a row number and a field; a `Db\Row`'s typed readers name the column and throw naming it when the value does not convert (`rule:core-classes/db-column-types`) |
 | `pg_result` | member | the same `->value()`, under the deprecated spelling |
 | `pg_fetch_all_columns` | member | `Db\Rows`'s `->column()`, one column of every row |
-| `pg_result_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred ([ADR 0067](../adr/0067-core-db.md) § 12), and `->all()` is an ordinary array to index |
-| `pg_result_status` | dropped | whether the result carries rows, a command tag or an error, as an integer to switch on. `query` and `execute` answer with different types and a failure throws ([ADR 0067](../adr/0067-core-db.md) §§ 4, 8), so that branch is made by the compiler instead |
+| `pg_result_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred (`rule:core-classes/db-one-api`), and `->all()` is an ordinary array to index |
+| `pg_result_status` | dropped | whether the result carries rows, a command tag or an error, as an integer to switch on. `query` and `execute` answer with different types and a failure throws (`rule:core-classes/db-statement-members` and `rule:core-classes/db-error`), so that branch is made by the compiler instead |
 | `pg_free_result` | dropped | frees the result set. A `Db\Rows` is released with the rest of the request's memory |
 | `pg_freeresult` | dropped | the deprecated spelling, and the same answer |
 
@@ -1649,27 +1649,27 @@ with better manners.
 | `pg_fieldnum` | member | the same, under the deprecated spelling |
 | `pg_field_type` | member | the same entry's declared type |
 | `pg_fieldtype` | member | the same, under the deprecated spelling |
-| `pg_field_type_oid` | dropped | that type as PostgreSQL's own OID, a number meaningful only against `pg_type`. The portable answer is the type map, which is also what `queryAs` checks a row against ([ADR 0067](../adr/0067-core-db.md) §§ 6, 9) |
-| `pg_field_size` | dropped | the internal storage width of the column's type, `-1` where it is variable. A value arrives at its natural Novis type ([ADR 0067](../adr/0067-core-db.md) § 9), and its size is an ordinary question about that value |
+| `pg_field_type_oid` | dropped | that type as PostgreSQL's own OID, a number meaningful only against `pg_type`. The portable answer is the type map, which is also what `queryAs` checks a row against (`rule:core-classes/db-column-types`) |
+| `pg_field_size` | dropped | the internal storage width of the column's type, `-1` where it is variable. A value arrives at its natural Novis type (`rule:core-classes/db-column-types`), and its size is an ordinary question about that value |
 | `pg_fieldsize` | dropped | the deprecated spelling, and the same answer |
 | `pg_field_prtlen` | dropped | the printed length of one value in one row, a question the text protocol made necessary. The value is in hand at its own type, and its length is asked of it |
 | `pg_fieldprtlen` | dropped | the deprecated spelling, and the same answer |
-| `pg_field_is_null` | dropped | whether one cell of one row is null, as `0`, `1` or `false`. A null column is `null` in a `?T` ([ADR 0067](../adr/0067-core-db.md) § 9), so the check is the language's and the compiler makes it |
+| `pg_field_is_null` | dropped | whether one cell of one row is null, as `0`, `1` or `false`. A null column is `null` in a `?T` (`rule:core-classes/db-column-types`), so the check is the language's and the compiler makes it |
 | `pg_fieldisnull` | dropped | the deprecated spelling, and the same answer |
-| `pg_field_table` | dropped | which table a column came from, by name or OID — a schema question asked of a result set. A portable schema-introspection API is deferred ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `pg_field_table` | dropped | which table a column came from, by name or OID — a schema question asked of a result set. A portable schema-introspection API is deferred (`rule:core-classes/db-one-api`) |
 | `pg_meta_data` | dropped | every column of a named table with its type, size and null-ability, read out of the catalog. The same deferral; until it lands, `Core\Db\Queryable::query` against `information_schema` is what it is for |
 
 ### Errors, notices and tracing
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_last_error` | dropped | the connection's last error message, read after a call that returned `false`. A failure throws `Db\DbError`, whose `kind` is normalised across the drivers and whose `sqlState`, `driverCode` and `constraint` ride the throw ([ADR 0067](../adr/0067-core-db.md) § 8) |
+| `pg_last_error` | dropped | the connection's last error message, read after a call that returned `false`. A failure throws `Db\DbError`, whose `kind` is normalised across the drivers and whose `sqlState`, `driverCode` and `constraint` ride the throw (`rule:core-classes/db-error`) |
 | `pg_errormessage` | dropped | the deprecated spelling, and the same answer |
 | `pg_result_error` | dropped | the same message taken off the result rather than off the connection |
-| `pg_result_error_field` | dropped | one field of it, selected by a `PGSQL_DIAG_*` constant — the SQLSTATE, the constraint name, the statement position. Those are `DbError`'s own readonly fields, named rather than selected ([ADR 0067](../adr/0067-core-db.md) § 8) |
+| `pg_result_error_field` | dropped | one field of it, selected by a `PGSQL_DIAG_*` constant — the SQLSTATE, the constraint name, the statement position. Those are `DbError`'s own readonly fields, named rather than selected (`rule:core-classes/db-error`) |
 | `pg_set_error_verbosity` | dropped | how much of that message the server composes. What an application branches on is normalised into `kind`, and the message text is not the interface |
 | `pg_set_error_context_visibility` | dropped | whether the `CONTEXT` line appears in it, and the same answer |
-| `pg_last_notice` | dropped | the server's last `NOTICE`, kept per connection. A condition worth acting on throws ([ADR 0067](../adr/0067-core-db.md) § 8); one that is not is the server's to log |
+| `pg_last_notice` | dropped | the server's last `NOTICE`, kept per connection. A condition worth acting on throws (`rule:core-classes/db-error`); one that is not is the server's to log |
 | `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners ([ADR 0067](../adr/0067-core-db.md) §§ 12, 13). The durable answer to the same problem is a job row, which commits with the write that enqueued it ([ADR 0084](../adr/0084-durable-background-jobs.md)) |
 | `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter ([ADR 0067](../adr/0067-core-db.md) § 11) |
 | `pg_untrace` | dropped | stops that, and has nothing to stop |
@@ -1678,7 +1678,7 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently ([ADR 0067](../adr/0067-core-db.md) § 12): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type ([ADR 0067](../adr/0067-core-db.md) § 7) |
+| `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
 | `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all ([ADR 0051](../adr/0051-standard-library-tiers.md) test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |
@@ -1689,8 +1689,8 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_copy_to` | dropped | streams a table out in PostgreSQL's `COPY` text format, as an array of delimiter-separated lines. `COPY` is deferred ([ADR 0067](../adr/0067-core-db.md) § 12); a select against the same table is portable and arrives as typed values rather than as text to split |
-| `pg_copy_from` | dropped | the same inbound, from an array of those lines. Bulk insert today is `Core\Db\Queryable::executeMany`, one prepared statement and many parameter sets ([ADR 0067](../adr/0067-core-db.md) § 1) |
+| `pg_copy_to` | dropped | streams a table out in PostgreSQL's `COPY` text format, as an array of delimiter-separated lines. `COPY` is deferred (`rule:core-classes/db-one-api`); a select against the same table is portable and arrives as typed values rather than as text to split |
+| `pg_copy_from` | dropped | the same inbound, from an array of those lines. Bulk insert today is `Core\Db\Queryable::executeMany`, one prepared statement and many parameter sets (`rule:core-classes/db-one-api`) |
 | `pg_put_copy_data` | dropped | one chunk of a `COPY IN` the program drives itself, under the same deferral |
 | `pg_put_copy_end` | dropped | ends that copy, optionally with an error string that aborts it |
 | `pg_put_line` | dropped | the pre-7.3 spelling of `pg_put_copy_data`, whose own documentation warns against mixing it with anything else on the connection |
@@ -1700,7 +1700,7 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_lo_create` | dropped | creates a server-side large object and returns its OID. A large object is a second storage system inside the database, with its own OIDs and its own transaction-scoped descriptors, and it is never a column of a row. A binary column is `BYTEA` and arrives as `tainted bytes` ([ADR 0067](../adr/0067-core-db.md) § 9); anything big enough to want streaming is a file, reached with `Core\IO`. LOB streaming is deferred ([ADR 0067](../adr/0067-core-db.md) § 12) |
+| `pg_lo_create` | dropped | creates a server-side large object and returns its OID. A large object is a second storage system inside the database, with its own OIDs and its own transaction-scoped descriptors, and it is never a column of a row. A binary column is `BYTEA` and arrives as `tainted bytes` (`rule:core-classes/db-column-types`); anything big enough to want streaming is a file, reached with `Core\IO`. LOB streaming is deferred (`rule:core-classes/db-one-api`) |
 | `pg_locreate` | dropped | the deprecated spelling, and the same answer |
 | `pg_lo_open` | dropped | opens one of those objects for reading or writing, valid only inside a transaction |
 | `pg_loopen` | dropped | the deprecated spelling, and the same answer |

@@ -58,7 +58,7 @@
 //!    "…")` folds nothing and runs unvalidated, exactly as
 //!    [`crate::links`]' own gap 1 describes: reading one needs the slot
 //!    mapping `check_args_typed` built and this pass is not handed.
-//! 5. **ADR 0067 § 10's unterminated string literal is not refused**, and the
+//! 5. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
 //!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
 //!    module doc declines it in the other direction, because an unterminated
 //!    quote ends that scan at the end of the text and the statement goes out to
@@ -66,7 +66,7 @@
 //!    Refusing it here would be the one thing this pass refuses that the
 //!    rewriter does not, which is § 4 read backwards. It waits on which of the
 //!    two docs is right, not on a scan.
-//! 6. **ADR 0067 § 10's host check reaches only a caller that hands over a
+//! 6. **`rule:core-classes/db-literal-query-checking`'s host check reaches only a caller that hands over a
 //!    configuration**, and `nvs check` is not yet one. [`crate::Env::grants`]
 //!    is the channel and [`crate::check::check_program_granted`] is how a
 //!    caller fills it, but `nvs-cli`'s check path reads no `nvs.toml` today, so
@@ -92,7 +92,7 @@ use crate::ty::{Ty, TypeId};
 /// for one pattern language is the divergence § 4 forbids.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Grammar {
-    /// ADR 0056's pattern syntax, and the engine tier it decides.
+    /// `rule:core-classes/regex-two-tiers`'s pattern syntax, and the engine tier it decides.
     Regex,
     /// `Core\Uri`'s well-formedness.
     Uri,
@@ -103,7 +103,7 @@ enum Grammar {
     /// `Core\Str::format`'s `printf` template, which is the one grammar that
     /// is also checked *against the call's other arguments*.
     Template,
-    /// ADR 0067 § 5's placeholder spelling, checked against the *params array*
+    /// `rule:core-classes/db-parameters`'s placeholder spelling, checked against the *params array*
     /// written beside it — the second grammar read against another argument,
     /// and the only one whose other argument is a single array rather than the
     /// variadic tail. [ADR 0067 § 10](/docs/adr/0067-core-db.md) is
@@ -201,7 +201,7 @@ const INTRINSICS: &[Intrinsic] = &[
         field: None,
         grammar: Grammar::Template,
     },
-    // ADR 0067 § 10's four members, on both classes that declare them: § 7's
+    // `rule:core-classes/db-literal-query-checking`'s four members, on both classes that declare them: § 7's
     // `Core\Db\Transaction` forwards the interface to its connection, so the
     // same statement written inside a transaction is the same check. The rows
     // are nominal against the *declaring* class, so the receiver is not counted
@@ -342,7 +342,7 @@ pub(crate) fn check_call(
                 report_malformed(span, &message, env);
             }
         }
-        // ADR 0056 § 3's compile-time fact, both halves of it: the pattern is
+        // `rule:core-classes/regex-literal-tiering`'s compile-time fact, both halves of it: the pattern is
         // offered to the same two engines the first call would have offered it
         // to, and the tier it landed in is written down where `nvs-ir` reads
         // it back. The tier is settleable here for the reason
@@ -610,7 +610,7 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
         .with_help(
             "the compiler binds a literal query with the same rewriter the request would have \
              used, so this is the `LogicError` the first call would have thrown — `?` and \
-             `:name` are ADR 0067 § 5's two spellings and one statement uses one of them",
+             `:name` are `rule:core-classes/db-parameters`'s two spellings and one statement uses one of them",
         ),
     );
 }
@@ -632,7 +632,7 @@ fn report_ungranted(span: nvs_diagnostics::Span, host: &str, env: &mut Env<'_>) 
         )
         .with_primary(span, "read while compiling, because it is a constant")
         .with_help(
-            "ADR 0067 § 3's `db.open` lists the hosts a program-supplied `Db\\Settings` may \
+            "`rule:core-classes/db-capabilities`'s `db.open` lists the hosts a program-supplied `Db\\Settings` may \
              reach, and it denies by default — add this host to `[capabilities] db.open` in \
              `nvs.toml`, or name a `[db.<name>]` block and open it with `Core\\Db::connect`",
         ),

@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::connect names the field that makes a `[db.<name>]` block unopenable, and a granted name with no block at all is its own answer — ADR 0067 §§ 2-3, 9
+Core\Db::connect names the field that makes a `[db.<name>]` block unopenable, and a granted name with no block at all is its own answer — `rule:core-classes/db-connection-is-named`, `rule:core-classes/db-capabilities` and `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // Every name below is granted, so every refusal here is about the file rather
@@ -23,7 +23,7 @@ foreach ($names as string $name) {
 connect = ["absent", "mariadb", "mssql", "mysql", "sqlite", "unusable", "zone"]
 
 # A third driver this build *does* open, read by its own resolver and refused on
-# the same first field MySQL's is. MariaDB is not a MySQL flag -- ADR 0067 § 2 --
+# the same first field MySQL's is. MariaDB is not a MySQL flag -- `rule:core-classes/db-connection-is-named` --
 # so it is its own reader answering here and not MySQL's with a switch in it.
 [db.mariadb]
 driver = "mariadb"
@@ -38,7 +38,7 @@ driver = "mssql"
 host = "127.0.0.1"
 
 # A driver this build *does* open, so the block is read by MySQL's own resolver
-# and the field it names is the first one the handshake needs -- ADR 0067 § 2's
+# and the field it names is the first one the handshake needs -- `rule:core-classes/db-connection-is-named`'s
 # `driver` deciding which reader the rest of the block goes through.
 [db.mysql]
 driver = "mysql"
@@ -47,7 +47,7 @@ host = "127.0.0.1"
 # A block that resolves as its own driver's and then fails at the file, which is
 # where every other block on this list fails too: the refusal is the engine's
 # and names the path, so a `sqlite` block reads as configured-and-unreachable
-# rather than as a driver nothing here supports -- ADR 0067 §§ 2-3. The
+# rather than as a driver nothing here supports -- `rule:core-classes/db-connection-is-named` and `rule:core-classes/db-capabilities`. The
 # directory cannot exist on any host this suite runs on, which is what makes the
 # sentence the same one everywhere.
 [db.sqlite]
@@ -64,7 +64,7 @@ password = "novis"
 database = "novis"
 path = "/var/lib/novis.db"
 
-# ADR 0067 § 9 sends the declared zone to the server as a numeric offset, so a
+# `rule:core-classes/db-column-types` sends the declared zone to the server as a numeric offset, so a
 # zone *name* is refused rather than read as UTC -- silently reading it as UTC
 # would put every zone-less `TIMESTAMP` an hour or more out.
 [db.zone]

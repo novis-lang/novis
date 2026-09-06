@@ -3027,7 +3027,7 @@ pub(crate) struct Civil {
 }
 
 /// A `Core\Time\Date` on that year, month and day, for a member **outside this
-/// module** holding a rendered date — ADR 0067 § 9's `DATE` column is the
+/// module** holding a rendered date — `rule:core-classes/db-column-types`'s `DATE` column is the
 /// first.
 ///
 /// `None` for a combination no calendar has, which is
@@ -3067,8 +3067,7 @@ pub(crate) fn instant_at(at: &Civil, offset: i32) -> Option<Value> {
     zoned_at(at, offset).map(|at| instant_built(at.timestamp()))
 }
 
-/// [`date_at`] off a rendered date rather than off three numbers — ADR 0067
-/// § 9's SQLite half, where a `date` column holds text because SQLite has no
+/// [`date_at`] off a rendered date rather than off three numbers — `rule:core-classes/db-column-types`'s SQLite half, where a `date` column holds text because SQLite has no
 /// type that holds anything else.
 ///
 /// `None` for text that is not a date, which is what § 9's "throws on a value
@@ -3279,7 +3278,7 @@ fn zone_of(args: &[Value], at: usize, member: &str) -> Result<TimeZone, Fault> {
 }
 
 /// The `Zone` in argument slot `at` as **seconds east of UTC, right now** —
-/// what a database connection's declared zone is, per ADR 0067 § 9.
+/// what a database connection's declared zone is, per `rule:core-classes/db-column-types`.
 ///
 /// A zone is not an offset and [`nvs_core_time_zone_offset_at`] takes an
 /// instant for exactly that reason, so this picks one: the moment the
@@ -4897,14 +4896,14 @@ mod tests {
 
         assert!(civil_time(23, 59, 59, 999_999_999).is_some());
         // PostgreSQL renders a `TIME` of `24:00:00`, and `Core\Time\TimeOfDay`
-        // is the one type with no value for it — ADR 0067 § 9's row stops here
+        // is the one type with no value for it — `rule:core-classes/db-column-types`'s row stops here
         // rather than folding to the midnight that follows it.
         assert!(civil_time(24, 0, 0, 0).is_none());
         assert!(civil_time(0, 60, 0, 0).is_none());
     }
 
     /// A civil rendering plus a declared offset is one point in time, and the
-    /// offset is the whole of the difference — ADR 0067 § 9's zone-less
+    /// offset is the whole of the difference — `rule:core-classes/db-column-types`'s zone-less
     /// `TIMESTAMP` read in the zone its connection declared.
     #[test]
     fn a_civil_rendering_is_read_at_the_offset_it_is_given() {

@@ -152,8 +152,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
 ### 4. Sinks that refuse a `secret` value by default
 
 - **HTML/response output** — refused outright, with **no auto-escape bypass**. This is the one place
-  `secret`'s enforcement actively diverges from `tainted`'s: [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
-  § 5 auto-escapes any non-`Markup` value on the way into a `Markup`-building position, because escaping
+  `secret`'s enforcement actively diverges from `tainted`'s: `rule:core-classes/html-auto-escape` auto-escapes any non-`Markup` value on the way into a `Markup`-building position, because escaping
   fully neutralizes the risk taint tracking cares about (injection). It does nothing for confidentiality — an
   escaped credential is still a leaked credential, just HTML-safe. A `secret`-qualified value reaching a
   `Markup`-building interpolation position is therefore a compile-time diagnostic, full stop. (A `secret`

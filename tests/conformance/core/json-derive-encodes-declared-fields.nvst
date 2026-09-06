@@ -1,11 +1,11 @@
 --TEST--
-#[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
+#[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
 use Core\Json;
 use Core\Json\Field;
 
-// ADR 0071 § 1: the attribute is matched *nominally*, so the `use`d short
+// `rule:core-classes/derive-attribute`: the attribute is matched *nominally*, so the `use`d short
 // spelling (`#[Field]` below) and the fully-qualified one (`#[Core\Json\Derive]`)
 // are the same attribute. Each import binds one whole short name — `rule:statements/a-qualified-name-is-absolute`
 // makes a qualified name absolute, so `use Core\Json;` reaches the *class*

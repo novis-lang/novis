@@ -1,4 +1,4 @@
-# ADR 0120 — The image component is a pipeline that crosses the boundary once, and gd is not inherited
+# `rule:core-classes/image-pipeline` — The image component is a pipeline that crosses the boundary once, and gd is not inherited
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

@@ -39,7 +39,7 @@ use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Queue, Setting};
 use crate::value::{Quantity, Unit};
 
-/// ADR 0084 § 2's `[queue]`, resolved: the connection named, and every bound a number.
+/// `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, resolved: the connection named, and every bound a number.
 ///
 /// Held by value and cloned per configuration generation rather than borrowed from the tree,
 /// because [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload

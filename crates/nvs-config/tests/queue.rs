@@ -1,4 +1,4 @@
-//! ADR 0084 § 2's `[queue]`, as the boot reads it: the `[db.<name>]` it names, three bounds that are
+//! `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, as the boot reads it: the `[db.<name>]` it names, three bounds that are
 //! finite with nothing configured (ADR 0074), and the four things a block can say that leave nothing
 //! able to run a job.
 //!

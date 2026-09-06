@@ -168,7 +168,7 @@ table that enumerates the source of truth is not.
 
 **The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29**, which is why that inventory is
 1151 rather than the 925 the program was first sized against. It is a better program for it: 236 of the
-new names are the three APIs [ADR 0067](adr/0067-core-db.md) exists to replace, so *"one API replaces
+new names are the three APIs `rule:core-classes/db-one-api` exists to replace, so *"one API replaces
 `PDO`, `mysqli`, `pgsql` and `sqlite3`"* stops being an assertion about four APIs and becomes an audit of
 236 functions, each with a row saying what became of it. The floors in each goal were re-derived against
 the new denominator in the same commit.

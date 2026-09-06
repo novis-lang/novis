@@ -1,5 +1,5 @@
 --TEST--
-`queryAs` takes one written type argument and is refused without it, where its `query` sibling takes none at all — ADR 0067 § 4, spec § 18
+`queryAs` takes one written type argument and is refused without it, where its `query` sibling takes none at all — `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
 // The `<T>` is not decoration: it is the only thing that says what a row

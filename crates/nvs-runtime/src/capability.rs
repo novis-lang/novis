@@ -311,7 +311,7 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
 /// `Core\IO\FileMode`'s four cases and nothing else: a case no mode spells would be a variant the
 /// surface enum could never produce. And **`overwrite == false` refuses through the operating
 /// system** — `create_new`, which is `O_EXCL` — rather than through an [`exists`] call first: a check
-/// followed by a create is a window another process can create the file in, and ADR 0105 § 4 makes
+/// followed by a create is a window another process can create the file in, and `rule:core-classes/io-write-stream` makes
 /// this the default precisely because the destination is usually named by a client.
 ///
 /// # Errors
@@ -752,7 +752,7 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// rather than after it, so there is no window in which the directory is readable by anyone else; on
 /// Windows the per-user temporary root already carries that ACL and the directory inherits it.
 ///
-/// **The root is Novis's own** ([ADR 0131] § 2): `[io] temp_root` when an operator configured one,
+/// **The root is Novis's own** (`rule:core-classes/temporary-dir-sweep`): `[io] temp_root` when an operator configured one,
 /// else a `novis` subdirectory of the platform temporary directory, created private on first use.
 /// That the runtime is the only writer there is the whole safety argument for § 4's orphan sweep,
 /// which deletes entries a dead process left behind — sweeping a shared `/tmp`, with anyone's names
@@ -776,7 +776,6 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// path being created, or [`io_failure`]'s `IOError` when the root could not be created or every
 /// attempt to create a directory under it failed.
 ///
-/// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
     /// Enough attempts that exhausting them means something other than a collision — a full disk, a
     /// root that is not writable, a temporary directory someone has filled with our names.
@@ -826,7 +825,7 @@ fn nonce() -> u64 {
     ticks.wrapping_add(counted.wrapping_mul(0x9e37_79b9_7f4a_7c15))
 }
 
-/// [ADR 0131] § 2's owned root: `[io] temp_root` where a tree set it, else a `novis` subdirectory of
+/// `rule:core-classes/temporary-dir-sweep`'s owned root: `[io] temp_root` where a tree set it, else a `novis` subdirectory of
 /// the platform temporary directory.
 ///
 /// **Pass the snapshot's tree, never a request's overlay.** `io.temp_root` is `System`-class and
@@ -845,7 +844,6 @@ fn nonce() -> u64 {
 /// path key here, and joining a name onto it would otherwise create the directory in the process's
 /// working directory, which is the one place a temporary must never land.
 ///
-/// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 #[must_use]
 pub fn temp_root(config: Option<&nvs_config::Config>) -> PathBuf {
     config
@@ -889,7 +887,7 @@ fn private_builder() -> std::fs::DirBuilder {
 }
 
 /// § 2's process door: `program` started as a child with `argv`, once [`Cap::ProcessExec`] has been
-/// shown to cover it and [ADR 0044] § 4's shell targets have been refused.
+/// shown to cover it and `rule:core-classes/process-refuses-a-shell-target`'s shell targets have been refused.
 ///
 /// The started child rather than its output, for [`open_read`]'s reason: one door has to serve
 /// `Core\Process::run`'s captured wait and `::spawn`'s streamed handle alike, and the capability
@@ -898,14 +896,14 @@ fn private_builder() -> std::fs::DirBuilder {
 ///
 /// `argv` is what the program receives after its own name, which the operating system supplies:
 /// there is no command line anywhere in this function, and so nothing for a quoting rule to be
-/// wrong about. ADR 0044 § 1 is why that is the only shape offered.
+/// wrong about. `rule:core-classes/process-run` is why that is the only shape offered.
 ///
 /// **All three standard streams are pipes, and that is this door's decision rather than the
 /// caller's.** A child that inherited them would read the server's own stdin and write to the
 /// server's own stdout — a request reaching a descriptor no capability named, and one that no
 /// `Core\Process` member would have to ask for.
 ///
-/// **A shell target is refused here, on every platform**, [ADR 0044] § 4: a `.bat`, `.cmd` or `.ps1`
+/// **A shell target is refused here, on every platform**, `rule:core-classes/process-refuses-a-shell-target`: a `.bat`, `.cmd` or `.ps1`
 /// runs by handing a command line to `cmd.exe` or `powershell.exe`, which re-parses the arguments
 /// this door never built, so an argv Novis passed correctly becomes a shell string again by the time
 /// the target sees it. The check runs on Unix too, where the risk is not real — a `#!` line is read
@@ -924,7 +922,6 @@ fn private_builder() -> std::fs::DirBuilder {
 /// [`io_failure`]'s `IOError` when the spawn itself fails — nothing is at `program`, or it is not
 /// executable.
 ///
-/// [ADR 0044]: ../../../docs/adr/0044-core-process-argv-only-no-shell.md
 pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Child, Fault> {
     require(ctx, Cap::ProcessExec, Scope::Path(program), member)?;
     if let Some(extension) = shell_target(program) {
@@ -946,7 +943,7 @@ pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Ch
 
 /// The lower-cased extension of a target [`exec`] refuses, or `None` for one it will start.
 ///
-/// By extension and not by content, ADR 0044 § 4: what makes a `.bat` unsafe to start is which
+/// By extension and not by content, `rule:core-classes/process-refuses-a-shell-target`: what makes a `.bat` unsafe to start is which
 /// program the operating system hands the command line to, and that is decided by the name alone —
 /// so this answers the same way for a file that is not there, which is what lets the refusal be
 /// about the kind of target rather than about the filesystem.
@@ -1015,7 +1012,7 @@ mod tests {
         );
     }
 
-    /// ADR 0044 § 4, on a context that grants everything: the refusal is about the kind of target,
+    /// `rule:core-classes/process-refuses-a-shell-target`, on a context that grants everything: the refusal is about the kind of target,
     /// so a grant cannot buy it and no platform is exempt from it.
     #[test]
     fn a_shell_target_is_refused_however_wide_the_grant_is() {
@@ -1140,7 +1137,7 @@ mod tests {
         ctx
     }
 
-    /// ADR 0131 § 2: the root is the configured one, and the platform default is not consulted when
+    /// `rule:core-classes/temporary-dir-sweep`: the root is the configured one, and the platform default is not consulted when
     /// a tree named one. The negative half matters as much as the positive — a member that ignored
     /// `[io] temp_root` would still hand back a directory that exists and is private, and only
     /// *where* it is says whether the sweeps can ever reach it.
@@ -1211,7 +1208,7 @@ mod tests {
         std::fs::remove_dir_all(scratch).expect("the case removes what it made");
     }
 
-    /// ADR 0131 § 3's per-script list, from the only side that writes it: what the member hands back
+    /// `rule:core-classes/temporary-dir-sweep`'s per-script list, from the only side that writes it: what the member hands back
     /// is what the context holds, in order, and a call that created nothing leaves nothing behind.
     ///
     /// The refused half is the one worth the case. A list written before the capability check — or
@@ -1259,7 +1256,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// ADR 0131 § 3, end to end and from the outside: what the member handed
+    /// `rule:core-classes/temporary-dir-sweep`, end to end and from the outside: what the member handed
     /// out is gone once the script that asked for it is over, and the program
     /// did nothing to make that happen.
     ///

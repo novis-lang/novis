@@ -1,5 +1,5 @@
 --TEST--
-The description is asked of the result set and never of a row, so `Core\Db\Row` has no `columns` to answer with the row's own labels — ADR 0067 § 6, spec § 18
+The description is asked of the result set and never of a row, so `Core\Db\Row` has no `columns` to answer with the row's own labels — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 var $db = Core\Db::connect("main");

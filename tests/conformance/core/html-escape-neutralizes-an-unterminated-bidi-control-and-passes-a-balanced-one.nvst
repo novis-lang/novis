@@ -1,8 +1,8 @@
 --TEST--
-`Core\Html::escape` replaces a directional control left open at the end of the text with `U+FFFD`, while a balanced pair passes through untouched — ADR 0024 § 5, ADR 0087
+`Core\Html::escape` replaces a directional control left open at the end of the text with `U+FFFD`, while a balanced pair passes through untouched — `rule:core-classes/html-auto-escape`, ADR 0087
 --FILE--
 <?nvs
-// ADR 0024 § 5's last bullet, which is the row a reader does not expect on an
+// `rule:core-classes/html-auto-escape`'s last bullet, which is the row a reader does not expect on an
 // escaper: escaping `<`, `>`, `&` and the quotes says nothing about display
 // *order*, so a payload that reverses the rendering of everything after it
 // survives the escape intact. ADR 0087 owns the predicate; this member is its

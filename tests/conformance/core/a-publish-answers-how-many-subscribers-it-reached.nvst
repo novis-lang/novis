@@ -1,5 +1,5 @@
 --TEST--
-`Core\Topic::publish` answers how many subscribers it reached, and is the one member of the class that needs no connection of its own — ADR 0083 § 4
+`Core\Topic::publish` answers how many subscribers it reached, and is the one member of the class that needs no connection of its own — `rule:core-classes/topic`
 --FILE--
 <?nvs
 // § 4's second row asks nothing about the program calling it. `subscribe` and

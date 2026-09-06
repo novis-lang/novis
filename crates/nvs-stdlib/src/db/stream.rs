@@ -1,4 +1,4 @@
-//! ADR 0067 § 4's one member that does not buffer: the walk over a portal the
+//! `rule:core-classes/db-statement-members`'s one member that does not buffer: the walk over a portal the
 //! connection is still holding open.
 //!
 //! # Decision: a stream is its own class, and never [`crate::cursor`]
@@ -369,7 +369,7 @@ mod tests {
         }
     }
 
-    /// ADR 0067 § 4's promise, measured where [`park_row`] keeps it: a walk
+    /// `rule:core-classes/db-statement-members`'s promise, measured where [`park_row`] keeps it: a walk
     /// over a result set of any size holds **one** row, because parking the
     /// next one releases the last and the end of the walk clears the slot.
     ///
@@ -524,7 +524,7 @@ mod tests {
         let busy = std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!(
-                "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows \
+                "a statement was written to a connection that is {:?}, and `rule:core-classes/db-statement-members` allows \
                  one at a time",
                 nvs_db::State::Streaming
             ),

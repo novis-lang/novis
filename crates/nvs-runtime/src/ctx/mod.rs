@@ -1008,8 +1008,7 @@ pub struct Ctx {
     open_connections: Vec<OpenConnection>,
     /// The temporary directories `Core\IO::temporaryDir` has handed this script,
     /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
-    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3 for the sweep that reads it.
+    /// `rule:core-classes/temporary-dir-sweep` for the sweep that reads it.
     ///
     /// Unlike its three neighbours this is a list and not a table: a directory
     /// is a path rather than a handle, nothing in Novis holds a key to one, and
@@ -1023,7 +1022,7 @@ pub struct Ctx {
     /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
     /// § 1 makes every other member of that class throw while this is `None`,
     /// which is the whole of what
-    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 4 was buying:
+    /// `rule:core-classes/session-is-started-explicitly` was buying:
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,
@@ -1163,7 +1162,7 @@ impl Drop for Ctx {
                 }
             }
         }
-        // ADR 0131 § 3's sweep, and this is the only place it is called from —
+        // `rule:core-classes/temporary-dir-sweep`'s sweep, and this is the only place it is called from —
         // `crate::sweep`'s module doc owns why a context's teardown *is* that
         // section's "after the last user code" for every ending at once.
         //

@@ -122,7 +122,7 @@ echo "u-over=", Probe::mark(Probe::asUint("9223372036854775808")), "\n";
 echo "i-max=", Probe::mark(Probe::asInt("9223372036854775807")), "\n";
 echo "i-over=", Probe::mark(Probe::asInt("9223372036854775808")), "\n";
 
-// ADR 0071 § 5: a refusal names the field it stopped at — but only when it got
+// `rule:core-classes/derive-reports-every-field`: a refusal names the field it stopped at — but only when it got
 // as far as a field. The two `uint` refusals above are the pair that shows it:
 // one is the declared type refusing a value the document held, the other is the
 // document never being read, and only the first carries a path.

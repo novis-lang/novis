@@ -190,7 +190,7 @@ fn serialize_decode_takes_a_plain_operand() {
 
 #[test]
 fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed() {
-    // ADR 0024 § 5: only a literal token qualifies — even an untainted
+    // `rule:core-classes/html-auto-escape`: only a literal token qualifies — even an untainted
     // runtime value is refused.
     let diags = check_in_method(
         "string $s = \"literal\";\n\
@@ -211,7 +211,7 @@ fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed()
 
 #[test]
 fn markup_is_not_stringable_and_has_no_concat_row() {
-    // ADR 0133 § 2: `tainted string $line = "Hello " . $m;` is refused. The
+    // `rule:core-classes/html-escape-answers-markup`: `tainted string $line = "Hello " . $m;` is refused. The
     // claim is not about the assignment's qualifier — it is that `.` has no
     // row for the carrier at all, so the refusal stands whatever the target
     // type is. `.` otherwise admits a `Stringable` object, which is exactly why
@@ -229,7 +229,7 @@ fn markup_is_not_stringable_and_has_no_concat_row() {
 
     // The other side of the same bound, so a rule that refused every operand
     // of `.` fails here: `+` *does* have a row for two carriers, and it
-    // produces the carrier back. That is ADR 0024 § 5's composition, and ADR
+    // produces the carrier back. That is `rule:core-classes/html-auto-escape`'s composition, and ADR
     // 0133 § 2 leans on it — the correction it offers the reader is to write
     // `+` where they wrote `.`, so `+` has to work.
     let diags = check_in_method(
@@ -252,7 +252,7 @@ fn markup_is_not_stringable_and_has_no_concat_row() {
 
 #[test]
 fn markup_does_not_convert_to_string() {
-    // ADR 0133 § 3: there is no `Markup as string`, because one would reopen
+    // `rule:core-classes/html-to-source`: there is no `Markup as string`, because one would reopen
     // the hole in a keystroke — `Core\Html::escape($x) as string . $tainted` is
     // the *Context* bug with an extra word in it. `Core\Html::toSource` is the
     // only way out and it is a member, so it is greppable and carries a written
@@ -289,7 +289,7 @@ fn markup_does_not_convert_to_string() {
 
 #[test]
 fn a_computed_to_source_reason_is_refused_at_the_call() {
-    // ADR 0133 § 3's second sentence, which `nvs_types::reasons` owns: the
+    // `rule:core-classes/html-to-source`'s second sentence, which `nvs_types::reasons` owns: the
     // reason is what makes this hatch safe, so a computed one is refused where
     // it is written rather than left to a run time that would accept any
     // string at all.

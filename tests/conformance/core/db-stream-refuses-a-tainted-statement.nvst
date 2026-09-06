@@ -1,8 +1,8 @@
 --TEST--
-`stream` classifies its statement text exactly as `query` does, so the member that holds a connection open is no easier a way into a database than the one that does not — ADR 0024 § 4, ADR 0067 §§ 4 and 5
+`stream` classifies its statement text exactly as `query` does, so the member that holds a connection open is no easier a way into a database than the one that does not — ADR 0024 § 4, `rule:core-classes/db-statement-members` and `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
-// ADR 0067 § 4 gives `stream` and `query` one signature and one binding rule,
+// `rule:core-classes/db-statement-members` gives `stream` and `query` one signature and one binding rule,
 // and the sink classification is half of that signature: the statement text is
 // a sink on both, so a value from outside the process cannot be written into
 // it, and a bound parameter accepts the same value freely.

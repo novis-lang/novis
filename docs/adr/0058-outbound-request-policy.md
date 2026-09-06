@@ -76,7 +76,7 @@ supplies most real endpoint URLs.
 
 The one class of address it does **not** govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — a `[db.<name>]` block reached through `Core\Db::connect`
-([ADR 0067](0067-core-db.md) § 3), and the `[cache.shared]` store reached through `Core\Cache::shared()`
+(`rule:core-classes/db-capabilities`), and the `[cache.shared]` store reached through `Core\Cache::shared()`
 and `Core\RateLimit::consume` ([ADR 0142](0142-a-configured-store-is-authorized-by-its-configuring.md)
 § 1). That address is not attacker-influenceable: it was written by the same authority that grants the
 capability. Applying the policy there would deny every ordinary deployment, since a database or a cache

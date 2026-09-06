@@ -1,5 +1,5 @@
 --TEST--
-`#[Json\Derive]` refuses a field whose declared type has no wire form at the property that declared it, not at the `decodeAs<T>` that would later fail — ADR 0071 §§ 2, 7
+`#[Json\Derive]` refuses a field whose declared type has no wire form at the property that declared it, not at the `decodeAs<T>` that would later fail — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
 // § 2 names the reachable set: "a scalar, an enum, an inline shape, an

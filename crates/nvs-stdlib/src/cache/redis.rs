@@ -1,5 +1,5 @@
 //! The shared tier's wire: RESP over `nvs_host`'s parking stream, the two
-//! commands ADR 0059 § 2's operations become, and the one `EVAL` ADR 0075's
+//! commands ADR 0059 § 2's operations become, and the one `EVAL` `rule:core-classes/ratelimit-two-members`'s
 //! limiter needs.
 //!
 //! [`super`] owns the *policy* — which store is configured, which address the
@@ -51,7 +51,7 @@
 //! would charge a second one and refuse a request the policy admits. So that one
 //! is replayed only when the request provably never left, which [`Failure::sent`]
 //! is the whole of. The remaining case — the store ran the script and the socket
-//! died before the reply — is a throw, and ADR 0075 § 5 is why that is the right
+//! died before the reply — is a throw, and `rule:core-classes/ratelimit-unreachable-store-throws` is why that is the right
 //! answer rather than a guess in either direction.
 //!
 //! What a command spends, per `rule:programs/memory-priority`:
@@ -218,7 +218,7 @@ impl Connection {
     ///
     /// One key always, because the only script this client sends is
     /// [`crate::ratelimit`]'s and it reads one: a script over several keys is a
-    /// multi-key atomic check, which ADR 0075 § 4 names as deliberately absent.
+    /// multi-key atomic check, which `rule:core-classes/ratelimit-two-members` names as deliberately absent.
     ///
     /// # Errors
     ///

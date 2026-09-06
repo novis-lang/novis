@@ -4,7 +4,7 @@
 //!
 //! All four of that table's members are here. A `Core\Uuid` is a **value with a
 //! type**, not a 36-character string a program passes around and re-validates
-//! at every boundary: that is what makes ADR 0067 § 4's native `UUID` column
+//! at every boundary: that is what makes `rule:core-classes/db-statement-members`'s native `UUID` column
 //! binding and ADR 0077's `Core\Uuid` route segment able to state what they
 //! take.
 //!
@@ -83,7 +83,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **There is no `bytes` round trip**, which is what an ADR 0067 driver
+//! 1. **There is no `bytes` round trip**, which is what an `rule:core-classes/db-one-api` driver
 //!    binding a native `UUID` column will want. It waits on the same
 //!    `nvs_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
 //! 2. **`==` on two `Uuid` values is object identity**, so two instances
@@ -264,7 +264,7 @@ fn built(value: Uuid) -> Value {
 /// A `Core\Uuid` holding those sixteen octets, in the order the canonical text
 /// spells them, for a member **outside this module** holding the bytes.
 ///
-/// ADR 0067 § 9's `UUID` column is the first: `nvs-db` reads the row and hands
+/// `rule:core-classes/db-column-types`'s `UUID` column is the first: `nvs-db` reads the row and hands
 /// the octets over, because the instance is this crate's to allocate. There is
 /// nothing to refuse — every 128-bit pattern is a UUID, including the nil and
 /// the max, and this module's own docs say which of them `parse` accepts.
@@ -272,7 +272,7 @@ pub(crate) fn of_octets(octets: [u8; 16]) -> Value {
     built(Uuid::from_bytes(octets))
 }
 
-/// [`of_octets`]'s twin for a `Core\Uuid` that arrives as text — ADR 0067 § 9's
+/// [`of_octets`]'s twin for a `Core\Uuid` that arrives as text — `rule:core-classes/db-column-types`'s
 /// SQLite half, where a `uuid` column holds the canonical rendering because
 /// SQLite has no type that holds sixteen octets as anything but a `BLOB`.
 ///

@@ -5,7 +5,7 @@
 //! direction is the whole reason.** What they run is [`nvs_stdlib::queue`]'s
 //! statement roster — § 2's schema has one home and that is it — and the only
 //! thing that can run a statement is `nvs-db`'s own connection, which is
-//! `PgConn`, `MySqlConn` or `MariaConn` as [`Conn`] holds it. ADR 0132 § 1 fixes
+//! `PgConn`, `MySqlConn` or `MariaConn` as [`Conn`] holds it. `rule:core-classes/db-crate-boundary` fixes
 //! which way that edge points: `nvs-stdlib` depends on `nvs-db` and never the
 //! reverse, so a `crates/nvs-db/tests/queue.rs` would need a `use
 //! nvs_stdlib::…` that closes a cycle in the workspace, and the alternative —
@@ -161,7 +161,7 @@ impl Deref for FramedLeg {
 /// one.
 ///
 /// **The three targets differ in their type and in nothing else**, so the arms
-/// are a macro rather than three copies of one field list: ADR 0067 § 2's
+/// are a macro rather than three copies of one field list: `rule:core-classes/db-connection-is-named`'s
 /// settings are the same seven for every driver that has a wire, and what
 /// changes between them is which `connect` reads them.
 fn open(leg: &Leg) -> Conn {
@@ -254,7 +254,7 @@ impl Conn {
     ///
     /// The ad-hoc statements in this file — the deletes a case clears with, the
     /// counts it asserts over — are written in the driver's own spelling for
-    /// the reason [`queue`]'s two rosters are: ADR 0067 § 5's rewriter is what
+    /// the reason [`queue`]'s two rosters are: `rule:core-classes/db-parameters`'s rewriter is what
     /// a *program*'s statement goes through, and reaching for it here would put
     /// a second translator between a case and the server it is asserting about.
     fn text(&self) -> &'static str {
@@ -264,7 +264,7 @@ impl Conn {
         }
     }
 
-    /// ADR 0067 § 7's `BEGIN`, as the driver's own.
+    /// `rule:core-classes/db-transactions`'s `BEGIN`, as the driver's own.
     fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<QuerySpan> {
         match self.dialect() {
             Dialect::Postgres(postgres) => postgres.begin(isolation, read_only),
@@ -322,7 +322,7 @@ enum Dialect<'a> {
 /// file can observe between the two is the *type of the borrow*, and without
 /// this every reader below would grow a second arm copying the first line for
 /// line. `nvs-cli` has the same enum for the same reason, on the other side of
-/// ADR 0132 § 1's crate graph.
+/// `rule:core-classes/db-crate-boundary`'s crate graph.
 enum Framed<'a> {
     /// MySQL's framing of § 2's schema and § 4's statements.
     MySql(&'a mut MySqlConn),
@@ -347,7 +347,7 @@ impl Framed<'_> {
         }
     }
 
-    /// ADR 0067 § 7's `START TRANSACTION`.
+    /// `rule:core-classes/db-transactions`'s `START TRANSACTION`.
     fn begin(&mut self, isolation: Option<Isolation>, read_only: bool) -> io::Result<QuerySpan> {
         match self {
             Framed::MySql(mysql) => mysql.begin(isolation, read_only),

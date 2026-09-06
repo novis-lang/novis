@@ -899,7 +899,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// An optional `<T, U>` written between a member name and the `(` of a
     /// call — `<User>` in `Core\Json::decodeAs<User>($body)`, which
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) and
+    /// `rule:core-classes/derive-attribute` and
     /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 6 both write. Returns what was written, empty when this is not a
     /// type-argument list at all.

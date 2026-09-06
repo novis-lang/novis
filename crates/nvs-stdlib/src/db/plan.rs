@@ -1,5 +1,4 @@
-//! `Core\Db\Plan` — [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-//! §§ 6-8's plan, as a value a program walks.
+//! `Core\Db\Plan` — `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`'s plan, as a value a program walks.
 //!
 //! [`nvs_db::plan`] computes the difference, grades every step and emits the
 //! SQL; that crate is sans-io and holds no Novis value, so this module is the
@@ -20,7 +19,7 @@
 //! The one field that is flattened is the SQL. [`nvs_db::Step::sql`] is a
 //! *list* of statements, because SQLite's rebuild is four of them; `sql()`
 //! answers them joined by a newline, which is § 8's pasteable document and the
-//! only spelling `Core\Db::execute` — one statement per call, ADR 0067 § 4 —
+//! only spelling `Core\Db::execute` — one statement per call, `rule:core-classes/db-statement-members` —
 //! can be handed for the steps that are one statement long. A rebuild's four
 //! are for an operator, and the member's reference card says so.
 //!
@@ -30,7 +29,7 @@
 
 use super::*;
 
-/// [`nvs_db::Plan`] as the object a program holds — ADR 0145 § 6's document.
+/// [`nvs_db::Plan`] as the object a program holds — `rule:core-classes/schema-plan`'s document.
 ///
 /// Nothing here can fail: every field is a `String`, a `bool` or one of three
 /// grades, and the array is built the way [`crate::arr`] builds any packed one.
@@ -86,7 +85,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$step->grade(): Db\Plan\Grade` — ADR 0145 § 6's worst cost of this
+    /// `$step->grade(): Db\Plan\Grade` — `rule:core-classes/schema-plan`'s worst cost of this
     /// step.
     fn nvs_core_db_plan_step_grade(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &STEP, "grade")?;

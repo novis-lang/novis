@@ -1,9 +1,9 @@
 --TEST--
-`#[Db\Derive]` refuses a field whose declared type is not a column at the property that declared it, not at the `queryAs<T>` that would later run — ADR 0067 § 9, ADR 0071 § 2
+`#[Db\Derive]` refuses a field whose declared type is not a column at the property that declared it, not at the `queryAs<T>` that would later run — `rule:core-classes/db-column-types`, `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
-// ADR 0067 § 9's type map is the row format's reachable set, and it is not
-// ADR 0071 § 2's: a row is a flat list of columns, so a nested object is not a
+// `rule:core-classes/db-column-types`'s type map is the row format's reachable set, and it is not
+// `rule:core-classes/derive-field-list`'s: a row is a flat list of columns, so a nested object is not a
 // column type however well it maps to JSON. `Handle` carries a derive of its
 // own and is still refused here, which is the half that a rule copied from the
 // JSON pass would get wrong — § 2's "another class that itself has a codec"

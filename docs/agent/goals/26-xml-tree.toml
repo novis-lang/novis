@@ -82,7 +82,7 @@ memoize_on = ["crates/nvs-stdlib"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the tree, and it is one node family. ADR 0122 § 2.
+# Stage 2 -- the tree, and it is one node family. `rule:core-classes/html-parsing`.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -117,7 +117,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the WHATWG parser, on `Core\Html`. ADR 0122 §§ 1 and 3.
+# Stage 4 -- the WHATWG parser, on `Core\Html`. `rule:core-classes/html-parsing`.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]

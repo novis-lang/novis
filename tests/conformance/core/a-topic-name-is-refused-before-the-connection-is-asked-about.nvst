@@ -1,5 +1,5 @@
 --TEST--
-An empty topic name is refused by both `Core\Topic` members, and refused before either asks whether this program is a connection — ADR 0083 § 4
+An empty topic name is refused by both `Core\Topic` members, and refused before either asks whether this program is a connection — `rule:core-classes/topic`
 --FILE--
 <?nvs
 // A name is a topic's whole identity, and the empty one is the name no

@@ -1,5 +1,5 @@
 --TEST--
-Each Core\Ast\Node member answers the same thing twice and hands back the same node objects, and two parses of one source agree everywhere but identity — ADR 0019 § 3
+Each Core\Ast\Node member answers the same thing twice and hands back the same node objects, and two parses of one source agree everywhere but identity — `rule:core-classes/ast-is-inert`
 --FILE--
 <?nvs
 // The *agreement* shape, over the rule § 3's three members share: the tree is

@@ -178,7 +178,7 @@ the reason is worth stating rather than leaving a reader to wonder:
   scrape or a push, outside any request.
 - **The values are approximate aggregates by design.** Per-core counters merged at scrape time are the
   correct implementation, not a compromise: it is the same reason a metric is not a rate limit
-  ([ADR 0075](0075-core-ratelimit.md) § 1), and the merge is arithmetic rather than coordination.
+  (`rule:core-classes/ratelimit-two-members`), and the merge is arithmetic rather than coordination.
 - **No request-derived value crosses**, because § 4 forbids exactly that. What accumulates is a fixed set of
   series with bounded label sets — counters and buckets, never a payload.
 - **Memory is charged to the core and capped** (§ 7), the same accounting and the same exception

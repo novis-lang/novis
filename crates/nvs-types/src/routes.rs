@@ -10,7 +10,7 @@
 //! attribute only when its name **resolves** to `Core\Route`, so a userland
 //! `type Route = {…};` is not it however it is spelled and a framework carrying
 //! its own `Route`-shaped literal does not contribute a route. That is
-//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so the
+//! `rule:core-classes/derive-attribute`'s rule, so the
 //! name sits on [`crate::derive::ATTRIBUTES`] and is matched *nominally* after
 //! [`nvs_hir::resolve_ref`] — and, being matched nominally, it names no shape,
 //! which is why what it may hold is the roster below rather than an alias
@@ -869,7 +869,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   has already filled with spec § 10's tree, so `Core\NotFound` answers
 ///   exactly as an application's own class does.
 /// - an **`example`** naming a field the return type does not declare. § 2
-///   asks for the example to decode "with the same decoder ADR 0071 already
+///   asks for the example to decode "with the same decoder `rule:core-classes/derive-attribute` already
 ///   built", and the decoder's first question is this one: a key naming no
 ///   property is a bad field, and a bad field is the whole of what a derived
 ///   decode reports. Asked only where the return type is a class this program
@@ -1115,7 +1115,7 @@ fn check_error_type(
     None
 }
 
-/// § 2's `example`, against the field roster ADR 0071's decoder reads: every
+/// § 2's `example`, against the field roster `rule:core-classes/derive-attribute`'s decoder reads: every
 /// key names a property of the return type.
 ///
 /// The fold that records it runs **before** that roster walk and independently
@@ -1145,7 +1145,7 @@ fn check_api_example(
     };
     let recorded = fold_example(fields, ctx, env);
     // The return type as the signature table holds it, which is the same
-    // annotation ADR 0071's derive reads. Anything that is not a declared
+    // annotation `rule:core-classes/derive-attribute`'s derive reads. Anything that is not a declared
     // class has no field roster to disagree with — see this module's
     // [`check_api`] docs for why that is silence rather than a refusal.
     let method = span_text(env.src, m.name);

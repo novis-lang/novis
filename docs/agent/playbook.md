@@ -337,7 +337,7 @@ is why" — is this file.
   ledger (the plan's *Open now* says so for the `--errors` half as well): when the drop is larger
   than the number of members the session actually asked about, the extra one is still owed a case.
 - **A fact restated across ADRs goes stale, and the two shapes that always do it are a running
-  count and an ordinal.** ADR 0071 § 1 said its closed attribute list "opens with exactly those four
+  count and an ordinal.** `rule:core-classes/derive-attribute` said its closed attribute list "opens with exactly those four
   names", 0077 § 1 said it "now holds five", and 0085/0086/0096 each added entries without touching
   either — while the typed-`callable` deferral had a *forcing case* ordinal chained across four ADRs
   (0031 "second", 0061 "second", 0072 "third", 0077 "fourth"), so withdrawing one link renumbered
@@ -594,7 +594,7 @@ is why" — is this file.
 - **A diagnostic constant named in a doc comment may not exist**, so a `grep` for the name is not
   evidence that the rule behind it is future work. `reject_unrelated_class_conversion`'s own comment
   named `E_MARKUP_NOT_LITERAL`; the code is `E_MARKUP_REQUIRES_LITERAL`, it lives in
-  `nvs_types::expr::quals`, and ADR 0024 § 5's `"lit" as Core\Html\Markup` is a **checked row
+  `nvs_types::expr::quals`, and `rule:core-classes/html-auto-escape`'s `"lit" as Core\Html\Markup` is a **checked row
   today** — even though `Core\Html` declares no class and the conversion still panics one crate
   down, which is what makes it look unimplemented from `nvs run`. Grep
   `crates/nvs-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
@@ -1071,7 +1071,7 @@ is why" — is this file.
   cards, so the two go stale apart and a finding that says "the card" means three files.** `Json.md`
   still said `decodeAs<T>` "names a class and nothing else: a document whose top level is a JSON
   *array* of objects has no typed decode", while `DECODE_AS_DOC` in `crates/nvs-stdlib/src/json.rs`
-  spells `array<T>`, ADR 0071 § 1 spells it, and `target/debug/nvs.exe` runs
+  spells `array<T>`, `rule:core-classes/derive-attribute` spells it, and `target/debug/nvs.exe` runs
   `Json::decodeAs<array<P>>` today. The fact can be right in the `MethodDoc`, right in the
   `docs/reference/lang/` chapter and wrong on the class page, so check all three and let the binary
   break the tie — a probe under `.agent-tmp/` costs one call and is the only one of the four that
@@ -1519,7 +1519,7 @@ is why" — is this file.
   half.
 - **A handoff item can predict that the spec is silent about something the spec declares, because
   § 18's enums are in a fenced block rather than in a members table.** This item arrived saying
-  "the spec holds no `ColumnType` at all — so the fourteen cases are ADR 0067 § 9's type map read
+  "the spec holds no `ColumnType` at all — so the fourteen cases are `rule:core-classes/db-column-types`'s type map read
   as an enum, or they are nowhere and this slice decides them", and
   `docs/spec/01-core-library.md:1223` writes all fourteen of them out, beside `Driver`, `Isolation`,
   `Tls` and `ErrorKind`, under *Enums, settings and errors*. The members table one screen above
@@ -1620,7 +1620,7 @@ is why" — is this file.
   `python tools/peek.py --locate postgres_of --in 'crates/nvs-stdlib/**/*.rs'`; a plain `grep -n` over
   the one file you meant is cheaper still.
 - A `[context] adrs` gap does not close by naming the section in the handoff item. `orient.py` slices
-  that list and nothing else — it never reads an item's own `ADR 0067 § 7` — so four consecutive
+  that list and nothing else — it never reads an item's own ``rule:core-classes/db-transactions`` — so four consecutive
   sessions asked for § 7 and § 8 in the handoff, four re-sliced them by hand, and the list was
   unchanged the whole time. Edit `docs/agent/loop-goal.toml` in the session that discovers the gap;
   `tools/loop.py` expects a session to rewrite that file and reloads it every iteration.
@@ -1933,7 +1933,7 @@ is why" — is this file.
   first slice is the ADR rather than the test.** Stage 5's `a_session_is_never_backed_by_the_local_cache_tier`
   read as an ordinary open item; `Core\Session` had no module in `nvs-stdlib`, no `[session]` block
   in `nvs-config` and no row in the registry, and ADR 0059 § 4 — the section the check cites — said
-  the ban is "enforced rather than documented" without naming what enforces it, while ADR 0012 § 4
+  the ban is "enforced rather than documented" without naming what enforces it, while `rule:core-classes/session-is-started-explicitly`
   explicitly *deferred* the mechanics to "the milestone that builds it". Three tells separate this
   from the sibling bullets' misfiled checks: the crate has no module for the surface at all, the
   cited ADR defers rather than specifies, and the ADR's own *Verification* names a later milestone
@@ -2752,8 +2752,7 @@ is why" — is this file.
   reachable from one without a dev-dependency.
 - **`[queue]` is a *root* table, so `workers` starts a worker for every `nvs run` over that tree —
   all fifty of `examples/`, not just the queue fixture.** There is no per-`[[app]]` spelling of it:
-  `[app.capabilities.db]` is scoped to an entry file and `[queue]` deliberately is not, because ADR
-  0084 § 2's `workers` is a property of the *instance*. So a worker that opens its connection
+  `[app.capabilities.db]` is scoped to an entry file and `[queue]` deliberately is not, because `rule:core-classes/queue-storage-is-a-table`'s `workers` is a property of the *instance*. So a worker that opens its connection
   eagerly charges every unrelated fixture one PostgreSQL handshake, and one that waits on an
   unreachable server charges every fixture that wait. That is why
   `crates/nvs-cli/src/worker.rs`'s connect deadline is two seconds rather than `queue.rs`'s ten, and
@@ -4943,7 +4942,7 @@ is why" — is this file.
   module doc or the helper's own comment), and a class declaring `slots` must declare `instance` members
   too.
 - **A `Core` instance has no property a program can reach, so an ADR that writes one is writing a
-  member.** ADR 0075 § 3 spells `Core\RateLimit\Decision` as `readonly allowed: bool, …`, and
+  member.** `rule:core-classes/ratelimit-gcra` spells `Core\RateLimit\Decision` as `readonly allowed: bool, …`, and
   `examples/cache.nvs` was written against that: `$d->allowed`. There is no spelling of it that
   compiles — `CoreTy::Instance`'s own doc comment is the rule ("no constructor, no property and no
   subclass"), `registry::CoreClass::slots` restates it, and `examples/http.nvs` carries the
@@ -5439,7 +5438,7 @@ is why" — is this file.
   a worker passes through between two of its own statements.
 - **A live-server case over `Core\Queue`'s statements cannot live in `crates/nvs-db`, and the
   harness will not run it where it can.** The stage 8 item named
-  `crates/nvs-db/tests/queue.rs`, and both halves of that are wrong. ADR 0132 § 1 makes
+  `crates/nvs-db/tests/queue.rs`, and both halves of that are wrong. `rule:core-classes/db-crate-boundary` makes
   `nvs-stdlib` depend on `nvs-db` and never the reverse, and a test target is part of its crate,
   so such a case cannot `use nvs_stdlib::queue::CLAIM_POSTGRES` at all — while a copy of the text
   kept beside it would assert over the copy rather than over what a `push` issues.
@@ -5454,7 +5453,7 @@ is why" — is this file.
   satisfiable where the check points, because the dependency edge is often already there.** Stage 7's
   `the_pool_is_per_core_and_keyed_as_connect_and_open_key` is a `-p nvs-db` check while the pool is
   `nvs_runtime::pool` and the key is built in `nvs-stdlib`, so the item arrived expecting the check to
-  have to move, as ADR 0132 § 1's crate edge forced once before. It did not need to: `nvs-db` already
+  have to move, as `rule:core-classes/db-crate-boundary`'s crate edge forced once before. It did not need to: `nvs-db` already
   depends on `nvs-runtime` and `nvs-config`, so a unit test in `conn.rs` drives
   `pool::{Ticket, admit, release, take}` directly — and over a real `Connection`, which is the half
   `nvs-runtime`'s own cases cannot assert because they file a `Fake` and never exercise the
@@ -5472,7 +5471,7 @@ is why" — is this file.
   reader is the one that matches the protocol, and it is the reader the driver runs against a real
   server — so a `-p nvs-db` case that scripts a result set must write the definition's bytes by
   hand in wire order (`crates/nvs-db/src/mysql.rs`'s `typed_column_def`), not serialize a `Column`.
-  Nothing catches this until a case asks about the charset or the width: ADR 0067 § 9 reads
+  Nothing catches this until a case asks about the charset or the width: `rule:core-classes/db-column-types` reads
   `tainted string` against `tainted bytes` off the charset, which is exactly the field the swap
   corrupts, and a name-only assertion passes either way.
 - A MySQL twin of a PostgreSQL case cannot reuse the PostgreSQL query text, and the failure is a
@@ -5488,8 +5487,7 @@ is why" — is this file.
 - **A `-p nvs-stdlib` test that asserts anything a member reads off a *throw's own slot* has to
   install an exception class table first, and the failure blames the member rather than the
   fixture.** `Ctx::pending_slot` answers `None` on a context that never took a
-  `set_runtime_error_class`, because `pending_conforms_to` refuses a null descriptor — so ADR 0067
-  § 7's retry loop, which decides on the `KIND_SLOT` of a pending `Core\Db\DbError`, saw no conflict
+  `set_runtime_error_class`, because `pending_conforms_to` refuses a null descriptor — so `rule:core-classes/db-transactions`'s retry loop, which decides on the `KIND_SLOT` of a pending `Core\Db\DbError`, saw no conflict
   and re-raised, and the case read as though the retry rule were broken. Two `ClassTable::define`
   calls are the whole fix: spec § 10's four-slot `RuntimeError` as the root the handle names, and
   the subclass under it with enough fields to hold the slot — `nvs_runtime::KIND_SLOT` *is* the
@@ -5615,7 +5613,7 @@ is why" — is this file.
   about the missing schema — `Core\Queue::stats` throws a `RuntimeError` naming the *driver* before
   it asks the server about a table, and the run prints four `no queue worker started` warnings to
   stderr besides. `nvs queue migrate` cannot rescue it either: it is a CLI subcommand and `--RUN--`'s
-  roster is closed to `run`/`test`/`config dump`, so no case can create ADR 0084 § 2's schema. Every
+  roster is closed to `run`/`test`/`config dump`, so no case can create `rule:core-classes/queue-storage-is-a-table`'s schema. Every
   *runtime* claim about a queue therefore belongs in a `-p nvs-stdlib` `#[test]` or under
   `tests/db/`, which is why every `queue-*.nvst` calling `push` ends in `--EXPECTF-ERROR--` and
   pins the type surface instead. `Core\Db` is the opposite and the lever this whole goal was
@@ -5690,7 +5688,7 @@ is why" — is this file.
 - **A `Core` class a `foreach` walks is not accepted where a `Core` row declares `Iterable<T>`, and
   the case that assumed otherwise reads as a bug in the member.** `Core\Request\PartContent` — what
   `$part->content()` answers — carries `iterate`/`advance`/`current`, so a `foreach` drives it and
-  `Core\IO::writeStream($path, $part->content())` looks like ADR 0105 § 4's own sentence ("an
+  `Core\IO::writeStream($path, $part->content())` looks like `rule:core-classes/io-write-stream`'s own sentence ("an
   `Core\Http` response body and an upload part all reach disk through this one implementation"). It
   does not compile: the row's parameter is `CoreTy::Iterated(&CoreTy::Blob(…))` and the argument is
   `CoreTy::Instance("Core\Request\PartContent")`, reported as ``expected
@@ -6060,7 +6058,7 @@ is why" — is this file.
   as a separator; `tests/differential/core/str-trim-start-and-trim-end-match-ltrim-and-rtrim.nvst` is
   the shape. This costs nothing to know and about three calls to discover.
 - **A `close`d SQLite `:memory:` connection is handed straight back by the pool, so a case cannot
-  assert that a reconnect is a fresh database.** A case written to prove ADR 0067 § 2's memo is
+  assert that a reconnect is a fresh database.** A case written to prove `rule:core-classes/db-connection-is-named`'s memo is
   released — `connect`, create a table, `close`, `connect` again, expect the table to be gone —
   prints `table: found`, because § 13's release put the connection in this core's pool and the second
   `connect` acquired the very same one, in-memory database and all. That is pooling working, not a
@@ -6139,7 +6137,7 @@ is why" — is this file.
   which passes unchanged when two columns swap their defaults.
 - **A `#[cfg(test)] mod tests` can already hold a `type` alias for the struct your slice is about to
   add, and `use super::*` lets the alias win.** `catalog.rs`'s tests carried
-  `type ColumnRow = (String, String, i64, …)` as a placeholder for ADR 0145 § 4's row shape; adding
+  `type ColumnRow = (String, String, i64, …)` as a placeholder for `rule:core-classes/schema-introspection`'s row shape; adding
   the real `pub struct ColumnRow` above it failed as `expected struct, variant or union type, found
   (String, …)` pointing at the *new* code, so a name collision reads as a mistake in the struct
   rather than as a shadow, and the type in the message is the alias's expansion rather than
@@ -6733,7 +6731,7 @@ sibling in the same namespace unqualified.
   A `.nvst` that wants a constant in a typed position writes the literal, or an enum case, which
   does carry its type.
 - **An attribute's name was already load-bearing for two other passes before `rule:attributes/attach-sites-and-forms` got to
-  say what it means.** ADR 0071 § 1 matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
+  say what it means.** `rule:core-classes/derive-attribute` matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
   closed `Core`-owned roster, and `rule:programs/autoload` harvests every attribute name as a reference the
   autoloader then places by prefix. So a rule about what an attribute name may resolve to has to
   exempt the first and leave the second alone — and the tests that pin them are the ones that
@@ -6891,7 +6889,7 @@ sibling in the same namespace unqualified.
   read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which ADR 0102 § 6's
   plain `[app] origin` does not know about yet.
 - **A refusal over a *derived* fact fires on declarations that were already refused for something
-  else, and the existing `--EXPECTF-ERROR--` case is what catches it.** ADR 0071 § 7's "an attribute
+  else, and the existing `--EXPECTF-ERROR--` case is what catches it.** `rule:core-classes/derive-generates-what-is-missing`'s "an attribute
   with no effect is a mistake" reads as "refuse a `#[Json\Derive]` class whose field list came out
   empty" — but `reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst` declares two properties
   and has *both* refused, so its list is empty too and its frozen `aborting due to 2 errors` became
@@ -7368,7 +7366,7 @@ sibling in the same namespace unqualified.
   `docs/agent/loop-goal.md` has a byte-for-byte twin under `docs/agent/goals/` differing only in
   link depth, so the bullet goes in both.
 - **A new member on a capability-bearing class must declare a capability, and the allowlist for one
-  that reaches nothing is frozen.** `Core\RateLimit::shed` reaches nothing — ADR 0075 § 1 puts its
+  that reaches nothing is frozen.** `Core\RateLimit::shed` reaches nothing — `rule:core-classes/ratelimit-two-members` puts its
   state in the core's own memory — but `Core\RateLimit` is capability-bearing because `consume`
   declares `net.connect`, and `every_capability_bearing_member_declares_its_capability`
   (`crates/nvs-stdlib/tests/capability.rs:282`) asserts over *every* member of such a class. So the
@@ -7522,7 +7520,7 @@ sibling in the same namespace unqualified.
   as "one arm in `erase_checked_ty` plus one in the `Conversion` arm" costs the discovery twice.
 - **A `Core` class with a slot and no members fails a registry test whose exemption is a
   by-name list, and the failure names your class rather than the rule.** `Core\Html\Markup` is
-  ADR 0024 § 5's carrier: one slot holding the trusted bytes, and deliberately no member, because
+  `rule:core-classes/html-auto-escape`'s carrier: one slot holding the trusted bytes, and deliberately no member, because
   every way of obtaining one is a language construct and a constructor would take a runtime
   string. Adding it to `registry::CLASSES` turns
   `a_class_with_slots_has_instance_members_and_the_reverse` red —
@@ -7535,7 +7533,7 @@ sibling in the same namespace unqualified.
   forgetting it fails at *run* time rather than at build time.** That function derives the JIT's symbol
   table from `registry::CLASSES`'s member rows plus a few hand-written chains — `registry::CONSTRUCTORS`,
   `router::link::SYMBOLS`, and the symbols reached by a *construct* rather than by a call (`spawn script`,
-  `await`, and ADR 0024 § 5's two `Markup` ones). The domain module's own `address()` arm is **not**
+  `await`, and `rule:core-classes/html-auto-escape`'s two `Markup` ones). The domain module's own `address()` arm is **not**
   enough: it is only ever consulted for a symbol the enumeration already named, so a lowering that emits
   an `InstKind::CoreCall` on an unchained symbol compiles clean, type-checks clean, and then panics inside
   cranelift-jit — `can't resolve symbol nvs_core_html_markup`, from `backend.rs`, naming neither crate nor
@@ -7674,7 +7672,7 @@ sibling in the same namespace unqualified.
   the spelling that reads as correct.** `postgres-protocol`'s SCRAM client takes a `ChannelBinding`,
   and `unrequested` is the gs2 header `y,,`, which asserts *the server does not offer channel
   binding*. A server that does offer it — which is every server this driver reaches, since
-  PostgreSQL offers `SCRAM-SHA-256-PLUS` whenever the connection is SSL and ADR 0067 § 3 makes that
+  PostgreSQL offers `SCRAM-SHA-256-PLUS` whenever the connection is SSL and `rule:core-classes/db-capabilities` makes that
   always — reads `y,,` as a stripped-`PLUS` downgrade and fails the exchange with "channel binding
   check failed". `unsupported` (`n,,`) is the one that works without the peer certificate in hand.
   The reasoning, and what it gives up, is `crates/nvs-db/src/pg.rs`'s module doc.
@@ -7712,7 +7710,7 @@ sibling in the same namespace unqualified.
   test's `UNCLASSIFIED` roster. For a name that is only ever a lookup key the mark is
   `Qual::Neutral`, not `Qual::Sink` — `Sink` means the content becomes an instruction something
   executes, and `Core\Regex\Match::group`'s row is the precedent. The second gate is
-  `no_registry_card_cites_an_adr`: a `MethodDoc`'s `short`/`ret`/`desc` may not say "ADR 0067 § 9",
+  `no_registry_card_cites_an_adr`: a `MethodDoc`'s `short`/`ret`/`desc` may not say "`rule:core-classes/db-column-types`",
   because `nvs meta --json` ships the card verbatim to a reader with no ADR tree — state the fact
   and leave the citation to the doc comment above the row. Nineteen rows written to the shape in
   `conventions.md` failed on these two and on nothing else.
@@ -7738,7 +7736,7 @@ sibling in the same namespace unqualified.
   symbol at all. So before designing anything around *how rows map to symbols*, grep
   `crates/nvs-stdlib/src/lib.rs` too; a design that collides with one of them is found by
   `cargo test -p nvs-stdlib --lib`, which is 0.2s, and not by anything nearer.
-- **"ADR 0071's derive pass has landed" was the *checking* half, and a `#[Db\Derive]` class's
+- **"`rule:core-classes/derive-attribute`'s derive pass has landed" was the *checking* half, and a `#[Db\Derive]` class's
   mapping reached no descriptor at all.** The plan's Stage 0 line, `nvs_types::derive`'s roster and
   `nvs_types::ExprTypeTable::db_codec` all read as finished — and the table really is filled — but
   `nvs_ir::ir::Class::codec` and `nvs_runtime::ClassDesc::codec()` were `#[Json\Derive]`'s list
@@ -7760,7 +7758,7 @@ sibling in the same namespace unqualified.
   not an option to weigh — the only question is whether every write site should carry the argument.
 - **A reference card may not cite an ADR, and the doc comment two lines above it must.** The two
   sit together in one `const` block and read as one register, so a `MethodDoc` field arrives
-  carrying "the round trip ADR 0067 § 9's type map is written to avoid" — which
+  carrying "the round trip `rule:core-classes/db-column-types`'s type map is written to avoid" — which
   `registry::tests::no_registry_card_cites_an_adr` refuses, because `nvs meta --json` ships that
   string verbatim to a reader with no ADR tree, and from there into `docs/novis.md`. State the
   fact instead ("the only way to learn it is a catalog query per statement, and this driver makes
@@ -7836,7 +7834,7 @@ sibling in the same namespace unqualified.
   is a failed attempt" needs no second reading beside it.
 - **A module's known-gap bullet names the blocker its author hit, not every blocker between there
   and the feature.** `nvs_stdlib::db`'s gap 1 says `Core\Db::open` waits on a registry shape
-  *parameter*, which reads as one missing type and so as one slice's work; ADR 0067 § 10's
+  *parameter*, which reads as one missing type and so as one slice's work; `rule:core-classes/db-literal-query-checking`'s
   literal-host check needs two more things behind it, and neither is mentioned there.
   `nvs_types::intrinsics`'s table addresses a **written argument position** and § 18 puts the host
   inside a `Db\Settings` shape, so a callable `open` still would not give that table anything to
@@ -7896,7 +7894,7 @@ sibling in the same namespace unqualified.
   `grep -n 'expect(' <the module>` for every reason naming the path being enabled, before the build,
   is the whole check.
 - **A driver's `io::ErrorKind` decides whether a refusal reaches Novis as a `Db\DbError` at all.**
-  `nvs_stdlib::db`'s `statement_failure` builds ADR 0067 § 8's error from its `ErrorKind::Other` arm
+  `nvs_stdlib::db`'s `statement_failure` builds `rule:core-classes/db-error`'s error from its `ErrorKind::Other` arm
   alone and answers an `IOError` for every other kind, so a driver that words the server's own `ERR`
   packet as anything else — MySQL's said `PermissionDenied`, meaning it well — strips the `kind`, the
   `sqlState` and the `driverCode` off every refusal a program catches, with every unit test in the
@@ -7914,7 +7912,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-diagnostics/src/lib.rs`'s legend and to every tool that groups by band.
 - **An ADR clause that mandates a wire feature can be un-implementable for reasons only the
   *sibling* driver's code shows, so a "decide whether to build X" item is read out of the tree
-  and not out of the ADR.** ADR 0067 § 4 mandated `COM_STMT_BULK_EXECUTE` for MariaDB's
+  and not out of the ADR.** `rule:core-classes/db-statement-members` mandated `COM_STMT_BULK_EXECUTE` for MariaDB's
   `executeMany` in one table row, and the two facts that settled it against the feature were both
   three files away from anything MariaDB: `crates/nvs-db/src/pg.rs:2788` flushes *every*
   `Bind`/`Execute`/`Sync` in one `wire.send`, so PostgreSQL's batch has already run the sets behind
@@ -7991,7 +7989,7 @@ sibling in the same namespace unqualified.
   `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` and
   `the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one` both asked
   `rendering_for(driver).is_some()` as "the queue can send over this one", which was true only
-  while `Core\Db`'s roster and ADR 0084 § 2's schema list were the same three drivers. SQL Server
+  while `Core\Db`'s roster and `rule:core-classes/queue-storage-is-a-table`'s schema list were the same three drivers. SQL Server
   gaining `nvs_db::tds::encode` parted them, and both failures name the queue rather than the
   encoder that moved. The general shape: a `pub(crate)` predicate that a second module borrows as a
   proxy for *its* roster is a coupling no signature shows, and the borrowing module's own doc is
@@ -8430,7 +8428,7 @@ sibling in the same namespace unqualified.
   as data the guard also checks, or the first legitimate exception turns it into a weaker guard.
 - **A `Core` member that answers a *walk* returns a **registered** memberless class, never
   [`crate::cursor`]'s unregistered one — and a handoff item saying otherwise reads exactly right
-  until you try to compile it.** ADR 0067 § 4's `stream` answers something a `foreach` drives whose
+  until you try to compile it.** `rule:core-classes/db-statement-members`'s `stream` answers something a `foreach` drives whose
   next element does not exist yet, so "a second internal class beside `Core\Cursor`, on
   `instance::INTERNAL_CLASSES`" is the obvious shape and it cannot work: `registry`'s
   `every_instance_type_names_a_registered_class` requires a `CoreTy::Instance` return type to name a
@@ -8477,7 +8475,7 @@ sibling in the same namespace unqualified.
   the bound moved one member along rather than went away.
 - **A `.nvst` case can carry its own `nvs.toml`, so the conformance corpus already pins how a
   *command* behaves under a configuration — grep `--FILE nvs.toml--` before making one read the
-  tree.** ADR 0067 § 10's check-time refusal of an ungranted literal `Core\Db::open` host reads as
+  tree.** `rule:core-classes/db-literal-query-checking`'s check-time refusal of an ungranted literal `Core\Db::open` host reads as
   something the shared front end should ask for every subcommand, and threading the grants through
   `front_end` is a two-line change that compiles. It would also have broken
   `tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst`, which
@@ -8734,7 +8732,7 @@ every session. Nothing below was reworded on the way.
   `#$&()*+-.?[\]^{|}~`, against 22 there, `!#$()*+-./:<=>?[\]^{|}` — because `&` and `~` are meta
   to the Rust engine's character-class set operators and not to PCRE, `!:<=>` are meta to neither
   engine and PCRE's launderer escapes them anyway, and `/` is escaped only because a delimiter was
-  handed in, which ADR 0056 § 5 removed. The outputs are therefore not comparable at all, and what
+  handed in, which `rule:core-classes/regex-syntax` removed. The outputs are therefore not comparable at all, and what
   is counted instead is the property both launderers exist for: over the whole 95 × 95
   printable-ASCII grid a quoted character matches itself and nothing else, the same holds over a 20
   × 39 grid of metacharacter-carrying literals against the strings their unlaundered reading would
@@ -8895,7 +8893,7 @@ every session. Nothing below was reworded on the way.
   reported a tag *number* only this crate can read, that arm being where a `bytes` argument lands
   as `Encodable::text`'s own doc comment already said.
 - **`decodeAs<T>`'s codec refusal is the same rule read from the other end, and it is asserted as
-  an agreement**: ADR 0071 § 5 makes one attribute decide both directions of the wire, so over
+  an agreement**: `rule:core-classes/derive-reports-every-field` makes one attribute decide both directions of the wire, so over
   three classes declaring the same two fields the two members answer alike on all three and exactly
   one participates. Two claims sit past that — the codec is read *before* the document, so one
   unreadable text is a `LogicError` for a class with no codec and a `ParseError` for one with, and

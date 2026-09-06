@@ -1,5 +1,4 @@
-//! [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-//! § 3's end-of-script sweep: the directories `Core\IO::temporaryDir` handed
+//! `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep: the directories `Core\IO::temporaryDir` handed
 //! this script, deleted when the script ends.
 //!
 //! The program is never asked to clean up and never asked to remember. What it
@@ -65,7 +64,7 @@ use nvs_render::Level;
 use crate::ctx::Ctx;
 
 /// Deletes every temporary directory this script was handed, and logs the ones
-/// the operating system refused — [ADR 0131] § 3, called from `Ctx::drop`.
+/// the operating system refused — `rule:core-classes/temporary-dir-sweep`, called from `Ctx::drop`.
 ///
 /// Draining, so a second call has nothing to do: a request that died mid-flight
 /// and then ended ordinarily is swept once
@@ -79,7 +78,6 @@ use crate::ctx::Ctx;
 /// than part of the message so that a log pipeline can count refusals per root
 /// (`rule:errors/record-transformations`).
 ///
-/// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 pub fn at_script_end(ctx: &mut Ctx) {
     let taken = ctx.take_temporary_dirs();
     if taken.is_empty() {
@@ -100,7 +98,7 @@ pub fn at_script_end(ctx: &mut Ctx) {
     }
 }
 
-/// Whether `[debug] keep_temporary` is on — [ADR 0131] § 5's one escape hatch,
+/// Whether `[debug] keep_temporary` is on — `rule:core-classes/temporary-dir-sweep`'s one escape hatch,
 /// and the operator's alone.
 ///
 /// Read off the snapshot, like `capability`'s `temp_root` beside it, because
@@ -111,7 +109,6 @@ pub fn at_script_end(ctx: &mut Ctx) {
 /// problematic request and off again" true — the next script to end reads the
 /// snapshot the reload published.
 ///
-/// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 fn keep_temporary(ctx: &Ctx) -> bool {
     ctx.config()
         .and_then(|config| config.snapshot().config.debug.as_ref())
@@ -192,7 +189,7 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 }
 
 /// Whether the process that created the entry at `path` is still running —
-/// [ADR 0131] § 4's predicate, and the only thing the orphan sweep decides on.
+/// `rule:core-classes/temporary-dir-orphan-sweep`'s predicate, and the only thing the orphan sweep decides on.
 ///
 /// **A function over a path and nothing else**: no context, no configuration,
 /// no directory walk and no clock. [`orphans`] is the walk that asks it of one
@@ -213,7 +210,6 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 /// until a later sweep — § 4 takes that direction deliberately, and the goal's
 /// own standing decisions settle it rather than leaving it to a caller.
 ///
-/// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 #[must_use]
 pub fn owner_is_alive(path: &std::path::Path) -> bool {
     let Some(pid) = owning_pid(path) else {
@@ -222,7 +218,7 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
     pid_is_alive(pid)
 }
 
-/// [ADR 0131] § 4's walk: the entries of the owned root whose owner is dead,
+/// `rule:core-classes/temporary-dir-orphan-sweep`'s walk: the entries of the owned root whose owner is dead,
 /// sorted, and nothing deleted.
 ///
 /// **It answers rather than acts**, because that is the whole of what § 4's two
@@ -252,7 +248,6 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
 /// order, rather than in whatever order the filesystem enumerated. The cost is
 /// a sort over one directory, paid twice in the life of a machine.
 ///
-/// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 #[must_use]
 pub fn orphans(root: &std::path::Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(root) else {

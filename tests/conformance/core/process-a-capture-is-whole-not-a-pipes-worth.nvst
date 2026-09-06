@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process\Result::stdout` and `::stderr` hand back the whole of what the child wrote and not a pipe buffer's worth — a sweep of sizes named on both sides of 64 KiB, measured on both streams at once — ADR 0044 § 1
+`Core\Process\Result::stdout` and `::stderr` hand back the whole of what the child wrote and not a pipe buffer's worth — a sweep of sizes named on both sides of 64 KiB, measured on both streams at once — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // Every case already here asks about a capture no larger than a marker word.

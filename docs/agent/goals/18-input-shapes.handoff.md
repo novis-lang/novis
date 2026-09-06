@@ -35,7 +35,7 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
 ## Backlog
 
 - Stage 3 (`Core\Arr::shapeAs<T>`, the five edits, hydrating through `as` and collecting every failure
-  into one `ParseError` the way ADR 0071's derived hydration does) is the second group. It shares
+  into one `ParseError` the way `rule:core-classes/derive-attribute`'s derived hydration does) is the second group. It shares
   `nvs-types` with stage 2 through `expr/args.rs` — the third written type argument — and adds
   `crates/nvs-stdlib/src/arr.rs` and `json.rs`.
 - Stage 4 (`postAs`/`queryAs` beside `post`) is the third. `crate::uri::parse_query` already answers the

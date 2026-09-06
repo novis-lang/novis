@@ -1,4 +1,4 @@
-//! ADR 0071's two derived codecs, lowered: a `#[Json\Derive]` class fills
+//! `rule:core-classes/derive-attribute`'s two derived codecs, lowered: a `#[Json\Derive]` class fills
 //! `ir::Class::codec`, a `#[Db\Derive]` one fills `ir::Class::db_codec`, and
 //! neither fills the other's.
 //!

@@ -50,7 +50,7 @@ OUTCOMES = {"member", "language", "dropped", "open"}
 #
 # **The three database extensions came off it on 2026-08-29**, when the oracle build gained `mysqli`,
 # `pgsql` and `sqlite3` and the inventory was regenerated: 925 functions became 1151. That is the
-# point at which [ADR 0067](../docs/adr/0067-core-db.md)'s central claim -- one API replaces `PDO`,
+# point at which `rule:core-classes/db-one-api`'s central claim -- one API replaces `PDO`,
 # `mysqli`, `pgsql` and `sqlite3` -- stops being an assertion about four APIs and becomes an audit of
 # 236 named functions. Everything still on this list is either a Tier 1 extension (`gd`, `intl`,
 # `zip`, `exif`) or a subsystem whose replacement is `Core`'s own, and none of it is parity work.

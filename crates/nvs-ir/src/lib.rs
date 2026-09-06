@@ -539,7 +539,7 @@
 //!     `rule:types/conversion`'s closed table is `E0708` where it is written
 //!     (`nvs_types::expr::operators`' `reject_unconvertible`), every object
 //!     target with no class to test against is `E0711` beside it, and the last
-//!     row that used to arrive with no lowering — ADR 0024 § 5's
+//!     row that used to arrive with no lowering — `rule:core-classes/html-auto-escape`'s
 //!     `string as Core\Html\Markup` — is
 //!     `lower::Lowering::lower_markup_lift`. That one is a *rule* rather than
 //!     a test: the operand is a source literal or it is `E0417`, so what the

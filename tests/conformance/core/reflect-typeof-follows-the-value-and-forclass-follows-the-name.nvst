@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::typeOf` answers about the value a `mixed` holds now, and `forClass` describes the class its name declares rather than an ancestor of it — ADR 0019 § 1
+`Core\Reflect::typeOf` answers about the value a `mixed` holds now, and `forClass` describes the class its name declares rather than an ancestor of it — `rule:core-classes/reflect`
 --FILE--
 <?nvs
 // `typeOf` reads the value and not the declaration, which is the whole reason

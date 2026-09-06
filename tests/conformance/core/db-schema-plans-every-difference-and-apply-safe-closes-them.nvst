@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Schema::planAgainst` answers every difference between a schema value and a live database, and `applySafe` closes them — after which planning the same schema again is empty — ADR 0145 §§ 5, 6, 9
+`Core\Db\Schema::planAgainst` answers every difference between a schema value and a live database, and `applySafe` closes them — after which planning the same schema again is empty — `rule:core-classes/schema-is-a-value`, `rule:core-classes/schema-plan` and `rule:core-classes/schema-apply-capability`
 --FILE--
 <?nvs
 // The one `Core\Db\Schema` case in this tree that reaches a *running*

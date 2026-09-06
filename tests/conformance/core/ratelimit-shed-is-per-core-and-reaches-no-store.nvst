@@ -1,8 +1,8 @@
 --TEST--
-Core\RateLimit::shed decides from this core's own memory, with no store configured — ADR 0075 §§ 1 and 2
+Core\RateLimit::shed decides from this core's own memory, with no store configured — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
-// ADR 0075 § 1's second job: dropping load to keep a host up, where an
+// `rule:core-classes/ratelimit-two-members`'s second job: dropping load to keep a host up, where an
 // approximate answer is adequate and the state is this core's own memory. No
 // `[cache.shared] url` is configured here and none is needed — which is the
 // whole difference from `consume`, and the reason this member declares no
@@ -26,7 +26,7 @@ if ($third->allowed()) {
     echo "third refused", "\n";
 }
 
-// ADR 0075 § 2: a refusal carries the exact wait, computed rather than
+// `rule:core-classes/ratelimit-gcra`: a refusal carries the exact wait, computed rather than
 // estimated — half an hour, because one of the two units drains in half the
 // period. Not "sometime in the next hour", which is the answer that makes every
 // refused client come back in the same instant. Rounded up for the same reason

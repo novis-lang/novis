@@ -1,5 +1,5 @@
 --TEST--
-`lastId` is a reading of the write that produced it and the connection has no member for it at all, so an unrelated statement in between cannot make it stale — ADR 0067 §§ 4 and 12, spec § 18
+`lastId` is a reading of the write that produced it and the connection has no member for it at all, so an unrelated statement in between cannot make it stale — `rule:core-classes/db-statement-members` and `rule:core-classes/db-one-api`, spec § 18
 --FILE--
 <?nvs
 // `mysqli_insert_id` and `PDO::lastInsertId` read a *session* value: any

@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::consume refuses a limit no arrival could ever pass, on both sides of the bound — ADR 0075 §§ 1 and 2
+Core\RateLimit::consume refuses a limit no arrival could ever pass, on both sides of the bound — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
 // § 2's GCRA is a drain rate and a tolerance derived from `$limit`, `$per` and

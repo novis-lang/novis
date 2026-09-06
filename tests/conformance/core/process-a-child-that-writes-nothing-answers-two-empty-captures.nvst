@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process\Result::stdout` and `::stderr` answer a zero-length capture for a child that wrote nothing — the absence edge both members are written around, measured rather than tested for truthiness — ADR 0044 § 1
+`Core\Process\Result::stdout` and `::stderr` answer a zero-length capture for a child that wrote nothing — the absence edge both members are written around, measured rather than tested for truthiness — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // The other side of the bound `process-a-completed-runs-two-streams-stay-apart.nvst`

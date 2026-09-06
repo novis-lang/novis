@@ -86,7 +86,7 @@
 //! checker refuses it, so a key stays out of `echo`, out of a log and out of a
 //! `Throwable` message by construction rather than by review. And a `secret`
 //! key reaches `seal` without any member removing the mark, so `Core\Crypto`
-//! writes no [`Qual::Reveal`] and ADR 0033 § 3's launderer roster stays the two
+//! writes no [`Qual::Reveal`] and `rule:core-classes/secret-reveal`'s launderer roster stays the two
 //! classes `nvs_types`'
 //! `reveal_and_the_password_helpers_are_the_only_launderers_of_secret` closes
 //! it at.

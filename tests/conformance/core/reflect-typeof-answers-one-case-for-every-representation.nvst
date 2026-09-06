@@ -1,8 +1,8 @@
 --TEST--
-`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — ADR 0019 § 1, `rule:types/closure-literal`
+`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — `rule:core-classes/reflect`, `rule:types/closure-literal`
 --FILE--
 <?nvs
-// ADR 0019 § 1: reflection is read-only, and this member is the extreme of
+// `rule:core-classes/reflect`: reflection is read-only, and this member is the extreme of
 // that — it reads the tag and never the value. The cases partition the
 // representations, so the `match` below needs no `default`: every value
 // reaches exactly one arm, which is what makes one call the replacement for

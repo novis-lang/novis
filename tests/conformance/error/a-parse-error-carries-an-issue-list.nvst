@@ -1,5 +1,5 @@
 --TEST--
-ParseError carries spec § 10's `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — ADR 0071 § 5
+ParseError carries spec § 10's `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // § 5: `issues` is declared `array<Issue>`, not `?array<Issue>`, so it is
@@ -11,7 +11,7 @@ try {
     echo "message=", $plain->message, "\n";
 }
 
-// ADR 0071 § 5's last sentence: a malformed document records one issue, so a
+// `rule:core-classes/derive-reports-every-field`'s last sentence: a malformed document records one issue, so a
 // `catch` reads the same shape whether the syntax or the fields were wrong.
 try {
     Core\Json::decode("{oops}");

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — ADR 0071 §§ 2 and 5
+`Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // § 2 admits an `array<T>` field wherever `T` is codec-reachable. `Author`

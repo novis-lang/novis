@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::consume takes burst and cost in one trailing shape, and every parameter by name — ADR 0075 § 1, ADR 0063 R2
+Core\RateLimit::consume takes burst and cost in one trailing shape, and every parameter by name — `rule:core-classes/ratelimit-two-members`, ADR 0063 R2
 --FILE--
 <?nvs
 // § 1's signature is subject first, the two required arguments in dataflow

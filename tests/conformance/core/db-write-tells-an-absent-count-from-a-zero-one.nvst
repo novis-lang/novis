@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Db\Write`'s three readings differ in what may be missing — `affected` is a `uint` and the other two are `?uint` — so a count that does not exist is not silently a zero, ADR 0067 § 4, spec § 18
+A `Core\Db\Write`'s three readings differ in what may be missing — `affected` is a `uint` and the other two are `?uint` — so a count that does not exist is not silently a zero, `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
 // The bound asserted on both sides. `affected` always answers a number, so it

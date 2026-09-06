@@ -187,7 +187,7 @@ pub fn execute_many<S: Read + Write>(
             io::ErrorKind::InvalidInput,
             format!(
                 "one executeMany bound {arity} parameters in its first set and {} in another, and \
-                 ADR 0067 § 4's one prepare has one parameter count",
+                 `rule:core-classes/db-statement-members`'s one prepare has one parameter count",
                 odd.len()
             ),
         ));

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Column::type` answers a `Core\Db\ColumnType` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — ADR 0067 § 9, spec § 18
+`Core\Db\Column::type` answers a `Core\Db\ColumnType` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 var $db = Core\Db::connect("main");
@@ -13,7 +13,7 @@ foreach ($db->query("select id, payload from events", [])->columns() as Core\Db\
 
     // And the split its own docs are written around: a case describes what the
     // column was *declared* as and never what a read of it produces, so a
-    // `JSON` column and a `TEXT` one are told apart here although ADR 0067 § 9
+    // `JSON` column and a `TEXT` one are told apart here although `rule:core-classes/db-column-types`
     // reads both back as a `tainted string`.
     bool $json = $column->type() == Core\Db\ColumnType::Json;
     bool $text = $column->type() == Core\Db\ColumnType::Text;

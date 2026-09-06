@@ -47,8 +47,7 @@
 //!   § 2's contract. A build-time consumer's input, never a runtime feature;
 //!   see [`meta`].
 //! * `nvs tmp clean` —
-//!   [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-//!   § 4's orphan sweep, run by hand: every entry under the owned temporary
+//!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of § 4, which is the same walk at boot.
@@ -318,7 +317,7 @@ enum Command {
     /// Build and inspect the durable job queue's own tables.
     ///
     /// A namespace of the operator's rather than the program's:
-    /// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) § 2 gives
+    /// `rule:core-classes/queue-storage-is-a-table` gives
     /// the runtime the queue's schema and has it created by an explicit command,
     /// never at boot and never from a request. See [`queue`].
     Queue {
@@ -328,8 +327,7 @@ enum Command {
     /// Clear what a hard-killed script left in the temporary root.
     ///
     /// The operator's half of
-    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 4: the runtime deletes a temporary directory when its script ends and
+    /// `rule:core-classes/temporary-dir-orphan-sweep`: the runtime deletes a temporary directory when its script ends and
     /// reclaims the rest at `nvs serve` boot, and this is how a machine that
     /// never boots a server clears them. See [`tmp`].
     Tmp {
@@ -440,14 +438,14 @@ enum ConfigCommand {
 
 /// `nvs queue`'s own subcommands.
 ///
-/// One today, and `migrate` is the one ADR 0084 § 2 names outright. Everything
+/// One today, and `migrate` is the one `rule:core-classes/queue-storage-is-a-table` names outright. Everything
 /// else an operator might want of a queue — its depth, a job retried by hand —
 /// is a question `Core\Queue::stats` already answers from inside a request, and
 /// a second answer here would need this binary to open a connection for it,
 /// which is the same wall [`queue`]'s own module doc describes.
 #[derive(Subcommand)]
 enum QueueCommand {
-    /// Create ADR 0084 § 2's jobs and dead-letter tables in the queue's
+    /// Create `rule:core-classes/queue-storage-is-a-table`'s jobs and dead-letter tables in the queue's
     /// database.
     ///
     /// The statements are the runtime's own — `nvs_stdlib::queue`'s own lists,
@@ -470,7 +468,7 @@ enum QueueCommand {
 
 /// `nvs tmp`'s own subcommands.
 ///
-/// One, and there is deliberately no second: ADR 0131 § 4 gives the sweep one
+/// One, and there is deliberately no second: `rule:core-classes/temporary-dir-orphan-sweep` gives the sweep one
 /// predicate — the owning process is not alive — and no flag that overrides it,
 /// so there is nothing for an operator to ask beyond "do it" and "tell me what
 /// you would do".
@@ -759,7 +757,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
-/// ADR 0067 § 10's check-time question, asked of the `nvs.toml` this machine
+/// `rule:core-classes/db-literal-query-checking`'s check-time question, asked of the `nvs.toml` this machine
 /// resolves.
 ///
 /// `config` is the `--config` list when the caller wants that question asked and
@@ -873,7 +871,7 @@ fn front_end_granted(
 /// `autoload`'s literals are written against (§ 1).
 ///
 /// This is the one front end that reads the configuration
-/// ([`front_end_granted`]), so `nvs check` answers ADR 0067 § 10's question
+/// ([`front_end_granted`]), so `nvs check` answers `rule:core-classes/db-literal-query-checking`'s question
 /// about a literal `Core\Db::open` host and reports a `nvs.toml` that does not
 /// resolve as the configuration error it is.
 fn run_check(
@@ -1233,7 +1231,7 @@ fn run_run(
         return ExitCode::FAILURE;
     };
 
-    // ADR 0084 § 2's `workers` is per *instance*, and a CLI run is one — so a
+    // `rule:core-classes/queue-storage-is-a-table`'s `workers` is per *instance*, and a CLI run is one — so a
     // run of this tree claims jobs beside its script, including ones another
     // instance enqueued and never finished. Read here rather than inside the
     // worker because the snapshot is moved onto the context a dozen lines

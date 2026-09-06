@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — ADR 0071 §§ 2 and 5, ADR 0063 R4
+`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, ADR 0063 R4
 --FILE--
 <?nvs
-// ADR 0071 § 5: a class participates in a wire format by carrying the
+// `rule:core-classes/derive-reports-every-field`: a class participates in a wire format by carrying the
 // attribute. These three declare the same two fields; only the first line of
 // the first one differs, which is what makes the pair a bound rather than two
 // examples.

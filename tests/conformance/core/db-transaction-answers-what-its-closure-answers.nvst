@@ -1,8 +1,8 @@
 --TEST--
-`transaction` answers the closure's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — ADR 0067 § 7, spec § 18
+`transaction` answers the closure's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — `rule:core-classes/db-transactions`, spec § 18
 --FILE--
 <?nvs
-// ADR 0067 § 7 writes the member `transaction(callable $fn): T` — the answer is
+// `rule:core-classes/db-transactions` writes the member `transaction(callable $fn): T` — the answer is
 // the closure's own, so a transaction is scenery around a call that computes
 // whatever it was going to compute. That is what lets an existing expression be
 // wrapped in one without retyping anything around it.

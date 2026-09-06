@@ -28,7 +28,7 @@ use super::*;
 /// from a declaration.
 ///
 /// **Every qualifier classification lands on a field**, § 3's rule: `host` is
-/// a [`Qual::Sink`] because ADR 0067 § 3 makes an address one and gives it no
+/// a [`Qual::Sink`] because `rule:core-classes/db-capabilities` makes an address one and gives it no
 /// launderer, `path` is one because a program-supplied SQLite file is a path
 /// sink, `database` and `user` accept `tainted` freely as length-prefixed
 /// protocol fields, and `password` is `secret tainted string`. The parameter
@@ -147,7 +147,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         name: "shared",
                         ty: CoreTy::Bool,
                         // Memoized is the default and the option only turns it
-                        // off, which is ADR 0067 § 2's `{shared: false}`.
+                        // off, which is `rule:core-classes/db-connection-is-named`'s `{shared: false}`.
                         default: Const::Bool(true),
                     },
                     CoreOption {
@@ -172,8 +172,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 CoreTy::Options(&[CoreOption {
                     name: "shared",
                     ty: CoreTy::Bool,
-                    // `connect`'s default, for `connect`'s reason — ADR 0067
-                    // § 2 memoizes by default and the option only turns it off.
+                    // `connect`'s default, for `connect`'s reason — `rule:core-classes/db-connection-is-named` memoizes by default and the option only turns it off.
                     default: Const::Bool(true),
                 }]),
             ],
@@ -229,7 +228,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `rule:classes/no-traits` makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
-/// ADR 0067 § 4's `{timeout?: Duration}`, the one option every statement member
+/// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`, the one option every statement member
 /// carries.
 ///
 /// One constant rather than ten copies of it: § 4 gives `query`, `queryAs`,
@@ -466,7 +465,7 @@ const IS_OPEN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// ADR 0067 § 7's `{isolation?, readOnly?, retries?}` — the bag
+/// `rule:core-classes/db-transactions`'s `{isolation?, readOnly?, retries?}` — the bag
 /// [`TRANSACTION_ROW`] declares last, per ADR 0063 R2.
 ///
 /// **Every default is § 7's own and each is a decision rather than a
@@ -501,7 +500,7 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// ADR 0067 § 7's `transaction`, written once because it is declared once: the
+/// `rule:core-classes/db-transactions`'s `transaction`, written once because it is declared once: the
 /// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
 /// carry it, a nested call on the second being the savepoint § 7 asks for.
 ///
@@ -673,7 +672,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
 /// [`SETTINGS`] and every message quoting one cannot drift apart.
 pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 
-/// Spec § 18's `Driver` — ADR 0067's five backends, as the registry half of
+/// Spec § 18's `Driver` — `rule:core-classes/db-one-api`'s five backends, as the registry half of
 /// [`nvs_db::Driver`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
@@ -742,7 +741,7 @@ pub(crate) const TLS_NAME: &str = r"Core\Db\Tls";
 /// checks.
 ///
 /// **`VerifyFull` is the default and it is the only mode this runtime
-/// implements**, which is ADR 0067 § 3's third closed hole: PHP's `pdo_pgsql`
+/// implements**, which is `rule:core-classes/db-capabilities`'s third closed hole: PHP's `pdo_pgsql`
 /// defaults to `sslmode=prefer` and connects in plaintext whenever the server
 /// says so, and none of § 3's three defaults is configurable to the unsafe
 /// value. The other three cases are declared because § 18 declares them and a
@@ -800,7 +799,7 @@ pub(super) const TLS_DOC: EnumDoc = EnumDoc {
 /// that will take it and every message quoting it cannot drift apart.
 pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
 
-/// Spec § 18's `Isolation` — ADR 0067 § 7's five levels, as the registry half
+/// Spec § 18's `Isolation` — `rule:core-classes/db-transactions`'s five levels, as the registry half
 /// of [`nvs_db::Isolation`].
 ///
 /// **The two halves are one enum and the wire one is authoritative.** This
@@ -872,7 +871,7 @@ pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// together rather than this sentence.
 pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 8's `ErrorKind` — the
+/// `rule:core-classes/db-error`'s `ErrorKind` — the
 /// eleven conditions an application branches on, as the registry half of
 /// [`nvs_db::DbErrorKind`].
 ///
@@ -987,7 +986,7 @@ pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\ColumnType";
 /// classifies a column into, and its doc comment owns the rule every
 /// description below is written to: **a case says what the column was
 /// *declared* as, never what a read of it produces.** That is why `Json` is a
-/// case of its own although [ADR 0067](/docs/adr/0067-core-db.md) § 9
+/// case of its own although `rule:core-classes/db-column-types`
 /// decodes a `JSON` column to the same `tainted string` a `TEXT` one decodes
 /// to, and why there is no array case at all — § 9 reads a PostgreSQL array as
 /// `array<T>` and MySQL's `SET` as `array<string>`, and both *describe* as
@@ -1127,7 +1126,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// rather than a fourth, so `foreach ($rows as Row $row)` and `all()` are one
 /// walk over one array of rows: neither copies what the other already holds.
 ///
-/// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
+/// **Buffered is `rule:core-classes/db-statement-members`'s default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
 /// `query` returns. § 4 chose that over the alternative because
 /// `rule:programs/memory-priority` ranks memory
@@ -1213,13 +1212,13 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 };
 
 /// Spec § 18's `Core\Db\Row` — one row of a [`ROWS`], and the whole of what
-/// ADR 0067 § 6 puts in place of `FETCH_ASSOC`, `FETCH_NUM` and `FETCH_OBJ`.
+/// `rule:core-classes/db-column-types` puts in place of `FETCH_ASSOC`, `FETCH_NUM` and `FETCH_OBJ`.
 ///
 /// **The three orderings PHP makes a fetch mode of are one shape here.** A row
 /// is a string-keyed array of its columns and nothing else, so there is no
 /// numeric twin to ask for and no object twin either: `get`/`toArray` are the
 /// associative reading, the typed readers below are what an object reading was
-/// wanted for, and `queryAs<T>` — ADR 0071's `#[Db\Derive]` — is where a real
+/// wanted for, and `queryAs<T>` — `rule:core-classes/derive-attribute`'s `#[Db\Derive]` — is where a real
 /// class comes from. A fetch-mode argument would be [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R11's flag deciding what a member returns, which is the thing that section
 /// removes.
@@ -1255,7 +1254,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             names: &["name"],
             // § 18's own annotation on this row, and what every other name
             // parameter in this class carries too: a column name is a lookup
-            // key, so what comes back carries the qualifiers ADR 0067 § 9 gives
+            // key, so what comes back carries the qualifiers `rule:core-classes/db-column-types` gives
             // the *column* and never the name's. `Qual::Sink` would be the
             // wrong word — nothing here executes the name.
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -1387,7 +1386,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
 };
 
 /// Spec § 18's `Core\Db\Write` — what a statement that answers no rows answers
-/// with, and the whole of what ADR 0067 § 4 puts in place of `rowCount` on a
+/// with, and the whole of what `rule:core-classes/db-statement-members` puts in place of `rowCount` on a
 /// write, `lastInsertId` and `mysqli_info`.
 ///
 /// **Three readers rather than § 18's three readonly properties**, which is
@@ -1445,7 +1444,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 };
 
 /// Spec § 18's `Core\Db\Column` — one column of what a statement described,
-/// and the whole of what ADR 0067 puts in place of `getColumnMeta` and
+/// and the whole of what `rule:core-classes/db-one-api` puts in place of `getColumnMeta` and
 /// `mysqli_fetch_field`.
 ///
 /// **A description belongs to the statement and not to a row**, which is why
@@ -1522,8 +1521,7 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-/// § 1's `Core\Db\Schema` — a database schema as a value, in the array form
+/// `rule:core-classes/schema-is-a-value`'s `Core\Db\Schema` — a database schema as a value, in the array form
 /// that is its canonical spelling.
 ///
 /// **Two members here and no builders.** § 1 gives a schema three
@@ -1697,8 +1695,7 @@ const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-/// § 6's plan — every difference between a schema value and a database, as a
+/// `rule:core-classes/schema-plan`'s plan — every difference between a schema value and a database, as a
 /// document a program walks.
 ///
 /// **One member, because a plan is a list and nothing else.** Counting by
@@ -1732,7 +1729,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// ADR 0145 § 6's step — one difference, its grade, the sentence explaining the
+/// `rule:core-classes/schema-plan`'s step — one difference, its grade, the sentence explaining the
 /// grade, and the SQL that makes it.
 ///
 /// **Four readers over four slots and no `change()`.** § 2's vocabulary is
@@ -1832,7 +1829,7 @@ const STEP_IS_REFUSED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// ADR 0145 § 6's three grades — what a step can cost, at worst.
+/// `rule:core-classes/schema-plan`'s three grades — what a step can cost, at worst.
 ///
 /// **Three and not two**, because "cannot lose data" and "cannot take the site
 /// down for an hour" are different promises: merging them either refuses an

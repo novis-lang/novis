@@ -1,5 +1,4 @@
-//! [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-//! § 8's DDL: a [`Schema`] value as SQL an operator could paste.
+//! `rule:core-classes/schema-plan`'s DDL: a [`Schema`] value as SQL an operator could paste.
 //!
 //! Every statement this module returns is **complete, terminated and
 //! dialect-correct**, including the ones the applier will refuse to run. § 8's
@@ -1015,7 +1014,7 @@ mod tests {
         identity(dialect).unwrap_or("AUTOINCREMENT")
     }
 
-    /// ADR 0145 § 8: every construct the vocabulary has emits in all four
+    /// `rule:core-classes/schema-plan`: every construct the vocabulary has emits in all four
     /// dialects.
     ///
     /// Asserted as an **invariance over a sweep** and not as four expected
@@ -1166,7 +1165,7 @@ mod tests {
         }
     }
 
-    /// ADR 0145 § 8: the emitters follow `Dialect`, and five drivers are four
+    /// `rule:core-classes/schema-plan`: the emitters follow `Dialect`, and five drivers are four
     /// texts.
     ///
     /// An **agreement** rather than five expected outputs: MariaDB earns no
@@ -1200,7 +1199,7 @@ mod tests {
         assert_eq!(distinct.len(), 4, "five drivers, four dialects");
     }
 
-    /// ADR 0145 § 8: MySQL's first departure — the index is inside the
+    /// `rule:core-classes/schema-plan`: MySQL's first departure — the index is inside the
     /// `CREATE TABLE`.
     ///
     /// The reason is in [`create_table`]'s doc and it is not style: MySQL has
@@ -1239,7 +1238,7 @@ mod tests {
         }
     }
 
-    /// ADR 0145 § 8: MySQL's second departure — an indexed unbounded text
+    /// `rule:core-classes/schema-plan`: MySQL's second departure — an indexed unbounded text
     /// column carries a prefix length.
     ///
     /// A **bound asserted on both sides**: the `LONGTEXT` column takes the

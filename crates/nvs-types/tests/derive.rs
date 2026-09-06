@@ -1,4 +1,4 @@
-//! ADR 0071 §§ 2 and 7's three refusals: a field whose declared type has no
+//! `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`'s three refusals: a field whose declared type has no
 //! wire form, a class that hand-writes both codec halves, and a class whose
 //! derive would generate an empty contract.
 //!
@@ -239,14 +239,14 @@ class Row {
     assert!(!diags.has_errors(), "{diags:?}");
 
     // A class with no property and no attribute is not this pass's business:
-    // ADR 0071 § 8's "a program with no derive attribute pays nothing at all".
+    // `rule:core-classes/derive-generates-what-is-missing`'s "a program with no derive attribute pays nothing at all".
     let diags = check_src("<?nvs\nclass Marker {}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]
 fn db_derive_and_db_field_are_on_the_attribute_roster() {
-    // ADR 0071 § 1's table is `ATTRIBUTES`' one home, and these are the two
+    // `rule:core-classes/derive-attribute`'s table is `ATTRIBUTES`' one home, and these are the two
     // rows it has always carried that the compiler did not.
     assert!(
         derive::ATTRIBUTES.contains(&derive::DB_DERIVE),
@@ -309,7 +309,7 @@ class Own {
 
 #[test]
 fn a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared() {
-    // ADR 0067 § 9's type map has no row for an object: a row is a flat list
+    // `rule:core-classes/db-column-types`'s type map has no row for an object: a row is a flat list
     // of columns, so a nested class is refused at the property that declared
     // it even when that class carries a `#[Db\Derive]` of its own. This is
     // where the two formats' maps first disagree — § 2 admits exactly this
@@ -468,7 +468,7 @@ class Row {
     );
 }
 
-/// The three ways ADR 0067 § 9's map answers "no" for a written `T`, all of
+/// The three ways `rule:core-classes/db-column-types`'s map answers "no" for a written `T`, all of
 /// them at the call — `nvs_types::derive::check_row_sites` is the pass, and
 /// its doc owns why the third cannot move to the declaration.
 #[test]
@@ -526,7 +526,7 @@ class People {
 #[test]
 fn query_as_over_a_list_form_is_refused_at_the_call() {
     // `Core\Json::decodeAs<array<T>>` is a JSON array document and is the
-    // reason `written_class_of` reads the shape at all; ADR 0067 § 4's member
+    // reason `written_class_of` reads the shape at all; `rule:core-classes/db-statement-members`'s member
     // already answers `Rows` of one, so the same spelling here asks for the
     // plural twice.
     let listed = check_src(
@@ -573,7 +573,7 @@ class People {
 
 #[test]
 fn query_as_over_a_class_with_an_opaque_field_is_refused_at_the_call() {
-    // ADR 0071 § 3's escape hatch takes a property off the mapping, and the
+    // `rule:core-classes/derive-field-list`'s escape hatch takes a property off the mapping, and the
     // class stays well formed — `a_db_derive_field_with_no_column_mapping…`
     // above is that refusal, made at the declaration. What it cannot say is
     // that the constructor still demands the parameter, so a row arrives one

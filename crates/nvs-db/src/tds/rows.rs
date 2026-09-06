@@ -242,7 +242,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     }
                     Some(Token::Columns(_)) => {
                         return Err(malformed(String::from(
-                            "the server has a second result set for this statement, and ADR 0067 \
+                            "the server has a second result set for this statement, and `rule:core-classes/db-one-api` \
                              § 4's one-statement-at-a-time surface has nowhere to put it",
                         )));
                     }
@@ -1004,8 +1004,8 @@ mod tests {
         let mut wire = answering(&[payload]);
         let state = Cell::new(State::Executing);
         let mut rows = read_rows(&mut wire, &state, span()).expect("a described result set");
-        let refused =
-            drain_rows(&mut rows).expect_err("ADR 0067 § 4 has nowhere to put the second");
+        let refused = drain_rows(&mut rows)
+            .expect_err("`rule:core-classes/db-statement-members` has nowhere to put the second");
 
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
         assert!(refused.to_string().contains("second result set"));

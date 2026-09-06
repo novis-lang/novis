@@ -121,8 +121,7 @@
 /// # How a `secret` parameter is spelled
 ///
 /// **With a mark, not with a type: [`Self::Reveal`]**, and only
-/// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-/// § 3's `Core\Secret` members write it. That ADR spells the member's signature
+/// `rule:core-classes/secret-reveal`'s `Core\Secret` members write it. That ADR spells the member's signature
 /// `reveal(secret string, string $reason): string` and leaves open how a row
 /// says so; this is that decision, and it is recorded here rather than in an
 /// ADR because what it decides is how a *row* is written.
@@ -153,7 +152,7 @@
 /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 /// § 3's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
 /// the one launderer that names no single sink, and
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 3 makes it the only way
+/// `rule:core-classes/db-capabilities` makes it the only way
 /// through `Settings.host`, which has no launderer of its own — so it earns a
 /// row, and it earns one before anything else it unblocks, because
 /// `nvs_types::expr::args`' shape-field diagnostic already advises the call and
@@ -198,7 +197,7 @@ pub enum Qual {
     Launder,
     /// The one mark on the `secret` axis: this parameter **accepts** a
     /// `secret` argument, and the answer does not carry the qualifier —
-    /// ADR 0033 § 3's named escape hatch, which is why the member alongside it
+    /// `rule:core-classes/secret-reveal`'s named escape hatch, which is why the member alongside it
     /// takes a written `$reason`. [`Self::Launder`]'s twin one axis over, and
     /// **two classes may write it and no third**: `Core\Secret`, whose members
     /// are the escape hatch itself, and `Core\Password`, whose `hash` and
@@ -753,7 +752,7 @@ pub struct CoreOption {
 ///
 /// A qualifier classification lands **here** rather than on the parameter —
 /// `Db\Settings`'s `host` is a [`CoreTy::Text`] at [`Qual::Sink`] because
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 3 makes an address a
+/// `rule:core-classes/db-capabilities` makes an address a
 /// sink, while the shape as a whole classifies nothing.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreField {
@@ -1293,7 +1292,7 @@ pub const CLASSES: &[CoreClass] = &[
     // 0036 shape, and why the questions it answers are also members of
     // `Core\IO` without that being ADR 0063 R17's two spellings.
     crate::io::METADATA,
-    // ADR 0044's one way to run another program, and the result it answers
+    // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
     // with. Beside `Core\IO` because it is the other class that reaches the
     // operating system through a door of its own; its capability row is in
     // [`CAPABILITIES`] alongside that class's.
@@ -1354,7 +1353,7 @@ pub const CLASSES: &[CoreClass] = &[
     // which is where `spawn script`'s grammar already is. The one class here
     // with no members at all; [`crate::script`] owns why that is the point.
     crate::script::HANDLE,
-    // ADR 0012 § 6's `Core\Script::args()`, which replaced ADR 0006's `$_ARGS`
+    // `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced ADR 0006's `$_ARGS`
     // — the read half of `spawn script`'s `args:` option, and a class beside
     // the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
     crate::script::CLASS,
@@ -1471,7 +1470,7 @@ pub const CLASSES: &[CoreClass] = &[
     // ADR 0083 § 3's message, immediately after the class whose `receive`
     // is the only thing that produces one.
     crate::socket::MESSAGE,
-    // ADR 0083 § 4, and beside the class whose `receive` is the only thing a
+    // `rule:core-classes/topic`, and beside the class whose `receive` is the only thing a
     // topic delivery arrives through: the bus is the *second* of § 3's two
     // sources, so it is not a facility of its own but the far end of a member
     // already registered above. [`crate::topic`] owns why the subscriber table
@@ -1502,7 +1501,7 @@ pub const CLASSES: &[CoreClass] = &[
     // reasoned call each — and [`Qual`]'s doc comment is the home of why this
     // one writes [`Qual::Launder`] and names no single sink.
     crate::taint::CLASS,
-    // ADR 0033 § 3, and no spec § of its own: what this class is for is decided
+    // `rule:core-classes/secret-reveal`, and no spec § of its own: what this class is for is decided
     // by the qualifier's ADR, because a member that removes `secret` is a rung
     // of that mechanism rather than a library facility. The only class that may
     // write [`Qual::Reveal`] — see that variant's own docs — and
@@ -1529,7 +1528,7 @@ pub const CLASSES: &[CoreClass] = &[
     // closed roster and why a language outside it is refused.
     crate::cldr::CLASS,
     // § 16, and beside `Core\Secret` rather than in section order because the
-    // two are one mechanism: ADR 0033 § 3 has exactly two operations that take
+    // two are one mechanism: `rule:core-classes/secret-reveal` has exactly two operations that take
     // a `secret` and answer something that is not one, and these are the rows
     // of the second. [`crate::password`] owns the parameters and why there is
     // no argument for them.
@@ -1577,7 +1576,7 @@ pub const CLASSES: &[CoreClass] = &[
     // No spec § of its own yet — § 20's roster row names the class, and
     // [`crate::html`] owns why `sanitize` and the WHATWG parser are not here.
     crate::html::CLASS,
-    // ADR 0024 § 5's carrier for that same sink, memberless: `nvs_runtime`
+    // `rule:core-classes/html-auto-escape`'s carrier for that same sink, memberless: `nvs_runtime`
     // already renders it and `nvs_types` already refuses a `tainted` or
     // computed conversion to it, so what this row adds is the registered
     // layout the slot lives in. [`crate::html`] owns why it has no
@@ -1612,7 +1611,7 @@ pub const CLASSES: &[CoreClass] = &[
     // destination and not a different operation. [`crate::cache`]'s module doc
     // is the home of why an entry is a byte payload rather than a live graph.
     crate::cache::STORE,
-    // ADR 0075's limiter for what only the application knows — per account, per
+    // `rule:core-classes/ratelimit-two-members`'s limiter for what only the application knows — per account, per
     // tenant — with edge and flood limiting left to the proxy that owns them.
     // Its state is the same shared store `Core\Cache::shared` names, because a
     // deployment has one.
@@ -1639,7 +1638,7 @@ pub const CLASSES: &[CoreClass] = &[
     // nothing that reaches back into execution, which is what makes § 3's
     // inertness structural rather than promised.
     crate::ast::NODE,
-    // § 18, and ADR 0067 for every semantic behind it. `open` is the one entry
+    // § 18, and `rule:core-classes/db-one-api` for every semantic behind it. `open` is the one entry
     // point still missing, and [`crate::db`]'s known gaps own why: what it
     // needs is a `CoreTy` for a shape parameter, not a body.
     crate::db::CLASS,
@@ -1648,12 +1647,12 @@ pub const CLASSES: &[CoreClass] = &[
     // members are declared here once. `query`, `execute`, `executeMany` and
     // `transaction` are the four that have landed.
     crate::db::CONNECTION,
-    // What ADR 0067 § 7's closure is handed. It carries the same four rows
+    // What `rule:core-classes/db-transactions`'s closure is handed. It carries the same four rows
     // under the same symbols — which is what the delegation above is at
     // runtime — plus `rollBack`, the one member of the pair that is a
     // transaction's alone.
     crate::db::TRANSACTION,
-    // What `query` answers with — ADR 0067 § 4's buffered result set, and all
+    // What `query` answers with — `rule:core-classes/db-statement-members`'s buffered result set, and all
     // six of § 18's readers over it. Five read the rows it holds and
     // `columns()` reads the description beside them, which is why it is
     // readable before a row is.
@@ -1665,7 +1664,7 @@ pub const CLASSES: &[CoreClass] = &[
     // exist until the walk asks the server for it.
     crate::db::STREAM,
     // One row of that set: § 18's associative reading plus the eleven typed
-    // readers ADR 0067 § 6 puts in place of PHP's three fetch modes. Four of
+    // readers `rule:core-classes/db-column-types` puts in place of PHP's three fetch modes. Four of
     // the eleven answer only their refusal until § 9's structured columns land.
     crate::db::ROW,
     // What `execute` answers with: § 4's two counts and the id a `RETURNING`
@@ -1678,17 +1677,17 @@ pub const CLASSES: &[CoreClass] = &[
     // and produced nowhere else. Its `type()` is what gives `crate::db`'s
     // `COLUMN_TYPE` a member that answers one.
     crate::db::COLUMN,
-    // What `inList` answers with: ADR 0067 § 5's explicit expansion marker,
+    // What `inList` answers with: `rule:core-classes/db-parameters`'s explicit expansion marker,
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
     crate::db::IN_LIST,
-    // ADR 0145 § 1's schema value, beside the connection classes because that is
+    // `rule:core-classes/schema-is-a-value`'s schema value, beside the connection classes because that is
     // what it is asked about: a schema is compared against a live database and
     // applied to one. It needs no connection to exist, which is why its two
     // members here are the array form alone — § 9's three are the ones that take
     // a `Core\Db\Connection`.
     crate::db::SCHEMA,
-    // ADR 0145 § 6's plan and its steps, immediately after the schema whose
+    // `rule:core-classes/schema-plan`'s plan and its steps, immediately after the schema whose
     // `planAgainst` answers one: a plan is the value that carries the answer,
     // and neither class is reachable except through that member.
     crate::db::PLAN,
@@ -1923,7 +1922,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // grant would not: a grant would price caching anything as an authority
     // question every deployment then has to answer, and still not bound a byte.
     (crate::cache::NAME, "local", None),
-    // ADR 0075 §§ 1 and 5 write `Core\RateLimit::consume` standing alone, so it
+    // `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` write `Core\RateLimit::consume` standing alone, so it
     // is its own door onto the same store rather than something that has to
     // follow a `Core\Cache::shared()`: it reads the same directive, asks for the
     // same grant at the same host and reuses the same per-core socket.
@@ -1935,7 +1934,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "consume",
         Some(nvs_config::Cap::NetConnect),
     ),
-    // ADR 0075 § 1's other member, and the same asymmetry one class over:
+    // `rule:core-classes/ratelimit-two-members`'s other member, and the same asymmetry one class over:
     // `shed`'s state is the calling core's own memory, so it is `Core\Cache`'s
     // local tier by construction — the row above it is `net.connect` because a
     // coherent limiter is a store on the network, and this one is `None`
@@ -1962,14 +1961,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // declared `fs.write` optional would need a second capability before it
     // could find out whether it had the first.
     (crate::cap::NAME, "has", None),
-    // `rule:programs/framework-core-half`'s transport half, granted the way ADR 0067 § 3 grants a
+    // `rule:programs/framework-core-half`'s transport half, granted the way `rule:core-classes/db-capabilities` grants a
     // database: by the *name* of the block, never by the host inside it. That is
     // what makes the row `mail.send` rather than `net.connect` — a `net.connect`
     // grant is a claim about hosts a program may reach, and this member reaches
     // no host a program can name. [`crate::mail`]'s module doc is the home of
     // why the address is not additionally pinned.
     (crate::mail::NAME, "send", Some(nvs_config::Cap::MailSend)),
-    // ADR 0067 § 3's split. `db.connect` names *blocks* and not hosts, for
+    // `rule:core-classes/db-capabilities`'s split. `db.connect` names *blocks* and not hosts, for
     // `mail.send`'s reason and by the same authority: the endpoint is one an
     // operator wrote into root-owned configuration. `db.open`'s targets are
     // program-supplied and reach ADR 0058's address policy in full, which is
@@ -1981,7 +1980,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // table's claim total rather than "all but a list".
     (crate::db::NAME, "inList", None),
     (crate::db::NAME, "quoteIdentifier", None),
-    // ADR 0145 § 9's split, and the reason `Core\Db\Schema` is a
+    // `rule:core-classes/schema-apply-capability`'s split, and the reason `Core\Db\Schema` is a
     // capability-bearing class at all: reaching a database is not permission to
     // change its shape. `db.schema` gates whether this program may issue DDL to
     // the named block, which is a different question from `db.connect`'s "may
@@ -2192,7 +2191,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::db::ISOLATION,
     crate::db::COLUMN_TYPE,
     crate::db::ERROR_KIND,
-    // ADR 0145 § 6's grade, beside the database enums because it is read off a
+    // `rule:core-classes/schema-plan`'s grade, beside the database enums because it is read off a
     // plan the way `ErrorKind` above is read off a failure.
     crate::db::GRADE,
     // ADR 0084 §§ 4 and 6's job lifecycle, immediately after the database enums
@@ -2596,7 +2595,7 @@ mod tests {
                     class.name
                 );
                 // R5's `…Safe` ban reads the suffix as a claim about *failure*,
-                // and ADR 0145 § 9's `applySafe` is the one member where it is
+                // and `rule:core-classes/schema-apply-capability`'s `applySafe` is the one member where it is
                 // an adjective of the subject instead: it is named for the
                 // grade of the steps it will run, throws where its sibling
                 // `applyIncludingRisky` does not, and is the more refusing of
@@ -3656,7 +3655,7 @@ mod tests {
     /// ADR 0117 § 1's card is reference documentation for someone writing
     /// Novis, and it ships **raw** through `nvs meta --json`: `tools/
     /// reference.py` rewrites citations on its way to the website, but that
-    /// consumer never sees the rewrite, so "throws as ADR 0056's two engines
+    /// consumer never sees the rewrite, so "throws as `rule:core-classes/regex-two-tiers`'s two engines
     /// require" reaches a reader who has no ADR tree and cannot follow it.
     /// The rule is therefore on the card itself rather than on any renderer —
     /// say *what is true*, and leave the reason to the Rust doc comment
@@ -4159,10 +4158,10 @@ mod tests {
     /// because a style is built and worn rather than interrogated. The eighth
     /// is `Core\Html\Markup`, the other sink carrier and so `Core\Cli\Text`'s
     /// entry for the same reason — `value_to_string` reads its one slot — with
-    /// ADR 0024 § 5 adding that it has no constructor either, a member taking
+    /// `rule:core-classes/html-auto-escape` adding that it has no constructor either, a member taking
     /// a runtime string being the bypass that section closes
     /// ([`crate::html`]). The ninth is `Core\Db\InList`, whose one slot the
-    /// bind reads: ADR 0067 § 5's expansion marker is accepted at exactly one
+    /// bind reads: `rule:core-classes/db-parameters`'s expansion marker is accepted at exactly one
     /// position and nowhere else, so a member answering the values back would
     /// be a surface on a thing whose whole content is where it may appear
     /// ([`crate::db`]). The last is `Core\Request\BodyStream`, whose one slot

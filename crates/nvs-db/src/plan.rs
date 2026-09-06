@@ -1,5 +1,4 @@
-//! [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-//! §§ 6-8: a plan is a document, and a step in it is a change plus the reason
+//! `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`: a plan is a document, and a step in it is a change plus the reason
 //! it costs what it costs.
 //!
 //! This module is the plan's *vocabulary* and holds no SQL. What a change is

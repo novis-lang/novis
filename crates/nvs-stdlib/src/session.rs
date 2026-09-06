@@ -8,7 +8,7 @@
 //! identifier the client presented, loads the record the store issued it for, and issues a fresh
 //! one where there is none. The other six operate on the record `start` left on the request
 //! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 4 was buying, and worth nothing if
+//! `rule:core-classes/session-is-started-explicitly` was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
 //! **§ 4's write-back is on disk too.** [`write_back`] marks the record changed on the request,
@@ -537,7 +537,7 @@ pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<(), String> {
 ///
 /// The whole record and not one key of it, per § 4: one session is one entry, which is what keeps
 /// `clear`, `regenerate` and `destroy` single-key operations over a store
-/// [ADR 0075](/docs/adr/0075-core-ratelimit.md) § 4 gives no multi-key atomic step.
+/// `rule:core-classes/ratelimit-two-members` gives no multi-key atomic step.
 ///
 /// A `ttl` under a second rounds **up** to one rather than down to zero: zero is `SET`'s spelling
 /// for an error, and a record written with no expiry at all is § 5's sweeper coming back.

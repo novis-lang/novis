@@ -1,5 +1,4 @@
-//! [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-//! § 3's second sentence: the `Core` members whose written **reason** has to be
+//! `rule:core-classes/html-to-source`'s second sentence: the `Core` members whose written **reason** has to be
 //! in the source, and the hook that refuses one that is not.
 //!
 //! The sibling of [`crate::intrinsics`], [`crate::links`], [`crate::retrieval`]
@@ -26,7 +25,7 @@
 //!   pulled out to a named constant is still greppable and still at the site
 //!   in every way a reader cares about, which is `Core\Secret::reveal`'s own
 //!   position on the same question.
-//! * **An empty reason is deliberately not this pass's.** ADR 0133 § 3 refuses
+//! * **An empty reason is deliberately not this pass's.** `rule:core-classes/html-to-source` refuses
 //!   one and the body already throws on it at run time (`nvs_stdlib::html`),
 //!   which `tests/conformance/core/to-source-refuses-an-empty-reason-and-takes-any-written-one.nvst`
 //!   pins *as a throw*. Refusing it here would make that throw unreachable for
@@ -69,7 +68,7 @@ struct Reason {
     param: &'static str,
 }
 
-/// ADR 0133 § 3's one member, and every future row that earns its own section.
+/// `rule:core-classes/html-to-source`'s one member, and every future row that earns its own section.
 static REASONS: &[Reason] = &[Reason {
     owner: r"Core\Html",
     member: "toSource",
@@ -118,7 +117,7 @@ pub(crate) fn check_call(
         )
         .with_primary(span, "written here")
         .with_help(
-            "ADR 0133 § 3: this is an escape hatch, and what makes it safe is that it is rare, \
+            "`rule:core-classes/html-to-source`: this is an escape hatch, and what makes it safe is that it is rare, \
              greppable and carries a justification a reader can see — a reason that can be \
              computed is a reason nobody wrote. A `const` holding the text is a source literal \
              and compiles",

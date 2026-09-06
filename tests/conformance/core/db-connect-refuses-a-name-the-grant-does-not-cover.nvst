@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::connect asks `db.connect` about the block's name before it reads any configuration, so an ungranted name learns nothing about which blocks exist — ADR 0067 §§ 2-3, ADR 0118 §§ 1, 5
+Core\Db::connect asks `db.connect` about the block's name before it reads any configuration, so an ungranted name learns nothing about which blocks exist — `rule:core-classes/db-connection-is-named` and `rule:core-classes/db-capabilities`, ADR 0118 §§ 1, 5
 --FILE--
 <?nvs
 // `db.connect` grants `main` and nothing else. Both names below are written

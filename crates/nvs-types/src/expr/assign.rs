@@ -893,7 +893,7 @@ pub(crate) fn check_compound_assign(
     if op == BinaryOp::Concat {
         require_stringable(target_ty, target.span, env);
         require_stringable(value_ty, value.span, env);
-        // ADR 0133 § 2, for `.`'s compound spelling — the same row is missing
+        // `rule:core-classes/html-escape-answers-markup`, for `.`'s compound spelling — the same row is missing
         // on both sides of it.
         reject_carrier_as_text(target_ty, target.span, env);
         reject_carrier_as_text(value_ty, value.span, env);

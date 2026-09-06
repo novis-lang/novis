@@ -1,5 +1,5 @@
 --TEST--
-ADR 0056: a pattern the linear engine cannot express still runs, and exhausting the backtracking budget throws
+`rule:core-classes/regex-two-tiers`: a pattern the linear engine cannot express still runs, and exhausting the backtracking budget throws
 --FILE--
 <?nvs
 // The linear tier cannot express a lookahead or a backreference, so both of
@@ -8,7 +8,7 @@ echo (Core\Regex::matches("foobar", "foo(?=bar)") as string), "|\n";
 echo (Core\Regex::matches("foobaz", "foo(?=bar)") as string), "|\n";
 echo (Core\Regex::matches("abcabc", "^(abc)\\1$") as string), "|\n";
 
-// The budget is a throw, never a falsy answer — the whole reason ADR 0056 § 2
+// The budget is a throw, never a falsy answer — the whole reason `rule:core-classes/regex-two-tiers`
 // rejects PHP's `pcre.backtrack_limit`, which returns `false` for both
 // "no match" and "gave up".
 try {
@@ -19,7 +19,7 @@ try {
 }
 
 // A pattern neither engine can compile throws too, rather than matching
-// nothing (ADR 0056 § 5).
+// nothing (`rule:core-classes/regex-syntax`).
 try {
     echo (Core\Regex::matches("x", "(unclosed") as string), "|\n";
 } catch (Throwable $e) {

@@ -162,7 +162,7 @@ fn a_literal_date_format_is_validated_while_checking() {
 
 #[test]
 fn a_literal_regex_pattern_is_prepared_while_checking() {
-    // § 1's row 1, over ADR 0056's two engines — the pattern is offered to
+    // § 1's row 1, over `rule:core-classes/regex-two-tiers`'s two engines — the pattern is offered to
     // both while checking, exactly as `Core\Regex::compile`'s first call would
     // have offered it. *Prepared* is the name this check has always had and is
     // § 3's second effect; today the fold stops after validating, which is gap
@@ -174,7 +174,7 @@ fn a_literal_regex_pattern_is_prepared_while_checking() {
         "a group nothing closes: {unclosed:?}"
     );
 
-    // Neither engine, which is the refusal ADR 0056 § 5 names: the linear one
+    // Neither engine, which is the refusal `rule:core-classes/regex-syntax` names: the linear one
     // cannot express a backreference and the backtracking one, which can,
     // still has no group 9 to refer to.
     // The patterns below are single-quoted for the reason the format test
@@ -204,7 +204,7 @@ fn a_literal_regex_pattern_is_prepared_while_checking() {
 
 #[test]
 fn a_literal_patterns_tier_is_settled_while_checking() {
-    // ADR 0056 § 3's second effect, and the half the test above deliberately
+    // `rule:core-classes/regex-literal-tiering`'s second effect, and the half the test above deliberately
     // stops short of: *prepared* is not enough on its own, because a fold that
     // throws the automaton away leaves the first call to re-decide which
     // engine runs — and the tier is what decides whether § 2's step budget is
@@ -421,7 +421,7 @@ fn a_nullable_argument_is_not_refused_against_a_numeric_conversion() {
 
 #[test]
 fn a_tainted_value_at_a_query_text_parameter_is_a_diagnostic() {
-    // ADR 0024 § 4 is the whole injection story for ADR 0067, and this is its
+    // ADR 0024 § 4 is the whole injection story for `rule:core-classes/db-one-api`, and this is its
     // first half: the statement text is the sink, so a `tainted` value cannot
     // reach it at all. There is no escaping function to reach for after the
     // refusal — § 1 says an escaper would be a second, weaker answer to a
@@ -469,7 +469,7 @@ fn the_same_tainted_value_at_a_bound_parameter_compiles() {
 
 #[test]
 fn a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted() {
-    // ADR 0067 § 3's other sink, and the one whose refusal is not the end of
+    // `rule:core-classes/db-capabilities`'s other sink, and the one whose refusal is not the end of
     // the story: `Settings.host` refuses `tainted` and **has no launderer**,
     // because a malicious server answers any query with a `LOCAL INFILE`
     // request and no string check can establish that an address is safe to
@@ -524,7 +524,7 @@ fn query(sql: &str, params: &str) -> Diagnostics {
 
 #[test]
 fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
-    // ADR 0067 § 10's first clause, in both directions. The refusal is the
+    // `rule:core-classes/db-literal-query-checking`'s first clause, in both directions. The refusal is the
     // rewriter's own — `nvs_stdlib::db::check_literal_query` runs the one the
     // request would have run — so this is the `LogicError` the first call would
     // have thrown, moved to `nvs check`.
@@ -655,7 +655,7 @@ fn mixed_placeholder_styles_on_a_literal_are_a_diagnostic() {
 }
 
 /// A deployment granting exactly `db.granted.test` under `db.open`, and
-/// nothing else at all — ADR 0067 § 3's block as the compiling machine reads
+/// nothing else at all — `rule:core-classes/db-capabilities`'s block as the compiling machine reads
 /// it.
 fn granting(host: &str) -> Capabilities {
     Capabilities {
@@ -684,7 +684,7 @@ fn open(host: &str, grants: Option<&Capabilities>) -> Diagnostics {
 
 #[test]
 fn an_open_host_matching_no_grant_is_a_diagnostic() {
-    // ADR 0067 § 10's second sentence. The host is a literal and the grant is
+    // `rule:core-classes/db-literal-query-checking`'s second sentence. The host is a literal and the grant is
     // this machine's, so both halves of `db.open`'s question are facts before
     // the program runs — and the answer is the one
     // `nvs_runtime::capability::require` would have given, moved earlier per

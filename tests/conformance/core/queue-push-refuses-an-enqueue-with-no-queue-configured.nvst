@@ -1,5 +1,5 @@
 --TEST--
-An enqueue into a deployment that configures no `[queue]` block is refused at the push, rather than writing a row nothing would ever claim — ADR 0084 § 2
+An enqueue into a deployment that configures no `[queue]` block is refused at the push, rather than writing a row nothing would ever claim — `rule:core-classes/queue-storage-is-a-table`
 --FILE--
 <?nvs
 // A queue fails silently by construction: a job nothing ever claims looks
@@ -21,11 +21,11 @@ try {
 echo "still running", "\n";
 --FILE nvs.toml--
 # A database, and deliberately no `[queue]`. The block's own absence is how a
-# deployment says it runs no jobs -- ADR 0084 § 2 -- so this is a valid tree
+# deployment says it runs no jobs -- `rule:core-classes/queue-storage-is-a-table` -- so this is a valid tree
 # and not a broken one, which is what makes the refusal the enqueue's own.
 [db.main]
 driver = "postgres"
 host = "127.0.0.1"
 --EXPECT--
-Core\Queue::push: this deployment writes no `[queue]` block, so nothing names the database a job would live in — ADR 0084 § 2 is the block, and `connection` is the field
+Core\Queue::push: this deployment writes no `[queue]` block, so nothing names the database a job would live in — `rule:core-classes/queue-storage-is-a-table` is the block, and `connection` is the field
 still running

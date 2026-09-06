@@ -334,7 +334,7 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
 /// Whether `caps` grants `cap` for `host`, asked in **both** spellings and asserted to agree.
 ///
 /// `allows_host` is what a `nvs check` pass asks and `allows` is what a running request asks
-/// ([ADR 0067](/docs/adr/0067-core-db.md) § 10 and § 3), and a check that disagreed with the run it
+/// (`rule:core-classes/db-literal-query-checking` and § 3), and a check that disagreed with the run it
 /// precedes is the one failure `rule:expressions/preparation-preserves-behaviour` forbids outright. Every wildcard case below goes through
 /// here rather than through either half, so a wildcard read by one caller and not the other fails.
 fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {
@@ -348,7 +348,7 @@ fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {
     checked
 }
 
-/// ADR 0067 § 3's own worked grant, `db.open = ["*.tenants.internal"]`, matches a host under that
+/// `rule:core-classes/db-capabilities`'s own worked grant, `db.open = ["*.tenants.internal"]`, matches a host under that
 /// zone — at one label of depth and at several, and in any casing, because DNS preserves none.
 #[test]
 fn a_wildcard_grant_matches_a_subdomain_at_a_label_boundary() {
@@ -498,12 +498,12 @@ fn grants_name(caps: &Capabilities, cap: Cap, name: &str, disk: &Disk) -> bool {
     caps.allows(cap, Scope::Name(name), disk)
 }
 
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 3's third `db.*` grant: `db.schema` names blocks, matches
+/// `rule:core-classes/db-capabilities`'s third `db.*` grant: `db.schema` names blocks, matches
 /// one exactly, and is **not** implied by the `db.connect` that reached the same database.
 ///
 /// The implication is the half worth pinning. `db.schema` gates a different question from either of
 /// its neighbours — not which database may be reached but whether its shape may be changed
-/// ([ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 9) — so a
+/// (`rule:core-classes/schema-apply-capability`) — so a
 /// deployment that granted `connect` alone has granted no DDL, and a roster arm reading the wrong
 /// field would be invisible to every test that only ever grants both. The grant is asserted first so
 /// that the refusals below are the absence of a grant rather than the fixture answering `false` to

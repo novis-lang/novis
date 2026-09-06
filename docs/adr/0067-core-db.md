@@ -1,4 +1,4 @@
-# ADR 0067 — One database API: `Core\Db` is connection-named, prepared-only and capability-gated
+# `rule:core-classes/db-one-api` — One database API: `Core\Db` is connection-named, prepared-only and capability-gated
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

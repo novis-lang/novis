@@ -51,7 +51,7 @@ echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b", {limit:
 echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b", {limit: 2}), "\n";
 echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b", {limit: 9}), "\n";
 
-// A look-behind is ADR 0056 § 2's backtracking tier; PCRE has one engine and
+// A look-behind is `rule:core-classes/regex-two-tiers`'s backtracking tier; PCRE has one engine and
 // reads the same pattern, so agreement here is agreement across both of Novis's.
 echo Core\Regex::replaceWith("aXbXc", "(?<=a)X", fn(Core\Regex\Match $m) => "-"), "\n";
 --ORACLE--

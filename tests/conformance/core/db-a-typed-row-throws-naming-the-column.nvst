@@ -1,5 +1,5 @@
 --TEST--
-Every refusal a typed `Core\Db\Row` reader makes names the column it was asked about — the wrong family, the value that would not survive the crossing, and the column the statement never described — ADR 0067 § 6
+Every refusal a typed `Core\Db\Row` reader makes names the column it was asked about — the wrong family, the value that would not survive the crossing, and the column the statement never described — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
 // SQLite runs for real (db-a-sqlite-block-opens-a-file-and-runs-statements-

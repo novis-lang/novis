@@ -1,4 +1,4 @@
-//! `Core\RateLimit` — [ADR 0075](/docs/adr/0075-core-ratelimit.md)'s
+//! `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s
 //! limiter for what only the application knows, as both halves of it: `consume`
 //! over the shared store, `shed` over this core's own memory, and the
 //! `Core\RateLimit\Decision` each answers with.
@@ -19,7 +19,7 @@
 //! request caches or limits.
 //!
 //! What it does **not** do is require the program to have called
-//! `Core\Cache::shared()` first. ADR 0075 §§ 1 and 5 both write
+//! `Core\Cache::shared()` first. `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` both write
 //! `Core\RateLimit::consume(…)` standing alone, and a member that silently
 //! needed an unrelated call ahead of it would be an ordering rule held nowhere
 //! near either call site. So [`nvs_core_ratelimit_consume`] opens the
@@ -474,8 +474,7 @@ struct Window {
 /// A thrown `RuntimeError` for a limit, a period or a burst of zero, for a
 /// period too short to divide into `limit` units, and for a tolerance past what
 /// [`SCRIPT`] holds exactly. Each is a limit that can never admit anything or
-/// can never be enforced accurately, and refusing is the direction ADR 0075
-/// § 5 sets: a limiter that quietly does not limit is worse than no limiter.
+/// can never be enforced accurately, and refusing is the direction `rule:core-classes/ratelimit-unreachable-store-throws` sets: a limiter that quietly does not limit is worse than no limiter.
 ///
 /// The ceiling is [`SCRIPT`]'s rather than each tier's, so that a limit either
 /// tier refuses is a limit both refuse: the two members are one algorithm under
@@ -524,7 +523,7 @@ fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Faul
 }
 
 /// [`SCRIPT`]'s five lines, in this process, for the tier that has no store to
-/// run them in — ADR 0075 § 2's "both tiers run the identical algorithm" as one
+/// run them in — `rule:core-classes/ratelimit-gcra`'s "both tiers run the identical algorithm" as one
 /// function rather than as a promise.
 ///
 /// Takes the stored arrival time and answers **the three integers [`SCRIPT`]
@@ -681,7 +680,7 @@ fn slot_of(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\RateLimit::consume(tainted string $key, uint $limit, Duration $per,
-    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — ADR 0075 § 1's
+    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — `rule:core-classes/ratelimit-two-members`'s
     /// coherent member.
     ///
     /// The door, the window and the step, in that order: the configured store
@@ -695,7 +694,7 @@ nvs_runtime::nvs_helper! {
     /// A thrown `RuntimeError` for a store that is not configured or whose host
     /// is not granted, and for a limit that cannot be enforced; a thrown
     /// `IOError` for a store that cannot be reached or that refused the script.
-    /// Never an answer: ADR 0075 § 5 is that the failure mode belongs to the
+    /// Never an answer: `rule:core-classes/ratelimit-unreachable-store-throws` is that the failure mode belongs to the
     /// call site, which is the only place that knows whether this limiter is a
     /// plan quota to fail open on or a login throttle to fail closed on.
     fn nvs_core_ratelimit_consume(ctx, args: [5]) {
@@ -735,7 +734,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\RateLimit::shed(tainted string $key, uint $limit, Duration $per,
-    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — ADR 0075 § 1's
+    /// {burst?: uint, cost?: uint}): RateLimit\Decision` — `rule:core-classes/ratelimit-two-members`'s
     /// approximate member.
     ///
     /// `consume` without the door and without the round trip: the same
@@ -883,7 +882,7 @@ mod tests {
         crate::instance::slot(object, ALLOWED_SLOT).as_bool() == Some(true)
     }
 
-    /// ADR 0075 § 2: the shared tier is GCRA, which is one stored timestamp and
+    /// `rule:core-classes/ratelimit-gcra`: the shared tier is GCRA, which is one stored timestamp and
     /// two derived parameters — the emission interval `per / limit` and the
     /// tolerance `burst × interval`, with `burst` defaulting to `limit` so that
     /// the default tolerance is exactly one period.
@@ -979,7 +978,7 @@ mod tests {
         assert!(decision.obj_ptr().is_some(), "a decision is an instance");
     }
 
-    /// ADR 0075 §§ 1 and 2: `shed` is the same algorithm over this core's own
+    /// `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`: `shed` is the same algorithm over this core's own
     /// memory, so what has to hold is that it is GCRA *and* that it is the same
     /// one — a second implementation that drifted from the first would make
     /// moving a call between the members a rewrite rather than a change of
@@ -1039,7 +1038,7 @@ mod tests {
         );
     }
 
-    /// ADR 0075 § 1: `shed`'s arrivals live in this core's own memory, which is
+    /// `rule:core-classes/ratelimit-two-members`: `shed`'s arrivals live in this core's own memory, which is
     /// the whole of what it trades away — the count is **per core**, and an
     /// arrival the tier forgets is one that never happened. Neither is a
     /// defect, and both are only useful to a caller who is told: a program that
@@ -1129,7 +1128,7 @@ mod tests {
         );
     }
 
-    /// ADR 0075 § 2: `retryAfter` is the theoretical arrival time minus now,
+    /// `rule:core-classes/ratelimit-gcra`: `retryAfter` is the theoretical arrival time minus now,
     /// computed rather than estimated — which is what a sliding-window counter
     /// cannot do, and why every refused client would otherwise retry in the
     /// same instant at the window edge.
@@ -1163,7 +1162,7 @@ mod tests {
         );
     }
 
-    /// ADR 0075 § 5: an unreachable store throws, and never decides *allowed*.
+    /// `rule:core-classes/ratelimit-unreachable-store-throws`: an unreachable store throws, and never decides *allowed*.
     ///
     /// Two claims, because the exchange failing is only half of it. A store
     /// that accepts and closes is an error and not an answer — and this module
@@ -1222,7 +1221,7 @@ mod tests {
         );
     }
 
-    /// ADR 0075 § 4: no configuration at all. The limit is an argument because
+    /// `rule:core-classes/ratelimit-two-members`: no configuration at all. The limit is an argument because
     /// only the application knows whether this is a plan quota or a login
     /// throttle, and a `[ratelimit]` block appearing later is the regression
     /// this pins — a directive would move the policy into a root-owned file

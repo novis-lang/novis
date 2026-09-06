@@ -14,7 +14,7 @@
 
 use super::*;
 
-/// The ABI slot ADR 0067 § 4's `{timeout?: Duration}` arrives in, on every
+/// The ABI slot `rule:core-classes/db-statement-members`'s `{timeout?: Duration}` arrives in, on every
 /// statement member.
 ///
 /// One constant for all five, because the bag flattens to one trailing argument
@@ -89,7 +89,7 @@ pub(super) fn bound_connection<'a>(
     Ok(connection)
 }
 
-/// A connection ADR 0067 § 7's commands are written for, borrowed as one thing.
+/// A connection `rule:core-classes/db-transactions`'s commands are written for, borrowed as one thing.
 ///
 /// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
 /// owns the differences, from `START TRANSACTION` down to the release a nested
@@ -224,7 +224,7 @@ pub(super) fn transacting<'a>(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::query(string $sql, array<mixed> $params): Db\Rows`
-    /// — ADR 0067 § 4's buffered statement, and the first member of
+    /// — `rule:core-classes/db-statement-members`'s buffered statement, and the first member of
     /// `Core\Db\Queryable` to land.
     ///
     /// **Every row is read before this returns**, which is § 4's default and
@@ -267,7 +267,7 @@ pub(super) struct Answered {
     ///
     /// `pub(super)` for [`mod@super::schema`]'s catalog reads, which are the
     /// one caller that wants the rows without a `Core\Db\Rows` around them:
-    /// ADR 0145 § 4's introspection is two ordinary statements whose answer
+    /// `rule:core-classes/schema-introspection`'s introspection is two ordinary statements whose answer
     /// becomes a schema value rather than something a program sees.
     pub(super) rows: NvsArray,
     /// One [`COLUMN`] per described column, as [`ROWS_COLUMNS_SLOT`] holds
@@ -350,7 +350,7 @@ pub(super) fn queried_rows(
     Ok(answered)
 }
 
-/// ADR 0067 § 4's `Write`, as the driver answered it and before it becomes the
+/// `rule:core-classes/db-statement-members`'s `Write`, as the driver answered it and before it becomes the
 /// instance.
 ///
 /// Two `Option`s and not two numbers: § 4 gives both fields `?uint`, and the
@@ -432,7 +432,7 @@ pub(super) fn postgres_rows(
 /// A connection `nvs_db::mysql`'s statement path is written for, borrowed as
 /// one thing.
 ///
-/// **MariaDB is its own driver above the framing, not inside it.** ADR 0067 § 2
+/// **MariaDB is its own driver above the framing, not inside it.** `rule:core-classes/db-connection-is-named`
 /// is emphatic that treating it as a MySQL flag is a design error, and
 /// `nvs_db::maria` obeys that where it counts — its own targets, its own
 /// authentication roster, its own § 8 code table. What it does not duplicate is
@@ -473,7 +473,7 @@ impl Framed<'_> {
         }
     }
 
-    /// ADR 0067 § 1's round trips for one statement, and the rows it answers
+    /// `rule:core-classes/db-one-api`'s round trips for one statement, and the rows it answers
     /// with.
     ///
     /// # Errors
@@ -532,7 +532,7 @@ impl Framed<'_> {
     }
 }
 
-/// [`queried_rows`] over the two drivers [`Framed`] covers: ADR 0067 § 1's
+/// [`queried_rows`] over the two drivers [`Framed`] covers: `rule:core-classes/db-one-api`'s
 /// `COM_STMT_EXECUTE`, and § 9's decode of the binary rows it answers with.
 ///
 /// **The same shape as [`postgres_rows`] and deliberately not shared with it.**
@@ -619,7 +619,7 @@ pub(super) fn mysql_rows(
     ))
 }
 
-/// [`queried_rows`] over the SQL Server driver: ADR 0067 § 1's `sp_prepexec`,
+/// [`queried_rows`] over the SQL Server driver: `rule:core-classes/db-one-api`'s `sp_prepexec`,
 /// and § 9's decode of the token stream it answers with.
 ///
 /// **[`mysql_rows`]' shape a third time**, and that function's doc argues at
@@ -1078,7 +1078,7 @@ pub(super) fn unparsed_column(
     want: &str,
 ) -> Fault {
     Fault::thrown(format!(
-        "{named}: the column `{}` is declared `{}` and holds {}, which is not {want} — ADR 0067 \
+        "{named}: the column `{}` is declared `{}` and holds {}, which is not {want} — `rule:core-classes/db-one-api` \
          § 9 keys SQLite off the declared type, a storage class saying nothing about what a value \
          was meant as, and throws on one that does not parse",
         column.name,
@@ -1139,7 +1139,7 @@ pub(super) fn tds_write(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::queryAs<T>(string $sql, array<mixed> $params):
-    /// Db\Rows<T>` — ADR 0067 § 4's statement over § 18's hydrating result.
+    /// Db\Rows<T>` — `rule:core-classes/db-statement-members`'s statement over § 18's hydrating result.
     ///
     /// **Arguments 0 and 1 are the class written at the call site and whether
     /// it was written as `array<...>` of one**, not values, and the receiver is
@@ -1205,7 +1205,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::execute(string $sql, array<mixed> $params):
-    /// Db\Write` — ADR 0067 § 4's counting half of the same statement path.
+    /// Db\Write` — `rule:core-classes/db-statement-members`'s counting half of the same statement path.
     ///
     /// **The difference from [`nvs_core_db_connection_query`] is what becomes
     /// of the rows, and nothing else.** The statement goes out the same way,
@@ -1277,7 +1277,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::executeMany(string $sql, array<array<mixed>> $sets):
-    /// uint` — ADR 0067 § 4's batch, and § 1's reason for having no `Statement`
+    /// uint` — `rule:core-classes/db-statement-members`'s batch, and § 1's reason for having no `Statement`
     /// object at all.
     ///
     /// **This is the member a `prepare` handle would have existed for.** § 1

@@ -7,7 +7,7 @@
 //! `@p1` on SQL Server, `?` on MySQL, MariaDB and SQLite. That is the whole of
 //! this module: [`rewrite`] is a pure function of the SQL text, the shape of the
 //! bound arguments and a [`Dialect`], and it never sees a value. It is a free
-//! function rather than a method on a connection for the reason ADR 0132 § 5
+//! function rather than a method on a connection for the reason `rule:core-classes/db-drivers-are-an-enum`
 //! gives for the rest of the shared half — there is nothing per-connection in
 //! it, and a test that had to build a `PgConn` to reach it would need a socket
 //! and a certificate to ask what `IN ?` expands to.
@@ -65,7 +65,7 @@ use crate::conn::Driver;
 /// How one driver spells a bound parameter, and how it quotes and comments.
 ///
 /// Four values for five drivers: MariaDB and MySQL share a syntax exactly, and
-/// [ADR 0067](/docs/adr/0067-core-db.md)'s insistence that they are two
+/// `rule:core-classes/db-one-api`'s insistence that they are two
 /// drivers is about auth plugins, error tables and capability flags, none of
 /// which reaches the SQL text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -433,7 +433,7 @@ impl<H: Clone> StatementCache<H> {
     /// Records a statement the server has now prepared, as most-recently-used.
     ///
     /// Only ever called for a statement whose prepare has landed, and once per
-    /// miss: ADR 0067 § 4 allows one statement at a time, so nothing can have
+    /// miss: `rule:core-classes/db-statement-members` allows one statement at a time, so nothing can have
     /// touched the cache in between.
     pub fn commit(&mut self, sql: &str, arity: usize, handle: H) {
         if self.capacity == 0 {
@@ -682,7 +682,7 @@ fn expand(
         Binding::List(0) => Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "argument {arg} is an empty `inList`, and ADR 0067 § 5 refuses one: an empty list \
+                "argument {arg} is an empty `inList`, and `rule:core-classes/db-parameters` refuses one: an empty list \
                  matches nothing inside `IN` and everything inside `NOT IN`, the rewriter cannot \
                  tell which it is in, and the caller has to branch"
             ),
@@ -708,7 +708,7 @@ fn named_against_a_list(name: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(
-            "the statement binds `:{name}` but its arguments are a list, and ADR 0067 § 5 reads \
+            "the statement binds `:{name}` but its arguments are a list, and `rule:core-classes/db-parameters` reads \
              the array's keys as the choice: give the array string keys, or write `?` in the SQL"
         ),
     )
@@ -718,7 +718,7 @@ fn named_against_a_list(name: &str) -> io::Error {
 fn positional_against_names() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "the statement binds `?` but its arguments are string-keyed, and ADR 0067 § 5 reads the \
+        "the statement binds `?` but its arguments are string-keyed, and `rule:core-classes/db-parameters` reads the \
          array's keys as the choice: write `:name` in the SQL, or give the array list keys",
     )
 }
@@ -729,7 +729,7 @@ fn positional_mismatch(placeholders: usize, arguments: usize) -> io::Error {
         io::ErrorKind::InvalidInput,
         format!(
             "the statement has {placeholders} `?` placeholder(s) and was given {arguments} \
-             argument(s), and ADR 0067 § 5 binds them one for one — an `inList` counts as the one \
+             argument(s), and `rule:core-classes/db-parameters` binds them one for one — an `inList` counts as the one \
              argument it is, however many values it holds"
         ),
     )

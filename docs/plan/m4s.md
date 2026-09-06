@@ -17,7 +17,7 @@ table — is written against a real standard library instead of against fixtures
 Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
 contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
 [ADR 0003](../adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
-declares; `Core\Regex` binds the engine [ADR 0056](../adr/0056-regex-engine-policy.md)
+declares; `Core\Regex` binds the engine `rule:core-classes/regex-two-tiers`
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
 `Core\Str::format` land as `rule:expressions/intrinsic-literals` intrinsics with the
 compile-time half wired into `nvs-types` — and, per
@@ -32,7 +32,7 @@ unit is `rule:types/string-is-utf8`'s grapheme cluster, decided and seamed in
 `nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
 belongs here, in `nvs_runtime::NvsStr`'s header, alongside the O(1) boundary correction a concatenation
 needs at the seam. `Core\Json` also brings the first **compiler-recognized**
-attribute: [ADR 0071](../adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `nvs-types`→`nvs-ir` pass that emits
+attribute: `rule:core-classes/derive-attribute`'s `#[Json\Derive]`, a `nvs-types`→`nvs-ir` pass that emits
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
 is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands
 here as well: [ADR 0077](../adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
@@ -58,7 +58,7 @@ deliberate divergence is a named fixture rather than a failing comparison. A `ta
 sink and cannot be laundered except by the members the spec marks **launder**. `Core\Arr` mutates in place
 when its argument's refcount is 1 — measured, since it is the whole cost argument for
 [ADR 0063](../adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not.
-[ADR 0071](../adr/0071-derived-codecs.md)'s own *Verification* section lists the derive's cases, including the
+`rule:core-classes/derive-attribute`'s own *Verification* section lists the derive's cases, including the
 one that matters most: a decode with four bad fields throws exactly one error listing all four. The M4 CLI program
 is rewritten against `Core` and gets shorter. `python tools/check-migration.py` reports full coverage of
 every PHP name this milestone's classes replace, which is the point at which
@@ -67,7 +67,7 @@ a plan and become a tested claim.
 
 **Also here: the OpenAPI emitter** ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)),
 alongside the `#[Route]` and `#[Json\Derive]` passes it reads. `Core\Api` joins
-[ADR 0071](../adr/0071-derived-codecs.md) § 1's closed attribute list, the four contradiction cases become
+`rule:core-classes/derive-attribute`'s closed attribute list, the four contradiction cases become
 compile errors, and `nvs build --openapi` writes a deterministic 3.1 document. `nvs api diff` is the same
 slice — the classification is mechanical over two emitted documents, so it costs a comparison rather than a
 design.

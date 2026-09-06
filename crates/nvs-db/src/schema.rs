@@ -1,4 +1,4 @@
-//! [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)'s
+//! `rule:core-classes/schema-is-a-value`'s
 //! closed vocabulary: a database schema as a value, with nothing opaque inside
 //! it.
 //!
@@ -10,7 +10,7 @@
 //! types can be **total**: nothing here is a string the difference engine cannot
 //! reason about.
 //!
-//! # The write direction of ADR 0067 § 9
+//! # The write direction of `rule:core-classes/db-column-types`
 //!
 //! [`ScalarType`] is [`crate::ColumnType`] plus the parameters a `CREATE TABLE`
 //! has to state. That is on purpose and it is one table used twice rather than
@@ -732,7 +732,7 @@ pub enum Node {
     Text(String),
     /// A signed integer.
     Int(i64),
-    /// An unsigned integer, which ADR 0067 § 9 makes a Novis type of its own.
+    /// An unsigned integer, which `rule:core-classes/db-column-types` makes a Novis type of its own.
     Uint(u64),
     /// A binary floating-point number.
     Float(f64),
@@ -1082,8 +1082,7 @@ impl Schema {
 /// Why a construction was refused.
 ///
 /// Every one of these is a schema no backend would accept, or one two backends
-/// would accept differently. This crate holds no Novis-facing name — ADR 0132
-/// § 1 — so these carry the facts and `nvs-stdlib` writes the fault that names
+/// would accept differently. This crate holds no Novis-facing name — `rule:core-classes/db-crate-boundary` — so these carry the facts and `nvs-stdlib` writes the fault that names
 /// the call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaError {
@@ -1206,7 +1205,7 @@ impl std::error::Error for SchemaError {}
 mod tests {
     use super::*;
 
-    /// ADR 0145 § 2's "one table used twice": the write direction's every case
+    /// `rule:core-classes/schema-vocabulary-is-closed`'s "one table used twice": the write direction's every case
     /// describes as a read case of its own, and never as the total one.
     ///
     /// All three properties at once, because they are one claim — total,
@@ -1463,7 +1462,7 @@ mod tests {
         ));
     }
 
-    /// ADR 0084 § 2's jobs table, said in the vocabulary that will replace its
+    /// `rule:core-classes/queue-storage-is-a-table`'s jobs table, said in the vocabulary that will replace its
     /// four hand-written DDL lists.
     ///
     /// The one construct it needs and this vocabulary has not got is
@@ -1522,7 +1521,7 @@ mod tests {
             .collect()
     }
 
-    /// ADR 0145 § 1's property, over one schema using every construct the
+    /// `rule:core-classes/schema-is-a-value`'s property, over one schema using every construct the
     /// vocabulary has: `to_array(from_array(a)) == a`.
     ///
     /// Asserted with the *order* rule and not only the structure, because the

@@ -5,7 +5,7 @@
 **Goal 9 stage 6 is half landed.** `db.schema` is on the capability roster
 (`crates/nvs-config/src/capability.rs:79`) — it names `[db.<name>]` blocks like `db.connect`,
 gates whether DDL may be issued at all, and is not implied by the `db.connect` that reached the
-same database. `Core\Db\Schema` exists with ADR 0145 § 1's two members, `fromArray` and `toArray`
+same database. `Core\Db\Schema` exists with `rule:core-classes/schema-is-a-value`'s two members, `fromArray` and `toArray`
 (`crates/nvs-stdlib/src/db/schema.rs`), over the `Node` tree `nvs-db` already owned: that crate's
 `schema.rs` says `nvs-stdlib` converts it "once, and nothing else converts anything", and this
 module is that once.
@@ -27,7 +27,7 @@ blocks it.
 it. Every input they take is on disk and proved: the diff, the grades, the array form and the
 capability.
 
-- [ ] **`planAgainst`, `applySafe` and `applyIncludingRisky`** — ADR 0145 § 9: planning is an
+- [ ] **`planAgainst`, `applySafe` and `applyIncludingRisky`** — `rule:core-classes/schema-apply-capability`: planning is an
       ordinary read under the `db.connect` the program already holds; applying takes `db.schema`
       and an ungranted name throws naming it. `applySafe` refuses a plan holding a step that is
       not `Safe`, naming the first one. The three named tests are
@@ -50,8 +50,8 @@ capability.
 ## Backlog
 
 - `examples/schema.json` does not exist, and `nvs schema plan|apply|dump` is unwritten — the
-  `command` check at `docs/agent/loop-goal.toml:4592` needs both (ADR 0145 § 9).
-- `[context] adrs` for this goal prints §§ 4, 5 and 9 of ADR 0145 but not §§ 1-2, which are the
+  `command` check at `docs/agent/loop-goal.toml:4592` needs both (`rule:core-classes/schema-apply-capability`).
+- `[context] adrs` for this goal prints §§ 4, 5 and 9 of `rule:core-classes/schema-is-a-value` but not §§ 1-2, which are the
   array form and the vocabulary — this session read both by hand. `docs/agent/loop-goal.toml`.
 - `docs/reference/tools/20-config.md`'s capability table gained `db.schema` and the `mail.send`
   row it had been missing; `docs/novis.md` is generated from it by `tools/reference.py`.

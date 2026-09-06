@@ -555,7 +555,7 @@ dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)); `cal_days_
 ## 5. `Core\Regex`
 
 Semantics — the two-tier engine, the step budget, why the *pattern* is a sink while the subject is not —
-are [ADR 0056](../adr/0056-regex-engine-policy.md). `preg_match`'s `$matches` out-parameter is a returned
+are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter is a returned
 `?Match` (R3), and there are no `PREG_*` flag constants (R11).
 
 | Member | Signature | Replaces | Q |
@@ -612,7 +612,7 @@ JSON object keyed by its field names — it has no declaration to carry a codec,
 
 Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`
 attribute, whose rules — the field list, the `#[Json\Field(name?, skip?)]` override, and the one throw
-carrying every failed field — are [ADR 0071](../adr/0071-derived-codecs.md). Two `type` aliases are all
+carrying every failed field — are `rule:core-classes/derive-attribute`. Two `type` aliases are all
 `Core\Json` adds for it:
 
 | Name | Definition | Attaches to |
@@ -803,7 +803,7 @@ have no equivalent, because seeding the global generator is exactly what that se
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
 lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a database column
-([ADR 0067](../adr/0067-core-db.md) § 4) state that they take one.
+(`rule:core-classes/db-statement-members`) state that they take one.
 
 **Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,
 one of the two `tryParse`s [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits
@@ -1042,7 +1042,7 @@ object (R14).
 - **Streaming write:** `writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` — any stream to
   disk in one member: an upload part, `Core\Request::bodyStream()`, a decompressed archive. `overwrite`
   defaults to `false`, and a write that fails mid-stream removes the partial file
-  ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4).
+  (`rule:core-classes/io-write-stream`).
 - **Metadata:** `exists`, `isFile`, `isDir`, `isReadable`, `isWritable`, `size`, `modifiedAt`, `stat` —
   replacing `file_exists`, `is_file`, `is_dir`, `filesize`, `filemtime`, `fileperms`, `stat`, `lstat`.
 - **Manipulation:** `copy`, `move`, `remove`, `makeDir`, `removeDir`, `list(string $path): array<string>`,
@@ -1051,7 +1051,7 @@ object (R14).
   `sys_get_temp_dir`, and the `DirectoryIterator` family. There is no `temporaryFile` — a program that
   needs one temporary file needs somewhere to put the second — and what `temporaryDir` creates is deleted
   by the runtime when the script ends
-  ([ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)).
+  (`rule:core-classes/temporary-dir-sweep`).
 - **Resolution:** `canonicalize(string $path): string` (`realpath`), and `within(string $base, tainted
   string $path): string` — **the path-traversal launderer**: it resolves and then proves containment,
   which is the check `Core\Path::normalize` structurally cannot make.
@@ -1117,7 +1117,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
 - `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25
   `session_*` functions. `start` is the one that reaches the store, and a member called before it throws
-  ([ADR 0012](../adr/0012-no-superglobals.md) § 4). Where the record lives is `[session] backend`, which
+  (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which
   names the shared cache tier or the database and refuses the local one
   ([ADR 0139](../adr/0139-a-session-is-a-record-its-store-issued.md) § 3, enforcing
   [ADR 0059](../adr/0059-cross-request-state-is-explicit.md) § 4).
@@ -1170,15 +1170,15 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 
 | Class | Surface | Note |
 |---|---|---|
-| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) owns both launderers; the parser and the shared tree are [ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) |
-| `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)), and lands with it |
+| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing` |
+| `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it |
 | `Core\Compress` | gzip, deflate, brotli, zstd — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters | |
 | `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) |
 | `Core\Mime` | type detection by magic bytes, not by libmagic's rule interpreter | |
 
 ## 18. `Core\Db`
 
-Semantics are [ADR 0067](../adr/0067-core-db.md) — connection naming and memoization, the capability split,
+Semantics are `rule:core-classes/db-one-api` — connection naming and memoization, the capability split,
 why there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section
 owns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live
 in a root-owned `[db.<name>]` block ([ADR 0064](../adr/0064-configuration-file-format.md)).
@@ -1218,15 +1218,15 @@ string-keyed for `:name`, mixing throws.
 | `Transaction` | `$t->rollBack(string $reason): void` — sets the rollback-only flag and throws `Db\RolledBack` |
 
 There is no `commit`, no connection-level `rollBack`, no `inTransaction`, no explicit savepoint member and
-no `lastInsertId` — [ADR 0067](../adr/0067-core-db.md) §§ 7 and 12 say why each is absent.
+no `lastInsertId` — `rule:core-classes/db-transactions` and `rule:core-classes/db-one-api` say why each is absent.
 
 `queryAs<T>`/`streamAs<T>` take an inline shape or a class implementing `Core\Db\Codec`
 (`static fromRow(Db\Row): static`), whose body is generated from the class's own declared properties by the
 opt-in `#[Db\Derive]` attribute — `type Core\Db\Derive = {};` on a class,
 `type Core\Db\Field = {name?: string, skip?: bool};` on a property, both governed by
-[ADR 0071](../adr/0071-derived-codecs.md). There is no `toRow` and no generated `INSERT`: a write is an
+`rule:core-classes/derive-attribute`. There is no `toRow` and no generated `INSERT`: a write is an
 explicit statement with bound parameters. Because a row is always `tainted`
-([ADR 0067](../adr/0067-core-db.md) § 6), a `T` whose text-carrying fields are unqualified is a diagnostic at
+(`rule:core-classes/db-column-types`), a `T` whose text-carrying fields are unqualified is a diagnostic at
 the call site naming the field.
 
 ### Results
@@ -1245,7 +1245,7 @@ generic — there is no bare `Rows` spelling that leaves it open.
 
 `Row`'s typed readers each take `(string $name)` and return `?T`, a `null` being a NULL column: `string`,
 `bytes`, `int`, `uint`, `float`, `bool`, `decimal`, `instant`, `date`, `time`, `uuid`. The requested type
-drives a lossless conversion or throws ([ADR 0067](../adr/0067-core-db.md) § 6); `->string` accepts
+drives a lossless conversion or throws (`rule:core-classes/db-column-types`); `->string` accepts
 text-family columns only, and the universal path is `->get()` plus `as`. An unknown column name throws.
 
 A class participates in `queryAs<T>` by implementing `Core\Db\Codec`, which declares

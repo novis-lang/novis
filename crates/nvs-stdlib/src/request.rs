@@ -2779,8 +2779,7 @@ const SAVE_TO: &str = r"Core\Request\Part::saveTo";
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request\Part::saveTo(string $path, {max?, overwrite?}): void` —
-    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-    /// § 4, and the path 99.9% of uploads take.
+    /// `rule:core-classes/io-write-stream`, and the path 99.9% of uploads take.
     ///
     /// **A delegation, not an implementation.** § 4 says `Core\IO::writeStream`
     /// is where a stream reaches disk and that this member delegates to it, so
@@ -4522,7 +4521,7 @@ mod tests {
         );
         assert_eq!(
             held, saved,
-            "ADR 0105 § 4's delegation carries the same octets to disk that a program reading \
+            "`rule:core-classes/io-write-stream`'s delegation carries the same octets to disk that a program reading \
              them into memory would have seen, which is what makes the choice between them a \
              memory decision and nothing else"
         );
@@ -4586,7 +4585,7 @@ mod tests {
         })
     }
 
-    /// ADR 0105 § 4's delegation, from this end of it: the part's bytes reach
+    /// `rule:core-classes/io-write-stream`'s delegation, from this end of it: the part's bytes reach
     /// the destination whole, and a second call to the same name is refused
     /// because `overwrite` defaults to `false`.
     ///

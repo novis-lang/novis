@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process\Result` hands back both captures whatever the child exited with — over a sweep of statuses each run's `stdout`, `stderr` and `exitCode` arrive together, so a result that kept output only on success fails by count — ADR 0044 § 1
+`Core\Process\Result` hands back both captures whatever the child exited with — over a sweep of statuses each run's `stdout`, `stderr` and `exitCode` arrive together, so a result that kept output only on success fails by count — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` asks what

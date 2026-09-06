@@ -1,4 +1,4 @@
-//! `nvs tmp clean` — [ADR 0131] § 4's orphan sweep, as the operator's own door.
+//! `nvs tmp clean` — `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, as the operator's own door.
 //!
 //! The runtime deletes a temporary directory when its script ends
 //! (`nvs_runtime::sweep`, § 3) and reclaims a hard-killed script's leftovers at
@@ -41,7 +41,6 @@
 //! cleanup command that exits non-zero because a scanner had a file open is a
 //! failing deployment step over nothing.
 //!
-//! [ADR 0131]: /docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 
 use std::io::Write;
 use std::path::{Path, PathBuf};

@@ -1,5 +1,4 @@
-//! `Core\Issue` — [ADR 0071](/docs/adr/0071-derived-codecs.md)
-//! § 5's one shape, and the `array<Issue>` a failed decode carries.
+//! `Core\Issue` — `rule:core-classes/derive-reports-every-field`'s one shape, and the `array<Issue>` a failed decode carries.
 //!
 //! ```php
 //! type Core\Issue = {path: string, message: string};
@@ -22,7 +21,7 @@
 //! # What it spends
 //!
 //! One object allocation per issue plus one array for the list, and **only on
-//! the failing path**: ADR 0071 § 5's "the accumulator is allocated only when
+//! the failing path**: `rule:core-classes/derive-reports-every-field`'s "the accumulator is allocated only when
 //! the first issue is recorded" is honoured by nothing here running until a
 //! member actually calls [`list`]. A request that decodes successfully
 //! allocates none of it.
@@ -65,7 +64,7 @@ pub(crate) fn one(path: &str, message: &str) -> Value {
 }
 
 /// An `array<Issue>` of every `(path, message)` in `issues`, in the order
-/// given — ADR 0071 § 5's "in declaration order".
+/// given — `rule:core-classes/derive-reports-every-field`'s "in declaration order".
 pub(crate) fn list<'a>(issues: impl IntoIterator<Item = (&'a str, &'a str)>) -> Value {
     let mut array = NvsArray::new();
     for (path, message) in issues {

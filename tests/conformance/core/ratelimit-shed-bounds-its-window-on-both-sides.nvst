@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::shed's window is bounded on both sides — the eighth arrival under a limit of eight is admitted and the ninth is shed, counted over one sweep — ADR 0075 §§ 1 and 2
+Core\RateLimit::shed's window is bounded on both sides — the eighth arrival under a limit of eight is admitted and the ninth is shed, counted over one sweep — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
 // A bound asserted on both sides, over a *sweep* rather than off a line. § 2's

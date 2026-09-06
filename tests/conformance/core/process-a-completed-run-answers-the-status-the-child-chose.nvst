@@ -1,8 +1,8 @@
 --TEST--
-`Core\Process\Result::exitCode` answers the status the child exited with, named on both sides of the bound — one program started twice, once to succeed and once to fail — ADR 0044 § 1
+`Core\Process\Result::exitCode` answers the status the child exited with, named on both sides of the bound — one program started twice, once to succeed and once to fail — `rule:core-classes/process-run`
 --FILE--
 <?nvs
-// ADR 0044 § 1 writes `$result->exitCode()`, and this is the only case in which
+// `rule:core-classes/process-run` writes `$result->exitCode()`, and this is the only case in which
 // a run *completes*: every other `Core\Process` case is refused before a child
 // starts, so a member that answered `0` always — or that widened a boolean, or
 // that answered "did it run" rather than "what did it say" — reads as correct

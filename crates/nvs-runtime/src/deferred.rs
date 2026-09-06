@@ -456,8 +456,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3's ordering against [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+    /// `rule:core-classes/temporary-dir-sweep`'s ordering against [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 6's queue, asserted from the one side that can observe it: the last
     /// work the request registered still finds the directory it was handed,
     /// and the teardown behind it is what takes it away.
@@ -503,8 +502,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3's "a request that died mid-flight", which is only a sweep at all
+    /// `rule:core-classes/temporary-dir-sweep`'s "a request that died mid-flight", which is only a sweep at all
     /// because of [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md):
     /// the request goes, the worker does not, and the context it is left
     /// holding is what runs the sweep.

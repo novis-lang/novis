@@ -1,10 +1,10 @@
 --TEST--
-Core\Json::encode spells an `rule:types/object-top` shape as a JSON object keyed by its own field names, in the sorted order its synthesized class carries, and still refuses a declared class inside one — `rule:types/object-literal`, ADR 0071 § 7
+Core\Json::encode spells an `rule:types/object-top` shape as a JSON object keyed by its own field names, in the sorted order its synthesized class carries, and still refuses a declared class inside one — `rule:types/object-literal`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
 use Core\Json;
 
-// ADR 0071 § 7: a shape literal has no declaration to hang `#[Json\Derive]`
+// `rule:core-classes/derive-generates-what-is-missing`: a shape literal has no declaration to hang `#[Json\Derive]`
 // on, so there is nothing to opt in and its fields *are* the document.
 echo Json::encode({order: 7}), "\n";
 
@@ -12,7 +12,7 @@ echo Json::encode({order: 7}), "\n";
 // already sorted, and the slots are in that order — so two literals that write
 // the same fields in different orders are one class and one key order. Both
 // lines below are the same document, which is what makes a shape's encoding
-// byte-deterministic on ADR 0071 § 2's terms.
+// byte-deterministic on `rule:core-classes/derive-field-list`'s terms.
 echo Json::encode({b: 1, a: 2}), "\n";
 echo Json::encode({a: 2, b: 1}), "\n";
 
@@ -32,7 +32,7 @@ echo Json::encode({n: 1}, {pretty: true}), "\n";
 
 // The refusal is unchanged for everything that *does* have a declaration: a
 // shape does not lend its structural encoding to a class one of its fields
-// holds. ADR 0071 § 7 is an exception for the thing with no class to annotate,
+// holds. `rule:core-classes/derive-generates-what-is-missing` is an exception for the thing with no class to annotate,
 // not a hole in ADR 0063 § 4's written participation.
 class Impostor {
     public int $n;

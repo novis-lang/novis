@@ -32,7 +32,7 @@
 //! 1. **A response body that is an object.** The declared return type is on the
 //!    row and [`responses`] renders it, but only through [`schema`] — so a
 //!    handler answering with a *class* gets the empty schema, because the fields
-//!    of one are [ADR 0071](/docs/adr/0071-derived-codecs.md)'s codec
+//!    of one are `rule:core-classes/derive-attribute`'s codec
 //!    and the codec is not on the row. It is that roster and not the class's
 //!    declared properties: a property map holds the private ones too, and a
 //!    document that published those would be leaking exactly what
@@ -210,7 +210,7 @@ fn operation(row: &Route, id: &str) -> Value {
 ///
 /// An error response carries its class as the `description` and no `content`.
 /// The class is what the row knows about that response, and a *schema* for one
-/// is gap 1 above — a class's fields are ADR 0071's codec, which does not reach
+/// is gap 1 above — a class's fields are `rule:core-classes/derive-attribute`'s codec, which does not reach
 /// this module for an error type any more than it does for a success type.
 ///
 /// `description` is required of every response object in 3.1, and `success` is
@@ -222,7 +222,7 @@ fn operation(row: &Route, id: &str) -> Value {
 /// rather than an empty schema — the two mean different things to a generated
 /// client. Everything else is JSON, which is § 1's "through the same codec":
 /// the codec a return type reaches this document through is
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s, and that codec is
+/// `rule:core-classes/derive-attribute`'s, and that codec is
 /// JSON.
 fn responses(row: &Route) -> Value {
     let returns = row.returns.as_deref();

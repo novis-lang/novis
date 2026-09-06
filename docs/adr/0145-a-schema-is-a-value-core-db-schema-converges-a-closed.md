@@ -1,4 +1,4 @@
-# ADR 0145 — A schema is a value: `Core\Db\Schema` converges a closed vocabulary, and neither versions nor parses SQL
+# `rule:core-classes/schema-is-a-value` — A schema is a value: `Core\Db\Schema` converges a closed vocabulary, and neither versions nor parses SQL
 
 - **Status:** Accepted
 - **Date:** 2026-09-06
@@ -53,7 +53,7 @@
 
 ## Context
 
-[ADR 0067](0067-core-db.md) left a door in its *Revisiting* list — *"a portable `Core\Db\Schema`, **if
+`rule:core-classes/db-one-api` left a door in its *Revisiting* list — *"a portable `Core\Db\Schema`, **if
 migration tooling in `nvs` itself needs it**, rather than userland"* — and the condition has since been
 met from inside the runtime rather than from userland. [0084](0084-durable-background-jobs.md) § 2 makes
 the job queue's storage the one schema the runtime itself owns, created by `nvs queue migrate`, on all

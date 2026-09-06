@@ -68,7 +68,7 @@
 //!    through a private map token and is a workspace-wide switch, or a
 //!    `RawValue` pre-pass. Neither is worth a whole document's re-scan for a
 //!    band that starts at 1.8e19.
-//! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
+//! 2. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
 //!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
 //!    any of those, and a `?T` of any of them — the whole of
@@ -96,21 +96,20 @@
 //!    `null`. `nvs_types::defaults` evaluates a default into a constant the
 //!    *call site* emits, and a native decoder is not a call site — closing
 //!    this means carrying the constant onto `nvs_runtime::CodecField`.
-//! 4. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
+//! 4. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
 //!    encoder and no attribute still refuses. Closing it is a
 //!    `ClassDesc::method("toJson")` lookup and a call back into compiled code.
 //! 5. **Both halves walk a per-class field list rather than straight-line
-//!    code.** ADR 0071 § 8 asks for IR emitted per derived class; what is built
+//!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact.
 //! 6. **An issue's `path` is a field's own wire key, under every nesting that
 //!    encloses it.** A `decodeAs<array<C>>` reports `2.name`, a nested class's
-//!    field `address.city` and a list field's bad element `tags.3` — ADR 0071
-//!    § 5's dotted path, built by [`path_of`] out of a prefix each nesting
+//!    field `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s dotted path, built by [`path_of`] out of a prefix each nesting
 //!    extends by one segment.
 //! 7. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
@@ -523,7 +522,7 @@ impl Encodable {
     }
 
     /// An object, as the document its class's
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) derived codec
+    /// `rule:core-classes/derive-attribute` derived codec
     /// declares: one entry per field, in declaration order, under the field's
     /// own wire key.
     ///
@@ -537,7 +536,7 @@ impl Encodable {
     /// The one instance that is not a declared class is an
     /// `rule:types/object-literal`
     /// shape, which encodes as a JSON object keyed by its own field names —
-    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 7 owns why
+    /// `rule:core-classes/derive-generates-what-is-missing` owns why
     /// that is not an exception to the rule above, and the arm below says what
     /// it walks.
     fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
@@ -565,13 +564,13 @@ impl Encodable {
         let desc = unsafe { &*object.class() };
         // `rule:types/object-literal`'s shape, before the codec is read: a shape is a bag of
         // named fields with no declaration to hang `#[Json\Derive]` on, so the
-        // refusal below has nothing to ask it for — ADR 0071 § 7. Its slots are
+        // refusal below has nothing to ask it for — `rule:core-classes/derive-generates-what-is-missing`. Its slots are
         // walked the way an array's entries are, each value spelled by its own
         // tag, because the class is keyed on field *names* alone
         // (`nvs_ir::lower::shape_class_label`) and so has no per-field wire
         // type a `CodecField` could honestly carry: `{n: 1}` and `{n: "s"}` are
         // one class. Key order is that label's, which is sorted, so a shape's
-        // document is byte-deterministic on ADR 0071 § 2's terms.
+        // document is byte-deterministic on `rule:core-classes/derive-field-list`'s terms.
         if desc.is_shape() {
             let mut map = ser.serialize_map(Some(desc.field_count()))?;
             for slot in 0..desc.field_count() {
@@ -892,7 +891,7 @@ nvs_runtime::nvs_helper! {
         let text = text_of(&args[0], "decode")?;
         let max = max_depth(&args[1])?;
         read(text, max).map_err(|why| {
-            // ADR 0071 § 5's last sentence: a malformed document records one
+            // `rule:core-classes/derive-reports-every-field`'s last sentence: a malformed document records one
             // issue, so a `catch (ParseError $e)` reads the same shape whether
             // the failure was the syntax or the fields. Its `path` is empty —
             // there is no field to point at when the document did not parse.
@@ -904,7 +903,7 @@ nvs_runtime::nvs_helper! {
 }
 
 // ============================================================================
-// Decoding into a class — ADR 0071's generated decoder
+// Decoding into a class — `rule:core-classes/derive-attribute`'s generated decoder
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
@@ -947,7 +946,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 2's decode: the
+/// `rule:core-classes/derive-field-list`'s decode: the
 /// class's codec checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
@@ -990,7 +989,7 @@ unsafe fn decode_as(
     if let Some(field) = fields.iter().find(|field| field.ty == CodecTy::Opaque) {
         return Err(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
-             has no case for yet — ADR 0071 § 2's wider codec-reachable set is \
+             has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
              `nvs_stdlib::json`'s own known gap",
             desc.name(),
             field.key
@@ -1026,7 +1025,7 @@ unsafe fn decode_as(
     decoded
 }
 
-/// ADR 0071 § 2's decode run once per element: a JSON array in, one instance of
+/// `rule:core-classes/derive-field-list`'s decode run once per element: a JSON array in, one instance of
 /// `class` per element out, in the document's own order.
 ///
 /// An element that is not an object, or a field that does not match, refuses
@@ -1034,7 +1033,7 @@ unsafe fn decode_as(
 /// a shorter list than the document held, which is a lie no caller can see.
 ///
 /// **The refusal stops at the first bad element**, so the issue list is one
-/// element's fields with that element's position on each path. ADR 0071 § 5
+/// element's fields with that element's position on each path. `rule:core-classes/derive-reports-every-field`
 /// accumulates *within* an object because a class's field count is a bound the
 /// program wrote; a list's length is a bound the document wrote, and a decode
 /// of untrusted input that reported an issue per element would do work in
@@ -1088,7 +1087,7 @@ unsafe fn decode_each(
     Ok(Value::array(decoded))
 }
 
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's decode of one
+/// `rule:core-classes/derive-reports-every-field`'s decode of one
 /// object: every field read into a local, **every** failure accumulated, and
 /// the constructor run only if none was.
 ///
@@ -1161,13 +1160,13 @@ unsafe fn decode_object(
 
 /// How one field, or one whole nested object, failed.
 ///
-/// The two are not the same failure: ADR 0071 § 5 **accumulates** issues
+/// The two are not the same failure: `rule:core-classes/derive-reports-every-field` **accumulates** issues
 /// across an object's fields, so a nested object's issues have to travel back
 /// up and join the enclosing object's list rather than throwing where they were
 /// found — while a [`Fault`] is the decoder admitting a gap of its own and ends
 /// the decode wherever it happens.
 enum DecodeFailure {
-    /// ADR 0071 § 5 issues, each an already-rooted path and its message.
+    /// `rule:core-classes/derive-reports-every-field` issues, each an already-rooted path and its message.
     Issues(Vec<(String, String)>),
     /// A fault that ends the whole decode — an engine gap, never the
     /// document's doing.
@@ -1175,7 +1174,7 @@ enum DecodeFailure {
 }
 
 /// One object's fields decoded into its constructor's arguments, and the
-/// constructor run — ADR 0071 § 5's accumulate-then-construct, over an object
+/// constructor run — `rule:core-classes/derive-reports-every-field`'s accumulate-then-construct, over an object
 /// whose JSON shape a caller has already checked.
 ///
 /// `prefix` is what § 5's issue paths are rooted at: `""` at the top, `2.`
@@ -1255,7 +1254,7 @@ unsafe fn decode_fields(
         release_all(&ctor_args);
         return Err(DecodeFailure::Issues(issues));
     }
-    // ADR 0071 § 3's skipped field with a constructor default is the one shape
+    // `rule:core-classes/derive-field-list`'s skipped field with a constructor default is the one shape
     // that leaves a position unfilled, and this crate has no way to
     // materialize that default — `nvs_types::defaults` evaluates it into a
     // constant the *call site* emits, and there is no call site here. Loud
@@ -1314,7 +1313,7 @@ unsafe fn decode_field(
         return Err(issue("null is not permitted".to_owned()));
     }
     let converted = match field.ty {
-        // ADR 0071 § 2's nested class, decoded by running that class's own
+        // `rule:core-classes/derive-field-list`'s nested class, decoded by running that class's own
         // field list over this key's object — which is why § 5's paths are
         // dotted in the first place.
         CodecTy::Class => {
@@ -1325,7 +1324,7 @@ unsafe fn decode_field(
             )]
             return unsafe { decode_nested(ctx, owner, index, found, prefix) };
         }
-        // ADR 0071 § 2's list field, decoded one element at a time under a
+        // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
         // path this key extends — the second nesting § 5's dotted path covers.
         CodecTy::List => {
             #[expect(
@@ -1341,7 +1340,7 @@ unsafe fn decode_field(
         | CodecTy::Uint
         | CodecTy::Float
         | CodecTy::Str => scalar(field.ty, None, found),
-        // ADR 0071 § 2's enum field: the roster travels with the field and the
+        // `rule:core-classes/derive-field-list`'s enum field: the roster travels with the field and the
         // decode is a membership test over it, so this is a scalar with one
         // more thing in hand rather than a nesting of its own.
         CodecTy::Enum => scalar(field.ty, Some(cases_of(owner, field)?), found),
@@ -1352,7 +1351,7 @@ unsafe fn decode_field(
         CodecTy::Opaque => {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
-                 has no case for yet — ADR 0071 § 2's wider codec-reachable set is \
+                 has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
                  `nvs_stdlib::json`'s own known gap",
                 owner.name(),
                 field.key
@@ -1380,7 +1379,7 @@ unsafe fn decode_field(
     Ok(value)
 }
 
-/// One field of a nested class decoded — ADR 0071 § 2's "another class that
+/// One field of a nested class decoded — `rule:core-classes/derive-field-list`'s "another class that
 /// itself has a codec", run over the object this key holds.
 ///
 /// The class is the compiler's answer and never the document's: the descriptor
@@ -1420,7 +1419,7 @@ unsafe fn decode_nested(
     if desc.codec().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
-             derived codec — ADR 0071 § 7's hand-written half is `nvs_stdlib::json`'s own \
+             derived codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own \
              known gap",
             owner.name(),
             field.key,
@@ -1470,8 +1469,7 @@ unsafe fn decode_nested(
 /// asking, so a `None` here is an already-diagnosed program and refuses.
 fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value> {
     match ty {
-        // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
-        // § 2), so whatever the document held is the value.
+        // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-field-list`), so whatever the document held is the value.
         CodecTy::Mixed => Some(found),
         CodecTy::Bool => found.as_bool().map(Value::bool),
         CodecTy::Int => found.as_int().map(Value::int),
@@ -1533,7 +1531,7 @@ fn cases_of<'a>(
     })
 }
 
-/// One `array<T>` field decoded — ADR 0071 § 2's list field, every position
+/// One `array<T>` field decoded — `rule:core-classes/derive-field-list`'s list field, every position
 /// read through [`nvs_runtime::CodecField::element`] and **every** bad one
 /// accumulated, so a list reports like an object rather than at its first
 /// failure.
@@ -1680,7 +1678,7 @@ unsafe fn decode_element(
     if desc.codec().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \
-             codec — ADR 0071 § 7's hand-written half is `nvs_stdlib::json`'s own known gap",
+             codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own known gap",
             owner.name(),
             field.key,
             desc.name()
@@ -1706,7 +1704,7 @@ unsafe fn decode_element(
     }
 }
 
-/// ADR 0071 § 5's issue path for a field, rooted at whatever encloses it:
+/// `rule:core-classes/derive-reports-every-field`'s issue path for a field, rooted at whatever encloses it:
 /// `name` alone at the top, `2.name` inside a list's third element,
 /// `2.address.city` inside that element's nested `address`.
 ///

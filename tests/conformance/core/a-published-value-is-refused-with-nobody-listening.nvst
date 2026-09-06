@@ -1,5 +1,5 @@
 --TEST--
-A value that cannot cross a copy boundary is refused by `Core\Topic::publish` whether or not anybody joined the topic — ADR 0083 § 4, ADR 0033 § 1, `rule:classes/graph-copy`
+A value that cannot cross a copy boundary is refused by `Core\Topic::publish` whether or not anybody joined the topic — `rule:core-classes/topic`, ADR 0033 § 1, `rule:classes/graph-copy`
 --FILE--
 <?nvs
 // § 4 copies a published value by `rule:classes/graph-copy`'s graph copy, and that walk does

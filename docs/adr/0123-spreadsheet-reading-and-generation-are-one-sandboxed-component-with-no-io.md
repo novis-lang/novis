@@ -1,4 +1,4 @@
-# ADR 0123 — Spreadsheet reading and generation are one sandboxed component with no I/O
+# `rule:core-classes/spreadsheet-has-no-io` — Spreadsheet reading and generation are one sandboxed component with no I/O
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

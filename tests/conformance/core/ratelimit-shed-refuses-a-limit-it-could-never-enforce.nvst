@@ -1,8 +1,8 @@
 --TEST--
-Core\RateLimit::shed throws for a limit that can never be enforced, and charges nothing — ADR 0075 § 5
+Core\RateLimit::shed throws for a limit that can never be enforced, and charges nothing — `rule:core-classes/ratelimit-unreachable-store-throws`
 --FILE--
 <?nvs
-// ADR 0075 § 5's direction, in the tier that has no store to blame: a limiter
+// `rule:core-classes/ratelimit-unreachable-store-throws`'s direction, in the tier that has no store to blame: a limiter
 // that quietly does not limit is worse than no limiter, so a policy that could
 // never admit anything or could never be measured is refused where it is
 // written rather than answered.

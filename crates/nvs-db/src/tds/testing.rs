@@ -457,7 +457,7 @@ pub(super) fn every_type_info() -> Vec<(Vec<u8>, Length, ColumnType)> {
     ]
 }
 
-// ---- `ROW`, `NBCROW` and PLP over packets: ADR 0067 §§ 4 and 9 ----------
+// ---- `ROW`, `NBCROW` and PLP over packets: `rule:core-classes/db-statement-members` and `rule:core-classes/db-column-types` ----------
 
 /// A wire over a server that answers with these packets in order, only the
 /// last of them ending the message.

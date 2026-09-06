@@ -1,5 +1,5 @@
 --TEST--
-`+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — ADR 0086 § 2, ADR 0024 § 5
+`+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — ADR 0086 § 2, `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
 // § 2 reads `Text` **+** `Text`, and the emphasis is on both sides: `+` is not
@@ -9,8 +9,8 @@
 var $text = Core\Cli\Text::plain("red");
 echo $text + "raw", "\n";
 
-// The two sink carriers are one rule, not one type: a `Markup` passed ADR 0024
-// § 5's rule and a `Text` passed ADR 0086 § 1's substitution, and neither
+// The two sink carriers are one rule, not one type: a `Markup` passed `rule:core-classes/html-auto-escape`
+// 's rule and a `Text` passed ADR 0086 § 1's substitution, and neither
 // verdict is the other's. So the cross pair is refused exactly as a `string`
 // operand is, rather than composing into whichever carrier was written first.
 var $markup = "<b>" as Core\Html\Markup;

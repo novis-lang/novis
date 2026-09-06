@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<array<T>>` reads a JSON array as one `T` per element, with the element's position on every issue it reports — ADR 0071 §§ 2 and 5, `rule:types/grammar`
+`Core\Json::decodeAs<array<T>>` reads a JSON array as one `T` per element, with the element's position on every issue it reports — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:types/grammar`
 --FILE--
 <?nvs
 #[Core\Json\Derive]

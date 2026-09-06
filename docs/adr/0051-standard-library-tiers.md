@@ -87,13 +87,13 @@
 **Core.** `Core\Str`, `Core\Arr`, `Core\Math`, `Core\IO` — absorbing `standard`, SPL's data structures,
 `ctype`, and, because `rule:types/bytes` guarantees `string` is UTF-8, nearly all of
 `mbstring`. `Core\Time` (`date`, `calendar`), immutable only. `Core\Regex`
-([ADR 0056](0056-regex-engine-policy.md)). `Core\Json`. `Core\Hash`, absorbing `openssl`'s digest half.
+(`rule:core-classes/regex-two-tiers`). `Core\Json`. `Core\Hash`, absorbing `openssl`'s digest half.
 `Core\Random`, secure by default. `Core\Reflect` and `Core\Ast`
 ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). `Core\Session`. `Core\Encoding`
 (`iconv`, over `encoding_rs`, sited at the `bytes`/`string` boundary where conversion is naturally
 failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose escaper and sanitizer are
 ADR 0024 launderers and whose WHATWG parser shares `Core\Xml`'s tree
-([ADR 0122](0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)). `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
+(`rule:core-classes/html-parsing`). `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
 libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — Tier 0 for the same
 reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
 server compresses nothing itself, per [ADR 0097](0097-development-server-and-proxied-origin.md) § 1).
@@ -106,7 +106,7 @@ raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([
 `Core\Attributes` (`rule:attributes/inert-metadata`), already scheduled for M8.
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 ([ADR 0072](0072-core-task-structured-concurrency.md), test 1 — it *is* the request lifecycle),
-`Core\RateLimit` ([ADR 0075](0075-core-ratelimit.md), tests 1 and 3),
+`Core\RateLimit` (`rule:core-classes/ratelimit-two-members`, tests 1 and 3),
 `Core\Metrics` ([ADR 0076](0076-observability-export.md), test 1 — it reads the runtime's own counters) and
 `Core\Router` ([ADR 0077](0077-compile-time-routing.md), test 1 — its table is built by a compiler pass).
 `Core\Metrics`'s **exporter** is Native and feature-gated while the class itself is Core, the same split
@@ -135,14 +135,14 @@ bombs are *policy*, and the policy must be non-optional. A sandboxed decoder get
 and the traversal rules not at all.
 
 **Native.** `Core\Db` (`pdo` and its drivers) and the Redis backend behind `Core\Cache`, both by test 1 —
-connection lifetime. `Core\Db`'s own surface is [ADR 0067](0067-core-db.md), and **MariaDB is a driver
+connection lifetime. `Core\Db`'s own surface is `rule:core-classes/db-one-api`, and **MariaDB is a driver
 distinct from MySQL** there rather than a version of it: its `JSON` is a `LONGTEXT` alias, it has
 `RETURNING`, a bulk-execute protocol, a native `UUID` type and its own authentication plugins, none of
 which MySQL has. `Core\Crypto`: `openssl`'s primitive half merged with `sodium`, AEAD-only, with no
 ECB, no unauthenticated CBC and no cipher-name-as-string; TLS via `rustls`. `Core\Http\Client` (`curl`) and
 `Core\Net` (`sockets`, `stream_*`), over the runtime's own reactor rather than a second event loop.
 `Core\Mail`, an SMTP client with structured headers, replacing `mail()`. `Core\Process`
-([ADR 0044](0044-core-process-argv-only-no-shell.md)). The Redis driver ships behind a Cargo feature that
+(`rule:core-classes/process-is-argv-only`). The Redis driver ships behind a Cargo feature that
 defaults **on**, while its `net.connect` capability stays deny-by-default: distribution and authority are
 separate decisions, and only the second is security-relevant.
 
@@ -162,13 +162,13 @@ Locale-independent Unicode algorithms — case mapping, NFC/NFD normalization, g
 in `Core\Str`. And an **image component** (`gd`), test 5's headline case, which **carries `exif` rather
 than leaving it a separate `.nvsx`**: orientation and the rest of the tag set are read by the decoder
 already holding the file, so a second component would buy a second boundary crossing for one field. The
-third is **PDF generation** ([ADR 0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md)) —
+third is **PDF generation** (`rule:core-classes/pdf-render-has-no-io`) —
 HTML rendered to PDF by a component with no I/O — placed and contracted there but **unscheduled**: no
 milestone owns it, and M9 builds the two above. Its
 shape — a Novis builder over a handful of coarse entry points, under `Novis\Image` — is
 [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md). The fourth is
 **spreadsheet reading and generation**
-([ADR 0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md)) —
+(`rule:core-classes/spreadsheet-has-no-io`) —
 workbooks crossing as bytes, nothing fetched and nothing executed, a formula a typed value — likewise
 placed and contracted there and **unscheduled**.
 
@@ -261,8 +261,8 @@ tier is therefore visible at the use site.
   PHP's ICU version is pinned to whatever the distribution built against — a chronic operational complaint.
   A new `.nvsx` replaces it.
 - **Tier 1's first-party roster is four components — image decoding, intl, and the two unscheduled
-  document generators [ADR 0121](0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md) and
-  [ADR 0123](0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md) admit —
+  document generators `rule:core-classes/pdf-render-has-no-io` and
+  `rule:core-classes/spreadsheet-has-no-io` admit —
   and stays four.** M9 still builds the first two, and that is what its verification demonstrates: an image codec
   makes the security claim legible in a way a compression
   benchmark does not. It is deliberately not a head start on a longer list. Everything else that was once

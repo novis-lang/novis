@@ -17,7 +17,7 @@
 //!
 //! # `ParseError` is the one class with state of its own
 //!
-//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's
+//! `rule:core-classes/derive-reports-every-field`'s
 //! `issues: array<Core\Issue>`, seeded from
 //! [`nvs_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
 //! slot order and the signature cannot disagree. `Core\Issue` is an `rule:types/object-top`
@@ -114,7 +114,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // its caller passed, and the synthesized constructor writes
                 // the message into it (`nvs_ir::lower::exception`).
                 "reason" => interner.string(),
-                // `Core\Db\DbError::$kind` — ADR 0067 § 8's normalised
+                // `Core\Db\DbError::$kind` — `rule:core-classes/db-error`'s normalised
                 // `ErrorKind`, which is a registered enum and not a string:
                 // the eleven conditions are a closed set the compiler can
                 // check a `match` against, and `nvs_stdlib::db::ERROR_KIND` is
@@ -122,8 +122,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // `Core` enum is backed by (`crate::core_lib`'s `CoreTy::Enum`
                 // arm interns exactly this).
                 "kind" => interner.enum_(QName::parse(ERROR_KIND), EnumBacking::Int),
-                // `Core\Db\DbError::$sqlState` and `$driverCode` — ADR 0067
-                // § 8's raw pair, and both `?T` where `kind` is not: a refusal
+                // `Core\Db\DbError::$sqlState` and `$driverCode` — `rule:core-classes/db-error`'s raw pair, and both `?T` where `kind` is not: a refusal
                 // the wire produced rather than the server has neither, and a
                 // driver whose only code is its `SQLSTATE` has no second
                 // integer to answer with. Nothing seeds them for that case,
@@ -179,7 +178,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
 const ERROR_KIND: &str = r"Core\Db\ErrorKind";
 
 /// `type Core\Issue = {path: string, message: string}` —
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's one shape.
+/// `rule:core-classes/derive-reports-every-field`'s one shape.
 ///
 /// An `rule:types/object-top` shape rather than a class, which is what that ADR writes and
 /// what lets a decoder build one with no declaration anywhere: the value is an

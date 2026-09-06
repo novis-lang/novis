@@ -174,8 +174,8 @@ impl Pending {
     unsafe fn into_thrown(self, class: *const ClassDesc) -> Thrown {
         match self {
             // The class is passed through rather than dropped: it is what
-            // decides which slot this promotion seeds — ADR 0071 § 5's
-            // `issues`, ADR 0067 § 7's `reason` — see `Thrown::new_as`.
+            // decides which slot this promotion seeds — `rule:core-classes/derive-reports-every-field`'s
+            // `issues`, `rule:core-classes/db-transactions`'s `reason` — see `Thrown::new_as`.
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
             Self::Message(thrown, message) => unsafe {
                 Thrown::new_as(class, thrown, &message, &[])
@@ -436,7 +436,7 @@ impl Ctx {
     /// caller that has to decide something about a throw it may still re-raise
     /// unchanged.
     ///
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's retry loop is why
+    /// `rule:core-classes/db-error`'s retry loop is why
     /// this exists: it has to know whether the closure's own refusal was a
     /// deadlock or a serialization failure before it decides to run the
     /// closure again, and `take_thrown` would clear the very failure it is
@@ -605,7 +605,7 @@ impl Ctx {
 mod tests {
     use super::*;
 
-    /// ADR 0067 § 8's retry loop reads a refusal's `kind` off a failure it has
+    /// `rule:core-classes/db-error`'s retry loop reads a refusal's `kind` off a failure it has
     /// not decided about yet, so the read leaves the pending exactly as it
     /// found it — and the class it names is the whole of what keeps
     /// `KIND_SLOT` from reading a `ParseError`'s `issues` back as an

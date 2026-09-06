@@ -24,7 +24,7 @@ pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     stream: S,
     inbox: Vec<u8>,
     codec: Codec,
-    /// ADR 0067 § 7's open transaction, as the descriptor every request has to
+    /// `rule:core-classes/db-transactions`'s open transaction, as the descriptor every request has to
     /// name it by, and zero where none is open.
     ///
     /// **Here rather than beside [`crate::conn::TdsConn::depth`], for the
@@ -88,7 +88,7 @@ impl<S: Read + Write> Wire<S> {
 
     /// Bounds every wait on this wire by `at`, or lifts the bound.
     ///
-    /// [`crate::pg`]'s `set_deadline` for ADR 0067 § 4's statement deadline, and
+    /// [`crate::pg`]'s `set_deadline` for `rule:core-classes/db-statement-members`'s statement deadline, and
     /// the one driver where the forwarding is two hops rather than one: this
     /// session sits on a [`Tunnel`](super::prelogin::Tunnel), which sits on the
     /// socket, and `nvs_host::net::Deadline` is what carries the instant down
@@ -144,7 +144,7 @@ impl<S: Read + Write> Wire<S> {
 
     /// Frames `payload` as a whole message, writes all of it, and flushes.
     ///
-    /// One function because a half-written message is the shape ADR 0132 § 4
+    /// One function because a half-written message is the shape `rule:core-classes/db-connection-busy-state`
     /// calls poison, and `write_all` is the only spelling that cannot leave
     /// one. `status` is the extra bits of [`Codec::encode`]; the ordinary
     /// caller passes [`Status::NORMAL`].

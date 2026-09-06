@@ -50,7 +50,7 @@
 /// it is run from a terminal.
 ///
 /// `Core\Db\RolledBack` is the third, and it is here for the same reason once
-/// more: [ADR 0067](/docs/adr/0067-core-db.md) § 7 makes
+/// more: `rule:core-classes/db-transactions` makes
 /// `Transaction::rollBack` throw it and
 /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 18
 /// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
@@ -60,8 +60,7 @@
 /// [`OWN_PROPERTIES`].
 ///
 /// `Core\Db\DbError` is the fourth, and it is § 18's other half: everything the
-/// server itself refused, which [ADR 0067](/docs/adr/0067-core-db.md)
-/// § 8 makes **one** class carrying a normalised `kind` rather than ten whose
+/// server itself refused, which `rule:core-classes/db-error` makes **one** class carrying a normalised `kind` rather than ten whose
 /// boundaries would differ per driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
 /// from "the database said no" is the whole reason § 18 spells two names. It
@@ -117,11 +116,11 @@ pub const BACKTRACE_SLOT: usize = 2;
 ///
 /// [`PROPERTIES`] is the root's row; the rest of the tree inherits those four
 /// and, with two exceptions, adds nothing. The first is `ParseError`, which
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5 gives an
+/// `rule:core-classes/derive-reports-every-field` gives an
 /// `issues` list so that a decode reports **every** bad field from one throw
 /// rather than the first. The second is `Core\Db\RolledBack`, which spec § 18
 /// gives a `reason` — the string
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's `Transaction::rollBack`
+/// `rule:core-classes/db-transactions`'s `Transaction::rollBack`
 /// was called with, readable from the `catch` outside the transaction closure
 /// that the throw unwound.
 ///
@@ -131,7 +130,7 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// PHP-shaped code takes for ordinary control flow
 /// (`rule:errors/propagation`'s measured cost).
 /// The third is `Core\Db\DbError`, which
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 8 gives a normalised `kind`
+/// `rule:core-classes/db-error` gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
 /// read off plus the `sql` that was refused. All five of spec § 18's are here,
@@ -149,7 +148,7 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
 /// `ParseError`'s own row of [`OWN_PROPERTIES`].
 const ISSUES: &[&str] = &["issues"];
 
-/// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — ADR 0067 § 8's five
+/// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — `rule:core-classes/db-error`'s five
 /// properties, all of them, in § 8's own order. The order is the rule and not
 /// an accident of how they arrived: a sixth value § 8 gained later would be
 /// appended here too, so that no slot already compiled into a program moves.
@@ -190,7 +189,7 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// [`CONSTRAINT_SLOT`] and [`SQL_SLOT`].
 pub const KIND_SLOT: usize = PROPERTIES.len();
 
-/// The slot `Core\Db\DbError::$sqlState` occupies — ADR 0067 § 8's raw
+/// The slot `Core\Db\DbError::$sqlState` occupies — `rule:core-classes/db-error`'s raw
 /// five-character code, beside the kind normalised from it.
 ///
 /// Derived from [`KIND_SLOT`] rather than from [`PROPERTIES`], which is the
@@ -199,12 +198,12 @@ pub const KIND_SLOT: usize = PROPERTIES.len();
 /// only coincide. `nvs_runtime::SQL_STATE_SLOT` is the runtime's copy.
 pub const SQL_STATE_SLOT: usize = KIND_SLOT + 1;
 
-/// The slot `Core\Db\DbError::$driverCode` occupies — ADR 0067 § 8's vendor
+/// The slot `Core\Db\DbError::$driverCode` occupies — `rule:core-classes/db-error`'s vendor
 /// integer, which is `null` wherever the driver has no code the `SQLSTATE` does
 /// not already carry. `nvs_runtime::DRIVER_CODE_SLOT` is the runtime's copy.
 pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 
-/// The slot `Core\Db\DbError::$constraint` occupies — ADR 0067 § 8's name of
+/// The slot `Core\Db\DbError::$constraint` occupies — `rule:core-classes/db-error`'s name of
 /// the constraint the condition violated, where the condition names one.
 ///
 /// Derived from [`KIND_SLOT`] like its two siblings above, and `?string` for a
@@ -214,7 +213,7 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 /// `nvs_runtime::CONSTRAINT_SLOT` is the runtime's copy.
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
-/// The slot `Core\Db\DbError::$sql` occupies — ADR 0067 § 8's statement text,
+/// The slot `Core\Db\DbError::$sql` occupies — `rule:core-classes/db-error`'s statement text,
 /// the last of the five and the only one the client rather than the server
 /// worded.
 ///

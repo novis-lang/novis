@@ -91,7 +91,7 @@ Every entry is designed so the historical failure is **unrepresentable**, not me
   [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) § 3 is where a
   lifetime is instead *written and never omitted*, `null` included.
 - **Verification returns claims or throws.** It never returns a falsy value that a loose comparison could
-  mistake for success — the same reasoning [ADR 0056](0056-regex-engine-policy.md) § 2 applies to a
+  mistake for success — the same reasoning `rule:core-classes/regex-two-tiers` applies to a
   budget exhaustion.
 - **Every comparison of a secret-derived value is constant-time**, and no API exposes the raw value for the
   caller to compare themselves.

@@ -407,7 +407,7 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::EnumCase(crate::encoding::CHARSET_NAME, "Utf8"),
 }];
 
-/// `Core\IO::writeStream`'s `{max?, overwrite?}` — ADR 0105 § 4's two rules,
+/// `Core\IO::writeStream`'s `{max?, overwrite?}` — `rule:core-classes/io-write-stream`'s two rules,
 /// and the whole of what this member decides that [`nvs_core_io_write`] does
 /// not.
 ///
@@ -425,7 +425,7 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
 /// than inherited a number.
 ///
 /// **`Core\Request\Part::saveTo` is this same bag**, by naming this constant
-/// rather than declaring a second one beside it: ADR 0105 § 4 makes that member
+/// rather than declaring a second one beside it: `rule:core-classes/io-write-stream` makes that member
 /// a delegation to this one, and two spellings of one default are two things
 /// that can disagree.
 pub(crate) const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
@@ -2723,7 +2723,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?}): void` —
-    /// ADR 0105 § 4's one way a stream reaches disk.
+    /// `rule:core-classes/io-write-stream`'s one way a stream reaches disk.
     ///
     /// Argument reading only; [`stream_to_disk`] is the member. The two
     /// options arrive already defaulted, so there is nothing here that decides
@@ -2760,12 +2760,12 @@ nvs_runtime::nvs_helper! {
 /// and one of them is raised from a closure two frames down.
 ///
 /// It is *handed* to [`stream_to_disk`] rather than read there, because
-/// `Core\Request\Part::saveTo` drives the same function under ADR 0105 § 4's
+/// `Core\Request\Part::saveTo` drives the same function under `rule:core-classes/io-write-stream`'s
 /// delegation and a program that called `saveTo` must not be told about a
 /// member it never named.
 const WRITE_STREAM: &str = "Core\\IO::writeStream";
 
-/// ADR 0105 § 4's member: the door, the drive, and the two rules the ADR gives
+/// `rule:core-classes/io-write-stream`'s member: the door, the drive, and the two rules the ADR gives
 /// this member of its own.
 ///
 /// A plain function rather than the helper's body so that this module's own
@@ -2796,7 +2796,7 @@ const WRITE_STREAM: &str = "Core\\IO::writeStream";
 /// so.
 ///
 /// **`what` is the member the *program* called** — [`WRITE_STREAM`] here, and
-/// `Core\Request\Part::saveTo` where ADR 0105 § 4's delegation drives it. Every
+/// `Core\Request\Part::saveTo` where `rule:core-classes/io-write-stream`'s delegation drives it. Every
 /// refusal below quotes it, so the delegation is as invisible in a message as
 /// the ADR makes it in the language.
 ///
@@ -3323,8 +3323,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Removable, and removed without being asked:
     /// [`nvs_runtime::capability::temp_dir`] records what it created on the
-    /// context and [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3's sweep deletes it when the script ends. So this member has no
+    /// context and `rule:core-classes/temporary-dir-sweep`'s sweep deletes it when the script ends. So this member has no
     /// counterpart to call, no persist option to pass and nothing for the
     /// program to remember — which is why there is no `temporaryFile` either:
     /// a file that must outlive its script is storage.
@@ -3446,7 +3445,7 @@ mod tests {
 
     #[test]
     fn write_stream_defaults_to_no_overwrite() {
-        // ADR 0105 § 4's first rule, in both places it has to hold. The row's
+        // `rule:core-classes/io-write-stream`'s first rule, in both places it has to hold. The row's
         // default alone would pass over a body that never read the option, and
         // the behaviour alone would pass over a row whose default was `true` —
         // it is the pair that says a caller who writes nothing is safe.
@@ -3495,7 +3494,7 @@ mod tests {
 
     #[test]
     fn a_write_stream_that_fails_midway_removes_the_partial_file() {
-        // ADR 0105 § 4's second rule. `max` is the failure the case reaches
+        // `rule:core-classes/io-write-stream`'s second rule. `max` is the failure the case reaches
         // for because it is the one this member can be made to raise part-way
         // through on any host and without a source that throws: two chunks
         // land, the third passes the ceiling, and the claim is that the two

@@ -6,14 +6,13 @@
 //! rather than another request's resource.
 //!
 //! And one thing that is not a handle at all — the temporary directories
-//! [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-//! § 3 has the runtime delete when the script ends. It is here for the second
+//! `rule:core-classes/temporary-dir-sweep` has the runtime delete when the script ends. It is here for the second
 //! half of this file's title rather than the first: nothing in Novis holds a key
 //! to one, but the request gives them back when it ends exactly as it gives back
 //! the three tables. [`Ctx::track_temporary_dir`] is the one writer.
 //!
 //! [`HeldConnection`] is the trait that lets this crate hold a
-//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! driver's connection without depending on the driver — the dependency runs
 //! the other way, so the field is a `dyn Trait` and the only method on it is
 //! the downcast a holder needs to get its own type back.
@@ -28,8 +27,7 @@ use super::*;
 /// itself is a key into a table the request owns
 /// ([`Ctx::hold_open_connection`]); the table has to live in this crate,
 /// because this is the crate that learns when a request ends. And the edge
-/// cannot run the other way: [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
-/// § 1 has `nvs-db` depending on this crate, so a field typed
+/// cannot run the other way: `rule:core-classes/db-crate-boundary` has `nvs-db` depending on this crate, so a field typed
 /// `nvs_db::Connection` would close a cycle.
 ///
 /// The one method is the downcast a holder needs to get its own type back,
@@ -181,7 +179,7 @@ impl Ctx {
     /// The same shape and the same reasoning as [`Ctx::hold_open_file`], and
     /// [`Ctx::hold_started_script`] is the one home of *why* a `Core` handle is
     /// a key into a request-owned table. What this adds is `memo`, which is
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 2's memoization key —
+    /// `rule:core-classes/db-connection-is-named`'s memoization key —
     /// the block's name for `Core\Db::connect`, and `None` for a
     /// `{shared: false}` call, which is exactly what "bypasses memoization"
     /// means: an entry no [`Ctx::memoized_connection`] lookup can match. The
@@ -224,8 +222,7 @@ impl Ctx {
     /// [`Ctx::open_file_mut`]'s shape, and one difference that is
     /// [`HeldConnection`]'s whole reason: what comes back is the trait object
     /// rather than a driver's own type, because
-    /// [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
-    /// § 1 has `nvs-db` depending on this crate and naming `nvs_db::Connection`
+    /// `rule:core-classes/db-crate-boundary` has `nvs-db` depending on this crate and naming `nvs_db::Connection`
     /// here would close a cycle. The caller that knows which crate opened it
     /// gets its own type back through
     /// [`HeldConnection::as_any_mut`](crate::HeldConnection::as_any_mut) — one
@@ -302,8 +299,7 @@ impl Ctx {
     }
 
     /// Records a directory `Core\IO::temporaryDir` has just created for this
-    /// script — [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
-    /// § 3's per-script list, written by
+    /// script — `rule:core-classes/temporary-dir-sweep`'s per-script list, written by
     /// [`crate::capability::temp_dir`](crate::capability::temp_dir) and by
     /// nothing else.
     ///

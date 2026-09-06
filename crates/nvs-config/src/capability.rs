@@ -18,7 +18,7 @@
 //!
 //! # A `db.open` entry may be a `*.` wildcard
 //!
-//! [ADR 0067](/docs/adr/0067-core-db.md) § 3 writes `db.open = ["*.tenants.internal"]`, and this is
+//! `rule:core-classes/db-capabilities` writes `db.open = ["*.tenants.internal"]`, and this is
 //! what that entry means. An entry beginning `*.` matches a host whose name ends with the entry's
 //! remainder **at a label boundary**: `*.tenants.internal` grants `a.tenants.internal` and
 //! `a.b.tenants.internal`, and grants neither `tenants.internal` itself nor `evil-tenants.internal`.
@@ -72,11 +72,11 @@ pub enum Cap {
     DebugTrace,
     /// `debug.profile` — where a profile may be written (`rule:testing/debug-probes`).
     DebugProfile,
-    /// `db.connect` — which `[db.<name>]` blocks a program may open by name (ADR 0067 § 3).
+    /// `db.connect` — which `[db.<name>]` blocks a program may open by name (`rule:core-classes/db-capabilities`).
     DbConnect,
     /// `db.open` — which hosts a program-supplied `Db\Settings` may reach.
     DbOpen,
-    /// `db.schema` — which `[db.<name>]` blocks a program may issue DDL to (ADR 0145 § 9).
+    /// `db.schema` — which `[db.<name>]` blocks a program may issue DDL to (`rule:core-classes/schema-apply-capability`).
     ///
     /// Named by block, which is [`DbConnect`](Self::DbConnect)'s shape, but it gates a different
     /// question from either of the two above: not *which* database may be reached, but whether this
@@ -385,7 +385,7 @@ impl Capabilities {
     /// [`Scope::Host`] never reaches [`Files`] — a hostname is matched against the grant list and
     /// nothing is canonicalized — so demanding one is demanding a parameter the answer does not
     /// depend on. The compiler is the caller that has none:
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 10 has `nvs check` refuse a **literal**
+    /// `rule:core-classes/db-literal-query-checking` has `nvs check` refuse a **literal**
     /// `Core\Db::open` host no `db.open` grant covers, and a checking pass has no request, no
     /// resolver and no reason to grow one. Both spellings share this list walk, so a run and a
     /// check cannot disagree about which hosts are granted.

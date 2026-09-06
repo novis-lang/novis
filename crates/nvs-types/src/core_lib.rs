@@ -931,7 +931,7 @@ mod tests {
     /// a [`Qual::Launder`] that stopped being lowered would leave every
     /// laundering row refusing the argument it exists to accept — and the only
     /// symptom would be a `Core\Regex::quote` call that no longer compiles.
-    /// ADR 0033 § 3's [`Qual::Reveal`] is the fifth and answers on the other
+    /// `rule:core-classes/secret-reveal`'s [`Qual::Reveal`] is the fifth and answers on the other
     /// axis, and it is counted here now that `Core\Secret`'s rows write it: a
     /// mark that stopped being lowered would leave the one escape hatch every
     /// `secret` refusal's help text names refusing its own argument.
@@ -988,7 +988,7 @@ mod tests {
         }
     }
 
-    /// ADR 0033 § 3, asked of the whole registry rather than of one row: which
+    /// `rule:core-classes/secret-reveal`, asked of the whole registry rather than of one row: which
     /// parameters may be handed a `secret` at all?
     ///
     /// [`Qual::Reveal`] is the only mark that admits one, and the roster of
@@ -1052,8 +1052,7 @@ mod tests {
         assert!(admits_secret_argument(Some(Qual::Reveal)));
     }
 
-    /// ADR 0024 § 3's escape hatch, asked the way the test above asks ADR 0033
-    /// § 3's: as a **closed set** rather than of the one row.
+    /// ADR 0024 § 3's escape hatch, asked the way the test above asks `rule:core-classes/secret-reveal`'s: as a **closed set** rather than of the one row.
     ///
     /// [`Qual::Launder`] obliges a doc comment naming the sink the row launders
     /// for, and `Core\Taint::assertTrusted` is the one row that names all of
@@ -1673,7 +1672,7 @@ mod tests {
         );
     }
 
-    /// ADR 0044 § 1, asked of the resolved signature the way a call site asks
+    /// `rule:core-classes/process-run`, asked of the resolved signature the way a call site asks
     /// it: **neither half** of what `Core\Process::run` is handed can carry a
     /// tainted value into the child, and the two halves are refused by
     /// different mechanisms. `$path` is a [`Qual::Sink`], so a
@@ -1705,7 +1704,7 @@ mod tests {
         assert_eq!(
             sig.qual_at(0),
             Some(Qual::Sink),
-            "a program's name is an instruction, so the path is a sink — ADR 0044 § 1"
+            "a program's name is an instruction, so the path is a sink — `rule:core-classes/process-run`"
         );
         assert!(
             !crate::expr::quals::admits_tainted_argument(

@@ -1,8 +1,8 @@
-//! The wire half of [ADR 0067](/docs/adr/0067-core-db.md)'s `Core\Db`:
+//! The wire half of `rule:core-classes/db-one-api`'s `Core\Db`:
 //! five drivers, each a borrowed sans-IO codec plus a state machine written
 //! here, over [`nvs_host`]'s parking stream.
 //!
-//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! is this crate's charter and its four decisions are the four things a reader
 //! most needs before writing a connection. **A codec is borrowed, a state
 //! machine is written** (§ 2): message framing, value encoding and
@@ -23,7 +23,7 @@
 //! where the call's spelling is known. `Cargo.toml` says the same thing to
 //! whoever is about to add a dependency; § 1 is the rule.
 //!
-//! # A connection's busy state — ADR 0132 § 4
+//! # A connection's busy state — `rule:core-classes/db-connection-busy-state`
 //!
 //! [ADR 0067 § 4](/docs/adr/0067-core-db.md) requires a second
 //! statement on a streaming connection to throw `LogicError`. That state is
@@ -66,12 +66,12 @@
 //!
 //! # `NVS_DB_MATRIX_*`: how this crate's own tests find a server
 //!
-//! ADR 0067's *Verification* section asks for a five-driver matrix against real
+//! `rule:core-classes/db-one-api`'s *Verification* section asks for a five-driver matrix against real
 //! servers. `tools/db-matrix.py` brings those servers up from
 //! `tests/db/compose.yaml` and points **this crate's** assertions at one of
 //! them at a time; every assertion is here, and that tool is a harness rather
 //! than a test. What it hands over is discrete fields in the environment and
-//! never a connection string, because ADR 0067 § 2 makes `Db\Settings` five
+//! never a connection string, because `rule:core-classes/db-connection-is-named` makes `Db\Settings` five
 //! types rather than one loose shape and Novis has no DSN anywhere in its
 //! surface — a harness that invented one would be the first place a DSN
 //! *parser* had to exist, and this crate would then be tested through a
@@ -99,7 +99,7 @@
 //!
 //! # What is here, and what is not yet
 //!
-//! The shared half, which ADR 0132 § 5 keeps as plain functions and data rather
+//! The shared half, which `rule:core-classes/db-drivers-are-an-enum` keeps as plain functions and data rather
 //! than behind the drivers at all: [`Driver`]'s closed roster, [`State`] and
 //! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five wire
 //! implementations, [`pg`] has its opening and its statement path: the socket,
@@ -109,7 +109,7 @@
 //! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
 //! connection back. [`sql`] is the shared half of the statement path, plain
 //! data with no wire in it because every driver makes the same two decisions:
-//! ADR 0067 § 5's `?`/`:name` rewriter and `inList` expansion over four
+//! `rule:core-classes/db-parameters`'s `?`/`:name` rewriter and `inList` expansion over four
 //! dialects, holding the bind order a driver cannot recover by counting, and
 //! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
 //! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
@@ -131,7 +131,7 @@
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
 //! real server in `tests/pool_reuse.rs`. [`maria`] is the third, and is that
 //! same framing under an authentication roster and a § 8 code table of its own
-//! — which is the whole of why ADR 0067 makes MariaDB a driver rather than a
+//! — which is the whole of why `rule:core-classes/db-one-api` makes MariaDB a driver rather than a
 //! flag.
 //!
 //! [`tds`] is where SQL Server begins, and it begins one layer below where the
@@ -183,7 +183,7 @@ pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlT
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
 // `catalog::Read` is deliberately not re-exported here either, and for the
 // neighbouring reason: a bare `Read` at the crate root reads as `std::io`'s
-// trait rather than as one of ADR 0145 § 4's two introspection queries. It is
+// trait rather than as one of `rule:core-classes/schema-introspection`'s two introspection queries. It is
 // `catalog::Read`, where the module name says which question it answers.
 // `schema::Column` is deliberately not re-exported here: `PgColumn` and
 // `SqliteColumn` beside it are *result* columns, and one bare `Column` at the

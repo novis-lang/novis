@@ -1,6 +1,6 @@
 # Loop goal 5 — `Core\Db` and five drivers
 
-Finish **M8's database half** — [ADR 0067](../../adr/0067-core-db.md) is the design and
+Finish **M8's database half** — `rule:core-classes/db-one-api` is the design and
 [01-core-library.md](../../spec/01-core-library.md) § 18 is the signature list. **One API replaces `PDO`,
 `mysqli`, `pgsql` and `sqlite3`**, over pure-Rust MySQL, MariaDB, PostgreSQL and SQL Server drivers plus
 SQLite.
@@ -9,7 +9,7 @@ This is goal 5 of the parity program ([goals/README.md](README.md)). It is a sep
 purely because `nvs-db` shares no file with `Core\Cli` — the two would have made one manifest naming every
 module in the workspace, which is the cost loop-authoring.md § 2 exists to avoid.
 
-**This goal has an external precondition and the driver enforces it.** ADR 0067 verifies against real
+**This goal has an external precondition and the driver enforces it.** `rule:core-classes/db-one-api` verifies against real
 servers, so `python tools/loop.py` preflights a reachable Docker daemon before this goal's first
 session and stops the run naming it. A run that grinds for six hours against a check that cannot pass is
 worse than one that stops in the first minute.
@@ -20,7 +20,7 @@ can be *run* rather than only described. Two things follow. The migration table 
 all this goal's — a fifth of the whole inventory, and the reason its floor is 94% where every earlier
 goal's is in the thirties or seventies. And a `--ORACLE--` case can now put `Core\Db` beside `mysqli` or
 `pg_query` against the same server and compare, which is the only way the "PHP-compatible observable
-behaviour" half of ADR 0067 § 9's type map is checkable at all: `TINYINT(1)`, `BIGINT UNSIGNED` past
+behaviour" half of `rule:core-classes/db-column-types`'s type map is checkable at all: `TINYINT(1)`, `BIGINT UNSIGNED` past
 `i64::MAX`, a zone-less `DATETIME` and `affected` versus `changed` are all rows where PHP's answer is the
 specification. Write those as differential cases, not as frozen ones.
 
@@ -162,12 +162,12 @@ than left to be invented at 2 a.m. by the session that first needs a server:
   and each with a healthcheck, so `docker compose up -d --wait` means *healthy* rather than *started*.
   Redis is there because goal 4's shared cache tier and goal 6's fleet lease both use it, and one compose
   file is better than two that drift.
-- **`python tools/db-matrix.py`** — runs ADR 0067's per-driver list against those servers and prints one
+- **`python tools/db-matrix.py`** — runs `rule:core-classes/db-one-api`'s per-driver list against those servers and prints one
   `<driver>: ok` line each. It is a harness rather than a test: the assertions are `nvs-db`'s own, and
   this is what points them at five endpoints and reports which one failed.
 
 Write both before the first driver, not after: a driver with no server to run against is a driver whose
-tests are all mocks, and that is the one shape ADR 0067's *Verification* refuses.
+tests are all mocks, and that is the one shape `rule:core-classes/db-one-api`'s *Verification* refuses.
 
 ## Acceptance
 
@@ -182,13 +182,13 @@ like the WSL leg already is.
 - **One ADR slot: the driver crate's shape and its wire I/O** (Stage 2, item 3), and it is that stage's
   first slice. Which protocol crate backs which driver, how TLS layers on the parking stream, how a
   connection's busy state is tracked, and how the five drivers share code without a trait that flattens
-  their differences. ADR 0067 specifies *behaviour* and deliberately does not specify this.
+  their differences. `rule:core-classes/db-one-api` specifies *behaviour* and deliberately does not specify this.
 - **No async runtime, and this is structural rather than a preference.** `sqlx`, `tokio-postgres` and
   `tiberius` need a runtime that spawns. If a driver appears to require one, that is a real `BLOCKED`
   naming the driver — not a judgement call, and not a reason to add `tokio` behind a feature flag.
 - **Emulated prepares do not exist in any form.** A driver that interpolates a value into SQL internally
-  has reintroduced the thing ADR 0067 removes, however careful the escaping.
-- **MariaDB is its own driver.** Treating it as a MySQL flag is a design error ADR 0067 argues at length
+  has reintroduced the thing `rule:core-classes/db-one-api` removes, however careful the escaping.
+- **MariaDB is its own driver.** Treating it as a MySQL flag is a design error `rule:core-classes/db-one-api` argues at length
   and not a simplification to rediscover.
 - **A failed connection reset destroys the connection.** Returning it to the pool is one request reading
   another's state.

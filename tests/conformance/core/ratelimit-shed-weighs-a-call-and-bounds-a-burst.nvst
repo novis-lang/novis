@@ -1,8 +1,8 @@
 --TEST--
-Core\RateLimit::shed's $cost weighs one call and its $burst bounds one instant — ADR 0075 § 2
+Core\RateLimit::shed's $cost weighs one call and its $burst bounds one instant — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
-// ADR 0075 § 2: `cost` weights one call, so an expensive endpoint may charge
+// `rule:core-classes/ratelimit-gcra`: `cost` weights one call, so an expensive endpoint may charge
 // several units of the same quota — four per hour, taken two at a time.
 var $first = Core\RateLimit::shed("export", 4, 1h, {cost: 2});
 var $second = Core\RateLimit::shed("export", 4, 1h, {cost: 2});

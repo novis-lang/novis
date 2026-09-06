@@ -48,7 +48,7 @@ Core\Signature::verify(string $token, array<secret bytes> $keys): array<string, 
 3. **The token is unpadded URL-safe base64**, RFC 4648 § 5, which `signed_cookie.rs` already emits for
    the same reason: every octet is legal in a query string and in a `Set-Cookie` alike, so nothing
    downstream escapes it twice.
-4. **`verify` answers a `tainted` payload or throws.** ADR 0060 § 5 is the rule and ADR 0146 § 1 says
+4. **`verify` answers a `tainted` payload or throws.** ADR 0060 § 5 is the rule and `rule:core-classes/signature` says
    why `Core\SignedCookie`'s laundering exemption does not reach here — the round trip may cross two
    services, so "the application authored this plaintext" is not a property the checker can see.
 
@@ -82,7 +82,7 @@ Core\Router::urlSigned(string $name, array<string, mixed> $params,
 Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
 ```
 
-1. **These sign the route's *identity*, not its path.** ADR 0146 § 4: one compiled table serves at
+1. **These sign the route's *identity*, not its path.** `rule:core-classes/router-signed-url`: one compiled table serves at
    `/ModuleA`, `/ModuleB` or `/` ([ADR 0097](../../adr/0097-development-server-and-proxied-origin.md)
    § 3), so a signature over an assembled path stops verifying when a mount moves and one over the
    route name and its typed parameters does not. **That property is the acceptance test**, not an

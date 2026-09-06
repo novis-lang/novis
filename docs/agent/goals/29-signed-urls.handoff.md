@@ -30,7 +30,7 @@ construction under it, and the registry rows.
       the crate means one of them is wrong.
 - [ ] **The two rows** — `crates/nvs-stdlib/src/registry.rs`, with `sign`'s payload contagious, the
       ring neutral, and `verify` answering a **`tainted`** map (ADR 0060 § 5; `SignedCookie`'s
-      laundering exemption does not reach here, and ADR 0146 § 1 says why).
+      laundering exemption does not reach here, and `rule:core-classes/signature` says why).
 - [ ] **`{keys, until}` as a declared shape** — `crates/nvs-types/src/core_lib.rs`, ADR 0135's `CoreTy`
       arm. `until` is a **required key holding a nullable value**: `{until: null}` compiles and
       omitting the key does not.

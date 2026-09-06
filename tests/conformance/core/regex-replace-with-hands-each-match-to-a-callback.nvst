@@ -28,7 +28,7 @@ echo Core\Regex::replaceWith("no digits", "\\d", fn(Core\Regex\Match $m) => "!")
 var $insensitive = Core\Regex::compile("[a-z]+", {caseInsensitive: true});
 echo Core\Regex::replaceWith("Ab CD", $insensitive, fn(Core\Regex\Match $m) => Core\Str::upper($m->text())), "\n";
 
-// A look-behind is ADR 0056 § 2's backtracking tier, and the member reads the
+// A look-behind is `rule:core-classes/regex-two-tiers`'s backtracking tier, and the member reads the
 // same there as it does on the linear one.
 echo Core\Regex::replaceWith("aXbXc", "(?<=a)X", fn(Core\Regex\Match $m) => "-"), "\n";
 --EXPECT--

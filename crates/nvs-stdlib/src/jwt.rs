@@ -52,8 +52,7 @@
 //! verification's only useful continuation is *with the claims*, and a member
 //! answering `?array` would put the entire failure surface behind a `??` that
 //! a loose comparison can flatten. § 4's third bullet says so directly, and it
-//! is the same reasoning [ADR 0056](/docs/adr/0056-regex-engine-policy.md)
-//! § 2 applies to a budget exhaustion.
+//! is the same reasoning `rule:core-classes/regex-two-tiers` applies to a budget exhaustion.
 //!
 //! Every way of not being a token this key signed is **one sentence**: three
 //! dot-separated parts or not, a header that is not JSON, an `alg` that is not

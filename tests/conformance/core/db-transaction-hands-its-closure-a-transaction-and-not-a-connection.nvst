@@ -1,8 +1,8 @@
 --TEST--
-`transaction` hands its closure a `Core\Db\Transaction`, which has the connection's whole query surface and is still not a connection — ADR 0067 § 7, `rule:classes/no-traits`, spec § 18
+`transaction` hands its closure a `Core\Db\Transaction`, which has the connection's whole query surface and is still not a connection — `rule:core-classes/db-transactions`, `rule:classes/no-traits`, spec § 18
 --FILE--
 <?nvs
-// ADR 0067 § 7 replaces `beginTransaction`/`commit`/`rollBack` with one member
+// `rule:core-classes/db-transactions` replaces `beginTransaction`/`commit`/`rollBack` with one member
 // that owns the scope, and what it hands the closure is a `Db\Transaction`.
 // `rule:classes/no-traits` has that class `implements Queryable by $connection`, so the query
 // surface below is declared once — on the connection — and reached through the

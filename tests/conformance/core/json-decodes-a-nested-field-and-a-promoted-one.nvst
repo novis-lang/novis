@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — ADR 0071 §§ 1, 2 and 5
+`Core\Json::decodeAs<T>` decodes a field whose type is another derived class, and a promoted constructor parameter is a field like any other — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // § 2: a field is "another class that itself has a codec". `Address` is

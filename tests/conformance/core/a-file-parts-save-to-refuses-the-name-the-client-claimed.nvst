@@ -2,7 +2,7 @@
 `Core\Request\Part::saveTo`'s path is a sink and `filename()` is the client's claim, so the one line every upload traversal has been written on does not compile — ADR 0105 §§ 2 and 4, ADR 0024 § 1
 --FILE--
 <?nvs
-// ADR 0105 § 4 makes `saveTo` a delegation to `Core\IO::writeStream`, and this
+// `rule:core-classes/io-write-stream` makes `saveTo` a delegation to `Core\IO::writeStream`, and this
 // is the whole of what that buys: `writeStream`'s path is already an ADR 0024
 // path sink, with no exemption for a name that arrived by way of an upload, so
 // a destination the part chose for itself is refused at the call rather than

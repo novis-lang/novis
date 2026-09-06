@@ -616,7 +616,7 @@ pub mod code {
     /// `as Core\Html\Markup` on anything but a source-literal string — a
     /// runtime-computed or `tainted` value can never become trusted markup
     /// this way, closing "compute the escape-defeating payload at runtime,
-    /// then cast it." See ADR 0024 § 5.
+    /// then cast it." See `rule:core-classes/html-auto-escape`.
     pub const E_MARKUP_REQUIRES_LITERAL: Code = Code::new("E0417");
     /// A string passed (or convertible without laundering) where `callable`
     /// is the declared type — PHP's bare-name/`"Class::method"` callable
@@ -861,12 +861,12 @@ pub mod code {
     /// narrowing back off.
     pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
     /// A `#[Json\Derive]` field that is not a same-named constructor parameter.
-    /// ADR 0071 § 2 makes a decode an ordinary `new`, so every field the codec
+    /// `rule:core-classes/derive-field-list` makes a decode an ordinary `new`, so every field the codec
     /// reads has to have a parameter to arrive through; `#[Json\Field(skip:
     /// true)]` is the stated way out.
     pub const E_DERIVE_FIELD_NOT_A_PARAMETER: Code = Code::new("E0460");
     /// A `#[Json\Derive]` field whose constructor parameter is declared with a
-    /// different type than the property. ADR 0071 § 2: the two lists are one
+    /// different type than the property. `rule:core-classes/derive-field-list`: the two lists are one
     /// declaration for a promoted parameter, so a divergence is always written
     /// by hand and always a mistake.
     pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461");
@@ -874,11 +874,10 @@ pub mod code {
     /// moves ADR 0033's refusal from wherever the value reached the encoder to
     /// the declaration that put it on the wire contract.
     pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462");
-    /// A `lateinit` property on a class carrying `#[Json\Derive]`. ADR 0071
-    /// § 2: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
+    /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-field-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.
     pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463");
-    /// A `#[Json\Field(...)]` argument that is not one of ADR 0071 § 3's two
+    /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s two
     /// options, or whose value is not a literal of that option's type.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
     /// A type argument written where the member needs a *class* rather than
@@ -1394,7 +1393,7 @@ pub mod code {
     pub const E_BAD_QUEUE: Code = Code::new("E0617");
 
     /// A **written** `Core\Db::open` host that the compiling machine's
-    /// `db.open` grant does not cover — ADR 0067 § 10's second sentence, and
+    /// `db.open` grant does not cover — `rule:core-classes/db-literal-query-checking`'s second sentence, and
     /// the only capability question asked before a program runs.
     ///
     /// It refuses nothing `nvs_runtime::capability::require` would have
@@ -2493,8 +2492,7 @@ pub mod code {
 
     /// A derived field's declared type is not in its format's type map.
     ///
-    /// ADR 0071 § 2's codec-reachable set for `#[Json\Derive]` and ADR 0067
-    /// § 9's type map for `#[Db\Derive]`, refused at the *declaration* that
+    /// `rule:core-classes/derive-field-list`'s codec-reachable set for `#[Json\Derive]` and `rule:core-classes/db-column-types`'s type map for `#[Db\Derive]`, refused at the *declaration* that
     /// wrote it rather than at the `decodeAs<T>` or `queryAs<T>` that later
     /// runs. The two maps disagree — `bytes` is a `BLOB` column and has no
     /// JSON spelling, a nested class is a JSON object and no column at all —
@@ -2507,7 +2505,7 @@ pub mod code {
     /// A class carrying a derive attribute hand-writes every codec half that
     /// attribute would generate.
     ///
-    /// ADR 0071 § 7: the derive generates only what the class does not
+    /// `rule:core-classes/derive-generates-what-is-missing`: the derive generates only what the class does not
     /// declare itself, so a class writing both `toJson` and `fromJson` gets
     /// nothing from `#[Json\Derive]` — and an attribute with no effect is a
     /// mistake rather than a no-op. `Core\Db\Codec` declares `fromRow` alone,
@@ -2517,7 +2515,7 @@ pub mod code {
 
     /// A class carrying a derive attribute contributes no field to the codec.
     ///
-    /// ADR 0071 § 2's field list is the declared property list, so a class
+    /// `rule:core-classes/derive-field-list`'s field list is the declared property list, so a class
     /// that declares no instance property — or skips every one it declares —
     /// derives an empty wire contract. § 7's rule about an attribute with no
     /// effect applies unchanged, and the fix is either a property or no
@@ -3083,8 +3081,7 @@ pub mod code {
 
     /// A written reason that is not a source literal, at a member whose reason
     /// exists to be read by the next person —
-    /// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-    /// § 3's second sentence, which `nvs_types::reasons` owns the roster of.
+    /// `rule:core-classes/html-to-source`'s second sentence, which `nvs_types::reasons` owns the roster of.
     ///
     /// **Only the half a compiler can answer.** The same sentence also refuses
     /// an *empty* reason, and that stays the member's own throw: emptiness is a
@@ -3099,7 +3096,7 @@ pub mod code {
     pub const E_REASON_NOT_A_SOURCE_LITERAL: Code = Code::new("E0805");
 
     /// A `Core\Db\…::queryAs<T>` whose `T` no row can be hydrated into —
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 9's type map, asked at the call
+    /// `rule:core-classes/db-column-types`'s type map, asked at the call
     /// rather than at a declaration.
     ///
     /// One code for the three ways a written `T` fails that question, because

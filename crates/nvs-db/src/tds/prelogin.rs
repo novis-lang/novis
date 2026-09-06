@@ -218,7 +218,7 @@ pub fn prelogin<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<()> {
     if !offered.covers_the_session() {
         return Err(malformed(format!(
             "this server answered PRELOGIN with encryption 0x{:02X}, which leaves everything after \
-             the login in plaintext; ADR 0067 § 3 has no spelling for that",
+             the login in plaintext; `rule:core-classes/db-capabilities` has no spelling for that",
             offered.byte()
         )));
     }
@@ -321,8 +321,7 @@ pub(super) fn take_front(held: &mut Vec<u8>, buf: &mut [u8]) -> usize {
 /// is the stream underneath issuing a syscall, so the deadline belongs there and
 /// this is the one hop that lets [`crate::tds`]'s session name it. It is what
 /// makes `NvsTls<Tunnel<NvsTcp>>` bound its exchanges like the other four
-/// drivers' `NvsTls<NvsTcp>` does, rather than being the one connection ADR 0067
-/// § 4's statement deadline could not reach.
+/// drivers' `NvsTls<NvsTcp>` does, rather than being the one connection `rule:core-classes/db-statement-members`'s statement deadline could not reach.
 impl<S: Read + Write + nvs_host::net::Deadline> nvs_host::net::Deadline for Tunnel<S> {
     fn set_deadline(&mut self, at: Option<std::time::Instant>) {
         self.stream.set_deadline(at);
@@ -409,7 +408,7 @@ impl<S: Read + Write> Write for Tunnel<S> {
 /// PRELOGIN, then the TLS handshake tunnelled inside it, then an ordinary
 /// encrypted wire.
 ///
-/// The whole of ADR 0067 § 3 on this backend, and it takes the wire by value
+/// The whole of `rule:core-classes/db-capabilities` on this backend, and it takes the wire by value
 /// for [`Wire::upgrade`]'s reason: the codec and anything still buffered survive
 /// the upgrade, because here the encryption starts *between two messages of one
 /// conversation* rather than between two conversations.

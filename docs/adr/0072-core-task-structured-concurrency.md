@@ -127,7 +127,7 @@ One trailing options shape (R2), the same two fields on both members:
 
 The plan's `timeout(...)` is therefore not a member: a timeout on a group of tasks is this option (R2 —
 optional arguments are the options shape, never a wrapper function), and a timeout on a single I/O call is
-that call's own `timeout` option, which [ADR 0067](0067-core-db.md) and `Core\Http\Client` already carry.
+that call's own `timeout` option, which `rule:core-classes/db-one-api` and `Core\Http\Client` already carry.
 
 **The plan's `race` is deferred, not delivered here.** Over a heterogeneous shape its result is a union of
 every branch's return type that the caller must discriminate — `mixed` plus a cast in practice, § 1's whole
@@ -154,7 +154,7 @@ the call returns.** A child blocked mid-statement in `Core\Db` cannot simply be 
 with an unread result set is unusable — so the connection is asked to cancel the statement through the
 driver's own mechanism (`KILL QUERY`, `PQcancel`, `sqlite3_interrupt`) and the call waits until the
 connection is back in a known state or is closed. That drain is bounded by the connection's own `timeout`
-([ADR 0067](0067-core-db.md)), after which the connection is closed rather than returned to the pool. A
+(`rule:core-classes/db-one-api`), after which the connection is closed rather than returned to the pool. A
 `deadline: 2s` can therefore return at 2s plus one connection timeout in the pathological case; overrunning
 by a bounded amount is the correct trade against handing a poisoned connection back to the pool.
 

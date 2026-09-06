@@ -38,7 +38,7 @@
 //!
 //! [`for_each`] is the entry for the member that *can* consume one element at
 //! a time, and `Core\IO::writeStream` is the first — a stream reaching disk
-//! (ADR 0105 § 4) must not hold the file it is writing. It is the same drive
+//! (`rule:core-classes/io-write-stream`) must not hold the file it is writing. It is the same drive
 //! with the `Vec` taken out: [`drain`] is now written over it, so there is one
 //! cursor loop rather than a second one that could disagree about when
 //! `iterate()` is called or who owns an element.

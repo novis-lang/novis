@@ -1,4 +1,4 @@
-# ADR 0121 — PDF generation is sandboxed HTML rendering with no I/O
+# `rule:core-classes/pdf-render-has-no-io` — PDF generation is sandboxed HTML rendering with no I/O
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

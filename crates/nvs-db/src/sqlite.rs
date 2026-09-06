@@ -2,12 +2,11 @@
 //! blocking pool and the rows are in hand before the core is taken back.
 //!
 //! This is the fifth driver and the only one whose shape is not
-//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
-//! § 2's borrowed codec over § 3's parking stream. There is no wire: no
+//! `rule:core-classes/db-crate-boundary`'s borrowed codec over § 3's parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
 //! the four things the other four get from their own machinery — § 3's
-//! handoff off the core, [ADR 0067](/docs/adr/0067-core-db.md) § 4's
+//! handoff off the core, `rule:core-classes/db-statement-members`'s
 //! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
 //! nesting with the § 13 reset that closes it.
 //!
@@ -82,7 +81,7 @@ const BACKEND: &str = "sqlite";
 pub struct SqliteTarget<'a> {
     /// The database file, as the block wrote it.
     ///
-    /// ADR 0067 § 3 puts this under `db.connect` exactly as a host is: an
+    /// `rule:core-classes/db-capabilities` puts this under `db.connect` exactly as a host is: an
     /// operator wrote it into root-owned configuration, which is the same
     /// authority that granted the capability. A *program-supplied* path is
     /// `open`'s, and § 3 additionally makes that one a path sink needing
@@ -289,7 +288,7 @@ impl rusqlite::types::ToSql for SqliteValue {
 ///   affinity rule and rounds. That is the engine's storage model rather than an
 ///   encoding decided here, and the alternative is refusing `decimal` on this
 ///   backend outright, which would leave
-///   [ADR 0067](/docs/adr/0067-core-db.md) § 9's `decimal` row with a
+///   `rule:core-classes/db-column-types`'s `decimal` row with a
 ///   read half and no write half.
 ///
 /// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
@@ -515,7 +514,7 @@ impl Drop for SqliteRows<'_> {
     }
 }
 
-/// Opens the file, and answers the connection ADR 0067 § 4's statements run on.
+/// Opens the file, and answers the connection `rule:core-classes/db-statement-members`'s statements run on.
 ///
 /// The open itself goes off the core: creating or reading a database header is
 /// a filesystem call, which is ADR 0106 § 6's first named example.
@@ -950,7 +949,7 @@ fn step(
     })
 }
 
-/// ADR 0067 § 4's statement deadline, spelled as the only wait this backend
+/// `rule:core-classes/db-statement-members`'s statement deadline, spelled as the only wait this backend
 /// takes.
 ///
 /// The other four drivers file the instant on the socket, because a statement
@@ -995,7 +994,7 @@ fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusql
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// ADR 0067 § 4's refusal, when a statement is asked for on a connection that is
+/// `rule:core-classes/db-statement-members`'s refusal, when a statement is asked for on a connection that is
 /// not at rest.
 ///
 /// The wording names both of § 4's fixes, as `pg.rs`'s `second_statement` does

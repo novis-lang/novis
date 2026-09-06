@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — ADR 0071 §§ 2 and 5, `rule:enums/one-backing-type` and `rule:enums/representation`
+`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:enums/one-backing-type` and `rule:enums/representation`
 --FILE--
 <?nvs
 // `rule:enums/representation` reserves an enum tag that nothing writes, so a case *is* the
@@ -65,7 +65,7 @@ try {
     echo "between=", $between->issues["0"]->path, ": ", $between->issues["0"]->message, "\n";
 }
 
-// ADR 0071 § 5 accumulates rather than stopping at the first bad field, and an
+// `rule:core-classes/derive-reports-every-field` accumulates rather than stopping at the first bad field, and an
 // enum is no exception. A case's *name* is not on the wire either — only its
 // value is — so `"Admin"` is refused exactly as `2` is, and a bad element two
 // positions in reports under § 5's dotted position path.

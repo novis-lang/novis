@@ -22,7 +22,7 @@
 //!
 //! The sinks reachable here are ten, and the three below are the ones a
 //! conversion reaches. [`reject_non_literal_markup_conversion`]
-//! is ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a
+//! is `rule:core-classes/html-auto-escape`'s one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
 //! `Markup + Markup`) waits on `Core\Html` actually existing.
 //! [`reject_secret_markup_conversion`] is ADR 0033 § 4's sibling, giving a
@@ -40,7 +40,7 @@
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
 //! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
 //! `spawn` bullet, which is one check for both of `rule:classes/graph-copy`'s carriers —
-//! [`reject_secret_published_argument`], which is ADR 0083 § 4's bus reaching
+//! [`reject_secret_published_argument`], which is `rule:core-classes/topic`'s bus reaching
 //! that same graph copy through a third carrier,
 //! [`reject_secret_encoded_argument`], and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
@@ -178,7 +178,7 @@ pub(crate) fn qualified_scalar(
 /// If a row ever classifies an array parameter, this is the second place to
 /// change and the first is that limit.
 ///
-/// [`unsecret`] does not follow even into a union: ADR 0033 § 3's escape hatch
+/// [`unsecret`] does not follow even into a union: `rule:core-classes/secret-reveal`'s escape hatch
 /// is four parameters of two classes with no contagion to carry, so the same
 /// reach would buy a `secret` admission nothing and cost the axis its posture —
 /// being over-strict there is a refusal, not a leak.
@@ -203,7 +203,7 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
 /// `tainted` axis, the base — left exactly as it was. [`untainted`]'s twin one
 /// axis over, spelled the same way and for the same reason.
 ///
-/// The one caller is [`Qual::Reveal`]'s argument admission: ADR 0033 § 3's
+/// The one caller is [`Qual::Reveal`]'s argument admission: `rule:core-classes/secret-reveal`'s
 /// escape hatch is a *narrowing* at four parameters of two classes, so it
 /// clears the bit on the argument before [`is_assignable`] sees it rather than
 /// widening what `Core\Secret::reveal` declares. Nothing else in the checker
@@ -282,7 +282,7 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 /// but one: whether a `Neutral` parameter launders `secret` is a laundering
 /// decision ADR 0088 owes an answer to, and being over-strict costs a refusal
 /// rather than a leak. [`Qual::Reveal`] is the one mark that answers
-/// differently — ADR 0033 § 3's named escape hatch, written by
+/// differently — `rule:core-classes/secret-reveal`'s named escape hatch, written by
 /// `nvs_stdlib::secret`'s rows and `nvs_stdlib::password`'s two and by no
 /// others — and its `secret` admission is
 /// [`admits_secret_argument`]'s, so that one question is asked in one place
@@ -393,7 +393,7 @@ pub(crate) fn reject_secret_markup_conversion(
     );
 }
 
-/// ADR 0024 § 5: `as Core\Html\Markup` trusts only a source-literal string —
+/// `rule:core-classes/html-auto-escape`: `as Core\Html\Markup` trusts only a source-literal string —
 /// a `tainted` value, or any other runtime-computed one, can never become
 /// trusted markup this way, closing "compute the escape-defeating payload at
 /// runtime, then cast it." Scoped to a conversion whose target actually
@@ -867,7 +867,7 @@ pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: 
     );
 }
 
-/// ADR 0083 § 4's bus, which is [`reject_secret_crossing`]'s third carrier:
+/// `rule:core-classes/topic`'s bus, which is [`reject_secret_crossing`]'s third carrier:
 /// `Core\Topic::publish` copies its value into every subscriber's own arena
 /// through `rule:classes/graph-copy`'s graph copy, so "a `secret` may never be published" is
 /// the disclosure `Core\Serialize::encode` and `spawn script`'s `args:` are

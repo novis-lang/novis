@@ -1,8 +1,8 @@
 --TEST--
-`Core\Db::open` over § 2's SQLite arm asks `db.open` about the *path*, because that arm has no host for a host-shaped grant to be about — ADR 0067 § 3, ADR 0135 §§ 1-3
+`Core\Db::open` over § 2's SQLite arm asks `db.open` about the *path*, because that arm has no host for a host-shaped grant to be about — `rule:core-classes/db-capabilities`, ADR 0135 §§ 1-3
 --FILE--
 <?nvs
-// ADR 0067 § 3 gives `open` two halves for the four drivers with an address:
+// `rule:core-classes/db-capabilities` gives `open` two halves for the four drivers with an address:
 // the `db.open` grant, then ADR 0058's table against the resolved host. The
 // SQLite arm has neither a host nor an address, so what stands in their place
 // is the path — asked of `db.open` under `nvs_config`'s canonicalise-then-

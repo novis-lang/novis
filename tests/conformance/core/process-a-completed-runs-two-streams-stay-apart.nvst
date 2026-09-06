@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process\Result::stdout` and `::stderr` are the child's two streams kept apart — one program writes a different marker to each, and each member is asserted to carry its own **and not the other's** — ADR 0044 § 1
+`Core\Process\Result::stdout` and `::stderr` are the child's two streams kept apart — one program writes a different marker to each, and each member is asserted to carry its own **and not the other's** — `rule:core-classes/process-run`
 --FILE--
 <?nvs
 // The two members have the same signature, the same return type and adjacent

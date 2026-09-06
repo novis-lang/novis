@@ -1,8 +1,8 @@
 --TEST--
-`executeMany` answers a bare `uint` where `execute` answers a `Core\Db\Write`, because a sum has no one execution for `changed` or `lastId` to be about — ADR 0067 §§ 1 and 4, spec § 18
+`executeMany` answers a bare `uint` where `execute` answers a `Core\Db\Write`, because a sum has no one execution for `changed` or `lastId` to be about — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
-// ADR 0067 § 1 removes the `prepare` step and names the batch as the one case
+// `rule:core-classes/db-one-api` removes the `prepare` step and names the batch as the one case
 // that would otherwise still want a `Statement` object: `executeMany` is one
 // prepare against many bind sets, so a thousand writes cost the round trips one
 // statement costs and the caller writes no loop.

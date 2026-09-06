@@ -27,7 +27,7 @@
 //! dialect, the same columns in each, and the one home for what those tables' columns are;
 //! `nvs-cli`'s `queue` module runs a list and decides nothing about it. Two choices in it are worth their
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
-//! supports all five of ADR 0067's backends and five timestamp dialects is exactly the cost a
+//! supports all five of `rule:core-classes/db-one-api`'s backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
 //! runtime (`rule:enums/closed-integer-type`), so the enum and the column
 //! are one representation and not two.
@@ -158,7 +158,7 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-/// ADR 0084 § 2's schema in PostgreSQL's dialect, in the order `nvs queue migrate` runs it.
+/// `rule:core-classes/queue-storage-is-a-table`'s schema in PostgreSQL's dialect, in the order `nvs queue migrate` runs it.
 ///
 /// **This is one of two homes for what the queue's tables are, and [`MIGRATION_MYSQL`] is the
 /// other** — one list per dialect rather than one list with holes in it. The identity column, the
@@ -277,7 +277,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
     }
 }
 
-/// ADR 0084 § 2's schema in MySQL's dialect, which MariaDB runs unchanged.
+/// `rule:core-classes/queue-storage-is-a-table`'s schema in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **The same columns as [`MIGRATION_POSTGRES`] and a different spelling of every construct around
 /// them**, which is what that constant's doc means by one list per dialect. Both are walked by
@@ -286,7 +286,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// the four ways below, each of which is a decision this doc owes a sentence.
 ///
 /// **MariaDB shares it rather than earning a third list.** It is its own driver for the reasons
-/// [ADR 0067](/docs/adr/0067-core-db.md) gives — its own authentication roster, its own § 8
+/// `rule:core-classes/db-one-api` gives — its own authentication roster, its own § 8
 /// error table — and none of those reach DDL: every construct here is one MariaDB spells exactly as
 /// MySQL does, stored generated columns included (10.2 and later). A separate list would be two
 /// copies of one text with no line differing, which is the drift this module's one-home rule exists
@@ -318,7 +318,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// 3 asks for — it would refuse two distinct dedupe keys that share their first *n* bytes, turning
 /// a uniqueness rule into a collision. 255 is what fits InnoDB's 3,072-byte key limit at
 /// `utf8mb4`'s four bytes a character with room for the rest of the `jobs.due` key, and the table
-/// declares that charset itself: ADR 0067 § 3 forces the *connection's* charset, which says nothing
+/// declares that charset itself: `rule:core-classes/db-capabilities` forces the *connection's* charset, which says nothing
 /// about the columns a `create table` builds, and a server still defaulting to `latin1` would
 /// otherwise store text `rule:types/bytes` guarantees is UTF-8
 /// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
@@ -451,7 +451,7 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
    where id in (select id from due) \
    returning id, script, args, attempts, max_attempts, backoff_ms";
 
-/// ADR 0084 § 2's unanswered question — *which* queues a worker asks about — answered by the table
+/// `rule:core-classes/queue-storage-is-a-table`'s unanswered question — *which* queues a worker asks about — answered by the table
 /// rather than by a key.
 ///
 /// **§ 2's block names no roster and this module does not invent one.** `connection`, `workers`,
@@ -970,7 +970,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "push",
             names: &["script"],
             params: &[
-                // A **sink**, and for ADR 0044's reason rather than ADR 0024's usual one: the argument
+                // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than ADR 0024's usual one: the argument
                 // selects which file a worker will execute, so a `tainted` one would let a request pick
                 // the program that runs on its behalf.
                 CoreTy::Text(Qual::Sink),
@@ -1614,7 +1614,7 @@ fn configured_queue(
         .ok_or_else(|| {
             Fault::thrown(format!(
                 "{member}: this deployment writes no `[queue]` block, so nothing names the \
-                 database a job would live in — ADR 0084 § 2 is the block, and `connection` is the \
+                 database a job would live in — `rule:core-classes/queue-storage-is-a-table` is the block, and `connection` is the \
                  field"
             ))
         })
@@ -1735,7 +1735,7 @@ fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
         // one's driver. SQLite joined this arm when `nvs_db::sqlite` gained
         // § 4's statements.
         nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
-            "and ADR 0084 § 2's schema and § 4's statements are written for PostgreSQL and MySQL \
+            "and `rule:core-classes/queue-storage-is-a-table`'s schema and § 4's statements are written for PostgreSQL and MySQL \
              only — `Core\\Db` reads over this driver and the queue has nothing to send it yet"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
@@ -1906,7 +1906,7 @@ fn push_in_one(
         })?
         .is_some()
     {}
-    // ADR 0067 § 4's `lastId`, which on PostgreSQL is what the `returning` clause handed back —
+    // `rule:core-classes/db-statement-members`'s `lastId`, which on PostgreSQL is what the `returning` clause handed back —
     // so the decoding is the driver's and this member parses nothing.
     let last = answered.last_id();
     // Taken after the drain, so the span carries what the caller waited for, and filed after
@@ -2133,7 +2133,7 @@ struct Counted {
     /// The inner `Option` is "that column was an integer", judged after the drain rather than
     /// inside it, because the connection owes the caller a message boundary either way.
     row: Option<Vec<Option<i64>>>,
-    /// ADR 0067 § 4's affected count, which both drivers define as the rows a write changed or the
+    /// `rule:core-classes/db-statement-members`'s affected count, which both drivers define as the rows a write changed or the
     /// rows a read answered with.
     affected: Option<u64>,
 }

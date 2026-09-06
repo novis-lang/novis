@@ -1,5 +1,5 @@
 --TEST--
-`as Markup` trusts only a source literal and `+` composes only two `Markup` — ADR 0024 § 5's two bounds
+`as Markup` trusts only a source literal and `+` composes only two `Markup` — `rule:core-classes/html-auto-escape`'s two bounds
 --FILE--
 <?nvs
 // § 5's first bullet, on both sides of its bound: the literal above is trusted
@@ -22,6 +22,6 @@ error[E0417]: only a source-literal string may be converted `as Markup`; a runti
 %A
 error[E0716]: `+` has no meaning for `Core\Html\Markup`
 %A
-   = help: ADR 0024 § 5 composes `Markup` with `Markup` and nothing else: lift the other operand with `as Markup` if it is a source literal, or escape it with `Core\Html::escape(...)` — `+` is not a sink and will not escape it for you
+   = help: `rule:core-classes/html-auto-escape` composes `Markup` with `Markup` and nothing else: lift the other operand with `as Markup` if it is a source literal, or escape it with `Core\Html::escape(...)` — `+` is not a sink and will not escape it for you
 
 error: aborting due to 2 errors

@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::shed keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — ADR 0075 § 1 and ADR 0059 § 1
+Core\RateLimit::shed keys its own memory — two keys under one limit spend separate budgets and a third opens on a full one — `rule:core-classes/ratelimit-two-members` and ADR 0059 § 1
 --FILE--
 <?nvs
 // ADR 0059 § 1's "a map in the calling core's own thread", asked as behaviour

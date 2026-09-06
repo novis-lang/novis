@@ -649,7 +649,7 @@ pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 pub(crate) const LOGIC_ERROR: &str = "LogicError";
 
 /// `ParseError`, the one class below the root that declares a property —
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's `issues`.
+/// `rule:core-classes/derive-reports-every-field`'s `issues`.
 /// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
 /// on neither `nvs-hir` nor `nvs-types`, so it restates the two names it needs.
 pub(crate) const PARSE_ERROR: &str = "ParseError";
@@ -659,7 +659,7 @@ pub(crate) const ISSUES_FIELD: &str = "issues";
 
 /// `Core\Db\RolledBack`, the second class below the root that declares a
 /// property — spec § 18's `reason`, thrown by
-/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's
+/// `rule:core-classes/db-transactions`'s
 /// `Transaction::rollBack`. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 
@@ -667,7 +667,7 @@ pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 pub(crate) const REASON_FIELD: &str = "reason";
 
 /// `Core\Db\DbError`, the third such class — spec § 18's `kind`, written by
-/// every refusal [ADR 0067](/docs/adr/0067-core-db.md) § 8 gives a
+/// every refusal `rule:core-classes/db-error` gives a
 /// normalised kind. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
 
@@ -708,14 +708,14 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// **What each extra slot is initialized to is [`ExtraInit`]'s decision**, and
 /// the three differ: `ParseError::$issues` starts empty, because a `ParseError`
 /// raised by hand has no field list to report and
-/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's decoder fills
+/// `rule:core-classes/derive-reports-every-field`'s decoder fills
 /// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
 /// because spec § 18 gives that class nothing else to carry: the one string a
 /// caller passes is the reason, so `new Core\Db\RolledBack("cart is empty")`
-/// and ADR 0067 § 7's `rollBack("cart is empty")` agree without the thrower
+/// and `rule:core-classes/db-transactions`'s `rollBack("cart is empty")` agree without the thrower
 /// having to write a second slot. `Core\Db\DbError::$kind` starts at
 /// [`ERROR_KIND_OTHER`], which is the honest answer for an error no server
-/// classified: ADR 0067 § 8 defines `Other` as the condition a driver's own
+/// classified: `rule:core-classes/db-error` defines `Other` as the condition a driver's own
 /// code table does not name, and a `DbError` a program constructed itself has
 /// no code table behind it at all. `nvs_stdlib::db`'s `statement_failure`
 /// overwrites the slot on the path that *does* have one.

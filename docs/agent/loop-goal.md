@@ -5,12 +5,12 @@ back off a live server — three spellings of one thing. Diff that value against
 holds, grade every difference by what it risks, and print a plan whose every step is complete executable
 SQL. Applying it is an operator act.
 
-This is the door [ADR 0067](../adr/0067-core-db.md)'s *Revisiting* leaves open —
+This is the door `rule:core-classes/db-one-api`'s *Revisiting* leaves open —
 *"a portable `Core\Db\Schema`, **if migration tooling in `nvs` itself needs it**, rather than userland"* —
 and the trigger has already fired. [crates/nvs-stdlib/src/queue.rs:201](../../crates/nvs-stdlib/src/queue.rs)
 is a hand-written two-dialect DDL emitter for **two tables**, it needed a guard test whose only job is to
 stop the two lists drifting, and `migration()` at `:272` answers `None` for SQL Server and SQLite. Goal 5
-owes those two dialects by hand because [ADR 0084](../adr/0084-durable-background-jobs.md) § 2 says all
+owes those two dialects by hand because `rule:core-classes/queue-storage-is-a-table` says all
 five backends. **Those hand-written lists are this goal's oracle, not waste**: stage 7 replaces all four
 with one schema value, and goal 5's own frozen checks — already inside this goal's floor — are what proves
 the replacement behaves identically.
@@ -35,7 +35,7 @@ PostgreSQL index type, a new MySQL column option, a new SQL Server data type are
 vocabulary and reachable through `Core\Db::execute` as they are today. The vocabulary grows only when a
 construct exists on all five backends *and* something needs it, never to chase a release note.
 
-**It is not a SQL parser, and never will be.** [ADR 0067](../adr/0067-core-db.md) § 10 already refuses
+**It is not a SQL parser, and never will be.** `rule:core-classes/db-literal-query-checking` already refuses
 per-dialect SQL grammars for queries — *"it would mean maintaining four vendors' grammars in `nvs-syntax`
 forever"* — and that refusal extends to DDL here. Reverse-engineering an existing database is **live
 introspection** (`nvs schema dump`), which is strictly better than reading a `CREATE TABLE` its server
@@ -64,7 +64,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
    (otherwise the queue's emitter, a framework's and userland's are three spellings of one job).
 2. **The vocabulary, as types in a new `crates/nvs-db/src/schema.rs`.** A table, its columns, its primary
    key, its unique constraints and its indexes. The column type enum is
-   [ADR 0067](../adr/0067-core-db.md) § 9's type map **in the write direction** — the read direction is
+   `rule:core-classes/db-column-types`'s type map **in the write direction** — the read direction is
    already on disk and tested, so this is one table used both ways rather than a second table to keep in
    step, and the named test that holds them together is what proves it.
 3. **The array form round-trips.** `fromArray(toArray(x)) == x`, as a named test over every construct in
@@ -125,7 +125,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
    the two entry points are named for what they do: `applySafe()` refuses if any step is not `Safe`, and
    `applyIncludingRisky()` says so at the call site.
 3. **`nvs schema plan|apply|dump`** in a new `crates/nvs-cli/src/schema.rs`, beside `nvs queue migrate`
-   and for its reason — [ADR 0084](../adr/0084-durable-background-jobs.md) § 2's rule that the runtime
+   and for its reason — `rule:core-classes/queue-storage-is-a-table`'s rule that the runtime
    never issues DDL implicitly at boot or from a request. `plan` is the dry run and prints every step with
    its grade, its reason and its full SQL, including the ones `apply` would refuse.
 4. **`examples/schema.nvs`** — define, plan, print the grades, apply the safe half.
@@ -146,8 +146,8 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
 - **Decide and record; never `BLOCKED` for a design call.**
 - **One ADR slot: `Core\Db\Schema` itself**, and it is stage 2's first slice. Everything in *What this is*
   above is settled input to it, not a question it reopens. It amends
-  [ADR 0067](../adr/0067-core-db.md) — closing its *Revisiting* item — and
-  [ADR 0084](../adr/0084-durable-background-jobs.md) § 2, whose schema it takes over.
+  `rule:core-classes/db-one-api` — closing its *Revisiting* item — and
+  `rule:core-classes/queue-storage-is-a-table`, whose schema it takes over.
 - **`Web\Migration` stays blocked.** `rule:programs/no-migration-runner` is not
   closed by this goal and no session may close it: ordering, fleet locking, reversibility and safety
   against a live multi-tenant database are exactly the things convergence does not need, which is why
@@ -175,13 +175,13 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
   that question is the thing [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) refuses.
 - **Ambiguity about a seam resolves toward `nvs-db`**: the vocabulary, the emitters, the introspectors and
   the diff are all sans-io and belong beside `Dialect`, per
-  [ADR 0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md). `nvs-stdlib` holds
+  `rule:core-classes/db-drivers-are-an-enum`. `nvs-stdlib` holds
   the members and `nvs-cli` the command, and neither decides anything about DDL.
 
 ## What this goal does not touch
 
 The framework half — `Web\Migration`, migration files, ordering, history tables, fleet locking,
 reversibility. Schema-aware query checking (`nvs check --schema`), which is
-[ADR 0067](../adr/0067-core-db.md)'s own separate *Revisiting* item and needs a build-time dependency
+`rule:core-classes/db-one-api`'s own separate *Revisiting* item and needs a build-time dependency
 on a reachable database. And the deferred driver items that are not schema at all — LOB streaming, stored
 procedures, `COPY`, `LISTEN`/`NOTIFY`.

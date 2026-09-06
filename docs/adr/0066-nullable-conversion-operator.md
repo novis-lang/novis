@@ -214,7 +214,7 @@ in the language, which is a larger decision than this one and is not taken here.
   malformed input is a failure, so this would split what `?T` means across `Core`. And `ParseError` carries
   [spec § 10](../spec/01-core-library.md)'s `issues: array<Core\Issue>` — every offending field at once,
   each located by a dotted path — which a bare `null` discards. That costs little for a `Uri` and
-  everything for `Core\Csv::parse` and [ADR 0071](0071-derived-codecs.md) § 5's decoders, and `parse` has
+  everything for `Core\Csv::parse` and `rule:core-classes/derive-reports-every-field`'s decoders, and `parse` has
   to mean one thing across the library.
 - **Requiring a non-nullable operand.** Keeps "missing" and "invalid" syntactically distinct. Rejected in
   § 2: it does not prevent the conflation, only prices it, and charges a line on the most common shape in

@@ -1,10 +1,10 @@
 --TEST--
-`execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — ADR 0067 § 4, spec § 18
+`execute` answers a `Core\Db\Write` rather than the count `PDO::exec` returns, so what a write did is read off one object with three questions on it — `rule:core-classes/db-statement-members`, spec § 18
 --FILE--
 <?nvs
 // `PDO::exec` answers an `int` and `lastInsertId` reads a second number off the
 // connection afterwards, so "how many rows" and "what key" are two unrelated
-// readings a caller has to sequence correctly. ADR 0067 § 4 answers both from
+// readings a caller has to sequence correctly. `rule:core-classes/db-statement-members` answers both from
 // the statement that produced them, which is why `execute` has a return type of
 // its own rather than a count.
 var $db = Core\Db::connect("main");

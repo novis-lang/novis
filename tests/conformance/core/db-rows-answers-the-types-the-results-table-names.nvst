@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db\Rows`'s readers answer the types spec § 18's Results table gives them, so a result set is read without a fetch-mode argument choosing the shape — ADR 0067 §§ 4 and 6, spec § 18
+`Core\Db\Rows`'s readers answer the types spec § 18's Results table gives them, so a result set is read without a fetch-mode argument choosing the shape — `rule:core-classes/db-statement-members` and `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
 // § 18's Results table asserted as *types* rather than as values: nothing here
@@ -17,7 +17,7 @@ array<Core\Db\Row> $all = $rows->all();
 ?Core\Db\Row $first = $rows->first();
 
 // `value` is `mixed`, because the first column of the first row is whatever
-// ADR 0067 § 9's map made of that column.
+// `rule:core-classes/db-column-types`'s map made of that column.
 mixed $value = $rows->value();
 
 // `column` takes either half of its `int|string` key — a label or a position

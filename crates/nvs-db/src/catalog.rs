@@ -1,5 +1,4 @@
-//! [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
-//! § 4's catalog readers: the SQL that reads a database back, per dialect.
+//! `rule:core-classes/schema-introspection`'s catalog readers: the SQL that reads a database back, per dialect.
 //!
 //! § 4 refuses a DDL parser at every tier, so the reverse direction of
 //! [`crate::ddl`] is **live introspection** — `pg_catalog` for PostgreSQL,
@@ -841,7 +840,7 @@ fn unquote(text: &str, dialect: Dialect) -> Option<String> {
 /// `MySqlRow` and `SqliteValue` and nothing common, so a row of a catalog read
 /// is read by `nvs-stdlib` off whichever of the five answered and filled in
 /// here. That is what lets [`assemble`] be one function instead of five, and
-/// what keeps this crate sans-io per ADR 0132: the statement is text, the row
+/// what keeps this crate sans-io per `rule:core-classes/db-drivers-are-an-enum`: the statement is text, the row
 /// is a struct, and neither end of the module touches a socket.
 ///
 /// `ty` carries the `type` position, because `type` is a keyword; nothing else
@@ -1298,7 +1297,7 @@ mod tests {
         ]
     }
 
-    /// ADR 0145 § 4: the reverse of [`ddl::column_type`] reads back every
+    /// `rule:core-classes/schema-introspection`: the reverse of [`ddl::column_type`] reads back every
     /// spelling that emitter writes.
     ///
     /// Asserted as a **round trip over the emitters** rather than as a table
@@ -1447,7 +1446,7 @@ mod tests {
         ]
     }
 
-    /// ADR 0145 § 4: the reverse of [`crate::ddl`]'s literal reads back every
+    /// `rule:core-classes/schema-introspection`: the reverse of [`crate::ddl`]'s literal reads back every
     /// default that emitter writes, as the same case and the same value.
     ///
     /// A round trip again rather than a table of expected texts, and here the
@@ -1707,7 +1706,7 @@ mod tests {
         rows
     }
 
-    /// ADR 0145 § 4: the two reads answer one [`Schema`], whichever of the five
+    /// `rule:core-classes/schema-introspection`: the two reads answer one [`Schema`], whichever of the five
     /// drivers answered them.
     ///
     /// The claim is an **agreement across the drivers**, not a value written
@@ -1827,7 +1826,7 @@ mod tests {
         assemble(&sqlite_columns(&db), &sqlite_indexes(&db), Dialect::Sqlite).unwrap()
     }
 
-    /// ADR 0145 § 4: the assembly, over the rows a real server answers.
+    /// `rule:core-classes/schema-introspection`: the assembly, over the rows a real server answers.
     ///
     /// SQLite is the one dialect whose server is a file, so it is the one that
     /// can be asked this with no container — and it is also the harshest ask,
@@ -1914,7 +1913,7 @@ mod tests {
         );
     }
 
-    /// ADR 0145 § 5's acceptance criterion, on the one backend whose server is
+    /// `rule:core-classes/schema-is-a-value`'s acceptance criterion, on the one backend whose server is
     /// a file: apply a schema to it, introspect it back, and the plan between
     /// the two is **empty**.
     ///

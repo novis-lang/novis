@@ -1,4 +1,4 @@
-//! [ADR 0067](/docs/adr/0067-core-db.md) § 3's open against a real
+//! `rule:core-classes/db-capabilities`'s open against a real
 //! server, one driver per process: the whole sequence — a socket, the in-band
 //! upgrade, the TLS session and the authentication exchange — completes, and
 //! the reads it is made of hand the core back rather than holding it.
@@ -159,7 +159,7 @@ fn connect_as(server: &Server, password: &str) -> io::Result<PgConn> {
 
 /// Where the harness published `server`, as the address a driver connects to.
 ///
-/// Resolved here and not inside either driver: ADR 0067 § 3 has the *name* on
+/// Resolved here and not inside either driver: `rule:core-classes/db-capabilities` has the *name* on
 /// the target because that is what the certificate is checked against, and the
 /// address arrives separately because in a request it is the one the
 /// `db.connect` capability approved. A test that handed a driver a name to
@@ -287,7 +287,7 @@ fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
 /// Runs `sql` to the end of its answer, for a statement whose point is what it
 /// did rather than what it returned.
 ///
-/// The drain is not optional even where no row can arrive: ADR 0067 § 4 lets
+/// The drain is not optional even where no row can arrive: `rule:core-classes/db-statement-members` lets
 /// one statement be in flight at a time, and the next call is refused until
 /// this one's stream has ended.
 fn mysql_run(conn: &mut MySqlConn, sql: &str) {
@@ -1007,7 +1007,7 @@ fn a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it() {
 /// The first divergence with teeth: MariaDB answers `INSERT … RETURNING` and
 /// MySQL refuses the word, over one driver's framing and two code tables.
 ///
-/// This is why ADR 0067 makes MariaDB its own driver rather than a MySQL flag,
+/// This is why `rule:core-classes/db-one-api` makes MariaDB its own driver rather than a MySQL flag,
 /// and it is asserted as *one* case over two legs rather than as two cases that
 /// never meet. The DDL, the statement and the expectation are spelled once; the
 /// only thing that varies between the two runs is which server the matrix

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Html::toSource` hands back the source text of a `Markup` however it was obtained — the lift, the composition and the escape — ADR 0133 § 3
+`Core\Html::toSource` hands back the source text of a `Markup` however it was obtained — the lift, the composition and the escape — `rule:core-classes/html-to-source`
 --FILE--
 <?nvs
-// ADR 0133 § 3 makes this the *only* way back out of the carrier: there is no
+// `rule:core-classes/html-to-source` makes this the *only* way back out of the carrier: there is no
 // `Markup as string`, because one would reopen the hole in a keystroke. So the
 // claim under test is that the exit works for every entrance, asked of all
 // three rather than of the one that is easiest to write — a member that read

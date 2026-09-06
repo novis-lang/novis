@@ -1,5 +1,5 @@
 --TEST--
-Both `Core\Topic` members take the name as a sink, so neither a subscription nor its undoing can be chosen by the input the program is answering — ADR 0083 § 4, ADR 0076 § 1
+Both `Core\Topic` members take the name as a sink, so neither a subscription nor its undoing can be chosen by the input the program is answering — `rule:core-classes/topic`, ADR 0076 § 1
 --ARGS--
 room:someone-elses
 --FILE--

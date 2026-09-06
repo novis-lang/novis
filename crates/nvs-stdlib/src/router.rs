@@ -976,7 +976,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// The `Core\Uuid` arm allocates an instance, which is why it is this crate's:
 /// the octets crossed as bytes precisely so that the class stays where it is
-/// declared, and [`crate::uuid::of_octets`] is the seam ADR 0067 § 9's `UUID`
+/// declared, and [`crate::uuid::of_octets`] is the seam `rule:core-classes/db-column-types`'s `UUID`
 /// column already arrives on.
 ///
 /// # A capture is percent-decoded here, once, and this is that rule's home

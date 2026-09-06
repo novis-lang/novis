@@ -26,7 +26,7 @@ var $runtimeDate = $when->format($datePattern);
 echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
 
 // `Core\Regex::compile` — the pattern's syntax and its engine tier
-// (ADR 0056 § 3) are decided while checking, and the compiled program is what
+// (`rule:core-classes/regex-literal-tiering`) are decided while checking, and the compiled program is what
 // the prepared form carries.
 // `compile` is the row, not `matches`: § 1's list is closed and names the
 // member that *reads* the pattern, so the handle is what each path builds and

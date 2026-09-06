@@ -1,5 +1,5 @@
 --TEST--
-A `[db.<name>] path` resolves against the directory of the file it was written in, so a block in an included file names a database beside that file and not beside the running program — ADR 0103 § 5, ADR 0067 § 3
+A `[db.<name>] path` resolves against the directory of the file it was written in, so a block in an included file names a database beside that file and not beside the running program — ADR 0103 § 5, `rule:core-classes/db-capabilities`
 --FILE--
 <?nvs
 // The block that names this database lives in `conf/db.toml`, one directory

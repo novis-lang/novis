@@ -1,8 +1,8 @@
 --TEST--
-`query` takes its values beside the statement and a one-argument call is refused, so there is no spelling that leaves a placeholder unbound — ADR 0067 §§ 1 and 4
+`query` takes its values beside the statement and a one-argument call is refused, so there is no spelling that leaves a placeholder unbound — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
-// ADR 0067 § 1: there is **no `prepare` step**. `Core\Db\Connection::query`
+// `rule:core-classes/db-one-api`: there is **no `prepare` step**. `Core\Db\Connection::query`
 // takes the SQL and the parameters together, and the per-connection statement
 // cache is what a separate `prepare` would have bought — so `PDO`'s two
 // spellings of one operation are one member here, and the bound below is what

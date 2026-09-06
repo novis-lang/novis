@@ -1,5 +1,5 @@
 --TEST--
-Core\Regex::replaceWith hands its callback exactly the sequence Core\Regex::matchAll reports — same count, same offsets, same texts — and an identity callback is the identity on the subject — ADR 0056 § 5
+Core\Regex::replaceWith hands its callback exactly the sequence Core\Regex::matchAll reports — same count, same offsets, same texts — and an identity callback is the identity on the subject — `rule:core-classes/regex-syntax`
 --FILE--
 <?nvs
 // § 5's `replaceWith` row, asked the one question its two siblings cannot.

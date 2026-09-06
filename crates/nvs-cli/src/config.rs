@@ -172,8 +172,7 @@ pub(crate) fn boot_origins(
     Ok((snapshot, resolved.origins))
 }
 
-/// The `[capabilities]` block the machine that is **compiling** reads — ADR 0067
-/// § 10's second sentence, which is what makes a literal `Core\Db::open` host
+/// The `[capabilities]` block the machine that is **compiling** reads — `rule:core-classes/db-literal-query-checking`'s second sentence, which is what makes a literal `Core\Db::open` host
 /// matching no `db.open` grant a check-time diagnostic rather than only a
 /// refusal at the door.
 ///

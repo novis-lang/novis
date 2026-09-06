@@ -40,14 +40,14 @@ Core\Regex\Pattern $comma = Core\Regex::compile(",\\s*");
 echo Core\Str::join(Core\Regex::split("a, b,c", $comma), "-"), "|\n";
 
 // `compile` reaches both tiers exactly as every other member does: a
-// lookahead is a pattern only the backtracking engine can express (ADR 0056
-// § 2), and it compiles here rather than at the first match against it.
+// lookahead is a pattern only the backtracking engine can express (`rule:core-classes/regex-two-tiers`
+// ), and it compiles here rather than at the first match against it.
 Core\Regex\Pattern $fancy = Core\Regex::compile("foo(?=bar)");
 echo Core\Regex::matches("foobar", $fancy) as string, "|\n";
 echo Core\Regex::matches("foobaz", $fancy) as string, "|\n";
 
 // A pattern neither engine can compile throws from `compile` itself, not from
-// whichever member later used the handle (ADR 0056 § 5). The message quotes
+// whichever member later used the handle (`rule:core-classes/regex-syntax`). The message quotes
 // the pattern as the program wrote it, not the flag-wrapped form the engines
 // are given.
 //

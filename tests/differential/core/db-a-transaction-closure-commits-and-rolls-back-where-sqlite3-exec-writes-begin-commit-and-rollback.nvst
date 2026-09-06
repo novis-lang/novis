@@ -1,5 +1,5 @@
 --TEST--
-ADR 0067 § 7's transaction closure keeps what a normal return keeps and drops what a throw drops, matching a hand-written BEGIN/COMMIT/ROLLBACK through SQLite3::exec — and the rollback is not something the program can forget to write — ADR 0067 § 7
+`rule:core-classes/db-transactions`'s transaction closure keeps what a normal return keeps and drops what a throw drops, matching a hand-written BEGIN/COMMIT/ROLLBACK through SQLite3::exec — and the rollback is not something the program can forget to write — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
 // § 7's closure form is forced: with no destructors there is no point at which
