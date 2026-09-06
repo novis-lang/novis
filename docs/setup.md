@@ -40,6 +40,22 @@ Novis generates native code, so "it compiles here" is a weaker claim in this rep
 builds all three supported targets — `x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
 `aarch64-apple-darwin` — and a developer machine is expected to cover two of them (see below).
 
+## Claude Code needs the pointer file
+
+The rules every agent reads live in [AGENTS.md](../AGENTS.md), and the root carries no harness's own file.
+Claude Code cannot find that name: its project-doc loader reads `CLAUDE.md`, `.claude/CLAUDE.md`,
+`CLAUDE.local.md` and `.claude/rules/`, and nothing else. So the tree ships
+[.claude/CLAUDE.md](../.claude/CLAUDE.md), whose whole job is the `@../AGENTS.md` line that inlines the
+real file — the import resolves against the directory of the file holding it, which is why the `../` is
+load-bearing.
+
+A clone carries it, so there is normally nothing to do. **If it is absent — an older revision, or a machine
+that keeps `.claude/` out of git — write it before the first session**, with that import line and nothing
+project-specific in it. Without it a Claude session opens with no project instructions whatsoever and reads
+like a model that has never seen this repository; the unattended loop fails the same way, because
+`tools/loop.py` spawns that same `claude` binary. No other harness needs anything here: Codex reads
+`AGENTS.md` at the root directly.
+
 ## Windows
 
 The primary development platform, and the only one with real setup:

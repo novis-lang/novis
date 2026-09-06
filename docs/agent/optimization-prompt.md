@@ -126,7 +126,7 @@ Short, and each entry is here because it fails § *The one rule* — not because
 
 **What the supervisor checks when you exit**, so nothing here is a surprise:
 
-- every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `CLAUDE.md` or `README.md`;
+- every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md` or `README.md`;
 - every `tools/*.py` you touched still parses and still answers `--help`;
 - `orient.py` still produces a pack, and `loop.py --list` still reads the acceptance list;
 - if you touched `tools/`, `verify.py` is no worse than the state named in your evidence pack. **The tree

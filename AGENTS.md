@@ -10,7 +10,8 @@ that you did not know they existed, and the session workflow. **Everything else 
 **Every fact in this repository has exactly one home.** If two documents state the same thing, the one
 named as the home is authoritative and the other is a bug — fix it rather than reconciling it in your head.
 
-Any agent, any harness. `CLAUDE.md` at the root is a pointer to this file; nothing here is Claude-specific.
+Any agent, any harness. The root carries no harness's file: `.claude/CLAUDE.md` is a pointer to this one,
+because Claude Code discovers `CLAUDE.md` and never `AGENTS.md`. Nothing here is Claude-specific.
 
 ## Where to look
 

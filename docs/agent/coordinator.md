@@ -362,7 +362,7 @@ it was handed rather than deciding what to go and look at.
 
 This is the one place in the loop where an agent edits the machinery that will drive the next several hours
 unattended, so what follows a pass is not a review — it is four exit codes and a `git revert` on any of
-them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `CLAUDE.md`, `README.md` or `CONTRIBUTING.md`;
+them. Every file it committed must be under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md`, `README.md` or `CONTRIBUTING.md`;
 `orient.py` must still produce a pack; `loop.py --list` must still read the acceptance list; and a pass that
 touched `tools/` must leave `verify.py` green. A failure reverts the whole pass — `revert`, not `reset`, so
 the history still shows what was undone — and the loop carries on with the code it had. `--no-optimize`

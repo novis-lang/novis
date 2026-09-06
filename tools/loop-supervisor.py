@@ -81,7 +81,7 @@ ONESHOT = ("--goal-only", "--leg-only", "--list", "--chain-install")
 #: What an optimization pass may commit. Everything outside this is reverted, unread: the pass is
 #: the loop working on itself, and `crates/`, `tests/` and `examples/` are the work, not the loop.
 #: An allowlist rather than a denylist because a new top-level directory must default to refused.
-ALLOWED = ("tools/", "docs/", "AGENTS.md", "CLAUDE.md", "README.md")
+ALLOWED = ("tools/", "docs/", "AGENTS.md", ".claude/CLAUDE.md", "README.md")
 
 #: A pass only runs when a signal fires, so the cadence below is when the supervisor *looks*, not
 #: how often it spends a session. Looking is four subprocesses; the pass is a session.
