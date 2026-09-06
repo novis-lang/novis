@@ -162,6 +162,7 @@ Conventions the whole file uses:
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\Column`](#core-core-db-column) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
+| [`Core\Db\Schema`](#core-core-db-schema) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -19252,6 +19253,44 @@ Keywords:
 | Member | Signature |
 |---|---|
 
+<a id="core-core-db-schema"></a>
+### `Core\Db\Schema`
+
+Keywords: fromArray, toArray
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Schema::fromArray`](#core-core-db-schema-fromarray) | `fromArray(array<mixed> $array): Core\Db\Schema` |
+| [`Core\Db\Schema->toArray`](#core-core-db-schema-toarray) | `toArray(): array<mixed>` |
+
+<a id="core-core-db-schema-fromarray"></a>
+#### `Core\Db\Schema::fromArray`
+
+```nvs skip
+Core\Db\Schema::fromArray(array<mixed> $array): Core\Db\Schema
+```
+
+Reads a schema out of its canonical array form — the same form `toArray` writes, a file holds and `nvs schema dump` prints. Every rule the vocabulary has is checked here, so a schema value that exists is one all five backends can be asked for.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$array` | `array<mixed>` | The schema, as `["tables" => [...]]`. A table is `name`, `columns`, and optionally `primary_key`, `unique` and `indexes`; a column is `name` and `type`, with `null`, `identity` and a one-key `default` where it has them. A key that is left out is the empty list or `false`. |
+
+**Returns** `Core\Db\Schema` — A `Core\Db\Schema` holding the **normalized** form: tables in name order, columns in declaration order, every optional key filled in. So `toArray` answers the same array for every spelling of one schema, which is what makes two schemas comparable.
+
+**Throws** `LogicError` — A key is missing or holds the wrong kind of value, a type spelling is outside the vocabulary, an identifier is not a plain identifier, or the schema reads but is not coherent — a table with no columns, a second identity column, an identity column outside the primary key, or an index over a column that is not there.
+
+<a id="core-core-db-schema-toarray"></a>
+#### `Core\Db\Schema->toArray`
+
+```nvs skip
+$schema->toArray(): array<mixed>
+```
+
+The schema in its canonical array form — what a program saves to a file, hands to `Core\Json::encode`, or compares against another schema.
+
+**Returns** `array<mixed>` — The array `fromArray` would read back as the same schema. Tables come in name order and columns in the order they were declared, since a `create table` reproduces it; constraints and indexes come in name order, since nothing observable depends on the order they were added in.
+
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
@@ -20303,9 +20342,11 @@ deny. The roster is closed:
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
+| `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
+| `mail.send` | sending through a `[mail.<name>]` block | the block names |
 
-In this build `fs.read`, `fs.write`, `script.spawn`, `process.exec` and `net.connect` have members
-behind them; the others are accepted and nothing asks for them yet.
+A capability whose member has not landed yet is still accepted here rather than refused, so a grant
+written today keeps meaning the same thing on the build that starts asking for it.
 
 `net.connect` carries a second key, because a granted host is not automatically a reachable address:
 an outbound connection to a loopback, private, link-local or unspecified address is refused whatever

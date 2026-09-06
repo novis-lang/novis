@@ -41,8 +41,8 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 6 (M7) is green; goal 9 stage 5 reads: `plan::diff` is § 5's normalised
-> comparison, graded, empty against SQLite.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13.
+> **Open now:** **Goal 6 (M7) is green; goal 9 stage 6 opens: `plan::diff` is § 5's comparison,
+> empty on SQLite; § 1's array is a value.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13.
 > **`Core\Db` is open**: `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`,
 > `stream` walks 10k rows; `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs
 > h1 as goal 2's `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file;
@@ -60,7 +60,7 @@
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
 > **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
-> compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1564, differential 276,
+> compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1567, differential 276,
 > migration 100%; valgrind green, arrays too. Serve: 2.78x php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
