@@ -515,6 +515,16 @@ def run_where(terms):
         sys.stdout.write(f"  docs/rules/{r.topic}.md#{r.anchor}  rule:{r.id}{mark}\n     {r.title}\n")
     if len(hits) > WHERE_CAP:
         sys.stdout.write(f"  ... and {len(hits) - WHERE_CAP} more; narrow the keyword\n")
+    if hits:
+        # The path above is the generated chapter, which is the reader's link and the wrong thing
+        # to fetch: a chapter runs to 87 KB. The token beside it is a `peek.py` target, so the
+        # next call is the answer rather than another routing step -- and several tokens go in
+        # one call, which is the shape this answer usually wants.
+        sys.stdout.write(
+            "\n  Read one -- or several -- in one call:  python tools/peek.py "
+            + " ".join(f"rule:{r.id}" for r in hits[:2])
+            + "\n  (the chapter path is the link; the `rule:` token is the target)\n"
+        )
     return 0
 
 

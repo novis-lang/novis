@@ -28,9 +28,17 @@ Target forms, all of them `path` followed by `:` and a locator:
                           rewrites a leading `/` into a Win32 path before this tool sees it,
                           so prefer `re:` there
     path:"## Heading"     a markdown heading and its body, to the next same-or-higher heading
+    rule:topic/slug       that rule's fragment -- the citation token itself, as a target
+    rule:topic            the whole generated chapter (usually too big; name the rule instead)
 
 `path` may be a glob (`crates/**/*.rs`), in which case the locator runs against every match --
 which is how you sweep a regex across a crate without a second call.
+
+A `rule:` target takes no locator, because a fragment is a page or two and the whole point is that
+the token you are already looking at *is* the target -- paste it, backticks and all, beside the
+code targets you were going to read anyway. `docs/rules/<topic>.md:"## …"` is still there for a
+slice of a chapter. (The two forms above are metasyntax, not citations, so this file carries
+`rules-py:examples` -- `tools/rules.py`'s marker for a document that teaches the spelling.)
 
     python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc
     python tools/peek.py --outline crates/nvs-ir/src/lower/mod.rs
@@ -178,6 +186,29 @@ def walk_repo():
                 yield p
 
 
+#: `rule:<topic>/<slug>` -- the citation token, spelled exactly as the ~18,500 of them in the tree
+#: are. It is the most-copied identifier in this repository and, until this rewrite, the one thing
+#: `peek.py` could not be handed: a session reading `rule:types/conversion` in a doc comment had to
+#: know that a rule's prose is a fragment at `docs/rules/<topic>/<slug>.md` and that the topic
+#: chapter beside it is generated. Optional backticks, because that is how a doc comment writes it
+#: and pasting one back with them attached is the obvious mistake to absorb rather than report.
+RULE_TARGET = re.compile(r"^`?rule:([a-z0-9][a-z0-9-]*)(?:/([a-z0-9][a-z0-9-]*))?`?$")
+
+
+def rule_target(spec: str) -> str | None:
+    """`rule:types/conversion` -> the fragment path, `rule:types` -> the chapter. Else `None`.
+
+    A pure string rewrite, with no rulebook load behind it: the id *is* the path, which is
+    `tools/rules.py`'s own § *A rule id is a path*. A mistyped id therefore lands on this tool's
+    ordinary NO SUCH FILE, and the caller below adds where the real list is.
+    """
+    m = RULE_TARGET.match(spec.strip())
+    if not m:
+        return None
+    topic, slug = m.group(1), m.group(2)
+    return f"docs/rules/{topic}/{slug}.md" if slug else f"docs/rules/{topic}.md"
+
+
 def split_target(spec: str) -> tuple[str, str | None]:
     """`path:locator` -> (path, locator), tolerating a Windows drive letter and a bare path.
 
@@ -308,10 +339,15 @@ def emit_matches(path: Path, lines: list[str], rx, context: int) -> int:
 
 def peek_one(spec: str, window: int, max_lines: int) -> tuple[int, int]:
     """One target -> (bytes printed, targets that produced nothing)."""
-    pattern, locator = split_target(spec)
+    as_rule = rule_target(spec)
+    pattern, locator = split_target(as_rule if as_rule else spec)
     files = expand(pattern)
     if not files:
-        out(f"===== {pattern}  -- NO SUCH FILE")
+        where = f"{pattern}  -- NO SUCH FILE"
+        if as_rule:
+            where = (f"{spec}  -- NO SUCH RULE (looked in {pattern}). "
+                     f"`python tools/rules.py --list` is every rule id.")
+        out(f"===== {where}")
         out()
         return 0, 1
 
@@ -533,7 +569,9 @@ def note_reads(targets: list[str]) -> list[str]:
             "count: `peek.py a.rs:120-160 b.rs:@sym c.md:\"## 4\"` is one call, not three.")
         record["solo"] = 0
 
-    paths = {split_target(t)[0] for t in targets}
+    # Through `rule_target` first, or every `rule:x/y` in the run tallies as one file called
+    # "rule" -- `split_target` splits on the first colon, and the token's is after four letters.
+    paths = {split_target(rule_target(t) or t)[0] for t in targets}
     paths = {p for p in paths if "*" not in p and "?" not in p}
     hot = []
     tally = record["files"]
