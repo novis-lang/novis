@@ -9072,3 +9072,20 @@ every session. Nothing below was reworded on the way.
   (`lsb`'s own panic message says so) and does not. Whichever way it is closed — capturing the
   enclosing called class, or a diagnostic — the test to write first is a closure inside both a
   `static` and an instance method, because those two frames carry the descriptor in different slots.
+- **A test that reads `nvs_codegen::disassemble` is x86_64-only until it says which backend it means.**
+  Cranelift prints the vcode of whichever backend it emitted for, so a scan for lines beginning `call `
+  counts zero on aarch64, where a direct call is `bl 0` and an indirect one `blr <reg>`. The failure is
+  not a compile error and not a wrong number — it is a *structurally* empty answer, so a guard phrased as
+  "no more calls than sites" would have passed on aarch64 while looking at nothing, and only
+  `perf_guards.rs`'s equality against the site count caught it. Branch mnemonics diverge the same way
+  (`jmp`/`jnz`/`test` against `b`/`b.ne`/`cbz`, and aarch64 puts the second branch on its own line), so
+  anything walking control flow out of the disassembly wants a `target_arch` gate rather than a wider
+  match — `path_calls` has one. macos-aarch64 is in the test matrix, so this is not hypothetical.
+- **`std::env::temp_dir()` in a test whose path reaches `nvs_config::trust::check` is refused on Unix.**
+  `/tmp` is mode 1777, ADR 0103 § 6 refuses a group- or world-writable directory, and the check runs on
+  the directory it is handed *and* on that directory's parent — so a scratch directory of your own with
+  perfectly tight bits is still refused, for the `/tmp` above it. The refusal is the product working, not
+  a rule to relax, and the tell is a `Breach` naming a mode you did not set. Scratch beside the test
+  binary instead (`std::env::current_exe()`'s parent, under `target/`), which clears the same bar an
+  operator's `/run/nvs` has to. Windows hides this completely: the socket cases name a pipe there and no
+  directory is walked, so the whole class of failure is invisible until a Unix leg runs.
