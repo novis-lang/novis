@@ -10,7 +10,7 @@
 //! (§ 9 makes planning an ordinary read under `db.connect`), [`scalar_type`]
 //! and [`column_default`] read the two spellings in that row back into the
 //! vocabulary, and [`assemble`] turns the two reads' rows into one
-//! [`Schema`](crate::Schema).
+//! [`Schema`].
 //!
 //! # One row shape per read, and every dialect answers it
 //!
@@ -59,7 +59,7 @@
 //!    or expression index is filtered out of every dialect's index read —
 //!    `indexprs`/`indpred` on PostgreSQL, `has_filter` on SQL Server,
 //!    `partial` and a null `pragma_index_info` name on SQLite, and a null
-//!    `column_name` on MySQL. A [`Schema`](crate::Schema) cannot hold one, so
+//!    `column_name` on MySQL. A [`Schema`] cannot hold one, so
 //!    reporting it with its predicate dropped would put a *false* index in the
 //!    value and the diff would then agree with a server it does not match. The
 //!    cost is the other way round: a plan that creates an index whose name is
@@ -114,27 +114,51 @@ impl Read {
     /// The columns this read's rows carry, in the order every dialect selects
     /// them.
     ///
-    /// The names are this module's rather than any server's, and they are the
-    /// documentation for a positional read: nothing above depends on a server
-    /// having called a column `ORDINAL_POSITION` or `cid`.
+    /// The names are this module's rather than any server's, and **every
+    /// statement aliases its select list to them**, so a reader may match a
+    /// column by name and not only by position. That is not decoration: SQLite's
+    /// column read selects `m.name` beside `p.name`, and a consumer that
+    /// describes a row by the server's own names — which `Core\Db\Row` does —
+    /// collapses the two into one entry and silently shifts every column after
+    /// it. The bug is invisible against an empty database, where there are no
+    /// rows to collapse.
     ///
-    /// - [`Read::Columns`] — `table`, `column`, `ordinal` (one-based
+    /// The `nvs_` prefix is what makes one alias legal on all five backends
+    /// unquoted: `table`, `column`, `type`, `default`, `index`, `unique` and
+    /// `primary` are reserved words somewhere, and the five do not agree on how
+    /// an identifier is delimited — which is the same wall
+    /// `Core\Db::quoteIdentifier` states.
+    ///
+    /// - [`Read::Columns`] — `nvs_table`, `nvs_column`, `nvs_ordinal` (one-based
     ///   declaration order, an ordering key and not an index — PostgreSQL
-    ///   leaves gaps where a column was dropped), `type` (the server's own
-    ///   declared spelling, parameters included), `nullable` (`1` when the
-    ///   column accepts null), `default` (the server's spelling, or null),
-    ///   `identity` (`1` when the server assigns the value).
-    /// - [`Read::Indexes`] — `table`, `index` (the constraint or index name),
-    ///   `column`, `ordinal` (one-based position within the key), `unique`
-    ///   (`1` when a duplicate is refused), `primary` (`1` when this is the
-    ///   table's primary key).
+    ///   leaves gaps where a column was dropped), `nvs_type` (the server's own
+    ///   declared spelling, parameters included), `nvs_nullable` (`1` when the
+    ///   column accepts null), `nvs_default` (the server's spelling, or null),
+    ///   `nvs_identity` (`1` when the server assigns the value).
+    /// - [`Read::Indexes`] — `nvs_table`, `nvs_index` (the constraint or index
+    ///   name), `nvs_column`, `nvs_ordinal` (one-based position within the key),
+    ///   `nvs_unique` (`1` when a duplicate is refused), `nvs_primary` (`1` when
+    ///   this is the table's primary key).
     #[must_use]
     pub fn row(self) -> &'static [&'static str] {
         match self {
             Read::Columns => &[
-                "table", "column", "ordinal", "type", "nullable", "default", "identity",
+                "nvs_table",
+                "nvs_column",
+                "nvs_ordinal",
+                "nvs_type",
+                "nvs_nullable",
+                "nvs_default",
+                "nvs_identity",
             ],
-            Read::Indexes => &["table", "index", "column", "ordinal", "unique", "primary"],
+            Read::Indexes => &[
+                "nvs_table",
+                "nvs_index",
+                "nvs_column",
+                "nvs_ordinal",
+                "nvs_unique",
+                "nvs_primary",
+            ],
         }
     }
 
@@ -174,13 +198,13 @@ pub fn query(read: Read, dialect: Dialect) -> &'static str {
 /// `numeric_scale` and then spells the type in the standard's words rather than
 /// the server's. `attidentity` is non-empty exactly for the `GENERATED … AS
 /// IDENTITY` [`crate::ddl`] writes.
-const PG_COLUMNS: &str = r"SELECT c.relname,
-       a.attname,
-       a.attnum,
-       pg_catalog.format_type(a.atttypid, a.atttypmod),
-       CASE WHEN a.attnotnull THEN 0 ELSE 1 END,
-       pg_catalog.pg_get_expr(d.adbin, d.adrelid),
-       CASE WHEN a.attidentity <> '' THEN 1 ELSE 0 END
+const PG_COLUMNS: &str = r"SELECT c.relname AS nvs_table,
+       a.attname AS nvs_column,
+       a.attnum AS nvs_ordinal,
+       pg_catalog.format_type(a.atttypid, a.atttypmod) AS nvs_type,
+       CASE WHEN a.attnotnull THEN 0 ELSE 1 END AS nvs_nullable,
+       pg_catalog.pg_get_expr(d.adbin, d.adrelid) AS nvs_default,
+       CASE WHEN a.attidentity <> '' THEN 1 ELSE 0 END AS nvs_identity
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
@@ -197,12 +221,12 @@ ORDER BY c.relname, a.attnum";
 /// WITH ORDINALITY` gives each column its position. A zero entry there is an
 /// expression, and the `indexprs`/`indpred` filter has already dropped the
 /// index it belonged to.
-const PG_INDEXES: &str = r"SELECT c.relname,
-       i.relname,
-       a.attname,
-       k.ord,
-       CASE WHEN ix.indisunique THEN 1 ELSE 0 END,
-       CASE WHEN ix.indisprimary THEN 1 ELSE 0 END
+const PG_INDEXES: &str = r"SELECT c.relname AS nvs_table,
+       i.relname AS nvs_index,
+       a.attname AS nvs_column,
+       k.ord AS nvs_ordinal,
+       CASE WHEN ix.indisunique THEN 1 ELSE 0 END AS nvs_unique,
+       CASE WHEN ix.indisprimary THEN 1 ELSE 0 END AS nvs_primary
 FROM pg_catalog.pg_index ix
 JOIN pg_catalog.pg_class c ON c.oid = ix.indrelid
 JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid
@@ -221,13 +245,13 @@ ORDER BY c.relname, i.relname, k.ord";
 /// fact `format_type` gives on PostgreSQL: the declared spelling with its
 /// length, its `unsigned` and its enumeration intact. `extra` is where
 /// `AUTO_INCREMENT` is reported.
-const MYSQL_COLUMNS: &str = r"SELECT c.table_name,
-       c.column_name,
-       c.ordinal_position,
-       c.column_type,
-       CASE WHEN c.is_nullable = 'YES' THEN 1 ELSE 0 END,
-       c.column_default,
-       CASE WHEN c.extra LIKE '%auto_increment%' THEN 1 ELSE 0 END
+const MYSQL_COLUMNS: &str = r"SELECT c.table_name AS nvs_table,
+       c.column_name AS nvs_column,
+       c.ordinal_position AS nvs_ordinal,
+       c.column_type AS nvs_type,
+       CASE WHEN c.is_nullable = 'YES' THEN 1 ELSE 0 END AS nvs_nullable,
+       c.column_default AS nvs_default,
+       CASE WHEN c.extra LIKE '%auto_increment%' THEN 1 ELSE 0 END AS nvs_identity
 FROM information_schema.columns c
 JOIN information_schema.tables t
   ON t.table_schema = c.table_schema AND t.table_name = c.table_name
@@ -242,12 +266,12 @@ ORDER BY c.table_name, c.ordinal_position";
 /// never reaches a schema value. The `expression` column that would say the
 /// same thing directly exists on MySQL 8 and not on MariaDB, and this text is
 /// one text for both.
-const MYSQL_INDEXES: &str = r"SELECT s.table_name,
-       s.index_name,
-       s.column_name,
-       s.seq_in_index,
-       CASE WHEN s.non_unique = 0 THEN 1 ELSE 0 END,
-       CASE WHEN s.index_name = 'PRIMARY' THEN 1 ELSE 0 END
+const MYSQL_INDEXES: &str = r"SELECT s.table_name AS nvs_table,
+       s.index_name AS nvs_index,
+       s.column_name AS nvs_column,
+       s.seq_in_index AS nvs_ordinal,
+       CASE WHEN s.non_unique = 0 THEN 1 ELSE 0 END AS nvs_unique,
+       CASE WHEN s.index_name = 'PRIMARY' THEN 1 ELSE 0 END AS nvs_primary
 FROM information_schema.statistics s
 JOIN information_schema.tables t
   ON t.table_schema = s.table_schema AND t.table_name = s.table_name
@@ -268,9 +292,9 @@ ORDER BY s.table_name, s.index_name, s.seq_in_index";
 /// length is written in parentheses, and `decimal` and `numeric` take their
 /// precision and scale. `COLUMNPROPERTY` is how an identity is asked for
 /// without leaving `INFORMATION_SCHEMA` for `sys.columns`.
-const SQLSERVER_COLUMNS: &str = r"SELECT c.TABLE_NAME,
-       c.COLUMN_NAME,
-       c.ORDINAL_POSITION,
+const SQLSERVER_COLUMNS: &str = r"SELECT c.TABLE_NAME AS nvs_table,
+       c.COLUMN_NAME AS nvs_column,
+       c.ORDINAL_POSITION AS nvs_ordinal,
        CASE
          WHEN c.CHARACTER_MAXIMUM_LENGTH = -1 THEN c.DATA_TYPE + '(max)'
          WHEN c.CHARACTER_MAXIMUM_LENGTH IS NOT NULL
@@ -279,13 +303,13 @@ const SQLSERVER_COLUMNS: &str = r"SELECT c.TABLE_NAME,
            THEN c.DATA_TYPE + '(' + CAST(c.NUMERIC_PRECISION AS varchar(11))
                 + ',' + CAST(c.NUMERIC_SCALE AS varchar(11)) + ')'
          ELSE c.DATA_TYPE
-       END,
-       CASE WHEN c.IS_NULLABLE = 'YES' THEN 1 ELSE 0 END,
-       c.COLUMN_DEFAULT,
+       END AS nvs_type,
+       CASE WHEN c.IS_NULLABLE = 'YES' THEN 1 ELSE 0 END AS nvs_nullable,
+       c.COLUMN_DEFAULT AS nvs_default,
        COLUMNPROPERTY(
          OBJECT_ID(QUOTENAME(c.TABLE_SCHEMA) + '.' + QUOTENAME(c.TABLE_NAME)),
          c.COLUMN_NAME,
-         'IsIdentity')
+         'IsIdentity') AS nvs_identity
 FROM INFORMATION_SCHEMA.COLUMNS c
 JOIN INFORMATION_SCHEMA.TABLES t
   ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
@@ -301,12 +325,12 @@ ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION";
 /// b-trees and drops the heap, the XML, spatial and columnstore forms; an
 /// included column is not a key column and `has_filter` is the filtered index
 /// the vocabulary cannot hold.
-const SQLSERVER_INDEXES: &str = r"SELECT t.name,
-       i.name,
-       c.name,
-       ic.key_ordinal,
-       CASE WHEN i.is_unique = 1 THEN 1 ELSE 0 END,
-       CASE WHEN i.is_primary_key = 1 THEN 1 ELSE 0 END
+const SQLSERVER_INDEXES: &str = r"SELECT t.name AS nvs_table,
+       i.name AS nvs_index,
+       c.name AS nvs_column,
+       ic.key_ordinal AS nvs_ordinal,
+       CASE WHEN i.is_unique = 1 THEN 1 ELSE 0 END AS nvs_unique,
+       CASE WHEN i.is_primary_key = 1 THEN 1 ELSE 0 END AS nvs_primary
 FROM sys.indexes i
 JOIN sys.tables t ON t.object_id = i.object_id
 JOIN sys.schemas s ON s.schema_id = t.schema_id
@@ -343,15 +367,15 @@ ORDER BY t.name, i.name, ic.key_ordinal";
 /// otherwise. The two forms differ in whether a rowid is reused and not in
 /// anything a [`Schema`](crate::Schema) can say, so reading both as an identity
 /// is what makes a round trip empty.
-const SQLITE_COLUMNS: &str = r#"SELECT m.name,
-       p.name,
-       p.cid + 1,
-       p.type,
-       CASE WHEN p."notnull" = 0 AND p.pk = 0 THEN 1 ELSE 0 END,
-       p.dflt_value,
+const SQLITE_COLUMNS: &str = r#"SELECT m.name AS nvs_table,
+       p.name AS nvs_column,
+       p.cid + 1 AS nvs_ordinal,
+       p.type AS nvs_type,
+       CASE WHEN p."notnull" = 0 AND p.pk = 0 THEN 1 ELSE 0 END AS nvs_nullable,
+       p.dflt_value AS nvs_default,
        CASE WHEN p.pk = 1 AND UPPER(p.type) = 'INTEGER'
                  AND (SELECT COUNT(*) FROM pragma_table_info(m.name) q WHERE q.pk > 0) = 1
-            THEN 1 ELSE 0 END
+            THEN 1 ELSE 0 END AS nvs_identity
 FROM sqlite_master m
 JOIN pragma_table_info(m.name) p
 WHERE m.type = 'table'
@@ -367,7 +391,8 @@ ORDER BY m.name, p.cid"#;
 /// second is every other index, with `origin = 'pk'` dropped so a composite
 /// key's `sqlite_autoindex_…` is not reported a second time. The `ORDER BY` is
 /// by position because a compound select takes the first branch's column names.
-const SQLITE_INDEXES: &str = r#"SELECT m.name, 'PRIMARY', p.name, p.pk, 1, 1
+const SQLITE_INDEXES: &str = r#"SELECT m.name AS nvs_table, 'PRIMARY' AS nvs_index, p.name AS nvs_column,
+       p.pk AS nvs_ordinal, 1 AS nvs_unique, 1 AS nvs_primary
 FROM sqlite_master m
 JOIN pragma_table_info(m.name) p
 WHERE m.type = 'table'

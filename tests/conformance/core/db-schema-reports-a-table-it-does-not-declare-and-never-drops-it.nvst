@@ -1,0 +1,84 @@
+--TEST--
+A table the schema value does not declare is reported with the SQL that would drop it, and neither `applySafe` nor `applyIncludingRisky` ever runs that step — ADR 0145 § 7
+--FILE--
+<?nvs
+// § 7's rule is that absence never destroys, because a database an application
+// shares with a queue, a reporting view and whatever an operator put there is
+// the ordinary case rather than the exception. So the difference is *shown*,
+// in full, and left alone.
+use Core\Db;
+use Core\Db\Schema;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+
+var $db = Db::connect("main");
+
+// What an earlier version of this application left behind, and what this
+// schema value has nothing to say about.
+$db->execute("create table legacy (id integer not null)", []);
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [["name" => "id", "type" => "int64", "identity" => true]],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+var $reports = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    if ($step->isRefused()) {
+        $reports = $reports + 1;
+        // Graded for what it *would* cost, not for what will happen to it: a
+        // drop is destructive whether or not anything will run it.
+        if ($step->grade() == Grade::Destructive) {
+            echo "report is destructive\n";
+        } else {
+            echo "report is something else\n";
+        }
+        // § 8: a step Novis will not apply is still a step Novis shows in
+        // full, because the deployment that cannot issue DDL hands the plan to
+        // a person.
+        if (Core\Str::contains(Core\Str::lower($step->sql()), "drop table")) {
+            echo "report carries the drop\n";
+        } else {
+            echo "report hides the drop\n";
+        }
+        if ($step->reason() == "") {
+            echo "reason missing\n";
+        } else {
+            echo "reason given\n";
+        }
+    }
+}
+echo "reports ", $reports, "\n";
+
+// Neither entry point touches it — accepting risk is not accepting data loss,
+// which is why "risky" is about grades and not about § 7.
+$schema->applySafe($db);
+$schema->applyIncludingRisky($db);
+echo "legacy rows ", $db->query("select id from legacy", [])->count(), "\n";
+
+// And the report is still there afterwards, because nothing converged it away.
+var $left = 0;
+foreach ($schema->planAgainst($db)->steps() as Step $step) {
+    $left = $left + 1;
+}
+echo "still planning ", $left, "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+schema = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+report is destructive
+report carries the drop
+reason given
+reports 1
+legacy rows 0
+still planning 1

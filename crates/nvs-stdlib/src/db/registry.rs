@@ -1544,15 +1544,44 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
         symbol: "nvs_core_db_schema_from_array",
         doc: Some(&SCHEMA_FROM_ARRAY_DOC),
     }],
-    instance: &[CoreMethod {
-        name: "toArray",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Array(&CoreTy::Mixed),
-        symbol: "nvs_core_db_schema_to_array",
-        doc: Some(&SCHEMA_TO_ARRAY_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "toArray",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "nvs_core_db_schema_to_array",
+            doc: Some(&SCHEMA_TO_ARRAY_DOC),
+        },
+        CoreMethod {
+            name: "planAgainst",
+            names: &["connection"],
+            params: &[CoreTy::Instance(CONNECTION_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PLAN_NAME),
+            symbol: "nvs_core_db_schema_plan_against",
+            doc: Some(&SCHEMA_PLAN_AGAINST_DOC),
+        },
+        CoreMethod {
+            name: "applySafe",
+            names: &["connection"],
+            params: &[CoreTy::Instance(CONNECTION_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_db_schema_apply_safe",
+            doc: Some(&SCHEMA_APPLY_SAFE_DOC),
+        },
+        CoreMethod {
+            name: "applyIncludingRisky",
+            names: &["connection"],
+            params: &[CoreTy::Instance(CONNECTION_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_db_schema_apply_including_risky",
+            doc: Some(&SCHEMA_APPLY_RISKY_DOC),
+        },
+    ],
     slots: &[SCHEMA_ARRAY_SLOT],
     constants: &[],
 };
@@ -1592,6 +1621,253 @@ const SCHEMA_TO_ARRAY_DOC: MethodDoc = MethodDoc {
           constraints and indexes come in name order, since nothing observable depends on the \
           order they were added in.",
     errors: &[],
+};
+
+/// `Core\Db\Schema::planAgainst`'s reference card — ADR 0117.
+const SCHEMA_PLAN_AGAINST_DOC: MethodDoc = MethodDoc {
+    short: "Reads the database this connection reaches and answers every difference between it and \
+            this schema, in the order the differences must be closed. A plan is a document: \
+            nothing is changed by computing one, and an empty plan is what convergence looks like.",
+    params: &[ParamDoc {
+        name: "connection",
+        desc: "The database to compare against. Planning is an ordinary read and needs only the \
+               `db.connect` this connection was opened with.",
+        shape: &[],
+    }],
+    ret: "The plan, whose `steps()` are graded `Safe`, `Locking` or `Destructive` and each carry \
+          the complete SQL that makes them. A table or column the database has and this schema \
+          does not is a **report**: it is in the plan, with the SQL that would remove it, and no \
+          `apply` will ever run it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The database holds a type, a default or an identifier the schema vocabulary cannot \
+               name, so no plan against it would be total.",
+    }],
+};
+
+/// `Core\Db\Schema::applySafe`'s reference card — ADR 0117.
+const SCHEMA_APPLY_SAFE_DOC: MethodDoc = MethodDoc {
+    short: "Plans against this connection and runs the plan, provided every step it would run is \
+            graded `Safe`. Needs the `db.schema` capability for the connection's block: issuing \
+            DDL is a privileged act and reaching the database is not enough on its own.",
+    params: &[ParamDoc {
+        name: "connection",
+        desc: "The database to converge. Its `[db.<name>]` block is the name `db.schema` is \
+               granted for, so a connection from `Core\\Db::open` cannot be applied to.",
+        shape: &[],
+    }],
+    ret: "Nothing. The database matches the schema afterwards, apart from what the schema does \
+          not declare — which is reported and left alone.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The plan holds a step that is not `Safe`, named in the message; the connection \
+                   has no block to grant `db.schema` for; or `planAgainst`'s own refusal.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The `db.schema` capability is not granted for this connection's block.",
+        },
+    ],
+};
+
+/// `Core\Db\Schema::applyIncludingRisky`'s reference card — ADR 0117.
+const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
+    short: "`applySafe`, without the grade check: runs every step of the plan including the ones \
+            that can hold a long lock, rewrite a table or fail on rows that already exist. Named \
+            so that a reviewer reading the call site sees the claim being made.",
+    params: &[ParamDoc {
+        name: "connection",
+        desc: "The database to converge, as `applySafe` takes it and under the same `db.schema` \
+               grant.",
+        shape: &[],
+    }],
+    ret: "Nothing. A reported drop is still not run — accepting risk is not accepting data loss, \
+          and the SQL for one is on the step for a program that wants it.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The connection has no block to grant `db.schema` for, or `planAgainst`'s own \
+                   refusal.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The `db.schema` capability is not granted for this connection's block.",
+        },
+    ],
+};
+
+/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
+/// § 6's plan — every difference between a schema value and a database, as a
+/// document a program walks.
+///
+/// **One member, because a plan is a list and nothing else.** Counting by
+/// grade, finding the first refusal and rendering the document are all things a
+/// program writes over `steps()` in three lines, and a member for each would be
+/// a surface that has to be kept agreeing with a `foreach` anyone can write.
+/// [`mod@super::plan`]'s module doc owns what a step holds and why it is copied
+/// out rather than computed on demand.
+pub(crate) const PLAN: CoreClass = CoreClass {
+    name: PLAN_NAME,
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "steps",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Array(&CoreTy::Instance(STEP_NAME)),
+        symbol: "nvs_core_db_plan_steps",
+        doc: Some(&PLAN_STEPS_DOC),
+    }],
+    slots: &[PLAN_STEPS_SLOT],
+    constants: &[],
+};
+
+/// `Core\Db\Plan::steps`'s reference card — ADR 0117.
+const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
+    short: "Every step of the plan, in the order they must run, reports included.",
+    params: &[],
+    ret: "The steps. An empty array is convergence: the database already matches the schema. A \
+          step whose `isRefused()` is `true` is one no `apply` will run.",
+    errors: &[],
+};
+
+/// ADR 0145 § 6's step — one difference, its grade, the sentence explaining the
+/// grade, and the SQL that makes it.
+///
+/// **Four readers over four slots and no `change()`.** § 2's vocabulary is
+/// closed and a [`nvs_db::Change`] is closed with it, so exposing the change
+/// itself would mean a Novis class per variant — a surface that grows with the
+/// vocabulary and that no caller of this member needs, since what a program
+/// does with a step is read its grade, print its reason, or run its SQL.
+pub(crate) const STEP: CoreClass = CoreClass {
+    name: STEP_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "grade",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(GRADE_NAME),
+            symbol: "nvs_core_db_plan_step_grade",
+            doc: Some(&STEP_GRADE_DOC),
+        },
+        CoreMethod {
+            name: "reason",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_db_plan_step_reason",
+            doc: Some(&STEP_REASON_DOC),
+        },
+        CoreMethod {
+            name: "sql",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_db_plan_step_sql",
+            doc: Some(&STEP_SQL_DOC),
+        },
+        CoreMethod {
+            name: "isRefused",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_db_plan_step_is_refused",
+            doc: Some(&STEP_IS_REFUSED_DOC),
+        },
+    ],
+    slots: &[
+        STEP_GRADE_SLOT,
+        STEP_REASON_SLOT,
+        STEP_SQL_SLOT,
+        STEP_REPORT_SLOT,
+    ],
+    constants: &[],
+};
+
+/// `Core\Db\Plan\Step::grade`'s reference card — ADR 0117.
+const STEP_GRADE_DOC: MethodDoc = MethodDoc {
+    short: "What this step can cost, at worst.",
+    params: &[],
+    ret: "`Safe`, `Locking` or `Destructive`. A grade is the worst case rather than the likely \
+          one: an emitter with no rule for a case grades up, because over-reporting risk costs a \
+          confirmation and under-reporting it costs an outage.",
+    errors: &[],
+};
+
+/// `Core\Db\Plan\Step::reason`'s reference card — ADR 0117.
+const STEP_REASON_DOC: MethodDoc = MethodDoc {
+    short: "Why the step is graded the way it is, in one sentence an operator reads.",
+    params: &[],
+    ret: "The sentence, written by the emitter that produced the SQL — so it names the backend's \
+          own reason, such as a rewrite this server performs and another does not.",
+    errors: &[],
+};
+
+/// `Core\Db\Plan\Step::sql`'s reference card — ADR 0117.
+const STEP_SQL_DOC: MethodDoc = MethodDoc {
+    short: "The complete, terminated, dialect-correct SQL this step is. Never elided, including \
+            for a step no `apply` will run: a deployment whose application credentials cannot \
+            issue DDL hands the plan to a DBA, and a summary would be useless there.",
+    params: &[],
+    ret: "The statements, newline-joined. Most steps are one statement and can be handed \
+          straight to `Core\\Db::execute`; SQLite's table rebuild is four, which is an operator's \
+          to paste rather than a program's to run.",
+    errors: &[],
+};
+
+/// `Core\Db\Plan\Step::isRefused`'s reference card — ADR 0117.
+const STEP_IS_REFUSED_DOC: MethodDoc = MethodDoc {
+    short: "Whether this step is a report — a table, column or key the database has and the \
+            schema does not name.",
+    params: &[],
+    ret: "`true` for a step no `apply` will ever run. Absence never destroys, because a database \
+          an application shares with a queue, a reporting view and whatever an operator put there \
+          is the ordinary case. A program that does want the drop runs this step's own `sql()`.",
+    errors: &[],
+};
+
+/// ADR 0145 § 6's three grades — what a step can cost, at worst.
+///
+/// **Three and not two**, because "cannot lose data" and "cannot take the site
+/// down for an hour" are different promises: merging them either refuses an
+/// index a `Safe` deployment wants or applies a table rewrite it did not ask
+/// for. The values are declaration ordinals and are ordered — `Safe` is the
+/// smallest — which is [`nvs_db::Grade`]'s own ordering and what "an unknown
+/// grade grades up" is an operation over.
+pub(crate) const GRADE: CoreEnum = CoreEnum {
+    name: GRADE_NAME,
+    cases: &[("Safe", 0), ("Locking", 1), ("Destructive", 2)],
+    doc: Some(&GRADE_DOC),
+};
+
+/// [`GRADE`]'s reference card — ADR 0117.
+const GRADE_DOC: EnumDoc = EnumDoc {
+    short: "What one step of a schema plan can cost at worst, so that a deployment can run the \
+            half it is willing to run unattended.",
+    cases: &[
+        CaseDoc {
+            name: "Safe",
+            desc: "Cannot lose data, cannot fail on rows that already exist, and cannot hold a \
+                   long lock.",
+        },
+        CaseDoc {
+            name: "Locking",
+            desc: "Cannot lose data, but can fail on existing rows or block writes for a long \
+                   time — a unique key over data that already collides, `NOT NULL` on a populated \
+                   column, a type change that rewrites the table.",
+        },
+        CaseDoc {
+            name: "Destructive",
+            desc: "Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename \
+                   rebuild, which is a data copy however it is spelled.",
+        },
+    ],
 };
 
 /// `Core\Db::connect`'s reference card — ADR 0117.

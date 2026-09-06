@@ -264,7 +264,12 @@ nvs_runtime::nvs_helper! {
 /// [`nvs_core_db_connection_query_as`] instead of neither.
 pub(super) struct Answered {
     /// Every row, as [`ROWS_SLOT`] holds them.
-    rows: NvsArray,
+    ///
+    /// `pub(super)` for [`mod@super::schema`]'s catalog reads, which are the
+    /// one caller that wants the rows without a `Core\Db\Rows` around them:
+    /// ADR 0145 § 4's introspection is two ordinary statements whose answer
+    /// becomes a schema value rather than something a program sees.
+    pub(super) rows: NvsArray,
     /// One [`COLUMN`] per described column, as [`ROWS_COLUMNS_SLOT`] holds
     /// them.
     columns: NvsArray,

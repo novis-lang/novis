@@ -201,6 +201,17 @@ entry = "examples/pool.nvs"
 [app.capabilities.db]
 connect = ["tight"]
 
+# ADR 0145 § 9's split, written as the two grants it is: `db.connect` is the whole of what
+# `planAgainst` needs, and `db.schema` is the separate deny-by-default grant that lets this program
+# issue the DDL its plan carries. Both name the `[db.schema]` block below, because both capabilities
+# name blocks rather than hosts.
+[[app]]
+entry = "examples/schema.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+schema = ["schema"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -280,6 +291,16 @@ tls_ca_file = "tests/db/ca.crt"
 max = 1
 idle = 1
 acquire = "500ms"
+
+# ADR 0145 § 9's fixture, and the one `[db.<name>]` block in this file that names no server.
+# `examples/schema.nvs` counts the steps of a plan exactly, and § 7 makes that count depend on every
+# other table in the database — so it cannot share `main` with the queue, the transaction fixture and
+# whatever an operator left there. SQLite needs no container, and `:memory:` gives each run of the
+# acceptance sweep — Windows, WSL, and again under valgrind — a database in the same state, which is
+# what makes four frozen lines of output a constant rather than a description of one machine.
+[db.schema]
+driver = "sqlite"
+path = ":memory:"
 
 # ADR 0084 § 2's queue, and `examples/queue.nvs` is the fixture it exists for. `connection = "main"`
 # is the recommended configuration rather than a convenience: § 3's property — an enqueue commits

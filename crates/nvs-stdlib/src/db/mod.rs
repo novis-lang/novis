@@ -298,6 +298,7 @@ mod check;
 mod column;
 mod execute;
 mod open;
+mod plan;
 mod pool;
 mod registry;
 mod row;
@@ -316,6 +317,7 @@ pub use self::check::*;
 use self::column::*;
 pub use self::execute::*;
 pub use self::open::*;
+pub(crate) use self::plan::*;
 pub(crate) use self::pool::*;
 pub(crate) use self::registry::*;
 pub use self::row::*;
@@ -451,6 +453,51 @@ const SCHEMA_ARRAY_SLOT: &str = "array";
 
 /// Where [`SCHEMA_ARRAY_SLOT`] sits, for the members that read it back.
 const SCHEMA_ARRAY_AT: usize = 0;
+
+/// `Core\Db\Plan`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
+/// ADR 0145 § 6's document, and what `planAgainst` answers.
+pub(crate) const PLAN_NAME: &str = r"Core\Db\Plan";
+
+/// The one slot a [`PLAN`] holds: its steps, in the order they must run.
+const PLAN_STEPS_SLOT: &str = "steps";
+
+/// Where [`PLAN_STEPS_SLOT`] sits.
+const PLAN_STEPS_AT: usize = 0;
+
+/// `Core\Db\Plan\Step`'s fully-qualified name — one difference, with the reason
+/// it costs what it costs. A class under a class's name, exactly as
+/// `Core\Queue\Id` is.
+pub(crate) const STEP_NAME: &str = r"Core\Db\Plan\Step";
+
+/// A [`STEP`]'s grade, as the [`GRADE`] case value ADR 0010 makes an enum.
+const STEP_GRADE_SLOT: &str = "grade";
+
+/// Where [`STEP_GRADE_SLOT`] sits.
+const STEP_GRADE_AT: usize = 0;
+
+/// A [`STEP`]'s one-sentence reason — § 6's, written by the emitter that graded
+/// it.
+const STEP_REASON_SLOT: &str = "reason";
+
+/// Where [`STEP_REASON_SLOT`] sits.
+const STEP_REASON_AT: usize = 1;
+
+/// A [`STEP`]'s complete SQL, newline-joined — [`mod@plan`]'s doc owns why the
+/// list is flattened here and not in `nvs-db`.
+const STEP_SQL_SLOT: &str = "sql";
+
+/// Where [`STEP_SQL_SLOT`] sits.
+const STEP_SQL_AT: usize = 2;
+
+/// Whether a [`STEP`] is § 7's report, carried and never applied.
+const STEP_REPORT_SLOT: &str = "report";
+
+/// Where [`STEP_REPORT_SLOT`] sits.
+const STEP_REPORT_AT: usize = 3;
+
+/// [`GRADE`]'s fully-qualified name, written once so the enum, the slot that
+/// holds one of its cases and every message quoting it cannot drift apart.
+pub(crate) const GRADE_NAME: &str = r"Core\Db\Plan\Grade";
 
 /// The one slot a [`ROW`] holds: that row's own columns, string-keyed and in
 /// the server's order — **the very array [`ROWS_SLOT`] already holds one of per
@@ -605,6 +652,18 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_row_uuid" => (nvs_core_db_row_uuid as *const ()).cast(),
         "nvs_core_db_schema_from_array" => (nvs_core_db_schema_from_array as *const ()).cast(),
         "nvs_core_db_schema_to_array" => (nvs_core_db_schema_to_array as *const ()).cast(),
+        "nvs_core_db_schema_plan_against" => (nvs_core_db_schema_plan_against as *const ()).cast(),
+        "nvs_core_db_schema_apply_safe" => (nvs_core_db_schema_apply_safe as *const ()).cast(),
+        "nvs_core_db_schema_apply_including_risky" => {
+            (nvs_core_db_schema_apply_including_risky as *const ()).cast()
+        }
+        "nvs_core_db_plan_steps" => (nvs_core_db_plan_steps as *const ()).cast(),
+        "nvs_core_db_plan_step_grade" => (nvs_core_db_plan_step_grade as *const ()).cast(),
+        "nvs_core_db_plan_step_reason" => (nvs_core_db_plan_step_reason as *const ()).cast(),
+        "nvs_core_db_plan_step_sql" => (nvs_core_db_plan_step_sql as *const ()).cast(),
+        "nvs_core_db_plan_step_is_refused" => {
+            (nvs_core_db_plan_step_is_refused as *const ()).cast()
+        }
         "nvs_core_db_write_affected" => (nvs_core_db_write_affected as *const ()).cast(),
         "nvs_core_db_write_changed" => (nvs_core_db_write_changed as *const ()).cast(),
         "nvs_core_db_write_last_id" => (nvs_core_db_write_last_id as *const ()).cast(),

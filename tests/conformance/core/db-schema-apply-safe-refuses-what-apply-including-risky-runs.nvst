@@ -1,0 +1,101 @@
+--TEST--
+`applySafe` refuses a plan holding a step that is not `Safe` and names it, and `applyIncludingRisky` runs the same plan — ADR 0145 §§ 6, 9
+--FILE--
+<?nvs
+// § 9 names the two entry points for what they risk, at the call site, rather
+// than giving one member a `{risky: true}` option: the claim is then visible to
+// a reviewer reading the call and greppable across a repository.
+use Core\Db;
+use Core\Db\Schema;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+
+var $db = Db::connect("main");
+
+var $wide = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+var $narrow = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(50)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+// A create is safe, so this half needs no claim written at the call.
+$wide->applySafe($db);
+
+foreach ($narrow->planAgainst($db)->steps() as Step $step) {
+    // § 6: SQLite cannot express this alter, so it is a create-copy-drop-rename
+    // rebuild — a data copy, and destructive unconditionally.
+    if ($step->grade() == Grade::Safe) {
+        echo "graded safe\n";
+    } else if ($step->grade() == Grade::Locking) {
+        echo "graded locking\n";
+    } else {
+        echo "graded destructive\n";
+    }
+    // Not one of § 7's reports: this is a step an apply would run, which is
+    // exactly the distinction `applySafe` reads.
+    if ($step->isRefused()) {
+        echo "is a report\n";
+    } else {
+        echo "will be run\n";
+    }
+    if (Core\Str::contains(Core\Str::lower($step->sql()), "notes")) {
+        echo "sql names the table\n";
+    } else {
+        echo "sql names something else\n";
+    }
+    if (Core\Str::contains($step->reason(), "rebuild")) {
+        echo "reason explains the rebuild\n";
+    } else {
+        echo "reason says something else\n";
+    }
+}
+
+try {
+    $narrow->applySafe($db);
+    echo "applySafe ran it\n";
+} catch (LogicError $error) {
+    echo "applySafe refused\n";
+}
+
+// The same plan, run by the member whose name is the claim.
+$narrow->applyIncludingRisky($db);
+
+var $left = 0;
+foreach ($narrow->planAgainst($db)->steps() as Step $step) {
+    $left = $left + 1;
+}
+echo "left ", $left, "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+schema = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+graded destructive
+will be run
+sql names the table
+reason explains the rebuild
+applySafe refused
+left 0

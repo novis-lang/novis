@@ -1694,6 +1694,11 @@ pub const CLASSES: &[CoreClass] = &[
     // members here are the array form alone — § 9's three are the ones that take
     // a `Core\Db\Connection`.
     crate::db::SCHEMA,
+    // ADR 0145 § 6's plan and its steps, immediately after the schema whose
+    // `planAgainst` answers one: a plan is the value that carries the answer,
+    // and neither class is reachable except through that member.
+    crate::db::PLAN,
+    crate::db::STEP,
     // ADR 0084 § 1's durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
@@ -1982,6 +1987,31 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // table's claim total rather than "all but a list".
     (crate::db::NAME, "inList", None),
     (crate::db::NAME, "quoteIdentifier", None),
+    // ADR 0145 § 9's split, and the reason `Core\Db\Schema` is a
+    // capability-bearing class at all: reaching a database is not permission to
+    // change its shape. `db.schema` gates whether this program may issue DDL to
+    // the named block, which is a different question from `db.connect`'s "may
+    // it reach that block" — a deployment grants the first to a migration entry
+    // point and the second to everything.
+    (
+        crate::db::SCHEMA_NAME,
+        "applySafe",
+        Some(nvs_config::Cap::DbSchema),
+    ),
+    (
+        crate::db::SCHEMA_NAME,
+        "applyIncludingRisky",
+        Some(nvs_config::Cap::DbSchema),
+    ),
+    // The other three reach no effect this table has anything to say about.
+    // `planAgainst` does reach the database — it issues § 4's two catalog
+    // queries — and still declares `None`, because the grant that let it reach
+    // that database was asked for at `Core\Db::connect` and § 9's first
+    // sentence is that nothing about computing a plan is privileged. The two
+    // conversions touch nothing at all.
+    (crate::db::SCHEMA_NAME, "planAgainst", None),
+    (crate::db::SCHEMA_NAME, "fromArray", None),
+    (crate::db::SCHEMA_NAME, "toArray", None),
     // ADR 0082 § 2's storage half, and the rows that make its "over ADR 0051's
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key
@@ -2169,6 +2199,9 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::db::ISOLATION,
     crate::db::COLUMN_TYPE,
     crate::db::ERROR_KIND,
+    // ADR 0145 § 6's grade, beside the database enums because it is read off a
+    // plan the way `ErrorKind` above is read off a failure.
+    crate::db::GRADE,
     // ADR 0084 §§ 4 and 6's job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
@@ -2571,8 +2604,19 @@ mod tests {
                     "{}::{name} spells a `try…` ADR 0063 R5 bans",
                     class.name
                 );
+                // R5's `…Safe` ban reads the suffix as a claim about *failure*,
+                // and ADR 0145 § 9's `applySafe` is the one member where it is
+                // an adjective of the subject instead: it is named for the
+                // grade of the steps it will run, throws where its sibling
+                // `applyIncludingRisky` does not, and is the more refusing of
+                // the two. R5's own cell records the exception, which is why
+                // this is one spelling and not a list to grow.
+                let adjective = class.name == crate::db::SCHEMA_NAME && name == "applySafe";
                 assert!(
-                    !name.ends_with("OrNull") && !name.ends_with("Safe") && !name.ends_with("Ex"),
+                    adjective
+                        || (!name.ends_with("OrNull")
+                            && !name.ends_with("Safe")
+                            && !name.ends_with("Ex")),
                     "{}::{name} spells a non-throwing variant ADR 0063 R5 bans",
                     class.name
                 );

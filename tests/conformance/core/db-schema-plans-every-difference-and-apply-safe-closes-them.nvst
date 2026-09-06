@@ -1,0 +1,88 @@
+--TEST--
+`Core\Db\Schema::planAgainst` answers every difference between a schema value and a live database, and `applySafe` closes them — after which planning the same schema again is empty — ADR 0145 §§ 5, 6, 9
+--FILE--
+<?nvs
+// The one `Core\Db\Schema` case in this tree that reaches a *running*
+// database, for the reason the sibling `db-a-sqlite-block-…` case gives:
+// SQLite needs no server, so `:memory:` makes § 4's introspection, § 6's
+// grades and § 9's apply really happen rather than being asserted off a value.
+use Core\Db;
+use Core\Db\Schema;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+
+var $db = Db::connect("main");
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+    ],
+]);
+
+// § 6: a plan is a document, and computing one changes nothing.
+var $plan = $schema->planAgainst($db);
+echo "steps ", Core\Arr::count($plan->steps()), "\n";
+
+foreach ($plan->steps() as Step $step) {
+    // A table the database does not have is created, which cannot lose data
+    // and cannot fail on rows that are not there.
+    if ($step->grade() == Grade::Safe) {
+        echo "grade safe\n";
+    } else {
+        echo "grade not safe\n";
+    }
+    // § 8: never elided. The step carries the whole statement.
+    if (Core\Str::contains(Core\Str::lower($step->sql()), "create table")) {
+        echo "sql creates the table\n";
+    } else {
+        echo "sql says something else\n";
+    }
+    if ($step->isRefused()) {
+        echo "refused\n";
+    } else {
+        echo "runnable\n";
+    }
+    if ($step->reason() == "") {
+        echo "reason missing\n";
+    } else {
+        echo "reason given\n";
+    }
+}
+
+// § 9: applying takes `db.schema`, which this program's block grants.
+$schema->applySafe($db);
+
+// § 5's acceptance criterion, and the whole feasibility question the design
+// rests on: apply, read the server back, and the plan is empty.
+echo "after apply ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+
+// The risky entry point over a converged database runs nothing at all — it is
+// named for the grades it will accept, not for anything it does extra.
+$schema->applyIncludingRisky($db);
+echo "after risky ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+--FILE nvs.toml--
+# § 9's split, as an operator writes it: `db.connect` is what planning needs,
+# and `db.schema` is the separate grant that lets this program issue DDL to
+# the same block.
+[capabilities.db]
+connect = ["main"]
+schema = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+steps 1
+grade safe
+sql creates the table
+runnable
+reason given
+after apply 0
+after risky 0
