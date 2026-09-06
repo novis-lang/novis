@@ -21,12 +21,30 @@
 
 use std::ffi::OsStr;
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::case::{Case, Oracle, Subcommand};
 use crate::expect::{matches, normalize, shown};
+
+/// How long one case's process may run before the runner gives up on it.
+///
+/// Not a performance budget. A conformance case compiles and runs a program of
+/// a few dozen lines, and the whole 1570-case tree takes about five seconds on
+/// sixteen threads, so this is three orders of magnitude of headroom over a
+/// case that is merely slow: it is the line past which a case has stopped
+/// running and started being wedged.
+///
+/// It exists because without it one such case takes the suite with it, and a
+/// suite that hangs reports nothing at all. On a hosted runner that is the
+/// difference between a red build and a six-hour one — which is what a wedged
+/// `nvs-server` case cost on 2026-09-06, before `.github/workflows/ci.yml`
+/// carried a `timeout-minutes` either.
+pub const CASE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// How the runner reaches the two binaries it drives.
 #[derive(Debug, Clone)]
@@ -41,6 +59,9 @@ pub struct Options {
     /// in its own directory already, so this only says how many of those
     /// run side by side; [`crate::run()`] owns the measurement.
     pub jobs: usize,
+    /// How long one case's process may run before it is killed and reported as
+    /// a failure. [`CASE_TIMEOUT`] is the default and owns the reasoning.
+    pub timeout: Duration,
 }
 
 impl Options {
@@ -56,6 +77,7 @@ impl Options {
             php: PathBuf::from("php"),
             filter: None,
             jobs: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
+            timeout: CASE_TIMEOUT,
         })
     }
 }
@@ -269,7 +291,7 @@ fn run_nvs(
     // boundary `nvs run`'s trailing arguments have on a real command line, and
     // the reason a case's arguments can name a `--dryRun` of their own.
     args.extend(program_args.iter().map(|arg| arg.as_ref() as &OsStr));
-    spawn(&opts.nvs, &args, workdir, env)
+    spawn(&opts.nvs, &args, workdir, env, opts.timeout)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.
@@ -284,16 +306,28 @@ fn run_php(
     env: &[(String, String)],
 ) -> io::Result<Output> {
     fs::write(workdir.join("oracle.php"), source)?;
-    spawn(&opts.php, &["oracle.php".as_ref()], workdir, env)
+    // Under the case's own deadline as well: an oracle that hangs hangs the
+    // suite exactly as a case that hangs does.
+    spawn(
+        &opts.php,
+        &["oracle.php".as_ref()],
+        workdir,
+        env,
+        opts.timeout,
+    )
 }
 
+/// Runs `program` in `workdir` and collects its output, for at most `timeout`.
+///
+/// Like [`Command::output`] but with a deadline, which `std` has no version of.
 fn spawn(
     program: &Path,
     args: &[&OsStr],
     workdir: &Path,
     env: &[(String, String)],
+    timeout: Duration,
 ) -> io::Result<Output> {
-    Command::new(program)
+    let mut child = Command::new(program)
         .args(args)
         .current_dir(workdir)
         // `--ENV--`, added to the environment this process already has rather
@@ -307,7 +341,114 @@ fn spawn(
         // `CLICOLOR_FORCE` would still colour it, and escape codes in an
         // expectation are not what any of these cases are about.
         .env("NO_COLOR", "1")
-        .output()
+        // What `output` would set for us, and it has to be said here because
+        // the wait below is this function's own: a child inheriting this
+        // process's standard input could block on a read nobody will answer,
+        // and the two pipes are what the readers in `wait_within` drain.
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    wait_within(&mut child, timeout, program)
+}
+
+/// Waits for `child` for at most `limit`, killing it if it runs over.
+///
+/// [`Command::output`] with a deadline, which is what `std` has no version of.
+/// A thread per pipe, because a child that filled the pipe buffer would block
+/// on the write and never reach the exit this is waiting for; the deadline then
+/// belongs to the *reads* rather than to the child, which is what keeps this
+/// off a clock. The alternative — a `try_wait` loop with a sleep in it — puts
+/// the whole suite on the host's timer granularity, since `thread::sleep` on
+/// Windows rounds up to the system timer's resolution and a poll asking for a
+/// hundred microseconds can get fifteen milliseconds. Nothing here sleeps, and
+/// the 1570-case conformance tree measures the same as it did without a
+/// deadline at all: 4.8s against 4.7s, five runs each.
+///
+/// End of file on both pipes means the process has let go of them, which for
+/// every process this runs — one `nvs` or one `php` — means it is on its way
+/// out, so the `wait` after them returns at once. A child that closed its own
+/// output and then kept running would be waited on past the deadline, and that
+/// is [`Command::output`]'s behaviour too; what this rules out is the case that
+/// actually happens, a program wedged with its pipes still open.
+///
+/// The kill is likewise what lets this return at all when the deadline passes:
+/// the pipes close with the process, and that is what ends the two readers,
+/// which the scope cannot be left without.
+///
+/// # Errors
+///
+/// [`io::ErrorKind::TimedOut`] when the deadline passed, naming the program, so
+/// a wedged case reports as one failure with a reason on it rather than as a
+/// suite that never finished. Otherwise as [`Child::wait`].
+fn wait_within(child: &mut Child, limit: Duration, program: &Path) -> io::Result<Output> {
+    let mut out = child
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("the child's standard output was not a pipe"))?;
+    let mut err = child
+        .stderr
+        .take()
+        .ok_or_else(|| io::Error::other("the child's standard error was not a pipe"))?;
+    let deadline = Instant::now() + limit;
+
+    thread::scope(|scope| {
+        // Each reader reports through the channel as well as through its join
+        // handle: the handle is how the bytes come back, and the channel is the
+        // only one of the two that can be waited on with a deadline.
+        let (report, reported) = mpsc::channel::<()>();
+        let reading_out = scope.spawn({
+            let report = report.clone();
+            move || {
+                let mut bytes = Vec::new();
+                let read = out.read_to_end(&mut bytes);
+                drop(report);
+                read.map(|_| bytes)
+            }
+        });
+        let reading_err = scope.spawn(move || {
+            let mut bytes = Vec::new();
+            let read = err.read_to_end(&mut bytes);
+            drop(report);
+            read.map(|_| bytes)
+        });
+
+        // Both senders dropped is both pipes at end of file. `RecvTimeoutError`
+        // either way — a timeout, or a disconnect once the second one goes —
+        // so what separates them is which came first, and the deadline is the
+        // only question being asked.
+        let mut overran = false;
+        while !overran {
+            match reported.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(mpsc::RecvTimeoutError::Timeout) => overran = true,
+                Ok(()) => {}
+            }
+        }
+        if overran {
+            let _ = child.kill();
+        }
+
+        let panicked = |_| io::Error::other("the thread reading the child's output panicked");
+        let stdout = reading_out.join().map_err(panicked)??;
+        let stderr = reading_err.join().map_err(panicked)??;
+        let status = child.wait()?;
+        if overran {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!(
+                    "`{}` did not finish within {}s and was killed",
+                    program.display(),
+                    limit.as_secs()
+                ),
+            ));
+        }
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
+    })
 }
 
 /// One report block: a label, then the text indented under it.
@@ -352,5 +493,50 @@ mod tests {
     #[test]
     fn a_block_indents_every_line_under_its_label() {
         assert_eq!(indented("php", "a\nb\n"), "  php:\n    a\n    b");
+    }
+
+    /// Neither a check nor a case: the process the test below spawns, so that
+    /// it has something which really does hang. `#[ignore]` keeps it out of an
+    /// ordinary run — nothing in `.github/workflows/ci.yml` or `tools/` passes
+    /// `--ignored` — and the test asks for it by its exact path.
+    ///
+    /// A minute rather than forever, so that a hand-typed `--ignored` costs a
+    /// minute instead of a wedged terminal. The wait under test is 200ms.
+    #[test]
+    #[ignore = "spawned by name by the case below; it exists in order to be killed"]
+    fn a_process_that_never_finishes_on_purpose() {
+        thread::sleep(Duration::from_secs(60));
+    }
+
+    #[test]
+    fn a_case_whose_process_never_finishes_is_killed_and_reported() {
+        let exe = std::env::current_exe().expect("this test binary has a path");
+        let began = Instant::now();
+        let error = spawn(
+            &exe,
+            &[
+                "--ignored".as_ref(),
+                "--exact".as_ref(),
+                "run::tests::a_process_that_never_finishes_on_purpose".as_ref(),
+            ],
+            &std::env::temp_dir(),
+            &[],
+            Duration::from_millis(200),
+        )
+        .expect_err("a process that never exits was waited on all the way to its end");
+
+        assert_eq!(
+            error.kind(),
+            io::ErrorKind::TimedOut,
+            "the wait ended for the wrong reason: {error}"
+        );
+        // Generous by two orders of magnitude over the deadline: what would
+        // fail here is the wait never ending, and the reader threads holding
+        // the scope open past the kill is the way that happens.
+        assert!(
+            began.elapsed() < Duration::from_secs(20),
+            "the deadline passed but the wait did not end: {:?}",
+            began.elapsed()
+        );
     }
 }

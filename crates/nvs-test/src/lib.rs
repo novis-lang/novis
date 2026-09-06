@@ -258,7 +258,10 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 /// # Errors
 ///
 /// Fails on a discovery error, or when `out` cannot be written to. A failing
-/// *case* is not an error: it is counted in the returned [`Summary`].
+/// *case* is not an error: it is counted in the returned [`Summary`], and so
+/// is a case whose process had to be killed for running past
+/// [`run::CASE_TIMEOUT`]. A wedged case is one failure with a reason on it,
+/// never a suite that stops reporting.
 pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result<Summary> {
     // Everything is parsed before anything runs, for two reasons: a malformed
     // case is reported without having spawned a compiler, and the PHP probe
