@@ -247,6 +247,11 @@ enum Command {
         /// The PHP binary a `--ORACLE--` case is compared against.
         #[arg(long, value_name = "PATH", default_value = "php")]
         php: PathBuf,
+        /// How many `.nvst` cases run at once; the default is this machine's
+        /// hardware threads. A program's `#[Test]` methods are one process and
+        /// are not spread.
+        #[arg(long, value_name = "N")]
+        jobs: Option<std::num::NonZeroUsize>,
         /// How a program's `#[Test]` run is reported (`rule:testing/report-formats`).
         ///
         /// The default is the human format, and it is what a `.nvst` tree is
@@ -606,9 +611,10 @@ fn main() -> ExitCode {
             paths,
             filter,
             php,
+            jobs,
             format,
             update,
-        } => run_test(&paths, filter, php, format, update, &cli.config),
+        } => run_test(&paths, filter, php, jobs, format, update, &cli.config),
         Command::Build {
             file,
             openapi,
@@ -1547,6 +1553,7 @@ fn run_test(
     paths: &[PathBuf],
     filter: Option<String>,
     php: PathBuf,
+    jobs: Option<std::num::NonZeroUsize>,
     format: runner::Format,
     update: bool,
     config: &[PathBuf],
@@ -1608,6 +1615,9 @@ fn run_test(
     };
     options.filter = filter;
     options.php = php;
+    if let Some(jobs) = jobs {
+        options.jobs = jobs.get();
+    }
 
     let mut out = std::io::stdout().lock();
     match nvs_test::run(paths, &options, &mut out) {

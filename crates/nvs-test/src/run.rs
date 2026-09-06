@@ -37,10 +37,15 @@ pub struct Options {
     pub php: PathBuf,
     /// Run only cases whose path or title contains this.
     pub filter: Option<String>,
+    /// How many cases are in flight at once. Every case is its own process
+    /// in its own directory already, so this only says how many of those
+    /// run side by side; [`crate::run`] owns the measurement.
+    pub jobs: usize,
 }
 
 impl Options {
-    /// The defaults: this very binary, and `php` from `PATH`.
+    /// The defaults: this very binary, `php` from `PATH`, and as many cases
+    /// at once as the machine has hardware threads.
     ///
     /// # Errors
     ///
@@ -50,6 +55,7 @@ impl Options {
             nvs: std::env::current_exe()?,
             php: PathBuf::from("php"),
             filter: None,
+            jobs: std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
         })
     }
 }
