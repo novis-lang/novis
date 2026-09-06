@@ -69,7 +69,35 @@
 //!
 //! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. The ADR's
 //! *Investigation* weighs that against reading into a heap buffer and takes the mapping — the page
-//! cache does the I/O once and the hash runs over it with no copy.
+//! cache does the I/O once and the hash runs over it with no copy. The loader below adds one more
+//! pass, and § 3 is where that trade is argued.
+//!
+//! # § 3's loader
+//!
+//! [`Verified::relocate`] is the half that makes a payload runnable. It maps a private, anonymous,
+//! writable region of its own, copies each of the object's allocatable sections into it at the
+//! alignment that section runs at, resolves every symbol the object left undefined against the
+//! addresses its caller supplies, and only then calls `make_exec`. That call consumes the `MmapMut`
+//! which was the one writable view of those pages, so § 3's one-way W^X transition is a move here
+//! rather than a rule someone has to remember.
+//!
+//! **The pages that run are never the file's.** § 3 owns the argument — a relocatable object's
+//! sections are laid out for a linker to place, not for a header of any length to leave aligned.
+//! What it means in this module is that [`Cache::load`]'s mapping is read-only for its whole life
+//! and exists only to be hashed.
+//!
+//! **A landing area is the answer to the >2 GB relocation.** Every undefined symbol a PC-relative
+//! field names gets [`LANDING_LEN`] bytes inside that same mapping: eight holding the symbol's full
+//! address and, for a call, [`JUMP_THROUGH_NEXT_EIGHT`] in front of them. So every displacement
+//! this loader writes names a target inside its own mapping, whatever distance the host image sits
+//! at. On Windows the area stays empty in practice — a COFF object reaches an import through a
+//! `.rdata$.refptr` cell of its own, which is the same indirection one layer up — and it is ELF's
+//! `PltRelative`/`GotRelative` pair the area exists for.
+//!
+//! Every failure is an [`Unloadable`], and every variant of that is a cache miss on § 3's terms: an
+//! unresolvable name says the artifact was written against a runtime this process no longer
+//! matches, which is "not mine" rather than "broken", so nothing is deleted and nothing is
+//! reported.
 //!
 //! # § 5's directory check
 //!
@@ -114,13 +142,22 @@
 //!
 //! # Known gaps
 //!
-//! **Neither half carries a real payload yet.** § 2 says what one is — the host-format relocatable
-//! object [`nvs_codegen::compile_object`] writes, whose undefined symbols are the runtime helpers
-//! and the `nvs_class_desc_*` a descriptor's address arrives as — and § 3 says what a reader does
-//! with it: map private and writable, verify, resolve those symbols against this process's own
-//! addresses, and only then `mprotect`. What is written here is the verify and the `mprotect` with
-//! nothing in between, so [`Verified`] hands back bytes no one has relocated, and no compile
-//! pipeline hands [`store`](Cache::store) anything but a test's own bytes.
+//! **Nothing in the compile pipeline calls any of this yet.** A payload is written, published,
+//! verified, relocated and run inside this module's own tests, but `main.rs` still compiles every
+//! run through the JIT: the [`store`](Cache::store) on the cold path and the [`load`](Cache::load)
+//! in front of it are the wiring slice.
+//!
+//! **A warm hit has nowhere to get its class descriptors.** [`Verified::relocate`] resolves an
+//! `nvs_class_desc_*` through the closure its caller hands it, and a runtime helper is one lookup
+//! in `nvs_runtime::symbols()`/`nvs_stdlib::symbols()` — but a descriptor is allocated by
+//! `nvs-codegen`'s own compile, which is exactly what a warm hit skips, and no table of them is
+//! published for a loader to read. The tests here supply a stable dummy and use fixtures that never
+//! dereference one.
+//!
+//! **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
+//! instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
+//! it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
+//! every run compiles.
 //!
 //! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
@@ -135,13 +172,20 @@
 // rather than an item nothing will use.
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, Write};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-use memmap2::Mmap;
+use memmap2::{Mmap, MmapOptions};
 use nvs_config::cache::{Digest, EnvHash};
 use nvs_config::trust::{self, Untrusted};
+use object::read::{Object, ObjectSection, ObjectSymbol};
+use object::{
+    Architecture, RelocationKind, RelocationTarget, SectionKind, SymbolIndex, SymbolKind,
+    SymbolSection,
+};
 use rand::RngExt;
 
 /// § 2's magic, the first four bytes of every artifact.
@@ -261,6 +305,462 @@ impl Verified {
     #[must_use]
     pub(crate) fn header(&self) -> Header {
         self.header
+    }
+
+    /// § 3's second half: place this payload's sections, resolve every symbol it left undefined
+    /// against `resolve`, and only then make the pages executable.
+    ///
+    /// `resolve` is the whole of "this process's own addresses" — a runtime helper's, and a
+    /// descriptor's for an `nvs_class_desc_*`, which [`nvs_codegen::class_desc_symbol`] spells at
+    /// both ends. A name it answers [`None`] for is a miss on § 3's own terms and not a failure:
+    /// it says the artifact was written against a runtime this process no longer matches.
+    ///
+    /// # Errors
+    ///
+    /// Every variant of [`Unloadable`] is a cache miss; the caller's next move is the compile it
+    /// would have done anyway. They are distinguished only so a test can say which wall it hit.
+    pub(crate) fn relocate(
+        &self,
+        resolve: &dyn Fn(&str) -> Option<*const u8>,
+    ) -> Result<Loaded, Unloadable> {
+        let payload = self.payload();
+        let object = object::File::parse(payload).map_err(|_| Unloadable::Unreadable)?;
+        if object.architecture() != HOST_ARCH {
+            return Err(Unloadable::ForeignArchitecture);
+        }
+
+        let layout = Layout::of(&object)?;
+        let mut pages = MmapOptions::new()
+            .len(layout.len)
+            .map_anon()
+            .map_err(|source| Unloadable::Mapping(source.to_string()))?;
+        for section in object.sections() {
+            let Some(&start) = layout.sections.get(&section.index().0) else {
+                continue;
+            };
+            if section.kind() == SectionKind::UninitializedData {
+                // An anonymous mapping is already zero, which is the whole of this section's
+                // contents; `data()` has nothing to hand over for it.
+                continue;
+            }
+            let data = section.data().map_err(|_| Unloadable::Unreadable)?;
+            let end = start
+                .checked_add(data.len())
+                .filter(|end| *end <= layout.len)
+                .ok_or(Unloadable::Unreadable)?;
+            pages[start..end].copy_from_slice(data);
+        }
+
+        // The address the relocations are computed against. `expose_provenance` rather than
+        // `addr`, for the same reason `nvs-codegen` uses it when it publishes a descriptor: these
+        // bytes are about to be executed, and what they reach through has to stay reachable.
+        let base = pages.as_ptr().expose_provenance();
+        layout.fill_landings(&object, &mut pages, resolve)?;
+        for section in object.sections() {
+            let Some(&start) = layout.sections.get(&section.index().0) else {
+                continue;
+            };
+            for (offset, relocation) in section.relocations() {
+                let at = usize::try_from(offset)
+                    .ok()
+                    .and_then(|offset| start.checked_add(offset))
+                    .ok_or(Unloadable::Unreadable)?;
+                layout.apply(&object, &mut pages, base, at, &relocation, resolve)?;
+            }
+        }
+
+        let entry = object
+            .symbols()
+            .find(|symbol| {
+                symbol.name().is_ok_and(|name| {
+                    nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
+                })
+            })
+            .and_then(|symbol| layout.symbol_offset(&object, &symbol))
+            .ok_or(Unloadable::NoEntry)?;
+
+        // W^X, one way and once: nothing holds a writable view of these bytes after this line,
+        // because `make_exec` consumes the `MmapMut` that was the only one.
+        let pages = pages
+            .make_exec()
+            .map_err(|source| Unloadable::Mapping(source.to_string()))?;
+        Ok(Loaded { pages, entry })
+    }
+}
+
+/// The one architecture this loader knows how to relocate for, or [`Architecture::Unknown`] on a
+/// host where it does not.
+///
+/// A payload's architecture is already in `env_hash` and therefore in its path, so this can only
+/// disagree with the file for a hand-placed one — but the check is also what keeps the loader off
+/// a host it has no answer for. **`aarch64` is deliberately not here**: making written bytes
+/// executable there needs instruction-cache maintenance that `mprotect` does not imply, and the
+/// module doc's *Known gaps* owns that.
+#[cfg(target_arch = "x86_64")]
+const HOST_ARCH: Architecture = Architecture::X86_64;
+#[cfg(not(target_arch = "x86_64"))]
+const HOST_ARCH: Architecture = Architecture::Unknown;
+
+/// x86-64's `jmp qword ptr [rip + 0]`, whose eight-byte operand follows it — [`Landing::Stub`]'s
+/// whole body, and the reason no relocation this loader applies can be out of range.
+const JUMP_THROUGH_NEXT_EIGHT: [u8; 6] = [0xFF, 0x25, 0x00, 0x00, 0x00, 0x00];
+
+/// Bytes reserved for one [`Landing`], and the alignment it gets. Sixteen for both kinds: a slot
+/// needs eight and a stub fourteen, and one size keeps the arithmetic in [`Layout`] to one branch.
+const LANDING_LEN: usize = 16;
+
+/// Why a verified artifact still could not be made runnable in this process.
+///
+/// **Every one of these is a cache miss**, never a diagnostic and never a throw — § 3 puts an
+/// unresolvable symbol on exactly the footing of a wrong `env_hash`: it says the file was written
+/// against a runtime this process no longer matches, which is "not this process's file" rather
+/// than "broken", so nothing here deletes anything either. They are distinguished at all so a
+/// test can name the wall it hit.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Unloadable {
+    /// The payload is not an object file, or names a section this host's reader cannot follow.
+    Unreadable,
+    /// The payload was written for another architecture — or for this one on a host whose loader
+    /// is not written yet. See [`HOST_ARCH`].
+    ForeignArchitecture,
+    /// A symbol the payload leaves undefined has no address in this process.
+    Unresolved(String),
+    /// A relocation whose form this loader cannot represent. A `format_version` bump is what
+    /// would stop an older file reaching this at all.
+    Unrepresentable(String),
+    /// The payload defines no entry frame, so there is nothing for a run to enter.
+    NoEntry,
+    /// The mapping could not be made, or could not be made executable.
+    Mapping(String),
+}
+
+/// What a relocation against an *undefined* symbol needs placed beside the code.
+///
+/// This is the answer to the one relocation that can be unrepresentable: a PC-relative call from
+/// mapped pages to a helper in this process's image, where the two can be more than 2 GB apart.
+/// Both kinds hold the target as a full 64-bit address and live inside the loader's own mapping,
+/// so the displacement a relocation actually encodes is always one within that mapping — a
+/// linker's veneer and GOT slot, for the same reason a linker has them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Landing {
+    /// Eight bytes holding the symbol's address, for a GOT-relative reference to it.
+    Slot,
+    /// A jump through such an address, for a PC-relative call to it.
+    Stub,
+}
+
+/// Where everything the loader places goes, decided before a page is allocated.
+#[derive(Debug)]
+struct Layout {
+    /// Where each allocatable section starts, by the payload's own section index. Keyed by the
+    /// index's number rather than by [`SectionIndex`], which `object` does not order.
+    sections: BTreeMap<usize, usize>,
+    /// Where each undefined symbol's landing starts, and which kind it is — keyed by
+    /// [`SymbolIndex`]'s number, for the same reason.
+    landings: BTreeMap<usize, (Landing, usize)>,
+    /// Total bytes to map.
+    len: usize,
+}
+
+impl Layout {
+    /// Walks `object` twice — once for the sections, once for the relocations that need a landing
+    /// — and hands back the placement both walks agreed on.
+    fn of(object: &object::File<'_>) -> Result<Self, Unloadable> {
+        let mut layout = Self {
+            sections: BTreeMap::new(),
+            landings: BTreeMap::new(),
+            len: 0,
+        };
+        for section in object.sections() {
+            if !allocatable(section.kind()) {
+                continue;
+            }
+            let size = usize::try_from(section.size()).map_err(|_| Unloadable::Unreadable)?;
+            let align = usize::try_from(section.align()).unwrap_or(1);
+            let start = layout.reserve(size, align);
+            layout.sections.insert(section.index().0, start);
+        }
+        for section in object.sections() {
+            if !layout.sections.contains_key(&section.index().0) {
+                continue;
+            }
+            for (_, relocation) in section.relocations() {
+                let RelocationTarget::Symbol(index) = relocation.target() else {
+                    continue;
+                };
+                let symbol = object
+                    .symbol_by_index(index)
+                    .map_err(|_| Unloadable::Unreadable)?;
+                if !symbol.is_undefined() || layout.landings.contains_key(&index.0) {
+                    continue;
+                }
+                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                if let Some(landing) = landing_for(relocation.kind(), symbol.kind(), name)? {
+                    let start = layout.reserve(LANDING_LEN, LANDING_LEN);
+                    layout.landings.insert(index.0, (landing, start));
+                }
+            }
+        }
+        if layout.len == 0 {
+            return Err(Unloadable::Unreadable);
+        }
+        Ok(layout)
+    }
+
+    /// Takes `size` bytes at `align`, and says where they start.
+    fn reserve(&mut self, size: usize, align: usize) -> usize {
+        let start = self.len.next_multiple_of(align.max(1));
+        self.len = start + size;
+        start
+    }
+
+    /// Writes every landing's target address, which is the only place `resolve` is asked for a
+    /// *function*'s address — after this, a call relocation names a stub and nothing else.
+    fn fill_landings(
+        &self,
+        object: &object::File<'_>,
+        pages: &mut [u8],
+        resolve: &dyn Fn(&str) -> Option<*const u8>,
+    ) -> Result<(), Unloadable> {
+        for (index, (landing, start)) in &self.landings {
+            let symbol = object
+                .symbol_by_index(SymbolIndex(*index))
+                .map_err(|_| Unloadable::Unreadable)?;
+            let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+            let address = resolve(name)
+                .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
+                .expose_provenance();
+            let at = match landing {
+                Landing::Slot => *start,
+                Landing::Stub => {
+                    pages[*start..*start + JUMP_THROUGH_NEXT_EIGHT.len()]
+                        .copy_from_slice(&JUMP_THROUGH_NEXT_EIGHT);
+                    *start + JUMP_THROUGH_NEXT_EIGHT.len()
+                }
+            };
+            let address = u64::try_from(address).map_err(|_| Unloadable::Unreadable)?;
+            pages[at..at + 8].copy_from_slice(&address.to_le_bytes());
+        }
+        Ok(())
+    }
+
+    /// Applies one relocation at `at`, an offset into `pages` whose address is `base + at`.
+    fn apply(
+        &self,
+        object: &object::File<'_>,
+        pages: &mut [u8],
+        base: usize,
+        at: usize,
+        relocation: &object::Relocation,
+        resolve: &dyn Fn(&str) -> Option<*const u8>,
+    ) -> Result<(), Unloadable> {
+        let width = usize::from(relocation.size()) / 8;
+        let field = pages
+            .get(at..at.checked_add(width).ok_or(Unloadable::Unreadable)?)
+            .ok_or(Unloadable::Unreadable)?;
+        // A format with implicit addends — COFF is one — keeps the addend in the field itself,
+        // and `object` reports the part it knows separately. The two add.
+        let mut addend = relocation.addend();
+        if relocation.has_implicit_addend() {
+            addend = addend
+                .checked_add(read_le(field).ok_or_else(|| {
+                    Unloadable::Unrepresentable(format!("an implicit addend {width} bytes wide"))
+                })?)
+                .ok_or(Unloadable::Unreadable)?;
+        }
+
+        let target = match relocation.target() {
+            RelocationTarget::Symbol(index) => {
+                let symbol = object
+                    .symbol_by_index(index)
+                    .map_err(|_| Unloadable::Unreadable)?;
+                if symbol.is_undefined() {
+                    match self.landings.get(&index.0) {
+                        // A landing is the target now: the stub jumps to the symbol, the slot
+                        // holds it, and either way what this field encodes is a displacement
+                        // inside the loader's own mapping.
+                        Some((_, start)) => base + start,
+                        None => {
+                            let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                            resolve(name)
+                                .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
+                                .expose_provenance()
+                        }
+                    }
+                } else {
+                    base + self
+                        .symbol_offset(object, &symbol)
+                        .ok_or(Unloadable::Unreadable)?
+                }
+            }
+            RelocationTarget::Section(index) => {
+                base + *self.sections.get(&index.0).ok_or(Unloadable::Unreadable)?
+            }
+            target => {
+                return Err(Unloadable::Unrepresentable(format!(
+                    "a relocation against {target:?}"
+                )));
+            }
+        };
+
+        let target = i64::try_from(target).map_err(|_| Unloadable::Unreadable)?;
+        let value = match relocation.kind() {
+            RelocationKind::Absolute => target + addend,
+            RelocationKind::Relative
+            | RelocationKind::PltRelative
+            | RelocationKind::GotRelative => {
+                let place = i64::try_from(base + at).map_err(|_| Unloadable::Unreadable)?;
+                target + addend - place
+            }
+            kind => {
+                return Err(Unloadable::Unrepresentable(format!("{kind:?}")));
+            }
+        };
+        write_le(&mut pages[at..at + width], value)
+    }
+
+    /// Where a symbol defined by the payload landed, as an offset into the mapping.
+    fn symbol_offset(
+        &self,
+        object: &object::File<'_>,
+        symbol: &object::read::Symbol<'_, '_>,
+    ) -> Option<usize> {
+        let SymbolSection::Section(index) = symbol.section() else {
+            return None;
+        };
+        let section = object.section_by_index(index).ok()?;
+        let start = *self.sections.get(&index.0)?;
+        let within = symbol.address().checked_sub(section.address())?;
+        start.checked_add(usize::try_from(within).ok()?)
+    }
+}
+
+/// Whether a section is one the loader places, rather than one only a linker or a debugger reads.
+fn allocatable(kind: SectionKind) -> bool {
+    matches!(
+        kind,
+        SectionKind::Text
+            | SectionKind::Data
+            | SectionKind::ReadOnlyData
+            | SectionKind::ReadOnlyDataWithRel
+            | SectionKind::ReadOnlyString
+            | SectionKind::UninitializedData
+    )
+}
+
+/// What an undefined symbol needs placed for a relocation of this kind, if anything.
+///
+/// An [`Landing::Slot`] and a [`Landing::Stub`] are the two shapes a 64-bit address can be reached
+/// through from a 32-bit field. An absolute field is already wide enough to hold the address
+/// itself, so it needs neither.
+fn landing_for(
+    kind: RelocationKind,
+    symbol: SymbolKind,
+    name: &str,
+) -> Result<Option<Landing>, Unloadable> {
+    match kind {
+        RelocationKind::Absolute => Ok(None),
+        RelocationKind::GotRelative => Ok(Some(Landing::Slot)),
+        RelocationKind::PltRelative => Ok(Some(Landing::Stub)),
+        // A PC-relative field naming code is a call, and a stub answers it whatever the distance.
+        // One naming *data* has nowhere to put an indirection the compiler did not emit, so it is
+        // a miss rather than a guess.
+        RelocationKind::Relative if symbol == SymbolKind::Text => Ok(Some(Landing::Stub)),
+        kind => Err(Unloadable::Unrepresentable(format!(
+            "{kind:?} against `{name}`"
+        ))),
+    }
+}
+
+/// A relocation field's own contents, as the signed addend they stand for.
+fn read_le(field: &[u8]) -> Option<i64> {
+    match field.len() {
+        8 => Some(i64::from_le_bytes(field.try_into().ok()?)),
+        4 => Some(i64::from(i32::from_le_bytes(field.try_into().ok()?))),
+        2 => Some(i64::from(i16::from_le_bytes(field.try_into().ok()?))),
+        1 => Some(i64::from(i8::from_le_bytes(field.try_into().ok()?))),
+        _ => None,
+    }
+}
+
+/// Writes a resolved relocation value into its field, or refuses because it does not fit.
+///
+/// A value too wide for its field is [`Unloadable::Unrepresentable`] and therefore a miss — never
+/// a truncation, which would be an address that is merely wrong.
+fn write_le(field: &mut [u8], value: i64) -> Result<(), Unloadable> {
+    let too_wide = || Unloadable::Unrepresentable(format!("{value} in {} bytes", field.len()));
+    match field.len() {
+        8 => field.copy_from_slice(&value.to_le_bytes()),
+        4 => field.copy_from_slice(&i32::try_from(value).map_err(|_| too_wide())?.to_le_bytes()),
+        2 => field.copy_from_slice(&i16::try_from(value).map_err(|_| too_wide())?.to_le_bytes()),
+        1 => field.copy_from_slice(&i8::try_from(value).map_err(|_| too_wide())?.to_le_bytes()),
+        _ => return Err(too_wide()),
+    }
+    Ok(())
+}
+
+/// One artifact's payload, placed, relocated and executable — § 3's end state.
+///
+/// The pages are this loader's own mapping and never the file's: § 2's header leaves a payload's
+/// sections at whatever offset the object writer chose, which is not the alignment they have to
+/// run at, and a relocation against a far-away helper needs a [`Landing`] placed beside the code
+/// that no file mapping has room for. What the file mapping is for is the checksum, and it stays
+/// read-only for its whole life so no patch can reach the bytes that were hashed.
+#[derive(Debug)]
+pub(crate) struct Loaded {
+    /// The mapping, `PROT_READ | PROT_EXEC` since [`Verified::relocate`] returned and never
+    /// writable again — the `MmapMut` that was the only writable view is consumed by `make_exec`.
+    pages: Mmap,
+    /// Where the entry frame starts inside [`Self::pages`].
+    entry: usize,
+}
+
+impl Loaded {
+    /// This artifact's entry frame, ready to run — `nvs_codegen::Unit::script`'s counterpart for a
+    /// unit that was compiled by another process.
+    #[expect(
+        unsafe_code,
+        reason = "an address in relocated, executable pages becomes the ABI's own function type; \
+                  every claim that makes it callable — the pages are executable, the symbol is \
+                  the entry frame, the frame has ADR 0002's one signature — was established by \
+                  `relocate` before this type existed, and the returned `Entry` borrows the pages \
+                  so the mapping outlives the pointer"
+    )]
+    #[must_use]
+    pub(crate) fn script(&self) -> Entry<'_> {
+        let address = self.pages.as_ptr().wrapping_add(self.entry);
+        // SAFETY: `address` is inside `self.pages`, which `relocate` made executable and this type
+        // keeps mapped; `entry` is the offset of the symbol `nvs_ir::lower::ENTRY_SCRIPT_LABEL`
+        // names, and every frame `nvs-codegen` emits has `NvsFn`'s signature — ADR 0002 § 1 is the
+        // one home of that convention and both ends of this file agree on it.
+        let function = unsafe { std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(address) };
+        Entry {
+            function,
+            pages: PhantomData,
+        }
+    }
+}
+
+/// A loaded artifact's entry frame, borrowed from the pages it lives in.
+///
+/// The borrow is the point: a frame is a bare address, and the mapping it points into is dropped
+/// by whoever owns the [`Loaded`]. Tying the two together here is what keeps a caller from
+/// outliving the pages it is about to jump into.
+#[derive(Debug)]
+pub(crate) struct Entry<'a> {
+    function: nvs_runtime::NvsFn,
+    pages: PhantomData<&'a Loaded>,
+}
+
+impl Entry<'_> {
+    /// Runs the frame on `ctx`.
+    ///
+    /// # Errors
+    ///
+    /// The status the run reported, with its message left on `ctx` — [`nvs_runtime::call`]'s own
+    /// result, unchanged, exactly as `nvs_codegen::ScriptFn::call` hands it back.
+    pub(crate) fn call(&self, ctx: &mut nvs_runtime::Ctx) -> Result<nvs_runtime::Value, i32> {
+        nvs_runtime::call(self.function, ctx, &[])
     }
 }
 
@@ -957,9 +1457,10 @@ mod tests {
     /// reduces to: a [`Verified`] exists on exactly one path, so any input that fails any check
     /// produces no handle at all, and *every* byte position of the payload is covered — a flip in
     /// the first byte, the last byte or the middle is caught alike, which is what distinguishes a
-    /// whole-payload hash from a prefix check that would pass a doctored tail. The `mprotect` half
-    /// of § 3 does not exist yet and the module doc's *Known gaps* entry says what it waits on; a
-    /// test asserting over a step this crate cannot take would assert nothing.
+    /// whole-payload hash from a prefix check that would pass a doctored tail. That the `mprotect`
+    /// on the far side of it is reached only through a [`Verified`] is
+    /// [`a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`]'s claim, and
+    /// this case stops at the handle on purpose: its payload is bytes no loader could place.
     #[test]
     fn an_artifact_is_verified_whole_before_any_page_is_executable() {
         let dir = scratch("verify");
@@ -1123,6 +1624,213 @@ mod tests {
             "`{wanted}` is defined by the artifact, so it carries an address from the compiling \
              process instead of a relocation"
         );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// § 2's payload for the program at `source`: this binary's own front end, lowered once and
+    /// written through the object backend, which is the only producer § 2 recognises.
+    fn object_for(source: &Path) -> Vec<u8> {
+        let checked = crate::front_end(source).expect("a program with no error diagnostics");
+        let program = nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &checked.program_files(),
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        );
+        nvs_codegen::compile_object(&program).expect("a host-format object")
+    }
+
+    /// § 3's "this process's own addresses", as far as a test can supply them.
+    ///
+    /// Every runtime and `Core` helper by the address this process really calls it at — the same
+    /// two tables `nvs-codegen`'s JIT resolves through — and an `nvs_class_desc_*` by one stable
+    /// dummy. **The dummy is sound for a fixture that never reaches a descriptor and nowhere
+    /// else**: raising, or allocating an instance, dereferences one. Where a warm hit gets real
+    /// descriptors is the wiring's problem, and the module doc's *Known gaps* says so.
+    fn this_process() -> impl Fn(&str) -> Option<*const u8> {
+        static DESCRIPTOR: u8 = 0;
+
+        let table: BTreeMap<&'static str, *const u8> = nvs_runtime::symbols()
+            .into_iter()
+            .chain(nvs_stdlib::symbols())
+            .collect();
+        move |name| {
+            table.get(name).copied().or_else(|| {
+                name.starts_with("nvs_class_desc_")
+                    .then_some(&raw const DESCRIPTOR)
+            })
+        }
+    }
+
+    /// The environment § 4's digest would call another toolchain's.
+    ///
+    /// Its `[[extension]]` array is the only contribution to that digest a test in this process
+    /// can move — the triple, the CPU feature bitset and the compiler build are all read off the
+    /// running binary — and moving it is enough, because § 4 folds all four into one value.
+    fn other_toolchain() -> EnvHash {
+        let config: Config =
+            toml::from_str("[[extension]]\npath = \"an-extension-this-one-lacks\"")
+                .expect("a tree carrying one extension");
+        env_hash(&config)
+    }
+
+    /// Runs a loaded artifact's entry frame and hands back what it echoed.
+    fn output_of(loaded: &Loaded) -> String {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        loaded
+            .script()
+            .call(&mut ctx)
+            .expect("the entry frame ran to completion");
+        String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a context this test made buffered"),
+        )
+        .expect("the script echoed UTF-8")
+    }
+
+    /// § 3 end to end: a payload this process verified becomes pages it can run.
+    ///
+    /// The assertion is the program's own output, and it is the strongest one available: reaching
+    /// it means the sections were placed at the alignments they run at, every relocation resolved
+    /// against *this* process's addresses — `nvs_echo_str` wrote into this test's own buffered
+    /// context, which is the one in this address space — and the pages were executable by the
+    /// time the entry frame was entered. A loader that mapped without relocating, or that
+    /// relocated against the compiling process's addresses, cannot get here.
+    #[test]
+    fn a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable() {
+        let dir = scratch("warm-hit");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\nint $n = 40;\necho $n + 2;\n")
+            .expect("a scratch directory of this test's own is writable");
+
+        let payload = object_for(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        assert_eq!(
+            cache.store(key, &payload).expect("writable"),
+            Stored::Written
+        );
+
+        let hit = cache.load(key).expect("a published artifact verifies");
+        let loaded = hit
+            .relocate(&this_process())
+            .expect("every symbol the payload leaves undefined has an address here");
+        assert_eq!(
+            output_of(&loaded),
+            "42",
+            "the pages a warm hit relocated ran, and reached this process's own `nvs_echo_str`"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 3: a payload whose checksum fails is a miss, and the run that asked for it sees
+    /// no error at all.
+    ///
+    /// [`a_tampered_artifact_is_rejected`] pins the same rule over bytes a test invented. What is
+    /// new here is the far end of it: this payload is a real compiled unit, so a reader that
+    /// checked the header and then relocated would have had something runnable to hand back, and
+    /// only the ordering stops it. The recompile afterwards is the "not an error" half — a corrupt
+    /// entry costs one compile and nothing a script can observe.
+    #[test]
+    fn a_payload_whose_checksum_fails_is_a_miss_and_not_an_error() {
+        let dir = scratch("checksum");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 7;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let payload = object_for(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        // One flipped bit inside the object's own bytes — a header check cannot see it, and the
+        // file is exactly as long and exactly as well-formed as it was.
+        let path = cache.path(key);
+        let mut doctored = fs::read(&path).expect("readable");
+        doctored[HEADER_LEN + payload.len() / 2] ^= 0x01;
+        fs::write(&path, &doctored).expect("writable");
+        assert!(
+            cache.load(key).is_none(),
+            "a payload whose checksum fails never becomes a `Verified`"
+        );
+        assert!(
+            !path.exists(),
+            "and § 3 deletes it: at this key it can only be corrupt"
+        );
+
+        // The compile the caller would have done anyway, and its result runs.
+        assert_eq!(
+            cache.store(key, &payload).expect("writable"),
+            Stored::Written
+        );
+        let loaded = cache
+            .load(key)
+            .expect("the republished artifact verifies")
+            .relocate(&this_process())
+            .expect("every symbol resolves");
+        assert_eq!(
+            output_of(&loaded),
+            "7",
+            "a miss cost one recompile, no more"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 2: an artifact another toolchain wrote is a miss, and the environment is in the
+    /// *address* rather than only in the header.
+    ///
+    /// Both halves, because § 2 keeps both on purpose. The address is what makes a foreign
+    /// artifact cost one failed `open` instead of an open-then-reject; the header is the defence
+    /// in depth for a file that reached this key's path some other way, and being foreign rather
+    /// than broken it survives being read.
+    #[test]
+    fn a_payload_written_by_a_different_toolchain_is_a_miss() {
+        let dir = scratch("toolchain");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 9;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let payload = object_for(&source);
+
+        let theirs =
+            Cache::new(dir.join("cache"), other_toolchain()).expect("a directory of this test's");
+        let ours = Cache::new(dir.join("cache"), env()).expect("the same directory, this process");
+        let their_key = artifact_key(content_hash(&payload), theirs.env());
+        let our_key = artifact_key(content_hash(&payload), ours.env());
+        assert_ne!(
+            their_key, our_key,
+            "one payload, two environments, two addresses — § 2's whole point"
+        );
+        theirs.store(their_key, &payload).expect("writable");
+        assert!(
+            ours.load(our_key).is_none(),
+            "a foreign artifact costs one failed open and is never read"
+        );
+
+        // Placed at this process's own address by hand, the header's repeated `env_hash` is what
+        // catches it — and it stays, because `not mine` is not `broken`.
+        let ours_path = ours.path(our_key);
+        fs::create_dir_all(ours_path.parent().expect("a shard")).expect("writable");
+        fs::copy(theirs.path(their_key), &ours_path).expect("writable");
+        assert!(
+            ours.load(our_key).is_none(),
+            "§ 2's header field is the second, independent check"
+        );
+        assert!(
+            ours_path.exists(),
+            "a foreign artifact is never deleted: one build must not evict another's entries"
+        );
+
+        // And nothing here damaged the entry for the toolchain that wrote it.
+        let loaded = theirs
+            .load(their_key)
+            .expect("the artifact still verifies for its own environment")
+            .relocate(&this_process())
+            .expect("every symbol resolves");
+        assert_eq!(output_of(&loaded), "9");
 
         drop(fs::remove_dir_all(&dir));
     }

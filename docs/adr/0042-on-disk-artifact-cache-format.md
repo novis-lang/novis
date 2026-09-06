@@ -19,9 +19,10 @@
 > file that gets opened and then rejected. Each file still carries a self-describing header (magic, format
 > version, the same `env_hash`, a BLAKE3 checksum of the payload) as defense in depth against a hash
 > collision or a hand-placed file. The payload is a relocatable object rather than an image of finished
-> pages, so a reader maps it private and writable, hashes those bytes in place, resolves its undefined
+> pages, so a reader hashes it where the page cache put it, copies its sections into a private mapping of
+> its own at the alignment they run at, resolves its undefined
 > symbols against this process's own helper and class-descriptor addresses, and only then calls `mprotect`
-> to make it executable — the existing W^X discipline, extended one step
+> to make *those* pages executable — the existing W^X discipline, extended one step
 > earlier. A writer compiles to a temp file, `fsync`s it, and does one atomic rename onto the final,
 > content-addressed path; if that path already exists, the writer's own copy is simply discarded, never
 > overwritten. No lock file, anywhere, ever. Eviction rides the already-expensive cold-compile path at a
@@ -71,13 +72,14 @@
   decompress-into-a-fresh-buffer step over the whole payload before any of that could start, spending CPU
   to save disk space that a compiled unit does not have much of in the first place, and forfeiting the
   single-pass read this design is built around.
-- **`mmap` private and writable → hash the mapped bytes → relocate → `mprotect` to executable only on
-  match**, versus reading the file into a heap buffer first. `mmap` lets the page cache do the I/O work
-  exactly once and lets BLAKE3 (already multi-GB/s single-threaded) run directly over the mapped region
-  with no extra copy — strictly less I/O and less memory movement than an explicit `read()` into a buffer,
-  for the same verification guarantee. Writable because the relocations have to land somewhere, and private
-  because they must never reach the file: a patched page belongs to this process, and the file at that path
-  stays the bytes its checksum covers.
+- **`mmap` the file read-only → hash the mapped bytes → place and relocate elsewhere → `mprotect` to
+  executable only on match**, versus reading the file into a heap buffer first. `mmap` lets the page cache
+  do the I/O work exactly once and lets BLAKE3 (already multi-GB/s single-threaded) run directly over the
+  mapped region with no extra copy — strictly less I/O and less memory movement than an explicit `read()`
+  into a buffer, for the same verification guarantee. Read-only because nothing ever patches the file's
+  own bytes: § 3 places the payload's sections in a mapping of the reader's own, which is what a
+  relocatable object's section alignments and a landing area both need, so the file at that path stays
+  exactly the bytes its checksum covers and cannot be written even by mistake.
 
 ## Decision
 
@@ -140,7 +142,7 @@ plain miss rather than one some reader relocates under yesterday's rules.
 
 ### 3. Reading: verify fully before a single page becomes executable
 
-`mmap` the file `PROT_READ | PROT_WRITE`, **`MAP_PRIVATE`** (never starting from `PROT_EXEC`). Check
+`mmap` the file read-only (never starting from `PROT_EXEC`). Check
 `magic`/`format_version`/`env_hash` against what this process expects — any mismatch is a cache miss, not
 an error. Compute
 `BLAKE3` over the mapped payload bytes and compare to the header's checksum — any mismatch is a cache miss:
@@ -148,18 +150,31 @@ delete the file (it can only be corrupt or tampered, never a second valid versio
 through to compiling fresh.
 
 Only once the checksum matches is a byte of the payload touched, and what happens then is § 2's
-consequence: **relocate, then protect.** Walk the object's relocations and resolve each undefined symbol
+consequence: **place, relocate, then protect.** Map a second region — private, anonymous and writable —
+and copy each of the payload's allocatable sections into it at the alignment that section runs at. Walk
+the object's relocations and resolve each undefined symbol
 against this process's own addresses — a runtime helper's, and, for an `nvs_class_desc_*`, the address of
-the `ClassDesc` this process allocated for the class that symbol names — writing each into the private
-mapping. Only after that do the payload's pages get `mprotect`'d to
+the `ClassDesc` this process allocated for the class that symbol names — writing each into that private
+mapping. Only after that do its pages get `mprotect`'d to
 `PROT_READ | PROT_EXEC`, extending the W^X discipline the JIT's own freshly-compiled pages already follow
 one step earlier in the pipeline: a mapping is writable or executable, never both at once, and the
 transition runs one way.
 
-The mapping is **private** for the same reason it is writable. Patching is what makes a payload runnable
-here and it must never reach the file, whose bytes are what the checksum covers and what the next process
-will relocate for itself. Verification is untouched by the patching that follows it — the hash runs over
-the mapped bytes while they are still the file's, so no relocation can launder a corrupt payload past the
+**The pages that run are the reader's, not the file's**, and § 2's payload is why. A relocatable object's
+sections are laid out for a linker to place: their offsets are correct relative to the object's own start
+and to nothing else, so a header of any length leaves them off the alignment they execute at, and a
+section carrying no bytes in the file has nowhere to be placed in place at all. The copy costs one pass
+over a payload on the path that has just avoided a compile, and it buys two things the alternative could
+not. The file's mapping never has to be writable, so nothing can reach the bytes the checksum covered.
+And the reader owns the layout, which is what lets it place a **landing area** beside the code — this
+decision's answer to the one relocation that can otherwise be unrepresentable, a PC-relative call from
+the mapping to a helper in the host image more than 2 GB away. Each such symbol gets an eight-byte cell
+holding its full address, and a call gets a jump through that cell, so the displacement a relocation
+actually encodes always names a target inside the reader's own mapping. That is a linker's GOT slot and
+veneer, for a linker's reason; a relocation that still does not fit is a miss, never a truncated address.
+
+Verification is untouched by the patching that follows it — the hash runs over the file's own bytes and
+nothing ever writes to them, so no relocation can launder a corrupt payload past the
 check. A symbol this process cannot resolve is a miss on the same terms as a wrong `env_hash`, and the file
 is *not* deleted for it: an unresolvable name says the artifact was written against a runtime this one no
 longer matches, which is "not this process's file" rather than "broken". **No failure mode here reaches a panic, a `FATAL`, or a `Throwable` — a

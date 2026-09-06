@@ -65,20 +65,17 @@ serde_json.workspace = true
 # hands back and serializes it, so this crate names the type it is made of. The
 # format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.
 toml.workspace = true
-
-[dev-dependencies]
-# ADR 0042 § 2's payload is a relocatable object, and a test that only compared
-# bytes could not say that. Reading it back — the symbols it leaves undefined,
-# and the relocations that name them — is what makes the round trip an assertion
-# about the artifact rather than about `Vec<u8>`. `read` only: nothing here
-# writes an object, that is `nvs-codegen`'s side.
+# ADR 0042 § 3's loader reads the payload as what § 2 says it is: sections to
+# place, symbols to resolve and relocations to apply. `read` only — nothing in
+# this crate writes an object, that is `nvs-codegen`'s side.
 object.workspace = true
 
 # `unsafe_code` is `deny` rather than the workspace's `forbid` because ADR 0042
-# § 3 verifies an artifact where the page cache already put it, and `Mmap::map`
-# has no safe spelling — one call, in `cache.rs`, carrying its own `#[expect]`
-# with the reason it is sound. Everything else here is the workspace table
-# verbatim.
+# § 3 both verifies an artifact where the page cache already put it and calls
+# what it relocated: `Mmap::map` and the entry frame's fn-pointer transmute have
+# no safe spelling. Two calls, both in `cache.rs`, each carrying its own
+# `#[expect]` with the reason it is sound. Everything else here is the workspace
+# table verbatim.
 [lints.rust]
 unsafe_code = "deny"
 missing_docs = "warn"
