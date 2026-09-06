@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -111,6 +112,57 @@ DELIBERATE_STALE = {
 
 def nbytes(text: str) -> int:
     return len(text.encode("utf-8"))
+
+
+def report_growth(indent: str = "") -> None:
+    """How fast the file is growing, and whether anything is ever taken out.
+
+    THE THIRD SIGNAL, and the one the other two structurally cannot give. `--check` finds bullets
+    whose paths are gone; `--dupes` finds bullets that restate one another. Both were reading
+    `none` on 2026-09-06 while the file went 644 KB -> 860 KB in four days, because neither can
+    see a bullet that is correct, unique, and no longer worth 818 bytes to every future session.
+    An append-mostly file with no expiry rule has exactly one honest measurement -- the rate --
+    and this is it.
+
+    `git log --numstat` over the one file, in one call: no `git show` per revision, so this stays
+    cheap enough to sit inside `--check`.
+
+    It reports and never gates. A rate is not a defect; it is the number a person weighs when
+    deciding whether the next pass prunes. The enforceable brake is `orient.py`'s `PROMOTED_WHOLE`,
+    which bounds what any one session PAYS regardless of what the file holds."""
+    try:
+        out = subprocess.run(
+            ["git", "log", "--numstat", "--format=%H %at", "--", str(PLAYBOOK.relative_to(ROOT))],
+            cwd=ROOT, capture_output=True, text=True, timeout=30,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    revs, added, removed, stamps = 0, 0, 0, []
+    for line in out.split("\n"):
+        parts = line.split()
+        if len(parts) == 2 and len(parts[0]) == 40:
+            revs += 1
+            try:
+                stamps.append(int(parts[1]))
+            except ValueError:
+                pass
+        elif len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+            added += int(parts[0])
+            removed += int(parts[1])
+    if revs < 2 or not stamps:
+        return
+    days = max((max(stamps) - min(stamps)) / 86400.0, 1e-9)
+    size = nbytes(read())
+    print(f"\n{indent}== HOW FAST THIS FILE IS GROWING  (git log --numstat, whole history)")
+    print(f"{indent}  {size:,} B now, over {revs} commit(s) and {days:.1f} day(s)")
+    print(f"{indent}  +{added:,} line(s) added, -{removed:,} removed "
+          f"-- {added / max(removed, 1):.0f} added for every 1 taken out")
+    print(f"{indent}  {(added - removed) / days:,.0f} net line(s) a day")
+    print(f"{indent}")
+    print(f"{indent}  Neither of the signals above can fall while this rises: they find bullets")
+    print(f"{indent}  that are WRONG or DUPLICATED, and a file grows on bullets that are neither.")
+    print(f"{indent}  What bounds a SESSION's share is orient.py's PROMOTED_WHOLE, not this rate.")
+    print(f"{indent}  Read this when deciding whether a pass should prune, and nothing else.")
 
 
 def read() -> str:
@@ -522,6 +574,8 @@ def run_check(text: str, every: list[dict]) -> int:
             print(f"  {b['selector']}  -> {complaint or f'{len(hits)} hits'}")
     if not bad:
         print(f"  none -- all {len(every)} bullets are individually selectable")
+
+    report_growth(indent="  ")
 
     print("\n== WHAT EACH SECTION COSTS A SESSION THAT NAMES IT WHOLE")
     for head in sections(text):
