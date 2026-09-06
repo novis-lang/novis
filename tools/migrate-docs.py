@@ -755,9 +755,19 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
             for p in format_rust(backup):
                 print(f"  fmt     {rulebook.Rulebook._rel(p)}")
 
+        # The generated set is read *before* the render, because a rollback has to put a chapter
+        # back rather than delete it. The `.json` and fragments this unit adds are already on disk
+        # by now, so `generated()` already names this topic's own page -- which does not exist yet
+        # and correctly banks `None` -- alongside the thirteen that do and whose bytes must survive.
+        # Banking `None` for all of them, as this did, made every rollback leave `docs/rules/*.md`,
+        # `ground-rules.md` and `divergences.md` deleted, and the printed promise that every byte
+        # was restored a lie. It happened twice before it was believed, both times recovered by
+        # hand with `rules.py --render`.
+        for p in rulebook.Rulebook().generated():
+            backup.setdefault(p, read_verbatim(p) if p.exists() else None)
         run([sys.executable, "tools/rules.py", "--render"])
         for p in rulebook.Rulebook().generated():
-            backup.setdefault(p, None)
+            backup.setdefault(p, None)  # anything the render invented that the pre-scan missed
 
         print("\nrunning the gate...\n")
         result = gate()
