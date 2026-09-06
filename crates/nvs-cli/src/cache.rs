@@ -142,12 +142,12 @@
 //!
 //! # Known gaps
 //!
-//! **`nvs run` is wired; nothing else is.** [`unit_for`] is the compile site's whole decision and
-//! `main.rs`'s `run_run` makes it, so a second run of one program reads what the first published.
-//! Every other producer of a unit still compiles unconditionally: `nvs test`'s suite (`runner.rs`,
-//! which resolves its snapshot after the compile), a `spawn script` isolate (`script.rs`) and the
-//! server's own compiler (`serve.rs`). Each is a call to [`unit_for`] with a digest and a
-//! [`Cache`], and each is a slice of its own.
+//! **Every producer of a unit is wired.** [`unit_for`] is the compile site's whole decision, and
+//! all four call sites make it: `main.rs`'s `run_run`, `runner.rs`'s suite compile for `nvs test`,
+//! and `script.rs`'s [`Compiler`](crate::script::Compiler), which is the one a `spawn script`
+//! isolate and the server both resolve through. Each of them resolves the configuration snapshot
+//! *above* its compile, because both halves of the key are configuration — that ordering is the
+//! wiring, and [`from_config`] is the only place it is read.
 //!
 //! **[ADR 0078] § 4's `env_hash` says "the compiler build" and spells it as the package version**,
 //! which does not distinguish two builds of an unreleased tree. [`default_dir`] compensates by
@@ -167,12 +167,11 @@
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
-// `run_run` calls `unit_for` and nothing else outside this module calls anything here: the other
-// three producers of a unit — the test runner, a `spawn script` isolate and the server's compiler —
-// are the slices the *Known gaps* entry above names, and the accessors they will read (`Cache::dir`,
-// `Verified::header`, `Provenance::Loaded`) are already the ones this module's own tests assert on.
-// Until those land, `dead_code` here is naming a slice that has not happened rather than an item
-// nothing will use.
+// Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
+// anything else here. What is left over is the vocabulary § 3's own steps are stated in —
+// `Cache::dir`, `Verified::header`, `Provenance::Loaded` — reachable only from this module's tests,
+// which is where a format decision is asserted rather than used. Narrowing this to those items
+// would be a list to maintain for no reader.
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
@@ -2382,6 +2381,104 @@ mod tests {
             .relocate(&this_process(&descriptors))
             .expect("every symbol resolves");
         assert_eq!(output_of(&loaded), "9");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § *Verification*'s warm-versus-cold margin — the measurement that says this cache
+    /// is worth having, and the one that would say it is not.
+    ///
+    /// **The front end is inside neither arm.** [`lowered`] runs parse, check and lower once, above
+    /// both, which is § 2's own accounting: a warm hit pays for them in full and only codegen comes
+    /// off the disk. So the margin below is codegen against place-relocate-bind and nothing else,
+    /// and reading it as a whole-run speedup would be reading it wrong — a real run's parse and
+    /// check sit on top of both numbers alike.
+    ///
+    /// The cold arm is a *whole* cold run and carries § 4's publish with it: the second Cranelift
+    /// walk [`unit_for`]'s doc names, the temp file, the `fsync` and the rename. That is what a
+    /// first run of a program actually costs, and pricing the cold arm at less than it would
+    /// flatter the cache.
+    ///
+    /// Each arm is the **fastest** of its runs rather than the mean, because a minimum is the one
+    /// statistic a busy machine cannot inflate: whatever else a sample was charged for, no arm can
+    /// be measured faster than the work it did. The named margin is written well under what this
+    /// prints on a development machine — a debug build here measures 96ms cold against 10ms warm,
+    /// so about 10x — so a loaded machine cannot fail it by being slow, and a slow *disk* only
+    /// moves it the safe way: the `fsync` is in the cold arm. What is asserted is "codegen
+    /// dominates place and
+    /// relocate", not a benchmark's own number; a change that brought the two within this factor
+    /// of each other would mean the loader had grown expensive enough to reopen the decision, which
+    /// is exactly what § *Revisiting* asks this test to detect.
+    #[test]
+    fn a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names() {
+        use std::time::{Duration, Instant};
+
+        /// The factor a warm start must clear. Under it, § *Revisiting* is owed a look.
+        const MARGIN: u32 = 4;
+        /// Samples per arm. The minimum of five is stable well inside the margin above.
+        const RUNS: u32 = 5;
+
+        let dir = scratch("warm-margin");
+        let source = dir.join("program.nvs");
+        // Enough functions that Cranelift's own walk is the bulk of a cold compile — one class of
+        // four methods is a rounding error against process startup, and would measure that instead.
+        let mut text = String::from("<?nvs\n");
+        for class in 0..40 {
+            text.push_str(&format!("class C{class} {{\n"));
+            for method in 0..4 {
+                text.push_str(&format!(
+                    "    public static function m{method}(int $n): int \
+                     {{ return $n * {method} + {class} + $n; }}\n"
+                ));
+            }
+            text.push_str("}\n");
+        }
+        text.push_str("echo C39::m3(2);\n");
+        fs::write(&source, &text).expect("a scratch directory of this test's own is writable");
+        let (program, digest) = lowered(&source);
+
+        let mut cold = Duration::MAX;
+        let mut warm = Duration::MAX;
+        for run in 0..RUNS {
+            // A cache of this sample's own, so every cold arm is a genuinely empty one and the
+            // directory it publishes into is not one another sample already filled.
+            let cache = Cache::new(dir.join(format!("cache-{run}")), env())
+                .expect("a directory of this test's own");
+
+            let at = Instant::now();
+            let (built, provenance) =
+                unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+            cold = cold.min(at.elapsed());
+            assert_eq!(
+                provenance,
+                Provenance::Compiled,
+                "an empty cache holds nothing under this key"
+            );
+
+            let at = Instant::now();
+            let (loaded, provenance) =
+                unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+            warm = warm.min(at.elapsed());
+            assert_eq!(
+                provenance,
+                Provenance::Loaded,
+                "the artifact the cold arm published is under the same key"
+            );
+
+            // Once, and only for the work's sake: a margin over two arms that ran different
+            // programs — or no program — would measure nothing.
+            if run == 0 {
+                assert_eq!(ran(&built), "47");
+                assert_eq!(ran(&loaded), "47", "and the warm arm is the same program");
+            }
+        }
+
+        println!("cold {cold:?}, warm {warm:?} (fastest of {RUNS})");
+        assert!(
+            warm * MARGIN <= cold,
+            "§ Verification's margin: a warm start must be at least {MARGIN}x a cold one, and this \
+             machine measured warm {warm:?} against cold {cold:?}"
+        );
 
         drop(fs::remove_dir_all(&dir));
     }

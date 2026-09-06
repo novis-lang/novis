@@ -2105,6 +2105,15 @@ is why" — is this file.
   bare number alone. The same field's other failure is loud rather than silent and had stood just as
   long: `"0017 §2"` warned *renamed or renumbered* in every pack, because ADR 0017 has no numbered
   sections at all — its `## Decision` is one unnumbered block, so no `§` selector could ever match it.
+- **A `## Next group` anchor is a line number, and the session that wrote it usually went on editing
+  that same file.** This goal's item named `crates/nvs-cli/src/cache.rs:1141` for `unit_for` and
+  `:1755` for `lowered`; they are at 1194 and 1918, and the two windows `orient.py` inlined were
+  `program_digest`'s doc comment and the tail of an unrelated test — correct-looking code, from the
+  wrong place, with nothing in the pack to say so. The pack's code is only as good as the anchors,
+  so trust the *symbol name* in the item and not the code printed beside it: `python tools/peek.py
+  --locate unit_for lowered` re-derives every anchor in the group in one call, which is cheaper than
+  reading one window that turns out to be somebody else's. Resolving the next group's anchors after
+  the last commit rather than before it is the other half of the fix.
 
 ## Running things
 
@@ -2870,6 +2879,10 @@ is why" — is this file.
   address space against 91 MB resident — about 1.45 MB of reserved stack per spawned task, 10,000 tasks —
   which is the mechanism behind "the JIT's blobs landed more than 2 GB apart". `left: 8083, right: 10000`
   and a panic count that sums to 10,000 with it are one event, not two.
+- **`cargo test -p nvs-cli --lib` fails with `no library targets found in package`, and the crate is
+  fine.** `nvs-cli` is a binary crate: its unit tests live in the `nvs` bin target, so a filtered
+  run is `cargo test -p nvs-cli --bin nvs <filter>` and the bare `cargo test -p nvs-cli` picks them
+  up along with the integration tests beside them. The same is true of every binary-only crate here.
 
 ## Writing a test case
 
