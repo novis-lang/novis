@@ -1080,22 +1080,18 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Whether `name` is an identifier every backend reads the same way, and which
-/// carries nothing into the statement text it is written into.
+/// Whether `name` is an identifier every backend reads the same way.
 ///
-/// ASCII on purpose. Every backend also accepts some set of non-ASCII letters,
-/// and no two of those sets are the same — `char::is_alphabetic` would accept a
-/// name PostgreSQL takes and SQL Server folds differently, which is exactly the
-/// dialect dependence this member exists to avoid having.
+/// [`nvs_db::is_bare_identifier`] is the rule and its one home: the same
+/// judgement decides what may enter a
+/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
+/// schema value, and a second copy here would be two answers to the question
+/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) allows one
+/// answer to. The *length* half of that module's rule is deliberately not
+/// applied here — a name laundered for a statement someone else wrote has no
+/// schema to be too long for.
 fn is_bare_identifier(name: &str) -> bool {
-    let mut bytes = name.bytes();
-    let Some(first) = bytes.next() else {
-        return false;
-    };
-    if !first.is_ascii_alphabetic() && first != b'_' {
-        return false;
-    }
-    bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    nvs_db::is_bare_identifier(name)
 }
 
 nvs_runtime::nvs_helper! {

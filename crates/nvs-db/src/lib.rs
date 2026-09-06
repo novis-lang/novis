@@ -165,6 +165,7 @@ pub mod maria;
 pub mod matrix;
 pub mod mysql;
 pub mod pg;
+pub mod schema;
 pub mod span;
 pub mod sql;
 pub mod sqlite;
@@ -177,6 +178,15 @@ pub use conn::{
 pub use maria::MariaTarget;
 pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime};
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
+// `schema::Column` is deliberately not re-exported here: `PgColumn` and
+// `SqliteColumn` beside it are *result* columns, and one bare `Column` at the
+// crate root would read as the third of those rather than as a line of a
+// `CREATE TABLE`. It is `schema::Column`, where its neighbours say which
+// question it answers.
+pub use schema::{
+    ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, ScalarType, Schema,
+    SchemaError, Table, is_bare_identifier,
+};
 pub use span::{QuerySpan, SQL_LIMIT};
 pub use sql::{Binding, Dialect, Params, Prepared, Source, Statement, StatementCache, rewrite};
 pub use sqlite::{SqliteColumn, SqliteRows, SqliteTarget, SqliteValue};
