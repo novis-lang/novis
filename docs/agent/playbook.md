@@ -1627,6 +1627,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 
 ## Writing a test case
 
+- **A test that asserts a CPU `nvs_host::cpus()` listed can be pinned passes on Linux and Windows
+  and fails on macos-aarch64.** `core_affinity` lists `0..num_cpus` there and pins none of them,
+  because arm64 macOS does not implement `THREAD_AFFINITY_POLICY`, so an empty list is not the only
+  shape "no affinity" takes. Assert what `affinity`'s module doc promises — an answer, uniform
+  across the listed ids — never that the answer is `true`.
+  [until: test the_os_answers_the_same_way_for_every_cpu_it_lists]
 - **`var` and a written type are two different declarations, and `var T $x = …` is neither.** `var
   $x = …` infers; a declared type is `T $x = …;` with no `var` at all, so `var Core\Regex\Pattern $p
   = …` is four diagnostics (`E0101` three times, then `E0301` for a name never declared), none of

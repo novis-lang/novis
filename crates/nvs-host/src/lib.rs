@@ -246,9 +246,18 @@ mod tests {
         })
         .expect("the OS refused a thread");
 
-        assert!(
+        // A platform may list a CPU and refuse to pin it — arm64 macOS refuses
+        // every one it lists — so the assertion is that the worker reports what
+        // this platform actually does, which is what `pinned()` is for. Probed
+        // on a thread of its own, so the probe does not leave the test thread
+        // bound to a CPU.
+        let platform_pins = std::thread::spawn(move || pin_current_thread(cpu))
+            .join()
+            .expect("the probe thread panicked");
+        assert_eq!(
             worker.pinned(),
-            "the OS listed CPU {} and then refused it",
+            platform_pins,
+            "the worker and a bare pin disagreed about CPU {}",
             cpu.raw()
         );
         assert_eq!(worker.cpu(), cpu);

@@ -49,6 +49,12 @@ impl CpuId {
 /// Empty rather than an error when the platform cannot say — the caller's
 /// answer to "how many workers should I start" is then one, which is the same
 /// answer it would give on a single-CPU machine and needs no second code path.
+///
+/// A listed CPU is not a promise that [`pin_current_thread`] will take it.
+/// arm64 macOS lists every CPU the machine has and refuses all of them,
+/// because `THREAD_AFFINITY_POLICY` is not implemented there — the "platform
+/// with no affinity call at all" of the module doc, arrived at through a full
+/// list rather than an empty one.
 #[must_use]
 pub fn cpus() -> Vec<CpuId> {
     core_affinity::get_core_ids()
@@ -71,15 +77,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_cpu_the_os_lists_can_be_pinned_to() {
+    fn the_os_answers_the_same_way_for_every_cpu_it_lists() {
         // Both halves in one test on purpose: a `cpus()` that answered with an
         // id no `pin_current_thread` accepts would pass two separate tests and
-        // still be useless. Skipped rather than failed on a platform that
-        // lists none, which the module docs say is a supported deployment.
-        for cpu in cpus() {
-            assert!(
+        // still be useless. The answer asserted is a *uniform* one rather than
+        // a positive one, because a platform that lists every CPU and refuses
+        // all of them is supported and is in the test matrix. What is left to
+        // catch is the mismatch that matters: a `cpus()` whose ids the pinning
+        // call disagrees with, one by one. Skipped where none are listed.
+        let listed = cpus();
+        let Some(&first) = listed.first() else { return };
+        let answer = pin_current_thread(first);
+        for cpu in listed {
+            assert_eq!(
                 pin_current_thread(cpu),
-                "the OS listed CPU {} and then refused it",
+                answer,
+                "the OS listed CPU {} and CPU {} and pinned only one of them",
+                first.raw(),
                 cpu.raw()
             );
         }
