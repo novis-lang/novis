@@ -2903,6 +2903,14 @@ is why" — is this file.
   that run had no cache at all. A throwaway `eprintln` per phase and one two-minute
   `cargo build --release -p nvs-cli` printed the answer in a single run. Reach for the
   instrumented build before the third external measurement.
+- **A new `examples/*.nvs` acceptance fixture is a capability denial until the repository's own
+  `nvs.toml` grants it, and the driver reports that as the fixture's *output* being wrong.**
+  `examples/tempdir.nvs` calls `Core\IO::temporaryDir`, which ADR 0118 § 1 denies by default, so the
+  first run printed nothing on stdout and one `RuntimeError` line on stderr — an `exact` check would
+  have read as "stdout was [], wanted [...]" with nothing pointing at the config. Every example that
+  touches the operating system already has an `[[app]] entry = "examples/<name>.nvs"` block with the
+  narrowest grant that fixture needs; `grep -n 'entry = "examples' nvs.toml` lists them and the
+  neighbouring block is the one to copy. Writing the fixture and the block is one slice, not two.
 
 ## Writing a test case
 
