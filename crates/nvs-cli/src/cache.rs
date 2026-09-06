@@ -142,19 +142,18 @@
 //!
 //! # Known gaps
 //!
-//! **Nothing in the compile pipeline calls any of this yet.** A payload is written, published,
-//! verified, relocated and run inside this module's own tests, but `main.rs` still compiles every
-//! run through the JIT: the [`store`](Cache::store) on the cold path and the [`load`](Cache::load)
-//! in front of it are the wiring slice.
+//! **`nvs run` is wired; nothing else is.** [`unit_for`] is the compile site's whole decision and
+//! `main.rs`'s `run_run` makes it, so a second run of one program reads what the first published.
+//! Every other producer of a unit still compiles unconditionally: `nvs test`'s suite (`runner.rs`,
+//! which resolves its snapshot after the compile), a `spawn script` isolate (`script.rs`) and the
+//! server's own compiler (`serve.rs`). Each is a call to [`unit_for`] with a digest and a
+//! [`Cache`], and each is a slice of its own.
 //!
-//! **A warm hit's descriptors are settled; its method tables are not.** [ADR 0042] § 2 decides
-//! where a descriptor comes from — `nvs_codegen::Descriptors::of` builds every one out of the
-//! lowered IR, because what a hit skips is codegen and not the front end — and `this_process` in
-//! the tests below is now the whole of § 3's resolver rather than a stand-in. What is still
-//! unwritten is the last step of § 3's order: a `nvs_runtime::MethodRow` holds a compiled
-//! function's address, so binding one has to wait until the payload is placed, and nothing here
-//! walks the placed object's function symbols to do it. Until it does, a fixture may allocate an
-//! instance and read its fields but may not *call a method on one*.
+//! **[ADR 0078] § 4's `env_hash` says "the compiler build" and spells it as the package version**,
+//! which does not distinguish two builds of an unreleased tree. [`default_dir`] compensates by
+//! keying its directory on the running executable; a *configured* `opcache.file_cache_dir` does
+//! not, so a development tree that writes one shares artifacts across rebuilds. The fix belongs to
+//! that ADR's own digest rather than here.
 //!
 //! **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
 //! instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
@@ -168,10 +167,12 @@
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
-// Nothing outside this module's own tests calls either half yet: `nvs-codegen` can produce a payload
-// now, and what is left is the wiring the *Known gaps* entry above names — the compile-pipeline call
-// sites wait on that. Until then `dead_code` is naming a slice that has not happened
-// rather than an item nothing will use.
+// `run_run` calls `unit_for` and nothing else outside this module calls anything here: the other
+// three producers of a unit — the test runner, a `spawn script` isolate and the server's compiler —
+// are the slices the *Known gaps* entry above names, and the accessors they will read (`Cache::dir`,
+// `Verified::header`, `Provenance::Loaded`) are already the ones this module's own tests assert on.
+// Until those land, `dead_code` here is naming a slice that has not happened rather than an item
+// nothing will use.
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
@@ -181,7 +182,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use memmap2::{Mmap, MmapOptions};
-use nvs_config::cache::{Digest, EnvHash};
+use nvs_config::cache::{Digest, EnvHash, artifact_key, content_hash, env_hash};
 use nvs_config::trust::{self, Untrusted};
 use object::read::{Object, ObjectSection, ObjectSymbol};
 use object::{
@@ -371,14 +372,27 @@ impl Verified {
             }
         }
 
-        let entry = object
-            .symbols()
-            .find(|symbol| {
-                symbol.name().is_ok_and(|name| {
-                    nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
-                })
+        // Every function this payload defines, by the name `nvs-codegen` gave it. The entry frame
+        // is one of them, and the rest are what § 3's binding step asks for by name once the pages
+        // are executable — one walk answers both questions, and neither is answerable later,
+        // since `object` borrows the file mapping and [`Loaded`] does not hold it.
+        let mut functions = BTreeMap::new();
+        for symbol in object.symbols() {
+            if symbol.kind() != SymbolKind::Text {
+                continue;
+            }
+            let (Ok(name), Some(offset)) = (symbol.name(), layout.symbol_offset(&object, &symbol))
+            else {
+                continue;
+            };
+            functions.insert(name.to_owned(), offset);
+        }
+        let entry = *functions
+            .iter()
+            .find(|(name, _)| {
+                nvs_codegen::is_function_symbol(name, nvs_ir::lower::ENTRY_SCRIPT_LABEL)
             })
-            .and_then(|symbol| layout.symbol_offset(&object, &symbol))
+            .map(|(_, offset)| offset)
             .ok_or(Unloadable::NoEntry)?;
 
         // W^X, one way and once: nothing holds a writable view of these bytes after this line,
@@ -386,7 +400,11 @@ impl Verified {
         let pages = pages
             .make_exec()
             .map_err(|source| Unloadable::Mapping(source.to_string()))?;
-        Ok(Loaded { pages, entry })
+        Ok(Loaded {
+            pages,
+            entry,
+            functions,
+        })
     }
 }
 
@@ -715,6 +733,14 @@ pub(crate) struct Loaded {
     pages: Mmap,
     /// Where the entry frame starts inside [`Self::pages`].
     entry: usize,
+    /// Every function symbol the payload defines, to its offset inside [`Self::pages`] — what this
+    /// type's [`nvs_codegen::Placed`] impl answers from, and the only thing that survives the
+    /// object reader, which borrows a mapping this type does not keep.
+    ///
+    /// **Costs** one `String` and one `usize` per function in the unit, for the life of the loaded
+    /// artifact: the same scale as the JIT's own `functions` table, and the price of § 3's binding
+    /// step being answerable at all after `mprotect`.
+    functions: BTreeMap<String, usize>,
 }
 
 impl Loaded {
@@ -740,6 +766,20 @@ impl Loaded {
             function,
             pages: PhantomData,
         }
+    }
+}
+
+/// § 3's last step, from this side: the addresses this loader placed, by the names
+/// `nvs-codegen` emitted them under.
+///
+/// `nvs_codegen::Descriptors::bind` derives the symbol a method's code was emitted under and asks
+/// this for it, and `Descriptors::into_unit` asks again for every function the unit defines. An
+/// absent name is skipped there rather than being an error, which is why this answers [`None`] and
+/// not an [`Unloadable`].
+impl nvs_codegen::Placed for Loaded {
+    fn address_of(&self, symbol: &str) -> Option<*const u8> {
+        let offset = *self.functions.get(symbol)?;
+        Some(self.pages.as_ptr().wrapping_add(offset))
     }
 }
 
@@ -1095,6 +1135,213 @@ impl Cache {
         file.write_all(payload)?;
         file.sync_all()
     }
+}
+
+/// § 1's content hash for a whole **program**: every file the entry point's `require`/`autoload`
+/// graph reached, in the order `nvs_hir::resolve_program` handed them back.
+///
+/// A unit is that graph and not one file (`front_end`'s own doc), so a key over the entry file
+/// alone would answer a stale artifact for a program whose `require`d file was the one edited —
+/// § 3's verification cannot catch that, because such a payload is this toolchain's and its
+/// checksum is correct. Each file goes in as its name and its text, both behind their lengths, so
+/// no two file sets can hash alike by running together and a file *renamed* moves the key: a
+/// diagnostic's path and a throw's frame name it, which makes it observable.
+pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
+    let mut bytes = Vec::new();
+    for file in files {
+        for part in [file.src.name(), file.src.text()] {
+            bytes.extend_from_slice(&u64::try_from(part.len()).unwrap_or(u64::MAX).to_le_bytes());
+            bytes.extend_from_slice(part.as_bytes());
+        }
+    }
+    content_hash(&bytes)
+}
+
+/// Which half of ADR 0042 this run's unit came out of.
+///
+/// Nothing a script can observe turns on this — § 3 makes a miss exactly as invisible as a cold
+/// cache — so it exists for the tests that have to tell the two paths apart, and for a caller that
+/// wants to say which one ran.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Provenance {
+    /// A cold compile: this process walked Cranelift itself, and published what it built if it
+    /// could.
+    Compiled,
+    /// § 3 end to end: a payload this process verified, placed, relocated, protected and bound.
+    Loaded,
+}
+
+/// The unit for `program` — out of `cache` when it holds a usable artifact for `source`, and out
+/// of Cranelift when it does not. ADR 0042 §§ 3 and 4, at the one call site a run makes.
+///
+/// **Every way this can fail to use the cache is a cold compile and nothing else.** No cache at
+/// all (the directory is absent, unwritable, or another account's — [`from_config`] answers
+/// [`None`] for each), no artifact under the key, a header from another toolchain, a checksum that
+/// does not match, a symbol this process cannot resolve: each falls through to the same compile
+/// the run would have done anyway, and none of them reaches the script.
+///
+/// A cold run pays codegen **twice** — once through the JIT for the unit it is about to run, and
+/// once through the object backend for the artifact it publishes. That is deliberate: the run in
+/// hand is not made to wait on a file being written, and the alternative — running the payload
+/// this process just wrote, through place-and-relocate — would put the loader on the path of every
+/// cold run to save a Cranelift walk on none of them. What it costs is one extra walk on the run
+/// that populates a key, and nothing at all on every run after it.
+///
+/// # Errors
+///
+/// Only [`nvs_codegen::CodegenError`], and only from the cold compile: the cache contributes no
+/// error of its own, which is § 3's rule stated in the signature.
+pub(crate) fn unit_for(
+    program: &nvs_ir::Program,
+    source: Digest,
+    cache: Option<&Cache>,
+) -> Result<(nvs_codegen::Unit, Provenance), nvs_codegen::CodegenError> {
+    let Some(cache) = cache else {
+        return Ok((nvs_codegen::compile(program)?, Provenance::Compiled));
+    };
+    let key = artifact_key(source, cache.env());
+    if let Some(unit) = warm_hit(program, cache, key) {
+        return Ok((unit, Provenance::Loaded));
+    }
+    let unit = nvs_codegen::compile(program)?;
+    // § 4's writer, on the path that has just paid for a compile: a failure to publish is a cache
+    // that stays cold, which is the one thing this whole module promises can never be worse.
+    if let Ok(payload) = nvs_codegen::compile_object(program) {
+        drop(cache.store(key, &payload));
+    }
+    Ok((unit, Provenance::Compiled))
+}
+
+/// § 3 in one expression: the artifact under `key`, verified, placed, relocated, protected, bound
+/// and assembled — or [`None`] at the first step that says this is not this process's file.
+fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs_codegen::Unit> {
+    let verified = cache.load(key)?;
+    // § 2: the descriptors a warm hit resolves against are built here, out of the IR the front end
+    // has just lowered, because a run that skipped codegen allocated none and no payload carries
+    // one.
+    let descriptors = nvs_codegen::Descriptors::of(program);
+    let loaded = verified.relocate(&this_process(&descriptors)).ok()?;
+    Some(descriptors.into_unit(Box::new(loaded)))
+}
+
+/// § 3's "this process's own addresses", in full.
+///
+/// Every runtime and `Core` helper by the address this process really calls it at — the same two
+/// tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` by the address of
+/// the descriptor `descriptors` built out of the same program's IR.
+///
+/// **Costs** one map of every exported helper name, built per warm hit and dropped with the
+/// relocation. That is once per unit loaded, against a walk of the payload's relocations that is
+/// itself proportional to the unit, so it is a constant factor on a path that has just skipped a
+/// compile.
+fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Option<*const u8> + '_ {
+    let table: BTreeMap<&'static str, *const u8> = nvs_runtime::symbols()
+        .into_iter()
+        .chain(nvs_stdlib::symbols())
+        .collect();
+    move |name| {
+        table
+            .get(name)
+            .copied()
+            .or_else(|| descriptors.resolve(name))
+    }
+}
+
+/// § 7's directives, resolved into the cache a run consults — or [`None`] for a run that consults
+/// none.
+///
+/// [`None`] is `opcache.file_cache = false`, a host with no cache root to default to, and a
+/// directory § 5 refuses. None of the three is reported: a run without a cache is a run that
+/// compiles, which is exactly what it did before this module existed.
+pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
+    let opcache = config.opcache.as_ref();
+    if opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
+        return None;
+    }
+    let dir = match opcache.and_then(|opcache| opcache.file_cache_dir.as_deref()) {
+        Some(written) => PathBuf::from(written),
+        None => default_dir()?,
+    };
+    Some(
+        Cache::new(dir, env_hash(config))
+            .ok()?
+            .with_eviction(eviction_of(opcache)),
+    )
+}
+
+/// § 7's "a fixed system location", read as *this account's* rather than the host's, and one
+/// directory per running binary.
+///
+/// `%LOCALAPPDATA%\novis\opcache\<build>` on Windows, `$XDG_CACHE_HOME`'s or `~/.cache`'s
+/// `novis/opcache/<build>` elsewhere. A host-wide `/var/cache/novis` would be a directory some
+/// other account owns for every account but one, and § 5 refuses exactly that — so the default
+/// that works everywhere is the one inside the account already running the compile. An operator
+/// wanting one shared location writes `opcache.file_cache_dir`, which is `System`-class for the
+/// reason § 7 gives.
+///
+/// **`<build>` is this executable's own identity, and it is here because `env_hash`'s is coarser
+/// than a key needs.** ADR 0078 § 4 folds "the compiler build" into every key and spells it as the
+/// package version, which distinguishes two releases but not two builds of an unreleased tree —
+/// so a rebuilt compiler would otherwise address the artifacts its predecessor emitted, and a
+/// change to codegen or to a runtime helper's behaviour would be answered out of the cache. The
+/// header cannot catch that: such a payload really is this version's, and its checksum is
+/// correct. Keying the *directory* on the binary makes a rebuild a cold cache instead, which is
+/// the same answer § 4's `env_hash` gives for a new machine, and it costs one `metadata` call per
+/// run. When ADR 0078 § 4 distinguishes builds, this becomes redundant rather than wrong.
+fn default_dir() -> Option<PathBuf> {
+    #[cfg(windows)]
+    let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    #[cfg(not(windows))]
+    let root = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
+    Some(root?.join("novis").join("opcache").join(build_identity()?))
+}
+
+/// This executable, as a directory name: its path, its length and its modification time, hashed.
+///
+/// [`None`] when the running binary cannot be named or examined, which leaves the run with no
+/// cache at all — the fail-closed direction, since the alternative is a directory shared by builds
+/// this cannot tell apart.
+fn build_identity() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let meta = fs::metadata(&exe).ok()?;
+    let mut bytes = exe.as_os_str().to_string_lossy().into_owned().into_bytes();
+    bytes.extend_from_slice(&meta.len().to_le_bytes());
+    if let Ok(modified) = meta.modified()
+        && let Ok(since) = modified.duration_since(std::time::UNIX_EPOCH)
+    {
+        bytes.extend_from_slice(&since.as_nanos().to_le_bytes());
+    }
+    Some(content_hash(&bytes).to_string()[..16].to_owned())
+}
+
+/// § 6's policy as `[opcache]` writes it, with [`Eviction::default`] for every key it leaves out.
+///
+/// A value that spells nothing readable is left at the default rather than refused, which is the
+/// treatment `nvs_config::cache::Revalidation::from_config` already gives `[opcache]`'s other
+/// three keys — the block's refusals are one decision and this is not the place to make a second.
+fn eviction_of(opcache: Option<&nvs_config::tree::Opcache>) -> Eviction {
+    let mut eviction = Eviction::default();
+    let Some(opcache) = opcache else {
+        return eviction;
+    };
+    if let Some(written) = opcache.file_cache_max_size.as_ref()
+        && let Ok(nvs_config::value::Quantity::Bytes(bytes)) = nvs_config::value::Quantity::parse(
+            "opcache.file_cache_max_size",
+            nvs_config::value::Unit::Bytes,
+            written,
+        )
+    {
+        eviction.max_size = bytes;
+    }
+    if let Some(probability) = opcache.file_cache_gc_probability {
+        eviction.probability = probability;
+    }
+    if let Some(divisor) = opcache.file_cache_gc_divisor {
+        eviction.divisor = divisor;
+    }
+    eviction
 }
 
 #[cfg(test)]
@@ -1653,29 +1900,6 @@ mod tests {
         )
     }
 
-    /// § 3's "this process's own addresses", in full.
-    ///
-    /// Every runtime and `Core` helper by the address this process really calls it at — the same
-    /// two tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` by the
-    /// address of the descriptor `descriptors` built out of the same program's IR, which is § 2's
-    /// answer to where a warm hit's come from. This resolver is therefore the whole of what § 3
-    /// asks for and not a stand-in: a fixture here may allocate an instance, which dereferences a
-    /// descriptor, where the dummy this replaced only survived fixtures that never reached one.
-    fn this_process(
-        descriptors: &nvs_codegen::Descriptors,
-    ) -> impl Fn(&str) -> Option<*const u8> + '_ {
-        let table: BTreeMap<&'static str, *const u8> = nvs_runtime::symbols()
-            .into_iter()
-            .chain(nvs_stdlib::symbols())
-            .collect();
-        move |name| {
-            table
-                .get(name)
-                .copied()
-                .or_else(|| descriptors.resolve(name))
-        }
-    }
-
     /// The environment § 4's digest would call another toolchain's.
     ///
     /// Its `[[extension]]` array is the only contribution to that digest a test in this process
@@ -1686,6 +1910,39 @@ mod tests {
             toml::from_str("[[extension]]\npath = \"an-extension-this-one-lacks\"")
                 .expect("a tree carrying one extension");
         env_hash(&config)
+    }
+
+    /// The whole front end over `source`, lowered, beside § 1's content hash of the program it
+    /// turned out to be — exactly what a run holds at the moment it decides whether to consult
+    /// the cache, and in the same order.
+    fn lowered(source: &Path) -> (nvs_ir::Program, Digest) {
+        let checked = crate::front_end(source).expect("a program with no error diagnostics");
+        let files = checked.program_files();
+        let digest = program_digest(&files);
+        let program = nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &files,
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        );
+        (program, digest)
+    }
+
+    /// Runs a unit's entry frame on a context it armed, and hands back what it echoed.
+    fn ran(unit: &nvs_codegen::Unit) -> String {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        unit.install_in(&mut ctx);
+        unit.script()
+            .expect("a compiled program has an entry frame")
+            .call(&mut ctx)
+            .expect("the entry frame ran to completion");
+        String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a context this test made buffered"),
+        )
+        .expect("the script echoed UTF-8")
     }
 
     /// Runs a loaded artifact's entry frame and hands back what it echoed.
@@ -1774,6 +2031,248 @@ mod tests {
             output_of(&loaded),
             "Box=42",
             "the relocated code reached a descriptor this process built from the same IR"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// § 3's last step, at the one place a test can tell a bound method table from an empty one:
+    /// a call that *must* go through it, whose fallback runs a different body.
+    ///
+    /// `static::speak()` inside `Base::shout` is late static binding, so `nvs_ir` lowers it to an
+    /// `InstKind::CallVirtual` against the descriptor of the class the call was made on, with
+    /// `Base::speak` as the fallback a descriptor answering no `speak` gets. `Derived::shout()`
+    /// therefore prints `derived` only if `Derived`'s descriptor holds a row bound to the address
+    /// the *loader* placed `Derived::speak` at — and prints `base` if the table is empty, which is
+    /// exactly the state every fixture above leaves it in. The assertion is `derived`, so nothing
+    /// but § 3's build-place-relocate-protect-*bind* order can produce it, and the bind runs after
+    /// `relocate` returned executable pages because a row is written into this process's
+    /// descriptor and never back into the mapping.
+    #[test]
+    fn a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound() {
+        let dir = scratch("bind-methods");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\nclass Base {\n    public static function speak(): string { return \"base\"; }\n\
+             \n    public static function shout(): string { return static::speak(); }\n}\n\n\
+             class Derived extends Base {\n    \
+             public static function speak(): string { return \"derived\"; }\n}\n\n\
+             echo Derived::shout();\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+
+        let (payload, mut descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        let loaded = cache
+            .load(key)
+            .expect("a published artifact verifies")
+            .relocate(&this_process(&descriptors))
+            .expect("every symbol the payload leaves undefined has an address here");
+        descriptors.bind(&loaded);
+
+        assert_eq!(
+            output_of(&loaded),
+            "derived",
+            "the virtual call dispatched through a row bound to the placed payload's own code"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// § 3's end state, as the *type* the rest of the CLI takes: a warm hit hands back a
+    /// `nvs_codegen::Unit`, and it answers everything a cold compile's does.
+    ///
+    /// [`a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound`] pins the binding
+    /// step against the loader's own `script`. What is new here is that the assembled unit carries
+    /// the rest of it — a named function it can be asked for by label, an entry frame reached
+    /// through `Unit::script` rather than through this module's `Loaded::script`, and a context
+    /// armed by `Unit::install_in` — because that is what lets the compile site hold one variable
+    /// whichever path produced it, which is the whole point of § 3 ending in a `Unit`.
+    #[test]
+    fn a_warm_hit_assembles_the_unit_a_cold_compile_would_have() {
+        let dir = scratch("loaded-unit");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\nclass Base {\n    public static function speak(): string { return \"base\"; }\n\
+             \n    public static function shout(): string { return static::speak(); }\n}\n\n\
+             class Derived extends Base {\n    \
+             public static function speak(): string { return \"derived\"; }\n}\n\n\
+             echo Derived::shout();\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+
+        let (payload, descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        let loaded = cache
+            .load(key)
+            .expect("a published artifact verifies")
+            .relocate(&this_process(&descriptors))
+            .expect("every symbol the payload leaves undefined has an address here");
+        let unit = descriptors.into_unit(Box::new(loaded));
+
+        assert!(
+            unit.has_function("Derived::speak"),
+            "a loaded unit knows every function the payload defines, by its Novis label"
+        );
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        unit.install_in(&mut ctx);
+        unit.script()
+            .expect("a loaded unit has the entry frame the payload defines")
+            .call(&mut ctx)
+            .expect("the entry frame ran to completion");
+        assert_eq!(
+            String::from_utf8(
+                ctx.take_buffered_output()
+                    .expect("a context this test made buffered")
+            )
+            .expect("the script echoed UTF-8"),
+            "derived",
+            "the unit's own entry frame ran, dispatching through the rows it bound"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// §§ 3 and 4 as a run performs them: the second run of one program reads what the first
+    /// published, and compiles nothing.
+    ///
+    /// This is the decision [`unit_for`] exists to make, and [`Provenance`] is how a test sees it
+    /// — nothing a script can observe distinguishes the two paths, which is § 3's own rule. Both
+    /// runs are asserted to print the same thing as well, because "did not compile it" is only
+    /// worth anything beside "and ran the same program".
+    #[test]
+    fn a_second_run_of_the_same_program_does_not_compile_it() {
+        let dir = scratch("second-run");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\nclass Greeter {\n    \
+             public static function greet(): string { return \"hi\"; }\n}\n\n\
+             echo Greeter::greet(), 41 + 1;\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+        let (program, digest) = lowered(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+
+        let (cold, first) =
+            unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(
+            first,
+            Provenance::Compiled,
+            "an empty cache holds nothing under this key"
+        );
+        assert_eq!(ran(&cold), "hi42");
+
+        let (warm, second) =
+            unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(
+            second,
+            Provenance::Loaded,
+            "the second run reads the artifact the first one published"
+        );
+        assert_eq!(ran(&warm), "hi42", "and runs the same program");
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// The goal's standing decision, pinned: `nvs run` keeps working with no cache to consult and
+    /// with one it can never write.
+    ///
+    /// The first half is a run that was handed no [`Cache`] at all — what [`from_config`] answers
+    /// for `file_cache = false`, for a host with no cache root, and for a directory § 5 refuses.
+    /// The second is a cache whose directory can never be created, because its parent is a regular
+    /// file: every store fails, so every run is a miss, and the only thing that reaches the caller
+    /// is the unit it asked for.
+    #[test]
+    fn an_absent_or_unwritable_cache_directory_is_a_miss_and_the_run_succeeds() {
+        let dir = scratch("no-cache");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 6 * 7;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let (program, digest) = lowered(&source);
+
+        let (unit, provenance) = unit_for(&program, digest, None).expect("a program that compiles");
+        assert_eq!(provenance, Provenance::Compiled);
+        assert_eq!(
+            ran(&unit),
+            "42",
+            "a run with no cache is a run that compiles"
+        );
+
+        let blocked = dir.join("a-file");
+        fs::write(&blocked, "not a directory").expect("the scratch directory is writable");
+        let cache =
+            Cache::new(blocked.join("cache"), env()).expect("a path under this test's own file");
+        for _ in 0..2 {
+            let (unit, provenance) =
+                unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+            assert_eq!(
+                provenance,
+                Provenance::Compiled,
+                "a cache that cannot be written is a miss on every run, not on the first only"
+            );
+            assert_eq!(ran(&unit), "42", "and the run succeeds regardless");
+        }
+        assert!(
+            !blocked.join("cache").exists(),
+            "nothing was published, and nothing was reported either"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// § 1's key is the program's content, so editing the program moves it — the artifact under
+    /// the old key is not consulted, and cannot be.
+    ///
+    /// [`program_digest`] is what makes that true, and this asserts the whole loop rather than the
+    /// digest alone: the unedited program is a hit *first*, so the miss below is the edit's doing
+    /// and not an empty cache's, and the edited program is a hit on the run after it.
+    #[test]
+    fn an_edited_source_file_is_a_miss_on_the_next_run() {
+        let dir = scratch("edited");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 1 + 1;\n")
+            .expect("a scratch directory of this test's own is writable");
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+
+        let (program, digest) = lowered(&source);
+        let (unit, provenance) =
+            unit_for(&program, digest, Some(&cache)).expect("a program that compiles");
+        assert_eq!(provenance, Provenance::Compiled);
+        assert_eq!(ran(&unit), "2");
+        assert_eq!(
+            unit_for(&program, digest, Some(&cache))
+                .expect("a program that compiles")
+                .1,
+            Provenance::Loaded,
+            "the unedited program is a hit, which is what makes the miss below the edit's doing"
+        );
+
+        fs::write(&source, "<?nvs\necho 1 + 2;\n").expect("the same file, edited");
+        let (edited, moved) = lowered(&source);
+        assert_ne!(moved, digest, "an edited program hashes to another key");
+        let (unit, provenance) =
+            unit_for(&edited, moved, Some(&cache)).expect("a program that compiles");
+        assert_eq!(
+            provenance,
+            Provenance::Compiled,
+            "no artifact stands under the key the edit moved to"
+        );
+        assert_eq!(ran(&unit), "3", "and what runs is the edited program");
+        assert_eq!(
+            unit_for(&edited, moved, Some(&cache))
+                .expect("a program that compiles")
+                .1,
+            Provenance::Loaded,
+            "the recompile published under the new key, so the run after it is a hit"
         );
 
         drop(fs::remove_dir_all(&dir));

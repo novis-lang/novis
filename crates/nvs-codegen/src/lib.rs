@@ -307,8 +307,8 @@ pub enum CodegenError {
 /// else means writing the receiver slot by hand, which is the thing this list
 /// exists to stop.
 pub struct Unit {
-    /// Kept alive for its pages; never read again after `compile` returns.
-    _module: JITModule,
+    /// Kept alive for its pages; never read again after the unit is built.
+    _code: Code,
     /// Kept alive for its *descriptors*: the compiled code holds each one's
     /// address as a baked-in constant (see [`Classes`]), so the table must
     /// outlive every instance and every frame that can allocate one. Moving
@@ -344,6 +344,45 @@ pub struct Unit {
     /// that context can arm itself against the same slot numbering with no unit
     /// in hand (`nvs_runtime::Ctx::method_isolate`).
     statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
+}
+
+/// Whatever keeps a [`Unit`]'s code mapped for as long as the unit lives.
+///
+/// A [`Unit`]'s addresses are raw pointers into pages somebody owns, and there
+/// are two somebodies: [`compile`]'s own `JITModule`, and — since ADR 0042
+/// § 3 — a loader holding the private mapping it placed a cached payload into.
+/// The unit is the same type either way, because everything above this field
+/// reads an address and never asks where it came from; only the drop differs,
+/// and both arms free exactly the pages they made.
+#[expect(
+    dead_code,
+    reason = "both arms are held for their `Drop` and read by nothing: the addresses in \
+              `Unit::entries` point into whichever mapping this owns, so what the field does \
+              is outlive them"
+)]
+enum Code {
+    /// A unit this process compiled: `cranelift-jit`'s own mapping.
+    /// Boxed only to keep the two arms the same size: a `JITModule` is a few
+    /// hundred bytes and a loader's owner is one pointer, and a `Unit` is moved
+    /// more often than this is dropped.
+    Jit(Box<JITModule>),
+    /// A unit this process loaded, owned by whoever placed it — `nvs-cli`'s
+    /// `cache::Loaded` is the only one, and it is in another crate, which is
+    /// why this is a trait object rather than a named type.
+    Placed(Box<dyn Placed>),
+}
+
+/// A placed payload, read by the symbol names `nvs-codegen` emitted it under.
+///
+/// This is the loader's counterpart to `Module::get_finalized_function`, and
+/// the whole of what [`Descriptors::bind`] and [`Descriptors::into_unit`] need
+/// from ADR 0042 § 3's mapping: the addresses this unit's own functions ended up
+/// at. Implemented outside this crate, by whoever owns those pages.
+pub trait Placed {
+    /// Where this owner placed the function `symbol` names, or [`None`] if the
+    /// payload defines no such function — which § 3 makes a skipped method row
+    /// rather than an error, exactly as the JIT path skips an undefined one.
+    fn address_of(&self, symbol: &str) -> Option<*const u8>;
 }
 
 impl std::fmt::Debug for Unit {
@@ -710,23 +749,38 @@ pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
 /// toolchain" — the cache key covers both — so that is an identity rather than
 /// a hope.
 ///
-/// What is deliberately **not** here is a method table. A
+/// A method table is deliberately **not** built here. A
 /// [`nvs_runtime::MethodRow`] holds a compiled function's address and there is
 /// none until the payload has been placed, so § 3's order is build, place,
-/// relocate, protect, then bind; this type is the first of those steps and
-/// [`UnitBuilder::bind_method_tables`] is the JIT's counterpart to the last.
+/// relocate, protect, then bind — this type is the first of those steps and
+/// [`Self::bind`] is the last, the loader's counterpart to
+/// [`UnitBuilder::bind_method_tables`].
 ///
-/// **Costs** one `ClassDesc` per class the unit declares, plus one symbol name
-/// per class, for as long as the caller holds this — the same allocation the
-/// JIT path already makes at the same scale, and freed with the table.
+/// **Costs** one `ClassDesc` per class the unit declares, one symbol name per
+/// class, and one symbol name plus a shape per function it declares, for as
+/// long as the caller holds this — the same allocation the JIT path already
+/// makes at the same scale, and freed with the table.
 #[derive(Debug)]
 pub struct Descriptors {
     /// Held for the descriptors themselves, exactly as [`Unit`] holds this same
     /// table: an address handed out by [`Self::resolve`] is written into machine
     /// code that will dereference it, so the table has to outlive every frame
-    /// that code can enter. Never read here — the wiring that turns placed pages
-    /// into a [`Unit`] is what reads it next.
-    _classes: Classes,
+    /// that code can enter. [`Self::bind`] is what writes into it, and the
+    /// wiring that turns placed pages into a [`Unit`] is what reads it next.
+    classes: Classes,
+    /// Every function the program declares, by its Novis label, to the symbol
+    /// [`function_symbol`] named it and the shape a
+    /// [`nvs_runtime::MethodRow`] carries. Both halves are read once, by
+    /// [`Self::bind`], and both are recorded in the one walk that saw the
+    /// function — so a row's address and its arity cannot come to describe two
+    /// different callees, exactly as `UnitBuilder::shapes` guarantees on the
+    /// JIT path.
+    functions: FxHashMap<String, (String, MethodShape)>,
+    /// The program's static-property initializers, in the slot order
+    /// `nvs_ir::ir::Program::statics` carries and the payload's code baked in —
+    /// [`Unit::statics`]'s own contents, read off the IR here for the reason
+    /// every other field is: the loading process lowered the same source.
+    statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
     /// [`class_desc_symbol`]'s name for each descriptor, to the address a
     /// relocation against it resolves to. Built once here rather than searched
     /// per relocation: a loader asks this for every undefined symbol in the
@@ -743,9 +797,29 @@ impl Descriptors {
             .descriptors()
             .map(|(label, desc)| (class_desc_symbol(label), desc.cast::<u8>()))
             .collect();
+        let functions = program
+            .functions
+            .iter()
+            .enumerate()
+            .map(|(index, function)| {
+                (
+                    function.name.clone(),
+                    (
+                        function_symbol(index, &function.name),
+                        MethodShape::of(&function.params),
+                    ),
+                )
+            })
+            .collect();
         Self {
-            _classes: classes,
+            classes,
             by_symbol,
+            functions,
+            statics: program
+                .statics
+                .iter()
+                .map(|prop| prop.default_value.clone())
+                .collect(),
         }
     }
 
@@ -759,6 +833,89 @@ impl Descriptors {
     #[must_use]
     pub fn resolve(&self, symbol: &str) -> Option<*const u8> {
         self.by_symbol.get(symbol).copied()
+    }
+
+    /// § 3's last step: hands every descriptor built here the addresses the
+    /// *loader* placed this unit's methods at, so a `CallVirtual` reaching one
+    /// of these classes dispatches to the payload's own code.
+    ///
+    /// `code` is the placed payload, read by symbol name — the loader's
+    /// counterpart to the `Module::get_finalized_function` that fills the same
+    /// rows on the JIT path ([`UnitBuilder::bind_method_tables`]). The name it
+    /// is asked for is derived here rather than by the loader, because
+    /// [`function_symbol`]'s index is the position in the `nvs_ir::Program`
+    /// this table was built from and only this end holds it.
+    ///
+    /// Runs **after** the pages are executable, and that is not a race: a row
+    /// is written into a descriptor this process owns, never back into the
+    /// mapping, which is why binding can follow `mprotect` rather than needing
+    /// a writable page. A `(method, declaring class)` pair the payload does not
+    /// define is skipped rather than being an error, on exactly the terms
+    /// [`UnitBuilder::bind_method_tables`] skips one — the front end has already
+    /// reported whatever left it behind, and `nvs_class_method`'s fallback keeps
+    /// the call correct regardless.
+    pub fn bind(&mut self, code: &dyn Placed) {
+        let functions = &self.functions;
+        for entry in self.classes.by_label.values() {
+            let methods = entry
+                .methods
+                .iter()
+                .filter_map(|(method, declaring, public)| {
+                    let label = format!("{declaring}::{method}");
+                    let (symbol, shape) = functions.get(&label)?;
+                    Some(nvs_runtime::MethodRow {
+                        name: method.clone(),
+                        code: code.address_of(symbol)?,
+                        arity: shape.arity,
+                        param_tags: shape.param_tags,
+                        public: *public,
+                        // Every row here is a compiled Novis function, for the
+                        // reason its JIT counterpart gives.
+                        native: false,
+                    })
+                })
+                .collect();
+            self.classes.table.set_methods(entry.id, methods);
+        }
+    }
+
+    /// The end of ADR 0042 § 3: these descriptors and `code`'s placed pages,
+    /// assembled into the same [`Unit`] a cold compile of the same program
+    /// would have produced.
+    ///
+    /// Every field a [`Unit`] carries is either something this table already
+    /// holds or something [`Self::of`]'s walk over the IR already read — an
+    /// address per function, from `code`; a shape per function, the class table
+    /// and the static-property defaults, from here. Nothing is asked of the
+    /// caller twice, which is what stops a unit being assembled against a
+    /// *different* program than its descriptors were built from. So both paths
+    /// hand their caller one type with one set of guarantees, and nothing above
+    /// this line has to know which one ran.
+    ///
+    /// [`Self::bind`] runs first, here rather than at the caller: a unit whose
+    /// method tables were left empty answers a `CallVirtual` through its
+    /// fallback, which is a wrong answer rather than a failure, and no caller
+    /// should be able to reach it by forgetting a call.
+    #[must_use]
+    pub fn into_unit(mut self, code: Box<dyn Placed>) -> Unit {
+        self.bind(code.as_ref());
+        let entries = self
+            .functions
+            .iter()
+            .filter_map(|(label, (symbol, _))| Some((label.clone(), code.address_of(symbol)?)))
+            .collect();
+        let shapes = self
+            .functions
+            .iter()
+            .map(|(label, (_, shape))| (label.clone(), *shape))
+            .collect();
+        Unit {
+            _code: Code::Placed(code),
+            classes: std::rc::Rc::new(self.classes.table),
+            entries,
+            shapes,
+            statics: self.statics,
+        }
     }
 }
 
@@ -1479,11 +1636,7 @@ impl<M: Module> UnitBuilder<M> {
             self.static_defaults.push(prop.default_value.clone());
         }
         for (index, function) in program.functions.iter().enumerate() {
-            // `index` only disambiguates the Cranelift symbol name: an Novis
-            // function name is not a valid symbol (`<script>` is the first
-            // counter-example), and two classes may declare the same method
-            // name.
-            let symbol = format!("nvs{index}_{}", sanitize(&function.name));
+            let symbol = function_symbol(index, &function.name);
             let id = self
                 .module
                 .declare_function(&symbol, Linkage::Local, &self.sigs.helper)
@@ -1595,7 +1748,7 @@ impl UnitBuilder<JITModule> {
             .map(|(name, id)| (name.clone(), self.module.get_finalized_function(*id)))
             .collect();
         Ok(Unit {
-            _module: self.module,
+            _code: Code::Jit(Box::new(self.module)),
             classes: std::rc::Rc::new(self.classes.table),
             entries,
             shapes: self.shapes,
@@ -1852,6 +2005,22 @@ impl Signatures {
             array_value_at,
         }
     }
+}
+
+/// The name this backend gives the function at `index` in
+/// `nvs_ir::Program::functions`.
+///
+/// The one home of that spelling, and it has two callers on purpose:
+/// [`UnitBuilder::compile_all`] declares every function under it, and
+/// [`Descriptors::of`] derives it again from the same walk over the same
+/// program so a loader can ask a placed payload for a method's address. Both
+/// ends index the very `nvs_ir::Program` a warm hit's front end just lowered
+/// (ADR 0042 § 2), so the index they hand in is the same one.
+fn function_symbol(index: usize, label: &str) -> String {
+    // `index` only disambiguates the symbol name: an Novis function name is not
+    // a valid symbol (`<script>` is the first counter-example), and two classes
+    // may declare the same method name.
+    format!("nvs{index}_{}", sanitize(label))
 }
 
 /// Whether `symbol` is the name this backend gave the function `label`.
