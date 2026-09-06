@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo build`, `cargo fmt --check`, `cargo test`, the `.nvst` trees through the binary the build
-just produced, `cargo clippy --all-targets -- -D warnings`, and -- once `editors/vscode` exists --
+`cargo fmt`, `cargo build`, `cargo test`, the `.nvst` trees through the binary the build just
+produced, `cargo clippy --all-targets -- -D warnings`, and -- once `editors/vscode` exists --
 that extension's headless suites, in that order, stopping at the first failure. Green prints one
-line per step; a failure prints that step's output and nothing else.
+line per step; a failure prints that step's output and nothing else. `fmt` is the one step that
+*writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
 
 `cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
 list. It is `--doc`, run alone, and `tools/loop.py` runs it periodically rather than every
@@ -12,7 +13,9 @@ verification -- see *Why `doc` is a periodic gate* below.
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
-status fields quote. They cost about fourteen seconds together. **Do not rebuild
+status fields quote. They cost about seven seconds together on a 16-thread machine, since
+`nvs test` runs cases as a pool (`nvs_test::run` has the measurement); serially they had grown to
+89s, half of every verification, and were paid again by the driver's sweep. **Do not rebuild
 `target/release/nvs.exe` to run a case** -- see `CASE_TREES` below for the measurement, and the
 playbook under *Running things*.
 
@@ -52,14 +55,28 @@ reach that watcher any sooner, and would cost the session the context this scrip
 This script judges nothing. A step's own exit status is the whole verdict -- there is no
 threshold here, no allowance, and no way to make a red step green from this file.
 
-## Why `fmt` runs second
+## Why `fmt` formats, and runs first
 
-It costs a second and needs no build, so a formatting slip should not cost a whole run --
-`.loop/logs` holds runs that paid `build=4s test=41s clippy=5s` before failing at `fmt`, and
-sessions had started typing `cargo fmt --all && python tools/verify.py` to work around it. It
-runs *second* rather than first because `cargo fmt --check` on unparseable code reports a
-rustfmt parse error, which is a far worse diagnostic than the one `cargo build` would have
-given for the same typo.
+It was `cargo fmt --check`, second, until it was measured. Over the 39 loop sessions in
+`.loop/logs` on 2026-09-06, 15 failed a verification at `fmt` -- more than every other red step
+combined (test 5, clippy or build 6, conformance 1) -- and every one of them was fixed the same
+way, `cargo fmt` and the run again, at a mean of 1.3 tool calls plus a second collection: about
+three calls and forty seconds a time, in two sessions of every five. Sessions had started typing
+`cargo fmt --all && python tools/verify.py` to pre-empt it, which is the tell.
+
+Measured on a copy of the tree: write-mode `cargo fmt --all` costs 2.0s, the same as `--check`,
+rewrites nothing on a clean tree, and on a file that does not parse it exits 1 and leaves the
+file untouched. So the step formats, and it runs *first*, so that `build` and everything after
+it compile the text the commit will carry and nothing is compiled twice. Its exit status is
+held rather than acted on: a parse error is a far better diagnostic coming from `build` one step
+later than from rustfmt, so the run goes on, and `fmt`'s own failure is reported only when every
+other step passed. rustfmt's `-l` names each file it rewrote, and the summary line quotes them
+so a session sees what changed under it. Because the step can rewrite the tree, the green
+cache's key is taken again after it when it did.
+
+What this trades: a second writer editing the same tree has its files formatted too. `--check`
+failed on those files just the same, so this is the smaller intrusion, but an Edit in flight
+against one of them can miss its anchor once.
 
 ## Why a second run on an unchanged tree is free
 
@@ -282,7 +299,12 @@ def summarize_doc(out):
 
 
 def summarize_fmt(out):
-    return "clean"
+    files = [line.strip() for line in out.splitlines() if line.strip().endswith(".rs")]
+    if not files:
+        return "clean"
+    named = ", ".join(Path(f).name for f in files[:3])
+    more = f", +{len(files) - 3} more" if len(files) > 3 else ""
+    return f"formatted {len(files)} file(s): {named}{more}"
 
 
 def summarize_cases(out):
@@ -326,11 +348,14 @@ def steps_for(opts):
     if opts.doc:
         return [doc_step(opts)]
     scope = ["-p", opts.package] if opts.package else []
-    steps = [Step("build", ["build", *scope], summarize_build)]
+    steps = []
     if not opts.fast:
-        # `cargo fmt --check` takes no -p in the shape this workspace uses it, and it is a
-        # second, so it goes ahead of the two expensive steps -- see the module docstring.
-        steps.append(Step("fmt", ["fmt", "--check"], summarize_fmt))
+        # Write mode, first, with its exit status held until the end -- *Why `fmt` formats* in
+        # the module docstring. `-l` is rustfmt's: name each file rewritten, which is what the
+        # summary line quotes. It takes no -p in the shape this workspace uses it, and the whole
+        # tree is two seconds.
+        steps.append(Step("fmt", ["fmt", "--all", "--", "-l"], summarize_fmt))
+    steps.append(Step("build", ["build", *scope], summarize_build))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:
         # The `.nvst` trees, through the binary `build` above just produced. Until this step
@@ -534,7 +559,8 @@ BACKGROUND = ROOT / ".agent-tmp" / "verify-background.log"
 DONE = ROOT / ".agent-tmp" / "verify-background.done"
 
 #: How long `--wait` will hold before reporting that something is wrong rather than blocking a
-#: session forever. A full run is ~42s; this is generous by an order of magnitude on purpose.
+#: session forever. A full run was ~42s when this was set and 146s at its worst since, so it is
+#: still generous by a multiple on purpose.
 BACKGROUND_TIMEOUT = 600.0
 
 
@@ -644,12 +670,23 @@ def main():
 
     done = []
     failed = None
+    deferred = None  # `fmt` red: reported only if nothing after it is -- the module docstring
     for step in steps:
         progress(done, step, len(steps))
-        if not run(step):
+        ok = run(step)
+        if step.name == "fmt":
+            if step.out.strip():
+                # It rewrote files, so the verdict belongs to the tree the rest of the run reads.
+                key = tree_key()
+            if not ok:
+                deferred = step
+                continue
+        elif not ok:
             failed = step
             break
         done.append(step)
+    if failed is None and deferred is not None:
+        failed = deferred
     progress(done, finished=1 if failed else 0)
 
     total = sum(s.seconds for s in done) + (failed.seconds if failed else 0)
@@ -663,7 +700,7 @@ def main():
 
     drop_verdict()
     print(f"verify: FAILED at {failed.name} "
-          f"(step {len(done) + 1} of {len(steps)}) after {clock(total)}{scope}")
+          f"(step {steps.index(failed) + 1} of {len(steps)}) after {clock(total)}{scope}")
     for s in done:
         print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
     print(f"  {failed.name:<13} {'---':>6}   exit {failed.code}")

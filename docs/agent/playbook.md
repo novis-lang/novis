@@ -1911,11 +1911,12 @@ is why" — is this file.
 - **`cargo fmt --all` mid-session re-prints every file you had already read.** The harness sees each
   file the formatter rewrote as "changed on disk since you last read it" and pastes its current
   content back into the context: one run after four edits reformatted two files and cost about 8k for
-  a pass whose own output was two path names. `python tools/verify.py` runs `cargo fmt --check` as
-  step 2 and prints the one diff it found, which is the same answer for a few hundred tokens — so let
-  the gate find the formatting and fix that diff with `Edit`, rather than formatting the tree by hand
-  first. The same trap applies to any tool that rewrites a file you have open: `session.py --wrap` is
-  safe only because the session ends there.
+  a pass whose own output was two path names. `python tools/verify.py` now runs `cargo fmt` in write
+  mode as step 1 and its summary line names the files it rewrote — so a formatting slip costs that
+  re-print once, inside the gate, and never a second run; the `formatted N file(s)` line is the tell
+  that it happened. Write formatted code and there is nothing to re-print. The same trap applies to
+  any tool that rewrites a file you have open: `session.py --wrap` is safe only because the session
+  ends there.
 - **A `loop-goal.toml` check whose name is a conjunction can have its two halves in two *crates*, and
   the tell is that one half names a compile-time fact.** § 7's
   `a_mounts_captures_reach_the_handler_as_tainted_values` was filed `-p nvs-server`, and the door's
@@ -2179,8 +2180,9 @@ is why" — is this file.
 - **A bulk edit that shortens Rust lines makes `cargo fmt` dirty, so format before you verify.**
   Replacing a 48-character ADR link with a 23-character `rule:` token unwraps doc comments and
   `panic!` arguments that rustfmt had wrapped correctly, so a transaction right in every other way
-  fails on fmt alone. `cargo fmt --all -- --check` names the files first, which is what you need if
-  you are recording originals for a rollback; then `cargo fmt --all`.
+  would have failed on fmt alone; `verify.py`'s first step now formats the tree itself and names the
+  files. `cargo fmt --all -- -l` is that same listing by hand, for when you are recording originals
+  for a rollback before the gate runs.
 - **Writing a tree file through Python's text mode rewrites every line ending on this checkout.**
   `Path.read_text` maps `\r\n` to `\n` and `write_text` writes back what it was handed, so a script
   that changed one word in 250 files reports 250 modified files with an empty `git diff`. Harmless

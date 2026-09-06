@@ -46,7 +46,7 @@ added; that file is authoritative for steps 1–5.
 3. **Verify once, at the end of the group — and start it before you write the wrap.** `python
    tools/verify.py --start` returns at once, `python tools/verify.py --wait` collects it with its exit
    status, and the wrap file gets written in between: it is the same steps and the same verdict, with the
-   42 seconds overlapping prose that cannot fail. Add a `valgrind` run for any new refcount edge
+   run's minute or two overlapping prose that cannot fail. Add a `valgrind` run for any new refcount edge
    (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole group shares
    one run — it is the same build either way. A mid-work check is `--fast` or `-p <crate>`, never the full
    gate.

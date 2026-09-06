@@ -210,9 +210,10 @@ It is the same verification: the same steps in the same order, the same green ca
 Nothing is traded for the overlap, which is why this is the shape to use for step 3 whenever the wrap is
 the next thing you were going to do anyway.
 
-`verify.py` runs `cargo build`, `fmt --check`, `test` and `clippy --all-targets -- -D warnings` in that
-order, stops at the first failure, and prints about ten lines when green — the four separately are four
-calls and tens of thousands of tokens of output nobody reads once it passes. Every step's full output is
+`verify.py` runs `cargo fmt`, `build`, `test`, the two `.nvst` trees, `reference.py` and
+`clippy --all-targets -- -D warnings` in that order, stops at the first failure, and prints about ten
+lines when green — run separately those are seven calls and tens of thousands of tokens of output nobody
+reads once it passes. Every step's full output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
@@ -223,9 +224,10 @@ anyway. Nobody needs to type it: the driver's `DOC_GATE_EVERY` fires it between 
 every session while it is red, and a red gate arrives in the next pack under *THE RUSTDOC GATE IS RED*.
 `tools/verify.py` § *Why `doc` is a periodic gate rather than a step* is the whole argument.
 
-`fmt` is second, not last, because it costs a second and a formatting slip should not cost a whole run;
-it is not *first* because `cargo fmt --check` on unparseable code reports a rustfmt parse error instead
-of the compiler diagnostic that typo deserves.
+`fmt` is first, and it **formats rather than checks**: a `--check` was the red step in 15 of 39 loop
+sessions, each fixed with `cargo fmt` and a second run, and write mode costs the same two seconds. Its
+summary line names every file it rewrote, and its exit status is held to the end so a parse error is
+still reported by `build`. `tools/verify.py` § *Why `fmt` formats, and runs first* is the measurement.
 
 **A repeat run on an unchanged tree is free** — about two tenths of a second. The green verdict is cached
 against a content hash of every file cargo reads plus the exact `rustc -vV`, so a second run after step 4
