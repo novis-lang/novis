@@ -48,6 +48,45 @@ fn a_call_to_the_units_own_function_is_not_colocated() {
 }
 
 #[test]
+fn a_reference_to_the_units_own_data_is_not_colocated() {
+    // The same 2 GiB range limit as the test above, on the other kind of
+    // symbol. A string literal is `Linkage::Local` data, so `is_final()` is
+    // true and `symbol_value` lowers to a PC-relative address; `cranelift-jit`
+    // allocates the data blob separately from the code that reads it, and the
+    // ASan leg spreads them far enough apart to overflow the relocation. A
+    // class descriptor is an `Import` and arrives non-colocated already, which
+    // is why only the literal path had the bug and why both go through the
+    // helper now.
+    //
+    // Every site is checked, not just one, because a grep for the helper's
+    // name passes as soon as *any* caller keeps it — which is how the first
+    // version of this test would have let the literal path regress in silence.
+    let source = emitter();
+    let sites: Vec<_> = source
+        .lines()
+        .zip(source.lines().skip(1))
+        .filter(|(line, _)| line.contains("declare_data_in_func("))
+        .collect();
+    assert!(
+        !sites.is_empty(),
+        "backend_policy can no longer find the data-import sites it guards; `emit.rs` names \
+         them differently now, and this test is checking nothing."
+    );
+    for (site, next) in sites {
+        assert!(
+            next.contains("self.clear_colocated(global)"),
+            "nvs-codegen no longer clears `colocated` on a reference to one of the unit's own \
+             data symbols: `{}` is not followed by the call. A string literal is \
+             `Linkage::Local`, so it would be addressed PC-relative again, and a data \
+             allocation further than 2 GiB from the code reading it panics cranelift-jit \
+             rather than running. If this is deliberate, the reasoning belongs beside \
+             `clear_colocated`.",
+            site.trim()
+        );
+    }
+}
+
+#[test]
 fn stack_probes_are_enabled() {
     // Cranelift defaults `enable_probestack` to false. Off means a frame
     // larger than the guard page can step over it in one move and write past
