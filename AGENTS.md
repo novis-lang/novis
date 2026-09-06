@@ -149,10 +149,12 @@ Step 5 above, in detail:
 - The handoff is `docs/agent/handoff.md`: **overwrite it**, never append, so it describes where the work
   stands now rather than the path taken to get here. Its shape is in
   [docs/agent/session-prompt.md](docs/agent/session-prompt.md). Then show the user the same prompt in chat.
-- **The playbook is the opposite file.** [docs/agent/playbook.md](docs/agent/playbook.md) is append-mostly:
-  add a bullet when a trap costs you time, edit one when it stops being true, and otherwise leave it
-  alone. Never reword it to say the same thing differently — this lore lived inside the handoff until it
-  was two thirds of it, regenerated in full every session, and the rewording was the whole cost.
+- **The playbook is the opposite file.** [docs/agent/playbook.md](docs/agent/playbook.md) holds traps,
+  not history: add a three-sentence bullet with an `[until:]` trailer when a trap costs you time
+  ([conventions.md](docs/agent/conventions.md) § *A playbook bullet*), edit one when it stops being true,
+  and otherwise leave it alone. Never reword a bullet to say the same thing differently, and never write
+  the session's story into one — `git log` is the changelog, and the wrap deletes a bullet the day its
+  trailer's condition holds.
 - The process docs drift as decisions land. Periodically — the user fires this by hand, never you
   automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
 - Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,

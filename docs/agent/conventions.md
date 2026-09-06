@@ -448,3 +448,23 @@ python tools/plan.py --set "Open now" --from <file>   # replace it
 
 The field set is fixed and `plan.py` refuses a name that is not already there. Write the new text with
 the Write tool; `--set` re-wraps that one field and leaves every other byte of the file alone.
+
+## A playbook bullet
+
+```
+- **<The trap, as one claim a reader can match against their own symptom.>** <Why it happens, one
+  or two sentences.> <What to do instead, one sentence naming the file, flag, command or rule.>
+  [until: <kind> <arg>]
+```
+
+Three sentences and about 400 bytes; `session.py --wrap` refuses a new bullet past 700. The first
+sentence is the bullet's selector — a goal manifest fetches it by a substring of that bold text — so it
+states the trap and not the story. The trailer is required, and `tools/playbook.py`'s module doc is the
+only home of its five kinds: prefer the mechanical ones (`test`, `exists`, `gone`, `rule`) over
+`reviewed`, because those are what let the wrap delete the bullet for you the day it stops being true.
+
+What does **not** go in: the session's narrative (which stage, which check, what was tried first —
+`git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,
+`AGENTS.md`), or a trap whose whole subject is a stale comment in `loop-goal.toml` or a wrong claim in a
+handoff — fix the comment instead. `python tools/playbook.py --match <path>` before writing says whether
+the trap is already there.

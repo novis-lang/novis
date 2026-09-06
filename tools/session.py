@@ -122,6 +122,12 @@ DOCS = ROOT / "docs"
 AGENT = DOCS / "agent"
 PLAN = DOCS / "implementation-plan.md"
 PLAYBOOK = AGENT / "playbook.md"
+#: The most a new `## playbook:` bullet may weigh, trailer included. A bullet is charged to every
+#: session whose item names its file, and at a median 849 bytes the file had become the sessions'
+#: changelog rather than their traps; the shape (three sentences, ~400 B) is
+#: docs/agent/conventions.md § *A playbook bullet*. This is a gate on a NEW bullet only -- the one
+#: moment the cost of trimming it is a sentence, not a session's tail spent shaving prose.
+PLAYBOOK_BULLET_MAX = 700
 HANDOFF = AGENT / "handoff.md"
 RUNDIR = ROOT / ".loop"
 STATUS = RUNDIR / "status.txt"
@@ -424,11 +430,31 @@ def dirty_generated() -> list[str]:
     return [ln[3:].strip() for ln in out.split("\n") if ln.strip()]
 
 
-def uncommitted_writes(sections: list[Section]) -> list[str]:
-    """What this wrap writes -- or `verify.py` wrote under it -- that no `## commit:` carries."""
+def uncommitted_writes(sections: list[Section], extra: list[str] = ()) -> list[str]:
+    """What this wrap writes -- or `verify.py` wrote under it, or `retire_expired` changed --
+    that no `## commit:` carries."""
     specs = [spec for s in sections if s.kind == "commit" for spec in s.arg.split()]
-    owed = list(written_paths(sections)) + dirty_generated()
+    owed = list(written_paths(sections)) + dirty_generated() + list(extra)
     return [p for p in owed if not any(covers(spec, p) for spec in specs)]
+
+
+def retire_expired(dry: bool) -> list[str]:
+    """Delete every bullet whose `[until:]` condition holds, and name the files that changed.
+
+    Every wrap does this, before anything is staged, because the trailer exists so that no reader
+    decides an expiry twice: `playbook.py --retire` is the one write that script makes, and calling
+    it here is what turns a declared condition into a deletion without a session remembering to.
+    It refuses nothing -- a bullet that declares nothing is `--check`'s finding, and `run_retire`
+    says so and deletes nothing. The changed files join the last `## commit:` like any other doc
+    the wrap wrote, so `git log` names what expired in the same commit that closes the session."""
+    expired, _owed, bad, _rows = playbookmod.expiry_report()
+    if bad or not expired:
+        return []
+    files = sorted({e["file"] for e in expired})
+    say(f"session.py: {len(expired)} bullet(s) whose retirement condition holds -- "
+        f"{'would retire' if dry else 'retiring'} them from {', '.join(files)}")
+    playbookmod.run_retire(dry)
+    return files
 
 
 def validate(sections: list[Section]) -> list[str]:
@@ -515,6 +541,13 @@ def validate(sections: list[Section]) -> list[str]:
                         f"`## playbook: {s.arg}` -- the bullet declares nothing that retires it. "
                         f"End it with `[until: <kind> <arg>]`; the five kinds are in "
                         f"tools/playbook.py's module doc.")
+                weight = len(s.body.strip().encode("utf-8"))
+                if weight > PLAYBOOK_BULLET_MAX:
+                    errors.append(
+                        f"`## playbook: {s.arg}` -- {weight} B is past the {PLAYBOOK_BULLET_MAX} B "
+                        f"a bullet may weigh. A bullet is the trap, why, and what to do instead -- "
+                        f"three sentences, docs/agent/conventions.md § *A playbook bullet*. The "
+                        f"session's story (which stage, what was tried first) is git log's.")
                 for sel in playbook_collisions(s.arg, s.body):
                     errors.append(
                         f"`## playbook: {s.arg}` -- appending this bullet leaves "
@@ -1039,7 +1072,7 @@ def wrap(path: Path, dry: bool) -> int:
     # that closes the session. Explicit is still better -- `--template` pre-fills the section --
     # and when the session was explicit this finds nothing to do.
     commits = [s for s in ordered if s.kind == "commit"]
-    owed = uncommitted_writes(sections)
+    owed = uncommitted_writes(sections, retire_expired(dry))
     if owed and commits:
         commits[-1].arg = " ".join(commits[-1].arg.split() + owed)
         commits[-1].added = owed
