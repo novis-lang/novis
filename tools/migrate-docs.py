@@ -809,9 +809,24 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
 
     state["units"].setdefault(doc["unit"], {})["status"] = "done"
     state["units"][doc["unit"]]["applied"] = date.today().isoformat()
+    # The remap table is banked with the unit, because nothing else keeps it. The apply-file lives
+    # in a session's scratchpad and the rewrite leaves no trace of which anchor became which rule;
+    # C8's sweep, which has to finish the ~70 citations whose sections split across two topics,
+    # needs exactly that table for every landed chapter -- and B1's had to be recovered from its
+    # commit's diff, line pair by line pair, because it was not kept.
+    if doc["remap"]:
+        state["units"][doc["unit"]]["remap"] = {
+            normalize_anchor(a): rid for a, rid in sorted(doc["remap"].items())
+        }
     save_state(state)
     print(f"\nunit {doc['unit']} applied and gated clean. commit it, then --next.")
     return 0
+
+
+def normalize_anchor(anchor: str) -> str:
+    """`0085 § 2`, `0085 §2` and `0085` -> the work order's spelling, `0085 §2` or `0085`."""
+    record, _, section = anchor.partition("§")
+    return f"{record.strip()} §{section.strip()}" if section else record.strip()
 
 
 #: One entry in a citation's section list: `2`, `2a`, the range `2-3`, or a named section like
