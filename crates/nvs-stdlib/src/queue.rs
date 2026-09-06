@@ -23,9 +23,9 @@
 //! **The schema is this module's, and `nvs queue migrate` reads it.** § 2 makes the runtime own one
 //! jobs table and one dead-letter table, created by an explicit operator command — DDL is an
 //! injection sink and never issued from a request — so `push` writes into a table it does not create.
-//! [`MIGRATION_POSTGRES`] and [`MIGRATION_MYSQL`] are that command's whole schema — one list per
-//! dialect, the same columns in each, and the one home for what those tables' columns are;
-//! `nvs-cli`'s `queue` module runs a list and decides nothing about it. Two choices in it are worth their
+//! [`schema`] is that command's whole schema — one `nvs_db::Schema` value, written in no dialect at
+//! all, and the one home for what those tables' columns are; `nvs-cli`'s `queue` module converges a
+//! database onto it and decides nothing about it. Two choices in it are worth their
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of `rule:core-classes/db-one-api`'s backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
@@ -45,15 +45,14 @@
 //! 2. **`$args` is `mixed` and so does not refuse a `secret`**, which § 1 asks for. A durable row is
 //!    an output and `rule:security/secret-qualifier`'s five sinks are the shape of the eventual answer; `CoreTy::Mixed`
 //!    carries no qualifier, so saying it needs a spelling the registry has not got.
-//! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the index
-//!    only where the migration has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
+//! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
+//!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
-//!    *serialized* transaction and racy against a concurrent one at `read committed`. Both
-//!    migration lists carry the constraint under the name `nvs_jobs_dedupe` — a partial unique
-//!    index on PostgreSQL, a unique key over a stored generated column on MySQL — and the
-//!    statement is race-free against a schema carrying it without changing shape — so what is left
-//!    of this gap is a deployment that never ran `nvs queue migrate`, which is the one case the
-//!    index is absent in.
+//!    *serialized* transaction and racy against a concurrent one at `read committed`. [`schema`]
+//!    carries the constraint under the name `nvs_jobs_dedupe`, a plain unique key over the
+//!    `dedupe_pending` column every statement here maintains, and the statement is race-free
+//!    against a schema carrying it without changing shape — so what is left of this gap is a
+//!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
 //! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
@@ -123,13 +122,13 @@ const JOBS_TABLE: &str = "nvs_jobs";
 
 /// § 6's dead-letter table, unqualified for [`JOBS_TABLE`]'s reason.
 ///
-/// **Two of its columns are all this module reads, and [`MIGRATION_POSTGRES`] is where every one of them is
+/// **Two of its columns are all this module reads, and [`schema`] is where every one of them is
 /// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
 /// `Core\Queue\Id` handed out before the job exhausted its attempts still names it afterwards, and
 /// that pair is the whole of what [`STATUS_POSTGRES`] and [`COUNTS_POSTGRES`] ask of the table. What else the row
-/// carries — § 6's payload, every attempt's error and its timing — is decided by the DDL below and
-/// not by the worker that will write one: a column has to exist before anything can move a row into
-/// it, so the migration is the earlier of the two decisions and the only one there is room for.
+/// carries — § 6's payload, every attempt's error and its timing — is decided by [`schema`] and not
+/// by the worker that will write one: a column has to exist before anything can move a row into it,
+/// so the schema is the earlier of the two decisions and the only one there is room for.
 const DEAD_TABLE: &str = "nvs_dead_jobs";
 
 /// `Core\Queue\State::Pending`'s ordinal, which is what a freshly pushed row's `state` is.
@@ -141,242 +140,57 @@ const DEAD_TABLE: &str = "nvs_dead_jobs";
 /// [`STATE`]'s own cases.
 const PENDING: i16 = 0;
 
-/// One statement of § 2's schema, under the name an operator sees it by.
+/// One statement of [`schema`]'s DDL, under the name an operator sees it by.
 ///
-/// A **label** rather than a table name, because three of the five statements below are indexes on a
-/// table an earlier one created, and the question an operator reading `nvs queue migrate` has is
-/// which of § 2's *two* tables a statement belongs to. So the label is that table's role in the ADR
-/// — `jobs` or `dead_letter` — dotted with what the statement adds when it is not the `create table`
-/// itself, and what those tables are actually called stays [`JOBS_TABLE`]'s and [`DEAD_TABLE`]'s
-/// business for the reason those two constants give.
+/// A **label** rather than a table name, because a dialect may build a table's indexes as statements
+/// of their own, and the question an operator reading `nvs queue migrate` has is which of § 2's
+/// *two* tables a statement belongs to. So the label is that table's role in the ADR — `jobs` or
+/// `dead_letter` — and what those tables are actually called stays [`JOBS_TABLE`]'s and
+/// [`DEAD_TABLE`]'s business for the reason those two constants give.
+///
+/// **The statement is owned rather than borrowed**, because there is one schema value and four
+/// dialects: no dialect's text exists until a driver asks [`migration`] for it, and a `&'static str`
+/// would be exactly the transcription of the value that the value exists to make unnecessary.
 #[derive(Debug)]
 pub struct Migration {
-    /// Which of § 2's two tables this statement builds, dotted with what it adds to it.
+    /// Which of § 2's two tables this statement builds.
     pub label: &'static str,
     /// The statement, carrying no separator: a driver is handed one statement at a time, and the
     /// `;` belongs to whatever is printing them for a human instead.
-    pub sql: &'static str,
+    pub sql: String,
 }
 
-/// `rule:core-classes/queue-storage-is-a-table`'s schema in PostgreSQL's dialect, in the order `nvs queue migrate` runs it.
+/// [`schema`]'s two tables as the statements that build them in `driver`'s dialect, in order.
 ///
-/// **This is one of two homes for what the queue's tables are, and [`MIGRATION_MYSQL`] is the
-/// other** — one list per dialect rather than one list with holes in it. The identity column, the
-/// partial index and `create index if not exists` are each spelt differently across § 2's five
-/// backends, and two of those three have no MySQL spelling at all, so a string interpolating a
-/// dialect into itself would have stopped being a statement before it covered the second backend.
-/// What the two lists share is the *column list*, which is the part any statement in this module
-/// binds or reads: `the_ddl_creates_every_column_the_statements_name` walks both against those
-/// statements, so a column renamed in one dialect and nowhere else fails that test rather than a
-/// deployment.
+/// **Total, where a list per dialect could not be.** Every driver has an answer because the schema
+/// is one value and `nvs_db::ddl` emits it in all four dialects, so the question an operator's
+/// backend faces is no longer whether anybody wrote its list. The statements are emitted on demand
+/// rather than held as constants for the same reason: a constant per dialect is a transcription of
+/// the value, and a transcription is the thing that drifts.
 ///
-/// The command reads a list rather than carrying a copy, and which one it reads is the driver's
-/// answer — [`no_dialect`] is where the reading that a *statement* is still PostgreSQL-only lives
-/// (gap 5), and it is now a narrower gap than this constant's: the schema has both dialects and
-/// §§ 1 and 4's statements have one.
+/// **This is the offline half of `nvs queue migrate`**, which prints the schema for a database it
+/// does not open — the create-from-nothing reading of a value that says what the tables *should
+/// be*. The applying half converges instead: `nvs_db::ddl` writes no `if not exists`, and
+/// `rule:core-classes/schema-converges`'s plan is what makes running the command twice safe, by
+/// being computed against the database as it is rather than by a construct that pretends a second
+/// run is the first.
 ///
-/// **`if not exists` on every one, because § 2 says *created and upgraded*.** Running the command
-/// twice is not an error and running it against a half-built schema completes it, which is what
-/// makes it an operator's ordinary answer to "is this deployment's queue ready" rather than a
-/// one-shot they have to remember having run.
-///
-/// Three things in it are decisions rather than transcription:
-///
-/// - **Every instant is a `bigint` of epoch milliseconds** and never a timestamp — this module's own
-///   doc owns why, and it is the dialect argument above applied to the type map.
-/// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
-///   `[queue] visibility` measured from it, so the bound stays in configuration where
-///   `rule:config/the-config-is-an-immutable-snapshot`'s reload can move
-///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
-/// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
-///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
-///   **It is one entry deep, and that entry is the attempt that exhausted the job**, because the
-///   jobs table above has nowhere to keep what an earlier attempt threw: [`RETRY_POSTGRES`] arms a
-///   row for the next attempt and keeps the count and nothing else. Recording all of them would be
-///   a text column on `nvs_jobs` appended to on every failure — a row rewritten once per attempt,
-///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
-///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
-///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
-///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
-pub const MIGRATION_POSTGRES: &[Migration] = &[
-    Migration {
-        label: "jobs",
-        sql: "create table if not exists nvs_jobs (\
-              id bigint generated always as identity primary key, \
-              queue text not null, \
-              script text not null, \
-              args text, \
-              state smallint not null, \
-              attempts int not null, \
-              max_attempts int not null, \
-              backoff_ms bigint not null, \
-              run_at bigint not null, \
-              dedupe_key text, \
-              created_at bigint not null, \
-              claimed_at bigint)",
-    },
-    Migration {
-        // Gap 3's index, and the one statement here that changes what a member *means*: with it in
-        // place `INSERT_POSTGRES`'s `existing` arm is race-free against a concurrent push at `read
-        // committed`, because the second insert is refused by the index rather than admitted by a
-        // guard that read the table a moment earlier.
-        label: "jobs.dedupe",
-        sql: "create unique index if not exists nvs_jobs_dedupe \
-              on nvs_jobs (dedupe_key) where state = 0",
-    },
-    Migration {
-        // § 4's claim order, as the index the claim statement will read: the oldest due job of one
-        // queue that nothing holds. A row with no `dedupe_key` is indexed here and not above,
-        // which is the ordinary case and the reason these are two indexes.
-        label: "jobs.due",
-        sql: "create index if not exists nvs_jobs_due on nvs_jobs (queue, state, run_at)",
-    },
-    Migration {
-        label: "dead_letter",
-        sql: "create table if not exists nvs_dead_jobs (\
-              id bigint primary key, \
-              queue text not null, \
-              script text not null, \
-              args text, \
-              attempts int not null, \
-              max_attempts int not null, \
-              backoff_ms bigint not null, \
-              run_at bigint not null, \
-              dedupe_key text, \
-              created_at bigint not null, \
-              failed_at bigint not null, \
-              errors text not null)",
-    },
-    Migration {
-        // `COUNTS_POSTGRES`'s fourth counter is a scalar subquery over this table, keyed on the queue and on
-        // nothing else, so the depth of one queue's dead letters costs a lookup rather than a scan
-        // of every queue's.
-        label: "dead_letter.queue",
-        sql: "create index if not exists nvs_dead_jobs_queue on nvs_dead_jobs (queue)",
-    },
-];
-
-/// The list § 2's schema is written in for `driver`, or `None` for a driver it has no dialect for.
-///
-/// **The one place a dialect is chosen**, which is the same rule that put the schema in this module
-/// rather than in `nvs queue migrate`: the command runs a list and decides nothing about it, so a
-/// backend gaining a dialect is one arm here and no edit there. MariaDB shares MySQL's list for
-/// [`MIGRATION_MYSQL`]'s stated reason.
-///
-/// **`None` is exactly the two drivers that run no statement at all** — [`crate::db`]'s gap 2 —
-/// and that agreement is held by `the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one`
-/// rather than by two lists that happen to match. A schema for a backend nothing can send it to
-/// would be a dialect nobody could check against a server, so the schema follows the driver rather
-/// than leading it.
+/// Every statement the emitter writes names one of § 2's two tables, which is what makes the label
+/// total; `every_statement_of_the_schema_names_one_of_the_two_tables` is that assertion.
 #[must_use]
-pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
-    match driver {
-        nvs_db::Driver::Postgres => Some(MIGRATION_POSTGRES),
-        nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => Some(MIGRATION_MYSQL),
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => None,
-    }
+pub fn migration(driver: nvs_db::Driver) -> Vec<Migration> {
+    nvs_db::ddl::create_schema(&schema(), nvs_db::Dialect::of(driver))
+        .into_iter()
+        .map(|sql| Migration {
+            label: if sql.contains(DEAD_TABLE) {
+                "dead_letter"
+            } else {
+                "jobs"
+            },
+            sql,
+        })
+        .collect()
 }
-
-/// `rule:core-classes/queue-storage-is-a-table`'s schema in MySQL's dialect, which MariaDB runs unchanged.
-///
-/// **The same columns as [`MIGRATION_POSTGRES`] and a different spelling of every construct around
-/// them**, which is what that constant's doc means by one list per dialect. Both are walked by
-/// `the_ddl_creates_every_column_the_statements_name` against the same statements, so the two lists
-/// cannot drift in the only way that would matter — the column names — while differing freely in
-/// the four ways below, each of which is a decision this doc owes a sentence.
-///
-/// **MariaDB shares it rather than earning a third list.** It is its own driver for the reasons
-/// `rule:core-classes/db-one-api` gives — its own authentication roster, its own § 8
-/// error table — and none of those reach DDL: every construct here is one MariaDB spells exactly as
-/// MySQL does, stored generated columns included (10.2 and later). A separate list would be two
-/// copies of one text with no line differing, which is the drift this module's one-home rule exists
-/// to prevent rather than an accommodation of a real difference. A construct that does diverge
-/// later splits the list on that day.
-///
-/// **Two statements rather than five, because `create index if not exists` does not exist on
-/// MySQL** — the syntax is simply absent, and `create index` against an index already there is an
-/// error rather than a no-op. So each table's indexes are declared *inside* its own `create table if
-/// not exists`, which keeps § 2's *created and upgraded* reading in the form that matters to an
-/// operator: running `nvs queue migrate` twice is not an error, and there is no half-built state for
-/// the second run to complete, because a table and its indexes arrive in one statement or not at
-/// all. What this dialect cannot do is add an index to a table an *older* Novis created; that is a
-/// schema change with no `if not exists` to hide behind on this backend, and it is the migration
-/// command's problem on the day there is one to make rather than something a spelling here avoids.
-///
-/// **The dedupe index is a stored generated column with a plain unique index over it**, because
-/// MySQL has no partial index at all. `case when state = 0 then dedupe_key else null end` is `where
-/// state = 0` said on the other side: a row that is not pending stores `null` in the generated
-/// column, and MySQL's unique indexes do not collide on `null`, so exactly the pending rows are
-/// constrained and every other row is invisible to the constraint. That is the same guarantee gap
-/// 3's index gives on PostgreSQL — [`INSERT_POSTGRES`]'s `existing` arm is refused by the index rather than
-/// admitted by a guard that read the table a moment earlier — reached by the construct MySQL does
-/// have. It costs one indexed column of storage per row, which is what a partial index costs
-/// nothing for and is priority 5 spent to buy priority 2.
-///
-/// **The two indexed columns are `varchar(255)` where PostgreSQL writes `text`.** MySQL cannot
-/// index a `text` column without a prefix length, and a prefix-unique index is not the constraint §
-/// 3 asks for — it would refuse two distinct dedupe keys that share their first *n* bytes, turning
-/// a uniqueness rule into a collision. 255 is what fits InnoDB's 3,072-byte key limit at
-/// `utf8mb4`'s four bytes a character with room for the rest of the `jobs.due` key, and the table
-/// declares that charset itself: `rule:core-classes/db-capabilities` forces the *connection's* charset, which says nothing
-/// about the columns a `create table` builds, and a server still defaulting to `latin1` would
-/// otherwise store text `rule:types/bytes` guarantees is UTF-8
-/// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
-/// storage's: `for update skip locked` is a row lock, and it is the engine that has them.
-///
-/// **Every unbounded column is `longtext` and none is `text`**, which is the one place this list
-/// follows `nvs_db::schema`'s vocabulary rather than MySQL's own range of widths. That vocabulary
-/// has a single unbounded text type and on this backend it is `longtext`
-/// (`nvs_db::ddl::column_type`), so a `text` column is one `nvs schema plan` cannot name at all —
-/// it refuses the whole read rather than reporting a difference it has no vocabulary for, and the
-/// two tables here would then be the reason an operator could not introspect their own database.
-/// A path fits either width; being readable by the tool that is about to own this schema does not.
-///
-/// `id bigint not null auto_increment` is the identity column, `longtext` carries the two payloads
-/// that are a caller's JSON rather than a name — `args` and the dead-letter `errors` array — and
-/// every instant stays the `bigint` of epoch milliseconds this module's own doc argues for, which
-/// is the one place the two dialects needed no translation at all.
-pub const MIGRATION_MYSQL: &[Migration] = &[
-    Migration {
-        label: "jobs",
-        sql: "create table if not exists nvs_jobs (\
-              id bigint not null auto_increment primary key, \
-              queue varchar(255) not null, \
-              script longtext not null, \
-              args longtext, \
-              state smallint not null, \
-              attempts int not null, \
-              max_attempts int not null, \
-              backoff_ms bigint not null, \
-              run_at bigint not null, \
-              dedupe_key varchar(255), \
-              created_at bigint not null, \
-              claimed_at bigint, \
-              dedupe_pending varchar(255) \
-              generated always as (case when state = 0 then dedupe_key else null end) stored, \
-              unique key nvs_jobs_dedupe (dedupe_pending), \
-              key nvs_jobs_due (queue, state, run_at)\
-              ) engine=innodb default charset=utf8mb4",
-    },
-    Migration {
-        label: "dead_letter",
-        sql: "create table if not exists nvs_dead_jobs (\
-              id bigint not null primary key, \
-              queue varchar(255) not null, \
-              script longtext not null, \
-              args longtext, \
-              attempts int not null, \
-              max_attempts int not null, \
-              backoff_ms bigint not null, \
-              run_at bigint not null, \
-              dedupe_key varchar(255), \
-              created_at bigint not null, \
-              failed_at bigint not null, \
-              errors longtext not null, \
-              key nvs_dead_jobs_queue (queue)\
-              ) engine=innodb default charset=utf8mb4",
-    },
-];
 
 /// How wide every indexed text column of § 2's schema is.
 ///
@@ -389,28 +203,26 @@ pub const MIGRATION_MYSQL: &[Migration] = &[
 const KEY_WIDTH: u32 = 255;
 
 /// `rule:core-classes/queue-storage-is-a-table`'s two tables as one [`nvs_db::Schema`] value, which
-/// is what the hand-written lists above collapse into.
+/// is the one home for what the queue's tables are.
 ///
-/// **One value and four dialects, where the lists were two dialects and three backends with none.**
-/// [`MIGRATION_POSTGRES`] and [`MIGRATION_MYSQL`] each spell the same columns in their own SQL, so
-/// SQL Server and SQLite have no schema at all and a third dialect would be a third transcription
-/// of one column list. `nvs_db::ddl` already emits every construct here in all four dialects, so the
-/// columns are decided once and the spelling is the emitter's — which is what gives those two
-/// backends the support `rule:core-classes/queue-storage-is-a-table` already claims for them.
+/// **One value and four dialects.** The columns are decided here and the spelling is
+/// `nvs_db::ddl`'s, so every backend `rule:core-classes/db-one-api` names has this schema rather
+/// than the two that someone wrote a `create table` for — and a third dialect is the emitter's
+/// business rather than a third transcription of one column list. [`migration`] is that emission,
+/// and `nvs schema plan` converges a live database onto the same value.
 ///
-/// **`dedupe_pending` is the one construct the retirement had to decide**, and it is decided here.
-/// [`MIGRATION_POSTGRES`] dedupes with a *partial* unique index (`… where state = 0`) and
-/// [`MIGRATION_MYSQL`] with a stored generated column; the vocabulary holds neither, and both are
-/// out of v1 for the reason `rule:core-classes/schema-plan` gives — no portable spelling. What is
-/// portable is the column those two constructs each *derive*: a plain `dedupe_pending` that the
-/// statements maintain, holding `dedupe_key` while the job is pending and `null` once it is not,
-/// with a plain unique key over it. That is `where state = 0` said on the other side, it is exactly
-/// what MySQL's generated column already stores, and a null collides with nothing on the four
-/// backends whose unique keys read nulls as distinct — so the guarantee gap 3 names is unchanged on
-/// every backend `Core\Queue` can run a statement against. **SQL Server reads two nulls as equal**
-/// and so admits one released row rather than any number of them; it has no queue statements at all
-/// ([`no_dialect`]), and the day it gains them the answer is the filtered index `rule:core-classes/schema-plan`
-/// keeps out of v1, which is what the vocabulary would have to grow first.
+/// **`dedupe_pending` is the construct this value had to decide.** The vocabulary holds neither a
+/// partial unique index (`… where state = 0`) nor a stored generated column, and both are out of v1
+/// for the reason `rule:core-classes/schema-plan` gives — no portable spelling. What is portable is
+/// the column those two constructs each *derive*: a plain `dedupe_pending` that the statements
+/// maintain, holding `dedupe_key` while the job is pending and `null` once it is not, with a plain
+/// unique key over it. That is `where state = 0` said on the other side, and a null collides with
+/// nothing on the four backends whose unique keys read nulls as distinct — so the guarantee gap 3
+/// names is the same one on every backend `Core\Queue` can run a statement against.
+/// **SQL Server reads two nulls as equal** and so admits one released row rather than any number of
+/// them; it has no queue statements at all ([`no_dialect`]), and the day it gains them the answer is
+/// the filtered index `rule:core-classes/schema-plan` keeps out of v1, which is what the vocabulary
+/// would have to grow first.
 ///
 /// **A nullable column rather than a `not null` one with a sentinel**, which is what SQL Server
 /// would otherwise want: a `not null` unique column needs a distinct value per released row, so
@@ -418,6 +230,25 @@ const KEY_WIDTH: u32 = 255;
 /// column cannot be *added* to a table that already has rows at all, while a nullable one converges
 /// onto a live queue as a `Safe` step. A schema that no existing deployment can reach is not a
 /// schema.
+///
+/// Three things in it are decisions rather than transcription:
+///
+/// - **Every instant is a `bigint` of epoch milliseconds** and never a timestamp — this module's own
+///   doc owns why, and it is the one-value argument above applied to the type map.
+/// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
+///   `[queue] visibility` measured from it, so the bound stays in configuration where
+///   `rule:config/the-config-is-an-immutable-snapshot`'s reload can move
+///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
+/// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
+///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
+///   **It is one entry deep, and that entry is the attempt that exhausted the job**, because the
+///   jobs table has nowhere to keep what an earlier attempt threw: [`RETRY_POSTGRES`] arms a row
+///   for the next attempt and keeps the count and nothing else. Recording all of them would be a
+///   text column on `nvs_jobs` appended to on every failure — a row rewritten once per attempt,
+///   carrying a value only the exhausted job ever reads, on the table § 4's claim contends over —
+///   so the array is § 6's shape at the depth this schema pays for, and [`dead_errors`] is where
+///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
+///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
 ///
 /// **What it spends:** one indexed [`KEY_WIDTH`]-wide column per job row, which is what a partial
 /// index costs nothing for — priority 5 spent to buy one spelling on five backends instead of two
@@ -494,11 +325,20 @@ pub fn schema() -> nvs_db::Schema {
 /// `rule:concurrency/queue-four-members`'s `push`, as one statement.
 ///
 /// **One statement rather than a check and an insert**, because two would be two moments and § 3's
-/// property is about there being one. The `existing` arm is `key`'s dedupe and costs nothing at all
-/// when `$1` is `null`: `dedupe_key = null` is never true, so the arm is empty and the `not exists`
-/// guard admits the insert. That is why there is no second spelling of this statement for the
-/// commoner call that passes no key — a branch here would be a second SQL text for § 1's statement
-/// cache to hold and a second thing to keep right.
+/// property is about there being one. The `existing` arm is `key`'s dedupe, read off the
+/// `dedupe_pending` column this same statement writes, and it costs nothing at all when `$1` is
+/// `null`: `dedupe_pending = null` is never true, so the arm is empty and the `not exists` guard
+/// admits the insert. That is why there is no second spelling of this statement for the commoner
+/// call that passes no key — a branch here would be a second SQL text for § 1's statement cache to
+/// hold and a second thing to keep right.
+///
+/// **`$1` is written into two columns and bound once.** `dedupe_key` is what the job was pushed
+/// under and stays on the row for as long as the row does; `dedupe_pending` is
+/// `rule:core-classes/queue-storage-is-a-table`'s guarantee, the column [`schema`] puts a plain
+/// unique key over, and it holds that key only while the job is pending — [`CLAIM_POSTGRES`],
+/// [`SUCCEEDED_POSTGRES`] and [`CANCEL_POSTGRES`] clear it and [`RETRY_POSTGRES`] restores it from
+/// `dedupe_key`. A `$n` may be named as often as a statement likes, so the pair costs this dialect
+/// no parameter at all; [`INSERT_MYSQL`]'s tenth bound slot is what it costs the other one.
 ///
 /// The trailing `union all` is what makes the answer one row in both cases: a deduped push answers
 /// with the pending job's own id, which is what a caller that wanted "at most one" asked for.
@@ -510,12 +350,13 @@ pub fn schema() -> nvs_db::Schema {
 /// had** — that constant's doc owns where the two part, and [`Split`]'s owns what a backend that
 /// cannot answer in one statement does instead.
 pub const INSERT_POSTGRES: &str = "with existing as (\
-     select id from nvs_jobs where dedupe_key = $1::text and state = 0 limit 1\
+     select id from nvs_jobs where dedupe_pending = $1::text limit 1\
  ), inserted as (\
      insert into nvs_jobs \
-     (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, created_at) \
+     (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+      dedupe_pending, created_at) \
      select $2::text, $3::text, $4::text, $5::smallint, 0, $6::int, $7::bigint, $8::bigint, \
-            $1::text, $9::bigint \
+            $1::text, $1::text, $9::bigint \
      where not exists (select 1 from existing) \
      returning id\
  ) select id from inserted union all select id from existing limit 1";
@@ -526,7 +367,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// protocol of ours: two workers running this against one server cannot come back with the same row,
 /// because the second one's lock attempt steps over what the first is holding instead of queueing
 /// behind it. § 4 names the other backends' spellings — `readpast`, and SQLite's immediate
-/// transaction — and each brings its own text for [`MIGRATION_POSTGRES`]'s reason.
+/// transaction — and each brings its own text, for the reason [`Split`]'s doc gives.
 ///
 /// **The `update` is in the same statement as the `select`**, as a CTE, because two statements would
 /// be two moments: the lock the first took is released by its own commit before the second could
@@ -536,7 +377,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// **Two arms, and the second is § 4's visibility timeout.** A pending row is claimable once its
 /// `run_at` has passed; a claimed one is claimable again when nothing has finished it within
 /// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
-/// computed by the caller — rather than a bound written into this text, because [`MIGRATION_POSTGRES`]'s
+/// computed by the caller — rather than a bound written into this text, because [`schema`]'s
 /// `claimed_at` records when the claim was *taken* precisely so that
 /// `rule:config/the-config-is-an-immutable-snapshot`'s reload can move the
 /// bound under jobs that are already claimed.
@@ -547,13 +388,17 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// for. It is also what makes [`COUNTS_POSTGRES`]'s third counter answer during an attempt rather than after
 /// it.
 ///
-/// **Keyed on one queue**, as every other statement here is and as [`MIGRATION_POSTGRES`]'s `jobs.due` index
+/// **Keyed on one queue**, as every other statement here is and as [`schema`]'s `nvs_jobs_due` index
 /// is built for: `(queue, state, run_at)` is read leftmost-first, so a claim naming no queue would
 /// scan what this one seeks. Which queues one worker asks about is [`QUEUES_POSTGRES`]'s question,
 /// asked one statement earlier and against the same two arms.
 ///
+/// **The claim clears `dedupe_pending`**, which is the moment the job stops being pending in the
+/// sense [`schema`]'s unique key means it: a second push of the same key is admitted from here on,
+/// and [`RETRY_POSTGRES`] is what puts the key back when an attempt did not return.
+///
 /// The `returning` list is what running a job needs and nothing else: `queue` is `$1` and the row's
-/// other columns are the migration's business.
+/// other columns are the schema's business.
 ///
 /// `pub` because the worker that claims with it lives in `nvs-cli` — the crate that owns the
 /// scheduler a worker is a task on — and § 2's schema has one home, which is here beside the
@@ -568,7 +413,8 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
      and ((state = 0 and run_at <= $2::bigint) or (state = 1 and claimed_at <= $3::bigint)) \
      order by run_at, id limit 1 \
      for update skip locked\
- ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint \
+ ) update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = $2::bigint, \
+   dedupe_pending = null \
    where id in (select id from due) \
    returning id, script, args, attempts, max_attempts, backoff_ms";
 
@@ -609,7 +455,10 @@ pub const QUEUES_POSTGRES: &str = "select distinct queue from nvs_jobs \
 /// error, and the affected count is what says which happened.
 ///
 /// `claimed_at` is cleared with the state for the same reason [`CLAIM_POSTGRES`] sets it: it means *this
-/// claim*, and a finished job holds none.
+/// claim*, and a finished job holds none. `dedupe_pending` is cleared beside it, and it costs
+/// nothing to clear a column the claim already cleared: this row is being rewritten either way, and
+/// a statement that maintains [`schema`]'s column about its own row is one that holds the guarantee
+/// without resting on which statement ran before it.
 ///
 /// The `2` is `Core\Queue\State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
 /// to the enum by `queue_statements_agree_with_the_state_enum`, in both dialects.
@@ -619,7 +468,8 @@ pub const QUEUES_POSTGRES: &str = "select distinct queue from nvs_jobs \
 ///
 /// **PostgreSQL's dialect, and [`SUCCEEDED_MYSQL`] is the other one**, binding the same two values
 /// in the same order.
-pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at = null \
+pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at = null, \
+    dedupe_pending = null \
     where id = $1::bigint and claimed_at = $2::bigint";
 
 /// § 6's other write-back: the attempt did not return, and the job is armed for the next one.
@@ -631,10 +481,18 @@ pub const SUCCEEDED_POSTGRES: &str = "update nvs_jobs set state = 2, claimed_at 
 ///
 /// Keyed on the lease exactly as [`SUCCEEDED_POSTGRES`] is, and for the same reason.
 ///
+/// **`dedupe_pending` comes back from `dedupe_key`**, because the row is pending again and
+/// [`schema`]'s column says exactly that. It is the one statement that restores it, and it is where
+/// the guarantee could be refused rather than silently lost: a key pushed again while this job was
+/// claimed already holds the unique key, and this update is then rejected as an ordinary
+/// [`insert_refused`] — which is the same answer the partial index gave when the row went back to
+/// `state = 0` underneath it.
+///
 /// **PostgreSQL's dialect, and [`RETRY_MYSQL`] is the other one** — the same three values, in an
 /// order that dialect's placeholders force rather than choose, which that constant's doc owns.
 pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bigint, \
-    claimed_at = null where id = $1::bigint and claimed_at = $2::bigint";
+    claimed_at = null, dedupe_pending = dedupe_key \
+    where id = $1::bigint and claimed_at = $2::bigint";
 
 /// § 6's third write-back and the floor under the other two: the attempt was the job's last, so the
 /// row leaves [`JOBS_TABLE`] for [`DEAD_TABLE`] instead of being armed again.
@@ -694,17 +552,21 @@ pub struct Split {
 }
 
 /// [`INSERT_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for
-/// [`MIGRATION_MYSQL`]'s reason: MariaDB does answer `insert … returning`, and a second list
-/// spelling one statement two ways is the drift that rule exists to prevent.
+/// [`schema`]'s reason: MariaDB does answer `insert … returning`, and a second text spelling one
+/// statement two ways is the drift the one-home rule exists to prevent.
 ///
-/// **The dedupe read is keyed on the generated column, not on `dedupe_key`**, which is the one
-/// place this pair is not a transcription. [`MIGRATION_MYSQL`]'s `dedupe_pending` already carries
-/// `case when state = 0 then dedupe_key else null end`, so `dedupe_pending = ?` *is*
-/// `dedupe_key = ? and state = 0` said in the form the unique index can answer: PostgreSQL's
-/// partial index is reached by a predicate naming both columns, and MySQL's is reached only by
-/// naming the column it is built over. Written the other way this `select … for update` would scan
-/// `nvs_jobs` and lock every row it passed — a table lock in all but name, on the one statement
-/// every enqueue runs.
+/// **The dedupe read is keyed on `dedupe_pending`, not on `dedupe_key`**, which is what both
+/// dialects do: [`schema`]'s column holds the key while the job is pending and `null` once it is
+/// not, so `dedupe_pending = ?` *is* `dedupe_key = ? and state = 0` said in the form a plain unique
+/// index can answer. Written the other way this `select … for update` would scan `nvs_jobs` and
+/// lock every row it passed — a table lock in all but name, on the one statement every enqueue
+/// runs.
+///
+/// **The insert names `dedupe_pending` as a tenth bound slot**, where [`INSERT_POSTGRES`] simply
+/// names `$1` twice: a `?` is bound by the position it occupies in the text and cannot be named
+/// again, so the key is encoded once and bound twice, which is what the doubled `dedupe` in the
+/// caller's array is. Ten slots for nine values is the whole of what this dialect pays for the
+/// column the other one gets for nothing.
 ///
 /// **The insert answers no id, and the caller reads one off the write's own OK packet**
 /// ([`nvs_db::MySqlRows::last_id`]) rather than from a second query. That value is the connection's
@@ -725,8 +587,8 @@ pub const INSERT_MYSQL: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           created_at) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
 };
 
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -743,8 +605,8 @@ pub const INSERT_MYSQL: Split = Split {
 /// **`skip locked` is on the `select` and the mutual exclusion is unchanged**: the same row lock,
 /// asked for by the same clause, held now by an explicit transaction instead of by a single
 /// statement — two workers still cannot come back with one row. MySQL has had it since 8.0 and
-/// MariaDB since 10.6, which is the floor [`MIGRATION_MYSQL`] already sits on for its
-/// `engine=innodb` reason.
+/// MariaDB since 10.6, which is the floor [`schema`]'s tables already sit on: `for update skip
+/// locked` is a row lock, and InnoDB is the engine that has them.
 ///
 /// The `update` is keyed by `id` rather than by a subquery, because [`Split::first`] has already
 /// named the row and holds its lock: PostgreSQL's `where id in (select id from due)` exists to
@@ -756,7 +618,8 @@ pub const CLAIM_MYSQL: Split = Split {
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
             order by run_at, id limit 1 \
             for update skip locked",
-    then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ? where id = ?",
+    then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ?, \
+           dedupe_pending = null where id = ?",
 };
 
 /// [`DEAD_LETTER_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -807,7 +670,8 @@ pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
 /// A statement matching no row therefore stays an ordinary outcome rather than an error, and the
 /// affected count is what says which happened — the same reading [`CANCEL_MYSQL`]'s doc makes of a
 /// dialect that has no `returning` to answer with.
-pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = null \
+pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = null, \
+    dedupe_pending = null \
     where id = ? and claimed_at = ?";
 
 /// [`RETRY_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -824,12 +688,13 @@ pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = n
 /// jittered, and neither is something SQL should be deciding on a row it is already updating. The
 /// `0` is `Core\Queue\State::Pending`'s ordinal, held to the enum beside its twin by
 /// `queue_statements_agree_with_the_state_enum`.
-pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claimed_at = null \
+pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claimed_at = null, \
+    dedupe_pending = dedupe_key \
     where id = ? and claimed_at = ?";
 
 /// § 6's `errors` array, as [`DEAD_LETTER_POSTGRES`] binds it: one entry, the attempt that exhausted the job.
 ///
-/// [`MIGRATION_POSTGRES`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
+/// [`schema`]'s own doc owns *why* the array is this deep and not deeper, and it is the one home
 /// for that trade. What is decided here is the entry's shape: `at` is when the attempt started,
 /// which is the lease the move is keyed on, so the row says how long the last attempt ran for
 /// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
@@ -930,7 +795,7 @@ pub const STATUS_POSTGRES: &str = "select state from nvs_jobs \
     where id = $1::bigint and queue = $2::text \
     limit 1";
 
-/// [`STATUS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`MIGRATION_MYSQL`]'s
+/// [`STATUS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`INSERT_MYSQL`]'s
 /// reason.
 ///
 /// **Not a [`Split`], and that is the difference between this member and § 4's three**: nothing
@@ -961,7 +826,12 @@ pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
 /// about it is owed an answer rather than a refusal; [`STATE`]'s `Cancelled` case is the answer.
 /// The `4` is that case's ordinal, held to the enum by
 /// `queue_statements_agree_with_the_state_enum` for the reason [`STATUS_POSTGRES`]'s `3` is.
-const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4 \
+///
+/// **`dedupe_pending` is cleared here and nowhere else on this path**, because this is the one
+/// transition out of `Pending` that no claim precedes: a cancelled job never reaches
+/// [`SUCCEEDED_POSTGRES`], so leaving the column set would hold a key against a job nothing will
+/// ever run.
+const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
     where id = $1::bigint and queue = $2::text and state = 0 \
     returning id";
 
@@ -973,7 +843,7 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4 \
 /// one number, and [`Counted::touched`] is where the two spellings are read as one fact. MariaDB
 /// answers `returning` for an `insert` and a `delete` and not for an `update`, so this is the text
 /// both drivers run rather than a MySQL-only concession.
-pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4 \
+pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
     where id = ? and queue = ? and state = 0";
 
 /// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
@@ -1602,7 +1472,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 /// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
 /// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
 /// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not
-/// nothing: [`MIGRATION_POSTGRES`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
+/// nothing: [`schema`]'s `backoff_ms` is `not null`, so there is no row that means "retry at
 /// once", and a job whose first attempt failed against a database or an endpoint would otherwise
 /// make its second one at the same instant. One second is long enough for that not to be a second
 /// failure of the same outage and short enough to be invisible on a queue that is merely busy.
@@ -1836,7 +1706,7 @@ enum Queued<'a> {
 /// had nothing to send it: [`INSERT_POSTGRES`]'s and [`CLAIM_POSTGRES`]'s `returning` and
 /// [`DEAD_LETTER_POSTGRES`]'s data-modifying CTE are constructs MySQL has no spelling for, so § 4
 /// owed a second backend statements of its own rather than a translation of these. That debt is
-/// paid — [`MIGRATION_MYSQL`] is § 2's schema, [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
+/// paid — [`schema`] is § 2's schema in every dialect, [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
 /// [`DEAD_LETTER_MYSQL`] are § 4's and § 6's statements as [`Split`]s, and [`STATUS_MYSQL`],
 /// [`CANCEL_MYSQL`] and [`COUNTS_MYSQL`] are § 5's three readers — and [`queue_connection`] is the
 /// seam that reaches them, so every driver `nvs-db` can send a statement over is one all four
@@ -1922,8 +1792,9 @@ nvs_runtime::nvs_helper! {
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
         let now = now_millis();
         // Encoded once and bound twice, because the two dialects want the same nine values in two
-        // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by both of
-        // its arms, and [`INSERT_MYSQL`]'s insert names it in column order like every other value.
+        // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
+        // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like
+        // every other value — twice, since it writes it to two columns and a `?` cannot repeat.
         // One array per order over one set of buffers, rather than a second encoding of the same
         // integers.
         let dedupe = key.map(String::into_bytes);
@@ -1959,7 +1830,7 @@ nvs_runtime::nvs_helper! {
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
             Queued::Framed(framed) => {
-                let bound: [Option<&[u8]>; 9] = [
+                let bound: [Option<&[u8]>; 10] = [
                     Some(&queued),
                     Some(&scripted),
                     payloaded.as_deref(),
@@ -1967,6 +1838,9 @@ nvs_runtime::nvs_helper! {
                     Some(&attempts),
                     Some(&backing),
                     Some(&due),
+                    // `dedupe_key` and `dedupe_pending`: one value in two columns, which
+                    // `INSERT_MYSQL`'s doc owns and `INSERT_POSTGRES` spells as `$1` twice.
+                    dedupe.as_deref(),
                     dedupe.as_deref(),
                     Some(&created),
                 ];
@@ -2105,7 +1979,7 @@ fn push_in_two(
 /// # Errors
 ///
 /// [`insert_refused`]'s, and a [`Fault::fatal`] for a `first` whose row answered no integer id —
-/// which is the column [`MIGRATION_MYSQL`] declares `bigint auto_increment`, so anything else is
+/// which is the column [`schema`] declares as its identity, so anything else is
 /// a table some other writer created.
 fn deduped(
     framed: &mut crate::db::Framed<'_>,
@@ -2166,7 +2040,7 @@ fn deduped(
 ///
 /// [`insert_refused`] for anything the server refused, and a [`Fault::fatal`] for an insert that
 /// generated no `AUTO_INCREMENT` value — [`MySqlRows::last_id`](nvs_db::MySqlRows::last_id) says
-/// `0` for none, and [`MIGRATION_MYSQL`] declares the column that makes it impossible.
+/// `0` for none, and [`schema`] declares the column that makes it impossible.
 fn inserted(
     framed: &mut crate::db::Framed<'_>,
     bound: &[Option<&[u8]>],
@@ -2689,12 +2563,11 @@ mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
         DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, INSERT_MYSQL, INSERT_POSTGRES,
-        JOBS_TABLE, MIGRATION_MYSQL, MIGRATION_POSTGRES, Migration, PENDING, PUSH, QUEUES_MYSQL,
-        QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS,
-        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
-        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
-        STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, dead_errors, migration, no_dialect,
-        retry_at,
+        JOBS_TABLE, PENDING, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
+        RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
+        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
+        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, dead_errors, migration,
+        no_dialect, retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
@@ -2718,12 +2591,16 @@ mod tests {
                 refused.contains(driver.display_name()),
                 "a refusal an operator can act on names the driver the block resolved to: {refused}"
             );
-            let runs = migration(driver).is_some();
+            // Every driver has § 2's schema, so what decides this is the roster `no_dialect` is
+            // about: which drivers `queue_connection` can send a statement over at all.
+            let runs = matches!(
+                driver,
+                nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb
+            );
             assert_eq!(
                 runs,
                 refused.contains("this is a bug"),
-                "{driver:?} has § 2's schema and so runs all four members, so nothing should be \
-                 refusing it: {refused}"
+                "{driver:?} runs all four members, so nothing should be refusing it: {refused}"
             );
             if runs {
                 continue;
@@ -2766,31 +2643,23 @@ mod tests {
         }
     }
 
-    /// Everything one dialect's list says about one of § 2's two tables, joined into one text.
+    /// Everything one dialect's DDL says about one of § 2's two tables, joined into one text.
     ///
-    /// **A table's share of a list, not a statement**, because how many statements a table takes is
-    /// itself the thing the two dialects disagree about: PostgreSQL's indexes are `create index`
-    /// statements of their own and MySQL's are clauses inside the `create table`, for
-    /// [`MIGRATION_MYSQL`]'s stated reason. Joining them means every assertion below asks what the
-    /// table *has* rather than which statement said so, which is the only form in which one
-    /// assertion can hold both lists. The label's head is what files a statement under a table, so
-    /// a label typed differently in the DDL than in the command's output contract still fails here.
-    fn table_ddl(list: &[Migration], table: &str) -> String {
-        let mut text = String::new();
-        for step in list {
-            if step
-                .label
-                .split_once('.')
-                .map_or(step.label, |(head, _)| head)
-                == table
-            {
-                text.push_str(step.sql);
-                text.push(' ');
-            }
-        }
+    /// **A table's share of an emission, not a statement**, because how many statements a table
+    /// takes is itself the thing the dialects disagree about: MySQL declares an index inside the
+    /// `CREATE TABLE` and the other three write one of their own. Joining them means every
+    /// assertion below asks what the table *has* rather than which statement said so, which is the
+    /// only form in which one assertion can hold every dialect.
+    fn table_ddl(driver: nvs_db::Driver, table: &str) -> String {
+        let text = nvs_db::ddl::create_schema(&super::schema(), nvs_db::Dialect::of(driver))
+            .into_iter()
+            .filter(|statement| statement.contains(table))
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(
             !text.is_empty(),
-            "no statement in this list builds `{table}`"
+            "{} builds no `{table}`",
+            driver.display_name()
         );
         text
     }
@@ -2812,7 +2681,7 @@ mod tests {
         assert_eq!(
             entries.len(),
             1,
-            "one entry, which is `MIGRATION_POSTGRES`'s doc's decision and the depth `nvs_jobs` pays for"
+            "one entry, which is `schema`'s doc's decision and the depth `nvs_jobs` pays for"
         );
         assert_eq!(entries[0]["at"], 1_700_000_000_123_i64);
         assert_eq!(entries[0]["class"], "RuntimeError");
@@ -2831,16 +2700,14 @@ mod tests {
     /// while this file kept its own answer is precisely the drift that would print PostgreSQL's DDL
     /// for a server that cannot run it.
     ///
-    /// **One direction and not two**, which is what SQL Server changed: `Core\Db` binds for all
-    /// five drivers and § 2 has a schema for three, so a schema for a driver nothing sends is
-    /// still a bug and a sending driver with no schema is this module's open item —
-    /// [`no_dialect`] is where an operator is told which of the two they are waiting on.
+    /// **One direction and not two**: `Core\Db` binds for all five drivers and § 2's schema is one
+    /// value emitted in every dialect, so what is left to hold is the pairing itself — a driver
+    /// whose rewriter disagreed with the dialect its schema is emitted in would send the right
+    /// columns in the wrong SQL. [`no_dialect`] is where an operator is told that a driver runs no
+    /// statement yet, which is a different question from having a schema.
     #[test]
     fn the_schema_has_a_dialect_for_every_driver_that_can_be_sent_one() {
         for driver in nvs_db::Driver::ALL {
-            if migration(driver).is_none() {
-                continue;
-            }
             // "Is there an encoder at all" became unconditional when SQLite
             // gained one, so what is left to hold is the pairing: a schema
             // written in one dialect and sent through another's rewriter is
@@ -2852,27 +2719,27 @@ mod tests {
                  that schema is written in"
             );
         }
-        // MariaDB runs MySQL's list unchanged, which is `MIGRATION_MYSQL`'s own decision rather
-        // than a coincidence of two arms — asserted by identity, since two lists with equal text
-        // would be exactly the copy that doc argues against.
-        assert!(
-            std::ptr::eq(
-                migration(nvs_db::Driver::MariaDb).expect("MariaDB has a dialect"),
-                migration(nvs_db::Driver::MySql).expect("MySQL has a dialect")
-            ),
-            "MariaDB is handed MySQL's own list and not a copy of it"
+        // MariaDB and MySQL are one dialect and so one emission, which is what makes MariaDB's
+        // schema MySQL's own rather than a copy of it that something has to keep in step.
+        let sql_of = |driver: nvs_db::Driver| -> Vec<String> {
+            migration(driver).into_iter().map(|step| step.sql).collect()
+        };
+        assert_eq!(
+            sql_of(nvs_db::Driver::MariaDb),
+            sql_of(nvs_db::Driver::MySql),
+            "MariaDB's schema is MySQL's own, statement for statement"
         );
     }
 
-    /// The two [`Migration`] lists are the only place the queue's columns exist and the statements
-    /// above are their only readers — three lists in one file, with nothing but this test between
-    /// them. A column renamed in one DDL and nowhere else still compiles, still migrates, and fails
-    /// on the first `push` against a database an operator has already built.
+    /// [`schema`] is the only place the queue's columns exist and the statements above are its only
+    /// readers — one value and one roster of statements in one file, with nothing but this test
+    /// between them. A column renamed in the value and nowhere else still compiles, still migrates,
+    /// and fails on the first `push` against a database an operator has already built.
     ///
-    /// **Every assertion runs against both dialects**, which is what keeps them one schema rather
-    /// than two: the constructs around the columns differ freely, and the columns themselves may
-    /// not. A column added to PostgreSQL's list alone fails here on MySQL's, which is the drift the
-    /// second list opened the door to.
+    /// **Every assertion runs against both dialects the statements are written in**, which is what
+    /// keeps them one schema rather than two: the constructs around the columns are the emitter's
+    /// and differ freely, and the columns themselves may not. A column added to PostgreSQL's push
+    /// alone fails here on MySQL's.
     #[test]
     fn the_ddl_creates_every_column_the_statements_name() {
         // `INSERT_POSTGRES`'s parenthesised column list is the widest claim any statement makes about
@@ -2885,28 +2752,27 @@ mod tests {
                 .expect("the statement names its columns as one parenthesised list")
                 .0
         };
-        for (dialect, list, push, moving) in [
+        for (driver, push, moving) in [
             (
-                "postgres",
-                MIGRATION_POSTGRES,
+                nvs_db::Driver::Postgres,
                 INSERT_POSTGRES,
                 DEAD_LETTER_POSTGRES,
             ),
             (
-                "mysql",
-                MIGRATION_MYSQL,
+                nvs_db::Driver::MySql,
                 INSERT_MYSQL.then,
                 DEAD_LETTER_MYSQL.first,
             ),
         ] {
-            // Each dialect is asked about its *own* two statements, which is what the second set of
-            // texts added to this test: the columns are one schema and the SQL around them is two,
-            // so a column added to one dialect's push and not to the other's DDL fails here rather
-            // than against a server an operator has already built.
+            // Each dialect is asked about its *own* two statements: the columns are one value and
+            // the SQL around them is the emitter's, so a column added to one dialect's push and
+            // not to the value fails here rather than against a server an operator has already
+            // built.
+            let dialect = driver.display_name();
             let inserted = written(push, JOBS_TABLE);
             let moved = written(moving, DEAD_TABLE);
-            let jobs = table_ddl(list, "jobs");
-            let dead = table_ddl(list, "dead_letter");
+            let jobs = table_ddl(driver, JOBS_TABLE);
+            let dead = table_ddl(driver, DEAD_TABLE);
             assert!(
                 jobs.contains(JOBS_TABLE) && dead.contains(DEAD_TABLE),
                 "{dialect}: each `create table` builds the table its own constant names"
@@ -2936,18 +2802,17 @@ mod tests {
                 "{dialect}: `CLAIM_POSTGRES` seeks by queue, then state, then due-ness, which is the order \
                  of this index"
             );
-            // Gap 3's constraint, asked as what it must *be* rather than as either dialect's
-            // spelling of it: PostgreSQL says `create unique index … where state = 0` and MySQL
-            // says a unique key over a generated column carrying `case when state = 0`. What both
-            // owe is one uniqueness rule, named `nvs_jobs_dedupe`, covering the pending rows by
-            // `PENDING`'s own ordinal — and a dialect that dropped the state condition would
-            // constrain every row, refusing a second push of a key whose first job is long done.
+            // Gap 3's constraint, asked as what it must *be*: one uniqueness rule, named
+            // `nvs_jobs_dedupe`, over the column the statements maintain. Which rows it covers is
+            // not the DDL's business any more — `dedupe_pending` is null for every row that is not
+            // pending — and a constraint over `dedupe_key` instead would refuse a second push of a
+            // key whose first job is long done.
             assert!(
-                jobs.contains("unique")
+                jobs.contains("UNIQUE")
                     && jobs.contains("nvs_jobs_dedupe")
-                    && jobs.contains(&format!("state = {PENDING}")),
-                "{dialect}: gap 3's index is unique over the pending rows, by `PENDING`'s own \
-                 ordinal as `INSERT_POSTGRES` reads it"
+                    && jobs.contains("dedupe_pending"),
+                "{dialect}: gap 3's constraint is unique over `dedupe_pending`, which is the column \
+                 `INSERT_POSTGRES` writes the key into while the job is pending"
             );
 
             for column in ["id ", "queue "] {
@@ -2961,19 +2826,6 @@ mod tests {
                 assert!(
                     dead.contains(&format!("{column} ")),
                     "{dialect}: the `dead_letter` DDL creates `{column}`, which `DEAD_LETTER_POSTGRES` writes"
-                );
-            }
-
-            for step in list {
-                let table = step
-                    .label
-                    .split_once('.')
-                    .map_or(step.label, |(head, _)| head);
-                assert!(
-                    matches!(table, "jobs" | "dead_letter"),
-                    "{dialect}: `{}` is labelled under one of § 2's two tables, which is what `nvs \
-                     queue migrate`'s output promises",
-                    step.label
                 );
             }
         }
@@ -3202,18 +3054,19 @@ mod tests {
         assert_eq!(
             case("Pending"),
             0,
-            "`INSERT_POSTGRES`'s dedupe arm spells this `0`"
+            "`CLAIM_POSTGRES`'s first arm spells this `0`"
         );
         assert!(
-            INSERT_POSTGRES.contains("state = 0"),
-            "`INSERT_POSTGRES` reads pending rows by the ordinal above"
+            CLAIM_POSTGRES.contains("state = 0") && CLAIM_MYSQL.first.contains("state = 0"),
+            "both claims seek pending rows by the ordinal above"
         );
-        // MySQL's push reads the same rows through `MIGRATION_MYSQL`'s generated column, which is
-        // where that dialect writes the ordinal — the DDL test above is what holds `state = 0`
-        // there, and this is the assertion that the statement goes through the column at all.
+        // Neither push spells the ordinal at all: `dedupe_pending` carries what `state = 0` used to
+        // say, in the form a plain unique key can answer, and the statements around it are what
+        // maintain it. This is the assertion that both dialects go through that column.
         assert!(
-            INSERT_MYSQL.first.contains("dedupe_pending = ?"),
-            "MySQL's dedupe arm reads the column carrying `Pending`'s own ordinal"
+            INSERT_POSTGRES.contains("dedupe_pending = $1::text")
+                && INSERT_MYSQL.first.contains("dedupe_pending = ?"),
+            "both dedupe arms read the column that carries pending-ness rather than the ordinal"
         );
         assert_eq!(
             case("Dead"),
@@ -3317,6 +3170,66 @@ mod tests {
         );
     }
 
+    /// `rule:core-classes/queue-storage-is-a-table`'s guarantee is a plain column under a plain
+    /// unique key, which means the statements are what maintain it — so this asks every statement
+    /// that moves a job in or out of `Pending`, not the one that reads the column.
+    ///
+    /// **An agreement test, and that is the shape the guarantee needs.** A dialect that named
+    /// `dedupe_pending` in its push and nowhere else would hold a key against a job long since
+    /// finished, and the push is the one statement that would still look right on its own line.
+    /// What both dialects owe is the same four facts: the insert writes it, the three transitions
+    /// out of `Pending` clear it, the retry restores it from `dedupe_key`, and the dead-letter
+    /// names it nowhere because the row leaves [`JOBS_TABLE`] entirely.
+    #[test]
+    fn every_transition_out_of_pending_maintains_the_dedupe_column() {
+        for (dialect, push, claim, succeeded, retry, cancel, moving) in [
+            (
+                "postgres",
+                INSERT_POSTGRES,
+                CLAIM_POSTGRES,
+                SUCCEEDED_POSTGRES,
+                RETRY_POSTGRES,
+                CANCEL_POSTGRES,
+                DEAD_LETTER_POSTGRES,
+            ),
+            (
+                "mysql",
+                INSERT_MYSQL.then,
+                CLAIM_MYSQL.then,
+                SUCCEEDED_MYSQL,
+                RETRY_MYSQL,
+                CANCEL_MYSQL,
+                DEAD_LETTER_MYSQL.first,
+            ),
+        ] {
+            assert!(
+                push.contains("dedupe_pending"),
+                "{dialect}: the push writes the column `nvs_jobs_dedupe` is built over"
+            );
+            for (name, statement) in [
+                ("claim", claim),
+                ("write-back", succeeded),
+                ("cancel", cancel),
+            ] {
+                assert!(
+                    statement.contains("dedupe_pending = null"),
+                    "{dialect}: the {name} leaves the job not pending, so it clears the column and \
+                     a second push of the key is admitted"
+                );
+            }
+            assert!(
+                retry.contains("dedupe_pending = dedupe_key"),
+                "{dialect}: the retry arms the job again, so the key it was pushed under is \
+                 pending again too"
+            );
+            assert!(
+                !moving.contains("dedupe_pending"),
+                "{dialect}: a dead-lettered row leaves `{JOBS_TABLE}`, so nothing has to release \
+                 its key and `{DEAD_TABLE}` has no such column"
+            );
+        }
+    }
+
     /// Three separate places say what order [`STATS`]'s counters are in — [`COUNTS_POSTGRES`]'s select
     /// list, the slot roster, and the `*_AT` index each reader passes — and only the first is
     /// beyond a test's reach. Nothing else would notice the other two disagreeing: a swapped pair
@@ -3401,39 +3314,81 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/queue-storage-is-a-table`: the value declares every column both lists do,
-    /// plus the one the retirement's decision adds.
+    /// `rule:core-classes/queue-storage-is-a-table`: the queue's schema is one value, and no
+    /// dialect holds a list of its own for a column to be added to.
     ///
-    /// The drift guard `the_ddl_creates_every_column_the_statements_name` holds the two lists to the
-    /// statements; this holds the *value* to the lists, which is what makes the swap a refactor
-    /// rather than a rewrite. `dedupe_pending` is named apart because it is the one column
-    /// [`MIGRATION_POSTGRES`] does not have: PostgreSQL derives the same fact from `state` inside a
-    /// partial index, and the portable spelling is a column instead. This test retires with the
-    /// lists.
+    /// **Asked as sameness rather than as absence.** A second home for what the queue's columns are
+    /// is not a constant a test could look for; it is a dialect answering the question differently.
+    /// So the assertion is that every dialect declares the same columns in the value's own order —
+    /// four emissions of one value cannot disagree, and two hand-written lists eventually always
+    /// do. It is also what makes SQL Server and SQLite first-class here rather than the backends
+    /// whose list nobody wrote.
     #[test]
-    fn the_schema_value_declares_every_column_the_lists_declare() {
+    fn the_queues_schema_is_one_value_and_no_dialect_list() {
         let schema = super::schema();
-        for (list, dialect) in [
-            (MIGRATION_POSTGRES, "PostgreSQL"),
-            (MIGRATION_MYSQL, "MySQL"),
-        ] {
-            // A list files a statement under a *label*, which is what the command prints, and the
-            // schema value names the table itself — so the two are paired in declaration order
-            // rather than looked up by a name only one of them writes.
-            for (table, label) in schema.tables().iter().zip(["jobs", "dead_letter"]) {
-                let declared = table_ddl(list, label);
-                for column in table.columns() {
-                    let name = column.name().as_str();
-                    if name == "dedupe_pending" {
-                        continue;
-                    }
-                    assert!(
-                        declared.contains(&format!("{name} ")),
-                        "{dialect}'s `{}` does not declare `{name}`, which the schema value does",
-                        table.name()
-                    );
+        for (table, name) in schema.tables().iter().zip([JOBS_TABLE, DEAD_TABLE]) {
+            let columns: Vec<String> = table
+                .columns()
+                .iter()
+                .map(|column| column.name().to_string())
+                .collect();
+            for driver in nvs_db::Driver::ALL.iter().copied() {
+                let ddl = table_ddl(driver, name);
+                // Walked from where the last column was found, so this is the value's *order* and
+                // not its set: a dialect that declared the same columns in another order would be
+                // a second answer to the same question, which is the thing being refused.
+                let mut at = 0;
+                for column in &columns {
+                    let found = ddl[at..].find(&format!("{column} ")).unwrap_or_else(|| {
+                        panic!(
+                            "{}'s `{name}` does not declare `{column}` where the one schema value \
+                             puts it",
+                            driver.display_name()
+                        )
+                    });
+                    at += found + column.len();
                 }
             }
+        }
+    }
+
+    /// [`migration`]'s label is total, and it is only total because every statement the emitter
+    /// writes names one of § 2's two tables.
+    ///
+    /// The label is what `nvs queue migrate` prints and what an operator reads a refusal against, so
+    /// a statement filed under the wrong table names the wrong half of the schema. Asked of every
+    /// driver, because how many statements a table takes is the dialect's own business: MySQL
+    /// declares an index inside the `CREATE TABLE` and the other three write one of their own.
+    #[test]
+    fn every_statement_of_the_schema_names_one_of_the_two_tables() {
+        for driver in nvs_db::Driver::ALL.iter().copied() {
+            let steps = migration(driver);
+            assert!(
+                !steps.is_empty(),
+                "{} emits no statement for a schema that has two tables",
+                driver.display_name()
+            );
+            for step in &steps {
+                let dead = step.sql.contains(DEAD_TABLE);
+                assert!(
+                    dead || step.sql.contains(JOBS_TABLE),
+                    "{}: `{}` names neither of § 2's two tables",
+                    driver.display_name(),
+                    step.sql
+                );
+                assert_eq!(
+                    step.label,
+                    if dead { "dead_letter" } else { "jobs" },
+                    "{}: a statement is labelled for the table it builds",
+                    driver.display_name()
+                );
+            }
+            assert_eq!(
+                steps.first().map(|step| step.label),
+                Some("jobs"),
+                "{}: the jobs table is built first, which is the schema value's own order",
+                driver.display_name()
+            );
         }
     }
 }

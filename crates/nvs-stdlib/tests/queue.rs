@@ -53,7 +53,7 @@ use nvs_stdlib::queue;
 /// matrix leg that hangs reports nothing at all.
 const DEADLINE: Duration = Duration::from_secs(10);
 
-/// The ordinal `Core\Queue\State::Pending` is, as `MIGRATION_POSTGRES`'s `state` column
+/// The ordinal `Core\Queue\State::Pending` is, as `queue::schema`'s `state` column
 /// holds it — `rule:enums/closed-integer-type`'s enums are their ordinal at runtime, so the enum and
 /// the column are one representation rather than two.
 const PENDING: &[u8] = b"0";
@@ -85,7 +85,14 @@ fn endpoint() -> Option<Leg> {
     let Location::Server(server) = endpoint.location else {
         return None;
     };
-    queue::migration(endpoint.driver)?;
+    // Every driver has § 2's schema, so what a leg needs is the narrower thing: a driver `Core\Queue`
+    // has statements for. `queue::no_dialect`'s roster is the one this mirrors.
+    if !matches!(
+        endpoint.driver,
+        Driver::Postgres | Driver::MySql | Driver::MariaDb
+    ) {
+        return None;
+    }
     Some(Leg {
         driver: endpoint.driver,
         server,
@@ -102,7 +109,7 @@ fn postgres() -> Option<Leg> {
 /// This process's MySQL or MariaDB leg, whichever the harness named.
 ///
 /// **One gate for the two rather than one each**, because there is nothing for
-/// a second one to say: [`queue::MIGRATION_MYSQL`] and every statement beside
+/// a second one to say: [`queue::INSERT_MYSQL`] and every statement beside
 /// it is a text MariaDB runs unchanged, so a case written against either is a
 /// case against both and running it twice is the matrix's job, not this
 /// predicate's.
@@ -216,9 +223,9 @@ fn open(leg: &Leg) -> Conn {
 /// that *is* the connection, and what every statement below branches on is the
 /// dialect it is written in.
 enum Conn {
-    /// [`queue::MIGRATION_POSTGRES`] and the single-statement roster beside it.
+    /// [`queue::INSERT_POSTGRES`] and the single-statement roster beside it.
     Postgres(PgConn),
-    /// [`queue::MIGRATION_MYSQL`] and the roster whose claim and dead-letter
+    /// [`queue::INSERT_MYSQL`] and the roster whose claim and dead-letter
     /// move are [`queue::Split`]s.
     MySql(MySqlConn),
     /// MariaDB, which runs every one of MySQL's texts unchanged.
@@ -374,19 +381,26 @@ impl Framed<'_> {
 
 /// § 2's schema, applied once for this whole binary however many cases run.
 ///
-/// **A `Once` rather than a step every case pays**, and not for the time:
-/// `create table if not exists` is idempotent against a schema that is already
-/// there and *not* safe against a second session running it in the same
-/// moment, which answers a uniqueness error on the catalog rather than a
-/// no-op. Cargo runs these cases on threads of one process, so that race is the
-/// ordinary case here and not a rare one.
+/// **A `Once` rather than a step every case pays**, and not for the time: two
+/// sessions building one table in the same moment answer a uniqueness error on
+/// the catalog rather than a no-op. Cargo runs these cases on threads of one
+/// process, so that race is the ordinary case here and not a rare one.
+///
+/// **Dropped and rebuilt rather than created where absent**, because the schema
+/// is a value: a table an older Novis built is the shape that value has since
+/// changed, and it would be kept by exactly the `if not exists` the emitter no
+/// longer writes ([`queue::migration`]). Starting from nothing is the one form
+/// of convergence a fixture can reach without a catalog reader, and this binary
+/// owns both tables outright.
 fn schema(leg: &Leg) {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
         let mut conn = open(leg);
-        let steps = queue::migration(leg.driver).expect("`endpoint` skipped the drivers with none");
-        for step in steps {
-            apply(&mut conn, step.sql, &[]);
+        for table in ["nvs_jobs", "nvs_dead_jobs"] {
+            apply(&mut conn, &format!("drop table if exists {table}"), &[]);
+        }
+        for step in queue::migration(leg.driver) {
+            apply(&mut conn, &step.sql, &[]);
         }
     });
 }
@@ -418,8 +432,8 @@ fn clear(conn: &mut Conn, queue: &str) {
 /// The `Once` is [`schema`]'s and for [`schema`]'s reason, and the `delete` is
 /// [`clear`]'s half for the one table § 2 does not own.
 ///
-/// **The `create` is two spellings, split the way [`queue::MIGRATION_MYSQL`]
-/// splits § 2's and for the same three reasons.** `bigserial` is a sequence and
+/// **The `create` is two spellings, split the way [`queue::Split`] splits § 4's
+/// and for the same three reasons.** `bigserial` is a sequence and
 /// a default in one word and the framed servers have neither, `text` is a column
 /// InnoDB will not index at an unbounded width, and `engine=innodb` is what makes
 /// a rollback of this table a rollback at all. The `delete` below stays one text,
@@ -629,8 +643,9 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
     }
 
     // `INSERT_MYSQL.then`'s own order, which is not `INSERT_POSTGRES`'s: the
-    // dedupe key is ninth here and first there, and `attempts` is a literal
-    // rather than a parameter.
+    // dedupe key is ninth and tenth here and first there, and `attempts` is a
+    // literal rather than a parameter. Two slots because it is written to two
+    // columns and a `?` cannot be named twice, which that constant's doc owns.
     let bound = [
         Some(queue.as_bytes()),
         Some(script),
@@ -639,6 +654,7 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         Some(max_attempts.as_bytes()),
         Some(backoff),
         Some(at.as_slice()),
+        None,
         None,
         Some(at.as_slice()),
     ];
@@ -658,7 +674,7 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
     answered
         .last_id()
         .filter(|id| *id != 0)
-        .expect("the insert answered the `AUTO_INCREMENT` id `MIGRATION_MYSQL` declares")
+        .expect("the insert answered the `AUTO_INCREMENT` id `queue::schema` declares")
         .to_string()
 }
 
@@ -672,8 +688,10 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
 /// [`queue::INSERT_MYSQL`]'s own doc owns the reason that is safe.
 fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<String> {
     let at = millis(at);
-    // `INSERT_MYSQL.then`'s order, as `push` sends it, with the eighth slot
-    // filled: that is the one an ordinary push leaves null.
+    // `INSERT_MYSQL.then`'s order, as `push` sends it, with the two dedupe slots
+    // filled: those are the ones an ordinary push leaves null. The key goes out
+    // twice because `dedupe_key` and `dedupe_pending` are one value in two
+    // columns, and the second is what `nvs_jobs_dedupe` is built over.
     let bound = [
         Some(queue.as_bytes()),
         Some(&b"scripts/receipt.nvs"[..]),
@@ -682,6 +700,7 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         Some(&b"3"[..]),
         Some(&b"1000"[..]),
         Some(at.as_slice()),
+        Some(key.as_bytes()),
         Some(key.as_bytes()),
         Some(at.as_slice()),
     ];
@@ -696,7 +715,7 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
     Ok(answered
         .last_id()
         .filter(|id| *id != 0)
-        .expect("the insert answered the `AUTO_INCREMENT` id `MIGRATION_MYSQL` declares")
+        .expect("the insert answered the `AUTO_INCREMENT` id `queue::schema` declares")
         .to_string())
 }
 
@@ -704,9 +723,9 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
 /// job `key` already has, where it has one.
 ///
 /// This is the read no case in this file had issued: `dedupe_pending = ?`
-/// resolves against `MIGRATION_MYSQL`'s stored generated column, so what it
-/// matches is not a column any statement writes and only a server can say
-/// whether the construct holds.
+/// resolves against the column the inserts above write and every transition out
+/// of `Pending` clears, so what a real server answers here is whether those
+/// statements maintain it rather than whether one of them ran.
 fn pending_for(conn: &mut Conn, key: &str) -> Option<String> {
     let mut found = rows(conn, queue::INSERT_MYSQL.first, &[Some(key.as_bytes())]);
     (!found.is_empty()).then(|| found.remove(0).remove(0).expect("`id` is not null"))
@@ -1772,10 +1791,10 @@ fn a_framed_exhausted_job_moves_to_the_dead_letter_table_in_one_transaction() {
 ///
 /// [`queue::INSERT_MYSQL`]'s doc states the rule and this is where it meets a
 /// server, because both halves are constructs no fake can stand in for.
-/// `dedupe_pending = ?` resolves against a *stored generated column*, and the
-/// uniqueness it feeds is `MIGRATION_MYSQL`'s `unique key nvs_jobs_dedupe` —
-/// MySQL has no partial index, so the pending-rows-only scope PostgreSQL writes
-/// as a `where` clause is carried here by the column evaluating to null for
+/// `dedupe_pending = ?` resolves against the column the statements maintain, and
+/// the uniqueness it feeds is `queue::schema`'s `nvs_jobs_dedupe` —
+/// neither backend has a partial index in the vocabulary, so the pending-rows-only
+/// scope is carried by the column holding null for
 /// every row that has left `Pending`. Nothing but a server can say whether that
 /// pair behaves as the partial index it stands in for.
 ///

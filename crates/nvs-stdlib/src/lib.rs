@@ -238,7 +238,7 @@ mod password;
 pub mod path;
 mod process;
 mod program;
-// `pub` for [`queue::MIGRATION_POSTGRES`] and its MySQL sibling alone: `rule:core-classes/queue-storage-is-a-table`'s schema is written
+// `pub` for [`queue::schema`] and the statements beside it: `rule:core-classes/queue-storage-is-a-table`'s schema is written
 // beside the statements that read its columns, and `nvs queue migrate` in `nvs-cli` is a second
 // crate that has to run it — in whichever dialect the block it was pointed at speaks. The
 // members themselves are reached the way every other class's are, through [`registry`].
