@@ -410,7 +410,12 @@ fn key_columns(table: &Table, columns: &[Ident], dialect: Dialect) -> String {
 /// Only when it is the *whole* primary key: `AUTOINCREMENT` is legal in the
 /// exact `INTEGER PRIMARY KEY AUTOINCREMENT` form and in no other, so an
 /// identity inside a composite key has no SQLite spelling at all.
-fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> {
+///
+/// `pub(crate)` for [`crate::plan::diff`], which needs the same predicate for
+/// the opposite reason: the width this form erases is § 5's to normalise out
+/// of a comparison, and a second reading of when SQLite writes a rowid would
+/// be a second answer to drift from this one.
+pub(crate) fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> {
     if dialect != Dialect::Sqlite {
         return None;
     }
@@ -1595,6 +1600,226 @@ mod tests {
                 "{dialect:?} widened a column"
             );
             assert!(!elsewhere.sql().concat().contains("_nvs_rebuild"));
+        }
+    }
+
+    /// § 6's `Safe`, which is the only grade `applySafe` will run unasked.
+    ///
+    /// All four agree, SQLite included: a nullable column with no default is
+    /// the one add that dialect can express as an alter ([`sqlite_can_add`]),
+    /// so it is the one that does not become a rebuild and grade up.
+    #[test]
+    fn adding_a_nullable_column_is_safe() {
+        let owner = Column::new("owner", ScalarType::Int(IntWidth::Big))
+            .unwrap()
+            .null();
+        for dialect in DIALECTS {
+            let added = step(
+                Change::AddColumn {
+                    table: wide_after(Some(owner.clone()), None),
+                    column: owner.clone(),
+                },
+                dialect,
+            );
+            assert_eq!(added.grade(), Grade::Safe, "{dialect:?}");
+            assert!(
+                !added.sql().concat().contains("_nvs_rebuild"),
+                "{dialect:?} rebuilt the table for a column every row already has"
+            );
+        }
+    }
+
+    /// § 6's `Locking`, at the case that gives the grade its name: a unique key
+    /// is validated against every row that is already there.
+    ///
+    /// Both kinds, because an index earns the same grade for the *other* half
+    /// of the reason — it is built rather than validated, and v1 emits no
+    /// concurrent build — and a grader that collapsed the two would still print
+    /// plausibly on either line alone.
+    #[test]
+    fn a_unique_index_over_existing_rows_is_locking() {
+        let table = wide_after(None, None);
+        let unique = table.unique_keys()[0].clone();
+        let plain = table.indexes()[0].clone();
+        for dialect in DIALECTS {
+            let validated = step(
+                Change::AddKey {
+                    table: table.clone(),
+                    key: unique.clone(),
+                    kind: KeyKind::Unique,
+                },
+                dialect,
+            );
+            assert_eq!(validated.grade(), Grade::Locking, "{dialect:?}");
+            assert!(
+                validated.reason().contains("collide"),
+                "{dialect:?}: {}",
+                validated.reason()
+            );
+            let built = step(
+                Change::AddKey {
+                    table: table.clone(),
+                    key: plain.clone(),
+                    kind: KeyKind::Index,
+                },
+                dialect,
+            );
+            assert_eq!(built.grade(), Grade::Locking, "{dialect:?}");
+            assert!(
+                built.reason().contains("holds a lock"),
+                "{dialect:?}: {}",
+                built.reason()
+            );
+        }
+    }
+
+    /// § 6's `Locking` at its other end: `NOT NULL` is checked against every
+    /// existing row and fails on the first null, whether it arrives as a new
+    /// column or as a tightening of one already there.
+    ///
+    /// SQLite grades *up* rather than down, and the two claims are one test
+    /// because that is the whole shape of § 6 — the same change is not the same
+    /// risk on two backends. It can express neither of these as an alter, so
+    /// both are a create-copy-drop-rename and `Destructive` unconditionally.
+    #[test]
+    fn not_null_on_a_populated_column_is_locking() {
+        let owner = Column::new("owner", ScalarType::Int(IntWidth::Big)).unwrap();
+        let tightened = Column::new("body", ScalarType::Text { max: None }).unwrap();
+        for dialect in DIALECTS {
+            let rebuilds = dialect == Dialect::Sqlite;
+            let want = if rebuilds {
+                Grade::Destructive
+            } else {
+                Grade::Locking
+            };
+            let added = step(
+                Change::AddColumn {
+                    table: wide_after(Some(owner.clone()), None),
+                    column: owner.clone(),
+                },
+                dialect,
+            );
+            assert_eq!(added.grade(), want, "{dialect:?}");
+            let changed = step(
+                Change::ChangeColumn {
+                    table: wide_after(Some(tightened.clone()), Some("body")),
+                    from: Column::new("body", ScalarType::Text { max: None })
+                        .unwrap()
+                        .null(),
+                    to: tightened.clone(),
+                },
+                dialect,
+            );
+            assert_eq!(changed.grade(), want, "{dialect:?}");
+            assert!(
+                changed.reason().contains("fails on the first null"),
+                "{dialect:?}: {}",
+                changed.reason()
+            );
+        }
+    }
+
+    /// § 6's `Destructive` at the two changes that reach it for different
+    /// reasons: one because § 7 makes every removal a report, one because the
+    /// new type does not hold every value the old one did.
+    ///
+    /// The pair also separates the grade from the report: they share a grade
+    /// and only one of them is carried and never applied.
+    #[test]
+    fn dropping_a_column_and_narrowing_a_type_are_destructive() {
+        for dialect in DIALECTS {
+            let dropped = step(
+                Change::DropColumn {
+                    table: wide_after(None, Some("thumb")),
+                    column: Ident::new("thumb").unwrap(),
+                },
+                dialect,
+            );
+            assert_eq!(dropped.grade(), Grade::Destructive, "{dialect:?}");
+            assert!(dropped.is_report(), "{dialect:?}");
+            let narrowed = step(
+                Change::ChangeColumn {
+                    table: wide_after(Some(label_of(40)), Some("label")),
+                    from: label_column(),
+                    to: label_of(40),
+                },
+                dialect,
+            );
+            assert_eq!(narrowed.grade(), Grade::Destructive, "{dialect:?}");
+            assert!(
+                !narrowed.is_report(),
+                "{dialect:?} would not apply a change the operator asked for"
+            );
+        }
+    }
+
+    /// § 6's version-keyed half, as the claim that a grade is the *server's*
+    /// and not the loaded driver's.
+    ///
+    /// Adding a column with a default is a catalog write on PostgreSQL 11+ and
+    /// MySQL 8.0.12+ and a full table rewrite on anything older. A sans-io
+    /// emitter knows the dialect and not the version, so all four grade up to
+    /// `Locking` and the reason names the versions rather than asking to be
+    /// believed. The answer PostgreSQL alone would have earned is `Safe`, and
+    /// taking it on the driver's word is the optimism § 6 refuses.
+    #[test]
+    fn an_added_default_grades_on_the_servers_version_and_not_the_driver_alone() {
+        let owner = Column::new("owner", ScalarType::Int(IntWidth::Big))
+            .unwrap()
+            .null()
+            .default(ColumnDefault::Int(0))
+            .unwrap();
+        for dialect in DIALECTS {
+            let added = step(
+                Change::AddColumn {
+                    table: wide_after(Some(owner.clone()), None),
+                    column: owner.clone(),
+                },
+                dialect,
+            );
+            assert_eq!(added.grade(), Grade::Locking, "{dialect:?}");
+            assert!(
+                added.reason().contains("11+") && added.reason().contains("8.0.12+"),
+                "{dialect:?} graded on the driver alone: {}",
+                added.reason()
+            );
+        }
+    }
+
+    /// § 6's grade-up rule, at both places it is spent.
+    ///
+    /// [`Grade::up_to`] is the operation, and what it must be is a maximum over
+    /// the three — asserted over the whole nine-pair table rather than on a
+    /// line, so an ordering that grew a case still fails here. [`widens`]'s
+    /// default arm is the rule applied: a pair of types it has no rule for is
+    /// **not** a widening, so a date respelled as text is `Destructive` and an
+    /// operator is asked to confirm something that may have been free. The
+    /// reverse mistake costs them the column.
+    #[test]
+    fn a_grade_the_emitter_cannot_determine_grades_up() {
+        let grades = [Grade::Safe, Grade::Locking, Grade::Destructive];
+        for one in grades {
+            for other in grades {
+                assert_eq!(one.up_to(other), one.max(other));
+                assert_eq!(one.up_to(other), other.up_to(one));
+            }
+        }
+        let spelled = Column::new("day", ScalarType::Text { max: Some(10) }).unwrap();
+        for dialect in DIALECTS {
+            let crossed = step(
+                Change::ChangeColumn {
+                    table: wide_after(Some(spelled.clone()), Some("day")),
+                    from: Column::new("day", ScalarType::Date).unwrap(),
+                    to: spelled.clone(),
+                },
+                dialect,
+            );
+            assert_eq!(crossed.grade(), Grade::Destructive, "{dialect:?}");
+            assert!(
+                crossed.reason().contains("grades up"),
+                "{dialect:?} took a guess instead: {}",
+                crossed.reason()
+            );
         }
     }
 }
