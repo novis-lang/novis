@@ -1,6 +1,6 @@
 ---
 title: Architecture Decision Records
-description: Every settled decision in Novis's design, one record per decision — with its status, what it amends and what amends it.
+description: Every settled decision in Novis's design, one frozen record per decision — with its status and the rules it created or changed.
 tableOfContents: false
 editUrl: false
 ---
@@ -9,9 +9,10 @@ editUrl: false
 
 import AdrIndex from '@components/AdrIndex.astro'
 
-Novis records every settled design decision as an Architecture Decision Record.
-An ADR's body always states the **current** rule: a later decision is folded into
-the earlier record's text, never left as an overlay. When a record has been
-amended, the note at its top names the decisions folded into it.
+Novis records every settled design decision as an Architecture Decision Record,
+frozen the day it is accepted. What is **currently** true is the rulebook under
+`docs/rules/`; a record is the reasoning behind the rules its `changes:` block
+names, and a later decision is a new record, never an edit to an earlier one.
+The note at the top of each page names the rules it created or changed.
 
 <AdrIndex />
