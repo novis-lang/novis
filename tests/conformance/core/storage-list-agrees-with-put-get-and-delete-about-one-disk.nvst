@@ -1,8 +1,8 @@
 --TEST--
-Core\Storage's four rows are one view of one disk: a put appears in the listing, a replace does not add a key, and a delete leaves it — ADR 0082 § 2
+Core\Storage's four rows are one view of one disk: a put appears in the listing, a replace does not add a key, and a delete leaves it — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
-// The agreement case. Each of ADR 0082 § 2's four rows is asked the same
+// The agreement case. Each of `rule:programs/framework-core-half`'s four rows is asked the same
 // question about the same disk after each change, so a listing that missed a
 // write or held a key `delete` removed fails here while every one of the three
 // round-trip cases beside it stays green.

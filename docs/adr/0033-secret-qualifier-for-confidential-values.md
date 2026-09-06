@@ -319,7 +319,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   hook, and [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 2 already rules out destructors of any
   kind for the same reasons (no sound throw-reporting spot, undoes the wholesale-heap-drop request model).
   `secret` stays compile-time-only and erased before codegen, like `tainted`, per
-  [ADR 0004](0004-memory-for-simplicity.md)'s ordering.
+  `rule:programs/memory-priority`'s ordering.
 
 ## Revisiting
 

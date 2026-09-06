@@ -35,7 +35,7 @@
 //! the one in force and, while an edit does not compile, the failure the next
 //! resolve of that same content is answered with. O(the program's text), never
 //! O(isolates spawned) and never O(edits), per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — and freed with
+//! `rule:programs/memory-priority` — and freed with
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!

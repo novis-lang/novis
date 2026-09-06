@@ -1,4 +1,4 @@
-//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `rule:programs/no-runtime-autoload`
 //! § 3: `Core\Program::implementing<T>()`, answered here rather than at run
 //! time.
 //!
@@ -74,7 +74,7 @@ pub(crate) fn expand(call: &Expr, written: &[TypeId], env: &mut Env<'_>) {
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "ADR 0061 § 3: the interface is what gives the enumerated instances a static \
+                "`rule:programs/implementing`: the interface is what gives the enumerated instances a static \
                  type — `object` is opaque and a shape describes data rather than methods, so \
                  an array of anything else is one nothing can be called on",
             ),
@@ -108,7 +108,7 @@ pub(crate) fn expand(call: &Expr, written: &[TypeId], env: &mut Env<'_>) {
                     format!("this enumeration would write `new {class}()`"),
                 )
                 .with_help(format!(
-                    "ADR 0061 § 3: every class the enumeration instantiates needs a \
+                    "`rule:programs/implementing`: every class the enumeration instantiates needs a \
                      no-argument constructor, and dependencies arrive through \
                      `{interface}`'s own methods instead — give `{class}` a \
                      zero-argument `constructor`, or drop its `implements` clause",
@@ -164,7 +164,7 @@ mod tests {
         (exprs, span, diags)
     }
 
-    /// ADR 0061 § 3, all four clauses of it at once: the call records the
+    /// `rule:programs/implementing`, all four clauses of it at once: the call records the
     /// expansion rather than a call, the entries are the **non-abstract**
     /// classes reaching the interface, they are **sorted by fully-qualified
     /// name**, and each carries the constructor `nvs-ir` is to name — the

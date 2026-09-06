@@ -175,7 +175,7 @@ is refused at the door. Plus:
   class to declare its own OpenAPI format is a real feature and it is not this goal's.
 - **No `Parses` implementor is discovered, enumerated or auto-registered.** The class is named by a
   parameter's declared type at every site, so nothing here needs
-  [ADR 0061](../../adr/0061-compile-time-autoload-and-program-discovery.md)'s program query and nothing
+  `rule:programs/no-runtime-autoload`'s program query and nothing
   gains a registry.
 - **A `Parses` class narrows nothing.** It is `converts_from_string`'s business and never `closed_set`'s
   (`routes.rs:1737`), so it changes no route's rank, no precedence and no `Core\Router::url`. Two routes
@@ -186,7 +186,7 @@ is refused at the door. Plus:
   ADR 0066 § 3a (the `tryParse` shape is now a contract and its three conditions are what the interface
   encodes), ADR 0077 § 3 and ADR 0102 §§ 3 and 5 (the type roster's last entry becomes a predicate), and
   novis.md's two prose rosters.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md)'s ledger: nothing at run
+- **What this spends**, per `rule:programs/memory-priority`'s ledger: nothing at run
   time that the roster did not already spend. A capture's conversion was a match arm and stays one; the
   arm now carries a class pointer the compiled table already holds. No allocation per request that
   `CaptureConv::Unconverted` did not make, and one fewer — a `Parses` capture that refuses never builds

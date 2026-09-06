@@ -418,7 +418,7 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         // than reads — `crate::expr::members::check_class_name_const` folds it
         // to the fully qualified name with no runtime step at all. Admitted
         // because ADR 0085 § 2 writes an `errors` entry's `type` as a name,
-        // and a name is either this spelling or a magic string; ADR 0061's
+        // and a name is either this spelling or a magic string; `rule:programs/no-runtime-autoload`'s
         // whole premise is that a name resolves, so the string form would be
         // the one thing § 2 exists to refuse.
         | ExprKind::ClassNameConst { .. }

@@ -248,7 +248,7 @@ const PROGRAM: &str = "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Deplo
 #[test]
 fn a_command_table_is_built_from_the_program_enumeration() {
     // § 6 is ADR 0077's table with the route swapped for a command, over the
-    // same ADR 0061 § 3 enumeration, so what is asserted is what the route
+    // same `rule:programs/implementing` enumeration, so what is asserted is what the route
     // table's own case asserts: the rows exist, they are in load order, and
     // they are reachable through `ExprTypeTable` — the channel every
     // whole-program fact crosses to `nvs-ir` by. Nothing reads them back yet;

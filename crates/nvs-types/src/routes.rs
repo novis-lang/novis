@@ -519,7 +519,7 @@ pub struct RouteParam {
 /// precedence makes the path key a shape rather than the written text. Order
 /// is what makes the pair deterministic — a duplicate is always reported at
 /// the row that arrives second, and the load order it arrives in does not
-/// depend on filesystem enumeration ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// depend on filesystem enumeration (`rule:programs/no-runtime-autoload`
 /// § 3).
 #[derive(Debug, Default)]
 pub struct RouteTable {
@@ -1088,7 +1088,7 @@ fn check_error_type(
             span,
             "not a `::class`",
             "§ 2's `type` is the class the error response carries, written `Api\\NotFound::class` \
-             — a name resolves through ADR 0061's autoload map, which a string would not",
+             — a name resolves through `rule:programs/no-runtime-autoload`'s autoload map, which a string would not",
             env,
         );
         return None;

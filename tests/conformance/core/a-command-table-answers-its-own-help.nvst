@@ -44,7 +44,7 @@ class Deploy {
     }
 }
 
-// A second class, because the table is built out of ADR 0061 § 3's
+// A second class, because the table is built out of `rule:programs/implementing`'s
 // whole-program enumeration rather than out of one declaration site — and a
 // second option carrying an `about` and no `short`, which is the other side of
 // the bound the counters below name.

@@ -81,7 +81,7 @@
 //! *another* file into that same directory, at the path it names, creating
 //! the directories along the way — so a case can hold a `require` target, an
 //! autoload root and the class it declares, which is what
-//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `rule:programs/no-runtime-autoload`
 //! needs to be observable end to end at all:
 //!
 //! ```text

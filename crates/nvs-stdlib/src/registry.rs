@@ -1366,7 +1366,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::script::CLASS,
     crate::script::EXIT_REPORT,
     // § 13, and the second row after `Core\Attributes` whose members never
-    // run: ADR 0061 § 3 expands `implementing<T>()` while checking, so
+    // run: `rule:programs/implementing` expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
     crate::program::CLASS,
     // § 13's terminal profile — ADR 0086 § 3's four members, which reach the
@@ -1514,20 +1514,20 @@ pub const CLASSES: &[CoreClass] = &[
     // write [`Qual::Reveal`] — see that variant's own docs — and
     // [`crate::secret`] owns why the `bytes` half is a second name.
     crate::secret::CLASS,
-    // § 16's SMTP row, and ADR 0082 § 2's transport half. Registered on its own
+    // § 16's SMTP row, and `rule:programs/framework-core-half`'s transport half. Registered on its own
     // rather than beside `Core\Http` because it shares nothing with it: the
     // endpoint is an operator-named block and not a program-supplied URL, so
     // ADR 0058's launderer is not in the path at all. [`crate::mail`] owns why
     // `mail()`'s fourth argument has no successor here.
     crate::mail::CLASS,
-    // ADR 0082 § 2's other half of the same row pair, and registered beside
+    // `rule:programs/framework-core-half`'s other half of the same row pair, and registered beside
     // `Core\Mail` because the two are what that section adds to `Core`: an
     // operator names the endpoint in one and the disk in the other, and neither
     // takes a host or a path. It is the one class here that declares **no**
     // capability of its own — [`crate::storage`] owns why `fs.*` answering
     // twice would be the bug.
     crate::storage::CLASS,
-    // ADR 0082 § 2's last row, and the third of the three this stage adds to
+    // `rule:programs/framework-core-half`'s last row, and the third of the three this stage adds to
     // `Core`. Beside the two above because it completes them and not because
     // it shares anything else: it is the one entry in that table placed by
     // test 4 — data the language already had to carry — rather than by an
@@ -1968,7 +1968,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // declared `fs.write` optional would need a second capability before it
     // could find out whether it had the first.
     (crate::cap::NAME, "has", None),
-    // ADR 0082 § 2's transport half, granted the way ADR 0067 § 3 grants a
+    // `rule:programs/framework-core-half`'s transport half, granted the way ADR 0067 § 3 grants a
     // database: by the *name* of the block, never by the host inside it. That is
     // what makes the row `mail.send` rather than `net.connect` — a `net.connect`
     // grant is a claim about hosts a program may reach, and this member reaches
@@ -2012,7 +2012,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::db::SCHEMA_NAME, "planAgainst", None),
     (crate::db::SCHEMA_NAME, "fromArray", None),
     (crate::db::SCHEMA_NAME, "toArray", None),
-    // ADR 0082 § 2's storage half, and the rows that make its "over ADR 0051's
+    // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over ADR 0051's
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key
     // resolve to. There is deliberately no `storage.*` capability — a second

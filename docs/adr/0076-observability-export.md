@@ -81,7 +81,7 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 
 Every one is read from instrumentation that already exists: the `query` kind from
 [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) § 1, `gc` from § 2, `spawn` from § 3, GC and
-memory from the arena accounting [ADR 0004](0004-memory-for-simplicity.md) already requires. **No probe site
+memory from the arena accounting `rule:programs/memory-priority` already requires. **No probe site
 is added to the per-statement/per-call path** [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 measures and guards, and that ADR's cost claim is untouched.
 
@@ -229,7 +229,7 @@ process restart and which silently corrupts every `rate()` and `increase()` quer
 on a dashboard, which is worse than a missing one. Refusing new series loses the newest labels and keeps
 every existing series exactly correct, and the warning names the metric that is producing them.
 
-Cost, as [ADR 0004](0004-memory-for-simplicity.md) requires: **O(cores × series)**, bounded by
+Cost, as `rule:programs/memory-priority` requires: **O(cores × series)**, bounded by
 `max_series` per core, with a counter costing a few dozen bytes and a histogram its bucket array. Zero
 series until something registers one. It is charged to the core, not to a request, exactly as
 [ADR 0059](0059-cross-request-state-is-explicit.md) § 3's cache is, and it is not O(requests served).
@@ -317,7 +317,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **Tail sampling** — keeping traces that were slow or failed rather than a fixed head fraction — is what
   operators actually want and is deliberately not built. It needs either a collector-side component (which is
   configuration, not Novis's code) or a buffering exporter that holds every span until a request ends (which is
-  a footprint decision under [ADR 0004](0004-memory-for-simplicity.md) and needs its own number).
+  a footprint decision under `rule:programs/memory-priority` and needs its own number).
 - **Exemplars** — attaching a trace id to a histogram bucket, so a slow-request bucket links to a trace — are
   the highest-value thing missing here and are additive.
 - **A per-attempt span for a retried outbound call**, flagged by

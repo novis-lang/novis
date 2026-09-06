@@ -82,7 +82,7 @@
 //! number of jobs — plus one answer slot per job and the output each child
 //! buffered. All of it is freed when the call returns, so it is O(in-flight)
 //! and not O(children ever spawned), per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md). Per thread: one
+//! `rule:programs/memory-priority`. Per thread: one
 //! word, the installed pointer [`crate::Scheduler::run`] publishes.
 
 use std::cell::RefCell;

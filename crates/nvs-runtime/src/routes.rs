@@ -6,7 +6,7 @@
 //!
 //! [`crate::commands`]' argument, one table along, and the same one § 1 makes
 //! for itself: the table is a compile product — `nvs_types::routes::RouteTable`,
-//! built by the same ADR 0061 § 3 scan ADR 0086's commands are — and the
+//! built by the same `rule:programs/implementing` scan ADR 0086's commands are — and the
 //! question asked of it is a *request's*, which no compile-time answer can
 //! hold. So the rows cross, and they cross as **strings and two closed enums**:
 //! [`CaptureConv`], which is the one thing a matcher needs that no string
@@ -45,7 +45,7 @@
 //! of them for an application, and nothing at all for a program that declares no
 //! route. A *matched* request holds one `Arc` bump on the row plus one `String`
 //! per capture, which is the segment text it converted. O(in-flight requests),
-//! per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+//! per `rule:programs/memory-priority`.
 //!
 //! **A capture leaves this crate as the segment arrived, still
 //! percent-encoded**, and is decoded once on the far side of the crossing.

@@ -25,7 +25,7 @@
 
 > **In short:** `#[Route(path: "/users/{id}", method: Http\Method::Get, name: "user.show")]` on a method is
 > read **while compiling**, through the program enumeration
-> [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) already built, into a route table baked
+> `rule:programs/no-runtime-autoload` already built, into a route table baked
 > into the compiled unit. `Core\Router::match` walks it and `Core\Router::url` reverses it. **A duplicate
 > route, a `{param}` with no matching method parameter, and a `url()` naming a route that does not exist are
 > all compile errors** — the three routing bugs every framework discovers at runtime. Two decisions do most
@@ -50,8 +50,7 @@
   reverse-URL call naming a route that was renamed (a broken link in an email, found by a user).
 - **Novis already has the two mechanisms this needs.**
   [ADR 0046](0046-attributes-shape-literal-metadata.md) gives structured, compile-time-constant metadata on
-  a declaration with no attribute class. [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)
-  § 3 gives a program-wide enumeration for exactly the question static resolution cannot answer — *what
+  a declaration with no attribute class. `rule:programs/implementing` gives a program-wide enumeration for exactly the question static resolution cannot answer — *what
   exists that nothing names* — with its opt-in rule and its cache-invalidation consequence already argued.
   A route table is that enumeration filtered by an attribute.
 - **The interaction that made this dangerous is already settled.**
@@ -264,7 +263,7 @@ of stopping short:
 
 ### 5. The table is built by the same scan `implementing<T>()` uses
 
-Finding routes is the same question [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3
+Finding routes is the same question `rule:programs/implementing`
 built its program enumeration for — *what exists that nothing names* — and it reuses it wholesale, including
 its consequences:
 
@@ -279,7 +278,7 @@ its consequences:
 - The table is emitted into the compiled unit as a radix trie
   ([ADR 0042](0042-on-disk-artifact-cache-format.md)), sorted by path so it is byte-deterministic across
   builds. Cost is **O(routes in compiled code)** in the artifact
-  ([ADR 0004](0004-memory-for-simplicity.md)), not per request and not per object; a match is a trie walk
+  (`rule:programs/memory-priority`), not per request and not per object; a match is a trie walk
   that allocates nothing for a route with no captures.
 
 ### 6. `route` is also a metric label
@@ -298,7 +297,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **No route cache to warm and no cache to go stale.** Symfony and Laravel both generate a routing cache
   file precisely because the scan is compile-time work; here it is compile-time work, keyed and invalidated
   by machinery [ADR 0042](0042-on-disk-artifact-cache-format.md) and
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) already built.
+  `rule:programs/no-runtime-autoload` already built.
 - **The `\d+` requirement everybody writes is a type.** `show(uint $id)` both narrows matching and produces
   an unqualified `uint`, from one declaration that was going to exist anyway.
 - **Stopping at matching is what makes it adoptable.** A framework can build dispatch on top, keep its own
@@ -322,7 +321,7 @@ without one gets no `route` label rather than a cardinality bomb.
   [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 5 bounds. Zero under
   `validate = never`, which is what production runs.
 - **A cross-module route needs that module compiled.** The same consequence
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) already records for a hard cross-module
+  `rule:programs/no-runtime-autoload` already records for a hard cross-module
   reference, arriving in a second place.
 - **`{name}` will annoy the people who wanted `:name`**, and the reverse. § 2 gives three reasons; one of
   them is arbitrary-looking and the decision still had to be made.
@@ -384,7 +383,7 @@ without one gets no `route` label rather than a cardinality bomb.
   path is source state where a hostname is deployment state. `Core\Request::mount()` exposes the matched
   mount's glob captures, which is what a multi-tenant application actually needs
   ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 7).
-- **A second selector for [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s scan** — that
+- **A second selector for `rule:programs/no-runtime-autoload`'s scan** — that
   ADR's *Revisiting* says a selector beyond `implementing<T>` should wait for a second real use case. This
   is that second case, and it argues for the scan's filter becoming a shared, named mechanism rather than
   two hand-written passes over the same enumeration.
@@ -400,7 +399,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **M4S:** `Core\Router::url("user.show", {id: 7})` with a literal name folds; an unknown literal name is a
   compile error; a `$params` array missing a capture is a compile error; a computed name throws at run time.
 - **M4S:** a program with no `Core\Router` call performs no scan and emits no table, asserted the same way
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s "a program with no query performs no
+  `rule:programs/no-runtime-autoload`'s "a program with no query performs no
   scan" already is.
 - **M7:** `/users/new` and `/users/{id}` both declared, the literal wins, and reversing their declaration
   order changes nothing — the order-independence claim.

@@ -162,7 +162,7 @@ pins both halves.
   [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on scalars, and creating an exception for
   one type is how the "twin problem" R19 exists to prevent regrows.
 - **A general units-of-measure system** (F#'s `1.0<s>`, `9.81<m/s^2>`). Far more powerful and genuinely
-  attractive. Rejected on [ADR 0004](0004-memory-for-simplicity.md)'s simplicity priority: it is a type-system
+  attractive. Rejected on `rule:programs/memory-priority`'s simplicity priority: it is a type-system
   feature of its own — dimensional analysis, unit algebra in signatures, inference through arithmetic — for
   a language whose domain is web requests and CLI programs, where time is the only unit that recurs.
 - **Allowing `1h + 30m` via operator overloading on `Duration`.** What C++ does. Rejected: operator

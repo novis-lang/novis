@@ -23,7 +23,7 @@ them, and each has a tool that counts it so no session re-derives one:
    which is deliberately not a median: a median rises by writing more cases for members that already have
    some, and that is the metric a corpus grows around rather than into.
 2. **The passes that exist only on paper.** Four compiler-recognized attributes, the intrinsic-folding
-   pass, the OpenAPI emitter and ADR 0061 § 3's program enumeration are all specified, none implemented.
+   pass, the OpenAPI emitter and `rule:programs/implementing`'s program enumeration are all specified, none implemented.
    `nvs_types::derive::ATTRIBUTES` at [derive.rs:77](../../../crates/nvs-types/src/derive.rs) is the
    closed list they join, and it holds five names where the ADRs name twelve.
 3. **The migration rows.** `python tools/check-migration.py` was at **25%** (291 of 1151 functions) when
@@ -38,7 +38,7 @@ paths* list — 68 sites when this was written — is the inventory of the middl
 
 ## Stage 0 — the catch-up, and it is one item
 
-1. **ADR 0061 § 3's program enumeration exists.** `Core\Program::implementing<T>()` expands at compile
+1. **`rule:programs/implementing`'s program enumeration exists.** `Core\Program::implementing<T>()` expands at compile
    time to an array literal of `new` expressions, one per non-abstract class implementing `T`, **sorted by
    fully-qualified name** so the order never depends on filesystem enumeration; a class with no
    no-argument constructor is a diagnostic naming it. `nvs-hir` has §§ 1–2 — `AutoloadMap::build` at
@@ -46,7 +46,7 @@ paths* list — 68 sites when this was written — is the inventory of the middl
    walks the resulting program to answer "which classes implement this interface".
 
    **It is Stage 0 because three later items are the same scan.** `#[Route]`'s table (item 6),
-   `#[Command]`'s table (item 8) and the OpenAPI emitter (item 9) are all "filter ADR 0061 § 3's
+   `#[Command]`'s table (item 8) and the OpenAPI emitter (item 9) are all "filter `rule:programs/implementing`'s
    enumeration", and ADR 0077 § 5 says so outright. Writing any of them first means writing the walk
    three times and then unifying it. `crates/nvs-hir/src/autoload.rs`,
    `crates/nvs-hir/src/hierarchy.rs` (`implements_interface` is already there),

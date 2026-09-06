@@ -99,9 +99,9 @@ pub struct Config {
     /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.
     pub db: Databases,
-    /// `[mail.<name>]` — one named SMTP endpoint per sub-table (ADR 0082 § 2).
+    /// `[mail.<name>]` — one named SMTP endpoint per sub-table (`rule:programs/framework-core-half`).
     pub mail: BTreeMap<String, MailEndpoint>,
-    /// `[storage.<name>]` — one named object-storage disk per sub-table (ADR 0082 § 2).
+    /// `[storage.<name>]` — one named object-storage disk per sub-table (`rule:programs/framework-core-half`).
     pub storage: BTreeMap<String, StorageDisk>,
     /// `[deferred]` — the after-response executor's bounds (ADR 0072 § 7).
     pub deferred: Option<Deferred>,
@@ -256,7 +256,7 @@ pub struct Capabilities {
     pub debug: Option<CapDebug>,
     /// `db.connect`, `db.open` and `db.schema` (ADR 0067 § 3).
     pub db: Option<CapDb>,
-    /// `mail.send` (ADR 0082 § 2).
+    /// `mail.send` (`rule:programs/framework-core-half`).
     pub mail: Option<CapMail>,
 }
 
@@ -489,7 +489,7 @@ pub struct CapMail {
     pub send: Option<Setting>,
 }
 
-/// One `[mail.<name>]` block — ADR 0082 § 2's operator-named SMTP endpoint, whose shape is
+/// One `[mail.<name>]` block — `rule:programs/framework-core-half`'s operator-named SMTP endpoint, whose shape is
 /// [`Database`]'s and for the same reason: the name is the key and the settings are the
 /// operator's alone, so nothing a program writes can reach past this struct.
 ///
@@ -522,7 +522,7 @@ pub struct MailEndpoint {
     pub timeout: Option<String>,
 }
 
-/// One `[storage.<name>]` block — ADR 0082 § 2's object-storage disk, whose shape is
+/// One `[storage.<name>]` block — `rule:programs/framework-core-half`'s object-storage disk, whose shape is
 /// [`MailEndpoint`]'s minus everything an endpoint needs and a directory does not.
 ///
 /// **One field, and there is deliberately no `capabilities.storage` beside it.** The grant over a

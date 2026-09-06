@@ -4,7 +4,7 @@
 //! § 4's date pattern grammar — the one `Core\Time\DateTime::format` emits
 //! from and `Core\Time::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
-//! ones — and [ADR 0082](/docs/adr/0082-the-first-party-framework.md)
+//! ones — and `rule:programs/first-party-framework`
 //! § 2's `Core\Cldr::pluralCategory`, the cardinal plural rules a message
 //! catalog selects a form with, and `Core\Cldr::ordinalCategory` beside it for
 //! the forms a *place* takes.
@@ -85,7 +85,7 @@
 //!
 //! # The plural rules, and why they are a closed roster
 //!
-//! ADR 0082 § 2's row reads "one member exposing the CLDR data
+//! `rule:programs/framework-core-half`'s row reads "one member exposing the CLDR data
 //! `nvs_stdlib::cldr` already holds". That was never true of this module: what
 //! it held was the pattern grammar above and no plural data at all, so the row
 //! is a member *and* the table behind it. The row's reason survives unchanged —
@@ -1083,7 +1083,7 @@ fn name_index(
 }
 
 // ============================================================================
-// The plural rules — ADR 0082 § 2's `Core\Cldr` row
+// The plural rules — `rule:programs/framework-core-half`'s `Core\Cldr` row
 // ============================================================================
 
 /// `Core\Cldr`'s name, spelled once.
@@ -1098,7 +1098,7 @@ const PLURAL_MEMBER: &str = r"Core\Cldr::pluralCategory";
 /// The ordinal member's name, likewise.
 const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
 
-/// ADR 0082 § 2's row and the ordinal table beside it, and the whole of the
+/// `rule:programs/framework-core-half`'s row and the ordinal table beside it, and the whole of the
 /// class: two members, no capability, no instance and no constant.
 ///
 /// It declares no capability for the reason [`crate::storage`] declares none
@@ -2357,7 +2357,7 @@ fn operands_at(args: &[Value], slot: usize, member: &str) -> Result<Operands, Fa
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cldr::pluralCategory(int|float|decimal $count, string $locale):
-    /// Cldr\PluralCategory` — ADR 0082 § 2's row, and the whole of the class.
+    /// Cldr\PluralCategory` — `rule:programs/framework-core-half`'s row, and the whole of the class.
     ///
     /// The count is parameter 1 because it is what the member classifies and
     /// the locale is the rule it is classified under — the same order
@@ -2717,7 +2717,7 @@ mod tests {
         Decimal::parse(written).unwrap()
     }
 
-    /// ADR 0082 § 2's row, over the table this module carries: the six
+    /// `rule:programs/framework-core-half`'s row, over the table this module carries: the six
     /// categories are all reachable, a language is answered from its own rules
     /// rather than from English's, the operands come from what the count
     /// shows, and a language the table does not carry is refused.

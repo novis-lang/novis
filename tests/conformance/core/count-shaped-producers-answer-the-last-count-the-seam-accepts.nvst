@@ -1,5 +1,5 @@
 --TEST--
-The last count `nvs_runtime::affordable` accepts is answered by the allocator and not by the process dying, and the entry a pad member already holds is what moves that bound one count — spec §§ 1, 2, 7, ADR 0004
+The last count `nvs_runtime::affordable` accepts is answered by the allocator and not by the process dying, and the entry a pad member already holds is what moves that bound one count — spec §§ 1, 2, 7, `rule:programs/memory-priority`
 --FILE--
 <?nvs
 // `count-shaped-producers-refuse-alike.nvst` pins that the eight agree about

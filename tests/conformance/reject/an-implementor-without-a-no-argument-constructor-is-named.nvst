@@ -1,5 +1,5 @@
 --TEST--
-`Core\Program::implementing<T>()` refuses an implementor whose constructor takes a required argument, and names the class rather than the call — ADR 0061 § 3
+`Core\Program::implementing<T>()` refuses an implementor whose constructor takes a required argument, and names the class rather than the call — `rule:programs/implementing`
 --FILE--
 <?nvs
 // § 3: "each such class needs a no-argument constructor; a diagnostic names any

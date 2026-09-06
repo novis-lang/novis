@@ -6,7 +6,7 @@
 //! *nothing*: "every bound is finite with nothing configured". A connection is
 //! the one thing this server holds that no request ever ends, so a bound left
 //! to a later configuration pass is a bound that is absent on every deployment
-//! that did not know to write it — which is the shape ADR 0004's priority 1
+//! that did not know to write it — which is the shape `rule:programs/memory-priority`'s priority 1
 //! refuses. [`Connection::default`] is therefore the whole answer and not a
 //! starting point, and the test at the foot of this module is what says so:
 //! it destructures the struct, so a bound added here without a finite default

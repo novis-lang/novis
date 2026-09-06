@@ -123,7 +123,7 @@ compares against the **soft** limit only; the slow path decides which of the two
 The ceiling is **8 MB** — about 65,000 frames, the same order as what PHP permits, matching the default
 Linux thread stack. Resident cost is unchanged by the number, because only touched pages commit; what the
 ceiling actually sets is how deep a program may recurse and how much one runaway commits before it is
-stopped, which at 1.32 ns per call is ≈86 µs either way. Stated as [ADR 0004](0004-memory-for-simplicity.md)
+stopped, which at 1.32 ns per call is ≈86 µs either way. Stated as `rule:programs/memory-priority`
 requires: **8 MB of reserved address space per coroutine**, of which only the touched pages are resident.
 
 This bound is emitted at Novis function entry, so it reaches recursion through Novis frames and only those.
@@ -278,7 +278,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 - New `nvs.toml` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
   `handler_reserve_memory`/`handler_reserve_time`, `[log] target` — a cost against priority 4 (simplicity),
   accepted because the alternative is either an unloggable OOM or a log format that drifts between the engine
-  and userland. As [ADR 0004](0004-memory-for-simplicity.md) requires stated: both reserves are small and
+  and userland. As `rule:programs/memory-priority` requires stated: both reserves are small and
   fixed — the tier-1 slice is carved from the *request's own* ceiling at request start, unavailable to
   ordinary execution; the tier-3 allotment is a *worker-level* allocation, sized once per core, not per
   request, so it does not scale with request volume. Exact defaults are M6 config work (see *Revisiting*).

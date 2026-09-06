@@ -78,7 +78,7 @@ report a plain undefined-variable error.
 ### Reaching a declaration without naming its file: `autoload`
 
 `require` names a file. `autoload` names a *rule* for finding files, so ordinary code never names one at
-all — [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) owns the semantics (including
+all — `rule:programs/no-runtime-autoload` owns the semantics (including
 why there is no manifest file and no runtime loader), this owns the grammar.
 
 ```

@@ -59,7 +59,7 @@
 //! what is there is not yet a whole message. A message can span reads, so the
 //! tail of a short one has to survive to the next call, and the buffer is the
 //! connection's rather than the call's — O(in-flight) per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md). It is filled
+//! `rule:programs/memory-priority`. It is filled
 //! through a `resize` and a `truncate` rather than into uninitialised spare
 //! capacity, because this crate forbids `unsafe`: that costs one `memset` of
 //! the read window per syscall and buys the whole file having no unsafe block

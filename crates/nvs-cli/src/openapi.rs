@@ -21,7 +21,7 @@
 //! are [`BTreeMap`]s built here rather than left to the JSON map's own: paths
 //! sorted by their written text, and the operations within a path sorted by
 //! lowercased verb. Everything else is a fixed member list or the row order the
-//! table was built in, which ADR 0061 § 3 already makes independent of
+//! table was built in, which `rule:programs/implementing` already makes independent of
 //! filesystem enumeration.
 //!
 //! ## What § 1's table does not supply yet

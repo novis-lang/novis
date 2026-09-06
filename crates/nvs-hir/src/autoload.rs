@@ -1,5 +1,5 @@
 //! The compile-time autoload map: which file declares a name
-//! ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! (`rule:programs/no-runtime-autoload`
 //! §§ 1-2).
 //!
 //! [`crate::requires`] owns the graph walk; this module owns the *map* it
@@ -9,7 +9,7 @@
 //! it".
 //!
 //! A [`Site`] is one `autoload` declaration, already cooked out of its
-//! spans and paired with the directory of the file that wrote it — ADR 0061
+//! spans and paired with the directory of the file that wrote it — `rule:programs/no-runtime-autoload`
 //! § 1's "paths are relative to THIS file, never to the entry point".
 //! [`AutoloadMap::build`] turns a program's sites into prefix → roots, and
 //! [`AutoloadMap::resolve`] turns a [`QName`] into the file that declares it,
@@ -157,7 +157,7 @@ pub struct Probe {
 
 impl AutoloadMap {
     /// Builds the map out of every declaration in the program's `require`
-    /// chain — the union ADR 0061 § 1 describes, with its duplicate rule
+    /// chain — the union `rule:programs/autoload` describes, with its duplicate rule
     /// applied. Explicit prefixes are taken first so a `discover` glob knows
     /// which names to skip, which is what makes the result independent of the
     /// order the files were walked in.
@@ -222,7 +222,7 @@ impl AutoloadMap {
     /// The file that declares `name`, and every path probed on the way to it.
     ///
     /// Longest matching prefix wins; within a prefix, roots are probed in
-    /// declaration order and the first hit wins (ADR 0061 § 1's Composer
+    /// declaration order and the first hit wins (`rule:programs/autoload`'s Composer
     /// rule). The remaining segments are directories and the last is the file
     /// name plus `.nvs`, compared to the on-disk entry exactly.
     #[must_use]
@@ -270,7 +270,7 @@ impl AutoloadMap {
 
     /// Every name the roots declare, sorted by fully-qualified name —
     /// [`Self::resolve`] run in the other direction, and the one place
-    /// resolution is not lazy (ADR 0061 § 3).
+    /// resolution is not lazy (`rule:programs/implementing`).
     ///
     /// `Core\Program::implementing<T>()` and ADR 0077's compile-time route
     /// table are its only two callers, under § 3's opt-in rule: a program
@@ -307,7 +307,7 @@ impl AutoloadMap {
         found
     }
 
-    /// Renders the resolved map for `nvs check --autoload-map` — ADR 0061
+    /// Renders the resolved map for `nvs check --autoload-map` — `rule:programs/no-runtime-autoload`
     /// § 1's last sentence, which asks for what was *skipped* and what was
     /// *shadowed* beside the prefixes that resolve.
     ///
@@ -456,7 +456,7 @@ fn report_duplicate(prefix: &str, first: Span, second: Span, diags: &mut Diagnos
         )
         .with_primary(second, "declared again here")
         .with_secondary(first, "first declared here")
-        .with_note("one prefix has one home (ADR 0061 § 1)"),
+        .with_note("one prefix has one home (`rule:programs/autoload`)"),
     );
 }
 
@@ -605,7 +605,7 @@ fn spelled_exactly(canonical: &Path, root: &Path, suffix: &[String]) -> bool {
     true
 }
 
-/// Applies ADR 0061 § 2 to a file that was reached through the autoload map:
+/// Applies `rule:programs/one-declaration-per-autoloaded-file` to a file that was reached through the autoload map:
 /// exactly one top-level declaration, named after the file, and nothing else
 /// but `namespace`/`use`.
 ///
@@ -651,7 +651,7 @@ pub fn check_file_shape(
             )
             .with_primary(at, message)
             .with_note(
-                "ADR 0061 § 2: otherwise whether a name exists depends on what was resolved first",
+                "`rule:programs/one-declaration-per-autoloaded-file`: otherwise whether a name exists depends on what was resolved first",
             ),
         );
     }
@@ -689,7 +689,7 @@ fn scan_shape(
 }
 
 /// Reports every `autoload` declaration in a file that was itself reached
-/// through the map — ADR 0061 § 1, which honors a declaration only where the
+/// through the map — `rule:programs/autoload`, which honors a declaration only where the
 /// entry point's `require` chain can see it. The rule is applied to the whole
 /// autoloaded sub-graph, not only to the autoloaded file itself: a map that
 /// grows as it is consulted is the self-dependence the rule exists to stop.
@@ -704,7 +704,7 @@ pub fn reject_declarations(sites: &[Site], diags: &mut Diagnostics) {
                 site.span,
                 "this declaration would extend the map that found it",
             )
-            .with_note("ADR 0061 § 1: write it in a file the entry point `require`s"),
+            .with_note("`rule:programs/autoload`: write it in a file the entry point `require`s"),
         );
     }
 }

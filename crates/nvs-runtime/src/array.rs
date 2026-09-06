@@ -92,7 +92,7 @@
 //! letting those two instructions carry a `Ty::Int`/`Ty::Uint` key and
 //! dispatching on it in `nvs_codegen::emit` — not a codegen-local one.
 //!
-//! What it spends, as [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
+//! What it spends, as `rule:programs/memory-priority`
 //! requires: **nothing — it saves.** A list drops two of its three allocations
 //! and every key string. It also takes list data out of the SipHash path the
 //! decision above exists to justify, which leaves that decision protecting the
@@ -131,7 +131,7 @@
 //! its Rust-side callers — `make_unique` first among them — take a handle they
 //! are about to write through.
 //!
-//! What it spends, as ADR 0004 requires: **nothing per request — it saves.**
+//! What it spends, as `rule:programs/memory-priority` requires: **nothing per request — it saves.**
 //! One header per thread, permanently, against one per empty array that stays
 //! empty. An empty array that *is* later written pays one `make_unique`
 //! separation, allocating exactly the header the old path allocated eagerly,

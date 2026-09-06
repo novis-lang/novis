@@ -244,7 +244,7 @@ the design.
   ```
 
 - The application `require`s that file once. **That is the entire integration.** Name resolution is exactly
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s — literal paths relative to the
+  `rule:programs/no-runtime-autoload`'s — literal paths relative to the
   declaring file, no runtime loader, no walk-up search, no new invalidation edge, and the compiler learns
   nothing about packages in order to resolve a name.
 - **The generated file is committed.** It is short, it is readable, and every change to the dependency graph
@@ -255,7 +255,7 @@ the design.
 
 ### 8. `package.toml` is a tool input, and that is why it is not the manifest 0061 rejected
 
-[ADR 0061](0061-compile-time-autoload-and-program-discovery.md) rejected "a manifest file found by walking
+`rule:programs/no-runtime-autoload` rejected "a manifest file found by walking
 up from the entry file", and [0064](0064-configuration-file-format.md) § 4 confirmed `nvs.toml` holds no
 source-tree state. Both stand, because the distinction they draw is about *who reads the file*:
 

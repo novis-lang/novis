@@ -6,7 +6,7 @@
 //!
 //! § 6 says `Core\Command::help` and `::run` are **generated from the table**,
 //! and the table is a compile product — `nvs_types::commands::CommandTable`,
-//! built by the same ADR 0061 § 3 scan ADR 0077's routes are. The alternative
+//! built by the same `rule:programs/implementing` scan ADR 0077's routes are. The alternative
 //! this rejects is expanding those members while checking, which is what
 //! [`crate::script`]'s sibling `Core\Program::implementing` does: `help` takes a
 //! `?string $name` a program is free to compute, so an expansion would have to
@@ -34,7 +34,7 @@
 //! `about:`, spelling and declared default the program wrote — tens of them for
 //! a CLI, and nothing at all for a program with no command. O(in-flight
 //! requests), per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+//! `rule:programs/memory-priority`.
 //!
 //! # Known gaps
 //!

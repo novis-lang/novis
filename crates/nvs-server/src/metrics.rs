@@ -62,7 +62,7 @@
 //! [`Registry::new`] — a registry with no protocol in force, which
 //! [`Registry::of`] is the configured half of.
 //!
-//! **What it spends**, as [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
+//! **What it spends**, as `rule:programs/memory-priority`
 //! requires: O(cores × series), bounded by `max_series` per core, a counter or
 //! gauge costing its key and eight bytes and a histogram its bucket array on top.
 //! Nothing is charged to a request, nothing grows with requests served, and a

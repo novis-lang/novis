@@ -25,10 +25,9 @@
 //! the socket outright. Closing it entirely needs a `fchmod` on the listener before `bind`, which is
 //! `libc` and an `unsafe` block for a window bounded by a check that already ran.
 //!
-//! Cost, as [ADR 0004] requires: one kernel object per running server, created at boot and closed
+//! Cost, as `rule:programs/memory-priority` requires: one kernel object per running server, created at boot and closed
 //! when the process ends. Nothing per request and nothing per reload.
 //!
-//! [ADR 0004]: ../../../docs/adr/0004-memory-for-simplicity.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 

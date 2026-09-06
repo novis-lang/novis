@@ -75,7 +75,7 @@ property, on any object, however it was constructed. No new type, no new value, 
 
 A `lateinit` property's storage carries the same "never written" tag ADR 0022 § 3 already introduced for
 `Core\Reflect`-constructed objects, at the same zero-additional-bytes cost (one more discriminant on the
-existing tagged-value representation, per [ADR 0004](0004-memory-for-simplicity.md)'s accounting — nothing
+existing tagged-value representation, per `rule:programs/memory-priority`'s accounting — nothing
 new to account for here). What changes is only *which properties can carry that tag outside of reflection*:
 before this ADR, only a `Core\Reflect`-bypassed construction could leave a non-nullable property unwritten;
 after it, an ordinarily-constructed object can too, for any property its class marked `lateinit`.

@@ -36,7 +36,7 @@ attribute: [ADR 0071](../adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `nvs-
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
 is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands
 here as well: [ADR 0077](../adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
-filtering [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) § 3's program enumeration and
+filtering `rule:programs/implementing`'s program enumeration and
 whose three compile errors — a duplicate route, a `{param}` with no matching method parameter, an unknown
 literal `url()` name — are the whole point of doing it here.
 [ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) adds

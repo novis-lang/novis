@@ -1,8 +1,8 @@
 --TEST--
-An `autoload` declared in the entry point itself, after the code that needs it, resolves a class no `require` names — ADR 0061 § 1
+An `autoload` declared in the entry point itself, after the code that needs it, resolves a class no `require` names — `rule:programs/autoload`
 --FILE--
 <?nvs
-// ADR 0061 § 1's map is read by `nvs_hir` while the require/autoload graph is
+// `rule:programs/autoload`'s map is read by `nvs_hir` while the require/autoload graph is
 // being built, which is before any code runs — so *where* the declaration is
 // written cannot matter, and the entry point is a file like any other. The
 // two facts this pins are both invisible from the bootstrap-file spelling the

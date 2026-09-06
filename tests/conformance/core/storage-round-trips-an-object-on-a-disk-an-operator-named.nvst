@@ -1,8 +1,8 @@
 --TEST--
-Core\Storage puts, gets and deletes one object on a disk an operator named, and a key nothing was put at answers null rather than throwing — ADR 0082 § 2, ADR 0063 R7
+Core\Storage puts, gets and deletes one object on a disk an operator named, and a key nothing was put at answers null rather than throwing — `rule:programs/framework-core-half`, ADR 0063 R7
 --FILE--
 <?nvs
-// ADR 0082 § 2's storage row from the outside. `$disk` selects a
+// `rule:programs/framework-core-half`'s storage row from the outside. `$disk` selects a
 // `[storage.<name>]` block in root-owned configuration and `$key` names an
 // object on it; there is no path parameter anywhere on the three rows, and
 // what gates every one of them is the `fs.read`/`fs.write` the same operator

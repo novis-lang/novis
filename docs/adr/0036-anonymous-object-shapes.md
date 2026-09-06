@@ -190,7 +190,7 @@ the answer: declare an ordinary class.
   runtime-checked fallback, ADR 0022's promoted-parameter-style trivial definite assignment, ADR 0015's
   `type`-alias reuse, and ADR 0023's uniform clone/serialize/isolate-crossing.
 - Zero new runtime representation: a literal instance is an ordinary object allocation, exactly
-  [ADR 0004](0004-memory-for-simplicity.md)'s existing accounting for any object — no tagged-value
+  `rule:programs/memory-priority`'s existing accounting for any object — no tagged-value
   discriminant, no boxing scheme unique to this feature.
 - Delivers "pass it across a function boundary with no shape declared anywhere" — the specific ergonomic
   asked for — without making the general type system structural. The exception is named and bounded, not
@@ -203,7 +203,7 @@ the answer: declare an ordinary class.
   work this way.
 - Property access through an erased `object` view, or a field a shape doesn't list, costs a real
   runtime name lookup (and, for writes, a type check) that a fully statically-known object never pays. This
-  is an honest, opt-in latency line item under [ADR 0004](0004-memory-for-simplicity.md) priority 3 — paid
+  is an honest, opt-in latency line item under `rule:programs/memory-priority` priority 3 — paid
   only by code that chose to erase shape information, never by code that didn't.
 - Two grammar collisions, both closed with a known fix but both real surface to document: `fn() => {...}`
   means a block body, not a returned literal, unless parenthesized; a bare literal statement needs the same.

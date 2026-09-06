@@ -192,7 +192,7 @@ about the member's meaning changes with where it was called. A request that ende
 or a `FATAL` runs none of it: the status the host is about to report is on the context and script running
 over it would lose one of the two. `nvs_runtime::deferred` is the one home for that reading and for
 everything it implies. **Memory, CPU and tasks stay charged to the request
-tree**, so [ADR 0004](0004-memory-for-simplicity.md)'s "attributable, under an enforceable cap,
+tree**, so `rule:programs/memory-priority`'s "attributable, under an enforceable cap,
 O(in-flight)" holds with nothing relaxed — the tree simply stays in flight a little longer than the
 connection does. `[limits] wall_time` is what the client waited for and no longer applies; the deferred
 `deadline` replaces it, and every other `[limits]` value continues to bound the tree.
@@ -241,7 +241,7 @@ deadline       = "30s"    # Runtime  — the default a call inherits when it nam
 - **`deadline` is `Runtime`**, an ordinary per-request default a call may name its own value for, bounded
   like every other limit by the tree's remaining budget.
 
-Cost, stated as [ADR 0004](0004-memory-for-simplicity.md) requires: a deferred request tree holds its arena
+Cost, stated as `rule:programs/memory-priority` requires: a deferred request tree holds its arena
 at its peak for the length of its deferred work, so the worst case per core is `max_concurrent ×
 [limits.hard] memory` **on top of** in-flight requests. That is a real number an operator must size for, it
 is bounded, and it is O(in-flight deferred trees) rather than O(requests served).

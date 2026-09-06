@@ -242,7 +242,7 @@ impl Fault {
 /// Today it refuses only what cannot be allocated at all — a size past
 /// `isize::MAX`, or a computation that already overflowed to `None`. It is
 /// **not** a budget: nothing here knows what a request may spend.
-/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) settles that
+/// `rule:programs/memory-priority` settles that
 /// it will be, through the `[limits.hard]` per-request ceiling the M6 arena
 /// enforces, and this function is the seam that ceiling attaches to — one
 /// place to change rather than seven.

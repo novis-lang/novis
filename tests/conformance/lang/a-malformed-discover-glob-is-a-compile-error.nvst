@@ -1,5 +1,5 @@
 --TEST--
-a `discover` glob whose `*` is not one whole path segment does not compile — ADR 0061 § 1
+a `discover` glob whose `*` is not one whole path segment does not compile — `rule:programs/autoload`
 --FILE--
 <?nvs
 // A typo that silently discovers nothing is the worst outcome on offer, so a

@@ -90,7 +90,7 @@
 //! requests that register nothing — plus two words and one closure reference
 //! per registration. It is
 //! O(in-flight trees) rather than O(requests served), per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md), and nothing on
+//! `rule:programs/memory-priority`, and nothing on
 //! the request path reads any of it: the queue is touched by the member and by
 //! the drain, both of which are already off the hot path.
 

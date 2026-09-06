@@ -1,9 +1,9 @@
-//! `Core\Storage` — [ADR 0082](/docs/adr/0082-the-first-party-framework.md) § 2's
+//! `Core\Storage` — `rule:programs/framework-core-half`'s
 //! object storage: four members that put, get, delete and enumerate **named objects on a disk an
 //! operator configured**, over the `fs.*` capabilities [ADR 0051](/docs/adr/0051-standard-library-tiers.md)
 //! § 3 already grants and no capability of its own.
 //!
-//! ADR 0082 § 2's row is one sentence — "local-filesystem object storage over ADR 0051's existing
+//! `rule:programs/framework-core-half`'s row is one sentence — "local-filesystem object storage over ADR 0051's existing
 //! `fs.*` capabilities. Remote backends (S3 and friends) are a package or an extension, never
 //! Core" — and the decisions it does not write are below.
 //!
@@ -50,7 +50,7 @@
 //!
 //! # What `list` answers over, in one order, with the prefix as an option
 //!
-//! Three decisions, none of them written in ADR 0082 § 2, which says only that the storage is
+//! Three decisions, none of them written in `rule:programs/framework-core-half`, which says only that the storage is
 //! local.
 //!
 //! **Every key it answers is one [`get`](CLASS) hands octets back for.** The root is an operator's
@@ -165,7 +165,7 @@ const LIST_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Str(""),
 }];
 
-/// `Core\Storage`'s four rows — ADR 0082 § 2's object storage.
+/// `Core\Storage`'s four rows — `rule:programs/framework-core-half`'s object storage.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -470,7 +470,7 @@ fn text_of<'a>(args: &'a [Value], slot: usize, what: &str, member: &str) -> Resu
 
 nvs_runtime::nvs_helper! {
     /// `Core\Storage::put(string $disk, string $key, bytes $contents, {overwrite?: bool}): void` —
-    /// ADR 0082 § 2's object storage, writing half.
+    /// `rule:programs/framework-core-half`'s object storage, writing half.
     ///
     /// The door decides the capability and this decides nothing: the path is
     /// built, `fs.write` is shown for it, and the octets go down in one write.
@@ -503,7 +503,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Storage::get(string $disk, string $key): ?bytes` — ADR 0082 § 2's
+    /// `Core\Storage::get(string $disk, string $key): ?bytes` — `rule:programs/framework-core-half`'s
     /// reading half.
     ///
     /// Two doors rather than one, and both are `fs.read`:
@@ -525,7 +525,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Storage::delete(string $disk, string $key): void` — ADR 0082 § 2's
+    /// `Core\Storage::delete(string $disk, string $key): void` — `rule:programs/framework-core-half`'s
     /// third row.
     ///
     /// [`nvs_runtime::capability::remove_file`] and not `remove_dir`: a key
@@ -540,7 +540,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Storage::list(string $disk, {prefix?: string}): array<string>` —
-    /// ADR 0082 § 2's fourth row, and the only one that reads the disk itself
+    /// `rule:programs/framework-core-half`'s fourth row, and the only one that reads the disk itself
     /// rather than one object on it.
     ///
     /// The door is [`nvs_runtime::capability::read_dir`] over the root, and it
@@ -588,7 +588,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::*;
 
-    /// ADR 0082 § 2's row, as the property a later member can quietly break:
+    /// `rule:programs/framework-core-half`'s row, as the property a later member can quietly break:
     /// every door this class reaches is an `fs.*` one, so the class declares no
     /// capability of its own and every row says which half of `fs` it needs.
     ///

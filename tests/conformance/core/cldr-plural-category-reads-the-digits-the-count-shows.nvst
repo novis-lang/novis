@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::pluralCategory` reads CLDR's operands from the digits the count shows, and refuses the two counts that show none it can read — ADR 0082 § 2, ADR 0054 § 3
+`Core\Cldr::pluralCategory` reads CLDR's operands from the digits the count shows, and refuses the two counts that show none it can read — `rule:programs/framework-core-half`, ADR 0054 § 3
 --FILE--
 <?nvs
 // CLDR's `v` and `f` operands are the fraction digits a reader *sees*, so

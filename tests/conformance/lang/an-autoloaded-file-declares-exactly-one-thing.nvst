@@ -1,5 +1,5 @@
 --TEST--
-a second top-level declaration in an autoloaded file does not compile — ADR 0061 § 2
+a second top-level declaration in an autoloaded file does not compile — `rule:programs/one-declaration-per-autoloaded-file`
 --FILE--
 <?nvs
 // Nothing names `App\Stowaway`. If a file reached by a prefix could carry it

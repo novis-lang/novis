@@ -28,7 +28,7 @@
 //!
 //! [`bound`] threads, lazily: a thread is started only when work arrives and
 //! every existing one is busy, so the ordinary steady state of a worker doing no
-//! blocking work is **no threads at all**. What ADR 0004 asks to be said out
+//! blocking work is **no threads at all**. What `rule:programs/memory-priority` asks to be said out
 //! loud: at most [`bound`] OS thread stacks per worker, reserved by the platform
 //! and resident only in what a job touches, plus one boxed closure per job in
 //! flight. That is O(cores) and O(in-flight); nothing here grows with requests

@@ -45,7 +45,7 @@ class Leaf {
 }
 
 // ADR 0023 § 1: an object "reachable through a cloned array/collection
-// property" is shared, not duplicated — the array is copied by ADR 0004's
+// property" is shared, not duplicated — the array is copied by `rule:programs/memory-priority`'s
 // copy-on-write and the handles inside it are copied as handles.
 class Bag {
     public array<Leaf> $leaves;

@@ -185,14 +185,14 @@ it lands, and the guard that will hold it.
 Every allocation goes to the platform heap: `crates/nvs-runtime/src/lib.rs` registers a
 `#[global_allocator]` only under `cfg(test)`. [docs/plan/design.md](../plan/design.md)
 § *Per-request isolation* already decided that a request gets its own arena released wholesale at
-request end, and [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Footprint, not traffic*
+request end, and `rule:programs/memory-priority`'s *Footprint, not traffic*
 already makes an allocation on a hot path a priority-3 question. **This is not a new decision — it
 is that decision, landing early, in two halves.** The half measured above is a thread-local
 size-class cache in front of `System`, which needs no per-request accounting and no `Ctx`. The
 per-request ceiling attaches to it at M6, where `nvs_runtime::affordable`'s own doc comment already
 says it does.
 
-What it spends, per [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Say what you spend*: a
+What it spends, per `rule:programs/memory-priority`'s *Say what you spend*: a
 bounded per-thread cache of freed blocks — the probe held at most 512 blocks in each of 16 size
 classes up to 256 bytes, so ~2 MB per thread, never per request and never growing with requests
 served.
@@ -456,7 +456,7 @@ null, but every read primitive would gain a null arm and `Core\Arr`'s whole surf
 "did you handle null" invariant. That is AGENTS.md's priority 4 spent across a large surface to save
 one branch.
 
-What it spends, per [ADR 0004](../adr/0004-memory-for-simplicity.md)'s *Say what you spend*: **nothing
+What it spends, per `rule:programs/memory-priority`'s *Say what you spend*: **nothing
 per request — it saves.** One block per thread, permanently, against one block per empty array that
 stays empty. An empty array that *is* later written pays one `make_unique` separation, which allocates
 exactly the header the current path allocates eagerly, plus a failed `== 1` branch — a wash plus a

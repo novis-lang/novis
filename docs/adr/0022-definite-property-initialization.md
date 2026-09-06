@@ -105,7 +105,7 @@ Internally, a property's storage needs one extra, non-user-observable state — 
 from every legal value including `null`. This is **not** a new entry in the type system, the checker, or
 anything an expression can produce: it is a transient state that either gets overwritten by the
 first write (the overwhelmingly common case, guaranteed by *2* for every ordinarily-constructed object) or
-is caught and turned into the throw in *3* before it is ever handed to user code. [ADR 0004](0004-memory-for-simplicity.md)
+is caught and turned into the throw in *3* before it is ever handed to user code. `rule:programs/memory-priority`
 requires stating the cost: the same tagged-value representation that gives `uint` a free tag in ADR 0007 §4
 gives this marker a free tag too — one more discriminant on the existing value representation, **zero
 additional bytes per property**.
@@ -164,7 +164,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
   fix, not just a recompile — `nvs convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and
   ADR 0014 already grow.
 - One more internal discriminant on the tagged-value representation, though at zero additional bytes per
-  [ADR 0004](0004-memory-for-simplicity.md)'s accounting — see *3*.
+  `rule:programs/memory-priority`'s accounting — see *3*.
 
 ## Alternatives rejected
 

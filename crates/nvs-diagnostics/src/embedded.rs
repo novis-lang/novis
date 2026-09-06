@@ -27,7 +27,7 @@
 //! diagnostic prints is the payload's own relative path, so a bundle's errors
 //! look like the source tree's, not like the machine that built it.
 //!
-//! **Known gap.** `autoload` probing (ADR 0061) lists real directories and is
+//! **Known gap.** `autoload` probing (`rule:programs/no-runtime-autoload`) lists real directories and is
 //! not routed through here, so a bundled program that reaches a name only
 //! through an autoload root does not resolve it. `require` — which is what
 //! ADR 0048 § 3 makes the closed-world rule about — does.

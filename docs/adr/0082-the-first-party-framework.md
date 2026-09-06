@@ -1,4 +1,4 @@
-# ADR 0082 — Novis ships the batteries: a first-party framework, split by ADR 0051's existing tests
+# `rule:programs/first-party-framework` — Novis ships the batteries: a first-party framework, split by ADR 0051's existing tests
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -45,7 +45,7 @@
 - **The languages that lost this fight all had good type systems.** Hack, Crystal and a dozen others shipped
   a language and waited for an ecosystem that never came. The two that won from a standing start did not:
   Elixir had Phoenix, Go had `net/http` and a standard library broad enough that the framework question was
-  optional. [ADR 0080](0080-the-audience-nvs-is-built-for.md) § 4 records this as the explicit answer to
+  optional. `rule:programs/audience` records this as the explicit answer to
   "why not Hack", and this ADR is that answer's implementation.
 - **Novis has been building a framework already, without saying so.** Compile-time routing
   ([0077](0077-compile-time-routing.md)), one database API with closure transactions
@@ -165,7 +165,7 @@ and one `#[Test]` that passes ([0079](0079-testing-is-a-language-feature.md)).
 
 Two constraints on the template, both binding:
 
-- **It demonstrates a qualifier doing its job.** [ADR 0080](0080-the-audience-nvs-is-built-for.md)'s
+- **It demonstrates a qualifier doing its job.** `rule:programs/audience`'s
   *Verification* requires the first code a new user reads to show `tainted` input being laundered by
   `Core\Validate` before it reaches a sink — because that is what Novis is, and a scaffold that leads with
   routing looks like every other framework.

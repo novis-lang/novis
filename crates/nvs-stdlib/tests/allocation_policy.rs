@@ -13,7 +13,7 @@
 //! to notice, so the invariant is checked at the source rather than left to
 //! review: `nvs_runtime::affordable` is the only place a size becomes a
 //! refusal, and it is where `[limits.hard]` attaches when the M6 arena carries
-//! it (ADR 0004).
+//! it (`rule:programs/memory-priority`).
 //!
 //! The last two are `docs/perf/userland-gap.md` § D, and they are measured
 //! here rather than from compiled code because the member is where the

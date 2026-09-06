@@ -7,7 +7,7 @@
 //! ([`Parser::parse_enum_decl`]); their members — properties with PHP 8.4's
 //! hooks, consts, methods; `#[...]` attribute groups
 //! ([`Parser::parse_attribute_groups`], ADR 0046); and `namespace`, `use`,
-//! `autoload` (ADR 0061 § 1) and the `type`-alias declaration (ADR 0015).
+//! `autoload` (`rule:programs/autoload`) and the `type`-alias declaration (ADR 0015).
 //!
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
@@ -321,7 +321,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `autoload 'Prefix' from 'a', 'b';` and `autoload discover 'glob';` —
-    /// ADR 0061 § 1's two forms, spelled the way
+    /// `rule:programs/autoload`'s two forms, spelled the way
     /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
     /// writes them.
     ///
@@ -378,7 +378,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// Only a literal is accepted, the restriction `require`'s static
     /// resolution already carries ([ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md),
-    /// ADR 0061 § 1) and for the same reason: the map is built at compile
+    /// `rule:programs/autoload`) and for the same reason: the map is built at compile
     /// time, so a path assembled at run time could not contribute to it. A
     /// double-quoted spelling is read for its escapes and refused if it
     /// interpolates — the parser is the only place that is visible.
@@ -425,7 +425,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(span, label)
             .with_help(
                 "write the path out — the map is built at compile time, relative to this file, \
-                 so there is nothing to interpolate from (ADR 0061 § 1)",
+                 so there is nothing to interpolate from (`rule:programs/autoload`)",
             ),
         );
     }

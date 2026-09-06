@@ -133,7 +133,7 @@ reads, and the loop commits a slice at a time. The concurrency group gains `gith
 - **Nothing left the suite.** Every job still exists and the release gate still runs all of them —
   which is the whole reason the trade is affordable. If the nightly ever finds something the push lane
   should have, the fix is one entry in the lane table.
-- **Priority ordering ([ADR 0004](0004-memory-for-simplicity.md)):** this spends nothing from
+- **Priority ordering (`rule:programs/memory-priority`):** this spends nothing from
   priorities 1–3. `cargo deny` still gates every change that can alter the dependency set, and ASAN
   still gates every change to a crate holding unsafe. What it spends is a little of priority 4: there
   is now a table to consult before adding a job.

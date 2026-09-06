@@ -236,7 +236,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   touches a `.nvs` file
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 3,
   [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for Novis specifically:
-  [ADR 0082](0082-the-first-party-framework.md) makes inline HTML the template engine, so this region is
+  `rule:programs/first-party-framework` makes inline HTML the template engine, so this region is
   where an application's markup is written.
 - **Four code actions that write rather than fix** — implement missing members, override a method,
   declare the function you just called, and narrow an `array<mixed>` annotation to the type of the literal

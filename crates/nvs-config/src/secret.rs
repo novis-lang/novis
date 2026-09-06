@@ -11,7 +11,7 @@
 //!
 //! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
 //! credential is covered by adding one row and not by editing a walk: `[db.<name>] password`
-//! ([ADR 0067] § 3a) and `[mail.<name>] password` ([ADR 0082] § 2) today. § 7 speaks of a directive
+//! ([ADR 0067] § 3a) and `[mail.<name>] password` (`rule:programs/framework-core-half`) today. § 7 speaks of a directive
 //! "the registry marks secret", and this table is that marking.
 //!
 //! It is **not** a fourth field on [`mod@crate::directive`]'s rows, for two reasons that both make
@@ -66,7 +66,6 @@
 //! [ADR 0015]: ../../../docs/adr/0015-no-name-aliasing.md
 //! [ADR 0033]: ../../../docs/adr/0033-secret-qualifier-for-confidential-values.md
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
-//! [ADR 0082]: ../../../docs/adr/0082-core-and-framework-boundary.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
@@ -181,7 +180,7 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
-    // ADR 0082 § 2's SMTP endpoint, which holds a submission credential of exactly the kind above:
+    // `rule:programs/framework-core-half`'s SMTP endpoint, which holds a submission credential of exactly the kind above:
     // written by an operator into a named block, sent as `AUTH PLAIN` over `STARTTLS`, and delivered
     // to a container by the same injected file. § 7 covering one and not the other was an omission
     // rather than a decision. `nvs_stdlib::mail` needs no change to see it — that module reads

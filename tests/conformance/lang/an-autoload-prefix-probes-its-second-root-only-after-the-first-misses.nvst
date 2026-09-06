@@ -1,5 +1,5 @@
 --TEST--
-one prefix's roots are probed in declaration order and the first hit wins — ADR 0061 § 1
+one prefix's roots are probed in declaration order and the first hit wins — `rule:programs/autoload`
 --FILE--
 <?nvs
 // `App` has two homes. `App\Greeter` exists under both, so the first root

@@ -54,7 +54,7 @@
 //! died before the reply — is a throw, and ADR 0075 § 5 is why that is the right
 //! answer rather than a guess in either direction.
 //!
-//! What a command spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
+//! What a command spends, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
 //! the request text and one buffer holding the whole reply, both released with
 //! the call and capped at [`REPLY_CEILING`]; plus one socket per core, which is
 //! O(cores) and deliberately not O(requests served).

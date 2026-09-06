@@ -53,7 +53,7 @@
 exactly PHP's existing rule for what "one level" means:
 
 - A scalar or `array<T>`-typed property is copied by the value semantics it already has
-  ([ADR 0004](0004-memory-for-simplicity.md)'s copy-on-write) — cheap, and indistinguishable from a real
+  (`rule:programs/memory-priority`'s copy-on-write) — cheap, and indistinguishable from a real
   copy the moment either side writes.
 - An object-typed property — held directly, or reachable through a cloned array/collection property —
   **keeps pointing at the same shared instance** as the original. Cloning a node does not clone what it
@@ -238,7 +238,7 @@ program that runs; there is no refusal case, because nothing in *1* is a diagnos
 - **A scalar or `array<T>` property is a value, an object-typed one is a handle** — the two halves of the
   same sentence, so they are pinned as two cases that agree.
   `a-clone-does-not-share-an-array-property.nvst` and `a-clone-copies-the-array-property-it-holds.nvst`
-  take the value half at the point it becomes observable ([ADR 0004](0004-memory-for-simplicity.md)'s
+  take the value half at the point it becomes observable (`rule:programs/memory-priority`'s
   copy-on-write is indistinguishable from a real copy until one side writes, so the write is the
   assertion), and `a-clone-shares-the-object-its-property-holds.nvst` takes the handle half three levels
   down. `tests/differential/class/clone-is-shallow-like-phps.nvst` and

@@ -37,7 +37,7 @@ impl<'a> Lowering<'a> {
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
                 | StmtKind::TypeAliasDecl(_)
-                // ADR 0061's `autoload` map is read by `nvs_hir` while the
+                // `rule:programs/no-runtime-autoload`'s `autoload` map is read by `nvs_hir` while the
                 // `require`/autoload graph is being built, long before any of
                 // this — so at file scope it is a declaration like the rest of
                 // this list and emits nothing, in the entry point exactly as

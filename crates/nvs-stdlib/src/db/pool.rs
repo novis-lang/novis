@@ -316,7 +316,7 @@ pub(super) fn filed_connection<'a>(
 /// request's own first one, so this is reached once per distinct settings
 /// literal per request, over a `[db]` table an operator hand-wrote — a handful
 /// of `DefaultHasher` runs over short strings. Caching the mapping on the
-/// snapshot would spend a per-generation table to save that, which ADR 0004's
+/// snapshot would spend a per-generation table to save that, which `rule:programs/memory-priority`'s
 /// ordering does not buy: the latency is not on the request path's hot part,
 /// and the memory would be O(blocks) per generation held for the lifetime of a
 /// reload.

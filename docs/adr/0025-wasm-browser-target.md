@@ -1,4 +1,4 @@
-# ADR 0025 — The browser is a second compile target, not a second language
+# `rule:programs/compile-target` — The browser is a second compile target, not a second language
 
 - **Status:** Retired
 - **Date:** 2026-08-21

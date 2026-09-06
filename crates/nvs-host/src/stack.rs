@@ -16,7 +16,7 @@
 //! against a resident cost measured in what the handlers touched.
 //!
 //! What it spends, in the terms
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks for: one
+//! `rule:programs/memory-priority` asks for: one
 //! reservation per in-flight task, charged to the request that owns it, plus at
 //! most [`MAX_POOLED_STACKS`] reservations per worker held idle between tasks.
 //! Both are O(in-flight) and neither grows with requests served.

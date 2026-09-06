@@ -1,5 +1,5 @@
 --TEST--
-an attribute's name is placed by its prefix like any other name reference — ADR 0061 §§ 1, 2
+an attribute's name is placed by its prefix like any other name reference — `rule:programs/autoload` and `rule:programs/one-declaration-per-autoloaded-file`
 --FILE--
 <?nvs
 // `App\Audit` is written in exactly one place in this program: the `#[...]`
@@ -35,7 +35,7 @@ namespace App;
 
 // A shape-typed `type` alias, which is what ADR 0046 § 1 makes an
 // attribute's name: the harvest is the same prefix lookup either way, and
-// what it looks a name up *for* is not ADR 0061's question.
+// what it looks a name up *for* is not `rule:programs/no-runtime-autoload`'s question.
 type Audit = {};
 
 class Smuggled

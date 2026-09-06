@@ -180,7 +180,7 @@ pub mod code {
     /// string literal — an interpolated `"$dir"`, a concatenation, a
     /// variable. Every path resolves at compile time, relative to the file
     /// the declaration appears in, so there is nothing to interpolate from;
-    /// see [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// see `rule:programs/no-runtime-autoload`
     /// § 1, which carries `require`'s literal-only restriction for the same
     /// reason.
     pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
@@ -505,28 +505,28 @@ pub mod code {
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
     /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 3, which extends
-    /// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// `rule:programs/no-runtime-autoload`
     /// § 1's exact-name rule from `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
     /// Two `autoload` declarations in one program claim the same namespace
-    /// prefix — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// prefix — `rule:programs/no-runtime-autoload`
     /// § 1's "one prefix has one home". An explicit prefix deliberately does
     /// *not* collide with a `discover` glob that would produce the same one:
     /// there the glob skips the name, which is what makes a vendor override
     /// work.
     pub const E_DUPLICATE_AUTOLOAD_PREFIX: Code = Code::new("E0315");
     /// An `autoload` declaration in a file that was itself reached through
-    /// the autoload map — ADR 0061 § 1, which honors a declaration only in a
+    /// the autoload map — `rule:programs/autoload`, which honors a declaration only in a
     /// file reachable by `require` from the entry point, since otherwise the
     /// map would depend on itself.
     pub const E_AUTOLOAD_IN_AUTOLOADED_FILE: Code = Code::new("E0316");
     /// A file reached through an autoload root that does not hold exactly one
-    /// top-level declaration named after it — ADR 0061 § 2. Without the rule,
+    /// top-level declaration named after it — `rule:programs/one-declaration-per-autoloaded-file`. Without the rule,
     /// whether a name exists in the program depends on what was resolved
     /// first, which makes the build non-reproducible and the cache unkeyable.
     pub const E_AUTOLOAD_FILE_SHAPE: Code = Code::new("E0317");
     /// An `autoload discover` glob that is not one `*` occupying a whole path
-    /// segment, or whose base directory does not exist — ADR 0061 § 1. A
+    /// segment, or whose base directory does not exist — `rule:programs/autoload`. A
     /// *matched* directory with an unusable name is skipped in silence (a
     /// glob over a filesystem always sweeps `.git` and `vendor`); the glob
     /// itself is diagnosed, since one that silently discovers nothing is the
@@ -2353,7 +2353,7 @@ pub mod code {
 
     /// `Core\Program::implementing<T>()`'s type argument is not an interface.
     ///
-    /// ADR 0061 § 3 writes the constraint into the signature itself — "`T` must
+    /// `rule:programs/implementing` writes the constraint into the signature itself — "`T` must
     /// be an interface type" — and the ADR says why it is not a convenience:
     /// the interface is what gives `$module->register($this)` a static type,
     /// where [`E_METHOD_ON_ERASED_RECEIVER`]'s `object` is opaque and a shape
@@ -2368,7 +2368,7 @@ pub mod code {
     /// A class the enumeration would instantiate declares a constructor that
     /// takes arguments.
     ///
-    /// ADR 0061 § 3: "Each such class needs a no-argument constructor; a
+    /// `rule:programs/implementing`: "Each such class needs a no-argument constructor; a
     /// diagnostic names any that does not, and dependencies arrive through the
     /// interface's own methods instead." The call expands to one `new`
     /// expression per implementor and there is no call site to write arguments
@@ -2816,7 +2816,7 @@ pub mod code {
     /// names no class to instantiate.
     ///
     /// An `array<T>` is the operand worth naming in the help rather than
-    /// merely refusing: it is already copied by assignment (ADR 0004's
+    /// merely refusing: it is already copied by assignment (`rule:programs/memory-priority`'s
     /// copy-on-write), so the `clone` a reader reaches for is not missing but
     /// unnecessary.
     pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781");

@@ -1,5 +1,5 @@
 --TEST--
-Every read of `Core\Program::id()` within one run answers the same string — before output, after it, and from inside a method — ADR 0061 § 6
+Every read of `Core\Program::id()` within one run answers the same string — before output, after it, and from inside a method — `rule:programs/program-id`
 --FILE--
 <?nvs
 // § 6 computes the id once, at program resolution, and the host writes it

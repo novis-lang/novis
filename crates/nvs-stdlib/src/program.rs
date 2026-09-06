@@ -1,4 +1,4 @@
-//! `Core\Program` — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `Core\Program` — `rule:programs/no-runtime-autoload`
 //! § 3's program enumeration beside § 6's program identity: one member the
 //! compiler answers and one that is the only reason this module runs at all.
 //!
@@ -130,7 +130,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Program::id(): string` — ADR 0061 § 6's identity, read back off the
+    /// `Core\Program::id(): string` — `rule:programs/program-id`'s identity, read back off the
     /// context the host wrote it onto.
     ///
     /// Every interesting decision is upstream of here, in the module doc: the
@@ -162,7 +162,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// The body the row names, and the one this crate hopes is never entered:
-/// ADR 0061 § 3 expands the call in `nvs check`, so a call reaching a helper
+/// `rule:programs/implementing` expands the call in `nvs check`, so a call reaching a helper
 /// means `nvs-ir` lowered one it should have replaced.
 extern "C" fn expanded_at_compile_time() {
     // Written through the handle rather than with `eprintln!`, which this
@@ -170,7 +170,7 @@ extern "C" fn expanded_at_compile_time() {
     // it is the last thing a process does before aborting.
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
-        b"nvs: `Core\\Program::implementing` reached a runtime helper - ADR 0061 \xc2\xa7 3 \
+        b"nvs: `Core\\Program::implementing` reached a runtime helper - `rule:programs/no-runtime-autoload` \xc2\xa7 3 \
           expands every one of them in `nvs check`, so this is a bug in `nvs-ir`'s lowering \
           rather than in the program\n",
     );
@@ -214,7 +214,7 @@ mod tests {
     /// The other half, over the same fixture: an identity a host *did* write is
     /// handed back whole, byte for byte and with nothing removed. 64 characters
     /// go in and 64 come out — this module truncates nothing, which is the one
-    /// thing ADR 0061 § 6 forbids it to do.
+    /// thing `rule:programs/program-id` forbids it to do.
     #[test]
     fn id_answers_the_identity_the_host_wrote_and_shortens_nothing() {
         let mut ctx = Ctx::new(OutputSink::Sink);

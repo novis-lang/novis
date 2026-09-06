@@ -6,7 +6,7 @@
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
-//!   [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//!   `rule:programs/no-runtime-autoload`
 //!   § 1's last sentence; the shape is `nvs_hir::autoload`'s module doc.
 //! * `nvs run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
@@ -749,7 +749,7 @@ impl Checked {
 ///
 /// The unit of work here is the whole `require`/`autoload` graph, not one
 /// file: `nvs_hir::resolve_program` walks it into one `Module` plus the
-/// statements of every file it loaded (ADR 0021, ADR 0061), and each table
+/// statements of every file it loaded (ADR 0021, `rule:programs/no-runtime-autoload`), and each table
 /// below is then built across that set — a class declared in a `require`d
 /// file has to be a class the entry file's body can name.
 ///
@@ -862,7 +862,7 @@ fn front_end_granted(
     })
 }
 
-/// `nvs check`, and with `--autoload-map` also ADR 0061 § 1's last sentence:
+/// `nvs check`, and with `--autoload-map` also `rule:programs/autoload`'s last sentence:
 /// the resolved prefix → roots map, what a `discover` glob passed over and
 /// what an explicit prefix shadowed.
 ///
@@ -1308,7 +1308,7 @@ fn run_run(
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_default(),
     );
-    // ADR 0061's program identity, which is the one value written here that is
+    // `rule:programs/no-runtime-autoload`'s program identity, which is the one value written here that is
     // a fact about the whole graph rather than about the entry file: every
     // unit's content hash in `resolve_program`'s order, folded with ADR 0078
     // § 4's environment digest. Computed at this point because it is the last

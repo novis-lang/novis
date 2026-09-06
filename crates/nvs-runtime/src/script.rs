@@ -86,7 +86,7 @@
 //! thread-local, `const`-initialized and holding no `Drop` type, which is what
 //! this crate's `alloc` module requires of every one in it. It is
 //! O(threads) and does not grow with isolates spawned, per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+//! `rule:programs/memory-priority`.
 
 use std::cell::Cell;
 
@@ -223,7 +223,7 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 /// unit struct in a `static` — a resolver cannot, because it holds the unit
 /// cache and a compiled unit is `Rc`-shared, so the whole type is `!Sync`.
 /// Leaking one per process is 56 bytes and well inside
-/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s bound, but it
+/// `rule:programs/memory-priority`'s bound, but it
 /// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
 /// is worth more than the 56 bytes: a sweep with one known-red fixture is a
 /// sweep nobody reads.

@@ -23,7 +23,7 @@
 //!   wrong-kind parent, a circular `extends`/trait-use chain, and a trait
 //!   method-name collision with no `insteadof` naming a winner.
 //!   [`implementors`] asks that graph the other way — which non-abstract
-//!   classes reach one interface — which is ADR 0061 § 3's enumeration.
+//!   classes reach one interface — which is `rule:programs/implementing`'s enumeration.
 //! - [`members`] — [`MemberResolver`]: resolves every `Class::member`
 //!   reference (a static call, a class constant, an enum case, a static
 //!   property) and every `$this->name` property access to something

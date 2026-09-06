@@ -92,7 +92,7 @@
 //! thread-local, `const`-initialized and holding no `Drop` type, which is what
 //! this crate's own allocator module requires of every one in it. It is
 //! O(cores) and does not grow with requests served, per
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md). A helper that
+//! `rule:programs/memory-priority`. A helper that
 //! asks pays one thread-local load and one null test.
 
 use std::cell::Cell;

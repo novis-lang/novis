@@ -51,7 +51,7 @@
   somebody is waiting on. A runtime-owned on-disk log would make a job local to one machine's disk, which
   breaks the moment a deployment has two instances.
 - **The ceiling is known and acceptable.** A database-backed queue does thousands of jobs per second, not
-  millions. [ADR 0080](0080-the-audience-nvs-is-built-for.md)'s audience is nowhere near that, and § 8
+  millions. `rule:programs/audience`'s audience is nowhere near that, and § 8
   keeps the seam open for the day someone is.
 - **The runtime already knows how to run a detached unit of work.** `spawn script` gives an isolate with a
   budget, grants, an argument and an artifact-cached compiled unit; [0073](0073-scheduled-work-is-config.md)

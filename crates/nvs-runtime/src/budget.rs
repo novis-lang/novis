@@ -75,7 +75,7 @@
 //!
 //! # What it spends
 //!
-//! Per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *say what
+//! Per `rule:programs/memory-priority`'s *say what
 //! you spend*: three words per thread — never per request, and never growing
 //! with requests served — and on the allocation path one thread-local
 //! read-modify-write per `dealloc` and three per `alloc`. Each is a

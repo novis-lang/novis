@@ -45,7 +45,7 @@
   missing is a clock and a lock, and both are small.
 - **The API-surface question answers itself.** A runtime `Core\Schedule::register(...)` would be
   process-global mutable state ([ADR 0008](0008-static-and-global.md)) registered by whichever request
-  happened to run the registering code first — a shape [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)
+  happened to run the registering code first — a shape `rule:programs/no-runtime-autoload`
   already rejected for autoloading, for the same reason. A schedule is deployment state, and
   [ADR 0064](0064-configuration-file-format.md) is where deployment state lives.
 - **The `scope` question is the one the user settled explicitly.** Both answers are commonly correct: a
@@ -223,7 +223,7 @@ the operator wrote down.
 - **A runtime `Core\Schedule::register(cron, callable)`.** The framework-familiar shape (Laravel's
   `Kernel::schedule`). Rejected: process-global mutable state ([ADR 0008](0008-static-and-global.md))
   established by whichever request ran first, invisible to `nvs check`, and unreachable from a host that has
-  not yet served a request — the same objections [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)
+  not yet served a request — the same objections `rule:programs/no-runtime-autoload`
   made against a runtime autoloader.
 - **A `#[Schedule("0 3 * * *")]` attribute on a method**, discovered at compile time the way
   [ADR 0077](0077-compile-time-routing.md) discovers routes. Genuinely tempting, and rejected on lifetime:

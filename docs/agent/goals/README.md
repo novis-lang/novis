@@ -146,7 +146,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [5 database](5-database.md) | M8, database | **`nvs-db`** (new), `nvs-stdlib`, `nvs-types` |
 | [6 server](6-server.md) | M7 | **`nvs-server`** (new), `nvs-stdlib`, `nvs-host` |
 | [7 temp-sweep](7-temp-sweep.md) | post-parity, ADR 0131 | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
-| [8 program-id](8-program-id.md) | post-parity, ADR 0061 amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
+| [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, ADR 0136 | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
@@ -260,7 +260,7 @@ TOML for a doubled floor before restarting.
 ## What this program does not touch
 
 `Web\Migration` and everything versioned about a schema change — ordering, history tables, fleet
-locking, reversibility — which [ADR 0082](../../adr/0082-the-first-party-framework.md) § 7 records as
+locking, reversibility — which `rule:programs/no-migration-runner` records as
 deliberately blocked. Goal 9 builds convergence, which needs none of them, and does not close that gap.
 
 Doc trimming and dependency sweeps, both of which the user fires and never a session

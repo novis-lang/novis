@@ -198,7 +198,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
   [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md), and
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already carry: every ported call site in § 7's table
   needs a human to supply path/argv, not a mechanical rewrite.
-- **Memory**, per [ADR 0004](0004-memory-for-simplicity.md)'s discipline of naming the spend: one suspended
+- **Memory**, per `rule:programs/memory-priority`'s discipline of naming the spend: one suspended
   coroutine stack per in-flight `run()`/`spawn()` wait (already-paid-for per the project-start coroutine
   decision, not a new cost class) plus captured stdout/stderr held in the request's arena up to the existing
   `max_output` cap — bounded, and O(in-flight processes), not O(total processes ever spawned).

@@ -1130,7 +1130,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
 /// `query` returns. § 4 chose that over the alternative because
-/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) ranks memory
+/// `rule:programs/memory-priority` ranks memory
 /// last and because a cursor breaks the commonest loop in web programming on a
 /// connection-busy rule; `stream` is the member for a result set that does not
 /// fit, and it is the one that holds the connection.

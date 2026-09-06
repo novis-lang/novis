@@ -1,0 +1,35 @@
+`autoload` is a top-level declaration in two forms, both taking **literal strings only**:
+
+```php
+autoload 'Framework' from './';                        // one prefix, one root
+autoload 'Acme\Legacy' from '../vendor/acme/lib',
+                            '../vendor/acme/compat';   // one prefix, several roots
+autoload discover '../../*/src';                       // each directory names its own prefix
+```
+
+Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
+one framework directory serve many unrelated project trees. A concatenated or interpolated path is
+`E_AUTOLOAD_PATH_NOT_LITERAL`. A prefix carries no trailing separator; matching appends one.
+
+`discover` takes a glob containing exactly one `*` occupying a whole path segment. Every directory it
+matches becomes a root and the matched segment becomes that root's prefix. A matched directory whose
+name is not a legal `PascalCase` namespace segment is **skipped, not diagnosed** — a glob over a
+filesystem inevitably sweeps `.git` and `vendor`. The glob itself is held stricter: one that is not a
+single whole-segment `*`, and one whose base directory does not exist, are both
+`E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers nothing is the worst outcome on offer.
+
+Longest matching prefix wins; within a prefix, roots are probed in declaration order and the first hit
+wins, which is what makes a vendor override work. Remaining segments are directories, the last is the
+file name plus `.nvs`, and the on-disk entry is compared exactly (`rule:programs/path-case`). An
+explicit prefix beats a `discover` glob producing the same prefix and the glob skips that name; any
+other duplicate is `E_DUPLICATE_AUTOLOAD_PREFIX`, naming both sites.
+
+Declarations are honoured only in a file reachable through `require` from the entry point. One inside
+an autoloaded file is `E_AUTOLOAD_IN_AUTOLOADED_FILE`, because the map would otherwise depend on
+itself; operationally the map is fixed the moment it is first consulted, so the rule reaches the whole
+autoloaded sub-graph. Within the bootstrap chain the effective map is the **union** of every
+declaration, which with the duplicate rule makes it order-independent.
+
+Path traversal is structurally impossible, with no sanitizer: a resolved suffix is built only from
+namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
+path separator cannot occur in one.

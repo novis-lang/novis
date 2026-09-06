@@ -83,14 +83,14 @@ design in *Investigation* could not do.
 
 Line and branch hit-counters are small — bounded by the size of the code a request touches, not by how many
 times a loop iterates — so they live as an ordinary per-request structure in the request's arena, dropped
-wholesale at request end like everything else ([ADR 0004](0004-memory-for-simplicity.md)'s O(in-flight)
+wholesale at request end like everything else (`rule:programs/memory-priority`'s O(in-flight)
 rule, satisfied for free by reusing the existing arena lifetime rather than adding a new one). They are
 read back mid-request or at request end through `Core\Debug::getCoverage()`.
 
 Trace and profile data are call-count-proportional and can be large for a long-running request, so they
 default to **streaming to a sink** named when tracing/profiling starts, rather than buffering the whole run
 in the arena — the same reasoning Xdebug's own trace-to-disk behaviour already reflects, and the same
-"footprint vs. traffic" distinction [ADR 0004](0004-memory-for-simplicity.md) draws: an unbounded in-memory
+"footprint vs. traffic" distinction `rule:programs/memory-priority` draws: an unbounded in-memory
 trace buffer would be a memory question this ADR would have to bound with a new limit directive; a stream
 is bounded by nothing this ADR needs to invent, because nothing accumulates.
 
@@ -192,7 +192,7 @@ clock reading. That distinction is the point: a count of statements is **bit-ide
 operating systems and architectures**, where a time is not, so it is a number CI can gate on.
 
 `bytes` costs no new instrument. Memory must already be attributable to a request under an enforceable cap
-([ADR 0004](0004-memory-for-simplicity.md), [ADR 0006](0006-isolated-script-execution.md)); this reads that
+(`rule:programs/memory-priority`, [ADR 0006](0006-isolated-script-execution.md)); this reads that
 accounting rather than adding a second one. No per-`Core`-member cost table exists or will: a hand-written
 claim about what a native member costs would be a number with no guard test, which
 [README.md](README.md) § *Measured numbers* forbids.

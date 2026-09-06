@@ -19,7 +19,7 @@
 //! fire-and-forget entries would keep an entry for a task that has already
 //! finished until its deadline came round, which is a table that grows with
 //! requests *served* under a load of abandoned deadlines rather than with the
-//! ones in flight — what [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
+//! ones in flight — what `rule:programs/memory-priority`
 //! calls a leak rather than a trade-off. `Reactor::retire` drops a finished
 //! task's timer for the same reason it drops its registrations.
 //!

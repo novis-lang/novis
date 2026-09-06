@@ -128,7 +128,7 @@ or a plugin loader actually needs, with a boundary that `eval` never had.
   in-process native binding. That is the intended outcome.
 - **Some capability is genuinely lost.** Cross-request coordination at shared-memory latency is not
   available at any price; the floor is `Core\Cache`'s per-core store or a network round trip. § 3 spends
-  latency (priority 3) to buy isolation (priority 1), which is the ordering ADR 0004 mandates, and it is
+  latency (priority 3) to buy isolation (priority 1), which is the ordering `rule:programs/memory-priority` mandates, and it is
   worth naming as a real trade rather than a free win.
 - **Nothing here is revisitable by configuration.** There is deliberately no ini directive for any of the
   four, because an option that is off by default is still a mechanism that exists, and every safety claim

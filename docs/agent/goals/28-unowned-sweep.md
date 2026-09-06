@@ -125,6 +125,6 @@ other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
 - **Ambiguity resolves toward closing the gap rather than re-scoping it**, recorded in the module doc.
   These five have each waited a milestone or more; a session that finds a sixth writes it into
   `carried-gaps.md` and moves on, per [loop-authoring.md](../loop-authoring.md) § 8.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): nothing per request.
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): nothing per request.
   The panic hook holds one message on a path that was already ending; `max_output` *reduces* what a
   capture may hold; the widening is a compile-time judgement.

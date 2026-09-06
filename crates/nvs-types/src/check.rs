@@ -355,7 +355,7 @@ pub(crate) fn check_stmts(
             // `crate::locals::check_stmt` does with one now is refuse it as
             // `E0233` — and there the fact that it arrived at all *is* the
             // proof it was nested. `nvs_hir` is what reads both: a `type`
-            // alias into the type table, an `autoload` into ADR 0061's map.
+            // alias into the type table, an `autoload` into `rule:programs/no-runtime-autoload`'s map.
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
             // Everything else is a *statement* of the script body, not a
             // declaration: one synthesized frame for the whole file, whose

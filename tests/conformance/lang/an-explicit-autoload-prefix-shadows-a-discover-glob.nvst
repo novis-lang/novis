@@ -1,5 +1,5 @@
 --TEST--
-an explicit `autoload` prefix beats a `discover` glob that would produce the same one — ADR 0061 § 1
+an explicit `autoload` prefix beats a `discover` glob that would produce the same one — `rule:programs/autoload`
 --FILE--
 <?nvs
 // Both declarations below can produce the prefix `App`. The explicit one wins

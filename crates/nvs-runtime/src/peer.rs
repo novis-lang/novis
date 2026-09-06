@@ -73,7 +73,7 @@
 //! flight — a `String` or a `Vec<u8>` the caller is handed and then owns.
 //! Neither is O(frames received): a frame is released with the value it became.
 //! The implementation's own read buffer is charged to the connection, which is
-//! ADR 0004's "attributable, O(in-flight)" with a connection as the unit.
+//! `rule:programs/memory-priority`'s "attributable, O(in-flight)" with a connection as the unit.
 
 /// One RFC 6455 payload, in either direction.
 ///

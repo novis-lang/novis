@@ -439,7 +439,7 @@ pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>)
         )
         .with_primary(span, "this value's type names no class to instantiate")
         .with_help(
-            "an `array<T>` and a scalar are already copied when they are assigned (ADR 0004's \
+            "an `array<T>` and a scalar are already copied when they are assigned (`rule:programs/memory-priority`'s \
              copy-on-write), so there is nothing for `clone` to do — drop it (ADR 0023 § 1)",
         ),
     );

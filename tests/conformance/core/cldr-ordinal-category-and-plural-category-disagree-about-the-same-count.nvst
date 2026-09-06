@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::ordinalCategory` and `Core\Cldr::pluralCategory` answer the same count differently, which is why they are two members over two tables — ADR 0082 § 2
+`Core\Cldr::ordinalCategory` and `Core\Cldr::pluralCategory` answer the same count differently, which is why they are two members over two tables — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
 // English marks a `2nd` and makes no plural distinction at 2. Russian is the

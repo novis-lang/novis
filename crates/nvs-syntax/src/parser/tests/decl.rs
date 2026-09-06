@@ -774,7 +774,7 @@ fn short_echo_tag_semicolon_before_close_tag_is_optional_but_allowed() {
 }
 
 // ========================================================================
-// `autoload` — ADR 0061 § 1, spec `00-overview.md` § 2
+// `autoload` — `rule:programs/autoload`, spec `00-overview.md` § 2
 // ========================================================================
 
 /// Both file-scope forms, spelled exactly as the spec's grammar block
@@ -830,7 +830,7 @@ $registry->discover();
     assert!(matches!(stmts[3].kind, StmtKind::Expr(_)));
 }
 
-/// ADR 0061 § 1's literal-only restriction, which is `require`'s
+/// `rule:programs/autoload`'s literal-only restriction, which is `require`'s
 /// (ADR 0021): a path assembled at run time could not contribute to a map
 /// built at compile time. Each spelling reports once — a malformed
 /// declaration is swallowed through its `;` rather than also failing on the

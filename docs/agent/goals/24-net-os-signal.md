@@ -99,6 +99,6 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 - **Ambiguity about surface resolves toward the narrowest member that answers the migration table's
   row**, recorded in the module doc. A PHP function with no Novis answer is a `dropped` row in
   `docs/spec/02-php-migration.md`, never a member spelled to fill a hole.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): one reactor
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): one reactor
   registration per open socket, per request, released with the request's arena. Nothing per process
   and nothing that grows with sockets served.

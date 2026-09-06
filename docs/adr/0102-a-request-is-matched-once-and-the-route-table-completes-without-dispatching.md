@@ -67,7 +67,7 @@
   exactly the one [0086](0086-core-cli-terminal-is-a-sink.md) already draws in the other direction when it
   lets `Core\Command` dispatch because a CLI has one entry point and no middleware question.
 - **The cost was measured rather than asserted**, because § 1 spends work on every request and
-  [ADR 0004](0004-memory-for-simplicity.md) puts request-path latency above simplicity. The numbers are in
+  `rule:programs/memory-priority` puts request-path latency above simplicity. The numbers are in
   § 1 and they decided the section.
 
 ## Decision
@@ -237,7 +237,7 @@ Symfony and Rails all accept an application-authored regex into the router. That
 request path, before any rate limiting** ([0075](0075-core-ratelimit.md) is above the handler, not above the
 match), which makes a catastrophically backtracking pattern a denial-of-service vector reachable by any
 unauthenticated client. All three ecosystems have had the CVE. Under
-[ADR 0004](0004-memory-for-simplicity.md)'s ordering that is priority 1 spent to buy priority 4, which the
+`rule:programs/memory-priority`'s ordering that is priority 1 spent to buy priority 4, which the
 ordering forbids in that direction. A shape a type cannot express — a slug matching `[a-z0-9-]+` — stays a
 `Core\Validate` check inside the handler, which answers `400` and is the correct answer for it anyway.
 
@@ -436,7 +436,7 @@ to this one before the rule was written down.
 - **Inline `{id:uint}` constraints.** Rejected in § 5: the same fact in two places that can disagree, for no
   new capability.
 - **Regex constraints**, as Laravel, Symfony and Rails all allow. Rejected in § 5 on
-  [ADR 0004](0004-memory-for-simplicity.md)'s ordering: an unbounded application-authored regex over the
+  `rule:programs/memory-priority`'s ordering: an unbounded application-authored regex over the
   request path, before rate limiting, is a denial-of-service surface, and all three ecosystems have the CVE
   to show for it.
 - **Rejecting extra `url()` keys** rather than § 6's query string. Rejected: it leaves no laundered spelling

@@ -202,7 +202,7 @@ like the WSL leg already is.
 
 ## What this goal does not touch
 
-`Web\Migration`, which [ADR 0082](../../adr/0082-the-first-party-framework.md) § 7 records as deliberately
+`Web\Migration`, which `rule:programs/no-migration-runner` records as deliberately
 blocked until an ADR closes it — ordering, transactional DDL, fleet locking, reversibility, safety against
 a live multi-tenant database. `nvs queue migrate` is **not** that: it creates two tables this ADR
 specifies, and a session that finds itself generalising it has drifted into the blocked design. The

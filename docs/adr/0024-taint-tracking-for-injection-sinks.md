@@ -56,7 +56,7 @@
 [ADR 0009](0009-string-and-bytes.md) already defines — not a class, not a wrapper, not a runtime tag. It is
 checked exactly once, by `nvs check`, and carries no representation at all past that point: no extra byte in
 the value's header, no refcount change, no cost on the hot path. This is security bought for free under
-[ADR 0004](0004-memory-for-simplicity.md)'s ordering, the same way a `readonly` property costs nothing once
+`rule:programs/memory-priority`'s ordering, the same way a `readonly` property costs nothing once
 compiled.
 
 ```
@@ -259,7 +259,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 
 - **Runtime-only taint tracking (Perl's model).** Rejected: throws away the advantage a static type checker
   gives over a dynamic tag, paying a representation/per-op cost
-  [ADR 0004](0004-memory-for-simplicity.md) argues against when the compile-time version is free.
+  `rule:programs/memory-priority` argues against when the compile-time version is free.
 - **A bolt-on static-analysis pass outside `nvs check`**, mirroring Error Prone. Rejected on the same
   grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for reflection: an
   optional, skippable analysis is not the same guarantee as a compiler that refuses to emit code.

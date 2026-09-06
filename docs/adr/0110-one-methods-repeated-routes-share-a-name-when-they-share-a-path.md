@@ -183,7 +183,7 @@ point**, and it is read as a diff before it is accepted like every other code ac
   one row in a generated document with one `operationId` per verb under it. That was the whole cost.
 - **Runtime cost is zero and memory cost is one column's worth of repeats.** No table entry is added, no
   index is added, and the `?string` column that held `none` now holds a value. Under
-  [ADR 0004](0004-memory-for-simplicity.md)'s ordering this is not a trade worth stating further.
+  `rule:programs/memory-priority`'s ordering this is not a trade worth stating further.
 - **Nothing that compiles today stops compiling.** This ADR only widens what is accepted, so there is no
   migration and no sweep — the opposite of
   [0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)'s *Consequences*, which is

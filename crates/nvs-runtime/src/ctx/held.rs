@@ -108,7 +108,7 @@ impl Ctx {
     /// it is is the whole question. It is the request's, so that the footprint
     /// is O(isolates this request has started and not awaited) and is released
     /// with the request — a process-wide table would be O(spawns served),
-    /// which [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) calls
+    /// which `rule:programs/memory-priority` calls
     /// a leak rather than a trade. `crates/nvs-stdlib/src/channel.rs` records
     /// the same reasoning for the queue it keeps in slots instead.
     ///
@@ -150,7 +150,7 @@ impl Ctx {
     /// where a recycled key would silently address whatever file the same slot
     /// now holds. A loop opening and closing a million paths spends a few
     /// megabytes for it, which
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// `rule:programs/memory-priority`'s ordering
     /// spends without hesitating to keep a descriptor from being confused for
     /// another.
     pub fn hold_open_file(&mut self, file: std::fs::File) -> u64 {
@@ -321,7 +321,7 @@ impl Ctx {
     /// **What it spends:** one `PathBuf` per `temporaryDir` call this script
     /// made — O(directories created), request-local, released with the request
     /// and charged to its memory limit, which is the bound
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks for.
+    /// `rule:programs/memory-priority` asks for.
     /// A script that never calls the member allocates nothing at all.
     pub fn track_temporary_dir(&mut self, path: std::path::PathBuf) {
         self.temporary_dirs.push(path);

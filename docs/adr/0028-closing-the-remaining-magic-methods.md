@@ -112,7 +112,7 @@ arguments for why destructors themselves have no place here, either one sufficie
   heap dropped wholesale" is in that ADR's own table specifically *because* walking live objects
   individually at request end costs time proportional to what a request allocated, and the only two
   destructor semantics an implementation could offer are both bad: guarantee every live object's
-  `__destruct` runs at teardown (reintroducing the individual walk ADR 0004 exists to avoid, on every single
+  `__destruct` runs at teardown (reintroducing the individual walk `rule:programs/memory-priority` exists to avoid, on every single
   request, not just ones that leak) or reproduce PHP's own well-known inconsistency (a destructor runs
   reliably when a refcount hits zero mid-request, but is simply skipped for anything still reachable — most
   commonly a reference cycle — when the process reclaims it in bulk). Removing destructors entirely is the
@@ -220,7 +220,7 @@ consequence of the static-resolution architecture already being built, not a new
 What this section does *not* answer is what replaces the mechanism PHP actually uses,
 `spl_autoload_register()` — how a name reaches its file at all without a hand-written `require` for every
 declaration. That is a decision rather than a consequence, and it is
-[ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s.
+`rule:programs/no-runtime-autoload`'s.
 
 ## Consequences
 

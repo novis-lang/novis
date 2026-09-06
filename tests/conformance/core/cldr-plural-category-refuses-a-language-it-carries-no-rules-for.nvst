@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::pluralCategory` refuses a language whose rules it does not carry, rather than answering another language's — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
+`Core\Cldr::pluralCategory` refuses a language whose rules it does not carry, rather than answering another language's — `rule:programs/framework-core-half`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // ADR 0095: ambiguous input is refused, never repaired. The cheaper design

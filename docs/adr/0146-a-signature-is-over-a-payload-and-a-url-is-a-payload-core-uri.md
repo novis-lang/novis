@@ -187,7 +187,7 @@ badly rather than reached it twice.
 - **`uri.rs`'s "and nowhere else" sentence is amended**, and `equivalent()` gains a second caller. That
   is the intended outcome — the normalization is now load-bearing for two things, so it is tested by
   two corpora.
-- **What this spends**, per [ADR 0004](0004-memory-for-simplicity.md): one signature computation per
+- **What this spends**, per `rule:programs/memory-priority`(0004-memory-for-simplicity.md): one signature computation per
   `sign`, one per verification attempt per key until one authenticates, all inside the call and nothing
   held between calls. A program that signs nothing pays nothing. The token adds roughly `4/3 × (payload
   + 40)` characters to a URL, which is the number to hold against the ~2 KB path length proxies and

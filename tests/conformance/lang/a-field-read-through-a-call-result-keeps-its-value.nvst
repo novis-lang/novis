@@ -1,5 +1,5 @@
 --TEST--
-Reading a property straight through a call result keeps the value alive after the temporary object is dropped (ADR 0004's refcounting policy; `nvs_ir::lower::Lowering::aliasing_read`)
+Reading a property straight through a call result keeps the value alive after the temporary object is dropped (`rule:programs/memory-priority`'s refcounting policy; `nvs_ir::lower::Lowering::aliasing_read`)
 --FILE--
 <?nvs
 // The call hands back the only reference to the object, and a field read

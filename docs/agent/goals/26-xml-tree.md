@@ -94,6 +94,6 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
   the list lacks, the list gains it in a commit with a reason, not a parameter.
 - **Ambiguity about tree ergonomics resolves toward the narrower API**, recorded in the module doc:
   six extensions collapse into one surface, and the collapse is the point.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): a materialised tree is
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): a materialised tree is
   proportional to the document and is held for the request that parsed it, released with its arena.
   The stream holds one window. Both are bounded by goal 25's ceiling when the input arrived compressed.

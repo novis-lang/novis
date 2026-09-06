@@ -1,4 +1,4 @@
-# ADR 0004 — Memory is spent for security, speed and simplicity
+# `rule:programs/memory-priority` — Memory is spent for security, speed and simplicity
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -118,7 +118,7 @@ Every row is a decision Novis has taken, not an aspiration. This ADR names what 
   single typical RSS.
 - Novis will lose hello-world-RSS comparisons against interpreters. It should not contest them; the honest
   comparison is throughput and latency per core at a given concurrency, with isolation intact.
-- The rule is quotable as an excuse. "ADR 0004 says memory is cheap" is not an argument for an unbounded
+- The rule is quotable as an excuse. "`rule:programs/memory-priority` says memory is cheap" is not an argument for an unbounded
   cache, a leak, or an uncapped buffer. The three bounds above are the answer, and a review should ask for
   the number.
 

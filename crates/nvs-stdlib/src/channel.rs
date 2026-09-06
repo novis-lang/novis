@@ -7,7 +7,7 @@
 //! decided here is decided here. `crates/nvs-host/src/channel.rs`'s module doc
 //! is the one home for *why* a bound rather than growth — an unbounded queue
 //! between a fast producer and a slow consumer is O(messages produced), which
-//! is [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s growth
+//! is `rule:programs/memory-priority`'s growth
 //! with traffic rather than with concurrency — and this module does not restate
 //! it.
 //!

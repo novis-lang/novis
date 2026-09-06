@@ -47,7 +47,7 @@
   compiled code survives it ([0006](0006-isolated-script-execution.md),
   [0017](0017-hot-reload-without-restart.md)). A WebSocket is by definition the thing that does not end
   there, so it had to be designed rather than implemented.
-- **It is not optional for the audience.** [ADR 0080](0080-the-audience-nvs-is-built-for.md)'s multi-tenant
+- **It is not optional for the audience.** `rule:programs/audience`'s multi-tenant
   platforms want live dashboards, per-tenant push, progress streams and collaborative surfaces. A 2026 web
   language without a persistent-connection story reads as unfinished regardless of what else it has.
 - **The obvious designs each import something Novis does not have.** A callback handler
@@ -250,7 +250,7 @@ different hand-over rather than a relaxation of it: a request with no cell is on
 ## Consequences
 
 - **Memory scales with concurrent connections, not with request rate** — an arena and a coroutine stack per
-  connection. That is [ADR 0004](0004-memory-for-simplicity.md)'s trade taken knowingly, and it means
+  connection. That is `rule:programs/memory-priority`'s trade taken knowingly, and it means
   sizing a deployment for a connection-heavy application means sizing for connections. The plan's
   *Consequences to accept* already says deployments are sized by concurrency; this adds a second axis to
   that sentence.

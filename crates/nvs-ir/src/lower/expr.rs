@@ -226,7 +226,7 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, env, *cur);
                 }
-                // ADR 0061 § 3's enumeration, answered in `nvs check` and
+                // `rule:programs/implementing`'s enumeration, answered in `nvs check` and
                 // recorded as the list of classes rather than as a constant,
                 // because what it expands to allocates. `nvs_stdlib::program`
                 // registers a body that aborts precisely so a call that
@@ -2847,7 +2847,7 @@ impl<'a> Lowering<'a> {
         built
     }
 
-    /// `Core\Program::implementing<T>()` — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// `Core\Program::implementing<T>()` — `rule:programs/no-runtime-autoload`
     /// § 3's expansion, emitted as the array literal it is specified to be.
     ///
     /// One `InstKind::New` per implementor with no arguments, gathered into

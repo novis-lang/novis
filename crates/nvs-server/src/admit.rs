@@ -40,7 +40,7 @@
 //! which is a ceiling that binds the wrong thing. Relaxed is enough because
 //! nothing is published through this counter: it orders no memory and guards no
 //! data, it only answers how many requests are in flight, and it is not on the
-//! value path [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
+//! value path `rule:programs/memory-priority`'s
 //! non-atomic refcount decision protects.
 //!
 //! **What it spends**, per that ADR: one `usize` for the whole process, one

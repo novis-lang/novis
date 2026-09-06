@@ -113,7 +113,7 @@ request boundary, so it gets a `valgrind` run of its own rather than riding the 
 - **`json()` holds its decoded `Value`, and `jsonAs<T>()` holds nothing.** `decode` produces only arrays
   and scalars and arrays are COW, so handing out a refcount bump is safe; `decodeAs<T>` builds objects and
   two callers must never be handed the same one. **What this spends**, per
-  [ADR 0004](../../adr/0004-memory-for-simplicity.md)'s ledger: the held octets, ≤ `[limits] request_body`
+  `rule:programs/memory-priority`'s ledger: the held octets, ≤ `[limits] request_body`
   (8 MiB) per in-flight request — already `post()`'s bill — plus the decoded value for a request that
   called `json()`, freed with the request and O(in-flight), never O(requests served).
 - **The fallback, if the held `Value` fights the carrier's ownership rules**: hold the octets only and

@@ -316,7 +316,7 @@ pub struct ClassDesc {
     /// two formats are only usually the same: `#[Json\Field(name: "userId")]`
     /// and `#[Db\Field(name: "user_id")]` are both legal on one property, and
     /// § 3's `skip` is per format too. A class carrying one attribute pays one
-    /// empty `Vec` for the other, which is the footprint ADR 0004's ordering
+    /// empty `Vec` for the other, which is the footprint `rule:programs/memory-priority`'s ordering
     /// spends to keep the two mappings from having to agree.
     db_codec: Vec<CodecField>,
     /// One entry per [`Self::db_codec`] field, on [`Self::codec_classes`]'

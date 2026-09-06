@@ -1,4 +1,4 @@
-# ADR 0080 — Novis is built to serve web applications of every kind
+# `rule:programs/audience` — Novis is built to serve web applications of every kind
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -119,7 +119,7 @@ Novis claims exactly three things about itself, and each is a property no incumb
 ([0026](0026-performance-measurement-methodology.md)), and it is the right thing to put in a benchmark
 table — but as a *reason to adopt* it now compares against a PHP deployment nobody defends, and the margin
 over a modern one does not pay for a rewrite. Latency and throughput stay priority 3 in
-[ADR 0004](0004-memory-for-simplicity.md)'s ordering; what changes is only what the project says about
+`rule:programs/memory-priority`'s ordering; what changes is only what the project says about
 itself first.
 
 ### 3. The PHP-shaped syntax is an on-ramp, and saying more than that is forbidden
@@ -149,7 +149,7 @@ The honest answer, recorded here so no future contributor has to reconstruct it:
   it could not hold. Novis does not depend on that compatibility at any point, so it cannot be lost —
   the cost is paid once, at the start, deliberately, and every ADR that raises it is right to.
 - **Hack shipped a language; Novis ships a language and the batteries.**
-  [ADR 0082](0082-the-first-party-framework.md) exists because "a good language plus an empty registry" is
+  `rule:programs/first-party-framework` exists because "a good language plus an empty registry" is
   the position Hack, Crystal and a dozen others occupied. A first-party framework means a new user's first
   question is answered by what is in the box.
 - **Hack's differentiator was a type system, which PHP then largely acquired.** Novis's differentiator is a

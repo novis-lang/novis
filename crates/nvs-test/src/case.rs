@@ -105,7 +105,7 @@ impl Subcommand {
 /// Written by `--FILE <relative/path>--`, which may appear any number of
 /// times. This is what lets one case cover something that is only observable
 /// across files — a `require` target, an autoload root, a shadowing vendor
-/// copy ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
+/// copy (`rule:programs/no-runtime-autoload`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuxFile {
     /// Where to write it, relative to the case's working directory, always

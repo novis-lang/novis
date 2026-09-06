@@ -65,7 +65,7 @@
 //! at the mount root, and never for step 4 — that is [`crate::statics`]'s docs
 //! § *Decision*.
 //!
-//! **What it spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
 //! nothing per request that outlives it. A selection borrows its mount from the
 //! table and owns one `PathBuf` — the file steps 3-5 chose — and steps 3 and 4
 //! cost one `stat` and one `canonicalize` each, only where their switch is on.
@@ -351,7 +351,7 @@ pub struct Selection<'a> {
     /// request target, which outlives neither the table this borrows from nor
     /// the [`Reply`](crate::Reply) the caller builds out of it, and threading a
     /// second lifetime through the whole table to save it would buy nothing
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) ranks above
+    /// `rule:programs/memory-priority` ranks above
     /// simplicity.
     pub path: Box<str>,
 }

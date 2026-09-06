@@ -27,7 +27,7 @@
 //!
 //! A **positional argument** is `<param>` and an **option** is `[--spelling]`,
 //! which is the convention every CLI in the audience's world already reads
-//! ([ADR 0080](/docs/adr/0080-the-audience-nvs-is-built-for.md)) —
+//! (`rule:programs/audience`) —
 //! and it is read off the row's own `spellings` rather than off a second field,
 //! for the reason `nvs_runtime::commands::CommandArg::spellings` states. An
 //! option that declares both a short and a long spelling is *summarized* by its

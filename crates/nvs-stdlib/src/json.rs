@@ -15,7 +15,7 @@
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps [`ADR 0004`](/docs/adr/0004-memory-for-simplicity.md)'s
+//!   keeps [``rule:programs/memory-priority``](/docs/adr/0004-memory-for-simplicity.md)'s
 //!   priority 3 honest on a member every request path uses.
 //! * **The serializer's escaping and number formatting are the crate's.** Novis
 //!   writes no JSON grammar of its own at all: [`Encodable`] answers

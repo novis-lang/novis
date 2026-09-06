@@ -1344,7 +1344,7 @@ pub enum StmtKind {
     NamespaceDecl(NamespaceDecl),
     /// A `use Path\To\Name;` import.
     UseDecl(UseDecl),
-    /// An `autoload` declaration, either form (ADR 0061 § 1).
+    /// An `autoload` declaration, either form (`rule:programs/autoload`).
     AutoloadDecl(AutoloadDecl),
     /// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
     /// file/namespace scope.
@@ -1631,7 +1631,7 @@ pub struct UseDecl {
 }
 
 /// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
-/// two forms of [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// two forms of `rule:programs/no-runtime-autoload`
 /// § 1, whose grammar [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
 /// owns.
 ///
@@ -1651,7 +1651,7 @@ pub struct AutoloadDecl {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AutoloadKind {
     /// `autoload 'Prefix' from 'root', 'root2';` — one namespace prefix and
-    /// one or more roots, probed in the order written (ADR 0061 § 1's
+    /// one or more roots, probed in the order written (`rule:programs/autoload`'s
     /// Composer rule).
     Prefix {
         /// The namespace prefix's literal, quotes included.

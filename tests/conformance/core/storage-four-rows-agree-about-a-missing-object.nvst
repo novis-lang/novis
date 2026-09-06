@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage's four rows agree about whether a key names an object, each in its own vocabulary — absence is null, a failed delete, an omission from the listing and a claim that succeeds — ADR 0082 § 2, ADR 0063 R7
+Core\Storage's four rows agree about whether a key names an object, each in its own vocabulary — absence is null, a failed delete, an omission from the listing and a claim that succeeds — `rule:programs/framework-core-half`, ADR 0063 R7
 --FILE--
 <?nvs
 // One question — "does this key name an object on this disk?" — asked of all

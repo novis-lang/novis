@@ -27,9 +27,9 @@ The goal is a new programming language for web servers and CLI, written in Rust,
   only by a safety valve, never by a `pm.max_children` — while
   sharing one compiled-code cache across all of them,
 - and is fast, safe and simple *first* — spending memory to stay that way rather than the reverse
-  ([ADR 0004](../adr/0004-memory-for-simplicity.md)).
+  (`rule:programs/memory-priority`).
 
-**Who this is for, and what it claims** — [ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md) owns both
+**Who this is for, and what it claims** — `rule:programs/audience` owns both
 and this states only the headline. Novis is built to serve **web applications of every kind**, whatever the
 application does and whoever wrote the code it runs; the safety properties are how it is built rather than a
 segment's requirement, and the untrusted-code case is where they pay the most rather than what they are for.
@@ -39,7 +39,7 @@ errors**; **a request, a job, a connection and an untrusted script are each a bu
 process**; and **suspension has no colour**. Raw speed against PHP is measured
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) and is not the pitch: persistent-worker PHP
 runtimes and PHP 8's JIT have answered enough of that argument that it no longer justifies a rewrite on its
-own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and ADR 0080 § 3 forbids any
+own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and `rule:programs/no-compatibility-promise` forbids any
 document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
@@ -58,7 +58,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Area | Decision |
 |---|---|
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
-| Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap ([ADR 0004](../adr/0004-memory-for-simplicity.md)) |
+| Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap (`rule:programs/memory-priority`) |
 | Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](../adr/0017-hot-reload-without-restart.md)); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
@@ -82,9 +82,9 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](../adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](../adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
-| Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md)) |
+| Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
-| Framework | First-party and split by [ADR 0051](../adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer ([ADR 0082](../adr/0082-the-first-party-framework.md)) |
+| Framework | First-party and split by [ADR 0051](../adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer (`rule:programs/first-party-framework`) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` ([ADR 0083](../adr/0083-persistent-connections-are-isolates.md)) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate ([ADR 0084](../adr/0084-durable-background-jobs.md)) |
 | API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)) |
@@ -130,7 +130,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   [0014](../adr/0014-property-observer.md), [0053](../adr/0053-iteration-and-generators.md),
   [0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) means the ecosystem built on those is
   unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
-  framework, and never onto its old one. [ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md) § 4 records
+  framework, and never onto its old one. `rule:programs/audience` records
   why this is survivable and what the alternative cost.
 - **A JIT means a native-codegen component in the trusted core.** User programs stay fully memory-safe
   (all codegen is type-checked and bounds-checked); the codegen itself, the coroutine stack switcher and
@@ -284,7 +284,7 @@ its run routine also gives it a `gc`-kind trace event, at no cost to the safepoi
 
 Both choices here — 16 bytes per value instead of 8, and peak-not-average retention inside a request — cost
 memory to buy correct PHP semantics and a collector that never runs on the request path. That is the
-priority ordering in [ADR 0004](../adr/0004-memory-for-simplicity.md), not an oversight to optimise away later.
+priority ordering in `rule:programs/memory-priority`, not an oversight to optimise away later.
 
 ### Safepoints — build these into codegen from the very first commit
 

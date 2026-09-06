@@ -1214,7 +1214,7 @@ pub(crate) fn program_digest(files: &[nvs_types::ProgramFile<'_>]) -> Digest {
     content_hash(&bytes)
 }
 
-/// Each file's own content hash, in the same order — what ADR 0061's program id combines, where
+/// Each file's own content hash, in the same order — what `rule:programs/no-runtime-autoload`'s program id combines, where
 /// [`program_digest`] folds the same graph into the one digest a cache key needs.
 ///
 /// The two read the same files and are deliberately not the same value. A cache key hashes each

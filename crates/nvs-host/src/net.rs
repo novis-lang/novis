@@ -25,7 +25,7 @@
 //! poller is level-triggered and the registration is still filed under this
 //! task, so it already reports what the new wait needs. Changing interest —
 //! a `read` after a `write` — costs one `reregister`, never a fresh `register`.
-//! What that spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
+//! What that spends, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
 //! one kernel registration per *stream a task is holding*, released by
 //! [`Drop`] and swept by `Reactor::retire` when the task ends. O(in-flight).
 //!
@@ -105,7 +105,7 @@
 //! dyn Source`: a vtable on the parking path, buying nothing the generic does
 //! not already give. Per stream the footprint is identical; what is spent is
 //! code size, two instantiations of four small functions
-//! ([ADR 0004](/docs/adr/0004-memory-for-simplicity.md)).
+//! (`rule:programs/memory-priority`).
 //!
 //! [`NvsListener`] is that decision reached from the other side. An accepting
 //! socket waits on `READABLE` for a connection exactly as a stream waits on it

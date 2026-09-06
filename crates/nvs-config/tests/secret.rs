@@ -421,7 +421,7 @@ fn a_secret_survives_into_the_snapshot_without_entering_the_table() {
 }
 
 /// A root naming `secrets/mail` as `[mail.relay]`'s password file, with the rest of the block
-/// ADR 0082 § 2 needs so that `nvs_stdlib::mail` would accept it.
+/// `rule:programs/framework-core-half` needs so that `nvs_stdlib::mail` would accept it.
 const MAIL_ROOT: &str = "[mail.relay]\nhost = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\npassword_file = \"secrets/mail\"\n";
 
 /// § 7 is about the pairs the registry marks, and `[mail.<name>] password` is the second one: an

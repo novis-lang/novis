@@ -78,7 +78,7 @@
 //! owed no status, and one that has stopped reading is by definition not
 //! reading a `408` either.
 //!
-//! **What that spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
+//! **What that spends**, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
 //! [`SCRATCH`] bytes of the accepting coroutine's own stack while a read is in
 //! flight, and one `memcpy` of at most that much per readable poll. Per
 //! connection and only while it is polling, so O(in-flight) and nothing held

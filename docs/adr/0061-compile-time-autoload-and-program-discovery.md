@@ -1,4 +1,4 @@
-# ADR 0061 — `autoload` maps names to files at compile time; `Core\Program` enumerates what nothing names
+# `rule:programs/no-runtime-autoload` — `autoload` maps names to files at compile time; `Core\Program` enumerates what nothing names
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -223,7 +223,7 @@ onto the context before any Novis code runs, and the member reads that string ba
 never per call and never lazily.** A lazy first-call compute would put a hash of every unit digest on one
 unlucky request's path, and a per-call one on all of them; the swap is the only other moment the answer
 changes, because it is the only moment a running host's set of units does. What this spends is 32 bytes per
-program and one BLAKE3 combine per resolution — [ADR 0004](0004-memory-for-simplicity.md)'s ledger, stated
+program and one BLAKE3 combine per resolution — `rule:programs/memory-priority`'s ledger, stated
 here because that ADR asks for it to be stated.
 
 **Plain `string`, never `secret`** ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)). Every
@@ -255,7 +255,7 @@ answer at all.
   path. A `new Foo()` costs what it costs today.
 - Memory: the effective map is O(prefixes) per host, a few hundred bytes; the discovery scan's symbol
   entries are O(declarations under the roots) and only in programs that ask for one
-  ([ADR 0004](0004-memory-for-simplicity.md) — spent deliberately, and attributable).
+  (`rule:programs/memory-priority` — spent deliberately, and attributable).
 
 **Negative**
 

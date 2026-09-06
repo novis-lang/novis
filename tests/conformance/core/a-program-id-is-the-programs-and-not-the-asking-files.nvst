@@ -1,5 +1,5 @@
 --TEST--
-The id a required file reads is the whole program's, not the unit that asked for it — ADR 0061 § 6
+The id a required file reads is the whole program's, not the unit that asked for it — `rule:programs/program-id`
 --FILE helper.nvs--
 <?nvs
 // A second unit in the same program. Its own bytes are one of the content

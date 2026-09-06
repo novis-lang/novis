@@ -114,7 +114,7 @@ for (; $i < $n; ) {
 }
 
 // Declared *after* every statement that links to it, which is the whole point
-// of the table being built from the program enumeration (ADR 0061 § 3's scan,
+// of the table being built from the program enumeration (`rule:programs/implementing`'s scan,
 // ADR 0077 § 5): a row exists because the class is in the program, not because
 // it was declared before the call. `{path...}` binds a `string` and nothing
 // else — every remaining segment as one value, its own `/`s left alone while

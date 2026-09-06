@@ -1,5 +1,5 @@
 --TEST--
-a mis-cased file on disk is a miss for an autoload probe, not a diagnostic — ADR 0061 § 1
+a mis-cased file on disk is a miss for an autoload probe, not a diagnostic — `rule:programs/autoload`
 --FILE--
 <?nvs
 // `App\Mailer` resolves to `src/Mailer.nvs`, and what is on disk is

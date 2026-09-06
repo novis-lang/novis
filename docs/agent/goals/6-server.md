@@ -269,6 +269,6 @@ there by the switch that left it and folded forward at every switch since.
 ## What this goal does not touch
 
 The extension system (M9), `nvs fmt` and the editor (M4B and M10), the transpiler (M11), packages (M15)
-and the `nvs/web` package (M16). `Web\Migration` stays blocked by ADR 0082 § 7. A session that reaches one
+and the `nvs/web` package (M16). `Web\Migration` stays blocked by `rule:programs/no-migration-runner`. A session that reaches one
 of these puts it in `## Backlog` and moves on — and when the last check here goes green, the parity
 program is finished and the chain has no next goal.

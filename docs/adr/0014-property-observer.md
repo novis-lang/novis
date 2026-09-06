@@ -128,7 +128,7 @@ Whether a class implements `PropertyObserver` is known at compile time from its 
 `Comparable` in [ADR 0013](0013-comparable-interface.md). A property with no hook on a class that does not
 implement `PropertyObserver` compiles to a direct field load or store — no branch, no virtual call, nothing
 paid by a class that never asked for either mechanism. The cost of this ADR is exactly one ordinary virtual
-call per access, paid only by a class that implements `PropertyObserver`, which [ADR 0004](0004-memory-for-simplicity.md)
+call per access, paid only by a class that implements `PropertyObserver`, which `rule:programs/memory-priority`
 already treats as free relative to every other method call in the language.
 
 "Direct" is a claim about **the path a run that throws nothing takes**, and a landing block is not a dispatch
@@ -202,7 +202,7 @@ any other call.
 
 - One declared place — `PropertyObserver` — covers every property a class has, hooked or not, closing the
   gap PHP's `__get`/`__set` never actually filled (they only ever saw *undefined* access).
-- Costs nothing beyond an ordinary virtual call already priced by [ADR 0004](0004-memory-for-simplicity.md)
+- Costs nothing beyond an ordinary virtual call already priced by `rule:programs/memory-priority`
   and already paid the same way by [ADR 0013](0013-comparable-interface.md) — no new storage class
   ([ADR 0008](0008-static-and-global.md)), no new runtime representation, zero cost for the common case of a
   class that implements neither interface.

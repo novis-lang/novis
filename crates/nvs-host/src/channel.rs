@@ -12,7 +12,7 @@
 //!
 //! An unbounded queue between a fast producer and a slow consumer is a leak
 //! wearing a channel's clothes: its footprint is O(messages produced), which is
-//! precisely what [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
+//! precisely what `rule:programs/memory-priority`
 //! calls growth with total traffic rather than with concurrency. A bounded one
 //! turns that into backpressure — the producer stops being scheduled until the
 //! consumer has taken something — and what a channel can hold is then

@@ -1,8 +1,8 @@
 --TEST--
-Core\Storage reaches only a disk an operator configured, so a name no `[storage.<name>]` block carries is refused with nothing to fall back to — ADR 0082 § 2
+Core\Storage reaches only a disk an operator configured, so a name no `[storage.<name>]` block carries is refused with nothing to fall back to — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
-// The whole of ADR 0082 § 2's storage rule, from the outside: `$disk` selects a
+// The whole of `rule:programs/framework-core-half`'s storage rule, from the outside: `$disk` selects a
 // block in root-owned `nvs.toml`, and there is no root, path or directory
 // parameter anywhere on the three rows. So a program running under a
 // deployment that named no such disk cannot store at all — there is nothing to

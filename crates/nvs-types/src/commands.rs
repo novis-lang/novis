@@ -4,7 +4,7 @@
 //! # Why these are recognized names rather than shape aliases
 //!
 //! § 6 builds a *table* from them while compiling — the same
-//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `rule:programs/no-runtime-autoload`
 //! § 3 scan ADR 0077's route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
@@ -39,7 +39,7 @@
 //!
 //! **The whole program at once**, from the end of [`crate::check::check_program`]:
 //! [`check_table`] reports § 6's third error, a duplicate command name. It is a
-//! question about the enumeration rather than about a declaration — ADR 0061
+//! question about the enumeration rather than about a declaration — `rule:programs/no-runtime-autoload`
 //! § 3's scan is what brings two files' commands into one program — so it waits
 //! for every file, exactly as [`crate::routes::check_table`] does.
 //!
@@ -323,7 +323,7 @@ pub struct Command {
 /// attached to it, and a map would drop the row that error is reported
 /// against. Order is what makes the pair deterministic — the collision is
 /// always reported at the row that arrives second, and the load order does not
-/// depend on filesystem enumeration ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// depend on filesystem enumeration (`rule:programs/no-runtime-autoload`
 /// § 3).
 #[derive(Debug, Default)]
 pub struct CommandTable {
@@ -503,7 +503,7 @@ fn collect_command(attr: &Attribute, handler: &str, args: &[CommandArg], env: &m
 /// one name.
 ///
 /// Run once at the end of [`crate::check::check_program`] rather than as each
-/// class is walked, because ADR 0061 § 3's scan is what puts two files'
+/// class is walked, because `rule:programs/implementing`'s scan is what puts two files'
 /// commands in the same program — the same reason
 /// [`crate::routes::check_table`] waits, and the reason the table accumulates
 /// across the files rather than per file.

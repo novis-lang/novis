@@ -443,7 +443,7 @@ pub(crate) fn infer_static_call(
         crate::retrieval::fold_retrieval(expr, &name, &written, args, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
-    // ADR 0061 § 3's enumeration, which is not a call at all once it has been
+    // `rule:programs/implementing`'s enumeration, which is not a call at all once it has been
     // answered — the arm above's reasoning, for a fold whose answer allocates.
     // See [`crate::program`].
     if let Some((qname, name, _)) = &resolved

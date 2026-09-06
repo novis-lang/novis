@@ -124,7 +124,7 @@ as `Core\Json::decode()` on one.
   container holds, checked once at the `as` that produced it, so a container binding a name to an
   implementation is type-checked where PHP's throws at resolution time. **An attribute-driven router is
   no longer one of those cases**: [ADR 0077](0077-compile-time-routing.md) makes the route table a compiler
-  pass over [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s program enumeration, so it
+  pass over `rule:programs/no-runtime-autoload`'s program enumeration, so it
   never reaches `Core\Reflect` at all — which is the better outcome, since it turns three runtime routing
   bugs into compile errors.
 - `Core\Ast`'s typed tree makes a source-rewriting tool (a linter, a codemod, `nvs fmt` itself) a program any

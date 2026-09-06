@@ -1,5 +1,5 @@
 --TEST--
-a class no `require` names is found by its prefix and runs — ADR 0061 § 1
+a class no `require` names is found by its prefix and runs — `rule:programs/autoload`
 --FILE--
 <?nvs
 // The entry point hand-writes exactly one path, the bootstrap that declares

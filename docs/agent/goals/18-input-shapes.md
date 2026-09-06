@@ -143,7 +143,7 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   spelling no more than it admits `tainted {…}`, so stage 2 either widens to cover `mixed` as well or
   goal 16's signature is corrected to what the grammar allows. Decided-and-recorded in ADR 0024's own
   body, never `BLOCKED`.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md)'s ledger: the hydrated
+- **What this spends**, per `rule:programs/memory-priority`'s ledger: the hydrated
   object for a request that asked for one, freed with the request, O(in-flight) and never O(requests
   served). The optional bit is one bool per shape field in an interned descriptor, O(distinct types in the
   program). `tainted {…}` costs nothing at all — it is erased before codegen with the rest of the

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Cldr::pluralCategory` answers from the language's own rules, so English and Russian disagree on four counts in five — ADR 0082 § 2, ADR 0063 R1
+`Core\Cldr::pluralCategory` answers from the language's own rules, so English and Russian disagree on four counts in five — `rule:programs/framework-core-half`, ADR 0063 R1
 --FILE--
 <?nvs
-// ADR 0082 § 2 puts this member in `Core` so `Web\I18n` picks a plural form
+// `rule:programs/framework-core-half` puts this member in `Core` so `Web\I18n` picks a plural form
 // from CLDR's rules rather than shipping a second copy of them. This case is
 // why the rules cannot be replaced by `== 1`: over the same five counts,
 // English draws one line and Russian draws three.

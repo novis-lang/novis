@@ -1,5 +1,5 @@
 --TEST--
-Core\Mail::send refuses an empty recipient list rather than sending nothing quietly — ADR 0082 § 2
+Core\Mail::send refuses an empty recipient list rather than sending nothing quietly — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
 // `$to` is `array<string>` rather than a comma-separated string (`rule:errors/ambiguous-input-refused`'s

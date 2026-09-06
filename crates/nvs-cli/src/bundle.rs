@@ -104,7 +104,7 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
     };
     let entry = nvs_diagnostics::embedded::install(&root, bundle.files).to_path_buf();
     // Every word past the executable is the bundled program's own, there being
-    // no `nvs run` in front of it to claim any: ADR 0048 § 1's whole point is
+    // no `nvs run` in front of it to claim any: `rule:programs/bundle-trust-domain`'s whole point is
     // that the binary *is* the program, so this is the plainest reading of its
     // command line and the one ADR 0086 § 6's `Core\Command::run` matches.
     super::run_run(

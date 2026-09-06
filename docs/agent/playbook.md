@@ -1278,7 +1278,7 @@ is why" — is this file.
   section is where it goes, and the panic keeps whatever it already said.
 - **The handoff's own item text can contradict a settled ADR, exactly as a `loop-goal.toml` comment
   can — and the ADR still wins.** The `Core\Mail` item said "its `net.connect` declaration beside it
-  at `registry.rs:1392`", and ADR 0082 § 2 says the endpoint is "named in root-owned `nvs.toml`
+  at `registry.rs:1392`", and `rule:programs/framework-core-half` says the endpoint is "named in root-owned `nvs.toml`
   under a **`mail.send`** capability, the shape 0067 established for outbound endpoints". Those are
   not two spellings of one thing: `net.connect` is a grant over *hosts* with `Scope::Host` and ADR
   0058 § 3's denied ranges applied, and `Core\Mail` reaches no host a program can name, so the row
@@ -2507,7 +2507,7 @@ is why" — is this file.
   `valgrind --leak-check=full -q <binary> run examples/hello.nvs` printed
   `nvs::script::Compiler::leaked (script.rs:66)` at the top of the allocating stack, and that was the
   whole diagnosis. The trap is the *shrug*: the leak was deliberate, documented in the module doc, one
-  per process and inside ADR 0004's bound, so it reads like something to accept — but the sweep is
+  per process and inside `rule:programs/memory-priority`'s bound, so it reads like something to accept — but the sweep is
   all-or-nothing and a gate with one known-red fixture is a gate nobody reads. A `Box::leak` that
   exists only to widen a borrow to `&'static` has a scoped form that costs nothing
   (`nvs_runtime::script::scoped`); reach for that before reaching for a suppression.
@@ -4031,7 +4031,7 @@ is why" — is this file.
   `tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst` writes it that way and says
   so in the case.
 - **Two sort keys that look different usually agree, and a case that does not separate them pins
-  nothing.** ADR 0061 § 3's `implementors` sorts by `QName::segments()`, and the obvious
+  nothing.** `rule:programs/implementing`'s `implementors` sorts by `QName::segments()`, and the obvious
   counter-example to a rendered-string sort — a deeper name against a shallower sibling, `App\Sub\A`
   against `App\Beta` — orders the same way under *both* keys, because the first byte that differs
   falls inside a segment either way. The two part only where one segment is a proper **prefix** of
@@ -5035,7 +5035,7 @@ is why" — is this file.
   build. The tell that the case is the bug rather than the rule: the ADR paragraph is prose nothing
   in the tree implemented, not a decision the case was written against.
 - **An ADR's own table row can be stale about the tree exactly the way a `loop-goal.toml` comment can,
-  and the fix is different: amend the ADR.** ADR 0082 § 2's `Core\Cldr` row read "one member exposing
+  and the fix is different: amend the ADR.** `rule:programs/framework-core-half`'s `Core\Cldr` row read "one member exposing
   the CLDR data `nvs_stdlib::cldr` already holds", and no plural data was ever in that module — it held
   the § 4 date pattern grammar and nothing else, so the row was a member *and* the ~170-language table
   behind it, which is a different size of slice than the row predicts. The existing playbook bullet for
@@ -6718,7 +6718,7 @@ sibling in the same namespace unqualified.
   does carry its type.
 - **An attribute's name was already load-bearing for two other passes before ADR 0046 § 1 got to
   say what it means.** ADR 0071 § 1 matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
-  closed `Core`-owned roster, and ADR 0061 § 1 harvests every attribute name as a reference the
+  closed `Core`-owned roster, and `rule:programs/autoload` harvests every attribute name as a reference the
   autoloader then places by prefix. So a rule about what an attribute name may resolve to has to
   exempt the first and leave the second alone — and the tests that pin them are the ones that
   fail first: `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and
@@ -7134,7 +7134,7 @@ sibling in the same namespace unqualified.
   synthetic — and `nvs_config::Snapshot::build` canonicalizes that same path through
   `trust::canonical` to key ADR 0104's `[[app]]` blocks, which refused the run with `E0605` long
   after the program had compiled cleanly. The fix is not to widen `trust::canonical`: a bundle is
-  ADR 0048 § 1's single trust domain, and the only path an `[[app]]` block could legitimately key
+  `rule:programs/bundle-trust-domain`'s single trust domain, and the only path an `[[app]]` block could legitimately key
   on there is the executable itself, which `run_run` now substitutes. Before changing a byte
   source, `grep -n 'canonicalize\|read_to_string' crates/` for the *other* readers — there were
   three, in three crates, and only one of them was in `nvs-hir`.

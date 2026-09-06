@@ -1,5 +1,5 @@
 --TEST--
-`Core\Program::implementing<T>()` answers the non-abstract implementors sorted by fully-qualified name, and expands at the call site so every call allocates its own — ADR 0061 § 3
+`Core\Program::implementing<T>()` answers the non-abstract implementors sorted by fully-qualified name, and expands at the call site so every call allocates its own — `rule:programs/implementing`
 --FILE--
 <?nvs
 // Nothing here names a module class, and no `require` reaches one: the

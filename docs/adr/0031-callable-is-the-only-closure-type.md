@@ -219,7 +219,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 - **Typed closure signatures** (`callable(int): string`) are **decided**, in
   [0136](0136-a-callable-carries-its-signature.md): the parameter list and return type this ADR's rename
   did not need are now written on the one surviving name. Among what forced them,
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 is the case this entry had already
+  `rule:programs/implementing` is the case this entry had already
   named — `Core\Program::implementing<T>()` can now return constructor references, and an attributed
   static method can replace its marker interface outright, where without a signature the interface was
   what supplied a type to call through.

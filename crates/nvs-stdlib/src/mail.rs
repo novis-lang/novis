@@ -1,4 +1,4 @@
-//! `Core\Mail` — [ADR 0082](/docs/adr/0082-the-first-party-framework.md) § 2's transport
+//! `Core\Mail` — `rule:programs/framework-core-half`'s transport
 //! half: one member that hands a message to an SMTP endpoint **an operator named**, and no spelling
 //! anywhere for one a program chose.
 //!
@@ -75,7 +75,7 @@
 //!
 //! # Attachments and inline parts are composition, and composition is § 3's
 //!
-//! ADR 0082 § 2 splits this class at exactly that line. Two body parts are here because the
+//! `rule:programs/framework-core-half` splits this class at exactly that line. Two body parts are here because the
 //! transport has to choose a `Content-Type` regardless and a mail with no plain-text alternative is
 //! a mail half its readers cannot read; anything richer — templates, files, `multipart/related` —
 //! belongs to the `nvs/web` package, which composes *into* these arguments.
@@ -164,7 +164,7 @@ const OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Mail`'s one row — ADR 0082 § 2's transport half.
+/// `Core\Mail`'s one row — `rule:programs/framework-core-half`'s transport half.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
@@ -1024,7 +1024,7 @@ fn optional_of(args: &[Value], slot: usize) -> Option<&str> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Mail::send(string $endpoint, array<string> $to, string $subject,
-    /// string $text, {cc?, bcc?, replyTo?, html?}): void` — ADR 0082 § 2's
+    /// string $text, {cc?, bcc?, replyTo?, html?}): void` — `rule:programs/framework-core-half`'s
     /// transport half, replacing `mail()`.
     ///
     /// The order below is the whole security argument, and it is the order the
@@ -1133,7 +1133,7 @@ mod tests {
         assert!(!message.contains("hunter2"));
     }
 
-    /// ADR 0082 § 2's rule, over the two halves that could break it: the
+    /// `rule:programs/framework-core-half`'s rule, over the two halves that could break it: the
     /// endpoint is a *name* the grant answers about, and there is no parameter
     /// anywhere on the row through which a program could name a host.
     ///

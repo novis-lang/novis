@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage refuses a key that is not one segment rather than resolving it, so no key reaches past the disk's root — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
+Core\Storage refuses a key that is not one segment rather than resolving it, so no key reaches past the disk's root — `rule:programs/framework-core-half`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // The rule `crates/nvs-stdlib/src/storage.rs`'s module doc argues: a key names

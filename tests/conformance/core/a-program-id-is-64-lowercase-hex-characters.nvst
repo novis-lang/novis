@@ -1,5 +1,5 @@
 --TEST--
-`Core\Program::id()` answers all 32 bytes as 64 lowercase hex characters, counted across the whole string rather than sampled — ADR 0061 § 6
+`Core\Program::id()` answers all 32 bytes as 64 lowercase hex characters, counted across the whole string rather than sampled — `rule:programs/program-id`
 --FILE--
 <?nvs
 // The value itself can never be frozen in `--EXPECT--`: it is a digest of

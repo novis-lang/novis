@@ -169,11 +169,11 @@ inside one file the only way to hold that is to refuse.
 
 ### 4. `nvs.toml` is not a project manifest
 
-[ADR 0061](0061-compile-time-autoload-and-program-discovery.md) rejected "a manifest file
+`rule:programs/no-runtime-autoload` rejected "a manifest file
 (`nvs.toml`/`nvs.json`), found by walking up from the entry file". **That rejection stands**, and it is
 about discovery and lifetime rather than syntax. The file decided here is a root-owned deployment file,
 **never searched for by walking up from a source file** and holding no source-tree state — an `[autoload]`
-table is still refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not
+table is still refused for exactly the reason `rule:programs/no-runtime-autoload` gives. Sharing an extension with `Cargo.toml` is not
 a collision; the name, the location and the owner all differ.
 
 Where the file is *found* is [0103 § 1](0103-configuration-is-a-tree-of-files.md)'s: a path the operator

@@ -387,7 +387,7 @@ impl Ctx {
         self.program_name = name;
     }
 
-    /// ADR 0061's `Core\Program::id()`: the 64 lowercase hex characters naming
+    /// `rule:programs/no-runtime-autoload`'s `Core\Program::id()`: the 64 lowercase hex characters naming
     /// this program's exact code and environment, or empty for a context no
     /// host wrote one onto — see [`Self::program_id`]'s field docs for the
     /// formula and for why nothing here recomputes or truncates it.
@@ -519,7 +519,7 @@ impl Ctx {
 mod tests {
     use super::*;
 
-    /// ADR 0061's id is host-written like everything else in this file: a
+    /// `rule:programs/no-runtime-autoload`'s id is host-written like everything else in this file: a
     /// context nobody handed one to has none, and one that was handed one
     /// answers with exactly those characters — this layer neither computes nor
     /// shortens an id.

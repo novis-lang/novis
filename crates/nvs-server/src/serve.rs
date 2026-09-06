@@ -20,7 +20,7 @@
 //! roots would have to grow its own registry of live connections and its own
 //! shutdown, both of which the task tree already is.
 //!
-//! **What it spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
 //! one coroutine stack and one `hyper` connection state per connection being
 //! served, plus the accepting task's own, plus — while a request is actually
 //! running on one of them — that request's isolate, which is one `Ctx` and one
@@ -2442,7 +2442,7 @@ mod tests {
     /// server never has — the assertion is about the carrier the request was
     /// answered from and nothing else.
     ///
-    /// This is the case that ADR 0004's "O(in-flight) rather than O(requests
+    /// This is the case that `rule:programs/memory-priority`'s "O(in-flight) rather than O(requests
     /// served)" is asserted by on the request path: it failed for as long as
     /// `nvs_host::Scheduler` filed *every* task's context on its `finished`
     /// list, which under a server is every request ever served, and

@@ -1187,7 +1187,7 @@ nvs_runtime::nvs_helper! {
     /// the newline is appended to the bytes rather than written after them. A
     /// second write to reach the same stream would be a second trip through the
     /// sink for one byte, and this member is bounded by the terminal it writes
-    /// to rather than by the copy (ADR 0004's ordering: priority 3 over 5).
+    /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: priority 3 over 5).
     fn nvs_core_cli_write(ctx, args: [3]) {
         let stream = stream_of(&args[1], "write")?;
         if matches!(stream, Stream::In) {

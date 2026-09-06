@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::ordinalCategory` answers the form a place takes, which is a second CLDR table and not the plural one — ADR 0082 § 2
+`Core\Cldr::ordinalCategory` answers the form a place takes, which is a second CLDR table and not the plural one — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
 // These are the forms `1st`, `2nd`, `3rd` and `4th` take — not the forms

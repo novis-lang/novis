@@ -123,7 +123,7 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
   needs a URL where some parameter is free, that parameter does not belong in the signed URL.
 - **Verification never renders anything.** It throws; the application catches and decides. A session
   that finds itself writing a default error page has left this goal's scope.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): one signature
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): one signature
   computation per `sign`, one per key tried until one authenticates, all inside the call and nothing
   held between calls. A program that signs nothing pays nothing — no table, no registry walk, no
   per-request cost. The token adds about `4/3 × (payload + 40)` characters to a URL.

@@ -3415,7 +3415,7 @@ nvs_runtime::nvs_helper! {
     /// The walk is forward and the writes are prepends-by-collection: the
     /// ordered hash has no backward cursor, so this collects the slots first
     /// and then writes them out in reverse. One `Vec<usize>` of scratch, which
-    /// ADR 0004's ordering buys without discussion.
+    /// `rule:programs/memory-priority`'s ordering buys without discussion.
     fn nvs_core_arr_reverse(_ctx, args: [2]) {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
@@ -4206,7 +4206,7 @@ nvs_runtime::nvs_helper! {
     /// until the sort finished (leaving a comparator that is no longer a total
     /// order, which those sorts are documented to be allowed to panic on) or
     /// this. It costs one `Vec<usize>` of scratch space, which
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// `rule:programs/memory-priority`'s ordering
     /// buys without discussion.
     ///
     /// # Natural ordering, and where it diverges from PHP

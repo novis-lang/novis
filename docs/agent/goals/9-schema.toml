@@ -500,7 +500,7 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- ADR 0061 § 3's enumeration. Its stage name starts with "0", which is what puts it in
+# Stage 0 -- `rule:programs/implementing`'s enumeration. Its stage name starts with "0", which is what puts it in
 # `loop.py`'s catch-up class: it runs BEFORE the program legs, so the ledger names this while it is
 # unfinished rather than reporting how far past it the run got.
 #

@@ -72,7 +72,7 @@ Three facts make the region the wrong implementation rather than merely a heavie
 - **Values resize.** An array is copy-on-write and `nvs_str_append` grows a string in place at refcount 1;
   both allocate replacements and free their predecessors. A bump region cannot reuse what it freed, so a
   loop appending to one string holds every intermediate and the isolate's footprint becomes O(work done)
-  rather than O(live). By [ADR 0004](0004-memory-for-simplicity.md) that is a leak, not a trade.
+  rather than O(live). By `rule:programs/memory-priority` that is a leak, not a trade.
 - **The latency a region is reached for is already collected.** The pooled allocator is the fast path a
   bump pointer would be competing with, and it is measured; an isolate-lifetime region would win the same
   allocations twice and lose the frees.
@@ -98,7 +98,7 @@ a cycle's members hold each other above zero. An object is the one shape that ca
 is immutable and an array copies on write (`graph.rs`'s identity decision) — so the drain is followed by a
 **sweep**: every object links into its context's intrusive live list when it is allocated and out when it
 is dismantled, and what the drain leaves on that list is dismantled through the same worklist, so native
-teardown runs there too. What the sweep spends, per [ADR 0004](0004-memory-for-simplicity.md): two pointers
+teardown runs there too. What the sweep spends, per `rule:programs/memory-priority`(0004-memory-for-simplicity.md): two pointers
 per live object, and a few non-atomic stores at each object's allocation and death. Decided 2026-09-01,
 after review found the drain-only teardown retained a cycle for the life of the process.
 
@@ -114,7 +114,7 @@ crate's own known gaps name. `crates/nvs-runtime/src/object.rs` is the mechanism
 
 ### 3. What an isolate spends
 
-Per [ADR 0004](0004-memory-for-simplicity.md)'s *say what you spend*, for one **in-flight** isolate:
+Per `rule:programs/memory-priority`'s *say what you spend*, for one **in-flight** isolate:
 
 | what | how much |
 |---|---|

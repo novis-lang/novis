@@ -1,7 +1,7 @@
 # Why `tainted` and `secret`
 
 **Injection and secret leakage are compile errors in Novis, not findings from a scanner run afterwards.**
-That is the first of the three claims [ADR 0080](adr/0080-the-audience-nvs-is-built-for.md) § 2 makes on the
+That is the first of the three claims `rule:programs/three-claims` makes on the
 project's behalf. This page is that claim written for the three people who ask about it, plus the comparison
 that backs it. The mechanics live in the ADRs at the foot; nothing here restates them.
 
@@ -72,7 +72,7 @@ inline `<script>` and CSS context need the context-specific escapers that
 write is *injection is a compile error* — which is the stronger claim anyway, because it is about who
 enforces it rather than about how complete the escaping is.
 
-**Not "faster than PHP" alongside it.** [ADR 0080](adr/0080-the-audience-nvs-is-built-for.md) § 2 retired
+**Not "faster than PHP" alongside it.** `rule:programs/three-claims` retired
 that as a headline, and pairing a retired claim with a live one weakens both.
 
 ## Where the detail is
@@ -86,5 +86,5 @@ that as a headline, and pairing a retired claim with a live one weakens both.
 | A launderer's return type, and why only an idempotent escape answers a `string` | [ADR 0133](adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) |
 | Both qualifiers at an extension boundary | [ADR 0055](adr/0055-extension-qualifier-declarations.md) |
 | A `secret` value concealed in the editor | [ADR 0101](adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) |
-| Who Novis is for, and the three claims it makes about itself | [ADR 0080](adr/0080-the-audience-nvs-is-built-for.md) |
+| Who Novis is for, and the three claims it makes about itself | `rule:programs/audience` |
 | How a developer writes either qualifier | [the reference](novis.md), chapter A.2 |

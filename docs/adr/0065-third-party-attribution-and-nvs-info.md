@@ -87,7 +87,7 @@ someone without the repository is still a copy of the software, and MIT asks tha
 it.
 
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes. Under
-[ADR 0004](0004-memory-for-simplicity.md)'s ordering this is not a trade-off worth discussing — it is
+`rule:programs/memory-priority`'s ordering this is not a trade-off worth discussing — it is
 priority 5 spent on a legal obligation, and it never touches a request path.
 
 `nvs info` slices that one embedded file at its two section headings rather than re-formatting it, so

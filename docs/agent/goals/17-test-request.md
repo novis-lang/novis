@@ -95,6 +95,6 @@ Goal 16's whole acceptance list, never traded.
 - **This goal opens no new ADR number.** ADR 0079 § 18 is amended in place — an ADR's body always states
   the current rule — and spec § 13 and § 15 take the rosters. If a session finds a decision that genuinely
   needs a number, that is the one thing worth stopping for.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md)'s ledger: three short
+- **What this spends**, per `rule:programs/memory-priority`'s ledger: three short
   strings per in-flight request on `Inbound` — the peer address, the scheme and the host — and nothing
   per request served. The builder itself exists only in a test process.

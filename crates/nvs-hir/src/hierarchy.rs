@@ -28,7 +28,7 @@
 //! The graph answers in two directions. [`implements_interface`] asks it
 //! downward — does this one name reach that one — and every member lookup in
 //! `nvs-types` rides on that. [`implementors`] asks it upward — which names
-//! reach *this* one — which is ADR 0061 § 3's `Core\Program::implementing<T>()`
+//! reach *this* one — which is `rule:programs/implementing`'s `Core\Program::implementing<T>()`
 //! and, through the same enumeration, ADR 0077's route table. The upward
 //! question is why a link record carries [`ClassLinks::concrete`]: it is the
 //! only one whose answer excludes an abstract class.
@@ -67,7 +67,7 @@ pub struct ClassLinks {
     /// one.
     ///
     /// It lives on the edge record rather than on [`crate::Symbol`] because
-    /// the one question that asks it — [`implementors`], ADR 0061 § 3's
+    /// the one question that asks it — [`implementors`], `rule:programs/implementing`'s
     /// "non-abstract classes implementing `T`" — is already walking this
     /// graph for the `implements` half of the same answer, and a second
     /// table consulted per candidate would be a second place for the two to
@@ -505,7 +505,7 @@ fn implements_interface_rec(
 }
 
 /// Every non-abstract class in `graph` that satisfies `target`, sorted by
-/// fully-qualified name — ADR 0061 § 3's enumeration, and the list
+/// fully-qualified name — `rule:programs/implementing`'s enumeration, and the list
 /// `Core\Program::implementing<T>()` expands to one `new` expression per
 /// entry of.
 ///
@@ -750,7 +750,7 @@ mod tests {
         );
     }
 
-    /// ADR 0061 § 3's three words, one assertion each: *non-abstract*,
+    /// `rule:programs/implementing`'s three words, one assertion each: *non-abstract*,
     /// *classes*, *implementing `T`*. The fixture declares one of everything
     /// the filter has to drop — an abstract implementor, the interface
     /// itself, an unrelated class — and the answer is asserted whole rather
@@ -772,7 +772,7 @@ mod tests {
         );
     }
 
-    /// The sort is ADR 0061 § 3's own requirement and not a convenience: the
+    /// The sort is `rule:programs/implementing`'s own requirement and not a convenience: the
     /// order must not depend on filesystem enumeration, and a `FxHashMap`
     /// iteration order is exactly the kind of thing that varies. Declaration
     /// order here is the reverse of the answer's, so an implementation that
@@ -807,7 +807,7 @@ mod tests {
     /// over segments compares `Sub` against `SubA` and answers the other
     /// way. The cross-namespace case above cannot pin this: every pair in it
     /// sorts identically under either key, so both implementations pass it.
-    /// ADR 0061 § 3 asks only that the order not depend on filesystem
+    /// `rule:programs/implementing` asks only that the order not depend on filesystem
     /// enumeration; which of the two candidate orders is the answer is
     /// decided here, on the ground that a qualified name is a path and a
     /// path orders by segment.

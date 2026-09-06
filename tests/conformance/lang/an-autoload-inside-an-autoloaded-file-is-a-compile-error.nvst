@@ -1,5 +1,5 @@
 --TEST--
-an `autoload` in a file the map itself found does not compile — ADR 0061 § 1
+an `autoload` in a file the map itself found does not compile — `rule:programs/autoload`
 --FILE--
 <?nvs
 // The map is fixed the moment it is first consulted, so a declaration in a

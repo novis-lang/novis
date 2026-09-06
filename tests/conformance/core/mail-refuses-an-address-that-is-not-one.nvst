@@ -1,5 +1,5 @@
 --TEST--
-Core\Mail::send refuses an address that is not one rather than repairing it — `rule:errors/ambiguous-input-refused`, ADR 0082 § 2
+Core\Mail::send refuses an address that is not one rather than repairing it — `rule:errors/ambiguous-input-refused`, `rule:programs/framework-core-half`
 --FILE--
 <?nvs
 // ADR 0095: ambiguous input is refused, never repaired. A CRLF inside an

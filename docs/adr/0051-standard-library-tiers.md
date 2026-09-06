@@ -27,7 +27,7 @@
   partition would import every one of those duplications along with the boundary.
 - **What "core bloat" costs in Novis is not what it costs in PHP.** A `Core\Zip` nobody calls is dead code in
   the binary, not a per-process module-globals struct instantiated at every startup. Per
-  [ADR 0004](0004-memory-for-simplicity.md) footprint is the last thing protected anyway, so "it makes the
+  `rule:programs/memory-priority` footprint is the last thing protected anyway, so "it makes the
   runtime fatter" is close to a non-argument. Binary size is real but cheap: Cargo features cover it, and
   Tier 2 already assumes the operator may build from source.
 - The two costs that *are* expensive are the ones the priority ordering ranks highest and fourth-highest:
@@ -113,7 +113,7 @@ Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 this section already uses for the Redis backend behind `Core\Cache`.
 
 **The framework's privileged half is Core by these same tests**
-([ADR 0082](0082-the-first-party-framework.md) § 2, which carries the per-entry table): `Core\Validate` by
+(`rule:programs/framework-core-half`, which carries the per-entry table): `Core\Validate` by
 test 2 — it is *the* launderer, so § 2's rule that only Core may remove a qualifier makes it the one member
 that could never be a package; `Core\Password` by tests 1 and 2, as a `Core\Crypto` primitive over a
 `secret` and not an addition to [ADR 0060](0060-application-security-protocols.md)'s closed protocol
@@ -212,7 +212,7 @@ remaining users can compose `Core\Xml` with `Core\Http\Client`, and which PHP's 
 meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and ADR 0058's
 outbound policy replace; and `ssh2`, where the credential handling is a priority-1 surface we decline to
 own and `Core\Process` can invoke a real `ssh` binary under `process.exec`. Outside the audience
-[ADR 0080](0080-the-audience-nvs-is-built-for.md) names at all: `snmp`, a device-monitoring tool whose
+`rule:programs/audience` names at all: `snmp`, a device-monitoring tool whose
 observability need `Core\Metrics` and [ADR 0076](0076-observability-export.md) serve from the other
 direction, and `enchant`, whose dictionaries a third-party `.nvsx` would carry the way the intl component
 carries CLDR.

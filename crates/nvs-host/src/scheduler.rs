@@ -30,7 +30,7 @@
 //! `Core\IO::read` has the same signature whether or not there is a scheduler
 //! beneath it, and Novis's surface never grows a colour.
 //!
-//! What it spends, as [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
+//! What it spends, as `rule:programs/memory-priority`
 //! requires: **one stack per in-flight task**, held for as long as that task is
 //! suspended and handed back to the worker's pool when it completes. That is
 //! O(in-flight) and not O(requests served), which is the test that section
@@ -129,7 +129,7 @@
 //! ([`mod@crate::channel`]), and what the route avoids is handing every such
 //! primitive a `&mut Scheduler` that a running task provably cannot have.
 //!
-//! What the tree spends, as ADR 0004 requires: one node per live task — a parent
+//! What the tree spends, as `rule:programs/memory-priority` requires: one node per live task — a parent
 //! id, a child vector and a flag — removed when that task ends, so it is
 //! O(in-flight) and not O(tasks ever spawned), plus one queued id per wake in
 //! flight, which every turn drains.
@@ -546,12 +546,12 @@ impl std::fmt::Debug for Wake {
 /// dropped: under a server every request, every connection and every scheduled
 /// fire is a child, so filing all of them held one arena and one carrier per
 /// request **served**, which is
-/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s own definition of a
+/// `rule:programs/memory-priority`'s own definition of a
 /// leak. Their ids are not lost with them — [`Scheduler::take_ended`] carries
 /// every task that ended, whichever way it ended, which is what ADR 0115 § 2
 /// rule 3's deregistration reads.
 ///
-/// What it spends, as ADR 0004 asks: one `Ctx` — the arena at its peak, the
+/// What it spends, as `rule:programs/memory-priority` asks: one `Ctx` — the arena at its peak, the
 /// output buffer and the exit code — per **root** that has ended and has not
 /// been taken. A worker has one or two of those for the length of the process
 /// (`nvs serve`'s accept loop and its ticker), and `nvs run` takes its one back
@@ -688,7 +688,7 @@ impl Drop for Scheduler {
     /// resuming the task, and this is a `Drop`: nobody is left to run it. What
     /// it spends is that task's stack mapping and whatever the stack held,
     /// once per task, at the death of the worker that owned it —
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
+    /// `rule:programs/memory-priority`'s
     /// O(in-flight) rather than O(requests served) — and what it buys is
     /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s
     /// rule that no path reaches `abort()`, which is the one this would
@@ -1107,7 +1107,7 @@ impl Scheduler {
     /// How many tasks the tree is holding a node for — every task that has been
     /// spawned and has not yet ended, and no others.
     ///
-    /// The O(in-flight) property ADR 0004 asks of anything the runtime keeps,
+    /// The O(in-flight) property `rule:programs/memory-priority` asks of anything the runtime keeps,
     /// made checkable rather than asserted.
     #[must_use]
     pub fn tracked_tasks(&self) -> usize {
@@ -1130,7 +1130,7 @@ impl Scheduler {
     ///
     /// Bounded by [`crate::stack::MAX_POOLED_STACKS`] and, below that, by the
     /// number of tasks this scheduler has ever had in flight at once — which is
-    /// the O(in-flight) property ADR 0004 asks of anything the runtime keeps.
+    /// the O(in-flight) property `rule:programs/memory-priority` asks of anything the runtime keeps.
     #[must_use]
     pub fn pooled_stacks(&self) -> usize {
         self.stacks.pooled()
@@ -2029,7 +2029,7 @@ mod tests {
 
     #[test]
     fn the_tree_holds_a_node_for_every_live_task_and_no_others() {
-        // ADR 0004's O(in-flight) test applied to the tree itself: a node is
+        // `rule:programs/memory-priority`'s O(in-flight) test applied to the tree itself: a node is
         // held for a task that has not ended, and a run of sequential requests
         // costs one node rather than one per request served.
         let mut sched = Scheduler::new();

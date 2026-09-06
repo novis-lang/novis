@@ -340,7 +340,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** two words per request, and one reference to the
     /// closure for a request that registers one — O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    /// `rule:programs/memory-priority`.
     limit_handler: Value,
     /// `rule:errors/on-limit`'s
     /// reserved slice, in bytes: what [`Ctx::memory_limit`] was *reduced by* so
@@ -409,7 +409,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one reference to the
     /// closure for a request that registers one — O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    /// `rule:programs/memory-priority`.
     uncaught_handler: Value,
     /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
     /// § 1's end-of-script queue, in registration order — what
@@ -431,7 +431,7 @@ pub struct Ctx {
     /// **What it spends:** one reference per registration, plus whatever each
     /// hook captured, held from the registration to the end of the script —
     /// per request, O(registrations), which is the spend ADR 0127 § 1 states
-    /// and [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks
+    /// and `rule:programs/memory-priority` asks
     /// for.
     exit_hooks: Vec<Value>,
     /// Whether [`Self::run_exit_hooks`] has already run — ADR 0127 § 2's "the
@@ -587,7 +587,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one `Arc` clone per request, plus a `String` pair
     /// per key that request actually set. O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — the tree
+    /// `rule:programs/memory-priority` — the tree
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
     /// This request's place in a distributed trace —
@@ -650,7 +650,7 @@ pub struct Ctx {
     /// **What it spends:** one `String` per word a `nvs run` was given, and one
     /// empty `Vec` — no allocation — for every context nobody wrote one onto,
     /// which is every served request. O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    /// `rule:programs/memory-priority`.
     arguments: Vec<String>,
     /// The name the shell knows this program by — what
     /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
@@ -667,10 +667,10 @@ pub struct Ctx {
     /// **What it spends:** one short `String` per `nvs run`, and one empty
     /// `String` — no allocation — for every context nobody wrote one onto.
     /// O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    /// `rule:programs/memory-priority`.
     program_name: String,
     /// The identity of the whole program this context runs — what
-    /// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)'s
+    /// `rule:programs/no-runtime-autoload`'s
     /// `Core\Program::id()` answers, as 64 lowercase hex characters, or empty
     /// for a context no host wrote one onto.
     ///
@@ -685,7 +685,7 @@ pub struct Ctx {
     /// **What it spends:** 64 bytes per context that was handed one, and one
     /// empty `String` — no allocation — for every context that was not.
     /// O(in-flight requests), per
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    /// `rule:programs/memory-priority`.
     program_id: String,
     /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
@@ -1234,7 +1234,7 @@ pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 ///
 /// About 65,000 frames — the same order as what PHP permits, and the default
 /// Linux thread stack. Stated as
-/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) requires: what
+/// `rule:programs/memory-priority` requires: what
 /// the number buys is how deep a program may recurse and how much one runaway
 /// commits before it is stopped, and at `benches/abi-probe`'s measured 1.32 ns
 /// per call that is ≈86 µs either way.

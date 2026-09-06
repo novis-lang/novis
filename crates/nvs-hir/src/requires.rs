@@ -33,7 +33,7 @@
 //! force the caller to re-read the graph to find out what was in it.
 //!
 //! The same worklist runs
-//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `rule:programs/no-runtime-autoload`
 //! § 1's autoload resolution, as a fixpoint rather than a second pass. Each
 //! file's walk harvests three things, not one: its `require` targets, its
 //! `autoload` declarations, and every name it uses where a class, interface,
@@ -171,13 +171,13 @@ pub struct Loaded {
 /// walk finished collecting each file, which is a deterministic function of
 /// the graph and each file's own `require` order. A caller that must run a
 /// per-file phase in a stable sequence (a diagnostic's file order, a codegen
-/// unit's) can take this vector as given rather than sorting it. ADR 0061's
+/// unit's) can take this vector as given rather than sorting it. `rule:programs/no-runtime-autoload`'s
 /// program id is the strictest reader of that contract: it hashes each file's
 /// content digest in this order, so a walk that returned the same files in
 /// another one would rename a program nobody had edited.
 ///
 /// The third element is the [`AutoloadMap`] the walk consulted, handed back
-/// rather than dropped so `nvs check --autoload-map` can print it (ADR 0061
+/// rather than dropped so `nvs check --autoload-map` can print it (`rule:programs/no-runtime-autoload`
 /// § 1). It is complete for any program that reached the first probe — which
 /// is every program, since the walk consults the map once the `require` graph
 /// drains, whether or not a name is still waiting on it.
@@ -210,7 +210,7 @@ pub fn resolve_program(
     let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
         vec![(entry_id, entry_stmts, entry_chain)];
 
-    // ADR 0061's three accumulators: every `autoload` declaration the
+    // `rule:programs/no-runtime-autoload`'s three accumulators: every `autoload` declaration the
     // bootstrap chain wrote, every name that might need one, and the names
     // already probed, so a miss costs one probe rather than one per mention.
     let mut sites: Vec<Site> = Vec::new();
@@ -457,7 +457,7 @@ fn canonicalize(path: &Path) -> Option<PathBuf> {
 /// Reports a `require` whose literal path resolved only because the
 /// filesystem folds case —
 /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-/// § 3, extending [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// § 3, extending `rule:programs/no-runtime-autoload`
 /// § 1's exact-name rule from `autoload` to `require`.
 ///
 /// The comparison is free of extra syscalls: `canonicalize` on Windows and
@@ -563,7 +563,7 @@ struct Harvest {
     /// declares them.
     names: Vec<(QName, Span)>,
     /// Every call site written in this file that asks for § 3's scan — see
-    /// [`is_program_scan`] for which those are. ADR 0061 § 3's opt-in lives
+    /// [`is_program_scan`] for which those are. `rule:programs/implementing`'s opt-in lives
     /// here rather than in the checker
     /// because the scan has to happen while the walk can still load files —
     /// by the time `nvs-types` reaches the call, the graph it expands
@@ -592,7 +592,7 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
     out.names.push((qname, name.span));
 }
 
-/// ADR 0061 § 3's enumeration, spelled out: the calls whose appearance
+/// `rule:programs/implementing`'s enumeration, spelled out: the calls whose appearance
 /// anywhere in the program turn every autoload root's whole tree into files
 /// to load.
 ///
@@ -699,7 +699,7 @@ fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut H
 /// concatenation, an interpolated string) is left out entirely — that is
 /// the dynamic-fallback case this module does not touch.
 ///
-/// The same walk harvests ADR 0061's two other inputs — every `autoload`
+/// The same walk harvests `rule:programs/no-runtime-autoload`'s two other inputs — every `autoload`
 /// declaration, and every name that might need one — because they are found
 /// in the same places by the same recursion, and a second walker over the
 /// whole AST would be a second walker to keep in step with the first.
@@ -997,7 +997,7 @@ fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Harvest) {
 /// Records every name an `#[...]` group mentions: the attribute class itself,
 /// and whatever its argument expressions name.
 ///
-/// An attribute is a class reference like any other — ADR 0061 § 1 places it
+/// An attribute is a class reference like any other — `rule:programs/autoload` places it
 /// by prefix the same way — but it is the one such reference that reaches no
 /// type position and no expression, so without this the file declaring
 /// `#[Route(...)]`'s `Route` is never pulled in. Every declaration site that
@@ -1394,7 +1394,7 @@ require 'nope.nvs';
         );
     }
 
-    /// ADR 0062 § 3's whole point, stated as the invariant that holds on
+    /// `rule:programs/path-case`'s whole point, stated as the invariant that holds on
     /// every OS: a mis-cased `require` never compiles clean. *Which*
     /// diagnostic it gets is the filesystem's business — Linux never finds
     /// the file at all, Windows/macOS find it and reject the spelling.
@@ -1652,7 +1652,7 @@ require './Lib/Helper.nvs';
         map.add("autoload.nvs", "")
     }
 
-    /// ADR 0061 § 1 end to end: a class nothing `require`s, reached only by
+    /// `rule:programs/autoload` end to end: a class nothing `require`s, reached only by
     /// name through a prefix the bootstrap file declared.
     #[test]
     fn a_class_reached_only_through_autoload_is_collected() {
@@ -1676,7 +1676,7 @@ require './Lib/Helper.nvs';
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
     }
 
-    /// ADR 0061 § 1's output rather than its effect: the name resolves to a
+    /// `rule:programs/autoload`'s output rather than its effect: the name resolves to a
     /// *file*, and the [`AutoloadMap`] the fixpoint hands back is what says
     /// which one. [`a_class_reached_only_through_autoload_is_collected`]
     /// above asserts the symbol arrived; this asserts where from, and that
@@ -2011,7 +2011,7 @@ require './Lib/Helper.nvs';
         );
     }
 
-    /// ADR 0061 § 3's scan, asserted whole: every name the roots declare, in
+    /// `rule:programs/implementing`'s scan, asserted whole: every name the roots declare, in
     /// one fully-qualified order, with a nested directory becoming a
     /// namespace segment the same way [`AutoloadMap::resolve`] turns one back
     /// into a directory. The fixture holds every entry the walk must pass
@@ -2058,7 +2058,7 @@ require './Lib/Helper.nvs';
         );
     }
 
-    /// ADR 0061 § 3's opt-in, asserted as the difference it makes: one
+    /// `rule:programs/implementing`'s opt-in, asserted as the difference it makes: one
     /// program writes `implementing<T>()` and collects a class nothing
     /// requires and nothing names, and the other differs only by not writing
     /// the call and never sees that class at all. Asserted as a pair because

@@ -1,5 +1,5 @@
 --TEST--
-a `discover` glob passes over a matched directory whose name is not a legal namespace segment, in silence — ADR 0061 § 1
+a `discover` glob passes over a matched directory whose name is not a legal namespace segment, in silence — `rule:programs/autoload`
 --FILE--
 <?nvs
 // The glob in `bootstrap.nvs` sweeps a tree holding four directories no

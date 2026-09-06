@@ -92,6 +92,6 @@ spelling.
 - **Ambiguity about surface resolves toward whole-buffer first**, with streaming added only where the
   migration table names a PHP shape that cannot be expressed without it — recorded in the module doc,
   never `BLOCKED`.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): the output buffer,
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): the output buffer,
   bounded by the ceiling above and attributable to the request that asked for it. A streaming reader
   holds one window and not the document.

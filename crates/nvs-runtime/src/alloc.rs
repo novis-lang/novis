@@ -19,7 +19,7 @@
 //!
 //! # What it spends
 //!
-//! Per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *Say what
+//! Per `rule:programs/memory-priority`'s *Say what
 //! you spend*: a bounded per-**thread** cache of freed blocks — 16 classes of
 //! 16 bytes up to 256, each holding at most 512 blocks, so at most ~2 MB on a
 //! thread that has touched every class. It is never per request and never

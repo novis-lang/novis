@@ -22,7 +22,7 @@ Its floor is goal 8's whole list, which is the parity program, the temp sweep an
 **It is convergence.** A schema value says what the tables should be; a plan is the difference between
 that and what is there. There is no version number, no history table, no ordering between changes, no
 `up`/`down`, and no fleet lock. **`Core` never learns what "a migration" is** — that is
-[ADR 0082](../../adr/0082-the-first-party-framework.md) § 7's deliberately-blocked design, it stays
+`rule:programs/no-migration-runner`'s deliberately-blocked design, it stays
 blocked, and `Web\Migration` may still not ship a runner. This goal makes the layer that a runner would
 one day sit on, and stops there.
 
@@ -148,7 +148,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
   above is settled input to it, not a question it reopens. It amends
   [ADR 0067](../../adr/0067-core-db.md) — closing its *Revisiting* item — and
   [ADR 0084](../../adr/0084-durable-background-jobs.md) § 2, whose schema it takes over.
-- **`Web\Migration` stays blocked.** [ADR 0082](../../adr/0082-the-first-party-framework.md) § 7 is not
+- **`Web\Migration` stays blocked.** `rule:programs/no-migration-runner` is not
   closed by this goal and no session may close it: ordering, fleet locking, reversibility and safety
   against a live multi-tenant database are exactly the things convergence does not need, which is why
   convergence is what is built here.

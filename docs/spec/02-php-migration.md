@@ -903,7 +903,7 @@ Most of this family asks the compiler a question at run time. `class_exists`, `m
 name is declared when a file happens to be included, so whether a class exists is a fact that can differ
 between two lines. A Novis unit is whole before it runs — *"which file declares this name?"* is `autoload`,
 a top-level declaration with literal paths and no runtime existence whatsoever
-([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) — so each of these is either a
+(`rule:programs/no-runtime-autoload`) — so each of these is either a
 question the compiler has already answered or one member of `Core\Reflect`
 ([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
 
@@ -921,7 +921,7 @@ identify.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader (`rule:programs/no-runtime-autoload`) |
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
 | `trait_exists` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling (`rule:enums/closed-integer-type`), so its existence is the only thing left to ask at run time |
@@ -936,17 +936,17 @@ identify.
 | `property_exists` | member | the same member, with the same reservation. An undeclared property is a hard error ([ADR 0014](../adr/0014-property-observer.md)), so "does this object happen to carry one" has no case that can be true |
 | `is_a` | language | `instanceof`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
 | `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
-| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first (`rule:programs/no-runtime-autoload`) |
 | `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
 | `class_uses` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
-| `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |
+| `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` (`rule:programs/no-runtime-autoload`), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |
 | `get_declared_interfaces` | member | the same query, from the other end |
 | `get_declared_traits` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_id` | member | `Core\ObjectMap` and `Core\ObjectSet` ([01 § 9](01-core-library.md)) — the side table the id existed to key. An identity valid only while the object is alive, handed out as a reusable `int`, is the bug those two classes remove |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
-| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)). A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
 | `spl_autoload_unregister` | dropped | there is no stack to remove from |
 | `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
@@ -1328,7 +1328,7 @@ and included, the pages that print a build's configuration, and the source-rende
 most of it. **A constant is a class member declared at compile time**
 ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)), so there is no runtime table to
 define into, read by string, or enumerate. And **the program's shape is decided while compiling** — the
-include graph by [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s discovery,
+include graph by `rule:programs/no-runtime-autoload`'s discovery,
 reflection by [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s read-only surface
 over a class it is *given* — so a runtime list that could disagree with it does not exist.
 
@@ -1344,7 +1344,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `get_defined_constants` | dropped | enumerates it |
 | `get_defined_functions` | dropped | there are no free functions ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)). `Core\Reflect` describes a class it is handed |
 | `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
-| `get_included_files` | dropped | the include graph is resolved while compiling ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)), so there is no runtime list that could differ from it |
+| `get_included_files` | dropped | the include graph is resolved while compiling (`rule:programs/no-runtime-autoload`), so there is no runtime list that could differ from it |
 | `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
 | `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) plus the `Core` roster, both known before it runs |
 | `get_extension_funcs` | dropped | an extension's function list, in a language with no free functions |

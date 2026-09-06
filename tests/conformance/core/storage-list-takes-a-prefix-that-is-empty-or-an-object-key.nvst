@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
+Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — `rule:programs/framework-core-half`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // `prefix` is the row's one option — optional, so ADR 0063 R3 puts it in the

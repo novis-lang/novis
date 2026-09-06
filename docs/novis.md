@@ -21752,7 +21752,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
 | `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
-| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader (`rule:programs/no-runtime-autoload`) |
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
 | `trait_exists` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling (`rule:enums/closed-integer-type`), so its existence is the only thing left to ask at run time |
@@ -21766,14 +21766,14 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `method_exists` | member | `Core\Reflect::forClass`. On a receiver whose class the checker knows this is not a question at all — a declared type or an interface answers it while compiling, and reflection is for the receiver whose type was erased |
 | `is_a` | language | `instanceof`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
 | `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
-| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) |
+| `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first (`rule:programs/no-runtime-autoload`) |
 | `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
 | `class_uses` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
 | `get_declared_traits` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
-| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)). A loader stack is process-global state a thread-per-core runtime cannot keep |
+| `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
 | `spl_autoload_unregister` | dropped | there is no stack to remove from |
 | `spl_autoload_functions` | dropped | same; there is no stack to enumerate |
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
@@ -21962,7 +21962,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `get_defined_constants` | dropped | enumerates it |
 | `get_defined_functions` | dropped | there are no free functions ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). `Core\Reflect` describes a class it is handed |
 | `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
-| `get_included_files` | dropped | the include graph is resolved while compiling ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)), so there is no runtime list that could differ from it |
+| `get_included_files` | dropped | the include graph is resolved while compiling (`rule:programs/no-runtime-autoload`), so there is no runtime list that could differ from it |
 | `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
 | `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins ([ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)) plus the `Core` roster, both known before it runs |
 | `get_extension_funcs` | dropped | an extension's function list, in a language with no free functions |

@@ -95,7 +95,7 @@ built on the coroutine substrate. Three reasons, in priority order:
 1. **A language feature may not rest on a runtime substrate.** Generators are language surface, not a
    runtime facility, so their lowering must not assume stack-switching exists — a compile target without it
    would otherwise either lose generators or need a second lowering, and the second lowering is this one.
-   [ADR 0025](0025-wasm-browser-target.md)'s browser target was the concrete instance of that and is
+   `rule:programs/compile-target`'s browser target was the concrete instance of that and is
    retired; reasons 2 and 3 carry this decision without it, so nothing here reopens.
 2. **No stack to allocate or grow.** A generator is an ordinary object; iterating ten thousand of them
    costs ten thousand small objects, not ten thousand stacks.

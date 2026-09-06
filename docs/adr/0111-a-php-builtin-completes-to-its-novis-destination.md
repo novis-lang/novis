@@ -42,7 +42,7 @@
 
 ## Context
 
-- **This is the adoption path at the keystroke.** [ADR 0080](0080-the-audience-nvs-is-built-for.md) names
+- **This is the adoption path at the keystroke.** `rule:programs/audience` names
   who Novis is built for, and [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md) gives them a
   whole-codebase converter. Neither helps the developer who has switched already and is typing a name they
   have typed for a decade. Muscle memory is what survives a language change, and the names are the muscle

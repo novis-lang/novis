@@ -332,7 +332,7 @@ pub struct Unit {
     /// `finish` — one `MethodShape` and one `String` key per compiled function,
     /// per unit. That buys a hand caller a refusal where it would otherwise
     /// read slots the callee's frame does not own, which is
-    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s trade in the
+    /// `rule:programs/memory-priority`'s trade in the
     /// direction it is meant to go.
     shapes: FxHashMap<String, MethodShape>,
     /// This unit's static-property initializers, in the slot order the

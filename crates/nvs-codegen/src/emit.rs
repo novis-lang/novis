@@ -2862,7 +2862,7 @@ impl Emitter<'_, '_> {
     /// case in the suite. Everything not call-bound is inside the noise floor
     /// — json-encode −0.000%, array-map-filter −0.005%, method-dispatch
     /// +0.001%, that last because an instance method already dispatches
-    /// through `call_indirect` and never took this path. ADR 0004's ordering
+    /// through `call_indirect` and never took this path. `rule:programs/memory-priority`'s ordering
     /// spends priority-3 latency to buy off a priority-2 crash, which is the
     /// direction it allows and not the reverse.
     fn callee_ref(&mut self, target: &str) -> Result<codegen::ir::FuncRef, CodegenError> {

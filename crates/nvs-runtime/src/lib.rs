@@ -172,7 +172,7 @@
 //!   [`System`](std::alloc::System) — a `#[global_allocator]` is chosen once
 //!   for a whole crate graph, so this crate choosing one chooses it for
 //!   `nvs-cli` and for anything embedding the runtime. **What it spends**, per
-//!   [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *say what
+//!   `rule:programs/memory-priority`'s *say what
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
 //!   the process exits and never returned to the platform. That is a

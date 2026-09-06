@@ -110,7 +110,7 @@ defined as *"distinct from every legal value including `null`"*, already costing
 bytes** because it is one more discriminant on a representation that carries one, and already
 non-refcounted, so it raises no ownership question at a call boundary. Reaching it from a call site
 costs one `ConstArg` variant, one `InstKind` constant beside `ConstNull`, and the codegen arm that
-writes the tag byte. [ADR 0004](0004-memory-for-simplicity.md) requires the spend be stated: **nothing
+writes the tag byte. `rule:programs/memory-priority` requires the spend be stated: **nothing
 per request, and nothing per call** — the omitting call site emits one constant either way.
 
 A **non-nullable** field is unaffected in every respect, which is what makes this additive: every
@@ -258,7 +258,7 @@ third and fourth spelling would each be R15's *two behaviours need two names* re
   that reading was chosen because a permanent bearer credential should be something a person typed,
   which is an argument about the member and not about what the bag could express. This ADR removes the
   constraint that also pointed that way; the decision stands on the reason that remains.
-- **What it spends**, per [ADR 0004](0004-memory-for-simplicity.md): nothing per request and nothing
+- **What it spends**, per `rule:programs/memory-priority`(0004-memory-for-simplicity.md): nothing per request and nothing
   per call. One tag discriminant that already exists, one IR constant, and one more arm in codegen.
 
 ## Alternatives rejected

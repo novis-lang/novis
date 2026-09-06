@@ -11,7 +11,7 @@
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That
-> spends memory, and this ADR says how much, in the form [ADR 0004](0004-memory-for-simplicity.md)
+> spends memory, and this ADR says how much, in the form `rule:programs/memory-priority`
 > requires: **O(cores × working set)**, not O(cores × requests served). Values are **copied** across the
 > cache boundary using the same graph-copy operation as `serialize` and the isolate boundary, because a
 > cached value must not live in a request heap that is dropped wholesale. The local tier is a **cache, not
@@ -81,12 +81,12 @@ Cache memory is **not attributable to a request**. It is charged to the core tha
 `nvs.toml` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
 evicts rather than failing an allocation.
 
-Stated in the form [ADR 0004](0004-memory-for-simplicity.md) requires: the local tier costs
+Stated in the form `rule:programs/memory-priority` requires: the local tier costs
 **O(cores × working set)** — eight cores hold up to eight copies of the same hot entry — and is bounded by
 the configured cap. It is explicitly **not** O(requests served); an entry's lifetime is governed by TTL and
 eviction, never by how much traffic has passed through.
 
-That multiplication is the price of the isolation ADR 0052 § 3 buys, and it is exactly the trade ADR 0004
+That multiplication is the price of the isolation ADR 0052 § 3 buys, and it is exactly the trade `rule:programs/memory-priority`
 mandates: footprint is the last thing protected and is spent deliberately to buy priority 1. It is recorded
 here so it is a known number rather than a surprise in production.
 

@@ -74,7 +74,7 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
 - **The formula is fixed and is not re-derived**: `BLAKE3(unit content hashes in program order ‖
   env_hash)`, spelled as all 32 bytes in lowercase hex — 64 characters. Userland truncates if it wants
   fewer; the runtime never does.
-- **This goal may open [ADR 0061](../../adr/0061-compile-time-autoload-and-program-discovery.md) for one
+- **This goal may open `rule:programs/no-runtime-autoload` for one
   folded amendment and no new ADR number**: a section giving `Core\Program` its first and only runtime
   member, carrying the formula and the reason it *cannot* be a compile-time-folded constant — folding the
   id into any unit as a literal would change that unit's bytes, hence its content hash, hence the id it
@@ -85,7 +85,7 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
 - **Computed at program resolution and at the hot-reload swap, never per call and never lazily** — a
   first-call compute would put a hash of every unit digest on one unlucky request's path. What this
   spends: 32 bytes per program and one BLAKE3 combine per resolution, per
-  [ADR 0004](../../adr/0004-memory-for-simplicity.md)'s ledger.
+  `rule:programs/memory-priority`'s ledger.
 - **Ambiguity about the seam resolves toward the existing hashes' home** — `nvs-config/src/cache.rs`
   owns the combine as it owns its two inputs; decided-and-recorded in that module's doc comment, never
   `BLOCKED`.

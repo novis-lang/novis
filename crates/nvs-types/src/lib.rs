@@ -423,7 +423,7 @@ pub(crate) struct Env<'a> {
     ///
     /// Beside [`Self::routes`] and threaded exactly as it is, for its reason:
     /// the error [`crate::commands::check_table`] reports is a collision
-    /// *between* declarations, and ADR 0061 § 3's scan is what puts the two
+    /// *between* declarations, and `rule:programs/implementing`'s scan is what puts the two
     /// colliding files in the same program.
     pub commands: &'a mut crate::commands::CommandTable,
     /// ADR 0077 § 4's `Core\Router::url`/`urlAbsolute` sites, as the walk

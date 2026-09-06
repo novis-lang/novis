@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr\PluralCategory`'s six cases are all reachable, and Welsh is the language that uses every one of them — ADR 0082 § 2, `rule:enums/declaration`
+`Core\Cldr\PluralCategory`'s six cases are all reachable, and Welsh is the language that uses every one of them — `rule:programs/framework-core-half`, `rule:enums/declaration`
 --FILE--
 <?nvs
 // The six case names are CLDR's labels for a language's forms, not amounts:

@@ -38,7 +38,7 @@
 //! what [`Reactor::retire`] frees when the scheduler hands back a
 //! [`Finished`](crate::Finished). Leaving it would be a per-request entry that
 //! outlives its request — the O(requests served) growth
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) calls a leak
+//! `rule:programs/memory-priority` calls a leak
 //! rather than a trade-off — which is why [`run_until_idle`] retires on every
 //! turn rather than at the end.
 //!
@@ -421,7 +421,7 @@ impl Reactor {
     /// is what would otherwise outlive its request.
     pub fn retire(&mut self, id: TaskId) -> bool {
         // A deadline the task never reached goes with it, and for the same
-        // reason: an entry outliving its request is the growth ADR 0004 calls a
+        // reason: an entry outliving its request is the growth `rule:programs/memory-priority` calls a
         // leak. `crate::timer` is the home of that argument.
         let had_timer = self.timers.disarm(id);
         self.registrations.remove(&id).is_some() || had_timer

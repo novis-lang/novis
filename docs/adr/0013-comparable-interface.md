@@ -32,7 +32,7 @@
 - It is also not a *safe* ambient default: the walk is unbounded in the size of the object graph it
   recurses into, so two objects holding attacker-influenced nested structures can be compared at a cost
   invisible at the call site, producing an ordering the class author never chose — a small instance of
-  priority 1, argued generally in [ADR 0004](0004-memory-for-simplicity.md), alongside priorities 2 and 4:
+  priority 1, argued generally in `rule:programs/memory-priority`, alongside priorities 2 and 4:
   an object comparison should mean exactly what its class says, once.
 
 ## Decision
@@ -129,7 +129,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
   private state in declaration order — the ordering a class produces is exactly the ordering its own code
   says, and nothing else.
 - Costs nothing beyond an ordinary virtual call already paid for by every other method
-  ([ADR 0004](0004-memory-for-simplicity.md)) — no new storage class ([ADR 0008](0008-static-and-global.md)),
+  (`rule:programs/memory-priority`) — no new storage class ([ADR 0008](0008-static-and-global.md)),
   no new runtime representation.
 - Reuses [ADR 0007](0007-explicit-type-system.md) § 4's already-defined `<=>` for scalars inside
   `compareTo`, so the common case (delegate to one field's existing orderable type) is one line.

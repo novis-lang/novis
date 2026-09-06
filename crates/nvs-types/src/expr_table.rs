@@ -829,7 +829,7 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// `Core\Program::implementing<T>()`, keyed by the call's own span —
-    /// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// `rule:programs/no-runtime-autoload`
     /// § 3's enumeration, already answered.
     ///
     /// The sibling of [`ExprInfo::CoreConst`] for a fold whose answer is not a

@@ -186,7 +186,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 27. **`Core\Html::escape`/`Markup` and the `Core\Taint` launderers** — ADR 0024. Every other stage in this
     goal produces `tainted` values; this is the stage that says how one stops being one.
 28. **The privileged half of the framework**, each entry placed by ADR 0051's own six tests rather than by
-    a new rule — [ADR 0082](../../adr/0082-the-first-party-framework.md) § 2: `Core\Validate` (the
+    a new rule — `rule:programs/framework-core-half`: `Core\Validate` (the
     launderer, and the one entry that could never be a package), `Core\Password`, `Core\Mail` against an
     operator-named SMTP endpoint, `Core\Storage` over local disk, `Core\Cldr::pluralCategory`.
     **`Core\Session` is not here** — it needs a request and lands in goal 6.
@@ -213,7 +213,7 @@ decision and is **not** this stage.
 
 36. **The per-context live-object list.** Every `ObjHeader` links into its `Ctx`'s intrusive doubly-linked
     list at allocation and out at dismantle — objects only, since an object is the one shape that can
-    close a cycle (`graph.rs`'s identity decision). What it spends, said in the module doc as ADR 0004
+    close a cycle (`graph.rs`'s identity decision). What it spends, said in the module doc as `rule:programs/memory-priority`
     requires: two pointers per live object, and a few non-atomic stores at each object's birth and death.
     **The crossing relinks, and the relink is structural rather than remembered.** `Live::adopt` is the
     one place in the runtime an allocation changes owners (`graph.rs`'s carrier decision: no second
@@ -248,7 +248,7 @@ observe-only. Nothing here reopens ADR 0028 — a flat per-request queue is not 
     *A `Core` member*: `onExit(callable $hook): void`, the `Script\ExitReason` enum (`Normal`,
     `ExitCall`, `UncaughtThrow`) and the readonly `Script\ExitReport` each hook receives (a hook may
     declare no parameter, as `Core\Fatal`'s handlers may). The queue lives on `Ctx` — what it spends,
-    said in the module doc as ADR 0004 requires: one vec of closures per request, hooks and captures
+    said in the module doc as `rule:programs/memory-priority` requires: one vec of closures per request, hooks and captures
     held to the end of the script, O(registrations). `crates/nvs-stdlib/src/script.rs`,
     `crates/nvs-runtime/src/ctx/hooks.rs`.
 39. **The three endings drain it; the two terminations do not.** FIFO, once, as the last user code:
@@ -276,7 +276,7 @@ refusals.
     [docs/reference/core/Password.md](../../reference/core/Password.md) gains the migration paragraph,
     and the landed refusal case
     `tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst` passes
-    unchanged. What it spends, said in the module doc as ADR 0004 requires: ~4 KiB transiently per
+    unchanged. What it spends, said in the module doc as `rule:programs/memory-priority` requires: ~4 KiB transiently per
     legacy `verify`, on the calling task, shrinking as the table upgrades itself.
 
 ## The harness this goal owes

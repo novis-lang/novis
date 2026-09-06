@@ -86,7 +86,7 @@ pub enum Cap {
     /// catalog and asks nothing beyond the `db.connect` the program already holds; only applying one
     /// arrives here.
     DbSchema,
-    /// `mail.send` — which `[mail.<name>]` blocks a program may send through (ADR 0082 § 2).
+    /// `mail.send` — which `[mail.<name>]` blocks a program may send through (`rule:programs/framework-core-half`).
     ///
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
     /// 0067 § 3's reasoning: the endpoint an operator wrote into root-owned configuration carries

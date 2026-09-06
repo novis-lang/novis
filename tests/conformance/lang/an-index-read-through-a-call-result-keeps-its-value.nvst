@@ -1,5 +1,5 @@
 --TEST--
-An element read out of an array a call answered with keeps its value, and the array underneath it is released — ADR 0004
+An element read out of an array a call answered with keeps its value, and the array underneath it is released — `rule:programs/memory-priority`
 --FILE--
 <?nvs
 // The sibling of `a-field-read-through-a-call-result-keeps-its-value.nvst`,

@@ -40,7 +40,7 @@
 - Novis had already answered most of this without stating it. `QName` and `SymbolTable` compare
   case-sensitively; [ADR 0029](0029-identifier-casing-is-checked.md) makes exactly one casing legal per
   identifier category, so PHP's tolerance had nothing left to buy; and
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 1 closed the filesystem hole for
+  `rule:programs/autoload` closed the filesystem hole for
   `autoload` specifically. What was missing was the general rule, a `require` that obeyed it, and a lexer
   that stopped folding keyword case.
 
@@ -91,7 +91,7 @@ of lower-casing every identifier in the file into a fresh `String` first.
 
 ### 3. A path is compared against the on-disk entry exactly
 
-[ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 1 already required this of `autoload`.
+`rule:programs/autoload` already required this of `autoload`.
 It now holds for `require` too, which is where PHP's portability failure actually lives.
 
 A `require` with a literal path resolves as before, and then the resolved real path is compared

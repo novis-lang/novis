@@ -1,5 +1,5 @@
 --TEST--
-one prefix declared by two explicit `autoload` statements does not compile — ADR 0061 § 1
+one prefix declared by two explicit `autoload` statements does not compile — `rule:programs/autoload`
 --FILE--
 <?nvs
 // Two roots for one prefix is the ordered-probe form on the line above; two

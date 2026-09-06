@@ -70,7 +70,7 @@
 - **Their template story is the one place they are unambiguously ahead of the plan.** PHP Tools enables VS
   Code's own HTML, CSS and JavaScript language services *inside* a `.php` file: Emmet, tag closing and
   renaming, the CSS colour picker, validation, hover. M4B gives an inline-HTML region a TextMate scope and
-  nothing else. Since [ADR 0082](0082-the-first-party-framework.md) makes inline HTML the template engine,
+  nothing else. Since `rule:programs/first-party-framework` makes inline HTML the template engine,
   that region is not an edge case in Novis — it is where a web application's markup is written.
 - **What is *not* worth copying is as informative**, and their pricing page is the evidence: the features
   behind the paywall are whole-workspace analysis, a per-rule configurable formatter, and completion-list
@@ -278,7 +278,7 @@ extension:
   is a good guess. It also keeps `nvs-lsp` free of the per-framework modules that would otherwise arrive
   one framework at a time and never leave.
 - § 3 closes the only place the review found Novis's plan plainly behind, and it closes it in the half of a
-  `.nvs` file that [ADR 0082](0082-the-first-party-framework.md) makes the template engine — so the "view
+  `.nvs` file that `rule:programs/first-party-framework` makes the template engine — so the "view
   layer is the language" claim stops costing the user their HTML tooling.
 - § 5 converts a one-line milestone commitment into a list that can be checked off, which is the difference
   between a debugger UI that opens and a debugger UI that works.

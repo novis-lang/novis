@@ -63,7 +63,7 @@ constructor a program may reach, so the only thing that builds a report is the e
 Registration is request-local and runs nothing; hooks run FIFO in registration order. There is no cap
 beyond the request's own memory budget: a registration is an ordinary value on the request heap, and the
 hooks and their captures stay live until the end of the script — per request, O(registrations), the
-spend this sentence states as [ADR 0004](0004-memory-for-simplicity.md) requires. `ExitCall` is spelled
+spend this sentence states as `rule:programs/memory-priority` requires. `ExitCall` is spelled
 with the suffix so the case never shares a spelling with the `exit` keyword. `status` is the status the
 process will exit with; `error` is the real, live `Throwable` for `UncaughtThrow` — the same object
 [0020](0020-error-escalation-ladder.md) § 2's handler gets, for the same reason — and `null` otherwise.

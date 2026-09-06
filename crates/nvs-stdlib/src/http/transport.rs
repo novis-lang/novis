@@ -26,7 +26,7 @@
 //! That costs a connection setup per attempt and buys the whole framing
 //! question: a reply that ends when the socket does needs no agreement about
 //! what comes after it. A pool is a later slice and a measurable one — it is
-//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) priority 3
+//! `rule:programs/memory-priority` priority 3
 //! against priority 4, and nothing in this goal's acceptance is waiting on it.
 //!
 //! What a call spends is one buffer holding the whole reply, capped at

@@ -87,7 +87,7 @@ need the M7 server's own series to be testable and land there; and **`Core\Route
 compile-time table with M4S's other attribute pass, the matcher with M7.
 
 § 13 is neither: each of its entries is pure, but each also waits on something outside `Core`.
-`Core\Program` needs [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s `autoload`,
+`Core\Program` needs `rule:programs/no-runtime-autoload`'s `autoload`,
 `Core\Ast` needs [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s inert-AST
 surface, `Core\Attributes`' retrieval body is M8 by [ADR 0046](../adr/0046-attributes-shape-literal-metadata.md)
 (its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal` and `Core\BigInt` want a finished object

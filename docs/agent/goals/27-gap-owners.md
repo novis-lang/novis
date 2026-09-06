@@ -102,5 +102,5 @@ Goal 26's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
   and that decision is cheap exactly once — when the gap is written.
 - **Ambiguity about whether something is a gap or a decision resolves toward *decision*, and it moves
   out of the block.** A `# Known gaps` list that holds settled non-goals is a list nobody trusts.
-- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): nothing at run time.
+- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): nothing at run time.
   One tool invocation in `verify.py`, over doc comments already parsed by nothing.

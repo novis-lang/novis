@@ -9,7 +9,7 @@ anyone has to trust.
 
 The design is settled in the goal prose and is input to the ADR, not a question it reopens: a **closed
 vocabulary** of tables, columns and indexes with no raw escape hatch; **convergence, never versioning**
-(`Core` holds no notion of a migration, and [ADR 0082](../../adr/0082-the-first-party-framework.md) § 7
+(`Core` holds no notion of a migration, and `rule:programs/no-migration-runner`
 stays blocked); **live introspection and never a SQL parser**; **absence never destroys**; three grades
 with an unknown grade grading *up*; and a plan whose every step carries complete executable SQL,
 including the steps `apply` refuses.

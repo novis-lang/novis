@@ -37,7 +37,7 @@ Three things make the choice non-obvious, and each is decided below rather than 
 - **The runtime is ours and it is not `async`** (`docs/plan/design.md` § *Thread-per-core,
   shared-nothing runtime*). Every readiness API in Rust that is widely used arrives attached to an
   executor; the one this needs must be the readiness half alone.
-- **A stack is the largest thing a task owns**, and M5 asks for 100k concurrent tasks. ADR 0004 requires
+- **A stack is the largest thing a task owns**, and M5 asks for 100k concurrent tasks. `rule:programs/memory-priority` requires
   that what memory is spent stays attributable to a request, under an enforceable cap, and O(in-flight)
   rather than O(requests served) — a stack per task is exactly the shape that fails that test if it is
   allocated carelessly.
@@ -73,7 +73,7 @@ Five rules, and the first two are ordering rules that a reader will otherwise ge
 3. **Deregister when the task ends.** The scheduler hands back a `Finished` task; the reactor drops
    every registration under that `TaskId` at that point. `wake` on a stale id is already harmless, but
    the registration itself is not: leaving it is a per-request kernel object that outlives its request,
-   which is the O(requests served) growth ADR 0004 calls a leak rather than a trade-off.
+   which is the O(requests served) growth `rule:programs/memory-priority` calls a leak rather than a trade-off.
 4. **The reactor blocks only when the run queue is empty and something is parked.** With work ready it
    is polled with a zero timeout, so readiness is collected without giving up the core; with nothing
    ready and nothing parked, the worker has no work at all and the accept loop — itself a parked task —
@@ -113,7 +113,7 @@ parks repeatedly pays the modification and not the creation.
 ### 4. A task's stack: reserved wide, resident narrow, pooled per worker
 
 Novis compiles natively, so a Novis call is a real machine frame and a task's stack has to be a real
-stack. The decision, in the terms [ADR 0004](0004-memory-for-simplicity.md) asks for:
+stack. The decision, in the terms `rule:programs/memory-priority` asks for:
 
 - **1 MiB of reserved address space per task, with a guard page.** Reserved, not committed: the pages a
   task never touches are never resident, on all three platforms, so a task that runs a shallow handler
@@ -128,7 +128,7 @@ stack. The decision, in the terms [ADR 0004](0004-memory-for-simplicity.md) asks
 - **Pooled per worker, bounded by that worker's in-flight cap.** A stack is an `mmap`/`VirtualAlloc`
   pair, which is the wrong thing to do per request on the hot path; a freed stack goes back to the
   worker's pool and is handed to the next task. The pool is O(in-flight) by construction — it can never
-  hold more stacks than the worker has admitted tasks — which is the property ADR 0004 asks for, and the
+  hold more stacks than the worker has admitted tasks — which is the property `rule:programs/memory-priority` asks for, and the
   same shape the blocking pool in ADR 0106 § 6 already has.
 - **The host arms the recursion limit from the stack it just handed out.** `crates/nvs-runtime/src/ctx/mod.rs`'s
   module doc records a known gap — the call-stack ceiling is asserted from `STACK_CEILING` rather than
@@ -152,7 +152,7 @@ configurable is goal 3's `[limits]` work, and nothing below depends on which way
 - **A developer sees no colour.** There is no `await`, no async member, and no second spelling of any
   `Core` member that touches I/O. The cost is that a stack is the unit of concurrency, so a task is
   ~1 MiB of address space rather than the ~100 bytes a stackless future would be — which is the memory-
-  for-simplicity trade [ADR 0004](0004-memory-for-simplicity.md) exists to authorize, taken knowingly.
+  for-simplicity trade `rule:programs/memory-priority` exists to authorize, taken knowingly.
 - **`mio` is a dependency of the trusted core.** It is pure Rust and it is the readiness layer under
   most of the ecosystem, but it is a new crate in the path every request takes, and its Windows back end
   is the least-travelled of the three.

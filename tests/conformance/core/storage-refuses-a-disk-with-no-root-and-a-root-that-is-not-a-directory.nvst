@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage refuses a `$disk` no `[storage.<name>]` block gives a `root`, and fails over a `root` that is there and is not a directory — ADR 0082 § 2
+Core\Storage refuses a `$disk` no `[storage.<name>]` block gives a `root`, and fails over a `root` that is there and is not a directory — `rule:programs/framework-core-half`
 --FILE--
 <?nvs
 // Two refusals with nothing between them, and they are different in kind: the

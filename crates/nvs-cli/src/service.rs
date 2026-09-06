@@ -189,7 +189,7 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             "a bundled executable may not install itself as a service".to_owned(),
         )
         .with_note(
-            "ADR 0048 § 1 makes a bundle one trust domain because the person who runs it is the \
+            "`rule:programs/bundle-trust-domain` makes a bundle one trust domain because the person who runs it is the \
              only principal involved; a service adds a privileged account running the same \
              payload at every boot"
                 .to_owned(),

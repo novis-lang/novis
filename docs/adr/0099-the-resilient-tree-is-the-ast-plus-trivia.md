@@ -274,7 +274,7 @@ PHP and a borrowed PHP grammar therefore gets wrong:
   [0033](0033-secret-qualifier-for-confidential-values.md)), and `decimal`
   ([ADR 0054](0054-decimal-scalar-type.md)) as a scalar type keyword beside `int`/`float`/`string`.
 - Novis's own keywords, which no PHP grammar has: `spawn` and `spawn script`
-  ([ADR 0006](0006-isolated-script-execution.md)), `autoload` ([ADR 0061](0061-compile-time-autoload-and-program-discovery.md)),
+  ([ADR 0006](0006-isolated-script-execution.md)), `autoload` (`rule:programs/no-runtime-autoload`),
   `type` ([ADR 0007](0007-explicit-type-system.md)), `by`-delegation
   ([ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)), property hooks and their
   `get`/`set` bodies ([ADR 0014](0014-property-observer.md)).
