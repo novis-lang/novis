@@ -2121,6 +2121,15 @@ is why" — is this file.
   argument was never honoured". `--locate` is a *mode*, not an extra question: ask for anchors in one
   call and for regions in another, and never mix the two, or the expensive half of the call is the
   half that is discarded.
+- **A `peek.py` `re:` target over `docs/agent/loop-goal.toml` sweeps every stage in a 4,400-line
+  file, and the word you searched for is prose in most of them.** One `re:alive|orphan|liveness`
+  looking for stage 3's checks matched inside `[context]`, in six unrelated stage comments and in a
+  dozen `tests = [...]` lists — 10k of context for two blocks, and a second call cost the same again
+  over a big `.rs`. The fix is not to give up on `re:`: anchor on the *syntax* around what you want
+  rather than on the word — `re:stage = "3` for a stage's own blocks, `re:pub fn <name>` for a
+  definition — or read the window once you know the line, since `orient.py` already printed the line
+  number of the check that opened the session. A bare word is only cheap in a file where that word is
+  rare.
 
 ## Running things
 

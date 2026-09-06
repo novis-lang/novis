@@ -2,56 +2,49 @@
 
 ## State
 
-**Goal 7 — ADR 0131's temporary-directory sweep — has §§ 2-3 on disk and working end to end.**
-`capability::temp_dir` creates under the root Novis owns and now **records** every directory it
-hands back (`Ctx::track_temporary_dir`); `crate::sweep::at_script_end` deletes the recorded list and
-is called from `Ctx::drop` and nowhere else — that module's doc owns why a context's teardown *is*
-§ 3's "after the last user code" for every ending at once, and why the open files are closed
-immediately before it. `examples/tempdir.nvs` runs and leaves the owned root empty.
+**Goal 7 — ADR 0131's temporary-directory sweep — has §§ 2, 3 and 5 on disk and green, plus § 4's
+predicate.** `capability::temp_dir` creates under the owned root and records what it hands back;
+`sweep::at_script_end` deletes the recorded list from `Ctx::drop` and nowhere else; `[debug]
+keep_temporary` branches that into one `info` line per kept path and no deletion at all; and
+`sweep::owner_is_alive` answers § 4's liveness question over one path, `kill(pid, 0)` on Unix and
+`OpenProcess` on Windows. That module's own doc is the home of every rule above, including why every
+ambiguity answers *alive*.
 
-**The acceptance failure that opened this session is closed**: `examples/tempdir.nvs` exists, prints
-the frozen line, and `nvs.toml` carries its `[[app]]` grant beside `examples/files.nvs`'s.
+**Nothing of § 4's two walks exists** — no `nvs serve` boot sweep and no `nvs tmp clean`. The
+predicate they will share is written and has no caller.
 
-**Nothing of §§ 4-5 exists** — no orphan sweep, no `nvs tmp clean`, no `[debug] keep_temporary`. The
-design is settled and is not reopened:
-[ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md) is
-the specification.
-
-**Stage 2's `-p nvs-host` check is filed in the wrong crate and the first item below fixes it.** The
-sweep runs from `Ctx::drop`, so nvs-host neither calls it nor can observe it doing anything an
-`nvs-runtime` test cannot; and `the_sweep_runs_after_the_on_exit_queue` needs an exit-hook closure,
-which is `allocation_policy.rs`'s `closure_of` shape and no cheaper in nvs-host than beside the queue
-itself.
+**Stage 2's and stage 5's checks are filed `-p nvs-runtime` now**, each with a comment saying why
+nvs-host cannot host them, in both `docs/agent/loop-goal.toml` and `docs/agent/goals/7-temp-sweep.toml`.
+Stage 3's and stage 4's checks still name `-p nvs-server` and `-p nvs-cli` and have not been triaged.
 
 ## Next group
 
-**The rest of § 3's evidence, then § 5's key** — one file set: `crates/nvs-runtime/src/sweep.rs`,
-`crates/nvs-runtime/src/ctx/hooks.rs`, `crates/nvs-config/src/tree.rs`,
-`crates/nvs-config/src/directive.rs`, `docs/agent/loop-goal.toml`.
+**§ 4's orphan sweep: the walk, then its two doors** — one file set:
+`crates/nvs-runtime/src/sweep.rs`, `crates/nvs-runtime/src/capability.rs`,
+`crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/serve.rs`, `docs/agent/loop-goal.toml`.
 
-- [ ] **The two remaining stage-2 tests, beside the code they are about** (0131 § 3) —
-      `the_sweep_runs_after_the_on_exit_queue` (a hook that observes its own temporary directory
-      still standing, `crates/nvs-runtime/src/ctx/hooks.rs:229`) and
-      `a_refused_deletion_logs_and_never_throws` (the log half of
-      `crates/nvs-runtime/src/sweep.rs:59`; `refusals` at `crates/nvs-runtime/src/sweep.rs:111` is
-      already asserted without a sink). Re-file the check at `docs/agent/loop-goal.toml:4326` from
-      `-p nvs-host` to `-p nvs-runtime` in the same slice, with a comment saying why.
-- [ ] **`[debug] keep_temporary`, the operator's only escape hatch** (0131 § 5) — the sweep logs each
-      path it would have deleted instead of deleting it. The block is
-      `crates/nvs-config/src/tree.rs:340`, the reloadable row goes beside
-      `crates/nvs-config/src/directive.rs:160`'s `io.temp_root`, and the branch is at
-      `crates/nvs-runtime/src/sweep.rs:59`. Stage 5's check names it `-p nvs-host`
-      (`keep_temporary_logs_each_kept_path_and_deletes_none`) and it has the first item's problem.
-- [ ] **§ 4's owner-liveness predicate, as a function over a path and nothing else** (0131 § 4) —
-      the pid is already in the entry's name (`crates/nvs-runtime/src/capability.rs:780`), so this is
-      parse-then-ask and it belongs beside the sweep at `crates/nvs-runtime/src/sweep.rs:111`. The
-      goal's standing decisions pre-authorise "ambiguity resolves toward skip", recorded in that
-      module's doc.
+- [ ] **The walk over the owned root, beside the predicate it reads** (0131 § 4) — one function that
+      lists the root and answers the entries whose owner is dead, so both doors below share it rather
+      than agreeing today. It goes beside `crates/nvs-runtime/src/sweep.rs:215`, and it needs the
+      root: `temp_root` at `crates/nvs-runtime/src/capability.rs:840` is private and taking a `&Ctx`,
+      so the second edit of this slice is deciding whether the walk takes a `&Path` (it should — § 4's
+      callers each know their own root, and the predicate beside it already takes nothing else).
+- [ ] **`nvs tmp clean`, the operator's door** (0131 § 4) — the subcommand dispatch is
+      `crates/nvs-cli/src/main.rs:912`'s `runtime_commands`. It prints each path it removes, supports
+      `--dry-run`, and has no force flag: the worst it may do is nothing. The three names are at
+      `docs/agent/loop-goal.toml:4362` and are filed `-p nvs-cli`, which is where the command lives.
+- [ ] **The `nvs serve` boot sweep** (0131 § 4) — once before traffic and on no other invocation.
+      `crates/nvs-cli/src/serve.rs:672` is where the boot assembles its mounts. The check at
+      `docs/agent/loop-goal.toml:4347` names `-p nvs-server` for it; triage that filing before writing
+      the test, the way the two checks this session moved were triaged — the boot is `nvs serve`'s and
+      `crates/nvs-server` may not be able to see the configured root at all.
 
 ## Backlog
 
-- Stage 3's two server sweeps — `docs/agent/loop-goal.toml:4342`. `Ctx::drop` may already satisfy
-  both; the slice is the tests plus whatever the request path does not reach.
-- `nvs tmp clean` (0131 § 4) — `crates/nvs-cli/src/main.rs`'s subcommand table.
-- The `[context] modules` manifest has no `nvs-runtime/src/sweep.rs` pattern yet; it printed because
-  the crate matched, but check it after any narrowing.
+- Stage 3's two request-side names — a request's dirs swept after its `afterResponse` work, and an
+  aborted request's swept by the surviving worker (`docs/agent/loop-goal.toml:4347`).
+- Stage 5's remaining checks: the fixture's directory is gone after the run, and the two suites
+  (`docs/agent/loop-goal.toml:4374`).
+- `[context] adrs` now names `0131 §3`/`§4`/`§5` beside the bare `0131`, which printed only the ADR's
+  *In short*; if the next pack still prints one section, the selector syntax is the thing to fix
+  (`docs/agent/loop-goal.toml:90`).
