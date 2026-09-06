@@ -26,14 +26,21 @@ Goal 27's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 Goal 18 gave `Ty::Shape` an optional field, `{name?: T}`, and
 [ADR 0135](../../adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) gave a `Core`
-signature a shape parameter that carries its arms. This stage is what those were for.
+signature a shape parameter that carries its arms. This stage is what those were for, and
+**[ADR 0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) is the rule it
+implements** — read it first. The design is settled; a session takes it rather than re-deriving it.
 
-1. **`Core\Uri::with` gains a removal spelling.** `crates/nvs-stdlib/src/uri.rs`'s `written` owns the
-   mechanism and the gap names the fix exactly: today an omitted option and a written `null` arrive as
-   the same `Tag::Null`, so the option types are `string` rather than `?string`. With an optional
-   field the two are distinguishable and `?fragment` becomes `?string` — a written `null` removes, an
-   omitted key leaves alone. **Not** an `""`-means-remove rule: `""` is already an empty query, which
-   `?` with nothing after it produces and which `query()` reports as distinct from `null`.
+1. **`Core\Uri::with` gains a removal spelling**, ADR 0147 §§ 1-2 and § 5.
+   `crates/nvs-stdlib/src/uri.rs`'s `written` owns the mechanism and the gap names the fix exactly:
+   today an omitted option and a written `null` arrive as the same `Tag::Null`, so the option types
+   are `string` rather than `?string`. The fix is § 1's pairing — a field admitting `null` omits as
+   `Tag::Unset` rather than `Const::Null` — so the two are distinguishable and `port`, `query` and
+   `fragment` become nullable: a written `null` removes, an omitted key leaves alone. `path`, `host`
+   and `scheme` do **not** join them, and § 5 gives each its own reason. **Not** an `""`-means-remove
+   rule: `""` is already an empty query, which `?` with nothing after it produces and which `query()`
+   reports as distinct from `null`. Five places restate the invariant this replaces and must read as
+   ADR 0147 does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
+   two tests, `core_lib.rs`'s `shape_fills`, `uri.rs`'s `written`, and `value.rs`'s `Tag::Unset`.
 2. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
    registry could not spell. The gap notes this is the same blocker `Core\Db::open` waits on and that
    "the two lift together"; goal 21 owns the `Core\Db` half, so this stage takes the other and the two
@@ -88,14 +95,18 @@ other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
 
 ## Standing decisions
 
-- **This goal opens no ADR number.** Every item is a folded edit to an ADR whose body already states
-  the rule — 0002's *Corollary*, 0033's sinks, 0044 § 1 — or a widening whose argument lives in a doc
-  comment.
+- **A session on this goal opens no ADR number.** Every item is a folded edit to an ADR whose body
+  already states the rule — 0002's *Corollary*, 0033's sinks, 0044 § 1,
+  [0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) for stage 2 — or
+  a widening whose argument lives in a doc comment.
 - **`array<T>` widening is decided and is not re-litigated by a session.** The user took it; a session
   that finds the invariant position more comfortable has found a decision, not a question.
-- **An options bag distinguishes omitted from written `null`, everywhere, and never by a sentinel.**
-  No `""`-means-remove, no magic string, no second parameter meaning "and also clear these". If a
-  member cannot express removal with an optional field, the member waits.
+- **An options bag distinguishes omitted from written `null`, everywhere, and never by a sentinel** —
+  [ADR 0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md), which owns
+  this and is not re-argued by a session. No `""`-means-remove, no magic string, no second parameter
+  meaning "and also clear these". Where a bag admits `null` it means *remove* and nothing else, and a
+  field is made nullable only where the member has a removal to offer; if it has none, the field stays
+  non-nullable and the member waits.
 - **The panic hook changes presentation and never containment.** A panic still ends the request the
   way it does today; what changes is where the message is written. Anything that would let a hook
   *recover* is out of scope and stays out.

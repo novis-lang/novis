@@ -220,6 +220,7 @@ so you never have to open this file to route a topic.
 | `::class`, `static::class`, `$obj::class`, `get_called_class`, `get_class` | this ADR |
 | Schema migration, `CREATE TABLE`, `ALTER TABLE`, `doctrine/migrations`, Laravel `Schema::create`, Rails `db:migrate`, `information_schema`, dumping an existing database, `nvs schema plan`/`apply`/`dump` | [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) |
 | signing a URL, verifying a URL signature, a signed or expiring link, a signed AJAX endpoint, `Core\Signature`, `$uri->sign`, `Core\Router::urlSigned`, Laravel's `signedRoute` and `hasValidSignature`, an S3-style presigned URL | this file |
+| an option that clears rather than sets; removing a component from a `Uri`; telling an omitted key from a written `null`; `{fragment: null}`; `array_key_exists` vs `isset` on an options array; why `""` does not clear | [0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) for the rule; [0063](0063-core-api-conventions.md) R2 for the bag it applies to |
 
 **Adding a decision.** `python tools/adr.py --draft > .agent-tmp/adr.md`, fill in the prose, then
 `python tools/adr.py --new .agent-tmp/adr.md`. That does steps 1, 2, 4, 5 and 7 below and half of 3 —
@@ -401,6 +402,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) | `::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads | Accepted |
 | [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) | A schema is a value: `Core\Db\Schema` converges a closed vocabulary, and neither versions nor parses SQL | Accepted |
 | [0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) | A signature is over a payload, and a URL is a payload `Core\Uri` already canonicalizes | Accepted |
+| [0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) | An options bag tells an omitted key from a written `null`, and `null` is the one spelling that removes | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

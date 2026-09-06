@@ -33,11 +33,12 @@ modules = [
   "crates/nvs-stdlib/src/io.rs",
 ]
 
-# 0036 and 0135 are the shape spelling goal 18 landed; 0033 is the sink a queued row is; 0002's
-# Corollary is the panic hook; 0044 § 1 is the directive a capture is bounded by.
-rules = ["0036", "0135", "0033", "0002", "0044", "0007", "0004"]
+# 0036 and 0135 are the shape spelling goal 18 landed and 0147 is the rule stage 2 implements on top
+# of it; 0033 is the sink a queued row is; 0002's Corollary is the panic hook; 0044 § 1 is the
+# directive a capture is bounded by.
+rules = ["0036", "0135", "0147", "0033", "0002", "0044", "0007", "0004"]
 
-adrs = ["0002", "0044 §1", "0033 §5"]
+adrs = ["0147", "0002", "0044 §1", "0033 §5"]
 
 shapes = ["A core class", "A commit message", "A .nvst case"]
 
@@ -86,7 +87,8 @@ memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0036 § 3, ADR 0135.
+# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0147 is the rule; ADR 0036 § 3
+# and ADR 0135 § 3 are the shape and the ABI fill it amends.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -98,6 +100,8 @@ tests = [
   "a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone",
   "an_empty_query_stays_distinct_from_an_absent_one",
   "there_is_no_empty_string_means_remove_rule_anywhere_in_with",
+  "a_nullable_option_omits_as_unset_and_a_non_nullable_one_omits_as_null",
+  "a_null_written_into_a_non_nullable_option_is_still_refused",
 ]
 
 [[check]]

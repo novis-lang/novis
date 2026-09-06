@@ -10,7 +10,7 @@
 - **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
-- **Amended by:** 0038, 0043
+- **Amended by:** 0038, 0043, 0147
 
 > **In short:** PHP's typed properties can exist in a third state, neither assigned nor `null`, and reading
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing
@@ -103,7 +103,7 @@ cannot reach. A property on such an object that has never been written and is th
 
 Internally, a property's storage needs one extra, non-user-observable state — "never written" — distinct
 from every legal value including `null`. This is **not** a new entry in the type system, the checker, or
-anything an expression can produce: it is a transient storage state that either gets overwritten by the
+anything an expression can produce: it is a transient state that either gets overwritten by the
 first write (the overwhelmingly common case, guaranteed by *2* for every ordinarily-constructed object) or
 is caught and turned into the throw in *3* before it is ever handed to user code. [ADR 0004](0004-memory-for-simplicity.md)
 requires stating the cost: the same tagged-value representation that gives `uint` a free tag in ADR 0007 §4
@@ -112,7 +112,7 @@ additional bytes per property**.
 
 That state is `nvs_runtime::Tag::Unset`, whose own doc comment is its home, and a slot is stamped with it at
 construction by the same one-store-per-slot pass that arms a declared `= expr` default. Until `Core\Reflect`
-exists (ADR 0019, M6) the one declaration that can reach the state is a **`lateinit` property**
+exists (ADR 0019, M6) the one *property* declaration that can reach the state is a **`lateinit` property**
 ([ADR 0038](0038-lateinit-property-modifier.md)) — *2* discharges every other non-nullable property at its
 constructor — and ADR 0038 § 3's intraprocedural check already refuses the reads it can see, so what the
 runtime answers is the read from outside the class. The two readers ask the question differently and get one
@@ -120,6 +120,17 @@ answer: a reader holding the whole slot goes by the tag (`nvs_runtime::nvs_objec
 compiled read goes by the payload, which is null in this state and in no other because ADR 0038 § 1 restricts
 `lateinit` to a non-nullable class or interface type — one compare on the pointer it had already loaded,
 rather than a second load of the tag byte.
+
+**A property slot is not its only position.** The same marker is what an omitted *nullable* field of a
+`Core` options bag or shape parameter materializes at the call site, which is how such a bag tells a
+missing key from a written `null`
+([ADR 0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 2). The three conditions
+above are what admit it there too, and all three hold: the field's declared type is `?T` and the marker is
+no member of it, no expression evaluates to one — the call site that "writes" it writes nothing, and the
+compiler emits the fill — and its only reader is the native helper behind the member, which turns it into
+that member's behaviour before anything returns. A helper that fails to handle it is a fatal contract
+violation in this repository's own code, never a value a program receives. It costs nothing further: the
+discriminant already exists, and the omitting call site emits one constant either way.
 
 ## Consequences
 

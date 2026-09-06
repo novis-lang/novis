@@ -12,6 +12,7 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 18's and is not restated here.
 - **Depends on:** [0063](0063-core-api-conventions.md), whose R2 bag is the mechanism this generalises, and
   [0047](0047-literal-and-enum-case-types.md), whose enum-case types are what separate one arm from another.
+- **Amended by:** 0147
 - **Validated by:** [crates/nvs-types/tests/core_members.rs](../../crates/nvs-types/tests/core_members.rs) —
   `a_host_on_a_sqlite_settings_literal_is_a_compile_error` and
   `a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error` hold § 2's selection over `Db\Settings`'s
@@ -23,8 +24,9 @@
 > the call site into **one ABI argument per field of the arms merged in order, deduplicated by name** —
 > exactly what `CoreTy::Options` already does, so no runtime representation of a shape appears and no helper
 > learns a new calling convention. A field carries an optional default: `None` makes it required, `Some(c)`
-> makes it omittable and `c` is materialized at the call site, inheriting the bag's own refusal of a nullable
-> optional. The arms are **pairwise disjoint**, so exactly one accepts a written literal and the
+> makes it omittable and `c` is materialized at the call site, inheriting the bag's own pairing of a
+> field's nullability with the constant its omission fills
+> ([0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 1). The arms are **pairwise disjoint**, so exactly one accepts a written literal and the
 > "discriminant" is a consequence of that rather than a declared field; `Db\Settings`'s separator is
 > `driver`, an ADR 0047 enum-case-typed field, which is the whole of why a `host` on a SQLite literal is a
 > compile error. Both registry spellings intern to **one** checked type, so `E0453` and `E0454` widen from
@@ -117,9 +119,16 @@ it occupies **one** slot whose type is the union of the arms' declarations for i
 Every slot the written literal does not fill passes a `Const` — the field's own default where it has one,
 and `Const::Null` for a field belonging to an arm the caller did not write. The helper therefore reads its
 discriminant first and then reads only the slots that arm declares, which the type check has already
-guaranteed are filled. For this to be readable as "filled", a shape field is **never nullable and never a
-union containing `null`**, for the reason `CoreTy::Union`'s own doc already gives about options: there,
-"omitted" and `{a: null}` would be one argument. `a_shape_field_is_never_nullable` holds it.
+guaranteed are filled.
+
+For this to be readable as "filled", the constant standing for *omitted* must be one no written value can
+also be, so **a field's nullability and its omission constant are paired**
+([0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 1): a field that admits no
+`null` omits as `Const::Null`, and a field that admits one — a nullable, a union with a null arm, or a
+`Mixed` — omits as ADR 0022 § 3's never-written marker instead, so `{a: null}` and a missing `a` stay two
+arguments. `a_shape_field_is_never_nullable` holds that pairing over every registered row. A nullable
+field is admitted only where the member has a removal to offer and a written `null` performs it, which is
+0147 § 4's rule rather than this one's.
 
 `Core\Db::open`'s merged list is therefore the server arm's ten fields in spec order, then the SQLite arm's
 `path`, then the trailing bag's `shared` — twelve, so the helper is an ordinary `args: [12]`.
