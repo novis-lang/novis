@@ -1851,9 +1851,13 @@ mod tests {
             "the composite key lost its order"
         );
 
-        // The three differences from the value that was applied, each § 5's to
-        // normalise and none of them this module's to hide. A session closing
-        // one of them fails here, which is the point of pinning them.
+        // The three differences from the value that was applied, none of them
+        // this module's to hide. § 5 normalises each out of the *comparison*
+        // and not out of the value — `crate::plan`'s `same_key` and
+        // `same_column` are where, and
+        // `an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite` is
+        // what that buys — so all three are still true of what a read answers,
+        // and a session that changes the read itself fails here.
         assert_eq!(
             read.tables()
                 .iter()
@@ -1882,6 +1886,27 @@ mod tests {
                 .ty(),
             &ScalarType::Int(IntWidth::Big),
             "the fixture stopped declaring the width that gets rewritten"
+        );
+    }
+
+    /// ADR 0145 § 5's acceptance criterion, on the one backend whose server is
+    /// a file: apply a schema to it, introspect it back, and the plan between
+    /// the two is **empty**.
+    ///
+    /// This is the property the whole goal reduces to, and the reason every
+    /// normalisation in [`crate::plan::diff`] exists — the three differences
+    /// `a_schema_applied_to_sqlite_assembles_back_into_itself` pins in the
+    /// *value* are the three this asserts are not differences in the *plan*.
+    /// The other four backends ask the same question of a container, and
+    /// `docs/agent/loop-goal.toml` runs those.
+    #[test]
+    fn an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite() {
+        let applied = Schema::new(sqlite_fixture()).unwrap();
+        let read = applied_and_read(&applied);
+        let plan = crate::plan::diff(&applied, &read, Dialect::Sqlite);
+        assert!(
+            plan.is_empty(),
+            "the schema this server was given is not the schema it answers:\n{plan}"
         );
     }
 }

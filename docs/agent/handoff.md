@@ -2,62 +2,57 @@
 
 ## State
 
-**Goal 9 stage 4's readers are whole and proved against a real server.**
-`crates/nvs-db/src/catalog.rs` now carries `ColumnRow`, `IndexRow` and `assemble`: the two reads'
-rows, in `Read::row`'s positions, become one `Schema` through the same builders a declared schema
-goes through, so an introspection cannot mint a column `crate::ddl` would refuse to emit.
-`every_driver_introspects_into_the_same_schema_value_shape` asserts that as an **agreement across
-all five drivers** over `ddl`'s own spellings, with the rows gapped and reversed on purpose;
-`a_schema_applied_to_sqlite_assembles_back_into_itself` runs it against a real in-memory SQLite and
-asserts a **fixed point** — read, emit, apply, read again, unchanged.
+**Goal 9 stage 5's diff is whole.** `nvs_db::plan::diff` (`crates/nvs-db/src/plan.rs:418`) walks two
+`Schema` values, matches tables and columns by name and never by position, and hands every `Change`
+to `crate::ddl::step` for the SQL and the grade. § 5's three normalisations are `same_key` and
+`same_column` (`crates/nvs-db/src/plan.rs:532`, `:504`) — a unique constraint is its columns, a plain
+index is its name and its columns, and SQLite's rowid loses the declared integer width. They live in
+the *comparison* and not in the value on purpose, and `diff`'s own doc owns the reason.
 
-**Three divergences between the value applied and the value read are pinned rather than hidden**,
-in that second test: table order (by name, not by declaration), SQLite's minted
-`sqlite_autoindex_…` for an inline `UNIQUE`, and `INTEGER PRIMARY KEY` erasing a declared `int64`
-width. Each is § 5's to normalise, and closing one fails that test on purpose.
-
-**Stage 4 is still not green**, and not because of the crate: its second check is
-`nvs schema dump --connection main`, which is stage 6's CLI. `examples/schema.nvs` is the driver's
-reported failure for the same reason — `Core\Db\Schema` has no `fromArray` yet, and `nvs.toml`
-still owes it an `[[app]]` with `connect = ["schema"]`, the `db.schema` grant and a `[db.schema]`
-SQLite block.
-
-Nothing in the orientation pack was missing.
+**§ 5's acceptance property holds where a server is a file**:
+`an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite`. **§ 6's eight grade tests are on
+disk**, so stage 5's `nvs-db (the grades)` check is green and `nvs-db (apply, introspect, empty)`
+waits only on Docker. The driver's reported failure is stage 6's `examples/schema.nvs`, which cannot
+pass before the member exists. Nothing in the orientation pack was missing.
 
 ## Next group
 
-**Stage 5's diff** — one file set: `crates/nvs-db/src/plan.rs` for the diff, with
-`crates/nvs-db/src/schema.rs` and `crates/nvs-db/src/catalog.rs` read beside it. The finding that
-shapes the group: **`plan.rs` holds `Change`, `Step`, `Grade` and `Plan` and nothing that produces
-one** — every type § 6 names is on disk and the function § 5 specifies is not.
+**Stage 6's member** — one file set: `crates/nvs-stdlib/src/db/` for the class, with
+`crates/nvs-stdlib/src/registry.rs` and `crates/nvs-config/src/capability.rs` beside it. The finding
+that shapes the group: everything below `Core\Db\Schema` is on disk and proved — the vocabulary, the
+emitters, the readers, the diff and the grades — so stage 6 is a surface over `nvs-db` that decides
+nothing, and the four slices are in dependency order.
 
-- [ ] **The diff is one function over two `Schema`s** —
-      `the_diff_compares_normalized_values_and_never_sql_text`,
-      `a_table_the_schema_does_not_declare_is_reported_and_never_dropped` and
-      `a_column_the_schema_does_not_declare_is_reported_and_never_dropped`, ADR 0145 § 5. The
-      report-never-drop rule is already written, in `Schema`'s own doc. Anchors:
-      `crates/nvs-db/src/plan.rs:121` (`Change`, the case set the diff emits),
-      `crates/nvs-db/src/plan.rs:238` (`Step`), `crates/nvs-db/src/plan.rs:293` (`Plan`),
-      `crates/nvs-db/src/schema.rs:679` (`Schema::new`), `crates/nvs-db/src/schema.rs:663`
-      (`Schema`'s doc, § 7's rule).
-- [ ] **Normalisation closes the three divergences stage 4 pinned** —
-      `an_implicit_index_a_unique_constraint_created_is_not_a_difference`, ADR 0145 § 5. The three
-      are asserted by name at `crates/nvs-db/src/catalog.rs:1818`, and that test's last three
-      asserts are what change when the diff sees through them. Anchors:
-      `crates/nvs-db/src/catalog.rs:1818`, `crates/nvs-db/src/plan.rs:121`.
-- [ ] **SQLite's empty plan, against a real server** —
-      `an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite`, § 5's acceptance property on
-      the one backend needing no container. The fixture already exists: `applied_and_read` at
-      `crates/nvs-db/src/catalog.rs:1797` applies a schema and hands back the assembled value.
-      Anchors: `crates/nvs-db/src/catalog.rs:1797`, `crates/nvs-db/src/plan.rs:293`.
+- [ ] **`db.schema` joins the capability roster** — ADR 0145 § 9: it names connection blocks like
+      `db.connect` and gates whether DDL may be issued at all rather than what may be reached, and an
+      ungranted name throws naming the capability. Anchors:
+      `crates/nvs-config/src/capability.rs:76` (`DbConnect`, the arm it sits beside),
+      `crates/nvs-config/src/capability.rs:201` (where a capability is spelled).
+- [ ] **`Core\Db\Schema::fromArray` and `toArray`** — ADR 0145 § 1's canonical array form, over
+      `nvs_db::schema::Node`, which exists for exactly this and is the only converter. The five edits
+      of `docs/agent/conventions.md` § *A `Core` member*. Anchors: `crates/nvs-db/src/schema.rs:731`
+      (`Node`), `crates/nvs-stdlib/src/db/registry.rs:134` (`Core\Db\Row`'s `CoreClass`, the shape to
+      copy), `crates/nvs-stdlib/src/registry.rs:1255` (`CLASSES`, where the class is listed).
+- [ ] **`planAgainst`, `applySafe` and `applyIncludingRisky`** — ADR 0145 § 9, with
+      `plan_against_needs_only_the_db_connect_a_program_already_holds`,
+      `applying_without_the_db_schema_capability_throws_naming_it` and
+      `apply_safe_refuses_a_plan_holding_a_step_that_is_not_safe`. Anchors:
+      `crates/nvs-db/src/plan.rs:418` (`diff`, which `planAgainst` is a connection plus a call to),
+      `crates/nvs-db/src/plan.rs:350` (`Plan::first_refused`, which is `applySafe`'s whole refusal),
+      `crates/nvs-stdlib/src/db/pool.rs:269` (`filed_connection`, how a member reaches the driver).
+- [ ] **`nvs.toml` owes the example an app** — an `[[app]]` for `examples/schema.nvs` with
+      `connect = ["schema"]`, the `db.schema` grant and a `[db.schema]` SQLite block; that example is
+      the driver's reported failure. The file is the repository's own root `nvs.toml`, whose first
+      `[[app]]` is at line 23. Anchors: `docs/agent/loop-goal.toml:4597` (the four lines the example
+      must print), `crates/nvs-config/src/capability.rs:201` (the grant name the block writes).
 
 ## Backlog
 
-- The other four `an_applied_schema_introspects_back_to_an_empty_plan_on_*` need Docker —
+- The four `an_applied_schema_introspects_back_to_an_empty_plan_on_*` that need Docker —
   `docs/agent/loop-goal.toml:4544`.
-- Stage 5's eight grade tests, none written — `docs/agent/loop-goal.toml:4559`.
+- `nvs schema plan|apply|dump` is stage 6's CLI, and stage 4's second check waits on it —
+  `docs/agent/loop-goal.toml:4533`.
+- A primary key that differs between two tables *both* sides already have produces no step, because
+  `Change` has no case for one — `crates/nvs-db/src/plan.rs:418`'s doc owns the reasoning.
 - `unquote`'s unquoted fallback is MySQL's alone; on the other three an unquoted spelling is an
   expression and is read as text — gap 4 of `crates/nvs-db/src/catalog.rs`'s module doc.
-- Stage 4's `nvs schema dump` check waits on stage 6's CLI — `docs/agent/loop-goal.toml:4533`.
-- `Core\Db\Schema::fromArray`, the `db.schema` grant and `nvs.toml`'s `[db.schema]` block are what
-  `examples/schema.nvs` waits on — stage 6, `docs/agent/loop-goal.toml:4581`.
