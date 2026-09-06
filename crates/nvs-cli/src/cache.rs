@@ -2271,6 +2271,7 @@ mod tests {
     /// runs are asserted to print the same thing as well, because "did not compile it" is only
     /// worth anything beside "and ran the same program".
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_second_run_of_the_same_program_does_not_compile_it() {
         let dir = scratch("second-run");
         let source = dir.join("program.nvs");
@@ -2358,6 +2359,7 @@ mod tests {
     /// digest alone: the unedited program is a hit *first*, so the miss below is the edit's doing
     /// and not an empty cache's, and the edited program is a hit on the run after it.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn an_edited_source_file_is_a_miss_on_the_next_run() {
         let dir = scratch("edited");
         let source = dir.join("program.nvs");
@@ -2535,6 +2537,7 @@ mod tests {
     /// of each other would mean the loader had grown expensive enough to reopen the decision, which
     /// is exactly what § *Revisiting* asks this test to detect.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names() {
         use std::time::{Duration, Instant};
 
