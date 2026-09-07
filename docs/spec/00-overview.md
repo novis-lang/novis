@@ -30,8 +30,9 @@
 
 ## 1. File modes and inline HTML
 
-A `.nvs` file (and a `.php` file, parsed under the same grammar — see the plan's M1 verification) is lexed
-in one of two modes, exactly as PHP is:
+A source file is lexed in one of two modes, exactly as PHP is. The lexer reads content and never a file
+name, so the extension decides nothing here — `.nvs` is the convention, and a PHP file renamed to it is
+still refused at its `<?php` tag:
 
 - **HTML mode**, the default at the start of a file and after a closing `?>`. Every byte is emitted verbatim
   as output, with no escaping, until the lexer sees an opening tag.

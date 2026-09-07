@@ -41,9 +41,10 @@
 //!   only safe while it is auditable. It compiles nothing and needs no server;
 //!   see [`config`], which also holds the reader `run` resolves that tree
 //!   through.
-//! * `nvs info` — build, host and third-party licensing facts, PHP's
-//!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
-//!   the spelling anyone arriving from PHP will try first; see [`info`].
+//! * `nvs info` — build, host and third-party licensing facts, `php -i` in
+//!   shape and in purpose but not in spelling:
+//!   `rule:packaging/the-cli-surface-is-novis-own` leaves it a subcommand and
+//!   no short flag; see [`info`].
 //! * `nvs meta --json [entry]` — the `Core` registry as JSON: every class,
 //!   every member, and each documented member's reference card, which is
 //!   `rule:tooling/meta-json`
@@ -166,23 +167,24 @@ struct Cli {
     /// Read this configuration file instead of `./nvs.toml`, and repeat it to
     /// read several in order.
     ///
-    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    /// step 1: naming any file disables step 2 entirely, so an operator
-    /// who names a tree never gets a surprise merge with whatever `nvs.toml`
-    /// happens to be in the working directory. A path is resolved against that
-    /// directory (§ 5), and one that does not exist is a refusal rather than a
-    /// skipped root.
+    /// Naming any file disables the search for `./nvs.toml` entirely, so an
+    /// operator who names a tree never gets a surprise merge with whatever
+    /// happens to be in the working directory. A relative path is resolved
+    /// against that directory, and one that does not exist is refused rather
+    /// than skipped.
     ///
-    /// Global, because it selects the tree rather than the command: `run`
-    /// resolves the snapshot its request reads, and `config check`/`config
-    /// dump` audit the same files without running anything.
+    /// Accepted by every subcommand, because it selects the tree rather than
+    /// the command: `run` resolves the snapshot its request reads, and `config
+    /// check`/`config dump` audit the same files without running anything.
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+    // step 1, and § 5 is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Parse a `.nvs`/`.php` file and print its AST.
+    /// Parse a Novis file and print its AST.
     Ast {
         /// The file to parse.
         file: PathBuf,
@@ -197,8 +199,8 @@ enum Command {
         #[arg(long)]
         strict: bool,
     },
-    /// Parse, resolve and type-check a `.nvs`/`.php` file, reporting every
-    /// diagnostic found.
+    /// Parse, resolve and type-check a Novis file, reporting every diagnostic
+    /// found.
     Check {
         /// The file to check.
         file: PathBuf,
@@ -211,7 +213,7 @@ enum Command {
         #[arg(long)]
         strict_docs: bool,
     },
-    /// Check a `.nvs`/`.php` file, then compile and run it.
+    /// Check a Novis file, then compile and run it.
     Run {
         /// The file to run.
         file: PathBuf,
@@ -223,15 +225,15 @@ enum Command {
         dump_asm: bool,
         /// Provoke an engine failure at a named site, for testing containment.
         ///
-        /// Deliberately scoped to `nvs run` and nothing else: a contained
-        /// engine panic has no user-facing trigger by definition, so it needs
-        /// a hook to be testable at all — and that hook must never be
-        /// reachable from a served request. `nvs serve` (M7) does not get one.
-        /// `nvs_runtime::FaultSite` documents each site.
+        /// Scoped to `nvs run` and nothing else: a contained engine panic has
+        /// no user-facing trigger by definition, so it needs a hook to be
+        /// testable at all — and that hook must never be reachable from a
+        /// served request, so `nvs serve` has none.
+        // `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
-        /// The program's own arguments — `rule:tooling/commands-are-compiled`'s command line, which
-        /// `Core\Command::run()` matches against the compiled table.
+        /// The program's own arguments, which `Core\Command::run()` matches
+        /// against the program's compiled command table.
         ///
         /// Everything past the file is the program's and nothing here reads it,
         /// which is why it is `trailing_var_arg`: a command declaring a
@@ -242,9 +244,11 @@ enum Command {
         /// than passed on, exactly as `cargo run --` spends one. It is spent
         /// once and only in that position — a `--` anywhere later is an
         /// ordinary word, and a program that wants one first is started with
-        /// two. `tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst`
-        /// pins both halves, since `Core\Cli::arguments` is where the
-        /// difference is observable.
+        /// two.
+        // `rule:tooling/commands-are-compiled` is the command line this hands
+        // over. Both halves of the `--` rule are pinned by
+        // `tests/conformance/core/cli-arguments-hands-back-a-word-that-looks-like-syntax-as-the-value-it-is.nvst`,
+        // since `Core\Cli::arguments` is where the difference is observable.
         #[arg(
             trailing_var_arg = true,
             allow_hyphen_values = true,
@@ -252,18 +256,22 @@ enum Command {
         )]
         arguments: Vec<String>,
     },
-    /// Serve a `.nvs`/`.php` file over HTTP, on one core, until stopped.
+    /// Serve a Novis file over HTTP, on one core, until stopped.
     ///
-    /// `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s development server and proxied origin. The file is compiled
-    /// before the socket is bound and every request runs it as `rule:security/isolate-shares-nothing`'s
-    /// isolate; § 4's mount table is the slice that replaces the argument with
-    /// a set of entry points, and `serve`'s module doc owns why one path on the
-    /// command line is already § 2's rule rather than an exception to it.
+    /// The development server and the proxied origin are the same command. The
+    /// file is compiled before the socket is bound, and every request runs it
+    /// in an isolate that shares nothing with any other request.
+    // `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
+    // `rule:security/isolate-shares-nothing`. § 4's mount table is the slice
+    // that replaces the argument with a set of entry points, and `serve`'s
+    // module doc owns why one path on the command line is already § 2's rule
+    // rather than an exception to it.
     Serve {
         /// The file every request runs.
         file: PathBuf,
         /// The address to listen on, as `host:port` — the last word over
-        /// `[server] listen` (`rule:http-server/the-server-block-is-boot-class`).
+        /// `[server] listen`.
+        // `rule:http-server/the-server-block-is-boot-class`.
         #[arg(long, value_name = "ADDR")]
         listen: Option<String>,
         /// The port to listen on, keeping the host `[server] listen` chose.
@@ -277,15 +285,15 @@ enum Command {
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
     ///
-    /// `rule:testing/nvst-is-separate`: one subcommand runs both, because they answer different
-    /// questions about the same tree, and which one is meant is read off the
-    /// path — a `.nvs`/`.php` file is a program whose compiled test table is
-    /// run (§ 1), anything else is a `.nvst` case file or a directory walked
-    /// for `*.nvst`. The two are not mixed in one invocation: they report
-    /// differently and share no summary.
+    /// One subcommand runs both, because they answer different questions about
+    /// the same tree, and which one is meant is read off the path — a `.nvs`
+    /// file is a program whose compiled test table is run, anything else is a
+    /// `.nvst` case file or a directory walked for `*.nvst`. The two are not
+    /// mixed in one invocation: they report differently and share no summary.
     ///
     /// Exits non-zero if any case or any test failed; a skipped one is not a
     /// failure.
+    // `rule:testing/nvst-is-separate` § 1.
     Test {
         /// The case files and directories to run.
         #[arg(required = true)]
@@ -302,46 +310,51 @@ enum Command {
         /// are not spread.
         #[arg(long, value_name = "N")]
         jobs: Option<std::num::NonZeroUsize>,
-        /// How a program's `#[Test]` run is reported (`rule:testing/report-formats`).
+        /// How a program's `#[Test]` run is reported.
         ///
         /// The default is the human format, and it is what a `.nvst` tree is
-        /// always reported in: `nvs_test`'s own report is a conformance
-        /// summary rather than a suite of test methods, and § 23 keeps the two
-        /// from sharing anything — so naming a machine format beside a case
-        /// tree is refused rather than silently ignored.
+        /// always reported in: a conformance run's report is a summary rather
+        /// than a suite of test methods, and the two share nothing — so naming
+        /// a machine format beside a case tree is refused rather than silently
+        /// ignored.
+        // `rule:testing/report-formats`, and § 23 is what keeps the two reports
+        // from sharing a shape.
         #[arg(long, value_name = "FORMAT", default_value = "human")]
         format: runner::Format,
         /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
-        /// the source that wrote it (`rule:testing/inline-snapshots`).
+        /// the source that wrote it.
         ///
         /// This is the only spelling under which `nvs test` writes to a file at
         /// all, and what it writes is the `$expected` literal and nothing else:
         /// a run without it never touches the tree, and a run with it never
         /// touches a passing snapshot. A `.nvst` tree has no snapshot to
         /// update, so naming it there is refused rather than ignored.
+        // `rule:testing/inline-snapshots`.
         #[arg(long)]
         update: bool,
     },
     /// Produce a build artifact from a checked program.
     ///
-    /// Two artifacts, and naming one is required rather than defaulted: `nvs
-    /// build` with nothing named would be a subcommand that succeeds having
-    /// done nothing, and the group is how the next artifact joins without
-    /// changing what this invocation means
-    /// (`rule:routing/api-document-is-a-deterministic-build-artifact`
-    /// spells the OpenAPI command,
-    /// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
-    /// the bundle).
+    /// Naming an artifact is required rather than defaulted: `nvs build` with
+    /// nothing named would be a subcommand that succeeds having done nothing,
+    /// and the group is how the next artifact joins without changing what this
+    /// invocation means.
+    // `rule:routing/api-document-is-a-deterministic-build-artifact` spells the
+    // OpenAPI command, and
+    // `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
+    // the bundle.
     #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
     Build {
         /// The entry point of the program to build.
         file: PathBuf,
-        /// Write `rule:routing/api-document-is-generated-from-the-route-table`'s OpenAPI 3.1 document to standard output.
+        /// Write the OpenAPI 3.1 document generated from this program's route
+        /// table to standard output.
+        // `rule:routing/api-document-is-generated-from-the-route-table`.
         #[arg(long)]
         openapi: bool,
-        /// Write `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable single-file executable: this program's
-        /// `require` graph as source, appended to a copy of the `nvs` host
-        /// binary.
+        /// Write a portable single-file executable: this program's `require`
+        /// graph as source, appended to a copy of the `nvs` host binary.
+        // `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`.
         #[arg(long)]
         compile: bool,
         /// Where to write the executable (default: the entry file's stem).
@@ -353,48 +366,49 @@ enum Command {
     /// A group rather than a flag on `build`, because `diff` reads two finished
     /// documents and compiles nothing: the old side of a diff is the last
     /// release's artifact, and there may be no source for it on this machine at
-    /// all (`rule:routing/api-diff-fails-a-breaking-change`
-    /// ).
+    /// all.
+    // `rule:routing/api-diff-fails-a-breaking-change`.
     Api {
         #[command(subcommand)]
         command: ApiCommand,
     },
     /// Audit the configuration tree without running anything.
     ///
-    /// A namespace beside `api`, and deliberately not part of `nvs check`,
-    /// which checks *source*:
-    /// `rule:config/check-and-dump-audit-the-tree-offline`
-    /// separates the two. See [`config`].
+    /// A namespace of its own rather than part of `nvs check`, which checks
+    /// *source*: a configuration tree and a program are audited separately.
+    // `rule:config/check-and-dump-audit-the-tree-offline` separates the two;
+    // see [`config`].
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
     /// Build and inspect the durable job queue's own tables.
     ///
-    /// A namespace of the operator's rather than the program's:
-    /// `rule:core-classes/queue-storage-is-a-table` gives
-    /// the runtime the queue's schema and has it created by an explicit command,
-    /// never at boot and never from a request. See [`queue`].
+    /// A namespace of the operator's rather than the program's: the runtime
+    /// holds the queue's schema, and the tables are created by an explicit
+    /// command — never at boot and never from a request.
+    // `rule:core-classes/queue-storage-is-a-table`; see [`queue`].
     Queue {
         #[command(subcommand)]
         command: QueueCommand,
     },
     /// Converge a database on a schema value, or read the one it already holds.
     ///
-    /// The operator's spelling of `Core\Db\Schema`:
-    /// `rule:core-classes/schema-converges` computes the difference against the
-    /// server every time, so there is no migration to order and no history to
-    /// keep. See [`schema`].
+    /// The operator's spelling of `Core\Db\Schema`: the difference against the
+    /// live server is computed every time, so there is no migration to order
+    /// and no history to keep.
+    // `rule:core-classes/schema-converges`; see [`schema`].
     Schema {
         #[command(subcommand)]
         command: SchemaCommand,
     },
     /// Clear what a hard-killed script left in the temporary root.
     ///
-    /// The operator's half of
-    /// `rule:core-classes/temporary-dir-orphan-sweep`: the runtime deletes a temporary directory when its script ends and
-    /// reclaims the rest at `nvs serve` boot, and this is how a machine that
-    /// never boots a server clears them. See [`tmp`].
+    /// The runtime deletes a temporary directory when its script ends and
+    /// reclaims the rest at `nvs serve` boot; this is how a machine that never
+    /// boots a server clears them.
+    // The operator's half of `rule:core-classes/temporary-dir-orphan-sweep`;
+    // see [`tmp`].
     Tmp {
         #[command(subcommand)]
         command: TmpCommand,
@@ -402,11 +416,11 @@ enum Command {
     /// Register this binary with the platform's service manager, or print what
     /// registering it would store.
     ///
-    /// A namespace matching `nvs ctl`'s precedent
-    /// (`rule:packaging/a-service-is-one-stored-argv`
-    /// ): every other subcommand acts on files with no server involved, and
-    /// these do not. See [`service`], whose module doc owns which half of § 1
-    /// is on disk and why the other half is not.
+    /// A namespace of its own because every other subcommand acts on files with
+    /// no server involved, and these do not.
+    // `rule:packaging/a-service-is-one-stored-argv`, matching `nvs ctl`'s
+    // precedent; see [`service`], whose module doc owns which half of § 1 is on
+    // disk and why the other half is not.
     Service {
         #[command(subcommand)]
         command: ServiceCommand,
@@ -415,23 +429,23 @@ enum Command {
     ///
     /// Started by an editor, not by a person: it reads LSP 3.17 frames on
     /// stdin and writes them on stdout, so a terminal that runs it sees
-    /// nothing and appears to hang. `rule:ide/one-server-two-thin-clients`
-    /// makes this the one implementation of Novis's language smarts, which
-    /// every editor client is a shell around.
+    /// nothing and appears to hang. It is the one implementation of Novis's
+    /// language smarts, and every editor client is a shell around it.
     ///
     /// Takes no arguments. Everything configurable arrives in `initialize`
     /// and in `workspace/didChangeConfiguration`, because the editor is what
     /// owns the settings and a flag here would be a second, staler copy.
+    // `rule:ide/one-server-two-thin-clients`.
     Lsp,
     /// Run a tree of `.lspt` cases against the language server.
     ///
     /// The editor-behaviour suite: each case is a document, a cursor, a request
-    /// and the answer frozen as text
-    /// (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). It answers a
-    /// different question from `nvs test` and shares no summary with it — two
-    /// suites, two counts, because a number that meant both would mean neither.
+    /// and the answer frozen as text. It answers a different question from `nvs
+    /// test` and shares no summary with it — two suites, two counts, because a
+    /// number that meant both would mean neither.
     ///
     /// Prints `N passed, M failed` and exits non-zero if any case failed.
+    // `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
     LspTest {
         /// The case files and directories to run.
         #[arg(required = true)]
@@ -442,7 +456,7 @@ enum Command {
     /// One call answers what this binary is and what is compiled into it,
     /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    /// See `docs/decisions/0065.md`.
+    // `docs/decisions/0065.md` is why this is one call rather than several.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]
@@ -455,22 +469,24 @@ enum Command {
     /// `--json` is required for the reason `build --openapi` is: a `meta`
     /// with nothing named would succeed having printed nothing, and the flag
     /// is how a second format joins without changing what this one means.
-    /// The shape is `rule:tooling/meta-json`'s, and this command owns it; see [`meta`].
+    // The shape is `rule:tooling/meta-json`'s and this command owns it; see
+    // [`meta`].
     Meta {
         /// Write the registry as JSON to standard output.
         #[arg(long, required = true)]
         json: bool,
         /// A program's entry point, whose own declarations join the registry
-        /// under a `program` key (`rule:tooling/meta-json-takes-a-program`).
-        /// Omitted, the document is the registry alone and is byte-identical
-        /// to what it was before this argument existed.
+        /// under a `program` key. Omitted, the document is the registry alone.
+        // `rule:tooling/meta-json-takes-a-program`: without an entry the
+        // document is byte-identical to what it was before this argument
+        // existed.
         entry: Option<PathBuf>,
     },
     /// Write this program's declarations as one Markdown page per class.
     ///
-    /// A renderer over `nvs meta --json`'s document and nothing else
-    /// (`rule:tooling/nvs-doc-renders-and-decides-nothing`), for a project that
-    /// does not have a documentation pipeline of its own; see [`doc`].
+    /// A renderer over `nvs meta --json`'s document and nothing else, for a
+    /// project that does not have a documentation pipeline of its own.
+    // `rule:tooling/nvs-doc-renders-and-decides-nothing`; see [`doc`].
     Doc {
         /// The program's entry point.
         file: PathBuf,
@@ -490,11 +506,10 @@ enum ApiCommand {
     /// Classify every change between two OpenAPI documents, exiting non-zero on
     /// a breaking one.
     ///
-    /// The gate of
-    /// `rule:routing/api-diff-fails-a-breaking-change`
-    /// : run it in CI against the document from the last release and a
-    /// breaking change stops the build. See [`api_diff`] for what each class
-    /// covers.
+    /// Run it in CI against the document from the last release and a breaking
+    /// change stops the build.
+    // The gate of `rule:routing/api-diff-fails-a-breaking-change`; see
+    // [`api_diff`] for what each class covers.
     Diff {
         /// The document to compare against — the last release's.
         old: PathBuf,
@@ -515,22 +530,25 @@ enum ConfigCommand {
     /// non-zero on any refusal.
     ///
     /// Offline: it reads the files and nothing else, so a tree is validated in
-    /// CI before it is deployed. What the audit deliberately does not assert is
-    /// [`config`]'s own module doc.
+    /// CI before it is deployed.
+    // What the audit deliberately does not assert is [`config`]'s own module
+    // doc.
     Check {
-        /// The root files to read, in order.
-        ///
-        /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1's list, given positionally: naming one disables
-        /// step 2 exactly as `--config` does. With none, step 2's `./nvs.toml`
-        /// is used, else step 3's shipped defaults.
+        /// The root files to read, in order — the same list `--config` takes,
+        /// given positionally. Naming one disables the search for `./nvs.toml`;
+        /// with none, `./nvs.toml` is read, and failing that the shipped
+        /// defaults.
+        // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+        // steps 1 to 3.
         files: Vec<PathBuf>,
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
-    /// `rule:config/later-wins-and-every-override-is-recorded` permits an include to override the file that pulled it in
-    /// *on condition* that every override is recoverable; this is where it is
-    /// recovered in full. What is printed, and the one thing deliberately
-    /// absent from it, is [`config::dump`]'s own doc comment.
+    /// An include may override the file that pulled it in *on condition* that
+    /// every override is recoverable; this is where it is recovered in full.
+    // `rule:config/later-wins-and-every-override-is-recorded`. What is printed,
+    // and the one thing deliberately absent from it, is [`config::dump`]'s own
+    // doc comment.
     Dump {
         /// The root files to read — `check`'s list, read the same way.
         files: Vec<PathBuf>,
@@ -554,14 +572,14 @@ enum ConfigCommand {
 /// which is the same wall [`queue`]'s own module doc describes.
 #[derive(Subcommand)]
 enum QueueCommand {
-    /// Create `rule:core-classes/queue-storage-is-a-table`'s jobs and dead-letter tables in the queue's
-    /// database.
+    /// Create the queue's jobs and dead-letter tables in its database.
     ///
-    /// The schema is the runtime's own — `nvs_stdlib::queue::schema`, beside the
-    /// members that read the columns — and this command is what makes issuing
+    /// The schema is the runtime's own, and this command is what makes issuing
     /// DDL for it an operator's act rather than a request's. It converges: what
-    /// runs is the difference between that value and the database. What it can
-    /// and cannot do today is [`queue`]'s module doc.
+    /// runs is the difference between that schema and the database.
+    // `rule:core-classes/queue-storage-is-a-table`. The schema value is
+    // `nvs_stdlib::queue::schema`, beside the members that read the columns,
+    // and what this can and cannot do today is [`queue`]'s module doc.
     Migrate {
         /// The root files to read, in order — `config check`'s list, read the
         /// same way.
@@ -595,9 +613,9 @@ enum SchemaCommand {
     /// none of it.
     ///
     /// Every step carries its grade, the reason for that grade and its complete
-    /// SQL — including the steps `apply` refuses, which is
-    /// `rule:core-classes/schema-plan`'s rule and the reason a plan is useful
-    /// against a database this deployment may not write to at all.
+    /// SQL — including the steps `apply` refuses, which is what makes a plan
+    /// useful against a database this deployment may not write to at all.
+    // `rule:core-classes/schema-plan`.
     Plan {
         /// The root files to read, in order — `config check`'s list, read the
         /// same way.
@@ -612,9 +630,9 @@ enum SchemaCommand {
     /// Run the steps of that plan that may run.
     ///
     /// Without `--including-risky` this refuses a plan holding a step that is
-    /// not `Safe` and names the first one, which is
-    /// `rule:core-classes/schema-apply-capability`'s `applySafe` on a command
-    /// line. A report is never run either way.
+    /// not `Safe` and names the first one. A report is never run either way.
+    // `rule:core-classes/schema-apply-capability`'s `applySafe`, on a command
+    // line.
     Apply {
         /// The root files to read, in order.
         files: Vec<PathBuf>,
@@ -650,8 +668,10 @@ enum TmpCommand {
     /// Remove every entry in the temporary root whose owning process is gone.
     ///
     /// Keyed on liveness and never on age, so a long-running process's
-    /// directories are untouchable however old they are. What it can and cannot
-    /// do, and why there is no force flag, is [`tmp`]'s module doc.
+    /// directories are untouchable however old they are, and there is no force
+    /// flag.
+    // What it can and cannot do, and why there is no force flag, is [`tmp`]'s
+    // module doc.
     Clean {
         /// Print what would be removed and remove nothing.
         #[arg(long)]
@@ -682,11 +702,13 @@ enum ServiceCommand {
         /// the one `nvs ctl --socket` addresses one of several servers by.
         name: String,
         /// Where the service writes diagnostics, if the named configuration
-        /// does not say (§ 2).
+        /// does not say.
+        // `docs/decisions/0093.md` § 2.
         #[arg(long, value_name = "PATH")]
         log_file: Option<PathBuf>,
-        /// The account the service runs as. The default is § 4's per-service
+        /// The account the service runs as. The default is a per-service
         /// virtual account, which has no password to rotate or leak.
+        // `docs/decisions/0093.md` § 4.
         #[arg(long, value_name = "ACCOUNT")]
         account: Option<String>,
         /// Refused (`E0633`). It exists so the refusal can name it: a command
@@ -696,12 +718,13 @@ enum ServiceCommand {
         password: Option<String>,
         /// The `nvs` arguments to store, verbatim.
         ///
-        /// `--` is mandatory and is what makes § 1's "every parameter is
-        /// passable" true: everything to its left is the installer's own,
-        /// everything to its right is stored untouched and never interpreted.
-        /// Without it a `--start` would be ambiguous between the installer and
-        /// the hosted program — a defect `mysqld --install` has and one Novis
-        /// does not inherit.
+        /// `--` is mandatory, and it is what makes every parameter passable:
+        /// everything to its left is the installer's own, everything to its
+        /// right is stored untouched and never interpreted. Without it a
+        /// `--start` would be ambiguous between the installer and the hosted
+        /// program — a defect `mysqld --install` has and one Novis does not
+        /// inherit.
+        // `docs/decisions/0093.md` § 1.
         #[arg(
             last = true,
             required = true,
@@ -1770,8 +1793,8 @@ fn run_test(
     config: &[PathBuf],
 ) -> ExitCode {
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
-    // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
-    // not, so nothing has to be spelled out at the call site.
+    // by a flag: a program is a `.nvs` file and a conformance case is not, so
+    // nothing has to be spelled out at the call site.
     if paths.iter().any(|path| is_program(path)) {
         let [path] = paths else {
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
@@ -1841,12 +1864,17 @@ fn run_test(
     }
 }
 
-/// Whether `path` names an Novis **program** rather than a `.nvst` case tree —
-/// the two spellings `nvs run` itself accepts, and no directory, since a
-/// directory of programs has no entry point to check.
+/// Whether `path` names a Novis **program** rather than a `.nvst` case tree,
+/// and no directory, since a directory of programs has no entry point to check.
+///
+/// The extension is the whole test, and `.nvs` is the only one that passes it.
+/// A path Novis will happily compile — the extension is a convention rather
+/// than a rule everywhere else — is read as a case tree here, because `nvs
+/// test` has to choose one of two suites from the path alone and a guess that
+/// looked inside the file would make the choice unpredictable.
 fn is_program(path: &std::path::Path) -> bool {
     path.extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("nvs") || ext.eq_ignore_ascii_case("php"))
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("nvs"))
 }
 
 fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {

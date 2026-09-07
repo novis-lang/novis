@@ -201,7 +201,7 @@ drift. Deferring it to M9 would mean retrofitting.
 ## Architecture
 
 ```
-                    .nvs / .php source
+                       .nvs source
                             │
     ┌───────────────────────▼───────────────────────┐
     │ nvs-syntax    lexer (dual mode, inline HTML)  │

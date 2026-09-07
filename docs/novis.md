@@ -20035,11 +20035,13 @@ usually one file:
 | `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
 | `nvs config check [files]` | resolve the configuration tree and report what it holds |
 | `nvs config dump [files]` | print every configuration key in force |
-| `nvs info` (also `-i`) | build, host and third-party licensing information |
+| `nvs info` | build, host and third-party licensing information |
 | `nvs meta --json` | the whole `Core` registry as JSON |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
+Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. `nvs` declares no
+short flag of PHP's: there is no `-i`, `-a`, `-r`, `-f` or lowercase `-v`, and every operation is
+spelled as a subcommand.
 
 **Not in this build:** `nvs serve`, `nvs fmt`, `nvs convert`, `nvs lsp`, `nvs ctl` and
 `nvs service` are unrecognized subcommands. There is no built-in web server, formatter, PHP
@@ -20047,11 +20049,13 @@ converter or language server in this binary.
 
 ### Files, extensions and tags
 
-- A program is a `.nvs` file. The extension is a convention, not a rule: `nvs run` accepts any
-  path, and what matters is the content.
-- A `.php` file parses under exactly the same grammar. It must open with `<?nvs` — `<?php` is
-  refused with `E0229` in a `.php` file just as in a `.nvs` one, and `<?` alone is not a tag at all
-  (the file stays in HTML mode and is copied to the output).
+- A program is a `.nvs` file. The extension is a convention, not a rule: the front end never reads
+  it, `nvs run` accepts any path, and what matters is the content. `nvs test` is the one command
+  that decides anything from an extension, because it has two suites to choose between.
+- **Novis does not run PHP.** There is no PHP mode and no PHP front end in this binary: a file
+  opening with `<?php` is refused with `E0229` whatever it is named, and renaming a PHP file to
+  `.nvs` changes nothing about that. `<?` alone is not a tag at all — the file stays in HTML mode
+  and is copied to the output.
 - A `#!` first line is **not** recognized in this build. A file that starts with `#!/usr/bin/env
   nvs` is treated like any other HTML-mode text: the shebang line is copied to the output, and the
   program still needs its `<?nvs` tag on the line after it. There is no code-mode-without-a-tag.
@@ -20164,13 +20168,14 @@ E0401
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
-- **A `.nvs` or `.php` path is a program**, and its `#[Test]` methods are run. Every `public`
+- **A `.nvs` path is a program**, and its `#[Test]` methods are run. Every `public`
   `void` instance method carrying `#[Test]` is one test; classes are reported in name order and
   methods in declaration order; a test that asserts nothing fails; `#[Test(skip: "why")]` skips
   with its reason. The `Core\Test` section has the assertions and the attribute's options.
 - **Anything else is a `.nvst` case file, or a directory walked for `*.nvst`.** A case is one
   program with its expected output, and the report is a conformance summary
-  (`3 passed, 0 failed, 0 skipped`).
+  (`3 passed, 0 failed, 0 skipped`). This is the one place an extension decides anything, so a
+  program in a file not named `.nvs` is read as a case tree here and fails to parse as one.
 
 The two are not mixed in one invocation. The exit status is non-zero if any test or case failed;
 a skipped one is not a failure.
@@ -20317,13 +20322,13 @@ limits.memory                   = "256M"
 ### nvs info
 
     nvs info [--licenses]
-    nvs -i [--licenses]
 
 Prints what this binary is: the version, commit, build profile, target triple, Rust and Cranelift
 versions under **Build**; the operating system, architecture, CPU parallelism and executable path
 under **Host**; and under **Licensing** the `nvs` license (MIT) followed by every third-party
 component with its version and the license Novis takes it under. `--licenses` appends every
-license text in full. `-i` is the same report under the spelling PHP uses.
+license text in full. It answers what `php -i` answers, but there is no `nvs -i`: that spelling is
+an unknown argument, and clap's error names `nvs info`.
 
 ### nvs meta --json
 

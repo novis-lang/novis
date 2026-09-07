@@ -3,7 +3,7 @@
 
 # Packaging
 
-*40 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
+*40 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -614,6 +614,36 @@ ways; [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-
 about argv.
 
 <sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0151](../decisions/0151.md).</sub>
+
+<a id="packaging-help-text-speaks-to-its-reader"></a>
+
+## A doc comment clap renders is written for the person reading `--help`, and cites nothing they cannot open
+
+`rule:packaging/help-text-speaks-to-its-reader`
+
+Every doc comment clap renders — a subcommand's, a nested subcommand's, an argument's — is text a
+person reads in `nvs --help`, and it is written for that person and nobody else. It names no `rule:`
+token, no bare `§ 4`, no path under `docs/`, and no rustdoc `[link]`: each of those points at a
+document the reader does not have, so a help page carrying them explains the project to itself while
+the flag it was meant to describe goes unexplained.
+
+The reasoning is not lost, it moves down one line. An ordinary `//` comment between the doc comment
+and the item carries the citation, where `grep -rn 'rule:'` still finds it and
+`python tools/rules.py --citations` still resolves it. The `///` says what the flag does; the `//`
+says which rule decided that.
+
+**It also names no input Novis does not accept.** `nvs run`, `nvs check`, `nvs ast` and `nvs serve`
+read a file's content and never its extension, so a `.php` in a help line said "this runs PHP" while
+meaning only "this ignores the name" — [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) reaching the surface
+every user sees first. The one command that decides anything from an extension is `nvs test`, which
+has two suites to choose between and takes `.nvs` alone.
+
+What settles a case is not where a comment sits but whether it reaches a terminal, and an enum's own
+doc comment does not — clap renders the parent variant's instead — so `ConfigCommand` and its like
+are ordinary rustdoc and cite normally. The proof is the output: `nvs --help`, and every
+subcommand's `--help`, grepped for `rule:`, `§` and `docs/`.
+
+<sub>See also [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise). Decided in [0152](../decisions/0152.md).</sub>
 
 <a id="packaging-nvs-info-is-the-one-call"></a>
 

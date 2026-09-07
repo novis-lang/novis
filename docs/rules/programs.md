@@ -78,6 +78,12 @@ PHP", "migrate your Laravel app", or any phrasing a reader could reasonably take
 existing packages, frameworks or code run. Existing PHP does not run unconverted, and this is a rule
 about how the project speaks, not only a fact it knows.
 
+**Naming `.php` as an input a tool accepts is one of those phrasings.** The front end reads a file's
+content and never its extension, so a `.php` in a `--help` line or a manual's syntax block means only
+"this ignores the name" and is read as "this runs PHP" — and a `<?php` tag is refused with `E0229`
+whatever the file is called. [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader) is the same rule at the
+one surface every user meets first.
+
 `nvs convert` is a porting aid for an application's own code, never a migration guarantee, and its
 documentation leads with what it cannot do: it cannot turn a facade into a declared method, a trait
 into interface delegation, or an active-record model into a definitely-initialized class. Its default
@@ -85,7 +91,7 @@ mode emits only rewrites a differential case proves identical and comments out t
 mode annotates every unproven rewrite at its own site, and `--check` publishes the share — a measured
 number standing where a claim would otherwise be.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md), [0152](../decisions/0152.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 

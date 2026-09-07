@@ -868,6 +868,12 @@
           "headline": "The nvs command line drops inherited PHP flags, and --help names the build",
           "body": "Novis copies PHP's semantics, never its command line. The one inherited flag, nvs -i, is gone, with the derived --info spelling and the global --licenses that hung off it; nvs info is now spelled one way. The -h and -V flags stay, since they come from the argument parser and Unix convention, not PHP. And --help now opens with two lines: the project title as the README states it, then the version, commit and date of the build answering. That date is the commit's, not the build's, so rebuilds stay identical.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md"
+        },
+        {
+          "adr": "0152",
+          "headline": "The nvs help text is written for the person reading it, and names no PHP input",
+          "body": "The argument parser prints a command's doc comment verbatim, so those comments are the program's output rather than notes about it — and they had been written as notes, citing internal rules and pointing at documents a user cannot open. Each citation moves into an ordinary comment a line below, where the project still finds it, and what a user sees now describes the flag. In the same pass, the commands that never read a file's extension stop advertising a .php input, and the one that does read it stops taking one.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0152.md"
         }
       ]
     },

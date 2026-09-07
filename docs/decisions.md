@@ -1269,6 +1269,15 @@ PHP. And --help now opens with two lines: the project title as the README states
 version, commit and date of the build answering. That date is the commit's, not the build's, so
 rebuilds stay identical.
 
+**The nvs help text is written for the person reading it, and names no PHP input**
+
+The argument parser prints a command's doc comment verbatim, so those comments are the program's
+output rather than notes about it — and they had been written as notes, citing internal rules and
+pointing at documents a user cannot open. Each citation moves into an ordinary comment a line below,
+where the project still finds it, and what a user sees now describes the flag. In the same pass, the
+commands that never read a file's extension stop advertising a .php input, and the one that does
+read it stops taking one.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

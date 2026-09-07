@@ -107,11 +107,11 @@ use nvs_types::defaults::ConstArg;
 /// this module's question and `main` only has to name one on the command line.
 #[derive(Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum Format {
-    /// § 22's default: one line per test as the run goes, then the summary.
+    /// The default: one line per test as the run goes, then the summary.
     Human,
-    /// § 22's versioned JSON document, written to stdout at the end.
+    /// A versioned JSON document, written to stdout at the end.
     Json,
-    /// § 22's JUnit XML, the shape every CI system already ingests.
+    /// JUnit XML, the shape every CI system already ingests.
     Junit,
 }
 
