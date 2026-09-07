@@ -25,11 +25,11 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 ///   makes an `int`/`uint` exact as a `decimal` and its § 3 permits the
 ///   `decimal`/`float` comparison even where their *arithmetic* has no common
 ///   type. Scale does not enter it: `1.10` and `1.1000` are equal.
-/// * `float` against anything numeric — `f64::total_cmp`, which is a real
-///   total order (unlike `partial_cmp`, which a `NaN` makes intransitive and
-///   therefore unusable by any sort at all). Its two visible consequences are
-///   that `-0.0` sorts before `0.0` and that `NaN` sorts at one end rather
-///   than throwing.
+/// * `float` against anything numeric — `f64::total_cmp` over an [`ordered`]
+///   `NaN`, which is a real total order (unlike `partial_cmp`, which a `NaN`
+///   makes intransitive and therefore unusable by any sort at all). Its two
+///   visible consequences are that `-0.0` sorts before `0.0` and that a `NaN`
+///   sorts below every number rather than throwing.
 /// * `string`/`bytes` — **bytewise**, never numerically. See
 ///   [`crate::arr::nvs_core_arr_sort`], which owns that divergence from PHP.
 ///
@@ -68,9 +68,9 @@ pub(crate) fn compare_values(
     if let (Some(a), Some(b)) = (numeric(left), numeric(right)) {
         return Ok(match (a, b) {
             (Numeric::Integer(a), Numeric::Integer(b)) => a.cmp(&b),
-            (Numeric::Integer(a), Numeric::Real(b)) => real(a).total_cmp(&b),
-            (Numeric::Real(a), Numeric::Integer(b)) => a.total_cmp(&real(b)),
-            (Numeric::Real(a), Numeric::Real(b)) => a.total_cmp(&b),
+            (Numeric::Integer(a), Numeric::Real(b)) => real(a).total_cmp(&ordered(b)),
+            (Numeric::Real(a), Numeric::Integer(b)) => ordered(a).total_cmp(&real(b)),
+            (Numeric::Real(a), Numeric::Real(b)) => ordered(a).total_cmp(&ordered(b)),
         });
     }
     Err(Fault::thrown(format!(
@@ -135,11 +135,10 @@ fn against_decimal(left: Decimal, right: &Value) -> Option<std::cmp::Ordering> {
     }
     let float = right.as_float()?;
     // The `float` row's own reading of a `NaN`, so a sort over a mixed array
-    // stays total whichever pair it happens to ask about: `f64::total_cmp`
-    // puts a `NaN` at one end by its sign bit, and this puts the `decimal` on
-    // the other side of it.
+    // stays total whichever pair it happens to ask about: [`ordered`] puts a
+    // `NaN` below every number, and this puts the `decimal` above it.
     Some(left.compare_f64(float).unwrap_or({
-        if float.is_sign_negative() {
+        if float.is_nan() || float.is_sign_negative() {
             Ordering::Greater
         } else {
             Ordering::Less
@@ -177,3 +176,26 @@ fn numeric(value: &Value) -> Option<Numeric> {
 fn real(value: i128) -> f64 {
     value as f64
 }
+
+/// A `float` as this ordering reads it: every `NaN` is one `NaN`, and every
+/// other value is itself.
+///
+/// `f64::total_cmp` places a `NaN` by its sign bit, and that bit is not a
+/// fact about the value — the same expression produces a negative `NaN` where
+/// the hardware's default one is negative and a positive `NaN` where it is
+/// not, so an ordering that read it would answer `Math::min($nan, 1.0)` with
+/// the `NaN` on one machine and with `1.0` on the next. One end is chosen here
+/// instead, for every `NaN` and on every platform, and it is the low end: a
+/// `NaN` that reached a fold is answered back by `min` and dropped by `max`,
+/// which is the pair that keeps it visible where it entered.
+fn ordered(value: f64) -> f64 {
+    if value.is_nan() {
+        BELOW_EVERY_NUMBER
+    } else {
+        value
+    }
+}
+
+/// The one `NaN` [`ordered`] compares with: a quiet `NaN` with its sign bit
+/// set, which `f64::total_cmp` ranks below `-INFINITY`.
+const BELOW_EVERY_NUMBER: f64 = f64::from_bits(0xFFF8_0000_0000_0000);
