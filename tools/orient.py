@@ -932,7 +932,7 @@ def adr_path(number: str) -> Path | None:
 
 
 def strip_frontmatter(text: str) -> str:
-    """A frozen record opens with a YAML block -- `date:`, `status:`, `changes:` -- that is the
+    """A frozen record opens with a YAML block -- `status:`, `changes:` -- that is the
     rulebook's reverse index, not the decision. The pack carries the title and *In short*."""
     if not text.startswith("---\n"):
         return text

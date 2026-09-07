@@ -218,20 +218,20 @@ def shape(a) -> list[str]:
 
 
 def frontmatter(a) -> dict:
-    """The frozen record's YAML block, read off its own lines: `date`, `status`, and under
-    `changes:` the `creates` and `modifies` lists of rule ids. Read here rather than through the
-    parser's fields so this tool's one dependency on `records.py` stays the record's text and title.
+    """The frozen record's YAML block, read off its own lines: `status`, and under `changes:` the
+    `creates` and `modifies` lists of rule ids. Read here rather than through the parser's fields
+    so this tool's one dependency on `records.py` stays the record's text and title.
 
     The shape is fixed by the freeze (docs/agent/conventions.md, *A decision record*): scalars as
     `key: value`, the two lists as `    - id` items under their key."""
-    out: dict = {"date": "", "status": "", "creates": [], "modifies": []}
+    out: dict = {"status": "", "creates": [], "modifies": []}
     if not a.lines or a.lines[0] != "---":
         return out
     current = None
     for line in a.lines[1:]:
         if line == "---":
             break
-        m = re.match(r"^(date|status):\s*(.+?)\s*$", line)
+        m = re.match(r"^(status):\s*(.+?)\s*$", line)
         if m:
             out[m.group(1)] = m.group(2)
             current = None

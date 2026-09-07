@@ -3,7 +3,9 @@
 
 A decision record, `docs/decisions/NNNN.md`, is the reasoning behind a rule: what was asked, what was
 considered, why this answer, and what it costs. The rule itself lives in `docs/rules/`, so a record is
-where a reader goes to *change* a rule and never to learn one. A record is **frozen on acceptance**:
+where a reader goes to *change* a rule and never to learn one. A record carries no date: when it was
+accepted is `git log`'s to answer, and a stamp in the file is one more thing to read past. A record is
+**frozen on acceptance**:
 nothing in it is maintained afterwards except its `status:` line. There is no `Amends:`, no `Amended
 by:` and no folding -- a later decision that changes a rule edits the rule's fragment and names the
 earlier record only through the rule's `because` list, which the rulebook holds and `tools/rules.py`
@@ -21,7 +23,6 @@ answers the same way every time the questions a cleanup pass used to answer by r
 THE SHAPE A RECORD IS HELD TO
 
     ---
-    date: 2026-08-23
     status: accepted                    accepted | retired | superseded-by NNNN
     changes:
       creates:
@@ -45,7 +46,7 @@ two lists disagreeing. `python tools/rules.py --show <id>` is the other side of 
 
 WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
 
-  metadata   The YAML block opens the file and closes; `date` is ISO; `status` is one of the allowed
+  metadata   The YAML block opens the file and closes; `status` is one of the allowed
              values and nothing more, because a status carrying a paragraph is a status nobody can
              filter on; the metadata bullets after the title are `Scope`, `Depends on` and
              `Validated by` and nothing else, since a typo'd field name reads as "this record has
@@ -116,11 +117,10 @@ INDEX_DOCS = ["README.md", "tooling-parity.md"]
 RECORD_LINK_RE = re.compile(r"\]\((?:\.\./decisions/)?(\d{4})\.md(?:#[^)]*)?\)")
 
 #: The metadata bullets a record may carry between its title and its `In short` block. A name outside
-#: this list is a typo, per the module doc; `Status` and `Date` live in the YAML block and are
-#: parsed into the same `fields` dict so a caller reads one shape.
+#: this list is a typo, per the module doc; `Status` lives in the YAML block and is parsed into the
+#: same `fields` dict so a caller reads one shape.
 FIELDS = ["Scope", "Depends on", "Validated by"]
 STATUS_RE = re.compile(r"^(?:accepted|retired|superseded-by (\d{4}))$")
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # The closed heading set, in canonical order. Front-loading is the `In short` block's job, not the
 # section order's -- a reader who only needs the rule has the rulebook -- so `Context` leading is the
@@ -173,9 +173,9 @@ CROSS_CITE_RE = re.compile(r"(?<![A-Za-z0-9])(0\d{3})\]?(?:'s)?[\s,]*$")
 
 
 class Adr:
-    """One record, parsed. `fields` carries `Status` and `Date` from the YAML block -- `Status`
-    capitalised, so `decisions.py`'s filter on `Accepted` reads the same value it always has -- and
-    the metadata bullets by name; `status`, `date` and `changes` are the block's own values."""
+    """One record, parsed. `fields` carries `Status` from the YAML block -- capitalised, so
+    `decisions.py`'s filter on `Accepted` reads the same value it always has -- and the metadata
+    bullets by name; `status` and `changes` are the block's own values."""
 
     def __init__(self, path: str, text: str | None = None) -> None:
         self.path = path
@@ -186,7 +186,6 @@ class Adr:
         self.title = next((l.lstrip("# ").strip() for l in self.lines if l.startswith("# ")), "")
         self.front_matter = False
         self.status = ""
-        self.date = ""
         #: `{"creates": [rule ids], "modifies": [rule ids]}`, exactly the lists written; a list the
         #: block does not carry is absent, which `check_changes` reports.
         self.changes: dict[str, list[str]] = {}
@@ -201,7 +200,7 @@ class Adr:
         self._parse()
 
     def _parse_front(self) -> int:
-        """The YAML block, by hand: three keys and two lists is not a parser's worth of shape, and
+        """The YAML block, by hand: two keys and two lists is not a parser's worth of shape, and
         pulling one in would make a check-only tool the one script in `tools/` with a dependency.
         Returns the line the body starts after, 0 when there is no block."""
         if not self.lines or self.lines[0] != "---":
@@ -215,10 +214,10 @@ class Adr:
             if m:
                 name, value = m.group(1), m.group(2)
                 key = None
-                if name in ("date", "status"):
-                    setattr(self, name, value)
-                    self.fields[name.capitalize()] = value.capitalize() if name == "status" else value
-                    self.field_line[name.capitalize()] = i
+                if name == "status":
+                    self.status = value
+                    self.fields["Status"] = value.capitalize()
+                    self.field_line["Status"] = i
                 elif name == "changes":
                     self.field_line["changes"] = i
                 else:
@@ -319,12 +318,10 @@ def check_metadata(adrs):
             out.append((a.file, 1, "no YAML block -- a record opens with `---` and closes it"))
         for line, name in a.unknown:
             out.append((a.file, line, f"unknown metadata field `{name}` -- the bullets are "
-                                      f"{', '.join(FIELDS)}; the block is date, status, changes"))
-        for req in ("Status", "Date", "Scope"):
+                                      f"{', '.join(FIELDS)}; the block is status, changes"))
+        for req in ("Status", "Scope"):
             if req not in a.fields:
                 out.append((a.file, 1, f"missing `{req.lower() if req != 'Scope' else req}:`"))
-        if a.date and not DATE_RE.match(a.date):
-            out.append((a.file, a.field_line["Date"], f"`date:` is not ISO: {a.date}"))
         m = STATUS_RE.match(a.status) if a.status else None
         if a.status and not m:
             short = a.status if len(a.status) < 60 else a.status[:57] + "..."
@@ -524,7 +521,7 @@ def graph(adrs, num):
     book = rulebook.Rulebook()
     cited_by = sorted(n for n, o in adrs.items() if num in o.refs() and n != num)
     print(f"{a.file}\n  {a.title}\n")
-    print(f"  {'date:':<15}{a.date}\n  {'status:':<15}{a.status}")
+    print(f"  {'status:':<15}{a.status}")
     for f in FIELDS:
         if f in a.fields:
             v = a.fields[f]

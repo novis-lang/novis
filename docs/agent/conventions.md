@@ -451,7 +451,6 @@ worked example: [0104](../decisions/0104.md).
 
 ```markdown
 ---
-date: 2026-08-27
 status: accepted            # accepted | retired
 changes:
   creates:
@@ -482,7 +481,7 @@ changes:
 
 **What the shape means, so none of it is a matter of care:**
 
-- **The YAML block is the record's only machine-read field set** — `date`, `status` and `changes`.
+- **The YAML block is the record's only machine-read field set** — `status` and `changes`.
   `changes.creates` is the rule ids this decision brings into the rulebook; `changes.modifies` is the
   rule ids whose fragment it edits. Both name rules by id (`types/conversion`), never a record. A
   record touching no rule is not a decision — put the paragraph in the module doc or the plan instead.
@@ -497,8 +496,8 @@ changes:
 - **The H1 is `# ADR NNNN — <the decision as a statement>`**, and it is the title every index derives
   from. `Scope`, `Depends on` and `Validated by` are the three bullets that may follow it, each present
   only when the record has one. Nothing else goes above *In short* — there is no `Status:` line, no
-  `Date:` line, no `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the YAML
-  block or derived from it.
+  `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the YAML block or derived
+  from it.
 - **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
   `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
   `tools/records.py`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
@@ -506,12 +505,16 @@ changes:
   decision with a real trigger to reconsider it.
 - **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from
   `docs/spec/` and from the goal manifests; a new section between two others is `§ 3a`.
-- **A record is frozen on acceptance.** Its body states what was decided *on its date* and is not edited
-  when a later decision moves the rule: that decision is a new record whose `changes.modifies` names
-  the rule, and **the rule's fragment is where the current text lives.** A body therefore carries no
-  history and no maintenance — no "this previously said", no withdrawn-section tombstone, no running
+- **A record is frozen on acceptance.** Its body states what was decided when it was written and is not
+  edited when a later decision moves the rule: that decision is a new record whose `changes.modifies`
+  names the rule, and **the rule's fragment is where the current text lives.** A body therefore carries
+  no history and no maintenance — no "this previously said", no withdrawn-section tombstone, no running
   total of anything — and the reader who wants to know what is true now reads the rule, never the
   record.
+- **A record carries no date, and neither does its body.** When it was accepted, and when anything in it
+  was measured or superseded, is `git log`'s answer to give; a stamp in the file cannot be checked
+  against anything and tells a reader years later only that time has passed. The same rule the code
+  comments follow — § *A code comment*, *A date* — applies to every file under `docs/`.
 
 Retiring a decision is `status: retired` in its own YAML block, in the same commit that edits or
 removes the rules it created; there is no `Superseded` status and nothing to move in an index, because
