@@ -276,3 +276,97 @@ echo $caught;
         "the abandoned partial result leaks: 200 iterations held {short} bytes, 2000 held {long}"
     );
 }
+
+/// Every runtime helper the whole lowered program calls, in no order.
+///
+/// The two tests below are about which of the two closure-call helpers a site
+/// emits, and that is a property of the call site rather than of what the
+/// program printed — so this reads the IR the rest of this file runs, and each
+/// test asserts on the output *as well*, so a program that stopped working
+/// cannot pass by emitting the right helper.
+fn helpers_of(program: &nvs_ir::Program) -> Vec<nvs_ir::ir::Helper> {
+    program
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match inst.kind {
+            nvs_ir::ir::InstKind::HelperCall { helper, .. } => Some(helper),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_proven_callable_call_site_emits_no_param_tag_check() {
+    // `rule:types/callable-signature`'s whole purpose: the callee's type names
+    // its parameters, so `nvs_types` checked both arguments where they are
+    // written and `nvs_runtime::closure::check_param_tags` has nothing left to
+    // decide. `Helper::CallClosureProven` is the site that skips it — the
+    // runtime reads the tags from `nvs_call_closure` alone.
+    let source = "<?nvs
+callable(int, string): string $f = fn(int $n, string $s): string => $s . $n;
+echo $f(2, \"x\");
+";
+    let helpers = helpers_of(&lower(source));
+
+    assert!(
+        helpers.contains(&nvs_ir::ir::Helper::CallClosureProven),
+        "a call through a written signature must reach the proven helper: {helpers:?}"
+    );
+    assert!(
+        !helpers.contains(&nvs_ir::ir::Helper::CallClosure),
+        "nothing may still pay the per-argument check here: {helpers:?}"
+    );
+    assert_eq!(output_of(source), "x2");
+}
+
+#[test]
+fn a_closure_object_still_carries_both_metadata_slots() {
+    // What a proven site removes is the work, not the metadata: a literal does
+    // not know which kind of site will call it, and the *same* closure object
+    // reaches both here. `nvs_runtime::CLOSURE_ARITY_SLOT` is what trims the
+    // third argument at the dynamic site and `CLOSURE_PARAM_TAGS_SLOT` is what
+    // refuses the `string` in the first position — so dropping either write
+    // from `nvs_ir::lower::lower_closure_literal` fails here while the proven
+    // site above keeps printing.
+    let source = "<?nvs
+callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
+echo $join(2, \"x\"), \"|\";
+callable $bare = $join;
+echo $bare(3, \"y\", \"extra\"), \"|\";
+try {
+    echo $bare(\"a\", \"b\");
+} catch (LogicError $e) {
+    echo $e->message;
+}
+";
+    assert_eq!(
+        output_of(source),
+        "x2|y3|argument 1 to a `callable` must be of type int, string given"
+    );
+}
+
+#[test]
+fn a_bare_callable_call_site_still_emits_the_param_tag_check() {
+    // The other half, and the reason the metadata stays on every closure
+    // object: bare `callable` is the top of the lattice and names no
+    // parameter, so nothing was proven and the tag check is the only thing
+    // standing between a mismatched argument and the callee reading the
+    // payload at the wrong representation.
+    let source = "<?nvs
+callable $f = fn(int $n, string $s): string => $s . $n;
+echo $f(2, \"x\");
+";
+    let helpers = helpers_of(&lower(source));
+
+    assert!(
+        helpers.contains(&nvs_ir::ir::Helper::CallClosure),
+        "a call through bare `callable` keeps the dynamic helper: {helpers:?}"
+    );
+    assert!(
+        !helpers.contains(&nvs_ir::ir::Helper::CallClosureProven),
+        "nothing proved these arguments: {helpers:?}"
+    );
+    assert_eq!(output_of(source), "x2");
+}
