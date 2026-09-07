@@ -2,60 +2,62 @@
 
 ## State
 
-**Goal 12 — the resilient tree — has stages 2, 3 and 4 landed and green.** Recovery is explicit
+**Goal 12 — the resilient tree — has stages 2, 3, 4 and 5 landed and green.** Recovery is explicit
 (`rule:ide/recovery-is-explicit`), the `SyntaxIndex` is the walk flattened, `crates/nvs-syntax/tests/prefixes.rs`
-cuts every `examples/*.nvs` at every token boundary and asks all three of stage 4's questions of each cut,
-and stage 4's remaining fuzz target is now on disk.
+cuts every `examples/*.nvs` at every token boundary and asks all three of stage 4's questions of each cut, and
+`fuzz/fuzz_targets/prefix.rs` — a `[[bin]]`, a third leg of the nightly `fuzz-smoke` matrix, seeds in
+`fuzz/seeds/prefix/` because `.gitignore` eats `fuzz/corpus/` — parses both halves of a cut document.
 
-**The fuzz target is `fuzz/fuzz_targets/prefix.rs`.** The input's *last* byte says where to cut and
-everything before it is the source, so one entry parses both a truncated document and one that starts
-mid-construct through `nvs_syntax::parse`, asserting nothing beyond "it returned"; the module doc owns the
-format and why the selector is at the end. It is a `[[bin]]` in `fuzz/Cargo.toml` and a third leg of the
-nightly `fuzz-smoke` matrix, and five hand-written seeds sit in `fuzz/seeds/prefix/` rather than in
-`fuzz/corpus/prefix/`, which `.gitignore` ignores — the playbook bullet owns that trap. It was compiled and
-run for real under WSL nightly, not read: `cargo +nightly check` is clean and a `cargo +nightly fuzz run
-prefix` over the seeds found no panic.
+**Stage 5's position arithmetic is on disk in one file**, `crates/nvs-diagnostics/src/source.rs`:
+`SourceFile::utf16_col`, `SourceFile::offset_of(line, col, encoding)` and the `PositionEncoding` enum,
+re-exported from the crate root. `rule:ide/positions-have-one-home` is satisfied and the check's four tests
+pass.
 
-**The acceptance check that is red is stage 5, and nothing is written for it yet:** `nvs-diagnostics` has
-`SourceFile::line_col`, which counts `char`s, and neither `utf16_col` nor `offset_of`. That is the next
-group below, and it is one file.
+**Two design calls, both owned by the doc comments at the site.** `PositionEncoding` carries `Utf32` beside
+the `Utf8` and `Utf16` a server negotiates, because `Utf32` is what `line_col` already counts — one inverse
+covers every column this crate hands out rather than most of them. And `offset_of` clamps rather than
+refusing, because a position arrives from an editor whose buffer can be a keystroke ahead: a line past the
+last is the end of the file, a column past its line's content stops *before* the terminator (so a CRLF
+document answers what an LF one does), and a column falling inside a character is that character's start.
+
+**No BOM policy lives here.** A BOM is left in the text and counted as one `char` and one code unit, so
+every offset after it lands and round-trips; stripping it is the document store's job, which is what
+`rule:ide/positions-have-one-home` says and what `nvs-lsp` will own when it exists.
 
 **One residue, deliberate and unchanged:** `ExprKind::ClassConstAccess` carries a bare `Span` for its name,
 so `Foo::` at the caret still carries a name nobody wrote. The `::` path routes `Missing` into the same arm
-`Ident` takes rather than reporting an invented second diagnostic; the comment at that site says so, and
-the Backlog carries the fix.
+`Ident` takes rather than reporting an invented second diagnostic; the comment at that site says so, and the
+Backlog carries the fix.
 
 **Stage 0 is empty and stays empty**, unchanged: the four M4 language holes are closed and `bool as int` is
 `E0708` under `rule:types/conversion`, not a hole.
 
 ## Next group
 
-**Stage 5's position arithmetic**, all of it in one file — `crates/nvs-diagnostics/src/source.rs`, the
-functions beside `line_col` and the four tests in its own `mod tests`. `rule:ide/positions-have-one-home`
-is the whole specification and says what each answer must be; the four test names the check demands are in
-`docs/agent/loop-goal.toml`'s stage 5 block.
+**Stage 6's shared section lexer**, in one crate and mostly one file — `crates/nvs-test/src/case.rs`, with
+its module declared at `crates/nvs-test/src/lib.rs:161` and its tests in `crates/nvs-test/src/case.rs:563`.
+`docs/decisions/0099.md` § 5 is the whole specification ("the section lexer is `nvs_test`'s, extracted to a
+shared module so there is one parser for both formats"); the three test names the check demands are in
+`docs/agent/loop-goal.toml`'s stage 6 block. The `.nvst` half must not move.
 
-- [ ] **`utf16_col` counts code units, not characters** — beside `line_col` at
-      `crates/nvs-diagnostics/src/source.rs:95`, with `utf16_col_counts_code_units_not_chars` in the test
-      module at `crates/nvs-diagnostics/src/source.rs:243`. A `ß` is one `char`, one UTF-16 code unit and
-      two bytes; an emoji is one `char`, *two* UTF-16 code units and four bytes, which is the case that
-      separates this from `line_col`. `rule:ide/positions-have-one-home`.
-- [ ] **`offset_of(line, col, encoding)` inverts it** — the same anchor,
-      `crates/nvs-diagnostics/src/source.rs:95`, taking the encoding the rule says is negotiated rather
-      than assuming one. `offset_of_inverts_line_col_on_a_multibyte_line` and
-      `an_offset_past_the_last_line_is_clamped_rather_than_panicking` go at
-      `crates/nvs-diagnostics/src/source.rs:243`: a position the client invents past the end is clamped to
-      the last offset, because a server that panics on a stale position is a server that dies mid-edit.
-      `rule:ide/positions-have-one-home`.
-- [ ] **The round trip, and the two documents that break naive arithmetic** —
-      `a_position_round_trips_through_utf16_and_utf8` at `crates/nvs-diagnostics/src/source.rs:243`, plus
-      the rule's second paragraph on the same anchors: a leading BOM is skipped *and counted*, and CRLF is
-      preserved exactly, so a CRLF document's columns match an LF one's. `rule:ide/positions-have-one-home`.
+- [ ] **The section lexer becomes its own module, and a header carries an argument** — `struct Section` at
+      `crates/nvs-test/src/case.rs:217` and `fn header` at `crates/nvs-test/src/case.rs:266` move out from
+      under `pub fn parse` at `crates/nvs-test/src/case.rs:321`, declared beside `pub mod case;` at
+      `crates/nvs-test/src/lib.rs:161`. `the_section_lexer_reads_a_header_with_an_argument` pins
+      `--FILE <relative/path>--`'s argument, which is the shape `--REQUEST--` needs. `docs/decisions/0099.md` § 5.
+- [ ] **A second format reuses it** — `the_section_lexer_is_reusable_by_a_second_format` in the test module at
+      `crates/nvs-test/src/case.rs:563` drives the extracted lexer over a `.lspt`-shaped body it invents
+      inline, proving nothing in it knows about `--EXPECT--`'s `.nvst` meaning. No `.lspt` runner is written
+      here — that is off path per the goal's standing decisions. `docs/decisions/0099.md` § 5.
+- [ ] **The `.nvst` half did not move** — `every_nvst_section_parses_exactly_as_it_did_before_the_extraction`,
+      same test module, walks the real corpus through `pub fn parse` at `crates/nvs-test/src/case.rs:321` and
+      asserts every section of every case still parses to what it did. `rule:testing/hostile-case-contract`
+      and `docs/decisions/0099.md` § 5.
 
 ## Backlog
 
-- `ExprKind::ClassConstAccess` should carry a `MemberName`, not a bare `Span` — `rule:ide/recovery-is-explicit`.
-- The `.lspt` runner and `nvs lsp-test` — ADR 0099 § 5, and off this goal's path by its own standing decisions.
-- `nvs ast --json`'s frozen schema — `rule:ide/ast-json-schema-is-frozen`, named by M4B and not started.
-- The latency guard on a 1,000-line re-analysis — `rule:ide/a-full-reanalysis-stays-under-a-bound`, goal 14.
-- Seeds for `lex` and `parse` under `fuzz/seeds/<target>/` — the CI step already picks up any target that grows one.
+- `ExprKind::ClassConstAccess` should carry a `MemberName`, not a `Span` — `rule:ide/recovery-is-explicit`.
+- Nothing calls `utf16_col`/`offset_of` yet; `nvs-lsp`'s negotiated encoding is their first caller —
+  `rule:ide/positions-have-one-home`.
+- Stage 7 is `nvs ast --json --resilient` and its frozen schema — `rule:ide/ast-json-schema-is-frozen`.
+- `tools/reference.py --check` is a stage 7 check too, so a chapter edit must regenerate.
