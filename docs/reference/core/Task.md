@@ -4,9 +4,9 @@ keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task
 ---
 
 `Core\Task` runs closures as concurrent child tasks and never returns while one is still running.
-`all` takes a shape literal whose fields are written `fn` literals and answers a shape with the same
-names, each field typed by its closure's declared return — a `callable` variable in a field is a compile
-error. `map` calls one closure per element and answers the results under the subject's own keys, in the
+`all` takes a shape whose every field is a zero-argument callable and answers a shape with the same
+names, each field typed by that field's declared return — a field whose callable declares no return
+type answers `mixed`, and only that field. `map` calls one closure per element and answers the results under the subject's own keys, in the
 subject's order, whatever order the children finished in. Both take the same options: `limit` caps how many
 children run at once (the rest wait, nothing is refused) and `deadline` bounds the **whole call** — when it
 expires every child is cancelled and the call throws `TimeoutError`. The first child to throw cancels its

@@ -347,7 +347,7 @@ mod tests {
     fn mentions(ty: &CoreTy, class: &str) -> bool {
         match ty {
             CoreTy::Instance(name)
-            | CoreTy::CallableShapeTo(name)
+            | CoreTy::ShapeOfCallables(name)
             | CoreTy::Written(name)
             | CoreTy::Enum(name)
             | CoreTy::EnumCase(name, _)

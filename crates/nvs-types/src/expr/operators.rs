@@ -568,9 +568,9 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         | Ty::Intersection(_)
         | Ty::CoreShape(_)
         | Ty::TypeVar(_)
-        // Beside `TypeVar` for its reason: a binding site is substituted away
-        // before any expression is checked, so nothing ever compares one.
-        | Ty::CallableShapeTo(_) => return None,
+        // Beside `TypeVar` for its reason: a `Core` parameter's own spelling
+        // is never the type of an expression, so nothing ever compares one.
+        | Ty::ShapeOfCallables(_) => return None,
     })
 }
 

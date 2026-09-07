@@ -5075,10 +5075,12 @@ one, and no `Core` member that keeps state across them.
 
 ### `Core\Task::all`: a fixed set of tasks
 
-`Core\Task::all` takes a shape literal whose every field is a written `fn` literal with a declared
-return type, runs them all concurrently, and answers a shape with the same field names, each typed
-by its closure's return type — no cast at the use site. A field holding a `callable` variable, a
-parameter or an element of an array is refused: the closure must be written in place.
+`Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
+concurrently, and answers a shape with the same field names, each typed by that field's declared
+return type — no cast at the use site. Where the closure was written does not matter: a literal, a
+first-class callable and a variable are equally good, and a field whose callable declares no return
+type answers `mixed` for that field alone. What is refused is a subject that is not a shape of
+callables.
 
 ```nvs
 <?nvs
@@ -5094,11 +5096,10 @@ all=3
 
 ```nvs error
 <?nvs
-callable $held = fn(): int => 1;
-var $r = Core\Task::all({job: $held});
+var $r = Core\Task::all([fn(): int => 1]);
 ```
 ```output
-must be written as an `fn` literal
+expected `{name: callable(): T, ...}`
 ```
 
 ### `Core\Task::map`: one task per element
@@ -14900,9 +14901,9 @@ The bytes the program under test wrote while answering this request.
 Keywords: curl_multi_*, structured concurrency, parallel, concurrent, child task, fan-out, limit, deadline, TimeoutError, cancellation, all, map, all, map, afterResponse
 
 `Core\Task` runs closures as concurrent child tasks and never returns while one is still running.
-`all` takes a shape literal whose fields are written `fn` literals and answers a shape with the same
-names, each field typed by its closure's declared return — a `callable` variable in a field is a compile
-error. `map` calls one closure per element and answers the results under the subject's own keys, in the
+`all` takes a shape whose every field is a zero-argument callable and answers a shape with the same
+names, each field typed by that field's declared return — a field whose callable declares no return
+type answers `mixed`, and only that field. `map` calls one closure per element and answers the results under the subject's own keys, in the
 subject's order, whatever order the children finished in. Both take the same options: `limit` caps how many
 children run at once (the rest wait, nothing is refused) and `deadline` bounds the **whole call** — when it
 expires every child is cancelled and the call throws `TimeoutError`. The first child to throw cancels its
@@ -14941,7 +14942,7 @@ deadline hit
 
 | Member | Signature |
 |---|---|
-| [`Core\Task::all`](#core-core-task-all) | `all({name: callable, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S` |
+| [`Core\Task::all`](#core-core-task-all) | `all({name: callable(): T, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S` |
 | [`Core\Task::map`](#core-core-task-map) | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>` |
 | [`Core\Task::afterResponse`](#core-core-task-afterresponse) | `afterResponse(callable(): mixed $fn, {deadline?: Core\Time\Duration}): void` |
 
@@ -14949,14 +14950,14 @@ deadline hit
 #### `Core\Task::all`
 
 ```nvs skip
-Core\Task::all({name: callable, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S
+Core\Task::all({name: callable(): T, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S
 ```
 
 Runs every closure of the `$tasks` shape literal as a concurrent child task and answers a shape with the same field names, each carrying that closure's own declared return type — a fixed, heterogeneous set decided where the call is written.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$tasks` | `{name: callable, ...}` | A shape literal whose every field is a written zero-argument `fn` literal; a `callable`-typed variable is a compile error naming the field. |
+| `$tasks` | `{name: callable(): T, ...}` | A shape literal whose every field is a written zero-argument `fn` literal; a `callable`-typed variable is a compile error naming the field. |
 | `{limit: …}` | `uint` (default `null`) | The most children running at once; omitted, every child runs at once, and a child past the limit is scheduled rather than refused. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on the whole call, not per child; omitted, the request tree's own `wall_time` is the bound. |
 

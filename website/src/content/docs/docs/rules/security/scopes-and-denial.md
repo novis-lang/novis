@@ -218,6 +218,11 @@ is an instruction, so the path is the sink and the arguments are not
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 ([`security/path-scope-canonicalise-then-prefix`](/docs/rules/security/scopes-and-denial/#path-scope-canonicalise-then-prefix "A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor")).
 
+The target is a path and never a `PATH` lookup. A bare name resolves against the current directory,
+which is the resolution the grant was compared against, so the program the operating system starts is
+the one the check approved — a name a `PATH` entry would have answered instead is a program from a
+directory no grant named.
+
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p><code>shell_exec</code>, <code>system</code>, <code>passthru</code> and the backtick operator do not exist; there is an argv array and a grant</p>

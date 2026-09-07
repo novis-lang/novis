@@ -1,0 +1,49 @@
+--TEST--
+Every `Core\Task::all` field answers what its own callable declares, so a written literal, a first-class callable, a shape held in a variable and a bare `callable` all compile and only the last one widens — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/callable-signature`
+--FILE--
+<?nvs
+// `Core\Task::all`'s result is a shape carrying each field's own return type,
+// and `rule:types/callable-signature` is what puts that type within a *type's*
+// reach: the field is read off the argument's type rather than off the
+// expression written at the call, so where the closure was written stopped
+// mattering.
+//
+// This is the agreement shape (`docs/agent/conventions.md`): four different
+// ways of writing a callable, asked one question each, so a checker that grew
+// a special case for one of them fails here while still looking right on the
+// others.
+class Held {
+    public static function job(): int {
+        return 7;
+    }
+}
+
+// A written literal and a first-class callable both carry a signature, so both
+// fields are typed by what that signature returns.
+var $page = Core\Task::all({
+    literal:    fn(): int => 1,
+    firstClass: Held::job(...),
+});
+int $one = $page->literal;
+int $seven = $page->firstClass;
+echo $one + $seven, "\n";
+
+// A variable holding the whole shape is as good as one written at the call.
+var $set = {rows: fn(): array<int> => [1, 2, 3]};
+var $held = Core\Task::all($set);
+array<int> $rows = $held->rows;
+echo Core\Arr::count($rows), "\n";
+
+// Bare `callable` is the top of the lattice and declares no result, so this
+// field — and this field alone — answers `mixed`, which is what every other
+// position pays for the same omission.
+callable $loader = fn(): int => 4;
+var $loose = Core\Task::all({unsigned: $loader, signed: fn(): string => "ok"});
+string $signed = $loose->signed;
+echo $signed, "\n";
+echo $loose->unsigned as int, "\n";
+--EXPECT--
+8
+3
+ok
+4

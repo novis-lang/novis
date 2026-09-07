@@ -198,26 +198,31 @@ pub enum Ty {
     /// `callable`, plus the name of the type variable its **result** binds —
     /// `U` in `Core\Arr::map(array<T> $a, callable $fn): array<U>`.
     ///
-    /// A **shape of zero-argument `fn` literals**, plus the name of the type
-    /// variable the shape of their *results* binds — `S` in
+    /// A **shape whose every field is a callable**, plus the name of the type
+    /// variable the shape of those callables' *results* binds — `S` in
     /// `Core\Task::all({...}): S`.
     ///
-    /// The one type in this enum no source text can spell and that is not
-    /// really a type at all: it says "this argument is a shape literal of
-    /// closures, and the shape of *their* results names a variable".
+    /// The one type in this enum no source text can spell.
     /// `rule:concurrency/all-answers-a-typed-shape` is the whole reason it exists —
     /// `Task::all`'s answer keeps each field's own declared return type rather
-    /// than collapsing to `array<mixed>`, and no ordinary type at this position
-    /// could say so, because the argument's own type is a shape of opaque
-    /// `callable`s.
+    /// than collapsing to `array<mixed>`, and no writable type says "the same
+    /// field names, one call layer off", because the field names belong to the
+    /// call site rather than to the signature.
+    ///
+    /// **An ordinary type in both halves.** What it accepts is decided by
+    /// [`crate::expr::assign`]'s assignability relation — a [`Self::Shape`]
+    /// whose every field satisfies [`Self::Callable`] — so an argument that is
+    /// not one is refused by the mismatch every other parameter reports. What
+    /// it binds is decided by [`crate::generics::bind`], which reads each
+    /// field's [`Self::CallableSig`] return type off the argument's own type;
+    /// a field typed bare `callable` has none to read and binds `mixed`, which
+    /// is that field's honest answer rather than a refusal.
     ///
     /// It enters the interner only from `nvs_stdlib::registry`'s
-    /// `CoreTy::CallableShapeTo` through [`crate::core_lib`], and it never
-    /// survives a call site: [`crate::generics::substitute`] rewrites it to
-    /// [`Self::Mixed`], because the position is checked in full by
-    /// `crate::expr::args`' own rule — which reports every field — and a
-    /// second assignability check could only report the same mistake twice.
-    CallableShapeTo(String),
+    /// `CoreTy::ShapeOfCallables` through [`crate::core_lib`], and unlike a
+    /// [`Self::TypeVar`] it **survives substitution**: it is the parameter the
+    /// argument is checked against, so erasing it would erase the check.
+    ShapeOfCallables(String),
     /// A resolved class or interface name, plus the type arguments it was
     /// written with — the type grammar does not distinguish a class from an
     /// interface (`rule:types/grammar`); which one `QName` names is a question for
@@ -555,11 +560,11 @@ impl TypeInterner {
                     .join(", ");
                 format!("callable({inner}): {}", self.describe(*ret))
             }
-            // Never actually rendered: this variant is substituted away before
-            // any argument is checked, so nothing has one to describe. The
-            // spelling is what a call site writes rather than a type name,
-            // because there is no type name — see [`Ty::CallableShapeTo`].
-            Ty::CallableShapeTo(_) => "{...: fn}".to_owned(),
+            // The spelling is what a call site writes rather than a type name,
+            // because there is no type name — see [`Ty::ShapeOfCallables`],
+            // which survives substitution precisely so that a mismatch here
+            // gets rendered.
+            Ty::ShapeOfCallables(_) => "{name: callable(): T, ...}".to_owned(),
             Ty::Enum(q, _) => q.to_string(),
             Ty::Class(q, args) if args.is_empty() => q.to_string(),
             Ty::Class(q, args) => {
@@ -802,11 +807,11 @@ impl TypeInterner {
         self.intern(Ty::CallableSig { params, ret })
     }
 
-    /// The interned shape-of-`fn`-literals parameter that binds `name` from
-    /// the shape of its fields' results — see [`Ty::CallableShapeTo`], which
-    /// owns why nothing outside a `Core` signature ever calls this.
-    pub fn callable_shape_to(&mut self, name: impl Into<String>) -> TypeId {
-        self.intern(Ty::CallableShapeTo(name.into()))
+    /// The interned shape-of-callables parameter that binds `name` from the
+    /// shape of its fields' results — see [`Ty::ShapeOfCallables`], which owns
+    /// why nothing outside a `Core` signature ever calls this.
+    pub fn shape_of_callables(&mut self, name: impl Into<String>) -> TypeId {
+        self.intern(Ty::ShapeOfCallables(name.into()))
     }
 
     /// Interns `array<elem>`.

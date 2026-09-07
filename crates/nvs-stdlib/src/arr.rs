@@ -4077,11 +4077,11 @@ nvs_runtime::nvs_helper! {
     /// [`CoreTy::Var`] infers a variable by unifying the declared
     /// parameters against the call's arguments, and `$initial` is a real value
     /// at a real argument position, so it answers `U` on its own. That is why
-    /// the row is `callable` rather than
-    /// [`CoreTy::CallableTo`]: `map` needs the callback as a binding
-    /// site because nothing else in that signature knows what it produces,
-    /// while here a second site for one variable would leave "first binding
-    /// wins" to settle by accident which of the two is the answer.
+    /// the callback's own written return type is `U` and not a second
+    /// variable: `map` reads what it produces off the callback because nothing
+    /// else in that signature knows it, while here a second site for one
+    /// variable would leave "first binding wins" to settle by accident which
+    /// of the two is the answer.
     ///
     /// The consequence a caller sees is that the fold's type is the type of
     /// the seed. `reduce($ints, $fn, 0)` is an `int` whatever the callback

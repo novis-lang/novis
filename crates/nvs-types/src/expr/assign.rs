@@ -197,6 +197,23 @@ pub(crate) fn is_assignable(
     {
         return true;
     }
+    // `rule:concurrency/all-answers-a-typed-shape`'s one parameter, and the
+    // whole of what it accepts: a shape, every field of which is a `callable`.
+    // Width subtyping does not enter it — the argument's field names are the
+    // answer's field names, so every field is read and none is surplus.
+    //
+    // Checked here rather than at the binding pass because it is a question
+    // about the argument's *type*, which is what `rule:types/callable-signature`
+    // put within reach: a field is refused for declaring no callable at all,
+    // never for being written somewhere other than at the call.
+    if let Ty::ShapeOfCallables(_) = interner.get(to) {
+        let Ty::Shape(fields) = interner.get(from) else {
+            return false;
+        };
+        return fields
+            .iter()
+            .all(|(_, ty)| matches!(interner.get(*ty), Ty::Callable | Ty::CallableSig { .. }));
+    }
     // `rule:types/callable-arity` and `rule:types/callable-variance` are one
     // comparison. Arity is a **prefix** match — `n ≤ m`, only the first `n`
     // parameters compared — which describes `nvs_runtime::closure`'s own

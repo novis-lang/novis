@@ -56,9 +56,9 @@ that runs a program makes a task first even where one buys nothing else.
 
 `rule:concurrency/all-answers-a-typed-shape`
 
-`Core\Task::all({...}, {limit?, deadline?}): S` takes a shape literal whose every field is a
-zero-argument closure, runs them concurrently, and answers **a shape with the same field names, each
-field carrying that field's own declared return type**:
+`Core\Task::all({...}, {limit?, deadline?}): S` takes a shape whose every field is a zero-argument
+callable, runs them concurrently, and answers **a shape with the same field names, each field
+carrying that field's own declared return type**:
 
 ```php
 $page = Task::all({
@@ -71,36 +71,40 @@ echo $page->user->name;          // typed User, not mixed
 
 That typing is the whole reason the member is worth having. The uniform alternative answers
 `array<mixed>` and every call site then pays a cast, which is the untypeable-container failure the
-language refuses everywhere else. No ordinary type at that position can say it — the argument's own
-type is a shape of opaque `callable`s — so the binding is a type the registry carries for this one
-purpose.
+language refuses everywhere else. No writable type says it, because the answer's field names are the
+argument's own and the call site is what chooses them — so the parameter is a type the registry
+carries for this one purpose, and what each field is worth is read off
+[`concurrency/an-all-field-answers-what-its-callable-declares`](concurrency.md#concurrency-an-all-field-answers-what-its-callable-declares).
 
 `all` over a one-field shape is legal and pointless, and nothing special-cases it. Its subject is a
-shape literal and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
+shape and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
 and each member refuses the other's subject.
 
-<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../decisions/0072.md), [0136](../decisions/0136.md).</sub>
 
-<a id="concurrency-an-all-field-must-be-a-written-fn-literal"></a>
+<a id="concurrency-an-all-field-answers-what-its-callable-declares"></a>
 
-## An `all` field binds its type from a written `fn` literal, and a `callable` variable there is a compile error naming the field
+## An `all` field answers its own callable's declared return type, and a callable declaring none answers `mixed`
 
-`rule:concurrency/an-all-field-must-be-a-written-fn-literal`
+`rule:concurrency/an-all-field-answers-what-its-callable-declares`
 
-Each field of a `Core\Task::all` argument binds its type from **a written `fn` literal's declared
-return type**. A field whose value is a `callable`-typed variable is a compile error naming the
-field, and so is an argument that is a variable rather than a shape literal written at the call.
+Each field of a `Core\Task::all` argument answers **its own callable's declared return type**. A
+field whose callable declares none — bare `callable`, the top of the lattice — answers `mixed`, and
+only that field: every other one still carries the type it declared.
 
-There is nothing to bind from otherwise: a `callable` carries no signature, so a variable at that
-position leaves the answer's field with no type to be. Reporting it at the field is what keeps the
-diagnostic actionable — the program is told which field to write out, not that the call is wrong.
+The field's type is read off the *argument's type*, not off the expression written at the call, so
+where the closure came from stopped mattering. A literal, a first-class callable, a parameter and a
+variable holding the whole shape are all equally good, and a shape assembled somewhere else and
+passed in is too. What the parameter still refuses is a value that is not a shape of callables at
+all: an array, a scalar or a field holding something that cannot be called, each reported as the
+ordinary type mismatch.
 
-This is a real restriction and it is visible. A framework that stores closures in a variable and
-runs them cannot use `all`; it uses [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order) over an
-`array<callable>` and accepts a `mixed` result. Typed `callable` signatures are what would remove
-the restriction, and until they land this is the honest cost of not answering `array<mixed>`.
+[`types/callable-signature`](types.md#types-callable-signature) is what made this possible, and the restriction it replaces is worth
+naming: until a `callable` carried a signature, the type existed only at the written literal, so a
+framework storing closures in a variable could not use `all` at all. It can now, and it pays only
+for the signatures it declines to write.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure), [`types/grammar`](types.md#types-grammar). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 

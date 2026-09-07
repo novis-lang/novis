@@ -2982,10 +2982,10 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// the panic message says so. Nor is [`CheckedTy::Never`] — it erases to
 /// [`Ty::Void`], the representation of "the caller receives nothing", and that
 /// arm owns why the call site keeps its ordinary fall-through. What is left is
-/// the two the checker substitutes away before this boundary ever sees them
-/// ([`CheckedTy::TypeVar`] and [`CheckedTy::CallableShapeTo`], both rewritten by
-/// `nvs_types::generics::substitute`), so meeting one here is a checker bug
-/// rather than a missing representation. `mixed` erases to
+/// the one the checker substitutes away before this boundary ever sees it
+/// ([`CheckedTy::TypeVar`], rewritten by `nvs_types::generics::substitute`), so
+/// meeting one here is a checker bug rather than a missing representation.
+/// `mixed` erases to
 /// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much
 /// this boundary does and doesn't do with one yet. A **union** never panics:
 /// it is [`Ty::Tagged`] unless every member erases to one and the same
@@ -3058,10 +3058,17 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // where the call is written, so what is left below this boundary is the
         // closure object the bare type already lowered to, with nothing about
         // its parameters left to represent.
+        // `Core\Task::all`'s own parameter joins them, and for the same
+        // reason: `rule:concurrency/all-answers-a-typed-shape` accepts a shape
+        // and nothing else, so the value below this boundary is that shape's
+        // object pointer. It is the one checker type here that survives
+        // substitution — it is what the argument is *checked against* — so it
+        // reaches this boundary rather than being rewritten before it.
         CheckedTy::Class(..)
         | CheckedTy::Callable
         | CheckedTy::CallableSig { .. }
         | CheckedTy::Shape(_)
+        | CheckedTy::ShapeOfCallables(_)
         | CheckedTy::Object => Ty::Object,
         // `rule:types/class-reference`: a class reference's value is the run-time descriptor
         // `new static` already carries, so it erases to that representation and

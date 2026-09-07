@@ -50,39 +50,20 @@
 //! `rule:types/callable-signature`'s point: a callback's result is a type the
 //! row states rather than a variable named beside an opaque `callable`.
 //!
-//! [`Ty::CallableShapeTo`] is what is left, and the reason this section
-//! exists at all. `Core\Task::all({...}): S` has
-//! its whole *result* nowhere in its argument's type: the argument is a shape
-//! of opaque `callable`s, and `rule:concurrency/all-answers-a-typed-shape` wants a shape of what each of them
-//! returns. So `S` binds from the written `fn` literals themselves —
-//! [`callable_shape_var`] reads the name, and [`crate::expr::args`] builds the
-//! shape out of the `ExprInfo::Closure { return_ty }` recorded at each field.
-//! That function is also where a field holding anything *but* a literal is
-//! diagnosed, which is why this one substitutes to `mixed` rather than to a
-//! type: there is nothing left for assignability to add.
+//! [`Ty::ShapeOfCallables`] is what is left, and the reason this section
+//! exists at all. `Core\Task::all({...}): S` has its whole *result* at no one
+//! position in its argument's type: `rule:concurrency/all-answers-a-typed-shape`
+//! wants the argument's own field names carrying what each field's callable
+//! returns, and a field is a position this walk cannot name in advance because
+//! the call site chooses it. So [`bind`] rebuilds the shape instead — one pass
+//! over the argument's fields, taking each [`Ty::CallableSig`]'s return type,
+//! and `mixed` where a field declares no signature to read.
 //!
-//! It is a binding site, not a constraint. A `callable` value is still
-//! assignable to it unchanged, because [`substitute`] rewrites it to plain
-//! [`Ty::Callable`] before a single argument is checked — so nothing in
-//! `is_assignable` learned a new rule, and the "a type variable never survives
-//! a call site" property above covers this variant too.
-//!
-//! # Known gap
-//!
-//! **Only a written `fn` literal binds.** The return type comes from the
-//! closure literal's own recorded entry, so an argument that is a variable, a
-//! parameter, or first-class callable syntax has none to read: it binds
-//! nothing, and the variable substitutes to `mixed` exactly as before.
-//!
-//! `rule:types/callable-signature`
-//! closes it, and retires this whole special case with it: once `callable`
-//! carries a signature in the type grammar, `U` sits at a structural position
-//! like any other and [`bind`] reaches it by descending into the parameter
-//! type. Both binding-site variants go with it. That ADR § 6 is the one home
-//! for what [`bind`] gains instead — one descent into a callable type, and one
-//! shape rebuilt from its fields' return types — and for why neither costs
-//! this module its character: still one walk, still no constraint set, still
-//! no occurs check.
+//! It is still one walk over two types, and it is a **constraint as well as a
+//! binding site**: what the parameter accepts is an ordinary assignability
+//! question — a shape whose every field is a `callable` — which is why this is
+//! the one variant [`substitute`] leaves standing. Erasing it would erase the
+//! check that the argument is a shape of callables at all.
 
 use nvs_hir::{ClassGraph, QName};
 use rustc_hash::FxHashMap;
@@ -99,10 +80,10 @@ pub(crate) type Bindings = FxHashMap<String, TypeId>;
 #[must_use]
 pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(id) {
-        // `CallableShapeTo` names a variable rather than being one, but it
-        // still has to be rewritten before the signature is used — see
-        // [`substitute`].
-        Ty::TypeVar(_) | Ty::CallableShapeTo(_) => true,
+        // `ShapeOfCallables` names a variable rather than being one, and binds
+        // it from its own argument — so a signature carrying one needs this
+        // machinery to run even where nothing else in it mentions a variable.
+        Ty::TypeVar(_) | Ty::ShapeOfCallables(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
         Ty::CallableSig { params, ret } => {
             params
@@ -125,28 +106,6 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
             .iter()
             .any(|field| mentions_type_var(field.ty, interner)),
         _ => false,
-    }
-}
-
-/// The variable a parameter binds from the *shape* of its fields' results, if
-/// it is [`Ty::CallableShapeTo`] — the one binding [`bind`] cannot perform,
-/// because the answer is not at any position in the argument's type. See this
-/// module's own docs; [`crate::expr`]'s `check_generic_args` is the only
-/// caller.
-///
-/// Deliberately shallow: a binding site means nothing nested inside another
-/// type, and `nvs_stdlib::registry`'s
-/// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that no row
-/// writes one there.
-///
-/// `nvs_stdlib::registry`'s `a_callback_result_type_is_only_ever_a_whole_parameter`
-/// holds that no row writes one anywhere but at a whole parameter, so there is
-/// nothing nested to look for.
-#[must_use]
-pub(crate) fn callable_shape_var(id: TypeId, interner: &TypeInterner) -> Option<String> {
-    match interner.get(id) {
-        Ty::CallableShapeTo(name) => Some(name.clone()),
-        _ => None,
     }
 }
 
@@ -211,6 +170,38 @@ pub(crate) fn bind(
     // a class fixed for an interface is written in the class's own variables,
     // so the pairs exist only once `with_class_args` has put the receiver's
     // arguments in.
+    // The one binding whose answer is at no position in either type: this
+    // module's docs own why `rule:concurrency/all-answers-a-typed-shape` needs
+    // a shape assembled rather than found. Handled ahead of the pair table
+    // because assembling one interns, and the table reads both types at once.
+    let shape_of_callables = match interner.get(declared) {
+        Ty::ShapeOfCallables(name) => Some(name.clone()),
+        _ => None,
+    };
+    if let Some(name) = shape_of_callables {
+        let Ty::Shape(fields) = interner.get(actual).clone() else {
+            // Not a shape at all, so there are no field names to answer with.
+            // `crate::expr::assign` refuses the argument on its own; binding
+            // nothing leaves the variable to substitute to `mixed`.
+            return;
+        };
+        let mut results = Vec::with_capacity(fields.len());
+        for (field, ty) in &fields {
+            let declared_ret = match interner.get(*ty) {
+                Ty::CallableSig { ret, .. } => Some(*ret),
+                _ => None,
+            };
+            // A field typed bare `callable` is the lattice top and declares no
+            // result — `mixed` is what that field is worth, and the rest of
+            // the shape still answers precisely.
+            let result = declared_ret.unwrap_or_else(|| interner.mixed());
+            results.push((field.clone(), result));
+        }
+        let shape = interner.shape(results);
+        out.entry(name).or_insert(shape);
+        return;
+    }
+
     let mut through_interface: Option<(QName, Vec<TypeId>, QName, Vec<TypeId>)> = None;
     let pairs: Vec<(TypeId, TypeId)> = match (interner.get(declared), interner.get(actual)) {
         (Ty::TypeVar(name), _) => {
@@ -349,14 +340,12 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
             .get(&name)
             .copied()
             .unwrap_or_else(|| interner.mixed()),
-        // The binding site collapses to `mixed` rather than to the type it
-        // accepted, because there is no such type: what it accepts is a
-        // shape literal whose every field is a written `fn` literal, which is
-        // a fact about the *expression* and not about its type.
-        // `crate::expr::args` checks that position in full and names each
-        // offending field, so anything left here could only report the same
-        // mistake a second time — see [`Ty::CallableShapeTo`].
-        Ty::CallableShapeTo(_) => interner.mixed(),
+        // The one arm that rewrites nothing. It is the parameter the argument
+        // is checked against — a shape whose every field is a `callable` — so
+        // erasing it would erase the check, and it names a variable rather
+        // than being one, so there is nothing inside it to put a binding into.
+        // See [`Ty::ShapeOfCallables`].
+        Ty::ShapeOfCallables(_) => id,
         Ty::Array(elem) => {
             let elem = substitute(elem, bindings, interner);
             interner.array(elem)

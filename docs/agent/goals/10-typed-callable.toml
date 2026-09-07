@@ -1818,7 +1818,7 @@ name = "nvs-types (the roster's compile-time half)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   # § 1 -- what makes the heterogeneous typing possible at all, and the easiest thing to leave out.
-  "a_task_all_field_holding_a_callable_variable_is_a_compile_error",
+  "task_all_no_longer_refuses_a_field_that_is_not_a_literal",
   "a_task_all_binds_each_fields_own_type",
   # § 3 -- one options shape, and no `timeout` wrapper to reach for.
   "a_limit_and_deadline_options_shape_is_the_only_spelling",
@@ -1933,7 +1933,7 @@ cases = [
   "tests/conformance/task/a-cancelled-task-runs-no-user-code.nvst",
   "tests/conformance/task/a-bounded-channel-suspends-its-sender.nvst",
   "tests/conformance/task/a-deadline-is-the-only-spelling-for-a-bounded-wait.nvst",
-  "tests/conformance/reject/a-task-all-field-holding-a-callable-variable-is-refused.nvst",
+  "tests/conformance/core/a-task-all-field-answers-what-its-own-callable-declares.nvst",
   "tests/conformance/core/a-graph-copy-round-trips-a-cyclic-value.nvst",
   "tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst",
   "tests/conformance/reject/a-secret-value-does-not-cross-a-boundary.nvst",
@@ -4698,7 +4698,7 @@ stage = "4 the rows"
 name = "nvs-stdlib (no row names a retired binding-site variant)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "no_registry_row_names_a_callable_binding_site_variant",
+  "only_task_all_names_a_shape_of_callables",
   "every_callback_parameter_declares_its_signature",
 ]
 

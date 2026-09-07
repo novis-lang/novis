@@ -379,42 +379,95 @@ fn a_task_all_binds_each_fields_own_type() {
     );
 }
 
-/// `rule:concurrency/all-answers-a-typed-shape`'s restriction, and the half of the member that no program can
-/// print: a field's type binds from a *written* `fn` literal, so a field
-/// holding a `callable`-typed variable is a compile error naming the field.
-///
-/// `rule:types/closure-literal` leaves `callable` without a signature, so there is genuinely
-/// nothing to bind from — the diagnostic says which field rather than refusing
-/// the call as a whole, because every other field still binds.
+/// `rule:concurrency/all-answers-a-typed-shape` where every field carries its
+/// own written signature: a `fn` literal and a first-class callable are the
+/// two spellings that declare one on the spot, and each field is typed by what
+/// that spelling returns rather than by what the shape as a whole holds.
 #[test]
-fn a_task_all_field_holding_a_callable_variable_is_a_compile_error() {
+fn task_all_binds_its_result_shape_from_written_literals() {
     let diags = check_in_method(
-        "callable $loader = fn(): int => 1;\n\
-         var $page = Core\\Task::all({user: $loader, rows: fn(): array<int> => [1]});\n\
-         echo Core\\Arr::count($page->rows);\n",
+        "var $page = Core\\Task::all({\n\
+         rows:  fn(): array<int> => [1, 2],\n\
+         label: fn(): string     => \"a\",\n\
+         });\n\
+         array<int> $rows = $page->rows;\n\
+         string $label = $page->label;\n\
+         echo $label, Core\\Arr::count($rows);\n",
     );
-    assert!(
-        diags
-            .iter()
-            .any(|d| d.code == Some(code::E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL)),
-        "{diags:?}"
-    );
-    assert!(
-        diags.iter().any(|d| d.message.contains("`user`")),
-        "the diagnostic names the offending field: {diags:?}"
-    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
 
-    // The same reasoning one level up: a variable holding the whole shape has
-    // no literal at any field, so the argument itself has to be written out.
+/// The same binding with nothing written at the call.
+/// `rule:types/callable-signature` put a callable's result on its *type*, so a
+/// variable holding one field, and a variable holding the whole shape, bind
+/// exactly as a literal does — which is
+/// `rule:concurrency/an-all-field-answers-what-its-callable-declares` and the
+/// restriction it replaced.
+#[test]
+fn task_all_binds_its_result_shape_from_callable_typed_variables() {
+    let field = check_in_method(
+        "var $loader = fn(): array<int> => [1];\n\
+         var $page = Core\\Task::all({rows: $loader, label: fn(): string => \"a\"});\n\
+         array<int> $rows = $page->rows;\n\
+         string $label = $page->label;\n\
+         echo $label, Core\\Arr::count($rows);\n",
+    );
+    assert!(!field.has_errors(), "{field:?}");
+
     let whole = check_in_method(
         "var $set = {user: fn(): int => 1};\n\
-         var $page = Core\\Task::all($set);\n",
+         var $page = Core\\Task::all($set);\n\
+         int $user = $page->user;\n\
+         echo $user;\n",
+    );
+    assert!(!whole.has_errors(), "{whole:?}");
+
+    // A real binding, not a widening: the field's type is that callable's own
+    // return type and nothing else will hold it.
+    let crossed = check_in_method(
+        "var $loader = fn(): array<int> => [1];\n\
+         var $page = Core\\Task::all({rows: $loader});\n\
+         string $rows = $page->rows;\n",
     );
     assert!(
-        whole
+        crossed
             .iter()
-            .any(|d| d.code == Some(code::E_CALLABLE_SHAPE_NOT_A_LITERAL)),
-        "{whole:?}"
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{crossed:?}"
+    );
+}
+
+/// The restriction that is gone, and the two refusals that are not.
+///
+/// A field declaring bare `callable` — the top of the lattice — has no result
+/// to read, so it answers `mixed` for itself alone while every sibling stays
+/// precise. That is what every other position pays for the same omission, and
+/// it replaces a compile error that cost a framework holding its closures in a
+/// variable the whole member. What the parameter still refuses is a field that
+/// is no callable at all, and an argument that is no shape at all.
+#[test]
+fn task_all_no_longer_refuses_a_field_that_is_not_a_literal() {
+    let bare = check_in_method(
+        "callable $loader = fn(): int => 1;\n\
+         var $page = Core\\Task::all({user: $loader, rows: fn(): array<int> => [1]});\n\
+         array<int> $rows = $page->rows;\n\
+         echo Core\\Arr::count($rows);\n",
+    );
+    assert!(!bare.has_errors(), "{bare:?}");
+
+    let field = check_in_method("var $page = Core\\Task::all({user: 1});\n");
+    assert!(
+        field.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{field:?}"
+    );
+
+    let subject =
+        check_in_method("callable $one = fn(): int => 1;\nvar $page = Core\\Task::all($one);\n");
+    assert!(
+        subject
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{subject:?}"
     );
 }
 

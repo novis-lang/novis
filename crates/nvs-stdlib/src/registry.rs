@@ -397,34 +397,31 @@ pub enum CoreTy {
     /// what it is handed and what it must answer are checked where the call is
     /// written.
     Callable,
-    /// A **shape literal of zero-argument `fn` literals**, plus the name of
-    /// the type variable the shape of their *results* binds — `S` in
+    /// A **shape whose every field is a callable**, plus the name of the type
+    /// variable the shape of those callables' *results* binds — `S` in
     /// `Core\Task::all({...}): S`.
     ///
-    /// The last binding site, and the one a written signature cannot replace:
-    /// what it names is not one callback's result but the *shape* of a whole
-    /// argument's fields' results.
-    /// `rule:concurrency/all-answers-a-typed-shape`
-    /// makes `Task::all`'s answer a shape with the argument's own field
-    /// names, each field typed as *that field's* closure returns — which is the
-    /// whole reason the member is worth having, since the uniform alternative
-    /// answers `array<mixed>` and every call site then pays a cast. No type at
-    /// this position can say that: the argument's own type is a shape of
-    /// `callable`s, and `rule:expressions/first-class-callable-syntax` keeps a `callable` opaque.
+    /// `rule:concurrency/all-answers-a-typed-shape` makes `Task::all`'s answer
+    /// a shape with the argument's own field names, each field typed as *that
+    /// field's* callable returns — which is the whole reason the member is
+    /// worth having, since the uniform alternative answers `array<mixed>` and
+    /// every call site then pays a cast. No writable type says that, because
+    /// the field names belong to the call site rather than to this row.
     ///
-    /// **The argument has to be *written* at the call site**, and each field's
-    /// value has to be a written `fn` literal — `E0773` and `E0774` are the two
-    /// diagnostics, and `nvs_types::expr::args` is the one place that reads a
-    /// field. That is `rule:concurrency/all-answers-a-typed-shape`'s own restriction rather than an
-    /// implementation limit: `callable` carries no signature, so a variable has
-    /// nothing to bind from, and `rule:types/grammar`'s deferred typed-`callable`
-    /// signatures are what would lift it.
+    /// **An ordinary type, unlike the binding sites this replaced.** What it
+    /// accepts is `nvs_types::expr::assign`'s assignability relation and what
+    /// it binds is `nvs_types::generics::bind`'s own walk over the argument's
+    /// fields, so a mismatch is the mismatch every other parameter reports and
+    /// a variable holding the shape is as good as a literal —
+    /// `rule:types/callable-signature` is what put the field's result type
+    /// within a type's reach. A field declaring bare `callable` binds `mixed`
+    /// for that field alone.
     ///
-    /// **Parameter position only, and never nested.** It is a declaration of
-    /// where a variable comes from, so it means nothing inside a
+    /// **Parameter position only, and never nested.** The variable it binds is
+    /// read back by the return type, so it means nothing inside a
     /// [`Self::Array`], a [`Self::Union`], a [`CoreOption`] or a return type —
-    /// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that.
-    CallableShapeTo(&'static str),
+    /// `a_shape_of_callables_is_only_ever_a_whole_parameter` holds that.
+    ShapeOfCallables(&'static str),
     /// A **written callback signature** — `callable(T, string): U` in
     /// `Core\Arr::map(array<T> $a, callable(T, string): U $fn): array<U>`: the
     /// parameter types the member hands the callback, left to right, and the
@@ -705,8 +702,8 @@ pub enum CoreTy {
     /// [`Self::Union`], never a [`CoreOption`]'s or a [`CoreField`]'s own
     /// type, never inside a [`Self::Nullable`], a [`Self::Array`] or a
     /// [`Self::Variadic`]. `a_shape_is_only_ever_a_whole_parameter` holds it,
-    /// the way `a_callback_result_type_is_only_ever_a_whole_parameter` already
-    /// holds [`Self::CallableShapeTo`]'s.
+    /// the way `a_shape_of_callables_is_only_ever_a_whole_parameter` already
+    /// holds [`Self::ShapeOfCallables`]'s.
     ///
     /// Unlike a [`Self::Options`] bag it is an **ordinary parameter in every
     /// other respect**: it sits at its own position in [`CoreMethod::params`]
@@ -2910,7 +2907,7 @@ mod tests {
     fn a_variable_is_written_or_inferred_but_never_both() {
         fn inferred(ty: &CoreTy, found: &mut Vec<&'static str>) {
             match ty {
-                CoreTy::Var(name) | CoreTy::CallableShapeTo(name) => {
+                CoreTy::Var(name) | CoreTy::ShapeOfCallables(name) => {
                     found.push(name);
                 }
                 CoreTy::Array(inner)
@@ -2989,8 +2986,8 @@ mod tests {
     /// merged arms, so it only means anything as a *whole parameter*: nested
     /// in an array, a union, an option or another shape's field there would be
     /// nothing for it to flatten into — `rule:core-api/shape-parameter`, the restriction
-    /// `a_callback_result_type_is_only_ever_a_whole_parameter` already holds
-    /// for [`CoreTy::CallableShapeTo`]. The emptiness half rides along here because
+    /// `a_shape_of_callables_is_only_ever_a_whole_parameter` already holds
+    /// for [`CoreTy::ShapeOfCallables`]. The emptiness half rides along here because
     /// it is the same walk: a shape with no arms, or an arm with no fields,
     /// accepts nothing a call site could write.
     #[test]
@@ -3294,15 +3291,16 @@ mod tests {
         }
     }
 
-    /// [`CoreTy::CallableShapeTo`] is a *binding site*, so it only means
-    /// anything as a whole parameter: nested in an array, a union or an option
-    /// it would name a variable nothing ever binds, and in return position it
-    /// would name one at the moment it is meant to be read.
+    /// [`CoreTy::ShapeOfCallables`] binds a variable its member's return type
+    /// reads back, so it only means anything as a whole parameter: nested in
+    /// an array, a union or an option it would name a variable nothing ever
+    /// binds, and in return position it would name one at the moment it is
+    /// meant to be read.
     #[test]
-    fn a_callback_result_type_is_only_ever_a_whole_parameter() {
+    fn a_shape_of_callables_is_only_ever_a_whole_parameter() {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
-                CoreTy::CallableShapeTo(_) => true,
+                CoreTy::ShapeOfCallables(_) => true,
                 CoreTy::Array(elem)
                 | CoreTy::Nullable(elem)
                 | CoreTy::Variadic(elem)
@@ -3310,7 +3308,7 @@ mod tests {
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
                 // A written signature is a type and may be nested anywhere,
-                // but a binding site inside one is as meaningless as one
+                // but a shape of callables inside one is as meaningless as one
                 // inside an array — the variable it names would be bound from
                 // a position no argument occupies.
                 CoreTy::CallableSig(params, ret) => params.iter().any(nests_one) || nests_one(ret),
@@ -3321,17 +3319,17 @@ mod tests {
             for method in class.members() {
                 assert!(
                     !nests_one(&method.return_ty),
-                    "{}::{} returns a callback result type",
+                    "{}::{} returns a shape of callables",
                     class.name,
                     method.name
                 );
                 for param in method.params {
-                    if matches!(param, CoreTy::CallableShapeTo(_)) {
+                    if matches!(param, CoreTy::ShapeOfCallables(_)) {
                         continue;
                     }
                     assert!(
                         !nests_one(param),
-                        "{}::{} nests a callback result type inside a parameter",
+                        "{}::{} nests a shape of callables inside a parameter",
                         class.name,
                         method.name
                     );
@@ -3340,7 +3338,7 @@ mod tests {
         }
     }
 
-    /// The variable a [`CoreTy::CallableShapeTo`] binds is one the member
+    /// The variable a [`CoreTy::ShapeOfCallables`] binds is one the member
     /// actually reads back — a row naming `S` in the callback and `V` in the
     /// result would type-check every call to `mixed` with nothing to say why.
     #[test]
@@ -3359,7 +3357,7 @@ mod tests {
         for class in CLASSES {
             for method in class.members() {
                 for param in method.params {
-                    let CoreTy::CallableShapeTo(name) = param else {
+                    let CoreTy::ShapeOfCallables(name) = param else {
                         continue;
                     };
                     assert!(
@@ -3373,35 +3371,31 @@ mod tests {
         }
     }
 
-    /// The binding-site variants are `Core`-only spellings for "a callable
-    /// answering *this*", and `rule:types/callable-signature` retires them: a
-    /// written signature says the same thing as an ordinary type, at a
-    /// position every layer downstream already understands.
-    /// [`CoreTy::CallableTo`] is gone with the five rows that named it, so
-    /// what is swept for here is the one that is left — and the single row
-    /// still allowed to name it.
+    /// One row, and one only, names a callable parameter that is not a written
+    /// signature. `rule:types/callable-signature` is why: a signature says what
+    /// a callback answers at a position every layer downstream already
+    /// understands, so a `Core`-only spelling has to earn itself.
     ///
-    /// That row is `Core\Task::all`, whose answer is a *shape* of its fields'
-    /// results rather than one callback's, and no written signature spells
-    /// that: `rule:concurrency/all-answers-a-typed-shape` wants the argument's
-    /// own field names back, and only a walk over the written literals
-    /// produces them. Asserted as the whole list rather than row by row, so
-    /// the day that walk lands and the row stops naming one, this says so
-    /// instead of passing quietly.
+    /// `Core\Task::all` earns it, because its answer is a *shape* of its
+    /// fields' results rather than one callback's and no written signature
+    /// spells that: `rule:concurrency/all-answers-a-typed-shape` wants the
+    /// argument's own field names back, and the call site is what chooses
+    /// them. Asserted as the whole list rather than row by row, so a second
+    /// row reaching for it says so here instead of passing quietly.
     #[test]
-    fn no_registry_row_names_a_callable_binding_site_variant() {
-        let mut sites = Vec::new();
+    fn only_task_all_names_a_shape_of_callables() {
+        let mut rows = Vec::new();
         for class in CLASSES {
             for method in class.members() {
                 for param in method.params {
-                    if matches!(param, CoreTy::CallableShapeTo(_)) {
-                        sites.push(format!("{}::{}", class.name, method.name));
+                    if matches!(param, CoreTy::ShapeOfCallables(_)) {
+                        rows.push(format!("{}::{}", class.name, method.name));
                     }
                 }
             }
         }
         assert_eq!(
-            sites,
+            rows,
             [r"Core\Task::all"],
             "a callback's result is its written signature's return type, not a \
              variable named beside an opaque `callable`"

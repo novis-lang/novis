@@ -2,23 +2,22 @@
 //! structured concurrency: two members that hand their host a group, and a
 //! third that hands the request one closure to run once it is over.
 //!
-//! §§ 1 and 2's typing is the half that reaches furthest. `Task::all`
-//! takes a shape literal of zero-argument `fn` literals and answers a shape
-//! with the same field names, each field carrying *that field's* declared
-//! return type. [`crate::registry::CoreTy::CallableShapeTo`] is the mechanism
-//! and owns why no ordinary type at that position could say it;
-//! `nvs_types::expr::args` is the one place a field is read, and the one place
-//! `E0773`/`E0774` are reported.
+//! §§ 1 and 2's typing is the half that reaches furthest. `Task::all` takes a
+//! shape of zero-argument callables and answers a shape with the same field
+//! names, each field carrying *that field's* declared return type.
+//! [`crate::registry::CoreTy::ShapeOfCallables`] is the mechanism and owns why
+//! no writable type at that position could say it; `nvs_types::generics`'
+//! `bind` is the one place the answer's shape is assembled.
 //!
 //! `Task::map` needs none of that, and the contrast is § 2's whole argument for
 //! two members rather than one. Its subject is an `array<T>` and its callback
 //! is written once for every element, so one ordinary
-//! [`crate::registry::CoreTy::CallableTo`] binds `U` from that one callback's
-//! declared return type and the answer is `array<U>` — the same three-line
-//! shape `Core\Arr::map` already has, plus § 3's options bag. A shape literal
-//! cannot express "one per element of a runtime array" and an array cannot
-//! carry a per-element type; each member is the cheap spelling of exactly the
-//! job the other cannot state.
+//! [`crate::registry::CoreTy::CallableSig`] binds `U` from that callback's own
+//! written return type and the answer is `array<U>` — the same three-line
+//! shape `Core\Arr::map` already has, plus § 3's options bag. A shape cannot
+//! express "one per element of a runtime array" and an array cannot carry a
+//! per-element type; each member is the cheap spelling of exactly the job the
+//! other cannot state.
 //!
 //! # Both bodies are the same three steps
 //!
@@ -134,7 +133,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "all",
             names: &["tasks"],
-            params: &[CoreTy::CallableShapeTo("S"), CoreTy::Options(OPTIONS)],
+            params: &[CoreTy::ShapeOfCallables("S"), CoreTy::Options(OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Var("S"),
             symbol: "nvs_core_task_all",
@@ -632,10 +631,10 @@ nvs_runtime::nvs_helper! {
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for a non-object: `nvs_types` has already checked that
-/// the argument is a shape literal of `fn` literals (`E0773`/`E0774`), so a
-/// wrong tag here is compiled code disagreeing with the registry rather than
-/// anything a program can write.
+/// A [`Fault::fatal`] for a non-object: [`CoreTy::ShapeOfCallables`] accepts a
+/// shape and nothing else, and `nvs_types` has already refused everything
+/// else where it was written, so a wrong tag here is compiled code disagreeing
+/// with the registry rather than anything a program can write.
 fn receiver(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsObj>, Fault> {
     let ptr = args[0].obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(

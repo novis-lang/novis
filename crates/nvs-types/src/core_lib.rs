@@ -466,7 +466,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let qname = QName::parse(name);
             interner.enum_case(qname, crate::enums::EnumBacking::Int, *case)
         }
-        CoreTy::CallableShapeTo(name) => interner.callable_shape_to(*name),
+        CoreTy::ShapeOfCallables(name) => interner.shape_of_callables(*name),
         // Lowered field-wise, so a variable a registry row wrote inside a
         // callback's signature is the same `Ty::TypeVar` the member's other
         // parameters intern to — which is what lets `crate::generics`

@@ -307,7 +307,7 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::Mixed => "mixed".into(),
         CoreTy::Array(elem) => format!("array<{}>", ty_string(elem)),
         CoreTy::Callable => "callable".into(),
-        CoreTy::CallableShapeTo(_) => "{name: callable, ...}".into(),
+        CoreTy::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),
         // Spelled as the grammar writes it, because a program can write this
         // one: the parameters in their own order and the mandatory return
         // type after the colon.

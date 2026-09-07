@@ -19,10 +19,12 @@ one, and no `Core` member that keeps state across them.
 
 # `Core\Task::all`: a fixed set of tasks
 
-`Core\Task::all` takes a shape literal whose every field is a written `fn` literal with a declared
-return type, runs them all concurrently, and answers a shape with the same field names, each typed
-by its closure's return type — no cast at the use site. A field holding a `callable` variable, a
-parameter or an element of an array is refused: the closure must be written in place.
+`Core\Task::all` takes a shape whose every field is a zero-argument callable, runs them all
+concurrently, and answers a shape with the same field names, each typed by that field's declared
+return type — no cast at the use site. Where the closure was written does not matter: a literal, a
+first-class callable and a variable are equally good, and a field whose callable declares no return
+type answers `mixed` for that field alone. What is refused is a subject that is not a shape of
+callables.
 
 ```nvs
 <?nvs
@@ -38,11 +40,10 @@ all=3
 
 ```nvs error
 <?nvs
-callable $held = fn(): int => 1;
-var $r = Core\Task::all({job: $held});
+var $r = Core\Task::all([fn(): int => 1]);
 ```
 ```output
-must be written as an `fn` literal
+expected `{name: callable(): T, ...}`
 ```
 
 # `Core\Task::map`: one task per element

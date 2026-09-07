@@ -4745,11 +4745,11 @@
               "diverges": "there is no PHP construct that runs several calls at once and hands back their results already typed"
             },
             {
-              "id": "concurrency/an-all-field-must-be-a-written-fn-literal",
-              "slug": "an-all-field-must-be-a-written-fn-literal",
-              "title": "An `all` field binds its type from a written `fn` literal, and a `callable` variable there is a compile error naming the field",
+              "id": "concurrency/an-all-field-answers-what-its-callable-declares",
+              "slug": "an-all-field-answers-what-its-callable-declares",
+              "title": "An `all` field answers its own callable's declared return type, and a callable declaring none answers `mixed`",
               "status": "shipped",
-              "href": "/docs/rules/concurrency/tasks/#an-all-field-must-be-a-written-fn-literal",
+              "href": "/docs/rules/concurrency/tasks/#an-all-field-answers-what-its-callable-declares",
               "diverges": null
             },
             {

@@ -7,12 +7,11 @@
 // members rather than one, and this case is the argument stated as a pair of
 // refusals — each member handed the other's subject.
 //
-// The two diagnostics differ, and that is the point rather than an accident.
-// `map`'s subject is an ordinary parameter, so a shape reaching it is an
-// ordinary assignability failure. `all`'s subject is read field by field
-// before it has a type at all, so an array reaching it loses every field at
-// once and is refused as a whole — which is the E0773 that
-// `CoreTy::CallableShapeTo` exists to report.
+// Both refusals are the same assignability failure, written against two
+// different parameters: `map` wants an `array<T>` and `all` wants a shape
+// whose every field is a callable (`CoreTy::ShapeOfCallables`). Neither
+// member reaches for a diagnostic of its own — the subject is a type
+// question, and the expected type is what the message names.
 class Probe {
     public static function subjects(): void {
         var $a = Core\Task::map({rows: fn(): int => 1}, fn(int $n): int => $n);
@@ -26,9 +25,9 @@ Probe::subjects();
 
 --EXPECTF-ERROR--
 error[E0401]: expected `array<int>`, found `{rows: callable(): int}`
-   --> case.nvs:15:33
+   --> case.nvs:14:33
 %A
-error[E0773]: this argument must be written out as `{...}` at the call site
-   --> case.nvs:16:33
+error[E0401]: expected `{name: callable(): T, ...}`, found `array<mixed>`
+   --> case.nvs:15:33
 %A
 error: aborting due to 2 errors
