@@ -44,7 +44,7 @@ use lsp_types::{
     DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams,
     GotoDefinitionResponse, HoverParams, InitializeParams, Location, PublishDiagnosticsParams,
     Range, SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, Uri,
+    SemanticTokensResult, TextDocumentIdentifier, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
@@ -57,6 +57,7 @@ use crate::folding;
 use crate::hover;
 use crate::links;
 use crate::position::{encoding_of, offset_at};
+use crate::redactions;
 use crate::selection;
 use crate::semantic;
 use crate::symbols;
@@ -211,6 +212,12 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
                 id,
                 document_link(documents, encoding, &params.text_document.uri),
             ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
+            Ok(document) => {
+                Response::new_ok(id, redaction_ranges(documents, encoding, &document.uri))
+            }
             Err(error) => unreadable(id, &method, &error),
         },
         _ => Response::new_err(
@@ -433,6 +440,33 @@ fn document_link(
             })
         })
         .collect()
+}
+
+/// `nvs/redactions` — which bytes of one open document the client conceals.
+///
+/// The one request of Novis's own, so nothing in `lsp_types` spells its params
+/// or its answer: a [`TextDocumentIdentifier`] goes in, exactly as ADR 0101 § 1
+/// names it, and a JSON array of `{range, kind}` comes back.
+///
+/// An empty array rather than `null` for a document this server has nothing
+/// open for, and the distinction carries more here than anywhere else on
+/// [`document_symbol`]'s terms: `rule:security/redaction-ranges-come-from-the-server`
+/// has the client hold its last answer when none arrives, so an answer of
+/// "nothing to conceal" must be an answer.
+///
+/// The walk is [`redactions::for_document`], which the `.lspt` suite calls too,
+/// so what an editor conceals and what a case freezes cannot drift apart.
+fn redaction_ranges(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> Vec<serde_json::Value> {
+    analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+        redactions::for_document(&analysed, encoding)
+            .into_iter()
+            .map(|item| serde_json::json!({ "range": item.range, "kind": item.kind }))
+            .collect()
+    })
 }
 
 /// What a document-sync notification changed, and so what has to be published

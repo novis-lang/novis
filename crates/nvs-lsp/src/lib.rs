@@ -103,6 +103,7 @@ pub mod folding;
 pub mod hover;
 pub mod links;
 mod position;
+pub mod redactions;
 mod render;
 pub mod selection;
 pub mod semantic;

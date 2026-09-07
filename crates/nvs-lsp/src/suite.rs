@@ -179,10 +179,11 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 
 /// Answers the question `case` asks of its document.
 ///
-/// This is the seam every request slice lands in, one arm at a time. A request
-/// with no arm yet says which one it is waiting for rather than passing: the
-/// count this runner prints is a count of answers, and an unanswered case is
-/// not one.
+/// This is the seam every request slice landed in, one arm at a time, and the
+/// roster is now whole: the match has no wildcard, so a request added to
+/// [`Request`] is a build error here rather than a case that passes by being
+/// skipped — which is `rule:ide/the-request-set-is-closed` enforced by the
+/// compiler on the side the runner controls.
 fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
@@ -194,9 +195,7 @@ fn answer(case: &Case) -> Result<Response, String> {
         Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
         Request::DocumentLink => document_link(case),
-        unanswered => Err(format!(
-            "`{unanswered}` is not answered yet; the handler and this case's own slice land together"
-        )),
+        Request::Redactions => redactions(case),
     }
 }
 
@@ -491,6 +490,21 @@ fn document_link(case: &Case) -> Result<Response, String> {
         })
         .collect();
     Ok(Response::DocumentLink(links))
+}
+
+/// `nvs/redactions` — which bytes of the entry document the client conceals.
+///
+/// No cursor and no arguments, on [`folding_range`]'s terms: the request is
+/// asked of the whole document, and the same
+/// [`crate::redactions::for_document`] call the server makes answers it.
+fn redactions(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::Redactions(crate::redactions::for_document(
+        &analysed, COLUMNS,
+    )))
 }
 
 #[cfg(test)]
