@@ -1,0 +1,26 @@
+--TEST--
+An `@example` outside every directory the test corpus walks is `E0325`, asked before the file is looked for at all — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// The directory question is asked first and answers on the written path
+// alone, so a path outside every walked directory is refused for being there
+// rather than for a file that would not have helped it. This one names no
+// file either, and the code says which of the two answered.
+/// A till, documented with an example nothing compiles.
+///
+/// @example src/charge.nvs
+final class Till {
+    public static function charge(): int {
+        return 0;
+    }
+}
+echo Till::charge(), "\n";
+--EXPECTF-ERROR--
+error[E0325]: `src/charge.nvs` is in no directory the test corpus walks
+  --> %s:8:14
+  |
+8 | /// @example src/charge.nvs
+  |              ^^^^^^^^^^^^^^ nothing compiles this file
+  = help: move the example under `examples/` or `tests/`
+
+error: aborting due to 1 error

@@ -1,0 +1,25 @@
+--TEST--
+An `@example` naming a file that is not on disk is `E0324`, because an example nothing compiles rots while the member it documents moves on — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-tags-are-see-and-example`: an `@example` names a
+// file that exists, and the path is relative to the file that wrote it, as a
+// `require` path is.
+/// A receipt, and the one file that would show it in use.
+///
+/// @example examples/nothing-is-here.nvs
+final class Receipt {
+    public static function total(): int {
+        return 0;
+    }
+}
+echo Receipt::total(), "\n";
+--EXPECTF-ERROR--
+error[E0324]: `examples/nothing-is-here.nvs` names no file
+  --> %s:7:14
+  |
+7 | /// @example examples/nothing-is-here.nvs
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no such file
+  = help: the path is relative to the file that wrote it, as a `require` path is
+
+error: aborting due to 1 error

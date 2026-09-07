@@ -1,0 +1,24 @@
+--TEST--
+An `@see` whose target no class declares is `E0323`, resolved against the same member table a `Class::member` reference is — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-tags-are-see-and-example`: `@see` names a member
+// the compiler can find, so a name nothing declares is a diagnostic rather
+// than a link that quietly goes nowhere.
+/// Every entry this ledger has taken.
+///
+/// @see Ledger::missing
+final class Ledger {
+    public static function total(): int {
+        return 0;
+    }
+}
+echo Ledger::total(), "\n";
+--EXPECTF-ERROR--
+error[E0323]: `Ledger` has no member named `missing` for `@see` to resolve
+  --> %s:7:10
+  |
+7 | /// @see Ledger::missing
+  |          ^^^^^^^^^^^^^^^ no such member
+
+error: aborting due to 1 error
