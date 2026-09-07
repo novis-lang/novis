@@ -1,0 +1,34 @@
+--TEST--
+Every `@tag` in a doc comment but `@see` and `@example` is `E0128`, and the one PHPDoc name whose answer is the signature gets its own help — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-tags-are-see-and-example`: the set is closed, so
+// every other `@tag` is a diagnostic rather than a convention nobody enforces.
+// `@param` has an answer of its own, because the signature already carries
+// what it would have said; an invented tag gets the rule itself.
+/// Charges a card, in the smallest unit the currency has.
+///
+/// @param $cents the amount to charge
+/// @ledger nothing reads this
+final class Till {
+    public static function charge(int $cents): int {
+        return $cents;
+    }
+}
+echo Till::charge(1), "\n";
+--EXPECTF-ERROR--
+error[E0128]: `@param` is not a documentation tag
+  --> %s:8:5
+  |
+8 | /// @param $cents the amount to charge
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not `@see` or `@example`
+  = help: name the parameter in a sentence instead — its type is already in the signature
+
+error[E0128]: `@ledger` is not a documentation tag
+  --> %s:9:5
+  |
+9 | /// @ledger nothing reads this
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ not `@see` or `@example`
+  = help: a doc comment is Markdown plus `@see` and `@example`, and the set is closed (`rule:tooling/doc-comment-tags-are-see-and-example`)
+
+error: aborting due to 2 errors

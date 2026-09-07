@@ -1,0 +1,32 @@
+--TEST--
+A `///` run with no declaration under it is `E0127`, whether a blank line separates it from one or the file simply ends — `rule:tooling/doc-comment-attaches-to-the-next-declaration`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-attaches-to-the-next-declaration`: a run documents
+// the declaration under it across no blank line, so the blank line below is
+// what makes this run document nothing.
+/// A price, in the smallest unit its currency has.
+
+final class Price {
+    public const int MIN = 0;
+}
+echo Price::MIN, "\n";
+// A run at the end of a file has no declaration under it at all, which is
+// where the marker is most often a note written with one slash too many.
+/// A note to whoever reads this next.
+--EXPECTF-ERROR--
+error[E0127]: this doc comment is attached to nothing
+  --> %s:5:1
+  |
+5 | /// A price, in the smallest unit its currency has.
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ documents nothing
+  = help: a doc comment documents the declaration it precedes, across no blank line; write `//` for a note to the reader
+
+error[E0127]: this doc comment is attached to nothing
+   --> %s:13:1
+   |
+13 | /// A note to whoever reads this next.
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ documents nothing
+   = help: a doc comment documents the declaration it precedes, across no blank line; write `//` for a note to the reader
+
+error: aborting due to 2 errors
