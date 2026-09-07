@@ -530,12 +530,14 @@ pub enum Visibility {
     Private,
 }
 
-/// One parameter of a function, method, closure or arrow function.
+/// One parameter of a function, method or closure.
 ///
-/// Every parameter's type is mandatory per `rule:types/declaration`; `ty` is `Option` only
-/// so a parameter written without one still parses into a node — the missing
-/// type is reported as a diagnostic at the point of parsing, not silently
-/// accepted.
+/// A declaration's parameter names its type (`rule:types/declaration`), and one
+/// written without it is reported where it is written, `ty` staying `None` so
+/// the parameter is still a node. A **closure literal's** parameter may leave
+/// the type out and take it from the position the literal appears in
+/// (`rule:types/callable-literal-inference`), which is the one `None` nothing
+/// was reported for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Param {
     /// The whole parameter.
@@ -544,8 +546,8 @@ pub struct Param {
     pub attributes: Vec<AttributeGroup>,
     /// Promoted-property modifiers (constructor parameters only).
     pub modifiers: Vec<Modifier>,
-    /// The declared type, or `None` if omitted (a diagnostic was already
-    /// reported for the omission).
+    /// The declared type, or `None` where the parameter left it out — inferred
+    /// on a closure literal, already reported anywhere else.
     pub ty: Option<Type>,
     /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`. The mechanism is copy-in/copy-out at the call site, which is why
     /// the word is `inout` rather than `ref`.

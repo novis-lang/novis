@@ -626,13 +626,25 @@ fn fn_expr_self_name_for_recursion() {
 }
 
 #[test]
-fn missing_parameter_type_is_diagnosed() {
-    let (e, diags) = parse_with_diags("fn ($x) => $x");
-    assert!(diags.has_errors());
+fn a_closure_parameter_may_omit_its_type() {
+    // `rule:types/callable-literal-inference`: the omission parses, and the
+    // type comes from the position the literal is written in. A parameter
+    // beside it may still name one.
+    let (e, diags) = parse_with_diags("fn ($x, int $y) => $x");
+    assert!(!diags.has_errors(), "unexpected diagnostics: {diags:?}");
     let ExprKind::Fn(f) = e.kind else {
         panic!("expected an fn expression: {e:?}");
     };
     assert!(f.params[0].ty.is_none());
+    assert!(f.params[1].ty.is_some());
+}
+
+#[test]
+fn a_declared_parameter_still_names_its_type() {
+    // `rule:types/declaration`: only a closure literal stands in a position
+    // that has a type to offer, so a method's list keeps the refusal.
+    let (_, diags) = parse_stmt_with_diags("class A { public function f($x): int { return 1; } }");
+    assert!(diags.has_errors());
 }
 
 #[test]

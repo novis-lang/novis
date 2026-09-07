@@ -1667,11 +1667,26 @@ impl<'src, 'd> Parser<'src, 'd> {
     // Closures and arrow functions
     // ========================================================================
 
+    /// A declaration's parameter list, where `rule:types/declaration` holds
+    /// with nothing to soften it: every parameter names its type.
     pub(super) fn parse_params(&mut self) -> Vec<Param> {
+        self.parse_param_list(true)
+    }
+
+    /// A closure literal's parameter list, the one list where a parameter may
+    /// leave its type out (`rule:types/callable-literal-inference`) and take it
+    /// from the position the literal is written in. Nothing else in the
+    /// language stands in such a position, so every other list keeps the
+    /// refusal.
+    pub(super) fn parse_closure_params(&mut self) -> Vec<Param> {
+        self.parse_param_list(false)
+    }
+
+    fn parse_param_list(&mut self, ty_required: bool) -> Vec<Param> {
         self.expect(TokenKind::LParen, "`(`");
         let mut params = Vec::new();
         while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
-            params.push(self.parse_param());
+            params.push(self.parse_param(ty_required));
             if self.eat(TokenKind::Comma).is_none() {
                 break;
             }
@@ -1680,19 +1695,23 @@ impl<'src, 'd> Parser<'src, 'd> {
         params
     }
 
-    /// `attrs? modifiers? 'inout'? Type '...'? '$'name ('=' default)?` —
+    /// `attrs? modifiers? 'inout'? Type? '...'? '$'name ('=' default)?` —
     /// `rule:statements/inout-is-the-by-reference-spelling` puts `inout` in the modifier slot `parse_modifiers`
     /// already runs, so it reads like the `public readonly int $x` beside it
     /// and costs the grammar nothing. PHP's `int &$x` is still recognized,
     /// one token past the type, purely so it can be named (E0237).
-    pub(super) fn parse_param(&mut self) -> Param {
+    ///
+    /// `ty_required` is the whole of the difference between the two lists
+    /// above, and it decides one thing: whether a missing type is reported
+    /// here or left for the checker to fill in from the expected type.
+    fn parse_param(&mut self, ty_required: bool) -> Param {
         let start = self.peek().span;
         let attributes = self.parse_attribute_groups();
         let modifiers = self.parse_modifiers();
         let inout = self.eat_keyword(Keyword::Inout).is_some();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
-        } else {
+        } else if ty_required {
             let span = self.peek().span.shrink_to_start();
             self.diags.report(
                 Diagnostic::error(code::E_EXPECTED_TOKEN, "expected a parameter type")
@@ -1701,6 +1720,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                         "every parameter declares a type (`rule:types/declaration`)",
                     ),
             );
+            None
+        } else {
             None
         };
         if let Some(amp) = self.eat(TokenKind::Amp) {
@@ -1740,7 +1761,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let function_span = self.peek().span;
         self.bump(); // `function`
         let _ = self.eat(TokenKind::Amp); // by-ref return — dropped along with this literal
-        let _ = self.parse_params();
+        let _ = self.parse_closure_params();
         let use_clause = self.parse_and_discard_closure_use_clause();
         let _ = if self.eat(TokenKind::Colon).is_some() {
             Some(self.parse_type())
@@ -1828,7 +1849,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`");
         let name = self.eat(TokenKind::Ident);
-        let params = self.parse_params();
+        let params = self.parse_closure_params();
         let use_span = self.peek().span;
         let use_clause = self.parse_and_discard_closure_use_clause();
         if let Some(by_ref) = use_clause {
