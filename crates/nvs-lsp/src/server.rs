@@ -35,19 +35,20 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest,
-    Request as _, SelectionRangeRequest,
+    Completion, DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
+    HoverRequest, Request as _, SelectionRangeRequest,
 };
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, Location, PublishDiagnosticsParams, Range, SelectionRange,
-    SelectionRangeParams, Uri,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, Location, PublishDiagnosticsParams,
+    Range, SelectionRange, SelectionRangeParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
 use crate::capabilities::initialize_result;
+use crate::completion;
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
@@ -184,6 +185,10 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             Ok(params) => Response::new_ok(id, hover(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        Completion::METHOD => match serde_json::from_value::<CompletionParams>(params) {
+            Ok(params) => Response::new_ok(id, completion(documents, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
         SelectionRangeRequest::METHOD => {
             match serde_json::from_value::<SelectionRangeParams>(params) {
                 Ok(params) => Response::new_ok(id, selection_range(documents, encoding, &params)),
@@ -280,6 +285,28 @@ fn definition(
         uri: uri_of(&declared.path)?,
         range: declared.range,
     }))
+}
+
+/// `textDocument/completion` — what may be written at the cursor.
+///
+/// A plain `Array`, never a `CompletionList`: this server offers what it has
+/// resolved and has nothing more to offer if the developer types another
+/// letter, so `isIncomplete` would be a promise to recompute that is never
+/// worth keeping. Nothing is filtered by the prefix already typed either — the
+/// client does that, and it does it without a round trip. The lookup is
+/// [`completion::at`], which the `.lspt` suite calls too.
+fn completion(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &CompletionParams,
+) -> CompletionResponse {
+    let position = params.text_document_position.position;
+    let Some(analysed) = analyse(documents, &params.text_document_position.text_document.uri)
+    else {
+        return CompletionResponse::Array(Vec::new());
+    };
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    CompletionResponse::Array(completion::at(&analysed, offset))
 }
 
 /// `textDocument/hover` — what the name under the cursor documents.

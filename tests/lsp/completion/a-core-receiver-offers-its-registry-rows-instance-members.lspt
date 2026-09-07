@@ -1,0 +1,16 @@
+--TEST--
+a `Core` receiver offers the instance rows its registry declaration carries, spelled from the row rather than from a call that never happened, and no property — a `Core` instance has none a program can reach, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+class Runner {
+    public function report(Core\Process\Result $r): void {
+        $r-><|>
+        echo "done";
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+exitCode method    (): int
+stderr  method    (): bytes
+stdout  method    (): bytes

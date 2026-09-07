@@ -1,0 +1,16 @@
+--TEST--
+a receiver that is itself a resolved property access carries its own recorded type, so the members offered off it come from the expression table rather than from a body's locals — `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Clock { public function now(): int { return 0; } }
+class Job {
+    public Clock $clock;
+    public function run(): void {
+        $this->clock-><|>
+        echo "ran";
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+now     method    (): int

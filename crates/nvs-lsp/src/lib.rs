@@ -58,7 +58,7 @@
 //! --FILE--
 //! <?nvs
 //! class User { public string $name; }
-//! $u = new User();
+//! var $u = new User();
 //! $u-><|>
 //! if (true) {
 //! --REQUEST--
@@ -95,6 +95,7 @@
 
 mod capabilities;
 mod case;
+pub mod completion;
 pub mod definition;
 pub mod diagnostics;
 mod document;

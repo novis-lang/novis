@@ -898,7 +898,7 @@ member completion survives an unclosed brace
 --FILE--
 <?nvs
 class User { public string $name; public function greet(): string { return "hi"; } }
-$u = new User();
+var $u = new User();
 $u-><|>
 if (true) {
 --REQUEST--

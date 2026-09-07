@@ -1,0 +1,13 @@
+--TEST--
+a receiver whose class the analysis resolved offers that class's instance members, method and property alike, and the unclosed brace under the cursor does not stop it — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class User { public string $name; public function greet(): string { return "hi"; } }
+var $u = new User();
+$u-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+greet   method    (): string
+name    property  string

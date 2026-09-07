@@ -210,7 +210,7 @@ One sentence saying what is being pinned, ending with the `rule:` tokens it pins
 --FILE--
 <?nvs
 class User { public string $name; }
-$u = new User();
+var $u = new User();
 $u-><|>
 if (true) {
 --REQUEST--

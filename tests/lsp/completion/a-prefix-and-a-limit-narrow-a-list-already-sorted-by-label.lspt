@@ -1,0 +1,18 @@
+--TEST--
+`prefix=` keeps the labels starting with it and `limit=` then takes the first of what is left, in that order, so the case freezes a member rather than whichever one the walk reached first — `rule:ide/a-request-line-is-closed`
+--FILE--
+<?nvs
+class Account {
+    public uint $balance;
+    public function credit(uint $cents): void {}
+    public function close(): void {}
+    public function charge(uint $cents): void {}
+}
+var $a = new Account();
+$a-><|>
+if (true) {
+--REQUEST--
+completion prefix=c limit=2
+--EXPECT--
+charge  method    (uint $cents): void
+close   method    (): void

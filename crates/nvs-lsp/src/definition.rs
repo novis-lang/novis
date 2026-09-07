@@ -142,11 +142,7 @@ pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Si
     };
     let symbol = analysed.module.symbols.get(class)?;
     let file = analysed.map.file(symbol.decl_span.file);
-    let stmt = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == symbol.decl_span.file)
-        .and_then(|loaded| declaration(&loaded.stmts, symbol.decl_span));
+    let stmt = declared_type(analysed, class).map(|(stmt, _)| stmt);
     let Some((name, is_method)) = member else {
         return Some(Site {
             span: symbol.decl_span,
@@ -158,6 +154,25 @@ pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Si
         span: member_name(member)?,
         doc: member.doc.as_ref(),
     })
+}
+
+/// The declaration `class` was written as, and the file it is in.
+///
+/// The half of [`site`] that stops at the type: [`crate::completion`] needs the
+/// members a class declares rather than one of them, and re-finding the
+/// declaration for itself would be a second answer to the question
+/// [`nvs_hir::SymbolTable`] already settled.
+pub(crate) fn declared_type<'a>(
+    analysed: &'a Analysed,
+    class: &QName,
+) -> Option<(&'a Stmt, &'a SourceFile)> {
+    let symbol = analysed.module.symbols.get(class)?;
+    let stmt = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == symbol.decl_span.file)
+        .and_then(|loaded| declaration(&loaded.stmts, symbol.decl_span))?;
+    Some((stmt, analysed.map.file(symbol.decl_span.file)))
 }
 
 /// The statement declaring the name written at `name`.
@@ -235,7 +250,7 @@ fn member_name(member: &ClassMember) -> Option<Span> {
 /// A parser's span is always inside the file it parsed, so the fallback is
 /// unreachable rather than a policy — and it is a fallback rather than an index
 /// because a panic here would take the server down over one malformed name.
-fn text_of(file: &SourceFile, span: Span) -> &str {
+pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
     file.text().get(span.range()).unwrap_or_default()
 }
 

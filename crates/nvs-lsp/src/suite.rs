@@ -44,6 +44,7 @@ use lsp_types::Uri;
 use nvs_diagnostics::PositionEncoding;
 
 use crate::case::{Case, MAIN_PATH, Request};
+use crate::completion;
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, uri_of};
@@ -186,6 +187,7 @@ fn answer(case: &Case) -> Result<Response, String> {
         Request::Diagnostics => diagnostics(case),
         Request::Hover => hover(case),
         Request::Definition => definition(case),
+        Request::Completion => completion(case),
         Request::DocumentSymbol => document_symbol(case),
         Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
@@ -388,6 +390,32 @@ fn definition(case: &Case) -> Result<Response, String> {
     Ok(Response::Definition(found))
 }
 
+/// `textDocument/completion` — what may be written at the case's `<|>`.
+///
+/// The two arguments a completion case may write are applied here rather than
+/// in [`crate::completion`], and in this order: the offered list is already
+/// sorted by label, so `prefix=` narrows it and `limit=` then takes the first
+/// few of a list whose order does not depend on either. Doing it the other way
+/// round would make `limit=1` freeze whichever member the walk happened to find
+/// first. `rule:ide/a-request-line-is-closed` is what keeps the pair closed;
+/// the client applies neither, because an editor filters as the developer
+/// types.
+fn completion(case: &Case) -> Result<Response, String> {
+    let cursor = case.cursor.expect("completion is asked at a position");
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let mut items = completion::at(&analysed, u32::try_from(cursor).unwrap_or(u32::MAX));
+    if let Some(prefix) = &case.args.prefix {
+        items.retain(|item| item.label.starts_with(prefix));
+    }
+    if let Some(limit) = case.args.limit {
+        items.truncate(limit);
+    }
+    Ok(Response::Completion(items))
+}
+
 /// `textDocument/hover` — what the declaration under the case's `<|>` says
 /// about itself.
 ///
@@ -525,9 +553,9 @@ mod tests {
     fn a_tree_of_cases_reports_one_summary_line() {
         let dir = scratch("tree");
         write(
-            &dir.join("unanswered.lspt"),
+            &dir.join("mismatched.lspt"),
             "--TEST--\nwhat a class name completes to\n--FILE--\n<?nvs\nclass Us<|>er {}\n\
-             --REQUEST--\ncompletion\n--EXPECT--\nnone\n",
+             --REQUEST--\ncompletion\n--EXPECT--\nname    property  string\n",
         );
         write(
             &dir.join("nested").join("malformed.lspt"),
@@ -551,11 +579,11 @@ mod tests {
         assert!(!summary.is_success());
         assert!(report.ends_with("0 passed, 2 failed\n"), "{report}");
 
-        // The two failures read differently: one file is not a case, and the
-        // other is a case nothing answers yet.
+        // The two failures read differently: one file is not a case at all,
+        // and the other is a case whose frozen expectation is not the answer.
         assert!(report.contains("no `--REQUEST--` section"), "{report}");
         assert!(
-            report.contains("`completion` is not answered yet"),
+            report.contains("the completion answer is not what `--EXPECT--` freezes"),
             "{report}"
         );
         assert!(!report.contains("README"), "{report}");
