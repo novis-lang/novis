@@ -4679,6 +4679,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   path for all five drivers — so the refusal an operator reads pointed at the wrong crate, and the
   two sentences were each locally plausible. Read the cited gap's own list before writing a sentence
   that defers to it; no test in either crate compares them. [until: reviewed 2026-09-07]
+- **A new `nvs_types::ty::Ty` variant compiles after one arm, and the sites that must learn it are
+  the ones the compiler never names.** `Ty` is `#[non_exhaustive]`, so every match outside the crate
+  carries a `_` already and inside it only `equality_domain` is exhaustive: the isolate entry
+  refusal, `check_expr`'s `wants_callable`, `generics`' two walks and
+  `nvs_ir::lower::erase_checked_ty` each took their wildcard in silence. Grep the neighbour the new
+  variant behaves like and decide every hit by hand before believing a green build.
+  [until: reviewed 2026-09-07]
 
 ## Divergences and refusals already pinned
 

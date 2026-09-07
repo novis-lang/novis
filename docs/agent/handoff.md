@@ -2,54 +2,55 @@
 
 ## State
 
-**Goal 10 — a `callable` carries its signature. Stage 2's first slice is on disk: the production
-parses.** `callable(T, U): R` is `TypeAtom::CallableSig { params, ret }`
-(`crates/nvs-syntax/src/ast.rs:220`), built by `Parser::parse_callable_type`
-(`crates/nvs-syntax/src/parser/ty.rs:614`) off one token of lookahead — a `(` after `callable`, no
-checkpointed trial parse. The two refusals `rule:types/callable-signature` names are `E0800`
-(a named parameter, reported once per type) and `E0807` (no return type); both recover as **bare
-`callable`**, so a misspelt signature cascades nowhere.
+**Goal 10 — stage 2 is whole: the signature parses, interns, renders and compares.**
+`Ty::CallableSig { params, ret }` (`crates/nvs-types/src/ty.rs:172`) interns like any other type,
+`TypeInterner::callable_sig` builds it, `describe` renders the source spelling back, and
+`crates/nvs-types/src/lower.rs:149` lowers the atom field-wise. `is_assignable`
+(`crates/nvs-types/src/expr/assign.rs:60`) carries the lattice: every signature satisfies bare
+`callable` and nothing satisfies a signature from above, two signatures compare by
+`rule:types/callable-arity`'s prefix match under `rule:types/callable-variance`, and `never` is the
+bottom of the return position. Four wildcard sites learned the variant — the isolate entry refusal,
+`wants_callable`, `generics`' two walks, and `nvs_ir::lower::erase_checked_ty` (to `Ty::Object`,
+beside bare `callable`).
 
-**Nothing checks a signature yet.** `crates/nvs-types/src/lower.rs:149` lowers the new atom to the
-lattice top, so the annotation today admits exactly what bare `callable` admits and a call through it
-keeps the dynamic path — the guard `crates/nvs-runtime/src/closure.rs`'s module doc calls priority 1
-is still paid per argument. `crates/nvs-ir/src/lower/mod.rs` erases it to `Ty::Object` beside
-`Callable`. The three walks that read names out of a type expression — `nvs_hir::requires::walk_type`,
-`nvs_hir::aliases::record_names` and `::substitute` — learned the atom, so a class named only inside a
-signature still pulls its file in and an alias inside one still expands.
+**The interim state refuses every program that writes the annotation, and stage 3 is what closes
+it.** A `fn` literal's own type is still bare `Ty::Callable`, so
+`callable(int): string $r = fn (int $n): string => "n";` is an `E0401` reading *expected
+`callable(int): string`, found `callable`* — the rendering is right and the relation is right; what
+is missing is a literal that carries its signature. Nothing in the tree writes the annotation yet,
+so no test, example or fixture regressed.
 
-The design is settled and is not re-derived: `rule:types/callable-signature` plus the goal's own
-§ *Standing decisions*.
+The design is settled and is not re-derived: `rule:types/callable-signature`, `-arity`, `-variance`,
+plus the goal's own § *Standing decisions*.
 
 ## Next group
 
-**Stage 2 slices 2 and 3: the representation and what it compares to** — one file set:
-`crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/assign.rs`.
-Take both: slice 2 alone leaves the new atom representable and assignable from nothing, which is a
-worse resting state than the lattice-top interim on disk now.
+**Stage 3: the inference that makes it free** — one file set: `crates/nvs-types/src/expr/calls.rs`,
+`crates/nvs-types/src/expr/args.rs`. Take both slices: the first alone types an annotated literal
+and leaves `Core\Arr::map($users, fn($u) => $u->name)` exactly where it is.
 
-- [ ] **The representation** — a `Ty::CallableSig { params: Vec<TypeId>, ret: TypeId }` beside
-      `Ty::Callable` (`crates/nvs-types/src/ty.rs:171`), an interner constructor beside
-      `TypeInterner::callable` (`crates/nvs-types/src/ty.rs:775`), and a `describe` arm beside the one
-      that renders `Ty::Callable` (`crates/nvs-types/src/ty.rs:537`). Then
-      `crates/nvs-types/src/lower.rs:149` builds it instead of answering the lattice top.
-      `rule:types/callable-signature`. `Ty::CallableTo` (`crates/nvs-types/src/ty.rs:189`) and
-      `Ty::CallableShapeTo` (`crates/nvs-types/src/ty.rs:209`) are what ADR 0136 § *In short* retires
-      once this exists; deleting them is stage 4's, not this slice's.
-- [ ] **Assignability** — `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains
-      `rule:types/callable-arity`'s prefix match (`n ≤ m`, first `n` parameters compared) and
-      `rule:types/callable-variance` (parameters contravariant, return covariant). Every
-      `CallableSig` is assignable to bare `Ty::Callable`, which is the lattice top and stays so.
+- [ ] **A `fn` literal carries its own signature.** `check_fn_literal`
+      (`crates/nvs-types/src/expr/calls.rs:1513`) answers `Ty::CallableSig` built from the
+      parameters' declared types and the declared return type, instead of the bare
+      `Ty::Callable` it answers now — which is what makes the State block's `E0401` go away, since
+      `is_assignable` already has every row it needs. `rule:types/callable-literal-inference`.
+- [ ] **An unannotated parameter takes its type from the position the literal is written in.**
+      `check_fn_literal` gains an expected type; each unannotated parameter takes the corresponding
+      one from it, and an annotated parameter is checked against it under
+      `rule:types/callable-variance` and wins where it is wider. The argument position that hands it
+      over is `crates/nvs-types/src/expr/args.rs:540`. `E0450` is not relaxed —
+      `rule:types/callable-literal-inference` and the goal's § *Standing decisions* both say so.
 
 ## Backlog
 
-- Stage 3: a `fn` literal takes its parameter types from the expected position —
-  `rule:types/callable-literal-inference`.
-- Stage 4: retire `CoreTy::CallableTo`/`CallableShapeTo` from `crates/nvs-stdlib/src/registry.rs`,
-  editing `docs/spec/01-core-library.md` in the same slice — `rule:core-api/reference-card`.
-- Stage 5: `Core\Task::all`'s "must be a written `fn` literal" restriction lifts —
-  `rule:concurrency/an-all-field-must-be-a-written-fn-literal`.
-- Not to be attempted here: `E0450` is not relaxed and whole-body return inference is not tried —
-  the goal's § *Standing decisions*.
-- `nvs_hir::aliases::record_names`/`substitute` still skip `TypeAtom::Shape`, so an alias inside a
-  shape type does not expand. Pre-existing, not this goal's; `crates/nvs-hir/src/aliases.rs:194`.
+- Stage 4: `CoreTy::CallableTo` deleted, five registry rows write an ordinary type, and
+  `docs/spec/01-core-library.md` § *Arr* edited in the same slice — `docs/agent/loop-goal.md`.
+- Stage 5: `CoreTy::CallableShapeTo` deleted and `Task::all`'s written-literal restriction removed,
+  in the checker and the spec together — `docs/agent/loop-goal.md`.
+- Stage 6: a proven call site emits no per-argument tag check; the valgrind leg is not optional
+  there — `docs/agent/loop-goal.md`.
+- `examples/typed-callable.nvs`, the acceptance fixture the driver is red on, is writable the moment
+  stage 3's first slice lands — `docs/agent/loop-goal.toml`.
+- `[context] rules` named ADR 0136 and printed its four rules by **title only**; the two this group
+  implemented had to be peeked. Naming `types/callable-arity` and `types/callable-variance` as rule
+  tokens in that field inlines the fragments instead.
