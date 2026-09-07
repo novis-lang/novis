@@ -1,0 +1,18 @@
+<?nvs
+// `|>` is a substitution the parser performs, not an application the runtime
+// makes: its right side is an ordinary expression naming the hole `$_` exactly
+// once, and the operator puts the left side there
+// (`rule:expressions/pipeline-substitution`). What runs is the tree the nested
+// spelling produces, so nothing below the parser knows the operator exists.
+
+string $shouty = "  A CHAIN READS LEFT TO RIGHT  ";
+
+// Read the chain in the order the work happens: trim, then lower.
+echo $shouty |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
+
+string $nested = "  THE NESTED SPELLING ANSWERS THE SAME  ";
+
+// The same two members written as calls inside calls — read inside out, which
+// is the reading order the operator above exists to spare. It is also the tree
+// the line above compiles to, character for character.
+echo Core\Str::lower(Core\Str::trim($nested)), "\n";
