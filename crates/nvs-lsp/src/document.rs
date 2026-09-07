@@ -46,7 +46,7 @@ use std::path::{Path, PathBuf};
 use lsp_types::Uri;
 use nvs_diagnostics::{Diagnostics, SourceId, SourceMap, canonical_key};
 use nvs_hir::{Loaded, Module, resolve_program};
-use nvs_syntax::{check_declarations, parse_file};
+use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 
 /// One open buffer: what the editor holds, which is not what is on disk.
 #[derive(Debug, Clone)]
@@ -264,6 +264,19 @@ pub struct Analysed {
     /// Each file the graph reached, entry first, with the statements the walk
     /// parsed once and every later phase needs again.
     pub loaded: Vec<Loaded>,
+    /// Every whitespace run and every comment of the **entry** document, in
+    /// source order — the other two thirds of the one parse that produced
+    /// `loaded`'s first entry (`rule:ide/one-grammar-one-tree`).
+    ///
+    /// Only the entry has them, because only the entry is parsed here: a
+    /// `require`d file is read by the graph walk, which takes the strict entry
+    /// point, and a cursor is only ever in the open document.
+    pub trivia: Vec<Trivia>,
+    /// Which node of the entry document a byte offset is inside, and what that
+    /// node is inside (`rule:ide/the-index-answers-the-cursor`).
+    ///
+    /// Scoped to the entry for the same reason [`trivia`](Self::trivia) is.
+    pub index: SyntaxIndex,
     /// Every diagnostic the front end reported, ungated: the lexer's, the
     /// parser's, `check_declarations`', name resolution's and the type
     /// phase's.
@@ -312,7 +325,17 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let entry = map.load(path).ok()?;
 
     let mut diags = Diagnostics::new();
-    let stmts = parse_file(map.file(entry), &mut diags);
+    // The entry takes the lossless entry point and every required file keeps
+    // the strict one: same grammar, same statements and same diagnostics either
+    // way (`rule:ide/one-grammar-one-tree`), so this costs the trivia and the
+    // index of one file and changes nothing else about the walk. A cursor is
+    // only ever in the open document, so a required file has no question to
+    // answer that its statements do not already.
+    let nvs_syntax::Parsed {
+        stmts,
+        trivia,
+        index,
+    } = parse(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
     let (module, loaded, _autoload) = resolve_program(entry, stmts, &mut map, &mut diags);
 
@@ -351,6 +374,8 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
         version: document.version,
         module,
         loaded,
+        trivia,
+        index,
         diags,
     })
 }
@@ -816,6 +841,61 @@ mod tests {
             main,
             codes_in(analysed.diags.iter(), &analysed, "main.nvs"),
             "the gate held something back in a file that parses"
+        );
+    }
+
+    /// `rule:ide/one-grammar-one-tree`: the walk's own parse is the lossless
+    /// one, so the trivia and the index come out of the same pass that produced
+    /// the statements rather than out of a second one.
+    ///
+    /// The required file carries a comment too, and it is the control: only the
+    /// entry is parsed here, so a trivium from `lib.nvs` in this list would
+    /// mean the analysis had started answering about a file no cursor can be
+    /// in.
+    #[test]
+    fn the_entry_documents_trivia_and_index_survive_the_walk() {
+        let dir = TempDir::new("lossless");
+        dir.write(
+            "lib.nvs",
+            "<?nvs\n// the required file's comment\nclass Lib {}\n",
+        );
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire 'lib.nvs';\n// the entry's own comment\nclass Main {}\n",
+        );
+
+        let mut documents = Documents::new();
+        open_from_disk(&mut documents, &dir, &["main.nvs"]);
+        let analysed = analyse(&documents, &dir.uri("main.nvs")).expect("main.nvs is open");
+
+        let text = analysed.map.file(analysed.entry).text();
+        let comments: Vec<&str> = analysed
+            .trivia
+            .iter()
+            .filter(|trivium| trivium.kind == nvs_syntax::TriviaKind::LineComment)
+            .map(|trivium| &text[trivium.span.start as usize..trivium.span.end as usize])
+            .collect();
+        assert_eq!(
+            comments,
+            ["// the entry's own comment"],
+            "the entry's comments are not what the walk kept"
+        );
+        assert!(
+            analysed
+                .trivia
+                .iter()
+                .all(|trivium| trivium.span.file == analysed.entry),
+            "a trivium came from a file that is not the entry"
+        );
+
+        let class = text.find("class Main").expect("the fixture declares it");
+        let path = analysed
+            .index
+            .at(u32::try_from(class).expect("a fixture is short"));
+        assert_eq!(
+            path.innermost().map(|node| node.kind),
+            Some("ClassDecl"),
+            "the index does not answer at the entry's own class declaration"
         );
     }
 }
