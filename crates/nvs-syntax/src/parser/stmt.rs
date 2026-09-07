@@ -182,6 +182,25 @@ impl<'src, 'd> Parser<'src, 'd> {
                         ),
                     );
                 }
+                // `rule:php-migration/no-return-leaves-a-finally`: this would
+                // replace whatever the region was leaving with, including a
+                // throw in flight — the one construct where an unhandled
+                // exception vanishes with no handler anywhere in the program.
+                // A `return` in a body nested inside the block leaves that
+                // body instead, which is what parking the flag answers.
+                if self.in_finally {
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_RETURN_LEAVES_A_FINALLY,
+                            "a `return` never leaves a `finally` block",
+                        )
+                        .with_primary(span, "this discards what the region was leaving with")
+                        .with_help(
+                            "return from the `try` or a `catch` to change the result, or write \
+                             it after the whole region",
+                        ),
+                    );
+                }
                 Stmt {
                     span,
                     kind: StmtKind::Return(value),
@@ -307,7 +326,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::LParen, "`(`");
         let cond = self.parse_expr();
         self.expect(TokenKind::RParen, "`)`");
-        let body = Box::new(self.parse_statement());
+        let body = Box::new(self.in_breakable_body(Self::parse_statement));
         let span = start.to(self.last_span);
         Stmt {
             span,
@@ -317,7 +336,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_do_while(&mut self, start: Span) -> Stmt {
         self.bump();
-        let body = Box::new(self.parse_statement());
+        let body = Box::new(self.in_breakable_body(Self::parse_statement));
         self.expect_keyword(Keyword::While, "`while`");
         self.expect(TokenKind::LParen, "`(`");
         let cond = self.parse_expr();
@@ -495,7 +514,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::Semicolon, "`;`");
         let step = self.parse_expr_list_until(TokenKind::RParen);
         self.expect(TokenKind::RParen, "`)`");
-        let body = Box::new(self.parse_statement());
+        let body = Box::new(self.in_breakable_body(Self::parse_statement));
         let span = start.to(self.last_span);
         Stmt {
             span,
@@ -560,7 +579,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             (None, first, first_inout)
         };
         self.expect(TokenKind::RParen, "`)`");
-        let body = Box::new(self.parse_statement());
+        let body = Box::new(self.in_breakable_body(Self::parse_statement));
         let span = start.to(self.last_span);
         Stmt {
             span,
@@ -589,15 +608,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         let subject = self.parse_expr();
         self.expect(TokenKind::RParen, "`)`");
         self.expect(TokenKind::LBrace, "`{`");
-        let mut cases = Vec::new();
-        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
-            let before = self.peek().span;
-            cases.push(self.parse_switch_case());
-            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
-            {
-                self.bump();
+        let cases = self.in_breakable_body(|p| {
+            let mut cases = Vec::new();
+            while !p.at(TokenKind::RBrace) && !p.at(TokenKind::Eof) {
+                let before = p.peek().span;
+                cases.push(p.parse_switch_case());
+                if p.peek().span == before && !p.at(TokenKind::RBrace) && !p.at(TokenKind::Eof) {
+                    p.bump();
+                }
             }
-        }
+            cases
+        });
         self.expect(TokenKind::RBrace, "`}`");
         let span = start.to(self.last_span);
         Stmt {
@@ -646,6 +667,21 @@ impl<'src, 'd> Parser<'src, 'd> {
     // `break`/`continue`
     // ------------------------------------------------------------------------
 
+    /// The level a `break`/`continue` was written with: an absent one is 1, and
+    /// an integer literal is its own digits. Anything else is a level this
+    /// parser cannot read — a level is written, never computed — so it answers
+    /// `None` and leaves the spelling to the pass that refuses it.
+    fn written_break_level(&self, level: Option<&Expr>) -> Option<u32> {
+        match level {
+            None => Some(1),
+            Some(Expr {
+                kind: ExprKind::Int(span),
+                ..
+            }) => self.file.span_text(*span)?.replace('_', "").parse().ok(),
+            Some(_) => None,
+        }
+    }
+
     pub(super) fn parse_break_continue(&mut self, start: Span, is_break: bool) -> Stmt {
         self.bump();
         let level = if self.at(TokenKind::Semicolon) {
@@ -655,6 +691,29 @@ impl<'src, 'd> Parser<'src, 'd> {
         };
         self.expect(TokenKind::Semicolon, "`;`");
         let span = start.to(self.last_span);
+        // `rule:php-migration/no-return-leaves-a-finally`: a level reaching
+        // past the loops and `switch`es the `finally` opened itself names a
+        // target outside the block, and taking it discards what the region was
+        // leaving with — the objection the `return` refusal makes. A loop
+        // written wholly inside the block keeps both spellings.
+        if self.in_finally
+            && self
+                .written_break_level(level.as_ref())
+                .is_some_and(|written| written > self.finally_breakables)
+        {
+            let word = if is_break { "break" } else { "continue" };
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_BREAK_LEAVES_A_FINALLY,
+                    format!("a `{word}` never leaves a `finally` block"),
+                )
+                .with_primary(span, "this target lies outside the `finally`")
+                .with_help(format!(
+                    "`{word}` a loop written inside the `finally` itself, or move what this \
+                     was skipping to after the whole region"
+                )),
+            );
+        }
         Stmt {
             span,
             kind: if is_break {
@@ -678,7 +737,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         let finally = self
             .eat_keyword(Keyword::Finally)
-            .map(|_| self.parse_block());
+            .map(|_| self.in_finally_body(Self::parse_block));
         let span = start.to(self.last_span);
         // A `try` with neither clause guards nothing: the block runs, nothing
         // is caught, and nothing runs on the way out. PHP refuses it as a

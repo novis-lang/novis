@@ -282,6 +282,70 @@ fn break_and_continue_with_level() {
     assert!(matches!(s.kind, StmtKind::Continue(Some(_))));
 }
 
+/// `rule:php-migration/no-return-leaves-a-finally`: the `return` would replace
+/// whatever the region was leaving with, so it is refused wherever it belongs
+/// to the `finally` itself — and left alone in a nested body, which it leaves
+/// instead of the block.
+#[test]
+fn a_return_never_leaves_a_finally() {
+    for src in [
+        // A bare `return` leaves the region the same way a valued one does.
+        "try { $a = 1; } finally { return 1; }",
+        "try { $a = 1; } finally { return; }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![code::E_RETURN_LEAVES_A_FINALLY], "{src}");
+    }
+
+    for src in [
+        // The `try` and the `catch` both keep it.
+        "try { return 1; } catch (TypeError $e) { return 2; }",
+        // A closure written in the block returns from itself.
+        "try { $a = 1; } finally { $f = fn() => { return 1; }; }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RETURN_LEAVES_A_FINALLY)),
+            "{src}: {diags:?}"
+        );
+    }
+}
+
+/// `rule:php-migration/no-return-leaves-a-finally`: a `break` or `continue` is
+/// refused only where its target lies outside the `finally`, so the level is
+/// read against the loops and `switch`es the block itself opened rather than
+/// against the ones around the `try`.
+#[test]
+fn a_break_leaves_a_finally_only_when_its_target_is_outside() {
+    for src in [
+        "while ($a) { try { $b = 1; } finally { break; } }",
+        "while ($a) { try { $b = 1; } finally { while ($c) { continue 2; } } }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![code::E_BREAK_LEAVES_A_FINALLY], "{src}");
+    }
+
+    for src in [
+        "while ($a) { try { $b = 1; } finally { while ($c) { break; } } }",
+        "while ($a) { try { $b = 1; } finally { switch ($c) { case 1: break; } } }",
+        "while ($a) { try { $b = 1; } finally { foreach ($c as int $d) { continue; } } }",
+        // Outside a `finally` every level is ordinary.
+        "while ($a) { while ($b) { break 2; } }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_BREAK_LEAVES_A_FINALLY)),
+            "{src}: {diags:?}"
+        );
+    }
+}
+
 /// Two classes are two clauses — the union spelling is
 /// [`a_catch_clause_naming_two_classes_is_e0245`] — and each clause carries a
 /// `finally` past all of them.

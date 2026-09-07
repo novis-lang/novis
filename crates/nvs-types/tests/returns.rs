@@ -225,15 +225,23 @@ fn a_switch_without_a_default_leaves_a_path_uncovered() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// A `finally` that returns is the exit of the whole `try`, whatever the body
-/// and the `catch`es did.
+/// A `finally` covers no path of its own: `rule:php-migration/no-return-leaves-a-finally`
+/// refuses the `return` that would have made it the exit of the whole `try`
+/// (`E0250`, in the parser), so coverage reads the body and the `catch`es alone.
 #[test]
-fn a_finally_that_returns_covers_the_whole_try() {
+fn a_finally_covers_no_path_because_it_never_returns() {
     let diags = check_src(&method(
         "): int",
-        "try {\n      echo \"x\";\n    } finally {\n      return 1;\n    }",
+        "try {\n      return 1;\n    } catch (Core\\Error $e) {\n      return 0;\n    } \
+         finally {\n      echo \"x\";\n    }",
     ));
-    assert!(!refuses(&diags), "{diags:?}");
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(&method(
+        "): int",
+        "try {\n      echo \"x\";\n    } finally {\n      echo \"y\";\n    }",
+    ));
+    assert!(refuses(&diags), "{diags:?}");
 }
 
 /// Without one, the `try` exits only when its body and every `catch` do.

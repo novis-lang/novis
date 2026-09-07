@@ -498,6 +498,21 @@ pub mod code {
     /// The help names moving the value into the constructor and dropping
     /// `readonly` as the other fix.
     pub const E_READONLY_PROPERTY_WITH_DEFAULT: Code = Code::new("E0249");
+    /// A `return` written inside a `finally` block, which PHP 8.6 deprecates
+    /// for removal and this refuses
+    /// (`rule:php-migration/no-return-leaves-a-finally`). It replaces whatever
+    /// the region was leaving with, including a throw in flight — the one
+    /// construct where an unhandled exception vanishes with no handler
+    /// anywhere. The help names the two rewrites the rule leaves: change the
+    /// result in a `catch`, or write it after the region.
+    pub const E_RETURN_LEAVES_A_FINALLY: Code = Code::new("E0250");
+    /// A `break` or `continue` inside a `finally` block whose level reaches
+    /// past the loops and `switch`es the block itself opened
+    /// (`rule:php-migration/no-return-leaves-a-finally`). Leaving the block
+    /// discards what the region was leaving with, which is
+    /// [`E_RETURN_LEAVES_A_FINALLY`]'s objection; a loop written wholly inside
+    /// the block keeps both spellings, so only the reaching level is named.
+    pub const E_BREAK_LEAVES_A_FINALLY: Code = Code::new("E0251");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

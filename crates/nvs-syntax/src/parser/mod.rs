@@ -134,6 +134,18 @@ pub struct Parser<'src, 'd> {
     /// a property hook or a method declared inside a constructor leaves that
     /// body and not the constructor.
     in_constructor: bool,
+    /// Set while the cursor is inside a `finally` block, which
+    /// `rule:php-migration/no-return-leaves-a-finally` refuses a `return` in.
+    /// [`Self::in_callable_body`] parks it exactly as it parks
+    /// [`Self::in_constructor`], because a `return` written in a closure or a
+    /// method declared inside the block leaves that body and not the `finally`.
+    in_finally: bool,
+    /// How many loops and `switch`es have been opened since the innermost
+    /// enclosing `finally` block began. A `break`/`continue` level above this
+    /// names a target outside the block, which is what
+    /// `rule:php-migration/no-return-leaves-a-finally` refuses; the count means
+    /// nothing unless [`Self::in_finally`] is set.
+    finally_breakables: u32,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -199,6 +211,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             pipe_hole: None,
             pipe_rhs_depth: 0,
             in_constructor: false,
+            in_finally: false,
+            finally_breakables: 0,
         }
     }
 
@@ -619,13 +633,41 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Parses a nested body with [`Self::in_constructor`] set to `constructor`
-    /// and restored afterwards. Every body a `return` can belong to goes
-    /// through here, so the flag answers "does a `return` here leave the
-    /// constructor" rather than "is a constructor anywhere above this".
+    /// and the `finally` state cleared, restoring both afterwards. Every body a
+    /// `return` can belong to goes through here, so the two flags answer "does
+    /// a `return` here leave the constructor" and "does it leave the `finally`"
+    /// rather than "is either one anywhere above this".
     fn in_callable_body<T>(&mut self, constructor: bool, f: impl FnOnce(&mut Self) -> T) -> T {
         let outer = std::mem::replace(&mut self.in_constructor, constructor);
+        let outer_finally = std::mem::replace(&mut self.in_finally, false);
+        let outer_breakables = std::mem::replace(&mut self.finally_breakables, 0);
         let parsed = f(self);
         self.in_constructor = outer;
+        self.in_finally = outer_finally;
+        self.finally_breakables = outer_breakables;
+        parsed
+    }
+
+    /// Parses a `finally` block with [`Self::in_finally`] set and the count of
+    /// breakables started fresh, restoring both afterwards. Starting the count
+    /// at zero is what makes a `break` inside the block measure against the
+    /// loops the block itself opens rather than the ones around the `try`.
+    fn in_finally_body<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let outer = std::mem::replace(&mut self.in_finally, true);
+        let outer_breakables = std::mem::replace(&mut self.finally_breakables, 0);
+        let parsed = f(self);
+        self.in_finally = outer;
+        self.finally_breakables = outer_breakables;
+        parsed
+    }
+
+    /// Parses the body of a loop or a `switch` with [`Self::finally_breakables`]
+    /// raised, which is the one thing that tells a `break` targeting a loop
+    /// written inside a `finally` from one reaching past the block.
+    fn in_breakable_body<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.finally_breakables += 1;
+        let parsed = f(self);
+        self.finally_breakables -= 1;
         parsed
     }
 
