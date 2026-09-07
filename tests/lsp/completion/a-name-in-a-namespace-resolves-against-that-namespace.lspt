@@ -1,0 +1,18 @@
+--TEST--
+an unqualified name written before `::` inside `namespace App;` names that namespace's declaration, so the class the cursor reaches is the one the checker would have reached — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+namespace App;
+
+class Counter {
+    public const int LIMIT = 10;
+    public static function reset(): void {}
+}
+
+var $c = Counter::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+LIMIT   constant  int
+reset   method    (): void

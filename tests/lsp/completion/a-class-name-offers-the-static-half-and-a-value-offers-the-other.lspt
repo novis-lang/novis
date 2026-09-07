@@ -1,0 +1,20 @@
+--TEST--
+a class name written before `::` offers the static half of what the class declares — a static method, a static property with the sigil that is written after `::`, and a class constant — and none of the members a value reaches through `->`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Counter {
+    public const int LIMIT = 10;
+    public static int $count = 0;
+    public string $label = "n";
+    public static function reset(): void {}
+    public function bump(): void {}
+}
+
+var $c = Counter::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+$count  property  int
+LIMIT   constant  int
+reset   method    (): void

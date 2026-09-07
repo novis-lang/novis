@@ -1,0 +1,11 @@
+--TEST--
+a `Core`-owned enum answers its cases with the constant value the second roster states, since an enum is not a class and its cases are reached off its name alone — `rule:enums/closed-integer-type`
+--FILE--
+<?nvs
+var $o = Core\Order::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+Asc     enumMember 0
+Desc    enumMember 1

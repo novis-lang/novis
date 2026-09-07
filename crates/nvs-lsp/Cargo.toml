@@ -41,6 +41,10 @@ nvs-stdlib.workspace = true
 # This crate is std-only and writes nothing to standard output, so the closure
 # `tests/stdout_policy.rs` walks stays clean.
 nvs-test.workspace = true
+# The map `nvs_hir::resolve_ref` takes its imports in. `completion` resolves the
+# class name written before a `::` through that one shared lookup rather than
+# through a second reading of the same rule, and its signature names this type.
+rustc-hash.workspace = true
 # `initialize`'s params and result cross the wire as `serde_json::Value` —
 # `lsp_server::Connection` takes and returns one — so this crate names the
 # type it converts through rather than reaching for a second JSON library.

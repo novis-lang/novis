@@ -1,0 +1,23 @@
+--TEST--
+the name written before `::` is resolved the way every other reference to it is — through the file's own `use` and the namespace it sits in — so an imported enum declared in a required file answers its cases, `rule:classes/names-resolve-case-sensitively`
+--FILE--
+<?nvs
+require 'lib/mode.nvs';
+
+use App\Mode;
+
+var $m = Mode::<|>
+if (true) {
+--FILE lib/mode.nvs--
+<?nvs
+namespace App;
+
+enum Mode {
+    Read,
+    Write,
+}
+--REQUEST--
+completion
+--EXPECT--
+Read    enumMember
+Write   enumMember

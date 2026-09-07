@@ -1,0 +1,13 @@
+--TEST--
+a `Core` class name offers the static rows and the constants its registry declaration carries, spelled from the row rather than from a call that never happened, and not the instance row `->` reaches — `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $z = Core\Time\Zone::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+UTC     constant  Core\Time\Zone
+fixed   method    (Core\Time\Duration $offset): Core\Time\Zone
+of      method    (string $id): Core\Time\Zone
+system  method    (): Core\Time\Zone

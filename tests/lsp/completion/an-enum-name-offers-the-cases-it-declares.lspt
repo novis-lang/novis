@@ -1,0 +1,16 @@
+--TEST--
+an enum name written before `::` offers the cases it declares, each with the value its declaration wrote — `rule:ide/the-request-set-is-closed`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+enum Signal {
+    Stop = 10,
+    Go = 20,
+}
+
+var $s = Signal::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+Go      enumMember 20
+Stop    enumMember 10
