@@ -1171,6 +1171,9 @@ def run_map(m: Manifest) -> None:
 #: where context is at its peak.
 SHAPE_IMPLIES = {"A decision record": "A rule fragment"}
 
+#: A `rule:<topic>/<slug>` token as the prose writes it, for reading a goal's own citations back.
+RULE_TOKEN = re.compile(r"rule:([a-z0-9\-]+/[a-z0-9\-]+)")
+
 
 def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
     """`(problems, notes)` for one goal file's `[context]` block, printing nothing.
@@ -1273,9 +1276,30 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
     # 4-10 `rules` entries and ZERO rule ids between them, against a table that had said "name the
     # two or three the item is written against" since the field existed. A note in `chain.py
     # --check` is read at the moment the goal is being written, which the table is not.
-    if m.rules and not any("/" in e for e in m.rules):
-        notes.append(f"{where}: rules names {len(m.rules)} record number(s) and no rule id, so the "
-                     f"pack carries titles and no rule text -- loop-authoring.md § 2")
+    #
+    # The first is stated as "your prose is held to a rule your manifest cannot reach", not as "you
+    # named no rule id", so it clears the moment it is acted on and never fires on a goal that has
+    # no rule to name. Goal 27 is that goal: a process gate over documents whose own standing
+    # decisions say it opens no ADR, and the blunt form accused it of a shortfall it cannot fix.
+    prose_text = read(path.with_suffix(".md"))
+    if prose_text and m.rules:
+        try:
+            book = rulebook.Rulebook()
+        except Exception:  # noqa: BLE001 -- rules.py --check reports a broken rulebook
+            book = None
+        if book is not None:
+            named = {e for e in m.rules if "/" in e}
+            records = {e for e in m.rules if "/" not in e}
+            covered = named | {r.id for r in book.by_id.values()
+                               if r.because and r.because[0] in records}
+            unreached = sorted({rid for rid in RULE_TOKEN.findall(prose_text)
+                                if rid in book.by_id and rid not in covered})
+            if unreached:
+                notes.append(
+                    f"{where}: the prose is held to {len(unreached)} rule(s) no `rules` entry "
+                    f"reaches -- {', '.join(unreached[:3])}"
+                    f"{', …' if len(unreached) > 3 else ''}. Name the two or three each stage is "
+                    f"written against as ids; loop-authoring.md § 2")
     prose = path.with_suffix(".md")
     stages = len(re.findall(r"^## Stage ", read(prose), flags=re.M)) if prose.is_file() else 0
     # Only where there is something a stage could take. A process goal that opens no ADR and names
