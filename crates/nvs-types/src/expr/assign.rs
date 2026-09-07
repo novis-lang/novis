@@ -15,6 +15,11 @@
 //! enum-case type, and any union of them widen to their base for free, which
 //! [`is_assignable`] answers by one recursion through
 //! [`TypeInterner::literal_base`] rather than by four table rows of its own.
+//! `rule:types/callable-signature` adds the last, and the first relation here
+//! that is not invariant: a written signature satisfies bare `callable`, and
+//! two signatures compare by `rule:types/callable-arity`'s prefix match with
+//! `rule:types/callable-variance`'s contravariant parameters and covariant
+//! return.
 //!
 //! The positions are [`check_assign`] (`$x = e`, and the reads a target is
 //! made of), [`check_compound_assign`] (`$x ⊕= e`, typed as the `$x = $x ⊕ e`
@@ -181,6 +186,55 @@ pub(crate) fn is_assignable(
     if let (Ty::ClassRef(from_arg), Ty::ClassRef(to_arg)) = (interner.get(from), interner.get(to)) {
         let (from_arg, to_arg) = (*from_arg, *to_arg);
         return is_assignable(from_arg, to_arg, interner, graph, signatures);
+    }
+    // **Bare `callable` is the top of `rule:types/callable-signature`'s
+    // lattice**, so a written signature always satisfies it. The reverse is
+    // refused by falling through: a value whose signature is unknown cannot
+    // fill a position that promises one, and that refusal is the whole of what
+    // writing the annotation buys.
+    if matches!(interner.get(to), Ty::Callable)
+        && matches!(interner.get(from), Ty::CallableSig { .. })
+    {
+        return true;
+    }
+    // `rule:types/callable-arity` and `rule:types/callable-variance` are one
+    // comparison. Arity is a **prefix** match — `n ≤ m`, only the first `n`
+    // parameters compared — which describes `nvs_runtime::closure`'s own
+    // behaviour rather than overruling it, since a callee is already handed
+    // just the arguments it declares. Parameters are then contravariant and the
+    // return type covariant, each refusing the one unsound direction: the slot
+    // may be handed any `User`, and its caller was promised a `string`.
+    //
+    // This is the first non-invariant relation in the checker, and `rule:types/arrays`'s invariance does not reach it: that invariance was bought to
+    // stop an O(n) restamp hiding inside an assignment, and a callable
+    // conversion restamps nothing, copies nothing and emits nothing.
+    if let (
+        Ty::CallableSig {
+            params: from_params,
+            ret: from_ret,
+        },
+        Ty::CallableSig {
+            params: to_params,
+            ret: to_ret,
+        },
+    ) = (interner.get(from), interner.get(to))
+    {
+        let (from_params, from_ret) = (from_params.clone(), *from_ret);
+        let (to_params, to_ret) = (to_params.clone(), *to_ret);
+        if from_params.len() > to_params.len() {
+            return false;
+        }
+        let params_ok = from_params
+            .iter()
+            .zip(&to_params)
+            .all(|(from_p, to_p)| is_assignable(*to_p, *from_p, interner, graph, signatures));
+        // `never` is the bottom of the return position and the one place the
+        // relation meets it: `rule:types/grammar` makes the atom return-only,
+        // and a body that never comes back satisfies whatever its caller was
+        // promised because the caller never reads it.
+        let ret_ok = matches!(interner.get(from_ret), Ty::Never)
+            || is_assignable(from_ret, to_ret, interner, graph, signatures);
+        return params_ok && ret_ok;
     }
     // `rule:security/taint-propagation` / `rule:security/secret-propagation`: `tainted` and `secret` are two independent
     // bits on the same `string`/`bytes` base, and each may only ever widen
@@ -964,5 +1018,93 @@ pub(crate) fn check_read(
 pub(crate) fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
     if let ExprKind::Variable(span) = &expr.kind {
         scope.overwrite(strip_sigil(span_text(env.src, *span)));
+    }
+}
+
+/// The callable lattice alone, asked of [`is_assignable`] directly — the rest
+/// of the relation is exercised through compiled programs under
+/// `crates/nvs-types/tests/`, but a signature is not yet a type any expression
+/// *has* (`rule:types/callable-literal-inference` is what gives a `fn` literal
+/// one), so these rows have no source spelling to reach them by.
+#[cfg(test)]
+mod tests {
+    use super::is_assignable;
+    use crate::signatures::SignatureTable;
+    use crate::ty::TypeInterner;
+    use nvs_hir::hierarchy::ClassGraph;
+
+    /// `(from, to)` through the relation, with an empty hierarchy and no
+    /// signatures: nothing here names a class.
+    fn assignable(
+        interner: &mut TypeInterner,
+        from: crate::ty::TypeId,
+        to: crate::ty::TypeId,
+    ) -> bool {
+        is_assignable(
+            from,
+            to,
+            interner,
+            &ClassGraph::default(),
+            &SignatureTable::default(),
+        )
+    }
+
+    /// `rule:types/callable-signature`: bare `callable` is the top, so the
+    /// lattice is one-way. The refused direction is what the annotation buys —
+    /// a value whose signature is unknown does not fill a position promising
+    /// one.
+    #[test]
+    fn a_signature_satisfies_bare_callable_and_never_the_reverse() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let string = i.string();
+        let sig = i.callable_sig(vec![int], string);
+        let top = i.callable();
+        assert!(assignable(&mut i, sig, top));
+        assert!(!assignable(&mut i, top, sig));
+    }
+
+    /// `rule:types/callable-arity`: `n ≤ m`, comparing the first `n`. A closure
+    /// declaring fewer parameters than the slot offers is the ordinary case,
+    /// and one declaring more has no arguments to read.
+    #[test]
+    fn arity_is_a_prefix_match() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let string = i.string();
+        let two = i.callable_sig(vec![int, string], string);
+        let one = i.callable_sig(vec![int], string);
+        let none = i.callable_sig(Vec::new(), string);
+        assert!(assignable(&mut i, one, two));
+        assert!(assignable(&mut i, none, two));
+        assert!(!assignable(&mut i, two, one));
+        // The prefix compared is still compared: a first parameter that does
+        // not accept what the slot passes is refused at any arity.
+        let wrong = i.callable_sig(vec![string], string);
+        assert!(!assignable(&mut i, wrong, two));
+    }
+
+    /// `rule:types/callable-variance`: the two accepted directions and the two
+    /// refused ones, asked as one, since a member that got a single direction
+    /// backwards still answers plausibly on either half alone.
+    #[test]
+    fn parameters_are_contravariant_and_the_return_covariant() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let string = i.string();
+        let mixed = i.mixed();
+        let never = i.never();
+        let slot = i.callable_sig(vec![int], string);
+        let wider_param = i.callable_sig(vec![mixed], string);
+        let narrower_return = i.callable_sig(vec![int], never);
+        let wider_return = i.callable_sig(vec![int], mixed);
+        assert!(assignable(&mut i, wider_param, slot));
+        assert!(assignable(&mut i, narrower_return, slot));
+        assert!(!assignable(&mut i, wider_return, slot));
+        // And the narrower parameter, which is the other unsound direction:
+        // the slot may be handed any `int`, not only the literal `1`.
+        let one = i.int_literal(1);
+        let narrower_param = i.callable_sig(vec![one], string);
+        assert!(!assignable(&mut i, narrower_param, slot));
     }
 }
