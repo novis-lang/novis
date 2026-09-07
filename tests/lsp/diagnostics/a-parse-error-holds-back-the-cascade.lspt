@@ -1,0 +1,10 @@
+--TEST--
+a file whose parse failed publishes the parse error and not what the phases under it made of the broken tree, `rule:ide/diagnostics-are-phase-gated`
+--FILE--
+<?nvs
+var $broken = ;
+var $other = $nope;
+--REQUEST--
+diagnostics
+--EXPECT--
+2:15-2:15 error E0102 expected an expression

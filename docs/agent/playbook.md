@@ -3344,6 +3344,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   errors it meant to pin and inside the `aborting due to N errors` count. Declare every local a
   reject case writes (`var $n = 1;`), and take the expected block from the runner's own `actual:`
   dump rather than from what the refusal alone would print. [until: reviewed 2026-09-07]
+- **A `.lspt` case's second `--FILE--` cannot exist as a buffer alone.** `nvs_hir::requires`
+  canonicalizes a `require` target against the filesystem before any source map is consulted, so a
+  file that exists only as an overlay is reported `E0311` "cannot be loaded", which reads as a case
+  that named the wrong path rather than as a runner that never wrote it. `nvs_lsp::suite`'s
+  `Materialised` writes every section into a scratch directory and opens the buffers over those real
+  paths — anything else that drives the front end from text alone owes the same.
+  [until: gone crates/nvs-lsp/src/suite.rs:Materialised]
 
 ## Splitting a file that got too big
 
