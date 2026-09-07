@@ -104,6 +104,21 @@ modules = [
   # `nvs info` — one call that answers "what is this binary, and what is in it?", the way `php -i`
   # does for PHP.
   "crates/nvs-cli/src/info.rs",
+  # `nvs meta --json` — the `Core` registry as JSON, for a consumer outside the build.
+  "crates/nvs-cli/src/meta.rs",
+  # Entry point: walks a resolved `Module`'s classes and methods, type- checking each method body
+  # against `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and
+  # `rule:types/arithmetic` (see the crate docs for the exact scope of this slice), plus the
+  # file's own top-level statements as one synthesized frame (`ScriptFrame`) —
+  # `rule:statements/storage-that-outlives-a-call`'s "the script body is a function, so its
+  # variables are locals". That frame is threaded across `namespace { ... }` blocks, since a
+  # namespace scopes names rather than storage, and it is entirely separate from every method's
+  # own frame: a file-scope local is unreachable from a function, exactly as that ADR's
+  # storage-class table says.
+  "crates/nvs-types/src/check.rs",
+  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
+  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
+  "crates/nvs-types/src/expr/calls.rs",
 ]
 
 # THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON. Everything a single stage needs is in
