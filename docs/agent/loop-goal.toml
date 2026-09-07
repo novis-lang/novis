@@ -96,6 +96,8 @@ modules = [
   "crates/nvs-test/src/lib.rs",
   # `run_ast` -- stage 7's two flags.
   "crates/nvs-cli/src/main.rs",
+  # The section lexer: cutting a case file into its `--NAME--` sections.
+  "crates/nvs-test/src/section.rs",
 ]
 
 rules = ["0099", "0040", "0137", "0092", "0009", "0134"]
