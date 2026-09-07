@@ -202,7 +202,7 @@ fn ast_json_matches_its_frozen_schema() {
             "{}: the root covers the file",
             path.display()
         );
-        check_schema(&tree, root, path);
+        check_schema(&tree, root, path, !text.contains("|>"));
     }
 
     // The snapshot half: the corpus's smallest program, whole. Regenerate it
@@ -227,7 +227,17 @@ fn ast_json_matches_its_frozen_schema() {
 const SCALARS: [&str; 6] = ["byRef", "member", "nullsafe", "op", "target", "value"];
 
 /// Asserts the schema over one subtree, `at` naming the file for the failure.
-fn check_schema(node: &Value, parent: [usize; 2], file: &Path) {
+///
+/// `in_source_order` is false for a file that writes `|>`. The parser
+/// substitutes a pipeline's left side into the hole on its right
+/// (`rule:expressions/pipeline-substitution`), so a subtree written earlier in
+/// the file ends up under a call written after it: the emitted tree is the
+/// nested spelling's, while every span still points at the characters the
+/// author actually wrote. Sibling order and containment are properties of a
+/// parse that follows the source, and that operator is the one construct that
+/// deliberately does not — everything else the schema says is asserted over
+/// such a file exactly as over any other.
+fn check_schema(node: &Value, parent: [usize; 2], file: &Path, in_source_order: bool) {
     let at = file.display();
     assert!(
         node["kind"].as_str().is_some_and(|kind| !kind.is_empty()),
@@ -248,7 +258,7 @@ fn check_schema(node: &Value, parent: [usize; 2], file: &Path) {
     let span = span_of(node);
     assert!(span[0] <= span[1], "{at}: a span runs forwards: {node}");
     assert!(
-        parent[0] <= span[0] && span[1] <= parent[1],
+        !in_source_order || (parent[0] <= span[0] && span[1] <= parent[1]),
         "{at}: a node is inside its parent {parent:?}: {node}"
     );
 
@@ -259,11 +269,11 @@ fn check_schema(node: &Value, parent: [usize; 2], file: &Path) {
     {
         let start = span_of(child)[0];
         assert!(
-            start >= previous,
+            !in_source_order || start >= previous,
             "{at}: children are in offset order: {node}"
         );
         previous = start;
-        check_schema(child, span, file);
+        check_schema(child, span, file, in_source_order);
     }
 }
 
