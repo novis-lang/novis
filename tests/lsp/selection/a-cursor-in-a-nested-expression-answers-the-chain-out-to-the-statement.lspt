@@ -1,0 +1,21 @@
+--TEST--
+the chain at a cursor is the index's ancestor list, innermost first, so each step of expand-selection is one more node of the tree, `rule:ide/the-index-answers-the-cursor`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class User
+{
+    public int $age;
+
+    public function older(): int
+    {
+        return $this->a<|>ge + 1;
+    }
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+8:16-8:26
+8:16-8:30
+8:9-8:31
+6:5-9:6
+2:1-10:2

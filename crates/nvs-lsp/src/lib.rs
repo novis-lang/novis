@@ -101,6 +101,7 @@ pub mod folding;
 pub mod links;
 mod position;
 mod render;
+pub mod selection;
 mod server;
 pub mod suite;
 pub mod symbols;

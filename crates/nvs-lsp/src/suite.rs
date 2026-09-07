@@ -49,6 +49,7 @@ use crate::document::{Documents, analyse, uri_of};
 use crate::folding;
 use crate::links;
 use crate::render::{Link, Response};
+use crate::selection;
 use crate::symbols;
 
 /// The units a case's columns are counted in — see the module doc.
@@ -182,6 +183,7 @@ fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
         Request::DocumentSymbol => document_symbol(case),
+        Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
         Request::DocumentLink => document_link(case),
         unanswered => Err(format!(
@@ -322,6 +324,28 @@ fn document_symbol(case: &Case) -> Result<Response, String> {
         .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
     Ok(Response::DocumentSymbol(symbols::for_document(
         &analysed, COLUMNS,
+    )))
+}
+
+/// `textDocument/selectionRange` — the chain at the case's `<|>`.
+///
+/// The first request here asked *at* a position, and the cursor is already
+/// guaranteed: [`Request::takes_cursor`] names this one, so a case that wrote
+/// no `<|>` was refused when it was read rather than answered at offset 0.
+///
+/// The offset is into the case's document, which is byte-for-byte what was
+/// materialised and then loaded, so it is the entry file's offset with no
+/// conversion — the marker is taken out before either is written.
+fn selection_range(case: &Case) -> Result<Response, String> {
+    let cursor = case.cursor.expect("selectionRange is asked at a position");
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::SelectionRange(selection::at(
+        &analysed,
+        u32::try_from(cursor).unwrap_or(u32::MAX),
+        COLUMNS,
     )))
 }
 

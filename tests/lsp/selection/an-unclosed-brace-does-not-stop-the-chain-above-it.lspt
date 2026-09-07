@@ -1,0 +1,16 @@
+--TEST--
+the resilient parse is what a cursor request rests on, so a document that does not close its last brace still answers a chain over the code above it, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+function greet(): string
+{
+    return "h<|>i";
+}
+
+class Half {
+--REQUEST--
+selectionRange
+--EXPECT--
+4:12-4:16
+4:5-4:17
+2:1-5:2

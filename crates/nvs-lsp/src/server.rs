@@ -36,11 +36,13 @@ use lsp_types::notification::{
 };
 use lsp_types::request::{
     DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, Request as _,
+    SelectionRangeRequest,
 };
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, InitializeParams, PublishDiagnosticsParams, Uri,
+    FoldingRangeParams, InitializeParams, PublishDiagnosticsParams, Range, SelectionRange,
+    SelectionRangeParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
@@ -49,7 +51,8 @@ use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::links;
-use crate::position::encoding_of;
+use crate::position::{encoding_of, offset_at};
+use crate::selection;
 use crate::symbols;
 
 /// What a failure on the wire is reported as.
@@ -170,6 +173,12 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             ),
             Err(error) => unreadable(id, &method, &error),
         },
+        SelectionRangeRequest::METHOD => {
+            match serde_json::from_value::<SelectionRangeParams>(params) {
+                Ok(params) => Response::new_ok(id, selection_range(documents, encoding, &params)),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         DocumentLinkRequest::METHOD => match serde_json::from_value::<DocumentLinkParams>(params) {
             Ok(params) => Response::new_ok(
                 id,
@@ -231,6 +240,44 @@ fn folding_range(
     analyse(documents, uri).map_or_else(Vec::new, |analysed| {
         folding::for_document(&analysed, encoding)
     })
+}
+
+/// `textDocument/selectionRange` — the expand-selection chain at each position.
+///
+/// **One chain per position, in the same order**, which is the protocol's own
+/// requirement rather than a courtesy: the client pairs the two lists by index,
+/// so a short list silently moves every answer after the gap onto the wrong
+/// cursor. That is why the two ways of having nothing to say are different
+/// here. A document this server has nothing open for answers `null` — the whole
+/// question is unanswerable, and `null` is the shape LSP gives that. A position
+/// inside no node answers the empty range there and no parent: expand selection
+/// has nowhere to go from a caret between two statements, and saying so keeps
+/// the pairing that dropping it would break.
+///
+/// The chain itself is [`selection::at`], which the `.lspt` suite calls too.
+fn selection_range(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &SelectionRangeParams,
+) -> Option<Vec<SelectionRange>> {
+    let analysed = analyse(documents, &params.text_document.uri)?;
+    let file = analysed.map.file(analysed.entry);
+    Some(
+        params
+            .positions
+            .iter()
+            .map(|position| {
+                let offset = offset_at(file, *position, encoding);
+                selection::at(&analysed, offset, encoding).unwrap_or(SelectionRange {
+                    range: Range {
+                        start: *position,
+                        end: *position,
+                    },
+                    parent: None,
+                })
+            })
+            .collect(),
+    )
 }
 
 /// `textDocument/documentLink` — every `require` in one open document.
