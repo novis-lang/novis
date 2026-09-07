@@ -93,6 +93,9 @@ modules = [
   # The expression grammar's tests: precedence and associativity, the postfix chain, every
   # primary, and the PHP spellings that parse only to be diagnosed.
   "crates/nvs-syntax/src/parser/tests/expr.rs",
+  # The declaration grammar's tests: classes, interfaces, enums, their members, attributes, the
+  # file-scope forms, and `parse_file`'s HTML/code round trip.
+  "crates/nvs-syntax/src/parser/tests/decl.rs",
 ]
 
 # The three pipeline rules by id, because a record number prints only its rules' titles and the
