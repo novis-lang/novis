@@ -59,9 +59,11 @@ One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`
    The variants are `Whitespace`, `LineComment`, `BlockComment` and `DocComment`. `TriviaKind` lives
    beside the token types in `crates/nvs-syntax/src/token.rs`.
 2. **The run-length rule** — exactly three `/` is `DocComment`; four or more is `LineComment`, which is
-   Rust's rule and is why the `//// ____` divider in
-   `tests/conformance/core/encoding-every-encoder-agrees-with-its-own-decoder-over-a-table.nvst:114`
-   stays an ordinary comment. A `#` comment is never a doc comment at any length.
+   Rust's rule. The corpus holds no `////` comment at all: in
+   `tests/conformance/core/encoding-every-encoder-agrees-with-its-own-decoder-over-a-table.nvst` the
+   `////` at line 47 is inside the text of an ordinary `//` comment and the one at line 114 is an
+   encoder's expected output, so what that case proves is that the kind is read off the opening run
+   alone. A `#` comment is never a doc comment at any length.
 3. **`parse_file` becomes `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504` returns `stmts` and
    `trivia`; the `SyntaxIndex` field is **M4B's** and is not built here. The strict entry point stays a
    thin wrapper so no call site changes, exactly as `rule:ide/one-grammar-one-tree` requires.

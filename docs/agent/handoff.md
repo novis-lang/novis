@@ -2,53 +2,53 @@
 
 ## State
 
-**Goal 11 — `///` is a doc comment — has just started; nothing of it has landed yet.** Goal 10's whole
-list is this goal's Stage 1 floor. The design is settled and is not to be re-derived:
-`rule:tooling/doc-comment-is-three-slashes` landed with this goal and its
-four decisions were taken with the user — `///` as the marker with `////` staying ordinary, prose plus
-exactly `@see` and `@example` with every other `@tag` a diagnostic, `nvs meta --json` as the one
-machine-readable source with `nvs doc` a renderer over it, and enforcement silent by default.
+**Goal 11 stage 2 is whole — all four items — and stage 1's floor from goal 10 is unchanged.** The
+trivia layer is on disk and `rule:ide/tokens-plus-trivia-reproduce-the-file` holds over the whole
+corpus, so M4B inherits that half of `rule:ide/one-grammar-one-tree` done.
 
-Two things about the shape of this goal that are easy to get wrong:
+- `Trivia`/`TriviaKind` sit beside the token types (`crates/nvs-syntax/src/token.rs:31`); `Lexer` gains
+  the flag (`Lexer::with_trivia`, `trivia`, `take_trivia`) and `skip_trivia` records all four kinds.
+  The kind is read off the opening run of slashes, so `////` and `#` are ordinary at any length.
+- `parse` returns `Parsed { stmts, trivia }`; **`parse_file` is unchanged and is the strict wrapper**,
+  so none of its ~50 call sites moved. Both share `Parser::parse_all`. `SyntaxIndex` is M4B's and is
+  not built.
+- Nothing is blocked. `python tools/verify.py` is green.
 
-- **Stage 2 is M4B's tree item landing early.** `rule:ide/one-grammar-one-tree`'s `Trivia`/`TriviaKind` do not exist in the
-  tree at all, and a doc comment cannot be read without them. Build them *as that section specifies*, so
-  M4B inherits them done. The `SyntaxIndex` in the same struct is **M4B's** and has no consumer here.
-- **Hover is not in this goal.** It needs `crates/nvs-lsp`, which does not exist. Stage 6's last item
-  hands `docs/plan/m4b.md` one line; no hover code lands.
+**The fork stage 3 has to take, named here because it is cheap now and expensive to discover in
+`decl.rs`:** an unattached `///` is a parser diagnostic, so the *compile* path must see doc comments —
+but `parse_file` does not collect trivia, by design. The recommendation is one line in
+`crates/nvs-syntax/src/lexer.rs:@push_trivia`: retain `TriviaKind::DocComment` unconditionally and let
+the flag govern only the ignorable kinds, since documentation is content the language reads rather than
+a byte a formatter needs. Record it in that module's doc, per the goal's standing decisions.
 
 ## Next group
 
-**Stage 2: the trivia layer and its fourth variant** — one file set:
-`crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`,
-`crates/nvs-syntax/src/parser/mod.rs`.
+**Stage 3: attachment, and the closed set** — one file set:
+`crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast.rs`,
+`crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] **`Trivia` and `TriviaKind`** — `rule:ide/one-grammar-one-tree`'s shape exactly. `Lexer` gains a flag; `skip_trivia`
-      (`crates/nvs-syntax/src/lexer.rs:357`) pushes a `Trivia { kind, span }` instead of only advancing.
-      Variants: `Whitespace`, `LineComment`, `BlockComment`, `DocComment`. `TriviaKind` goes beside the
-      token types in `crates/nvs-syntax/src/token.rs`.
-- [ ] **The run-length rule** — exactly three `/` is `DocComment`, four or more is `LineComment`, `#` is
-      never one. The `//// ____` divider at
-      `tests/conformance/core/encoding-every-encoder-agrees-with-its-own-decoder-over-a-table.nvst:114`
-      is the case that proves it, and the seven files already carrying `///` are the case that proves
-      reclassification needs no edit — both are named tests of the TOML's stage 2 checks.
-- [ ] **`parse_file` returns `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504`. Keep the strict
-      entry point as a thin wrapper so no call site changes, which `rule:ide/one-grammar-one-tree` requires and which is
-      what keeps this slice from touching every crate. Losslessness (`tokens ⊕ trivia` reproduces the
-      file) is the acceptance property, over `examples/`, `tests/` and the vendored `php-src` corpus.
+- [ ] **Attachment** — `rule:tooling/doc-comment-attaches-to-the-next-declaration`. A run of `///`
+      lines separated by nothing but whitespace is one comment, attached to the declaration below it; a
+      blank line breaks it; a run attached to nothing is a diagnostic. `crates/nvs-syntax/src/parser/decl.rs:639`
+      is where a member and its attributes already meet, and the node grows beside
+      `crates/nvs-syntax/src/ast.rs:1494`. Take the fork in `## State` first — the diagnostic has to
+      fire on the compile path.
+- [ ] **The two tags parse** — `rule:tooling/doc-comment-tags-are-see-and-example`. `@see <member>` and
+      `@example <path>`, each on its own line in a trailing block, stored on the same node;
+      `crates/nvs-syntax/src/ast.rs:481` is the neighbouring inert-metadata shape to write like.
+- [ ] **Every other `@tag` at line start is a diagnostic** — the item that makes the set closed rather
+      than conventional. Codes join their siblings at `crates/nvs-diagnostics/src/lib.rs:201` in the
+      `E01xx` parser band (next free `E0127`), with `@param`/`@return`/`@throws` each naming what to
+      write instead.
 
 ## Backlog
 
-- Stage 3 (attachment and the closed tag set — `crates/nvs-syntax/src/parser/decl.rs`,
-  `crates/nvs-syntax/src/ast.rs`, plus the new codes in `crates/nvs-diagnostics/src/lib.rs`) shares the
-  crate with stage 2 but not its files. Worth taking in the same session if stage 2 lands under 120k:
-  the lexer is already loaded and the tag diagnostics are the half that makes the set closed rather
-  than advisory.
-- Stage 4's two checks live in `nvs-hir` and share nothing with stages 2-3.
-- Stages 5 and 6 are both `crates/nvs-cli` and belong together: `meta`'s argument, then `nvs doc` and
-  `--strict-docs` over it. The `reference.py --check` command check in stage 5 is what holds the
-  no-argument output byte-identical, which is what protects the website's `sync:core` too.
-- Take diagnostic codes from `python tools/brief.py` at the moment you write them — parser `E01xx`,
-  name resolution `E03xx` — never from the ADR, which names bands deliberately.
-- When this goal's last check goes green the driver takes goal 12 — the resilient tree, the first of
-  M4B's four entries, which starts with the trivia half this goal built already done.
+- Stage 4's two checks, stage 5's `nvs meta --json <entry>`, stage 6's `nvs doc` — `docs/agent/loop-goal.md`.
+- Six files carry `///` today (five `.nvst` under `tests/conformance/core/`, plus
+  `tests/hostile/core/Str/length/01-unbounded-and-degenerate-input.nvs`), not the seven
+  `docs/agent/loop-goal.toml`'s stage 2 comment claims; they reclassify with no edit.
+- `[context]` gap: the pack prints the goal's *Standing decisions* but not the stage the item came
+  from, so choosing the next group cost one `sed` over `docs/agent/loop-goal.md` § *Stage 3*. A
+  selector for the goal's own stage prose would close it.
+- `crates/nvs-syntax/tests/lossless.rs` walks `php-src` when it is present and says so when it is not,
+  as `corpus_parse.rs` does; CI therefore checks the Novis half only.
