@@ -1,0 +1,44 @@
+--TEST--
+A `|>` and the nesting it substitutes to answer the same over the four shapes a right side takes, and a chain reads left to right — `rule:expressions/pipeline-substitution`, ADR 0098's M1 verification line
+--FILE--
+<?nvs
+// The *agreement* shape over the four right-side shapes
+// `a_pipeline_produces_the_same_ast_as_the_nested_spelling` compares as trees:
+// a call, an index, a member access and a parenthesized group. That test
+// asserts the two spellings parse the same; this one asserts they *run* the
+// same, which is the whole claim of `rule:expressions/pipeline-substitution` —
+// and what is counted is how many of the four agreed, so a shape that grew its
+// own answer fails here while still printing plausibly on its own line.
+class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+string $padded = "  Padded  ";
+array<string> $words = ["first", "second"];
+Tag $tag = new Tag("tagged");
+int $n = 21;
+
+int $agreed = 0;
+
+// A call — the shape the rule's own example writes.
+if (($padded |> Core\Str::trim($_)) == Core\Str::trim($padded)) { $agreed = $agreed + 1; }
+// An index.
+if (($words |> $_[0]) == $words[0]) { $agreed = $agreed + 1; }
+// A member access.
+if (($tag |> $_->name) == $tag->name) { $agreed = $agreed + 1; }
+// A parenthesized group — the right side is parsed at the postfix level, so
+// anything that is not already a call or an access is written this way.
+if (($n |> ($_ * 2)) == ($n * 2)) { $agreed = $agreed + 1; }
+
+echo $agreed, " of 4 shapes agree\n";
+
+// Left-associative, so a chain reads in the order it happens while the tree it
+// becomes is the inside-out nesting.
+echo "  hello  " |> Core\Str::trim($_) |> Core\Str::upper($_), "\n";
+--EXPECT--
+4 of 4 shapes agree
+HELLO
