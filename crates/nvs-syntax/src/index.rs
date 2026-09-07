@@ -182,10 +182,10 @@ impl SyntaxIndex {
 
 #[cfg(test)]
 mod tests {
-    use nvs_diagnostics::{Diagnostics, SourceMap};
+    use nvs_diagnostics::{Diagnostics, SourceMap, Span};
 
     use super::SyntaxIndex;
-    use crate::parse;
+    use crate::{parse, walk};
 
     /// Parses `source` and returns its index, with the offset of `needle`.
     fn index_of(source: &str, needle: &str) -> (SyntaxIndex, u32) {
@@ -203,11 +203,64 @@ mod tests {
         (parsed.index, at)
     }
 
+    /// Every node of `nodes` and their subtrees — what the index holds one
+    /// entry each of.
+    fn nodes_in(nodes: &[walk::Node]) -> usize {
+        nodes.iter().map(|n| 1 + nodes_in(&n.children)).sum()
+    }
+
     #[test]
-    fn the_innermost_node_answers_first_and_its_ancestors_follow() {
+    fn the_syntax_index_answers_the_innermost_node_at_an_offset() {
         let (index, at) = index_of("<?nvs echo 1 + 2;", "2;");
-        let kinds: Vec<&str> = index.at(at).nodes().iter().map(|n| n.kind).collect();
+        let path = index.at(at);
+        let innermost = path.innermost().expect("the literal");
+        assert_eq!(innermost.kind, "Int");
+        assert_eq!(path.nodes()[0], innermost, "the path opens at the cursor");
+    }
+
+    #[test]
+    fn the_syntax_index_answers_the_ancestor_path_outward_in_order() {
+        let (index, at) = index_of("<?nvs echo 1 + 2;", "2;");
+        let path = index.at(at);
+        let kinds: Vec<&str> = path.nodes().iter().map(|n| n.kind).collect();
         assert_eq!(kinds, ["Int", "Binary", "Echo"]);
+        for pair in path.nodes().windows(2) {
+            assert!(
+                pair[1].span.start <= pair[0].span.start && pair[0].span.end <= pair[1].span.end,
+                "{:?} is not inside the node that follows it, {:?}",
+                pair[0],
+                pair[1],
+            );
+        }
+    }
+
+    #[test]
+    fn the_index_is_filled_by_one_walk() {
+        // The index a parse answers with is [`crate::walk`]'s tree flattened
+        // and nothing else — same nodes, same order, same parents — which is
+        // the claim a second traversal added beside the walk would break
+        // silently. Comparing the rows rather than the count is what catches
+        // that: two walks agree on how many nodes a file has long after they
+        // have stopped agreeing on what contains what.
+        let source = "<?nvs class C { public function m(): void { echo 1 + 2; } } echo new C();";
+        let mut map = SourceMap::new();
+        let id = map.add("<test>", source);
+        let mut diags = Diagnostics::new();
+        let parsed = parse(map.file(id), &mut diags);
+        assert!(!diags.has_errors(), "the fixture must parse cleanly");
+
+        let rows = |index: &SyntaxIndex| -> Vec<(&'static str, Span, Option<usize>)> {
+            index
+                .entries
+                .iter()
+                .map(|entry| (entry.kind, entry.span, entry.parent))
+                .collect()
+        };
+        assert_eq!(
+            rows(&parsed.index),
+            rows(&SyntaxIndex::of_stmts(&parsed.stmts))
+        );
+        assert_eq!(parsed.index.len(), nodes_in(&walk::of_stmts(&parsed.stmts)));
     }
 
     #[test]
