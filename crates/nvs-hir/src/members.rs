@@ -53,6 +53,18 @@
 //! asks of the filesystem; it resolves a written path the way `require` does,
 //! relative to the file that wrote it.
 //!
+//! `rule:tooling/strict-docs`'s lint rides beside that walk rather than growing
+//! a second one: [`MemberResolver::check`] takes a `strict_docs` flag, `nvs
+//! check --strict-docs` is the only caller that passes it true, and
+//! [`check_members`] reports `E_DOC_MISSING` for a member with no `///` above
+//! it. **A member is what the flag reports** — a method, a property, a class
+//! constant — and public is the absence of `private` and `protected`, since
+//! that is the visibility the language gives a member written without one. A
+//! class, an interface, an enum, an enum case and a `type` alias are
+//! deliberately not reported: the rule names a member, and widening it to every
+//! declaration is a decision for the publisher that turns the flag on rather
+//! than one taken here.
+//!
 //! **Known gaps**, narrower versions of gaps [`crate::hierarchy`] already
 //! documents:
 //! - `new Foo(...)`/`new self(...)`/etc. does not have its target checked
@@ -292,12 +304,16 @@ impl MemberResolver {
     /// `extends`/`implements`/trait-use chain. Call once, after every file
     /// sharing this table and its `SymbolTable`/`ClassGraph` has run
     /// [`Self::collect_members`].
+    ///
+    /// `strict_docs` is `rule:tooling/strict-docs`'s flag, true only under
+    /// `nvs check --strict-docs`; the module doc says what it reports.
     pub fn check(
         &self,
         stmts: &[Stmt],
         src: &SourceFile,
         symbols: &SymbolTable,
         graph: &ClassGraph,
+        strict_docs: bool,
         diags: &mut Diagnostics,
     ) {
         let mut env = Env {
@@ -306,6 +322,7 @@ impl MemberResolver {
             table: &self.table,
             refused_toplevel: refused_toplevel_names(stmts, src),
             fn_self: None,
+            strict_docs,
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -343,6 +360,10 @@ struct Env<'a> {
     /// receiver has. It exists here for one rule — `fact(...)` inside `fact`'s
     /// own body is not the free function `E0320` refuses.
     fn_self: Option<String>,
+    /// `rule:tooling/strict-docs`'s flag: report a public member with no `///`
+    /// above it. False everywhere but `nvs check --strict-docs`, which is what
+    /// makes the language silent about documentation by default.
+    strict_docs: bool,
     diags: &'a mut Diagnostics,
 }
 
@@ -461,6 +482,7 @@ fn check_stmts(
 fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
         check_doc(member.doc.as_ref(), src, ctx, env);
+        check_documented(member, src, ctx, env);
         match &member.kind {
             ClassMemberKind::Method(m) => {
                 for param in &m.params {
@@ -489,6 +511,56 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
             _ => {}
         }
     }
+}
+
+/// One member's doc comment, or the absence `rule:tooling/strict-docs` reports.
+/// Silent unless [`Env::strict_docs`] is set, which is `nvs check
+/// --strict-docs` and nothing else.
+///
+/// **Public is the absence of `private` and `protected`**, since a member
+/// written with no visibility at all is public and is exactly the member a
+/// reader of the package will reach. `private(set)` is a visibility for writes
+/// rather than for the declaration ([`Modifier::SetVisibility`]), so it never
+/// hides a member from this. A recovery placeholder
+/// ([`ClassMemberKind::Error`]) is skipped: the parser has already reported
+/// whatever it stood in for, and a second diagnostic about its documentation
+/// would be a cascade.
+///
+/// Reported at the member's **name** rather than at [`ClassMember::span`],
+/// which reaches back over its attributes and modifiers: the repair is one line
+/// written above the declaration, and a primary label covering three lines of
+/// `#[...]` says nothing about where.
+fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    if !env.strict_docs || member.doc.is_some() {
+        return;
+    }
+    let (modifiers, name) = match &member.kind {
+        ClassMemberKind::Method(m) => (&m.modifiers, m.name),
+        ClassMemberKind::Property(p) => (&p.modifiers, p.name),
+        ClassMemberKind::Const(c) => (&c.modifiers, c.name),
+        _ => return,
+    };
+    if modifiers
+        .iter()
+        .any(|m| matches!(m, Modifier::Private | Modifier::Protected))
+    {
+        return;
+    }
+    let written = src.span_text(name).unwrap_or_default();
+    let owner = ctx
+        .current_class
+        .map_or_else(String::new, |class| format!("{class}::"));
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DOC_MISSING,
+            format!("`{owner}{written}` is public and has no doc comment"),
+        )
+        .with_primary(name, "no `///` above this declaration")
+        .with_help(
+            "write a `///` line above it, or make the member `private` — \
+             `--strict-docs` reports only what a reader of this package can reach",
+        ),
+    );
 }
 
 /// Both tags of one declaration's doc comment, if it has one. This is the only
@@ -1289,6 +1361,7 @@ mod tests {
             map.file(file),
             &module.symbols,
             &module.graph,
+            false,
             &mut diags,
         );
         diags

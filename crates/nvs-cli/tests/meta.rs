@@ -328,6 +328,7 @@ fn meta_json_with_an_entry_emits_the_programs_declarations() {
         declared(&greeter, "constants", "OPENING"),
         serde_json::json!({
             "name": "OPENING",
+            "visibility": "public",
             "type": "string",
             "value": "\"Hello\"",
             "doc": { "short": "The word every greeting opens with." },

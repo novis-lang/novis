@@ -49,6 +49,10 @@
 //!   (`rule:tooling/meta-json-takes-a-program`), which is the one input every
 //!   documentation renderer reads. A build-time consumer's input, never a
 //!   runtime feature; see [`meta`].
+//! * `nvs doc <entry>` — that same document rendered as one Markdown page per
+//!   class (`rule:tooling/nvs-doc-renders-and-decides-nothing`). A renderer
+//!   with no source of truth of its own, shipped for a project that has no
+//!   documentation pipeline; see [`doc`].
 //! * `nvs tmp clean` —
 //!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
@@ -109,6 +113,7 @@ mod api_diff;
 mod bundle;
 mod cache;
 mod config;
+mod doc;
 mod info;
 mod meta;
 mod openapi;
@@ -175,6 +180,10 @@ enum Command {
         /// including what a `discover` glob skipped and what was shadowed.
         #[arg(long)]
         autoload_map: bool,
+        /// Also report every public member with no `///` doc comment above it.
+        /// Off by default, in every project.
+        #[arg(long)]
+        strict_docs: bool,
     },
     /// Check a `.nvs`/`.php` file, then compile and run it.
     Run {
@@ -404,6 +413,18 @@ enum Command {
         /// Omitted, the document is the registry alone and is byte-identical
         /// to what it was before this argument existed.
         entry: Option<PathBuf>,
+    },
+    /// Write this program's declarations as one Markdown page per class.
+    ///
+    /// A renderer over `nvs meta --json`'s document and nothing else
+    /// (`rule:tooling/nvs-doc-renders-and-decides-nothing`), for a project that
+    /// does not have a documentation pipeline of its own; see [`doc`].
+    Doc {
+        /// The program's entry point.
+        file: PathBuf,
+        /// The directory the pages are written to, created if it is absent.
+        #[arg(long, default_value = "doc")]
+        out: PathBuf,
     },
 }
 
@@ -684,7 +705,11 @@ fn main() -> ExitCode {
 
     match command {
         Command::Ast { file } => run_ast(&file),
-        Command::Check { file, autoload_map } => run_check(&cli.config, &file, autoload_map),
+        Command::Check {
+            file,
+            autoload_map,
+            strict_docs,
+        } => run_check(&cli.config, &file, autoload_map, strict_docs),
         Command::Run {
             file,
             dump_ir,
@@ -793,6 +818,7 @@ fn main() -> ExitCode {
         ),
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
+        Command::Doc { file, out } => doc::run(&file, &out),
     }
 }
 
@@ -881,7 +907,7 @@ impl Checked {
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
 fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
-    front_end_granted(path, None)
+    front_end_granted(path, None, false)
 }
 
 /// [`front_end`] with the deployment's `[capabilities]` block in front of it —
@@ -891,6 +917,10 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 /// `config` is the `--config` list when the caller wants that question asked and
 /// `None` when it does not, which mirrors `nvs_types::check_program` and
 /// `check_program_granted` because it is the same distinction one layer up.
+/// `strict_docs` travels beside it for the same reason and is the same shape of
+/// question — `nvs check --strict-docs` is the one caller that asks, and
+/// `rule:tooling/strict-docs` makes every other front end silent about
+/// documentation.
 ///
 /// **`nvs check` is the caller that asks, and `nvs run` is deliberately not.**
 /// § 10 is titled for `check` and means it: at run time the refusal is
@@ -910,6 +940,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 fn front_end_granted(
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
+    strict_docs: bool,
 ) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     let id = match map.load(path) {
@@ -934,7 +965,8 @@ fn front_end_granted(
     // Every other file's parse and `check_declarations` happen inside the
     // walk, as each `require` target is discovered; only the entry point is
     // this function's to load.
-    let (module, loaded, autoload) = nvs_hir::resolve_program(id, stmts, &mut map, &mut diags);
+    let (module, loaded, autoload) =
+        nvs_hir::resolve_program_linted(id, stmts, &mut map, &mut diags, strict_docs);
 
     let mut interner = nvs_types::TypeInterner::new();
     let mut exprs = nvs_types::ExprTypeTable::new();
@@ -1001,12 +1033,20 @@ fn front_end_granted(
 /// ([`front_end_granted`]), so `nvs check` answers `rule:core-classes/db-literal-query-checking`'s question
 /// about a literal `Core\Db::open` host and reports a `nvs.toml` that does not
 /// resolve as the configuration error it is.
+///
+/// `--strict-docs` is `rule:tooling/strict-docs`'s opt-in lint, and it is
+/// `check`'s alone for the same reason the grant question is: it is an audit of
+/// what a package publishes, not a condition on running one. It rides in the
+/// walk that already resolves a doc comment's tags
+/// (`nvs_hir::members::check_documented`), so it reaches every file the program
+/// loaded rather than the entry point alone.
 fn run_check(
     config: &[std::path::PathBuf],
     path: &std::path::Path,
     autoload_map: bool,
+    strict_docs: bool,
 ) -> ExitCode {
-    match front_end_granted(path, Some(config)) {
+    match front_end_granted(path, Some(config), strict_docs) {
         Ok(checked) => {
             if autoload_map {
                 let base = match path.parent() {

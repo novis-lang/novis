@@ -186,6 +186,25 @@ pub fn resolve_program(
     map: &mut SourceMap,
     diags: &mut Diagnostics,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
+    resolve_program_linted(entry_id, entry_stmts, map, diags, false)
+}
+
+/// [`resolve_program`] with `rule:tooling/strict-docs`'s lint in front of it —
+/// the same walk, reporting a public member with no doc comment as it goes.
+///
+/// `strict_docs` is true only under `nvs check --strict-docs`, which mirrors
+/// the way `nvs-cli`'s `front_end_granted` carries the `[capabilities]`
+/// question: one entry point per caller that asks, rather than a flag every
+/// caller of the plain one has to pass. It reaches every file the walk loaded,
+/// not the entry point alone — the program is what a package publishes.
+#[must_use]
+pub fn resolve_program_linted(
+    entry_id: SourceId,
+    entry_stmts: Vec<Stmt>,
+    map: &mut SourceMap,
+    diags: &mut Diagnostics,
+    strict_docs: bool,
+) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new();
     let mut members = MemberResolver::new();
@@ -422,6 +441,7 @@ pub fn resolve_program(
             map.file(file.id),
             &module.symbols,
             &module.graph,
+            strict_docs,
             diags,
         );
     }

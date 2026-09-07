@@ -75,6 +75,13 @@
 //! omission rule is the registry's, key for key: a declaration with no `///`
 //! has no `doc`, and no array is ever emitted empty.
 //!
+//! One key has no registry counterpart: a member carries its `visibility`,
+//! because a `Core` member is public or it is not in the registry while a
+//! program's is whatever it was written as. It is always present rather than
+//! omitted when unwritten — a member has a visibility even where it spelled
+//! none — and it is what lets [`crate::doc`] render the surface a package's
+//! reader can reach rather than every helper behind it. See [`visibility`].
+//!
 //! Built and written as JSON rather than as text through the `serde_json`
 //! this crate already carries for `rule:routing/api-document-is-generated-from-the-route-table`'s document; the workspace manifest
 //! owns why this crate and not another.
@@ -101,19 +108,31 @@ use serde_json::{Map, Value, json};
 /// half is the front end's exit code when the program does not check, and
 /// nothing is printed then.
 pub(crate) fn run(entry: Option<&Path>) -> ExitCode {
-    let mut document = document();
-    if let Some(entry) = entry {
-        let checked = match crate::front_end(entry) {
-            Ok(checked) => checked,
+    let document = match entry {
+        Some(entry) => match program_document(entry) {
+            Ok(document) => document,
             Err(code) => return code,
-        };
-        document
-            .as_object_mut()
-            .expect("the document is an object")
-            .insert("program".into(), program_json(&checked));
-    }
+        },
+        None => document(),
+    };
     println!("{document}");
     ExitCode::SUCCESS
+}
+
+/// The document [`run`] would print for `entry`, as a value.
+///
+/// `nvs doc` renders *this* rather than deriving anything of its own, which is
+/// `rule:tooling/one-json-several-renderers` held from inside the binary: the
+/// renderer shipped here reads the same document a consumer outside it does,
+/// so a page can never say something `nvs meta --json` did not.
+pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
+    let checked = crate::front_end(entry)?;
+    let mut document = document();
+    document
+        .as_object_mut()
+        .expect("the document is an object")
+        .insert("program".into(), program_json(&checked));
+    Ok(document)
 }
 
 /// The whole document — § 2's outermost object.
@@ -655,6 +674,10 @@ fn user_method_json(method: &MethodMember, doc: Option<&DocComment>, src: &Sourc
     let mut out = Map::new();
     out.insert("name".into(), Value::from(text(src, method.name)));
     out.insert("kind".into(), Value::from(kind));
+    out.insert(
+        "visibility".into(),
+        Value::from(visibility(&method.modifiers)),
+    );
     out.insert("signature".into(), Value::from(signature));
     put_doc(&mut out, doc, src);
     Value::Object(out)
@@ -686,6 +709,25 @@ fn param_signature(param: &Param, src: &SourceFile) -> String {
     out
 }
 
+/// One member's visibility, which is `public` where none was written — the
+/// visibility a member has, not the one it spelled.
+///
+/// The registry half has no counterpart: a `Core` member is public or it is not
+/// in the registry. Carried on the program half because a renderer over this
+/// document has to know what a package's *reader* can reach — `nvs doc` shows
+/// the public surface, and `nvs check --strict-docs` reports the same set from
+/// the other side (`rule:tooling/strict-docs`). `private(set)` is a visibility
+/// for writes rather than for the declaration and is not it.
+fn visibility(modifiers: &[Modifier]) -> &'static str {
+    if modifiers.contains(&Modifier::Private) {
+        "private"
+    } else if modifiers.contains(&Modifier::Protected) {
+        "protected"
+    } else {
+        "public"
+    }
+}
+
 /// One user property: its name with the `$` a program writes it with, its
 /// declared type as its signature, and its card.
 fn user_property_json(
@@ -696,6 +738,10 @@ fn user_property_json(
     let mut out = Map::new();
     out.insert("name".into(), Value::from(text(src, property.name)));
     out.insert("kind".into(), Value::from("property"));
+    out.insert(
+        "visibility".into(),
+        Value::from(visibility(&property.modifiers)),
+    );
     out.insert(
         "signature".into(),
         Value::from(format!(
@@ -714,6 +760,10 @@ fn user_property_json(
 fn user_constant_json(constant: &ConstMember, doc: Option<&DocComment>, src: &SourceFile) -> Value {
     let mut out = Map::new();
     out.insert("name".into(), Value::from(text(src, constant.name)));
+    out.insert(
+        "visibility".into(),
+        Value::from(visibility(&constant.modifiers)),
+    );
     if let Some(ty) = &constant.ty {
         out.insert("type".into(), Value::from(text(src, ty.span)));
     }

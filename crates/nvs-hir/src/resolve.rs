@@ -277,7 +277,7 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
 
     let mut members = crate::members::MemberResolver::new();
     members.collect_members(stmts, src);
-    members.check(stmts, src, &module.symbols, &module.graph, diags);
+    members.check(stmts, src, &module.symbols, &module.graph, false, diags);
     module.members = members.into_table();
 
     let mut aliases = crate::aliases::AliasResolver::new();

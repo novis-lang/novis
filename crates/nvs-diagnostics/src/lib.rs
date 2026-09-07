@@ -581,6 +581,12 @@ pub mod code {
     /// `rule:tooling/doc-comment-tags-are-see-and-example` keeps the tag: a
     /// path outside `examples/` and `tests/` buys no check.
     pub const E_DOC_EXAMPLE_NOT_WALKED: Code = Code::new("E0325");
+    /// A public member carrying no doc comment, reported only under
+    /// `nvs check --strict-docs`. `rule:tooling/strict-docs` keeps it silent
+    /// everywhere else and no autofix can satisfy it: with no `@param` and no
+    /// `@return` to fill in, a generated `///` would be empty, so the only way
+    /// to clear it is to write a sentence.
+    pub const E_DOC_MISSING: Code = Code::new("E0326");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.
