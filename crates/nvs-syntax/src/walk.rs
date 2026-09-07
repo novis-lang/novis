@@ -37,10 +37,27 @@
 //! the three productions the ADR names keeps every expression in the tree,
 //! which is what a walk is for, and leaves the redraw to the roster.
 //!
+//! # Decision: a field is what the span does not show
+//!
+//! A node carries its production's scalars as [`Field`]s, and they are the
+//! ones a reader cannot recover from the span: the operator a production
+//! chose, a flag it recorded, and which form a member name took — which is
+//! `rule:ide/recovery-is-explicit`'s `Missing` made visible to a consumer that
+//! never sees a [`MemberName`].
+//!
+//! **A literal's text is deliberately not one of them.** The span names it, so
+//! a consumer holding the file already has it; and a consumer that does not
+//! hold the file must not be handed a `secret` literal's bytes, which this
+//! walk cannot recognise because it is a parse and the qualifier is a type
+//! (`rule:security/redaction-reaches-the-tools-own-renderings`,
+//! `rule:ide/ast-json-schema-is-frozen`). Text arrives here the day a caller
+//! arrives that has type-checked, and the placeholder arrives with it.
+//!
 //! **What it spends:** one [`Node`] per statement, expression and member —
-//! two words for the kind, a span, and a `Vec` header, allocated per parse and
-//! dropped when the caller is done with it. Nothing here is cached: a parse is
-//! a call, not a compilation unit.
+//! two words for the kind, a span, and two `Vec` headers, allocated per parse
+//! and dropped when the caller is done with it, plus one small allocation for
+//! each node that has a field at all. Nothing here is cached: a parse is a
+//! call, not a compilation unit.
 //!
 //! # The second consumer
 //!
@@ -54,9 +71,10 @@
 use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap, Span};
 
 use crate::ast::{
-    AnonClassDecl, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName, MethodMember,
-    NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart,
+    AnonClassDecl, AssignOp, BinaryOp, Block, CallArgs, ClassMember, ClassMemberKind,
+    DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
+    IncDecOp, MemberName, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
+    StmtKind, StringPart, UnaryOp,
 };
 use crate::parse_file;
 
@@ -74,6 +92,23 @@ pub struct Node {
     pub span: Span,
     /// The nodes this one contains, in source order.
     pub children: Vec<Node>,
+    /// This production's own scalars, in a fixed order per production — the
+    /// module doc's third decision says which scalars those are.
+    pub fields: Vec<(&'static str, Field)>,
+}
+
+/// One scalar of a production: a word the grammar chose, or a flag it recorded.
+///
+/// Both are the parser's own vocabulary rather than the source's, on the same
+/// terms as [`Node::kind`]: a spelling written here is what a consumer freezes,
+/// so renaming the Rust variant behind it changes no consumer's contract.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Field {
+    /// A fixed spelling out of a closed set — an operator, or which form a
+    /// member name took.
+    Word(&'static str),
+    /// A flag the grammar recorded, such as `?->` or `&`.
+    Flag(bool),
 }
 
 impl Node {
@@ -134,6 +169,7 @@ pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
             .reduce(Span::to)
             .unwrap_or_else(|| Span::at(file.id(), 0)),
         children: of_stmts(&stmts),
+        fields: Vec::new(),
     })
 }
 
@@ -298,15 +334,20 @@ fn stmt(s: &Stmt) -> Node {
         kind,
         span: s.span,
         children: kids,
+        fields: Vec::new(),
     }
 }
 
 /// One expression, and the nodes under it.
 fn expr(e: &Expr) -> Node {
     let mut kids = Vec::new();
+    let mut fields = Vec::new();
     let kind = match &e.kind {
         ExprKind::Null => "Null",
-        ExprKind::Bool(_) => "Bool",
+        ExprKind::Bool(value) => {
+            fields.push(("value", Field::Flag(*value)));
+            "Bool"
+        }
         ExprKind::Int(_) => "Int",
         ExprKind::Float(_) => "Float",
         ExprKind::Duration(_) => "Duration",
@@ -332,24 +373,35 @@ fn expr(e: &Expr) -> Node {
             }
             "ArrayLiteral"
         }
-        ExprKind::Unary { expr: operand, .. } => {
+        ExprKind::Unary { op, expr: operand } => {
+            fields.push(("op", Field::Word(unary_op(*op))));
             kids.push(expr(operand));
             "Unary"
         }
-        ExprKind::PreIncDec { expr: operand, .. } => {
+        ExprKind::PreIncDec { op, expr: operand } => {
+            fields.push(("op", Field::Word(inc_dec_op(*op))));
             kids.push(expr(operand));
             "PreIncDec"
         }
-        ExprKind::PostIncDec { expr: operand, .. } => {
+        ExprKind::PostIncDec { op, expr: operand } => {
+            fields.push(("op", Field::Word(inc_dec_op(*op))));
             kids.push(expr(operand));
             "PostIncDec"
         }
-        ExprKind::Binary { lhs, rhs, .. } => {
+        ExprKind::Binary { op, lhs, rhs } => {
+            fields.push(("op", Field::Word(binary_op(*op))));
             kids.push(expr(lhs));
             kids.push(expr(rhs));
             "Binary"
         }
-        ExprKind::Assign { target, value, .. } => {
+        ExprKind::Assign {
+            op,
+            target,
+            value,
+            by_ref,
+        } => {
+            fields.push(("op", Field::Word(assign_op(*op))));
+            fields.push(("byRef", Field::Flag(*by_ref)));
             kids.push(expr(target));
             kids.push(expr(value));
             "Assign"
@@ -381,10 +433,13 @@ fn expr(e: &Expr) -> Node {
         }
         ExprKind::MethodCall {
             object,
+            nullsafe,
             method,
             args,
             ..
         } => {
+            fields.push(("nullsafe", Field::Flag(*nullsafe)));
+            fields.push(("member", Field::Word(member_form(method))));
             kids.push(expr(object));
             push_member_name(&mut kids, method);
             push_args(&mut kids, args);
@@ -396,14 +451,19 @@ fn expr(e: &Expr) -> Node {
             args,
             ..
         } => {
+            fields.push(("member", Field::Word(member_form(method))));
             kids.push(expr(class));
             push_member_name(&mut kids, method);
             push_args(&mut kids, args);
             "StaticCall"
         }
         ExprKind::PropertyAccess {
-            object, property, ..
+            object,
+            nullsafe,
+            property,
         } => {
+            fields.push(("nullsafe", Field::Flag(*nullsafe)));
+            fields.push(("member", Field::Word(member_form(property))));
             kids.push(expr(object));
             push_member_name(&mut kids, property);
             "PropertyAccess"
@@ -426,6 +486,7 @@ fn expr(e: &Expr) -> Node {
             "Index"
         }
         ExprKind::New { target, args, .. } => {
+            fields.push(("target", Field::Word(new_target(target))));
             match target {
                 NewTarget::Name(_)
                 | NewTarget::SelfTy
@@ -522,6 +583,103 @@ fn expr(e: &Expr) -> Node {
         kind,
         span: e.span,
         children: kids,
+        fields,
+    }
+}
+
+/// A unary operator's own spelling.
+///
+/// Written out rather than derived from `Debug`, because a consumer freezes
+/// what this returns: renaming the variant is then a rename and not a schema
+/// change, and adding one is a build error in this file.
+fn unary_op(op: UnaryOp) -> &'static str {
+    match op {
+        UnaryOp::Neg => "Neg",
+        UnaryOp::Plus => "Plus",
+        UnaryOp::Not => "Not",
+        UnaryOp::BitNot => "BitNot",
+        UnaryOp::Suppress => "Suppress",
+    }
+}
+
+/// An increment or decrement operator's own spelling.
+fn inc_dec_op(op: IncDecOp) -> &'static str {
+    match op {
+        IncDecOp::Inc => "Inc",
+        IncDecOp::Dec => "Dec",
+    }
+}
+
+/// A binary operator's own spelling.
+fn binary_op(op: BinaryOp) -> &'static str {
+    match op {
+        BinaryOp::Add => "Add",
+        BinaryOp::Sub => "Sub",
+        BinaryOp::Mul => "Mul",
+        BinaryOp::Div => "Div",
+        BinaryOp::Mod => "Mod",
+        BinaryOp::Pow => "Pow",
+        BinaryOp::Concat => "Concat",
+        BinaryOp::BitAnd => "BitAnd",
+        BinaryOp::BitOr => "BitOr",
+        BinaryOp::BitXor => "BitXor",
+        BinaryOp::Shl => "Shl",
+        BinaryOp::Shr => "Shr",
+        BinaryOp::And => "And",
+        BinaryOp::Or => "Or",
+        BinaryOp::Eq => "Eq",
+        BinaryOp::NotEq => "NotEq",
+        BinaryOp::Lt => "Lt",
+        BinaryOp::LtEq => "LtEq",
+        BinaryOp::Gt => "Gt",
+        BinaryOp::GtEq => "GtEq",
+        BinaryOp::Cmp => "Cmp",
+        BinaryOp::Coalesce => "Coalesce",
+    }
+}
+
+/// An assignment operator's own spelling.
+fn assign_op(op: AssignOp) -> &'static str {
+    match op {
+        AssignOp::Assign => "Assign",
+        AssignOp::AddAssign => "AddAssign",
+        AssignOp::SubAssign => "SubAssign",
+        AssignOp::MulAssign => "MulAssign",
+        AssignOp::DivAssign => "DivAssign",
+        AssignOp::ModAssign => "ModAssign",
+        AssignOp::PowAssign => "PowAssign",
+        AssignOp::ConcatAssign => "ConcatAssign",
+        AssignOp::BitAndAssign => "BitAndAssign",
+        AssignOp::BitOrAssign => "BitOrAssign",
+        AssignOp::BitXorAssign => "BitXorAssign",
+        AssignOp::ShlAssign => "ShlAssign",
+        AssignOp::ShrAssign => "ShrAssign",
+        AssignOp::CoalesceAssign => "CoalesceAssign",
+    }
+}
+
+/// Which form a member name took — and `"missing"` is the one that matters,
+/// since it is the access the parser recovered at rather than one anybody
+/// wrote (`rule:ide/recovery-is-explicit`).
+fn member_form(name: &MemberName) -> &'static str {
+    match name {
+        MemberName::Ident(_) => "written",
+        MemberName::Missing(_) => "missing",
+        MemberName::Variable(_) => "variable",
+        MemberName::Expr(_) => "expression",
+    }
+}
+
+/// Which form a `new` target took. The named cases contribute no child, so
+/// without this a consumer cannot tell `new self` from `new C`.
+fn new_target(target: &NewTarget) -> &'static str {
+    match target {
+        NewTarget::Name(_) => "name",
+        NewTarget::SelfTy => "self",
+        NewTarget::StaticTy => "static",
+        NewTarget::ParentTy => "parent",
+        NewTarget::Expr(_) => "expression",
+        NewTarget::AnonClass(_) => "anonymous",
     }
 }
 
@@ -550,6 +708,7 @@ fn member(m: &ClassMember) -> Node {
         kind,
         span: m.span,
         children: kids,
+        fields: Vec::new(),
     }
 }
 
@@ -561,6 +720,7 @@ fn enum_case(c: &EnumCase) -> Node {
         kind: "EnumCase",
         span: c.span,
         children: kids,
+        fields: Vec::new(),
     }
 }
 
