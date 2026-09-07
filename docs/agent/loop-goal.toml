@@ -119,6 +119,11 @@ modules = [
   # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
   # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
   "crates/nvs-types/src/expr/calls.rs",
+  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
+  "crates/nvs-types/src/expr/mod.rs",
+  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
+  # one representation, two independent axes, and the sinks that refuse them.
+  "crates/nvs-types/src/expr/quals.rs",
 ]
 
 # THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON. Everything a single stage needs is in
