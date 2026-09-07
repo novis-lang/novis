@@ -64,6 +64,7 @@ use crate::ast::{
     ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
     Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
 };
+use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind, Trivia, TriviaKind};
 
@@ -738,14 +739,12 @@ pub fn parse_expression(file: &SourceFile, diags: &mut Diagnostics) -> Expr {
     Parser::new(file, diags).parse_expr()
 }
 
-/// A whole file, parsed: its statements, and the runs between them that the
-/// grammar skipped.
+/// A whole file, parsed: its statements, the runs between them that the
+/// grammar skipped, and where each node of it is.
 ///
-/// `rule:ide/one-grammar-one-tree`'s third field, the `SyntaxIndex` that
-/// answers a byte offset with the innermost node containing it, is **M4B's**
-/// and is deliberately not built here: nothing in the compiler reads it, and an
-/// index maintained through the goals before its first consumer is an index
-/// that is wrong by the time one arrives.
+/// The three fields `rule:ide/one-grammar-one-tree` names, and no second tree:
+/// the index holds spans and kinds, and every node it points at is a [`Stmt`]
+/// in `stmts`.
 #[derive(Debug)]
 pub struct Parsed {
     /// Every top-level statement, in source order — exactly what
@@ -754,6 +753,12 @@ pub struct Parsed {
     /// Every whitespace run and every comment, in source order
     /// (`rule:ide/tokens-plus-trivia-reproduce-the-file`).
     pub trivia: Vec<Trivia>,
+    /// Which node a byte offset is inside, and what that node is inside
+    /// (`rule:ide/the-index-answers-the-cursor`). Built here rather than on
+    /// demand because it is rebuilt per analysis either way, and a `Parsed`
+    /// that answers about positions is what separates this entry point from
+    /// [`parse_file`]; [`crate::index`] is what one walk over `stmts` costs.
+    pub index: SyntaxIndex,
 }
 
 /// Parses a whole file top to bottom and keeps what it skipped, for a caller
@@ -766,9 +771,11 @@ pub struct Parsed {
 pub fn parse(file: &SourceFile, diags: &mut Diagnostics) -> Parsed {
     let mut parser = Parser::with_trivia(file, diags);
     let stmts = parser.parse_all();
+    let index = SyntaxIndex::of_stmts(&stmts);
     Parsed {
         stmts,
         trivia: parser.take_trivia(),
+        index,
     }
 }
 

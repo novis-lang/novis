@@ -38,11 +38,20 @@
 //! which is what a walk is for, and leaves the redraw to the roster.
 //!
 //! **What it spends:** one [`Node`] per statement, expression and member —
-//! two words for the kind plus a `Vec` header, allocated per parse and dropped
-//! when the caller is done with it. Nothing here is cached: a parse is a call,
-//! not a compilation unit.
+//! two words for the kind, a span, and a `Vec` header, allocated per parse and
+//! dropped when the caller is done with it. Nothing here is cached: a parse is
+//! a call, not a compilation unit.
+//!
+//! # The second consumer
+//!
+//! [`of_stmts`] is the same walk over statements already parsed, and
+//! [`crate::index::SyntaxIndex`] flattens it into the offset-to-node index
+//! `rule:ide/the-index-answers-the-cursor` specifies. That is why a [`Node`]
+//! carries its span: the walk is the one place the grammar is matched
+//! production by production, and an IDE asking which node a cursor is in must
+//! not be a second place it is matched.
 
-use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap};
+use nvs_diagnostics::{Diagnostics, MAX_SOURCE_LEN, SourceMap, Span};
 
 use crate::ast::{
     AnonClassDecl, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
@@ -60,6 +69,9 @@ use crate::parse_file;
 pub struct Node {
     /// The production this node is.
     pub kind: &'static str,
+    /// The source range it covers — the AST node's own span, never a second
+    /// measurement of one.
+    pub span: Span,
     /// The nodes this one contains, in source order.
     pub children: Vec<Node>,
 }
@@ -116,8 +128,24 @@ pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
     }
     Ok(Node {
         kind: "File",
-        children: stmts.iter().map(stmt).collect(),
+        span: stmts
+            .iter()
+            .map(|s| s.span)
+            .reduce(Span::to)
+            .unwrap_or_else(|| Span::at(file.id(), 0)),
+        children: of_stmts(&stmts),
     })
+}
+
+/// The nodes of a file that is already parsed, in source order.
+///
+/// The same walk [`of_source`] does, for a caller holding the statements —
+/// [`crate::index::SyntaxIndex`], which flattens them by span. There is no
+/// `File` node here because a file is a list of statements rather than one of
+/// them; `of_source` adds that root for `Core\Ast`, whose tree has to have one.
+#[must_use]
+pub fn of_stmts(stmts: &[Stmt]) -> Vec<Node> {
+    stmts.iter().map(stmt).collect()
 }
 
 /// One statement, and the nodes under it.
@@ -268,6 +296,7 @@ fn stmt(s: &Stmt) -> Node {
     };
     Node {
         kind,
+        span: s.span,
         children: kids,
     }
 }
@@ -491,6 +520,7 @@ fn expr(e: &Expr) -> Node {
     };
     Node {
         kind,
+        span: e.span,
         children: kids,
     }
 }
@@ -518,6 +548,7 @@ fn member(m: &ClassMember) -> Node {
     };
     Node {
         kind,
+        span: m.span,
         children: kids,
     }
 }
@@ -528,6 +559,7 @@ fn enum_case(c: &EnumCase) -> Node {
     push_opt(&mut kids, c.value.as_ref());
     Node {
         kind: "EnumCase",
+        span: c.span,
         children: kids,
     }
 }
