@@ -72,11 +72,26 @@
 //! built for at all — `rule:security/tainted-qualifier` and
 //! `rule:security/secret-qualifier` make a qualifier travel with a value, and
 //! an editor showing it at **every use site** is the cheapest teaching surface
-//! the language has. So the question is asked in [`Named::push`], once, for
-//! every [`Kind::Variable`] token however the walk reached it; a parameter is
-//! the one binding written outside any body's scope, so [`Named::param`] reads
-//! its written annotation instead. Both answers come from
-//! `nvs_types::expr::quals`, which is where the checker asks them.
+//! the language has. A use site is asked in one of three ways, and which one
+//! depends on where the type it carries is written down:
+//!
+//! - a **binding** — every [`Kind::Variable`] token however the walk reached
+//!   it — is asked in [`Named::push`], once, so that no call site can forget;
+//! - a **parameter** is a binding written outside any body's scope, so
+//!   [`Named::param`] reads its own annotation through
+//!   [`Named::qualifiers_declared`];
+//! - a **property access** is neither, the declaration being elsewhere
+//!   entirely, so [`Named::qualifiers_recorded`] reads the type the checker
+//!   recorded against the access itself.
+//!
+//! A property *declaration* is the one qualified position carrying nothing:
+//! the signature pass lowers its annotation into a table
+//! `nvs_types::check::record_property_types` copies types out of and not
+//! spans, so there is no `declared_ty` entry to ask. The qualifier is written
+//! on that line in any case, and every access to it is answered.
+//!
+//! All three answers come from `nvs_types::expr::quals`, which is where the
+//! checker asks them.
 //!
 //! # Decision: the walk is this crate's, and a new production emits nothing
 //!
@@ -99,7 +114,7 @@
 //! `SemanticToken` per name that survives encoding — both O(names in the entry
 //! document), allocated per request and dropped with the answer. A qualifier
 //! lookup walks the local scopes covering the name, so a variable costs
-//! O(bodies enclosing it) on top. Nothing is
+//! O(bodies enclosing it) on top; a property's is one table lookup. Nothing is
 //! cached: a re-analysis rebuilds the tree this reads
 //! (`rule:ide/a-full-reanalysis-stays-under-a-bound`).
 
@@ -111,8 +126,8 @@ use nvs_syntax::ast::{
     ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param, PropertyHook,
     PropertyHookBody, Stmt, StmtKind, StringPart, Type,
 };
-use nvs_types::TypeId;
 use nvs_types::expr::quals::{is_secret, is_tainted};
+use nvs_types::{ExprInfo, TypeId};
 
 use crate::definition::{Target, target_of};
 use crate::document::Analysed;
@@ -432,6 +447,35 @@ impl Named<'_> {
             .map_or(0, |ty| self.qualifiers_of(ty))
     }
 
+    /// The qualifiers the member accessed at `span` carries.
+    ///
+    /// A property is not a binding, so [`Named::qualifiers_at`] has no scope to
+    /// look it up in; the answer is the property's declared type, which the
+    /// checker recorded against the access itself. That is the same entry
+    /// [`crate::hover`] renders a type from, keyed the same way
+    /// [`Named::library_at`] is keyed — by the *enclosing* access, since a
+    /// member name is not an entry of its own.
+    ///
+    /// All four property entries carry it: a hooked one's is its accessor's
+    /// type, and a shape one's is `mixed` wherever
+    /// `rule:types/erased-member-access` erased the receiver, so an erased
+    /// access carries nothing rather than guessing at what it reached.
+    fn qualifiers_recorded(&self, span: Span) -> u32 {
+        let Some(info) = self
+            .analysed
+            .and_then(|analysed| analysed.exprs.lookup(span))
+        else {
+            return 0;
+        };
+        match info {
+            ExprInfo::Property { ty, .. }
+            | ExprInfo::StaticProperty { ty, .. }
+            | ExprInfo::HookedProperty { ty, .. }
+            | ExprInfo::ShapeProperty { ty, .. } => self.qualifiers_of(*ty),
+            _ => 0,
+        }
+    }
+
     /// The modifier bits `ty` sets.
     ///
     /// The two questions are asked of `nvs_types::expr::quals`, which is where
@@ -629,6 +673,12 @@ impl Named<'_> {
         for member in members {
             match &member.kind {
                 ClassMemberKind::Property(property) => {
+                    // No qualifier: a property's annotation is lowered by the
+                    // signature pass, whose table `nvs_types::check` copies
+                    // types out of rather than spans, so `declared_ty` has no
+                    // entry at this span the way it has one for a parameter.
+                    // The word is written on the line either way; every
+                    // *access* to it carries the modifier.
                     self.push(property.name, Kind::Property);
                     self.opt_expr(property.default.as_ref());
                     for hook in property.hooks.iter().flatten() {
@@ -788,12 +838,14 @@ impl Named<'_> {
                 object, property, ..
             } => {
                 self.expr(object);
-                self.member(property, Kind::Property);
+                let quals = self.qualifiers_recorded(expr.span);
+                self.member_with(property, Kind::Property, quals);
             }
             ExprKind::StaticPropertyAccess { class, name } => {
                 let library = self.library_at(expr.span);
+                let quals = self.qualifiers_recorded(expr.span);
                 self.receiver(class, library);
-                self.push(*name, Kind::Property);
+                self.push_with(*name, Kind::Property, quals);
             }
             // Both halves silent: the module doc above says why a class
             // constant and an enum case cannot be told apart here.
@@ -884,8 +936,14 @@ impl Named<'_> {
     /// A member name written as an identifier, or the expression that computes
     /// one.
     fn member(&mut self, name: &MemberName, kind: Kind) {
+        self.member_with(name, kind, 0);
+    }
+
+    /// The same, for a member whose value carries qualifiers the walk has
+    /// already asked the checker about.
+    fn member_with(&mut self, name: &MemberName, kind: Kind, modifiers: u32) {
         match name {
-            MemberName::Ident(span) => self.push(*span, kind),
+            MemberName::Ident(span) => self.push_with(*span, kind, modifiers),
             MemberName::Variable(expr) | MemberName::Expr(expr) => self.expr(expr),
             _ => {}
         }

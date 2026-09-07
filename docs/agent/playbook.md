@@ -3402,6 +3402,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ends up freezing an answer about `if` rather than about the arrow. Reach `MemberName::Missing` by
   leaving the arrow at end of file and putting the unclosed brace *above* it.
   [until: reviewed 2026-09-08]
+- **A `foreach` binding with no type is a syntax error, not an untyped binding**: `rule:types/grammar`.2
+  makes every binding write its type, so `foreach ($xs as $v)` reports `E0101` at the name and a case
+  asking what a bare binding carries never gets that far. A handoff item can name the construct in that
+  PHP shape anyway, because nothing in an LSP file set contradicts it. Run `nvs check` over the
+  `--FILE--` document before freezing anything about it. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
@@ -4899,6 +4904,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   AST must survive, not the parser's own stack. A tier written outside `parse_left_assoc` charges
   one level per link and holds it to the end of the chain, as `parse_postfix`'s `chain_len` does.
   [until: reviewed 2026-09-07]
+- **`ExprTypeTable::declared_ty` answers for a parameter's annotation and not for a property's**: the
+  signature pass lowers a property's type into a table of its own, and `nvs_types::check` copies types
+  out of it and not spans. So a modifier read off `declared_ty` at a property declaration is always zero
+  and fails no build. Read it off the access's own `ExprInfo::Property` entry instead, the way
+  `nvs_lsp::semantic`'s `qualifiers_recorded` does. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
 
 ## Divergences and refusals already pinned
 
