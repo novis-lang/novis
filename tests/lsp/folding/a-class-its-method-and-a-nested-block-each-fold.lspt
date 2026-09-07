@@ -1,0 +1,22 @@
+--TEST--
+a fold covers a construct written over lines and ends one line short of its last, so the closing brace stays on screen when it collapses, `rule:ide/the-request-set-is-closed`, `rule:ide/the-rendering-has-one-home`
+--FILE--
+<?nvs
+class User
+{
+    public int $age;
+
+    public function greet(): string
+    {
+        if ($this->age > 0) {
+            return "hi";
+        }
+        return "bye";
+    }
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+2-12 -
+7-11 -
+8-9 -

@@ -1,0 +1,16 @@
+--TEST--
+one answer is about one document: the walk reads the whole graph, and the `require` written in the required file is a link in that file's own document, `rule:ide/an-open-document-is-its-own-entry-point`
+--FILE--
+<?nvs
+require 'lib.nvs';
+--FILE lib.nvs--
+<?nvs
+require 'deep.nvs';
+class Counter { }
+--FILE deep.nvs--
+<?nvs
+class Deep { }
+--REQUEST--
+documentLink
+--EXPECT--
+2:9-2:18 -> lib.nvs

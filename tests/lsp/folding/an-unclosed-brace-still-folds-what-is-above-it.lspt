@@ -1,0 +1,20 @@
+--TEST--
+folding is a projection of one resilient tree, so a document that stops mid-member still folds the declaration above it and the refused top-level function above that, `rule:ide/one-grammar-one-tree`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+function tally(): int
+{
+    $sum = 0;
+    return $sum;
+}
+
+class Broken
+{
+    public function go(): void
+    {
+        $this->
+--REQUEST--
+foldingRange
+--EXPECT--
+3-5 -
+8-11 -

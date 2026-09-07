@@ -1,0 +1,25 @@
+--TEST--
+the two constructs with no closing brace: a run of imports carries LSP's `imports` kind and folds through its last line, and so does each `switch` arm, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+use App\Cart;
+use App\Order;
+use App\User;
+
+switch ($code) {
+    case 1:
+        $it = 1;
+        break;
+    case 2:
+        break;
+    default:
+        return;
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+2-4 imports
+6-13 -
+7-9 -
+10-11 -
+12-13 -

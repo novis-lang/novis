@@ -1,0 +1,33 @@
+--TEST--
+the bracketed `namespace` folds and everything it holds folds under it; a hook's body is a block on a method's terms, while the `{ get ... }` around the pair is not a span the tree keeps, `rule:classes/property-observer`
+--FILE--
+<?nvs
+namespace App
+{
+    interface Greeter
+    {
+        public function greet(): string;
+    }
+
+    class User implements Greeter
+    {
+        public string $name {
+            get {
+                return "hi";
+            }
+        }
+
+        public function greet(): string
+        {
+            return $this->name;
+        }
+    }
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+3-21 -
+4-6 -
+9-20 -
+12-13 -
+18-19 -
