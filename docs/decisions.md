@@ -1251,6 +1251,15 @@ signature already says the first two. The reference, the website and `nvs doc` a
 JSON `nvs meta --json` emits. Nothing requires a doc comment by default: `nvs check --strict-docs`
 reports a public member without one, and publishing a package turns that on.
 
+**Writing a doc comment is the editor’s job, not the language’s**
+
+A doc comment is a run of `///` lines, and the per-line marker is what stops anything inside from
+ending it early. What it costs is typing, and both halves of that belong to the editor: pressing
+Enter inside a doc comment starts the next line, and pasting several lines in offers to prefix them
+all. Neither adds a setting or a command. The alternative — a block form writing the marker once at
+each end — was turned down: its closing marker is what a code example inside the comment would
+contain.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

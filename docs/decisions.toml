@@ -2022,3 +2022,17 @@ that are not nullable behave as before. `Core\Uri` also has `queryParameter` and
 `withQueryParameter`, which edit one query parameter by name, something `with` cannot do because
 a parameter's name is chosen at run time.
 '''
+
+[[entry]]
+adr      = '0149'
+group    = 'tooling'
+digest   = '336babef037e'
+headline = 'Writing a doc comment is the editor’s job, not the language’s'
+body     = '''
+A doc comment is a run of `///` lines, and the per-line marker is what stops anything inside
+from ending it early. What it costs is typing, and both halves of that belong to the editor:
+pressing Enter inside a doc comment starts the next line, and pasting several lines in offers to
+prefix them all. Neither adds a setting or a command. The alternative — a block form writing the
+marker once at each end — was turned down: its closing marker is what a code example inside the
+comment would contain.
+'''

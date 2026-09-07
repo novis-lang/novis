@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*61 of 61 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1112,14 +1112,48 @@ The extension-host run proves activation on `.nvs` and its absence on `.php`.
 `rule:ide/language-configuration-is-content`
 
 `language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
-auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
-folding markers.
+auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
+([`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own)), and folding markers.
 
-The one entry that is Novis-specific, and that a file borrowed from a PHP extension gets wrong, is that
-**`wordPattern` must include `$`**. Without it, double-clicking `$total` selects `total`, every
-rename-adjacent interaction is off by one character, and word-based completion suggests the wrong token.
+Two entries are where a file borrowed from a PHP extension goes wrong. The first is `onEnterRules`,
+which there continues a `/** */` block — in Novis an ordinary comment nothing reads
+([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) — so it carries a shape the language does not document
+with and leaves the shape it does uncontinued.
 
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0099](../decisions/0099.md).</sub>
+The second is that **`wordPattern` must include `$`**. Without it, double-clicking `$total` selects
+`total`, every rename-adjacent interaction is off by one character, and word-based completion suggests
+the wrong token.
+
+<sub>See also [`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0099](../decisions/0099.md), [0149](../decisions/0149.md).</sub>
+
+<a id="ide-doc-comment-authoring-is-the-editors-own"></a>
+
+## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name  *(designed — not yet in the compiler)*
+
+`rule:ide/doc-comment-authoring-is-the-editors-own`
+
+Writing a `///` run is the editor's job, and it is two affordances that contribute no name.
+`onEnterRules` continues the run — Enter on a line opening with `///` starts the next one at the same
+indentation, and it keeps arriving until the author deletes it, as in Rust and C#. A
+`DocumentPasteEditProvider` offers *Paste as doc comment* when multi-line text is pasted with the cursor
+in a run: each line takes the run's marker and indentation, and an empty line becomes a bare `///`.
+
+Both exist because [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes) is line-oriented on purpose — the per-line
+marker is what stops anything in the body from ending the comment — and the cost of that is authoring,
+not reading. VS Code's toggle-line-comment inserts `//`, so it answers neither half.
+
+Neither is a command. The editor already surfaces paste alternatives in its own widget
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)), so nothing is added to a menu or a
+keymap, and [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added)'s roster does not move — except that
+the paste edit's **kind id** reaches a user's `editor.pasteAs.preferences` and is frozen on that rule's
+own terms. Prefixing lines with a marker is not language logic, so
+[`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted)'s allowlist is unchanged; an aid that had to understand the prose
+inside a doc comment is the first thing here that would have to answer it.
+
+Each client owns its own copy ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)): these are editing affordances,
+not server answers, so the PhpStorm plugin writes both again or goes without.
+
+<sub>See also [`ide/language-configuration-is-content`](ide.md#ide-language-configuration-is-content), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0149](../decisions/0149.md).</sub>
 
 <a id="ide-contributions-are-frozen-and-only-ever-added"></a>
 
