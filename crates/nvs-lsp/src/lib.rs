@@ -36,8 +36,8 @@
 //!
 //! This is that format's one home. A `.lspt` case is a document, a cursor, a
 //! request and the response rendered canonically
-//! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`), read by [`Case`] and
-//! run by `nvs lsp-test <paths>`:
+//! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`), read by [`Case`],
+//! rendered by [`Response`] and run by [`suite`] under `nvs lsp-test <paths>`:
 //!
 //! ```text
 //! --TEST--
@@ -82,11 +82,14 @@
 
 mod capabilities;
 mod case;
+mod render;
 mod server;
+pub mod suite;
 
 pub use capabilities::{
     CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, initialize_result,
     negotiate_encoding, semantic_tokens_legend, server_capabilities, server_info, server_version,
 };
 pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
+pub use render::{Link, Place, Redaction, Response};
 pub use server::{ServerError, run, serve};
