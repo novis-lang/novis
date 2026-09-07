@@ -1,5 +1,5 @@
 //! The token vocabulary: what the lexer produces, one span-tagged [`Token`] at a
-//! time.
+//! time, and the [`Trivia`] it skips between them.
 //!
 //! A token carries no owned text. Its [`Span`] already points at the exact bytes
 //! it came from, and [`nvs_diagnostics::SourceFile::span_text`] recovers them
@@ -26,6 +26,53 @@ impl Token {
     pub const fn new(kind: TokenKind, span: Span) -> Self {
         Self { kind, span }
     }
+}
+
+/// One run of source text the grammar never sees: whitespace, or a comment.
+///
+/// A trivium owns no text either, for the same reason a [`Token`] does not —
+/// the [`Span`] is the text. Retaining these is what lets the stream be put
+/// back together: every token and every trivium, concatenated in offset order,
+/// are the file (`rule:ide/tokens-plus-trivia-reproduce-the-file`). A
+/// [`Lexer`](crate::Lexer) collects them only when it was built to
+/// ([`Lexer::with_trivia`](crate::Lexer::with_trivia)), so a compile path pays
+/// nothing for a layer only a formatter and an editor read.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Trivia {
+    /// What kind of run this is.
+    pub kind: TriviaKind,
+    /// The exact bytes it covers, a comment's own delimiters included.
+    pub span: Span,
+}
+
+impl Trivia {
+    /// Pairs a kind with its span.
+    #[must_use]
+    pub const fn new(kind: TriviaKind, span: Span) -> Self {
+        Self { kind, span }
+    }
+}
+
+/// The four kinds of run a [`Trivia`] covers.
+///
+/// Deliberately not `#[non_exhaustive]`, unlike [`TokenKind`]:
+/// `rule:ide/one-grammar-one-tree` closes this set at four, so a fifth kind
+/// should fail to compile everywhere one is read rather than fall into a `_`
+/// arm that quietly treats it as an ordinary comment.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TriviaKind {
+    /// A run of whitespace, however long and across however many lines.
+    Whitespace,
+    /// A comment nothing but a formatter reads: `//`, `#`, or a run of four or
+    /// more slashes.
+    LineComment,
+    /// `/* … */`, including an unterminated one — that is a diagnostic, and it
+    /// is still trivia covering the bytes it ran over.
+    BlockComment,
+    /// Exactly three slashes: documentation
+    /// (`rule:tooling/doc-comment-is-three-slashes`), and the one variant
+    /// anything past the lexer reads.
+    DocComment,
 }
 
 /// Every kind of token the lexer can produce.

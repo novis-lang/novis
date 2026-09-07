@@ -2,14 +2,18 @@
 //!
 //! # Layout
 //!
-//! - [`token`] — the token vocabulary the lexer produces.
+//! - [`token`] — the token vocabulary the lexer produces, and the [`Trivia`]
+//!   runs it skips between two tokens.
 //! - [`lexer`] — the dual-mode (inline HTML + code) lexer itself.
 //! - [`ast`] — the AST the parser produces: the full type, expression,
 //!   statement and declaration grammar M1's plan names.
 //! - [`parser`] — the recursive-descent parser covering that whole grammar.
-//!   [`parse_file`] is the whole-file entry point (the `nvs-cli` crate's
-//!   `nvs ast` uses it); [`Parser`] and [`parse_expression`] are for callers
-//!   that want less than a whole file.
+//!   [`parse_file`] is the whole-file entry point every compile path calls (the
+//!   `nvs-cli` crate's `nvs ast` uses it); [`parse`] is the same parse plus the
+//!   trivia between the statements ([`Parsed`]), for a caller that has to
+//!   reproduce the file rather than compile it (`rule:ide/one-grammar-one-tree`);
+//!   [`Parser`] and [`parse_expression`] are for callers that want less than a
+//!   whole file.
 //! - [`casing`] — [`check_declarations`], the two rules a parsed file's
 //!   declarations answer on their own: `rule:core-api/identifier-casing`/0030's identifier casing and
 //!   `rule:core-api/written-visibility`'s required member visibility. See its module docs for exactly
@@ -97,5 +101,5 @@ pub mod walk;
 
 pub use casing::check_declarations;
 pub use lexer::{Lexer, tokenize};
-pub use parser::{Parser, parse_expression, parse_file};
-pub use token::{Keyword, Token, TokenKind};
+pub use parser::{Parsed, Parser, parse, parse_expression, parse_file};
+pub use token::{Keyword, Token, TokenKind, Trivia, TriviaKind};

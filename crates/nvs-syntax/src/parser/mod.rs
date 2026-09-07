@@ -65,7 +65,7 @@ use crate::ast::{
     TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
 };
 use crate::lexer::Lexer;
-use crate::token::{Keyword, Token, TokenKind};
+use crate::token::{Keyword, Token, TokenKind, Trivia};
 
 // The grammar, one module per layer — see the table above and each module's
 // own header. They add methods to the one `impl Parser` below and export
@@ -150,6 +150,9 @@ struct Checkpoint<'src> {
     lookahead: VecDeque<Token>,
     last_span: Span,
     diags_len: usize,
+    /// How much trivia had been collected when this was taken. The vector
+    /// itself stays with the live lexer — see [`Parser::checkpoint`].
+    trivia_len: usize,
 }
 
 impl<'src, 'd> Parser<'src, 'd> {
@@ -168,6 +171,41 @@ impl<'src, 'd> Parser<'src, 'd> {
             depth: 0,
             depth_exceeded: false,
         }
+    }
+
+    /// Starts parsing `file` exactly as [`Self::new`] does, and keeps every run
+    /// the grammar skips over — see [`Lexer::with_trivia`]. The statements are
+    /// the same either way: this is the one grammar, with a side channel
+    /// (`rule:ide/one-grammar-one-tree`).
+    #[must_use]
+    pub fn with_trivia(file: &'src SourceFile, diags: &'d mut Diagnostics) -> Self {
+        Self {
+            lexer: Lexer::with_trivia(file),
+            ..Self::new(file, diags)
+        }
+    }
+
+    /// Takes the trivia collected so far, leaving this parser able to collect
+    /// more. Empty unless this parser came from [`Self::with_trivia`].
+    pub fn take_trivia(&mut self) -> Vec<Trivia> {
+        self.lexer.take_trivia()
+    }
+
+    /// Parses statements until end of input — the body both whole-file entry
+    /// points share, so neither can drift from the other.
+    fn parse_all(&mut self) -> Vec<Stmt> {
+        let mut stmts = Vec::new();
+        while !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
+            stmts.push(self.parse_statement());
+            // Mirrors `parse_block`'s guard: if a statement consumed nothing (a
+            // production bailed out on an error), force progress so a malformed
+            // file can't hang the parser in an infinite loop.
+            if self.peek().span == before && !self.at(TokenKind::Eof) {
+                self.bump();
+            }
+        }
+        stmts
     }
 
     /// Guards every independent recursive-descent re-entry point (an
@@ -257,19 +295,33 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Saves the current position, so a speculative parse can be undone by
     /// [`Self::restore`] if it turns out to be the wrong production.
-    fn checkpoint(&self) -> Checkpoint<'src> {
+    fn checkpoint(&mut self) -> Checkpoint<'src> {
+        // The trivia collected so far is moved aside rather than cloned into
+        // the checkpoint: one is taken per ambiguous statement and the vector
+        // grows with the file, so cloning here would make a trivia-collecting
+        // parse quadratic in the comments before the cursor. `restore`
+        // truncates the live vector back to `trivia_len` instead, which is the
+        // same rewind the clone would have been.
+        let trivia = self.lexer.take_trivia();
+        let lexer = self.lexer.clone();
+        let trivia_len = trivia.len();
+        self.lexer.put_trivia(trivia);
         Checkpoint {
-            lexer: self.lexer.clone(),
+            lexer,
             lookahead: self.lookahead.clone(),
             last_span: self.last_span,
             diags_len: self.diags.len(),
+            trivia_len,
         }
     }
 
     /// Undoes every token consumed and every diagnostic reported since
     /// `cp` was taken.
     fn restore(&mut self, cp: Checkpoint<'src>) {
+        let mut trivia = self.lexer.take_trivia();
+        trivia.truncate(cp.trivia_len);
         self.lexer = cp.lexer;
+        self.lexer.put_trivia(trivia);
         self.lookahead = cp.lookahead;
         self.last_span = cp.last_span;
         self.diags.truncate(cp.diags_len);
@@ -493,25 +545,51 @@ pub fn parse_expression(file: &SourceFile, diags: &mut Diagnostics) -> Expr {
     Parser::new(file, diags).parse_expr()
 }
 
+/// A whole file, parsed: its statements, and the runs between them that the
+/// grammar skipped.
+///
+/// `rule:ide/one-grammar-one-tree`'s third field, the `SyntaxIndex` that
+/// answers a byte offset with the innermost node containing it, is **M4B's**
+/// and is deliberately not built here: nothing in the compiler reads it, and an
+/// index maintained through the goals before its first consumer is an index
+/// that is wrong by the time one arrives.
+#[derive(Debug)]
+pub struct Parsed {
+    /// Every top-level statement, in source order — exactly what
+    /// [`parse_file`] returns on its own.
+    pub stmts: Vec<Stmt>,
+    /// Every whitespace run and every comment, in source order
+    /// (`rule:ide/tokens-plus-trivia-reproduce-the-file`).
+    pub trivia: Vec<Trivia>,
+}
+
+/// Parses a whole file top to bottom and keeps what it skipped, for a caller
+/// that has to put the file back together — a formatter, an editor, or the
+/// documentation a `///` carries.
+///
+/// Same grammar, same statements and same diagnostics as [`parse_file`]; the
+/// trivia is a side channel, not a second parse (`rule:ide/one-grammar-one-tree`).
+#[must_use]
+pub fn parse(file: &SourceFile, diags: &mut Diagnostics) -> Parsed {
+    let mut parser = Parser::with_trivia(file, diags);
+    let stmts = parser.parse_all();
+    Parsed {
+        stmts,
+        trivia: parser.take_trivia(),
+    }
+}
+
 /// Parses a whole file top to bottom: the `nvs ast`/corpus-parse entry point
 /// M1's plan names, and the one place the file always starts in HTML mode
 /// (spec `00-overview.md` § 1) rather than a test's manually-bumped open tag.
 /// Errors are reported into `diags` rather than stopping the parse — callers
 /// that only care whether it parsed cleanly should check
 /// [`Diagnostics::has_errors`] afterwards.
+///
+/// This is the strict half of the pair: every compile path calls it, it keeps
+/// no trivia, and it exists beside [`parse`] so that adding the lossless mode
+/// changed no call site.
 #[must_use]
 pub fn parse_file(file: &SourceFile, diags: &mut Diagnostics) -> Vec<Stmt> {
-    let mut parser = Parser::new(file, diags);
-    let mut stmts = Vec::new();
-    while !parser.at(TokenKind::Eof) {
-        let before = parser.peek().span;
-        stmts.push(parser.parse_statement());
-        // Mirrors `parse_block`'s guard: if a statement consumed nothing (a
-        // production bailed out on an error), force progress so a malformed
-        // file can't hang the parser in an infinite loop.
-        if parser.peek().span == before && !parser.at(TokenKind::Eof) {
-            parser.bump();
-        }
-    }
-    stmts
+    Parser::new(file, diags).parse_all()
 }

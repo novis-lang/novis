@@ -18,19 +18,22 @@
 //!
 //! # What the lexer does not do
 //!
-//! It does not evaluate literals (an integer's value, a string's unescaped
-//! text, a heredoc's indentation strip) and it does not preserve comments or
-//! whitespace as trivia. Both are later-stage concerns: numeric/string
-//! "cooking" happens once a value is actually needed, and trivia-preserving
-//! reparse for `nvs fmt`/`nvs lsp` is M10's job, not M1's — the lexer's
-//! contract is a token stream whose spans are exactly right, nothing more.
+//! It does not evaluate literals — an integer's value, a string's unescaped
+//! text, a heredoc's indentation strip. That "cooking" happens once a value is
+//! actually needed, so the lexer's contract is a token stream whose spans are
+//! exactly right, nothing more.
+//!
+//! It does, when asked, keep what it skips: [`Lexer::with_trivia`] retains
+//! every whitespace run and every comment as a [`Trivia`], which is what a
+//! formatter and an editor need and what a compile path does not
+//! (`rule:ide/one-grammar-one-tree`).
 
 use std::collections::VecDeque;
 
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::duration;
-use crate::token::{Keyword, Token, TokenKind};
+use crate::token::{Keyword, Token, TokenKind, Trivia, TriviaKind};
 
 /// One entry in the lexer's mode stack. See the module docs for how `modes[0]`
 /// differs from everything above it.
@@ -69,7 +72,9 @@ enum Mode {
 ///
 /// `Clone` so the parser can checkpoint and restore a lexer position wholesale
 /// when a statement's grammar is genuinely ambiguous on a token prefix alone —
-/// see [`crate::parser::Parser::checkpoint`].
+/// see [`crate::parser::Parser::checkpoint`]. A clone carries the trivia
+/// collected so far, so restoring a checkpoint rewinds the trivia along with
+/// the position rather than leaving a speculative parse's comments behind it.
 #[derive(Debug, Clone)]
 pub struct Lexer<'a> {
     file: &'a SourceFile,
@@ -81,6 +86,12 @@ pub struct Lexer<'a> {
     /// yet — the exact window in which an `<?nvs` is [`code::E_TAG_IN_SHEBANG_FILE`]
     /// rather than a tag. See [`Self::new`].
     shebang_open: bool,
+    /// True when this lexer keeps what it skips. Off for every compile path,
+    /// on for [`Self::with_trivia`]'s callers.
+    collect_trivia: bool,
+    /// What has been skipped so far, in source order. Stays empty unless
+    /// `collect_trivia` is set.
+    trivia: Vec<Trivia>,
 }
 
 impl<'a> Lexer<'a> {
@@ -120,7 +131,46 @@ impl<'a> Lexer<'a> {
             }],
             pending: VecDeque::new(),
             shebang_open,
+            collect_trivia: false,
+            trivia: Vec::new(),
         }
+    }
+
+    /// Starts lexing `file` exactly as [`Self::new`] does, and keeps every run
+    /// it would otherwise only advance past, as a [`Trivia`]
+    /// (`rule:ide/one-grammar-one-tree`).
+    ///
+    /// The token stream is identical either way — collecting is a side channel,
+    /// not a mode — so a caller that wants both reads tokens as usual and asks
+    /// for [`Self::take_trivia`] at the end.
+    #[must_use]
+    pub fn with_trivia(file: &'a SourceFile) -> Self {
+        Self {
+            collect_trivia: true,
+            ..Self::new(file)
+        }
+    }
+
+    /// Every trivium skipped so far, in source order. Empty unless this lexer
+    /// came from [`Self::with_trivia`].
+    #[must_use]
+    pub fn trivia(&self) -> &[Trivia] {
+        &self.trivia
+    }
+
+    /// Takes what has been collected, leaving this lexer's own vector empty and
+    /// still collecting — for a caller that owns the result rather than reading
+    /// it in place.
+    pub fn take_trivia(&mut self) -> Vec<Trivia> {
+        std::mem::take(&mut self.trivia)
+    }
+
+    /// Puts a taken vector back, for [`crate::parser::Parser`]'s checkpoint,
+    /// which moves the trivia aside so cloning a lexer does not copy it. The
+    /// vector must be this lexer's own: any other would leave the trivia out of
+    /// source order, which is the one thing a consumer relies on.
+    pub(crate) fn put_trivia(&mut self, trivia: Vec<Trivia>) {
+        self.trivia = trivia;
     }
 
     /// Produces the next token, reporting any lexical errors along the way.
@@ -183,6 +233,16 @@ impl<'a> Lexer<'a> {
 
     fn push(&mut self, kind: TokenKind, span: Span) {
         self.pending.push_back(Token::new(kind, span));
+    }
+
+    /// Records the run from `start` to the current position as one trivium,
+    /// when this lexer is collecting. Called once per run and after it has been
+    /// consumed, so the span is exactly the bytes skipped.
+    fn push_trivia(&mut self, kind: TriviaKind, start: BytePos) {
+        if self.collect_trivia {
+            self.trivia
+                .push(Trivia::new(kind, self.mk_span(start, self.pos)));
+        }
     }
 
     // --- cursor -------------------------------------------------------------
@@ -354,18 +414,43 @@ impl<'a> Lexer<'a> {
 
     // --- code mode ------------------------------------------------------------
 
+    /// Consumes whitespace and comments, recording each run as one [`Trivia`]
+    /// when this lexer is collecting them.
+    ///
+    /// A line comment's kind is read off its opening run of slashes: exactly
+    /// three is a [`TriviaKind::DocComment`] and every other length is ordinary
+    /// (`rule:tooling/doc-comment-is-three-slashes`), which is Rust's own rule
+    /// and is what keeps a `////` divider a divider. A `#` comment is ordinary
+    /// at any length, and a run of slashes is counted before the rest of the
+    /// line is consumed because that is the only part of a comment its kind
+    /// depends on.
     fn skip_trivia(&mut self, diags: &mut Diagnostics) {
         loop {
             match self.peek() {
                 Some(c) if c.is_whitespace() => {
-                    self.bump();
+                    let start = self.pos;
+                    while self.peek().is_some_and(char::is_whitespace) {
+                        self.bump();
+                    }
+                    self.push_trivia(TriviaKind::Whitespace, start);
                 }
                 Some('/') if self.peek_at(1) == Some('/') => {
                     let start = self.pos;
+                    let mut slashes = 0_u32;
+                    while self.peek() == Some('/') {
+                        slashes += 1;
+                        self.bump();
+                    }
                     while !self.eof() && self.peek() != Some('\n') {
                         self.bump();
                     }
                     self.check_bidi(self.mk_span(start, self.pos), diags);
+                    let kind = if slashes == 3 {
+                        TriviaKind::DocComment
+                    } else {
+                        TriviaKind::LineComment
+                    };
+                    self.push_trivia(kind, start);
                 }
                 // `#[` opens an attribute, not a comment.
                 Some('#') if self.peek_at(1) == Some('[') => break,
@@ -375,6 +460,7 @@ impl<'a> Lexer<'a> {
                         self.bump();
                     }
                     self.check_bidi(self.mk_span(start, self.pos), diags);
+                    self.push_trivia(TriviaKind::LineComment, start);
                 }
                 Some('/') if self.peek_at(1) == Some('*') => {
                     let start = self.pos;
@@ -397,6 +483,7 @@ impl<'a> Lexer<'a> {
                         );
                     }
                     self.check_bidi(self.mk_span(start, self.pos), diags);
+                    self.push_trivia(TriviaKind::BlockComment, start);
                 }
                 _ => break,
             }
@@ -427,11 +514,19 @@ impl<'a> Lexer<'a> {
             // (`rule:tooling/shebang-opens-code-mode`).
             self.shebang_open = false;
             // One immediately following newline is swallowed, so a template
-            // line ending in `?>` does not emit a blank line (spec § 1).
+            // line ending in `?>` does not emit a blank line (spec § 1). It is
+            // the only byte outside `skip_trivia` that no token covers, so it
+            // is recorded as trivia too — otherwise every `?>` at the end of a
+            // line would be a hole in
+            // `rule:ide/tokens-plus-trivia-reproduce-the-file`.
+            let swallowed = self.pos;
             if self.starts_with("\r\n") {
                 self.pos += 2;
             } else if self.peek() == Some('\n') {
                 self.bump();
+            }
+            if self.pos != swallowed {
+                self.push_trivia(TriviaKind::Whitespace, swallowed);
             }
             return;
         }
