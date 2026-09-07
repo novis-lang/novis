@@ -176,6 +176,7 @@ pub(crate) fn infer_method_call(
         {
             let call = resolved_call(qname.clone(), name.clone(), sig, slots, env.signatures);
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
+            return first_class_callable_type(sig, env);
         }
         return env.interner.callable();
     }
@@ -428,6 +429,7 @@ pub(crate) fn infer_static_call(
                 call.static_class = resolve_class_expr(class, ctx, env);
             }
             env.exprs.record(expr.span, ExprInfo::CallableRef(call));
+            return first_class_callable_type(sig, env);
         }
         return env.interner.callable();
     }
@@ -797,6 +799,22 @@ fn constructor_accepts_everything(
             is_assignable(*declared, accepted, env.interner, env.graph, env.signatures)
         })
     })
+}
+
+/// The type a `Name(...)` reference has: the member's own signature, spelled
+/// as `rule:types/callable-signature`'s callable type, so a reference
+/// satisfies a typed position exactly as the closure literal wrapping the same
+/// call would — `Core\Arr::map($xs, Core\Math::abs(...))` binds `U` from
+/// `abs`'s declared return type and needs no literal to read it out of.
+///
+/// **Every declared parameter, not just the required ones.** A member with an
+/// optional parameter can be handed one more argument than it needs, so the
+/// arity `rule:types/callable-arity` compares is the whole list; truncating to
+/// the required prefix would leave that parameter's type unchecked at a
+/// position that does hand it something. The refusal that costs is the safe
+/// direction, and bare `callable` is still the way to write "any callable".
+fn first_class_callable_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
+    env.interner.callable_sig(sig.params.clone(), sig.return_ty)
 }
 
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`
