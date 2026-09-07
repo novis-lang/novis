@@ -173,10 +173,9 @@ retired = true
 [[goal]]
 name = "13 surface"
 md = "docs/agent/goals/13-surface.md"
-toml = "docs/agent/goals/13-surface.toml"
-handoff = "docs/agent/goals/13-surface.handoff.md"
 milestone = "M1"
 preflight = "docker"
+retired = true
 
 # `crates/nvs-lsp`: nine standard requests, one of Novis's own (`rule:security/redaction-ranges-come-from-the-server`'s `nvs/redactions`) and two code
 # actions, over `lsp-server` and `lsp-types` with no async runtime. Its stage 3 builds the `.lspt` case

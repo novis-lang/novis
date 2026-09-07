@@ -2,45 +2,43 @@
 
 ## State
 
-**Goal 13 is met: every check in `loop-goal.toml` passes.** `python tools/dossier.py --only
-lang:expressions/the-pipeline-operator --gate` says nothing is owed and `python tools/reference.py
---check` says `docs/novis.md` is current at 286 of 286 examples. The gate's last debt was not a
-missing test — it was `perf: stale`, because stage 2 gave the operator a reference heading and
-`docs/reference/lang/30-expressions.md` is what its figure is fingerprinted against
-(`rule:testing/member-perf-ledger`). `--record-perf` re-measured it at 21.370 units.
+**Goal 14 — `nvs lsp` — has just started; nothing of it has landed yet.** Goal 13's whole list is this
+goal's Stage 1 floor. `crates/nvs-lsp` does not exist.
 
-**The depth gap the previous session found is closed, and it was never the pipeline's alone.** A
-loop that left-nests a tree was charged nothing by `enter_recursive`, so the guard bounded the
-parser's stack and not the tree handed to the first pass that walks it recursively. `parse_pipe`,
-`parse_left_assoc` and `parse_instanceof` now each charge one level per link and hold it to the end
-of the chain, as `parse_postfix` already did. A 4000-term `$n + 1 + 1 …` was accepted before this
-and is refused with `E0108` now; the full gate is green either side of the change, so nothing
-legitimate in the corpus sat above the limit.
+**Stage 0 is empty because goal 12 emptied it.** The `SyntaxIndex`, explicit recovery
+(`MemberName::Missing`, a span on `ExprKind::Error`) and `utf16_col`/`offset_of` are all on disk. **No
+position conversion is written in this crate** — `nvs-diagnostics` is that rule's one home, and a second
+copy here is the bug the rule exists to prevent.
 
-**Another agent holds this tree.** ADR 0150, `docs/rules/types/type-test.md` and a
-`30-type-test` goal are uncommitted work that is not this session's; only the four files named in
-this session's commits were staged.
+The order of the first two stages is not a preference: **no request handler is written until the case
+format and its runner are green.** A request built before `.lspt` exists is a request nobody can prove,
+and the driver has no other way to see an answer that nothing prints.
 
 ## Next group
 
-**Both proofs of the new bound, from the Novis side, one file set:** `tests/conformance/syntax/`,
-`tests/hostile/lang/`, `crates/nvs-syntax/src/parser/expr.rs`.
+**Stage 2: the crate, the subcommand, the handshake, and the wire** — one file set: a new
+`crates/nvs-lsp/`, `crates/nvs-cli/src/main.rs`, and the workspace manifests.
 
-- [ ] **A `.nvst` case pins the refusal from the Novis side**, since the bound is currently proved
-      only from Rust and `rule:testing/four-proofs` wants both — an `--EXPECTF-ERROR--` case over a
-      flat chain past the limit, under `tests/conformance/syntax/`.
-      `crates/nvs-syntax/src/parser/expr.rs:70` is `parse_left_assoc`, whose `links` is what the
-      case exercises, and `crates/nvs-syntax/src/parser/mod.rs:441` is the `E0108` it must
-      reproduce, indentation and all.
-- [ ] **A hostile case for the flat spelling**, which is the attack the previous session's
-      pipeline attack could not reach because it went after the parser's one hole slot instead —
-      `rule:testing/hostile-case-contract` is the contract, so it passes by nothing coming apart
-      and a compile diagnostic is never the pass. `crates/nvs-syntax/src/parser/expr.rs:559` is
-      `parse_pipe`'s `stages`, and the case belongs beside the existing ones in
-      `tests/hostile/lang/`.
+- [ ] **The crate and its two dependencies.** `lsp-server` and `lsp-types`, synchronous, stdio. Each owes
+      three things: the `[workspace.dependencies]` line saying why that crate, `cargo deny check`, and
+      `python tools/gen-attribution.py`.
+- [ ] **`nvs lsp`**, and an `initialize` that declares exactly this goal's capabilities and no others, and
+      reports the binary's version.
+- [ ] **Position encoding negotiated per LSP 3.17** — offer `utf-8` and `utf-16`, take `utf-8` when
+      offered, over goal 12's conversions.
+- [ ] **Nothing but the protocol writes to stdout.** No `clippy::print_stdout` allowance in this crate, and
+      the named test that no crate the server links calls `println!`.
 
 ## Backlog
 
-- Parse-time nesting has no rule of its own; `enter_recursive`'s doc is its only home — `rule:errors/stack-depth` is the run-time bound, not this one.
-- `docs/perf/members.ndjson` holds 4 records for 1 machine, so any figure re-measured elsewhere will not compare — `docs/perf/members.md`.
-- The `[context]` manifest printed everything this session needed; no field was missing.
+- Stage 3 (`.lspt`, `nvs lsp-test`, `nvs_lsp::render`) is the same file set plus `crates/nvs-test`, and it
+  is the next group whatever else happens. `docs/agent/conventions.md` § *An `.lspt` case* already
+  specifies the format — implement that, do not redesign it.
+- Stages 4 to 9 are the requests, in the prose's order. Stage 6 (`hover`, `definition`, `completion`) is
+  one group of three and never fewer than one per session; stage 7's five projections are one walk each.
+- **Off path:** anything under `editors/`, the TextMate grammars, `nvs fmt`, rename, extract, workspace
+  symbol search, inlay hints, signature help, `documentHighlight`. The first three of those look adjacent
+  to this goal and are not — `rule:ide/five-features-are-one-reference-index` owns them at M10.
+- When this goal's last check goes green the chain advances to goal 15 — `editors/vscode`, the last of
+  M4B's four. Two entries follow it: goal 16 (the body rule and the JSON readers) and goal 17
+  (`Core\Test::request`'s shape), added after this file was written.

@@ -1,12 +1,17 @@
-# Goal 13 -- the pipeline operator and the PHP 8.6 refusals. The acceptance test, as data.
+# Goal 14 -- `nvs lsp`. The acceptance test, as data.
 #
-# `13-surface.md` is the prose. One home each.
+# `14-lsp-server.md` is the prose. One home each.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A CASE'S *SOURCE* IS NOT. A `.lspt` case's document, cursor or
+# request may be corrected freely -- whoever wrote it was writing against a server that did not exist.
+# What may never change is its `--EXPECT--`, or its reason for existing.
 
+# The floor brings its own fixtures. This goal's own evidence is a `.lspt` tree, which is a suite rather
+# than a frozen stdout, and the two guards below. Written across lines so goal-switch.py's union has
+# somewhere to put the floor's fixtures.
 files = [
-  "examples/pipeline.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/pipeline.nvs",
   "examples/doc-comments.nvs",
   "examples/typed-callable.nvs",
   "examples/schema.nvs",
@@ -74,56 +79,33 @@ files = [
 [context]
 
 modules = [
-  # The `|>` token, and the reserved set `let` and `is` join.
-  "crates/nvs-syntax/src/token.rs",
-  # Where the hole is substituted, and where precedence is expressed.
-  "crates/nvs-syntax/src/parser/expr.rs",
-  # Constructors and `readonly` -- two of the three refusals' declaration side.
-  "crates/nvs-syntax/src/parser/decl.rs",
-  # `try`/`finally`, which is where a `return` that leaves one is refused.
-  "crates/nvs-syntax/src/parser/stmt.rs",
-  # The code registry: three reassigned numbers and three new ones, or they do not exist.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # The dual-mode lexer: HTML/inline-text on one side, Novis code on the other, with a small stack
-  # of nested modes for double-quoted strings, heredocs and their interpolation sites.
-  "crates/nvs-syntax/src/lexer.rs",
-  # The recursive-descent parser: the machinery every production shares, and the four modules the
-  # grammar itself lives in.
-  "crates/nvs-syntax/src/parser/mod.rs",
-  # The expression grammar's tests: precedence and associativity, the postfix chain, every
-  # primary, and the PHP spellings that parse only to be diagnosed.
-  "crates/nvs-syntax/src/parser/tests/expr.rs",
-  # The declaration grammar's tests: classes, interfaces, enums, their members, attributes, the
-  # file-scope forms, and `parse_file`'s HTML/code round trip.
-  "crates/nvs-syntax/src/parser/tests/decl.rs",
-  # The statement grammar's tests, including both backtracking sites and every statement-shaped
-  # reject.
-  "crates/nvs-syntax/src/parser/tests/stmt.rs",
+  # The crate itself: every stage writes here. Until the first slice creates it, `orient.py` warns
+  # that this pattern matched no module -- that is expected on this goal's first session and on no
+  # other, and it is not a tooling bug to chase.
+  "crates/nvs-lsp/src/**",
+  # `Command::Lsp` and `Command::LspTest` are wired here.
+  "crates/nvs-cli/src/main.rs",
+  # The type answer under a cursor -- hover's and completion's source.
+  "crates/nvs-types/src/expr_table.rs",
+  # `Core` signature rows and reference cards -- hover's other half.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `line_col`, `utf16_col`, `offset_of`. READ ONLY: no conversion is written in nvs-lsp.
+  "crates/nvs-diagnostics/src/source.rs",
+  # The section lexer goal 12 extracted, which `.lspt` reads.
+  "crates/nvs-test/src/case.rs",
+
+  # -- Stages 4-7 (uncomment when the document store opens; drop what a stage no longer reads) --
+  # "crates/nvs-syntax/src/parser/mod.rs",
+  # "crates/nvs-hir/src/requires.rs",
 ]
 
-# The three pipeline rules by id, because a record number prints only its rules' titles and the
-# fragment is the rule -- the grammar, the precedence table and the three refusals are all in them.
-rules = [
-  "expressions/pipeline-substitution",
-  "expressions/pipeline-precedence",
-  "expressions/pipeline-hole-once",
-  # Stage 3's four refusals, by id for the same reason: 0124 prints only their titles.
-  "php-migration/let-and-is-are-reserved",
-  "php-migration/no-return-leaves-a-finally",
-  "php-migration/a-constructor-return-carries-no-value",
-  "php-migration/a-readonly-property-declares-no-default",
-  "0098",
-  "0124",
-  "0063",
-  "0034",
-  "0134",
-]
+rules = ["0099", "0101", "0040", "0016", "0117", "0137", "0092", "0134"]
 
-# 0098's *In short* and § 4, which is the diagnostics table stage 0 renumbered.
-# 0124's four refusals and the one it does not adopt.
-adrs = ["0098", "0098 § 4", "0124"]
+# The tree and the case format every stage reads; the request set and the gate; redaction's two
+# sections. The colour lists (0099 s4) are goal 15's and are deliberately absent.
+adrs = ["0099 §1", "0099 §3", "0099 §5", "0101 §1", "0101 §2"]
 
-shapes = ["A diagnostic", "A `.nvst` test case", "A rule fragment", "A decision record", "A commit message"]
+shapes = ["An `.lspt` case", "A `.nvst` test case", "A diagnostic", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -149,9 +131,9 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone. What these two items build is `rule:expressions/pipeline-substitution` and `rule:php-migration/a-deprecation-is-a-refusal`, both of which
-# this manifest already names whole.
-milestones = ["M1:verify"]
+# The acceptance paragraph alone; the request set and its rules are this goal's own prose and
+# `rule:ide/the-request-set-is-closed` and `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`, both already in this manifest.
+milestones = ["M4B:verify"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -159,12 +141,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-12's container-backed checks.
+# The floor carries goals 4-13's container-backed checks.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 327 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5015,16 +5003,13 @@ stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- CATCH-UP. `rule:expressions/pipeline-substitution`'s three numbers were allocated elsewhere after it was written. The
 # registry is the allocator; the ADR's table moves. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "0 catch-up"
+stage = "1 floor"
 name = "nvs-diagnostics (the pipeline codes, reassigned)"
 args = ["test", "-p", "nvs-diagnostics"]
 tests = [
@@ -5036,10 +5021,9 @@ tests = [
 # Stage 2 -- the operator. The identity claim is the design, so it is asserted rather than inspected.
 # Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the pipeline"
+stage = "1 floor"
 name = "nvs-syntax (the hole, substituted at parse time)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -5054,13 +5038,13 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "2 the pipeline"
+stage = "1 floor"
 name = "conformance (the pipeline's three refusals)"
 args = ["test", "tests/conformance/reject/pipeline"]
 
 [[check]]
 kind = "exact"
-stage = "2 the pipeline"
+stage = "1 floor"
 file = "examples/pipeline.nvs"
 want = [
   "a chain reads left to right",
@@ -5071,10 +5055,9 @@ want = [
 # Stage 3 -- the PHP 8.6 refusals. Asserted as cases rather than as a crate's unit tests: what is
 # frozen is the refusal a user sees, not which pass produced it. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the refusals"
+stage = "1 floor"
 name = "nvs-syntax (two reserved spellings)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -5084,17 +5067,16 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the refusals"
+stage = "1 floor"
 name = "conformance (return in finally, a constructor's value, a readonly default)"
 args = ["test", "tests/conformance/reject/php86"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the reference follows, and the one new heading pays for itself. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "4 the reference"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
@@ -5102,6 +5084,161 @@ argv = ["python", "tools/reference.py", "--check"]
 # program's debt and is deliberately not imported here.
 [[check]]
 kind = "command"
-stage = "4 the reference"
+stage = "1 floor"
 name = "the pipeline operator owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "lang:expressions/the-pipeline-operator", "--gate"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the crate, the handshake, and the wire. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the handshake"
+name = "nvs-lsp (the handshake and the wire)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "initialize_declares_exactly_the_capabilities_this_goal_ships",
+  "initialize_reports_the_binary_version",
+  "the_negotiated_encoding_is_the_one_the_client_offered",
+  "a_client_offering_only_utf16_gets_utf16",
+  # stdio IS the wire. Holds today only because nothing happens to print, and its failure mode is the
+  # server dying for no visible reason.
+  "no_crate_the_server_links_writes_to_stdout",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the case format and its runner, before any handler. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the case format"
+name = "nvs-lsp (the .lspt format, and one home for a rendering)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "an_lspt_case_reads_its_sections_through_the_shared_lexer",
+  "exactly_one_cursor_is_required_where_the_request_takes_one",
+  "a_second_file_section_carries_its_own_path",
+  "every_response_kind_renders_through_one_module",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4-9 -- the requests. Every request slice ships its own cases; this is the suite that runs them
+# and the guard that decides when there are enough. Goal prose stages 4 to 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the requests"
+name = "lsp cases"
+args = ["lsp-test", "tests/lsp/"]
+# A floor, not the gate. The gate is `every_request_answers_every_construct` below: a count can be
+# satisfied by six hundred cases about one construct, and that test cannot.
+min_passing = 160
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the requests"
+name = "nvs-lsp (the document store)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "an_unsaved_buffer_shadows_the_file_on_disk",
+  "editing_a_required_file_republishes_the_requiring_document",
+  "an_analysis_for_a_superseded_version_is_cancelled",
+  # Invisible on every fixture in this repository, because every one of them is LF-only ASCII.
+  "a_bom_and_a_crlf_document_answer_the_same_offsets_as_an_lf_one",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 diagnostics"
+name = "nvs-lsp (the phase gate, in both directions)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_parse_error_suppresses_the_type_diagnostics_of_that_file_only",
+  "a_resolution_error_does_not_suppress_a_type_error",
+  "phase_all_publishes_what_the_gate_suppressed",
+  "a_diagnostic_carries_its_code_and_no_code_description",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 redactions"
+name = "nvs-lsp (nvs/redactions, and its fail direction)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_secret_literal_and_a_secret_interpolation_slot_are_answered",
+  "a_plain_and_a_tainted_literal_are_not",
+  # `rule:security/redaction-ranges-come-from-the-server`: a value must not flash on screen while its literal is being typed.
+  "an_untypable_expression_whose_binding_is_secret_is_answered_anyway",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "9 code actions"
+name = "nvs-lsp (two code actions, and the boundary)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_code_action_comes_from_a_suggestion_the_diagnostic_already_carried",
+  "the_casing_diagnostic_carries_its_replacement",
+  "the_legacy_cast_diagnostic_carries_its_replacement",
+  "a_fix_the_checker_would_have_to_compute_is_offered_by_nothing",
+]
+
+# The gate. This goal's real definition of done, the way `every_part_one_spec_member_is_registered`
+# was an earlier goal's: it reads the grammar and fails naming the cells nobody covered.
+[[check]]
+kind = "cargo-named"
+stage = "9 code actions"
+name = "nvs-lsp (the coverage matrix has no empty cell)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "every_request_answers_every_construct",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- the measurement that says giving up incremental reparse still pays. Goal prose stage 10.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 the latency guard"
+name = "nvs-lsp (a full re-analysis stays under the bound)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- the reference chapter. Goal prose stage 11.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "11 the reference"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "11 the reference"
+name = "the two editor tool headings owe no proof"
+argv = ["python", "tools/dossier.py", "--only", "tools:editor/nvs-lsp",
+        "tools:editor/nvs-lsp-test", "--gate"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 12 -- the standing guard. Not this goal's work, but this goal is where it would break: a
+# language server is the classic reason somebody reaches for an async runtime.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "12 guards"
+name = "nvs-runtime (manifest policy)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "the_workspace_has_no_async_runtime",
+]
