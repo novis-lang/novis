@@ -154,6 +154,38 @@ impl SyntaxIndex {
         NodePath { nodes }
     }
 
+    /// The nodes `node` directly contains, in source order.
+    ///
+    /// The one question that goes *down* rather than up. [`Self::at`] answers a
+    /// cursor, and a cursor is always inside the node it is asking about — but
+    /// the member half of `$u->` is inside no node of its own, so what
+    /// `nvs_lsp::completion` needs is the receiver *beside* it: the access's
+    /// first child. Reaching it by scanning the source back over an arrow
+    /// would be this crate's grammar re-read in another one.
+    ///
+    /// Matched on the whole node rather than on its span alone, because a
+    /// statement and the expression it wraps cover the same bytes and only the
+    /// kind tells them apart. A path from [`Self::at`] is what supplies one, so
+    /// the caller is asking about a node this index really has.
+    #[must_use]
+    pub fn children_of(&self, node: IndexNode) -> Vec<IndexNode> {
+        let Some(parent) = self
+            .entries
+            .iter()
+            .position(|entry| entry.kind == node.kind && entry.span == node.span)
+        else {
+            return Vec::new();
+        };
+        self.entries
+            .iter()
+            .filter(|entry| entry.parent == Some(parent))
+            .map(|entry| IndexNode {
+                kind: entry.kind,
+                span: entry.span,
+            })
+            .collect()
+    }
+
     /// How many nodes the file has.
     #[must_use]
     pub fn len(&self) -> usize {
