@@ -4734,6 +4734,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Before retiring a bespoke parameter spelling, ask what refuses the argument once it is gone: if
   the answer is "a type variable", the variant was a bound and Novis has no bounded type variable
   to replace it with. [until: gone crates/nvs-stdlib/src/registry.rs:ShapeOfCallables]
+- **A new helper shared by two checking functions in `nvs-types` has no room for a seventh
+  parameter: `expr`, `args`, `live`, `scope`, `ctx` and `env` are already six, and clippy's
+  `too_many_arguments` fires at eight.** Extracting the common half of two checkers therefore fails
+  the clippy leg the moment it adds one argument saying which caller it serves, and the message
+  names the helper rather than the extraction. Fold the discriminator into the data it selects over
+  — an enum whose variants each hold the `&[TypeId]`, rather than an enum passed beside it — which
+  keeps the count at seven and reads better at both call sites. [until: reviewed 2026-09-07]
 
 ## Divergences and refusals already pinned
 
