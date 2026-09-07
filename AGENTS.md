@@ -24,7 +24,7 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 | Working interactively, on anything | `python tools/brief.py` — the plan's status, one line per milestone and per module, the definitions most often grepped for, the guard tests, what is on disk |
 | Looking for the file that owns a topic | `python tools/brief.py --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
-Those three route to everything else. The four files behind them, none of which is read in full by default:
+Those three route to everything else. The five files behind them, none of which is read in full by default:
 
 - **[docs/ground-rules.md](docs/ground-rules.md)** — generated, one line per rule, each linking the rule
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
@@ -36,6 +36,9 @@ Those three route to everything else. The four files behind them, none of which 
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
   case, a `Core` member, a decision record, a diagnostic. Read this instead of opening an example to
   copy.
+- **[docs/agent/grounding.md](docs/agent/grounding.md)** — what an answer owes the person who asked for
+  it: how a claim carries its evidence, and why a proposal is verified before it is offered rather than
+  when it is questioned.
 
 **A rule's fragment under `docs/rules/` is the rule, and it is always currently true.** A record under
 `docs/decisions/` is frozen rationale, reached through a rule's `because`, and is never edited to track a
@@ -68,8 +71,9 @@ When choosing between designs:
 ## The rules you will otherwise break
 
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
-[docs/agent/commands.md](docs/agent/commands.md), except the last, whose home is
-[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*.
+[docs/agent/commands.md](docs/agent/commands.md), except the last two, whose homes are
+[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment* and
+[docs/agent/grounding.md](docs/agent/grounding.md).
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
@@ -90,6 +94,9 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
    the code does not enforce.
+7. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
+   or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
+   follow-up that sends you to the code and changes what you said means the answer went out early.
 
 ## Session workflow
 
