@@ -1,0 +1,20 @@
+--TEST--
+a `///` run above a method is the hover at a call to it, because a member's run is attached to the member and the same walk reaches both, `rule:tooling/doc-comment-attaches-to-the-next-declaration`
+--FILE--
+<?nvs
+class User
+{
+    /// Greets whoever is holding this.
+    ///
+    /// Never empty, and never the name on its own.
+    public function greet(): string { return "hi"; }
+}
+
+var $u = new User();
+echo $u->gr<|>eet();
+--REQUEST--
+hover
+--EXPECT--
+Greets whoever is holding this.
+
+Never empty, and never the name on its own.

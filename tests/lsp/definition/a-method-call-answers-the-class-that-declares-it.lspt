@@ -1,0 +1,20 @@
+--TEST--
+a call jumps to the declaration it resolved to and not to the receiver's own class, because the checker already followed the `extends` chain, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Base
+{
+    public function greet(): string { return "hi"; }
+}
+
+class User extends Base
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->gr<|>eet();
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:21

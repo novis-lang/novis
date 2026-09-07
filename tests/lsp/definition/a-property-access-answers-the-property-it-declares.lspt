@@ -1,0 +1,15 @@
+--TEST--
+a property access answers where the property was written, sigil included, since that is the name span the parser gave it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:19
