@@ -41,8 +41,10 @@ modules = [
 # 0004 prices it.
 rules = ["0150", "0124", "0007", "0047", "0066", "0033", "0004"]
 
-# One entry per section: orient.py slices one heading per entry.
-adrs = ["0150", "0150 section 6", "0150 section 9", "0150 section 10"]
+# One entry per section, and the separator is `§` -- `"0150 section 6"` matched no heading and
+# sliced nothing, silently, in all three of its spellings. The record's *In short* block stays here
+# because it is this goal's own; each section moved into the stage that argues it.
+adrs = ["0150"]
 
 shapes = ["A commit message", "A `.nvst` test case", "A diagnostic"]
 
@@ -68,6 +70,41 @@ playbook = [
 ]
 
 plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `30-type-test.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.0]
+rules = ["php-migration/let-and-is-are-reserved"]
+
+[context.stage.2]
+rules = ["types/type-test"]
+
+[context.stage.3]
+rules = ["security/tainted-qualifier", "types/literal-types"]
+adrs = ["0150 §6"]
+
+# "False-edge narrowing is out of scope ... ADR 0150 § 9 says why" -- the stage's own sentence.
+[context.stage.4]
+rules = ["types/narrowing"]
+adrs = ["0150 §9"]
+
+[context.stage.5]
+rules = ["types/type-test"]
+
+# The two divergence rows this stage writes down are § 10's.
+[context.stage.6]
+adrs = ["0150 §10"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]

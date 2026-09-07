@@ -33,7 +33,9 @@ modules = [
 # not launder; 0097 is why the server still compresses nothing; 0009 is the bytes/string boundary.
 rules = ["0051", "0024", "0097", "0009", "0052", "0004"]
 
-adrs = ["0051 §3", "0097 §1"]
+# What no single stage owns. An entry a stage named moved into that stage's table
+# below, so it is read by the sessions working there and by no others.
+adrs = ["0097 §1"]
 
 shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]
 
@@ -63,6 +65,25 @@ playbook = [
 ]
 
 plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `25-formats.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.0]
+rules = ["core-api/tier-roster", "http-server/two-deployments-and-nothing-a-proxy-owns"]
+
+[context.stage.2]
+adrs = ["0051 §3"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]

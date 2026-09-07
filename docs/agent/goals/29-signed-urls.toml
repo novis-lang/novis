@@ -75,6 +75,31 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `29-signed-urls.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+rules = ["core-classes/signature", "security/verification-does-not-launder"]
+
+[context.stage.3]
+rules = ["core-api/signing-is-over-a-payload"]
+
+[context.stage.4]
+rules = ["core-classes/router-signed-url", "http-server/a-mount-table-expands-at-boot", "routing/matched-once-before-the-handler"]
+
+[context.stage.5]
+rules = ["core-api/a-lifetime-is-written", "security/access-is-checked-for-presence-not-meaning"]
+
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 

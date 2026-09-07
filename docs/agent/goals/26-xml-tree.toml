@@ -65,6 +65,31 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `26-xml-tree.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.0]
+rules = ["core-classes/html-parsing"]
+
+[context.stage.2]
+rules = ["core-classes/html-parsing", "tooling/reflection-and-source-parsing-are-core-features"]
+
+[context.stage.4]
+rules = ["core-classes/html-parsing"]
+
+[context.stage.5]
+rules = ["security/tainted-qualifier"]
+
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 

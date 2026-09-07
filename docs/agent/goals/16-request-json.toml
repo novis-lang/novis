@@ -35,7 +35,10 @@ rules = ["0105", "0097", "0079", "0095", "0024", "0063", "0117", "0012", "0004",
 
 # Sections, not whole ADRs: 0105 § 2 is the buffering `files` does, 0079 §§ 18 and 23 are the two
 # sentences this goal amends, 0097 § 8 is the body-and-streaming-reader section the new rule replaces.
-adrs = ["0105 §2", "0097 §8", "0079 §18", "0079 §23"]
+# Every one of this goal's sections argued one stage's design, so each moved into that stage's
+# table below: 0105 §2 and 0097 §8 are the body-read rule stage 3 writes, and 0079 §18 and §23 are
+# the `.nvst`/test-framework boundary stage 2's sections sit on.
+adrs = []
 
 shapes = [
   "A `Core` member — the five edits",
@@ -78,6 +81,33 @@ playbook = [
 ]
 
 plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `16-request-json.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. This goal's stages name their rules in prose
+# rather than as `rule:` tokens, so these were placed by reading each stage; every entry is one that
+# stage's own text is about. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+# The fixtures being rewritten were written against the rule stage 3 replaces.
+[context.stage.0]
+rules = ["http-server/the-body-is-read-on-demand-under-two-caps"]
+
+[context.stage.2]
+rules = ["testing/nvst-is-separate"]
+adrs = ["0079 §18", "0079 §23"]
+
+[context.stage.3]
+rules = ["http-server/the-body-is-read-on-demand-under-two-caps",
+         "http-server/a-part-is-consumed-in-one-of-three-ways",
+         "http-server/a-part-is-a-file-iff-it-carries-a-filename"]
+adrs = ["0105 §2", "0097 §8"]
+
+[context.stage.4]
+rules = ["core-api/tier-placement", "errors/ambiguous-input-refused"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
