@@ -1,0 +1,30 @@
+[package]
+name = "nvs-lsp"
+description = "The `nvs lsp` language server: LSP 3.17 over stdio, synchronous, on the resilient tree"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The wire. The workspace manifest owns why this crate and not a framing layer
+# of our own.
+lsp-server.workspace = true
+# The vocabulary. Same, and the two are versioned together because a
+# `lsp-server` example is written against a `lsp-types` shape.
+lsp-types.workspace = true
+# `initialize`'s params and result cross the wire as `serde_json::Value` —
+# `lsp_server::Connection` takes and returns one — so this crate names the
+# type it converts through rather than reaching for a second JSON library.
+serde_json.workspace = true
+
+# The workspace table verbatim, and `print_stdout` is the reason this block is
+# spelled out rather than inherited-and-forgotten: `rule:ide/stdout-belongs-to-the-protocol` gives this
+# process's stdout to the protocol, so the allowance `nvs-cli` takes for being a
+# terminal program must never be copied here. `tests/stdout_policy.rs` checks
+# the same claim over every crate the server links, because a lint only covers
+# the crate it is written in.
+[lints]
+workspace = true

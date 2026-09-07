@@ -54,6 +54,7 @@ nvs-config = { path = "crates/nvs-config", version = "0.0.1" }
 nvs-db = { path = "crates/nvs-db", version = "0.0.1" }
 nvs-stdlib = { path = "crates/nvs-stdlib", version = "0.0.1" }
 nvs-test = { path = "crates/nvs-test", version = "0.0.1" }
+nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
 cranelift = "0.135"
@@ -242,6 +243,38 @@ rcgen = { version = "0.14", default-features = false, features = [
 # --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
 # --- See docs/decisions/0003.md.
 wasmtime = "48"
+
+# --- the language server's wire and its vocabulary (ADR 0099 §§ 1-5) ---
+# `rule:ide/the-server-is-synchronous` is "a reader thread, a writer thread, one
+# analysis thread, and no async runtime", and this crate is exactly that shape:
+# `Connection::stdio()` spawns the two io threads and hands back a pair of
+# `crossbeam-channel` endpoints, so the server is a `for msg in receiver` loop
+# on the thread that called it. No executor, no task type, no `Future` — the
+# distinction ADR 0072 draws is not even reachable here. It is rust-analyzer's
+# own framing layer, extracted by its authors for this use, and the alternative
+# is owning `Content-Length` framing plus the
+# `initialize`/`initialized`/`shutdown`/`exit` state machine, which is a wire
+# protocol whose bugs are silent hangs.
+# ADR 0051 § 4's first question is "no": the bytes arrive from the editor that
+# launched this process over its own stdin, not from the network, and an editor
+# that frames badly is a broken editor rather than an attacker. Pure Rust, no
+# build script, no C, MIT OR Apache-2.0. It adds one crate to the lock file —
+# `crossbeam-channel`, whose `crossbeam-utils` is already there.
+# `crates/nvs-lsp/src/server.rs` owns the loop above it.
+lsp-server = "0.10"
+# The protocol's own structures, which is a translation of the specification and
+# not a design of ours: `ServerCapabilities` alone is ~90 fields, every one of
+# them a serde shape the client compares against by name. Writing them here
+# would be re-deriving LSP 3.17 from prose, and a field spelled wrong is a
+# capability the editor silently never uses — the failure mode `rule:ide/the-request-set-is-closed`'s
+# closed list exists to make visible.
+# Two of its dependencies are a second version of one this tree already has, and
+# both are named here rather than discovered: `bitflags` 1 (the tree's own is 2,
+# and 1.3.2 is already in the lock file for another crate) and `fluent-uri` 0.1
+# (`Core\Uri` is on 0.4). `deny.toml`'s `multiple-versions` is `warn`, and
+# neither duplicate reaches Novis's own code — a `Uri` in a request is parsed by
+# `lsp-types` and handed on as a path. Pure Rust, no build script, no C, MIT.
+lsp-types = "0.97"
 
 # --- core utilities ---
 anyhow = "1"
