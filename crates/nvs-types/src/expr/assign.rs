@@ -920,7 +920,7 @@ pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
         ExprKind::Variable(_)
             | ExprKind::PropertyAccess { .. }
             | ExprKind::StaticPropertyAccess { .. }
-            | ExprKind::Error
+            | ExprKind::Error(_)
     )
 }
 

@@ -154,7 +154,7 @@ fn not_nests_inside_a_rejected_cast_and_other_unary_operators() {
     // legacy-cast spelling is rejected (`rule:types/no-legacy-cast`), but it must still
     // consume `!$x` as its operand rather than leaving it dangling.
     let (e, diags) = parse_with_diags("(int) !$x");
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
@@ -462,7 +462,7 @@ fn legacy_cast_is_diagnosed() {
                 .any(|d| d.code == Some(code::E_LEGACY_CAST_UNSUPPORTED)),
             "expected E_LEGACY_CAST_UNSUPPORTED for {src:?}, got {diags:?}"
         );
-        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(matches!(e.kind, ExprKind::Error(_)));
     }
 }
 
@@ -480,7 +480,7 @@ fn and_or_xor_keywords_are_diagnosed() {
                 .any(|d| d.code == Some(code::E_LOGICAL_KEYWORD_UNSUPPORTED)),
             "expected E_LOGICAL_KEYWORD_UNSUPPORTED for {src:?}, got {diags:?}"
         );
-        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(matches!(e.kind, ExprKind::Error(_)));
     }
 }
 
@@ -499,7 +499,7 @@ fn chained_low_keyword_operators_report_once_each() {
         count, 2,
         "expected one diagnostic per keyword, got {diags:?}"
     );
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
 }
 
 /// `rule:types/no-legacy-cast`: at statement start specifically, `(string)$x;` is also a
@@ -536,7 +536,7 @@ fn function_closure_with_use_by_ref_is_rejected() {
     // `rule:types/closure-literal`/§ 2: `function` closures don't exist at all, and a
     // `use (&$y)` clause gets its own, more specific diagnostic on top.
     let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
@@ -552,7 +552,7 @@ fn function_closure_with_use_by_ref_is_rejected() {
 #[test]
 fn function_closure_with_use_by_value_is_rejected() {
     let (e, diags) = parse_with_diags("function () use ($y) { return $y; }");
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
@@ -568,7 +568,7 @@ fn function_closure_with_use_by_value_is_rejected() {
 #[test]
 fn function_closure_without_use_is_rejected_once() {
     let (e, diags) = parse_with_diags("function () { return 1; }");
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
     assert_eq!(
         diags
             .iter()
@@ -885,7 +885,7 @@ fn static_function_closure_is_diagnosed_as_a_function_closure() {
     // diagnostic as the unqualified spelling — there is no separate
     // static-modifier complaint once the literal itself is rejected.
     let (e, diags) = parse_with_diags("static function () { return 1; }");
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
     assert!(
         diags
             .iter()
@@ -942,14 +942,14 @@ fn an_ordinary_variable_is_not_mistaken_for_a_superglobal() {
 fn dollar_dollar_name_is_variable_variable() {
     let (e, diags) = parse_with_diags("$$name");
     assert!(diags.has_errors());
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
 }
 
 #[test]
 fn dollar_brace_expr_is_variable_variable() {
     let (e, diags) = parse_with_diags("${$name}");
     assert!(diags.has_errors());
-    assert!(matches!(e.kind, ExprKind::Error));
+    assert!(matches!(e.kind, ExprKind::Error(_)));
 }
 
 // --- `rule:expressions/catch-expression`'s expression `catch` ------------------------------------------
@@ -1047,4 +1047,97 @@ fn a_throw_arm_is_an_expression_and_parses() {
     };
     assert_eq!(arms.len(), 1);
     assert!(matches!(arms[0].body.kind, ExprKind::Throw(_)));
+}
+
+// --- recovery a consumer can read (`rule:ide/recovery-is-explicit`) --------------------------------
+// Two shapes an editor meets on nearly every keystroke — a caret after `->`,
+// and a construct the language refuses — and one claim about both: the
+// *variant* says the parser invented the node, so nothing has to measure a
+// span to find that out.
+
+/// Parses `src` as an expression and keeps the source map, so a span can be
+/// read back as the text it covers — which is the only way to check what a
+/// recovery node stood in for. [`parse_with_diags`] drops the map.
+fn parse_keeping_source(src: &str) -> (Expr, Diagnostics, SourceMap, nvs_diagnostics::SourceId) {
+    let mut map = SourceMap::new();
+    let id = map.add("t.nvs", format!("<?nvs {src}"));
+    let mut diags = Diagnostics::new();
+    let mut p = Parser::new(map.file(id), &mut diags);
+    p.bump(); // OpenTagNvs
+    let e = p.parse_expr();
+    (e, diags, map, id)
+}
+
+#[test]
+fn a_missing_member_name_is_explicit_not_an_empty_span() {
+    // `$u->` with the caret after the arrow is still a property access, and
+    // the name it carries is `Missing` rather than an `Ident` spanning
+    // nothing. The span is asserted to be exactly that caret — what used to
+    // be the only tell, and is now not the signal at all.
+    let (e, diags, map, id) = parse_keeping_source("$u->");
+    assert!(diags.has_errors(), "the missing name is still diagnosed");
+    let ExprKind::PropertyAccess {
+        object, property, ..
+    } = e.kind
+    else {
+        panic!("expected a property access: {e:?}");
+    };
+    assert!(matches!(object.kind, ExprKind::Variable(_)));
+    let MemberName::Missing(span) = property else {
+        panic!("expected a missing member name: {property:?}");
+    };
+    assert_eq!(text(&map, id, span), "");
+    assert_eq!(span.start, span.end, "an insertion point is a caret");
+}
+
+#[test]
+fn a_member_name_the_user_wrote_is_never_missing() {
+    // The other half of the distinction, and the one completion rests on:
+    // every spelling a program can write stays what it was, so `Missing`
+    // means "invented at the cursor" and nothing else does.
+    for src in [
+        "$u->name",
+        "$u->greet()",
+        "$u->$key",
+        "$u->{$key}",
+        "User::make()",
+    ] {
+        let e = parse_ok(src);
+        let name = match &e.kind {
+            ExprKind::PropertyAccess { property, .. } => property,
+            ExprKind::MethodCall { method, .. } | ExprKind::StaticCall { method, .. } => method,
+            other => panic!("expected a member access for {src:?}: {other:?}"),
+        };
+        assert!(
+            !matches!(name, MemberName::Missing(_)),
+            "{src:?} was written, but parsed as a name nobody wrote"
+        );
+    }
+}
+
+#[test]
+fn an_error_expression_carries_the_span_it_stood_in_for() {
+    // A refused construct: the placeholder names the source it replaced, so a
+    // consumer holding only the kind can point at it without walking back out
+    // to the node that carries it.
+    let (e, diags, map, id) = parse_keeping_source("(int) $x");
+    assert!(diags.has_errors());
+    let ExprKind::Error(span) = e.kind else {
+        panic!("expected a recovery node: {e:?}");
+    };
+    assert_eq!(text(&map, id, span), "(int) $x");
+
+    // An expression that was required and never written: the span is the
+    // caret it would have started at. It is empty, which is exactly why the
+    // variant rather than the width is what says recovery happened.
+    let (e, diags, map, id) = parse_keeping_source("1 +");
+    assert!(diags.has_errors());
+    let ExprKind::Binary { rhs, .. } = e.kind else {
+        panic!("expected a binary expression: {e:?}");
+    };
+    let ExprKind::Error(span) = &rhs.kind else {
+        panic!("expected a recovery node: {rhs:?}");
+    };
+    assert_eq!(text(&map, id, *span), "");
+    assert_eq!(*span, rhs.span);
 }

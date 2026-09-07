@@ -457,7 +457,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = self.peek().span.shrink_to_start();
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -687,7 +687,7 @@ fn is_assignable(e: &Expr) -> bool {
             | ExprKind::Index { .. }
             | ExprKind::PropertyAccess { .. }
             | ExprKind::StaticPropertyAccess { .. }
-            | ExprKind::Error
+            | ExprKind::Error(_)
     )
 }
 

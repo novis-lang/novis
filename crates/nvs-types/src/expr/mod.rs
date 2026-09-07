@@ -884,7 +884,7 @@ pub(crate) fn infer(
             env.interner.make_union(types)
         }
         ExprKind::Paren(inner) => check_expr(inner, expected, live, scope, ctx, env),
-        ExprKind::Error => env.interner.mixed(),
+        ExprKind::Error(_) => env.interner.mixed(),
         _ => env.interner.mixed(),
     }
 }

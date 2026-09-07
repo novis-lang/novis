@@ -641,7 +641,7 @@ fn eval_extract_settype_are_diagnosed() {
         let StmtKind::Expr(e) = s.kind else {
             panic!("expected an expression statement: {s:?}");
         };
-        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(matches!(e.kind, ExprKind::Error(_)));
     }
 }
 
@@ -659,7 +659,7 @@ fn die_is_diagnosed_naming_exit() {
         let StmtKind::Expr(e) = s.kind else {
             panic!("expected an expression statement: {s:?}");
         };
-        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(matches!(e.kind, ExprKind::Error(_)));
     }
 
     // `exit` in every one of the same shapes is unaffected.
@@ -710,6 +710,6 @@ fn include_family_is_diagnosed() {
         let StmtKind::Expr(e) = s.kind else {
             panic!("expected an expression statement: {s:?}");
         };
-        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(matches!(e.kind, ExprKind::Error(_)));
     }
 }

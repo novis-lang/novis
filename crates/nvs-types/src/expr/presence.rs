@@ -115,7 +115,7 @@ fn names_storage(e: &Expr) -> bool {
         | ExprKind::Index { .. }
         | ExprKind::PropertyAccess { .. }
         | ExprKind::StaticPropertyAccess { .. }
-        | ExprKind::Error => true,
+        | ExprKind::Error(_) => true,
         _ => false,
     }
 }

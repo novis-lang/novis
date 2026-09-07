@@ -148,7 +148,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             lhs = Expr {
                 span,
-                kind: ExprKind::Error,
+                kind: ExprKind::Error(span),
             };
         }
         lhs
@@ -578,7 +578,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             return Expr {
                 span,
-                kind: ExprKind::Error,
+                kind: ExprKind::Error(span),
             };
         }
         macro_rules! prefix {
@@ -712,7 +712,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             if self.enter_recursive() {
                 e = Expr {
                     span: e.span,
-                    kind: ExprKind::Error,
+                    kind: ExprKind::Error(e.span),
                 };
                 break;
             }
@@ -870,7 +870,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                             args,
                         },
                     }
-                } else if let MemberName::Ident(name) = member {
+                // A name that was never written is a class-constant access
+                // whose name is missing, not a dynamic member: `Foo::` at the
+                // caret is the `::` shape of `$u->`, and sending it to the
+                // arm below would report an invented "expected `(`" on top of
+                // the diagnostic `parse_member_name` already reported. What
+                // `rule:ide/recovery-is-explicit` asks for is not answered on
+                // this path, though, because `ClassConstAccess` carries a bare
+                // `Span` and so has nowhere to say the name was invented.
+                } else if let MemberName::Ident(name) | MemberName::Missing(name) = member {
                     let span = class.span.to(name);
                     Expr {
                         span,
@@ -890,7 +898,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     );
                     Expr {
                         span,
-                        kind: ExprKind::Error,
+                        kind: ExprKind::Error(span),
                     }
                 }
             }
@@ -950,6 +958,13 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// three neighbours that keep the refusal are distinguished by what they
     /// are (a call, an `unset`, an unsatisfiable receiver), never by which of
     /// the two brackets wrote them.
+    ///
+    /// The fourth outcome is the one nobody wrote: where none of the three is
+    /// present, the name is [`MemberName::Missing`] at the insertion point,
+    /// diagnosed there and left explicit rather than synthesized as an
+    /// identifier spanning nothing (`rule:ide/recovery-is-explicit`). `$u->`
+    /// with the caret after the arrow is that shape, and it is the one member
+    /// completion is asked about.
     pub(super) fn parse_member_name(&mut self) -> MemberName {
         match self.peek().kind {
             TokenKind::Variable => {
@@ -966,7 +981,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 MemberName::Expr(Box::new(inner))
             }
             TokenKind::Ident | TokenKind::Keyword(_) => MemberName::Ident(self.bump().span),
-            _ => MemberName::Ident(self.error_expected("a member name")),
+            _ => MemberName::Missing(self.error_expected("a member name")),
         }
     }
 
@@ -1131,7 +1146,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 );
                 Expr {
                     span,
-                    kind: ExprKind::Error,
+                    kind: ExprKind::Error(span),
                 }
             }
             TokenKind::Keyword(Keyword::SelfKw) => {
@@ -1232,7 +1247,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let span = self.error_expected_expr();
                 Expr {
                     span,
-                    kind: ExprKind::Error,
+                    kind: ExprKind::Error(span),
                 }
             }
         }
@@ -1357,7 +1372,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -1465,10 +1480,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Ident | TokenKind::Backslash => NewTarget::Name(self.parse_name()),
             _ => {
-                let span = self.error_expected_expr();
+                let span = start.to(self.error_expected_expr());
                 return Expr {
-                    span: start.to(span),
-                    kind: ExprKind::Error,
+                    span,
+                    kind: ExprKind::Error(span),
                 };
             }
         };
@@ -1785,7 +1800,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -2006,7 +2021,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
             return Expr {
                 span,
-                kind: ExprKind::Error,
+                kind: ExprKind::Error(span),
             };
         }
         Expr {
@@ -2050,7 +2065,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -2070,7 +2085,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -2091,7 +2106,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -2144,7 +2159,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Expr {
             span,
-            kind: ExprKind::Error,
+            kind: ExprKind::Error(span),
         }
     }
 
@@ -2341,7 +2356,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         let span = self.error_expected("an array offset");
                         Expr {
                             span,
-                            kind: ExprKind::Error,
+                            kind: ExprKind::Error(span),
                         }
                     }
                 };

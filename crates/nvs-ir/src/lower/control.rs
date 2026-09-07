@@ -2165,7 +2165,7 @@ impl<'a> Lowering<'a> {
             | ExprKind::StaticExpr
             | ExprKind::ParentExpr
             | ExprKind::Fn(_)
-            | ExprKind::Error => {}
+            | ExprKind::Error(_) => {}
             ExprKind::Interpolated(parts) => {
                 for part in parts {
                     if let StringPart::Expr(x) = part {

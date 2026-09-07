@@ -386,6 +386,14 @@ impl AssignOp {
 pub enum MemberName {
     /// `->prop`, `->method()`, `::CONST`, `::method()` — the ordinary case.
     Ident(Span),
+    /// A name the parser invented because one was required and none was
+    /// written — `$u->` with the caret after the arrow. The span is the
+    /// insertion point the name would have occupied, and the *variant*, never
+    /// that span's width, is what says the name is missing
+    /// (`rule:ide/recovery-is-explicit`): a consumer that has to tell an
+    /// identifier the user wrote from one the parser invented — member
+    /// completion above all — reads this rather than inferring it.
+    Missing(Span),
     /// `->$name` — the member name is the value of a variable.
     Variable(Box<Expr>),
     /// `->{expr}` — the member name is an arbitrary computed expression.
@@ -1038,9 +1046,18 @@ pub enum ExprKind {
     /// recognizes a *non*-empty literal attempt (`{ident :`), so an empty
     /// `{}` there stays an empty block, exactly as before this ADR.
     ObjectLiteral(Vec<ObjectLiteralField>),
-    /// A placeholder produced during error recovery. Carries no meaning beyond
-    /// "parsing failed here"; a diagnostic was already reported at this span.
-    Error,
+    /// A placeholder produced during error recovery, carrying the span of what
+    /// it stood in for: the construct that was refused, or the insertion point
+    /// where a required expression was not written. A diagnostic was already
+    /// reported there.
+    ///
+    /// It is carried on the variant rather than left to be read off the
+    /// [`Expr`] around it, because a consumer matching on a kind is the one
+    /// that has to know: the variant says the node was invented, and the span
+    /// says what it replaced. Neither span's *width* is ever the signal — a
+    /// required expression that was never written stands in for a caret
+    /// (`rule:ide/recovery-is-explicit`).
+    Error(Span),
 }
 
 // ============================================================================

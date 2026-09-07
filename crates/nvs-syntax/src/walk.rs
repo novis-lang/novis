@@ -516,7 +516,7 @@ fn expr(e: &Expr) -> Node {
             }
             "ObjectLiteral"
         }
-        ExprKind::Error => "Error",
+        ExprKind::Error(_) => "Error",
     };
     Node {
         kind,
@@ -589,10 +589,12 @@ fn push_args(kids: &mut Vec<Node>, args: &CallArgs) {
 
 /// A member name computed from an expression carries that expression; a
 /// written one is a name, and the module doc's second decision says a name is
-/// not a node.
+/// not a node. A missing one is a position rather than a name, so it is not a
+/// node either: the access that carries it is what an offset lands in, which
+/// is [`crate::index`]'s own first consequence.
 fn push_member_name(kids: &mut Vec<Node>, name: &MemberName) {
     match name {
-        MemberName::Ident(_) => {}
+        MemberName::Ident(_) | MemberName::Missing(_) => {}
         MemberName::Variable(e) | MemberName::Expr(e) => kids.push(expr(e)),
     }
 }

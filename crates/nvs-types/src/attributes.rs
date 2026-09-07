@@ -433,7 +433,7 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         }
         // Error recovery already reported something; a second diagnostic on
         // the same span names one mistake twice.
-        ExprKind::Error => true,
+        ExprKind::Error(_) => true,
         _ => false,
     }
 }
