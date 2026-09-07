@@ -18,11 +18,18 @@ lsp-types.workspace = true
 # The front end an open document is analysed with. One document is its own
 # entry point (`rule:ide/an-open-document-is-its-own-entry-point`) and its
 # `require` graph is resolved exactly the way `nvs check` resolves it, so these
-# are the same three crates `nvs-cli`'s `front_end` names and in the same order:
-# the source map an unsaved buffer is overlaid on, the parser, and the walk.
+# are the same four crates `nvs-cli`'s `front_end` names and in the same order:
+# the source map an unsaved buffer is overlaid on, the parser, the walk, and
+# the type check. The last one is what makes `E03xx` and `E04xx` reachable at
+# all, which is the band `rule:ide/diagnostics-are-phase-gated` gates — a
+# server that stopped at the walk would publish a fraction of what `nvs check`
+# reports and call it agreement. It also puts `nvs-stdlib` and the runtime
+# beneath it into the server's link closure, which `tests/stdout_policy.rs`
+# names.
 nvs-diagnostics.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
+nvs-types.workspace = true
 # The section lexer, and nothing else: `.lspt` and `.nvst` are two suites that
 # share one parser for the `--NAME--` shape (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 # This crate is std-only and writes nothing to standard output, so the closure

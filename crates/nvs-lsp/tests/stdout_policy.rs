@@ -107,6 +107,27 @@ fn sources(dir: &Path) -> Vec<PathBuf> {
 /// `stdout()` rather than `io::stdout()`, so an imported spelling counts too.
 const WRITERS: &[&str] = &["println!(", "print!(", "stdout()"];
 
+/// The one crate in the closure that names `stdout()` legitimately.
+///
+/// `nvs-lsp` links the type checker, which links `nvs-stdlib` for the `Core`
+/// signature registry, which links the runtime — so `nvs_runtime::Ctx`'s
+/// `OutputSink::Stdout` is now under the server. That sink is how a program's
+/// `echo` reaches a terminal under `nvs run`, and it writes only to a `Ctx` a
+/// caller has explicitly wired to it. Nothing beneath the server wires one, and
+/// [`nothing_under_the_server_wires_a_program_to_stdout`] is that half of the
+/// claim; what is exempted here is the sink's own implementation, never the two
+/// macros, which stay an offence in every crate including this one.
+const THE_OUTPUT_SINK: &str = "nvs-runtime";
+
+/// Whether `writer` is a hit this crate is allowed.
+///
+/// Only the bare `stdout()` handle, and only in the crate that implements the
+/// sink: a `println!` there would still be a stray byte with no `Ctx` behind
+/// it.
+fn exempt(krate: &str, writer: &str) -> bool {
+    krate == THE_OUTPUT_SINK && writer == "stdout()"
+}
+
 #[test]
 fn no_crate_the_server_links_writes_to_stdout() {
     let root = workspace_root();
@@ -126,7 +147,7 @@ fn no_crate_the_server_links_writes_to_stdout() {
                 // stderr macros come out before the line is searched at all.
                 let printing = code.replace("eprintln!(", "").replace("eprint!(", "");
                 for writer in WRITERS {
-                    if printing.contains(writer) {
+                    if printing.contains(writer) && !exempt(&krate, writer) {
                         let path = file.strip_prefix(&root).unwrap_or(&file);
                         offences.push(format!("{}:{}: {code}", path.display(), number + 1));
                     }
@@ -141,6 +162,51 @@ fn no_crate_the_server_links_writes_to_stdout() {
          (`rule:ide/stdout-belongs-to-the-protocol`); anything printed there desynchronises the \
          stream and the server stops answering with nothing to read anywhere. Logging goes to \
          stderr and to `window/logMessage`.",
+        offences.join("\n  ")
+    );
+}
+
+/// The ways a caller asks for the runtime's standard-output sink.
+const WIRINGS: &[&str] = &["OutputSink::Stdout", "Ctx::stdout("];
+
+/// The other half of [`THE_OUTPUT_SINK`]'s exemption, and the reason that
+/// exemption is not a hole.
+///
+/// The runtime may write to stdout because a `Ctx` was wired to it, so what has
+/// to hold under the server is that nothing wires one. `nvs-lsp` cannot: it does
+/// not name `nvs-runtime` in its own manifest, so `Ctx` is not a type it can
+/// spell. What is left is the crates in between, and this is them.
+#[test]
+fn nothing_under_the_server_wires_a_program_to_stdout() {
+    let root = workspace_root();
+    let mut offences = Vec::new();
+
+    for krate in linked_crates() {
+        if krate == THE_OUTPUT_SINK {
+            continue;
+        }
+        for file in sources(&root.join("crates").join(&krate).join("src")) {
+            for (number, line) in read(&file).lines().enumerate() {
+                let code = line.trim_start();
+                if code.starts_with("//") {
+                    continue;
+                }
+                for wiring in WIRINGS {
+                    if code.contains(wiring) {
+                        let path = file.strip_prefix(&root).unwrap_or(&file);
+                        offences.push(format!("{}:{}: {code}", path.display(), number + 1));
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        offences.is_empty(),
+        "a crate the language server links wires an output sink to stdout:\n  {}\nthe runtime is \
+         allowed its `stdout()` only because reaching it takes a `Ctx` a caller built on purpose \
+         (`rule:ide/stdout-belongs-to-the-protocol`), and the server builds none. A crate that \
+         wires one underneath it puts a program's `echo` into the LSP framing.",
         offences.join("\n  ")
     );
 }

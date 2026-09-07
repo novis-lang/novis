@@ -1,0 +1,319 @@
+//! Which of an analysis's diagnostics an editor is shown, and what one looks
+//! like once it is on the wire.
+//!
+//! `rule:ide/diagnostics-are-phase-gated` is [`phase_gated`] and nothing else:
+//! a file that has produced a lexer (`E00xx`) or parser (`E01xx`) error
+//! publishes those and its declaration diagnostics, and its own resolution and
+//! type diagnostics are held back — because resolution walking an
+//! `ExprKind::Error` reports "assigned to but never declared" *above* the
+//! `E0102` that caused it, and a wall of red whose topmost entry is wrong on
+//! every keystroke mid-statement teaches a developer to stop reading squiggles.
+//!
+//! **The band is the phase.** Codes are allocated per compiler phase
+//! (`crates/nvs-diagnostics/src/lib.rs` is the legend), so the two digits after
+//! the `E0` say which phase reported a diagnostic without anything having to
+//! carry a phase tag through the front end. The type phase spans three bands
+//! rather than one — it filled `E04xx` at `E0499` and `E07xx` at `E0799` and
+//! continues in `E08xx` — and all three are gated together, because a code's
+//! band is an allocation detail and its phase is what the rule is about.
+//!
+//! **An error opens the gate, a warning does not.** The rule's reason is a
+//! parse that produced a broken tree, and a lexer or parser *warning* produced
+//! a whole one: there is no `ExprKind::Error` under it for the phases below to
+//! cascade from, so a documentation warning would otherwise silence the type
+//! check of a file that parses perfectly.
+//!
+//! [`to_wire`] is the other half: one `nvs_diagnostics::Diagnostic` as one
+//! `lsp_types::Diagnostic`. It is here rather than in [`crate::render`] because
+//! the two answer different questions — this builds the value the client is
+//! sent, and that module freezes the text a `.lspt` case compares against, over
+//! the same value.
+//!
+//! **This is presentation, not analysis.** [`crate::analyse`] runs every phase
+//! and keeps every diagnostic, so nothing is lost and `nvs check` is untouched;
+//! a `.lspt` case asking `phase=all` is one that publishes
+//! [`crate::Analysed::diags`] without calling this function at all, which is
+//! why the gate is a filter over a finished walk rather than a bail-out inside
+//! one.
+
+use std::collections::BTreeSet;
+
+use lsp_types::{DiagnosticSeverity, NumberOrString, Range};
+use nvs_diagnostics::{
+    Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
+};
+
+use crate::position::position_at;
+
+/// The bands whose error means this file's tree is broken, so what the phases
+/// below it made of that tree is not worth showing: the lexer's and the
+/// parser's.
+const A_BROKEN_TREE: &[&str] = &["00", "01"];
+
+/// The bands reported by the phases that read the tree the two above build:
+/// name resolution, and the type check across all three bands it occupies.
+const READS_THE_TREE: &[&str] = &["03", "04", "07", "08"];
+
+/// The two digits that name a code's phase — `E0102` is the parser's `01`.
+///
+/// Empty for a code too short to have one, which no `Code::new` in the registry
+/// is; a code that somehow lacked a band belongs to no phase and so is gated by
+/// nothing, which is the right way for this to fail.
+fn band(code: Code) -> &'static str {
+    code.as_str().get(1..3).unwrap_or_default()
+}
+
+/// The file a diagnostic is about, or `None` for one that points nowhere.
+fn file_of(diagnostic: &Diagnostic) -> Option<SourceId> {
+    diagnostic.primary_span().map(|span| span.file)
+}
+
+/// Whether `diagnostic`'s code is in one of `bands`.
+fn in_bands(diagnostic: &Diagnostic, bands: &[&str]) -> bool {
+    diagnostic
+        .code
+        .is_some_and(|code| bands.contains(&band(code)))
+}
+
+/// The diagnostics of `diags` an editor publishes, with the phase gate applied.
+///
+/// Order is preserved, and every diagnostic that survives is the one the walk
+/// reported — this filters and never rewrites, so the codes, spans and messages
+/// a `.lspt` case freezes are the compiler's own.
+#[must_use]
+pub fn phase_gated(diags: &Diagnostics) -> Vec<&Diagnostic> {
+    let broken: BTreeSet<SourceId> = diags
+        .iter()
+        .filter(|diagnostic| diagnostic.is_error() && in_bands(diagnostic, A_BROKEN_TREE))
+        .filter_map(file_of)
+        .collect();
+
+    diags
+        .iter()
+        .filter(|diagnostic| {
+            !in_bands(diagnostic, READS_THE_TREE)
+                || file_of(diagnostic).is_none_or(|file| !broken.contains(&file))
+        })
+        .collect()
+}
+
+/// What a diagnostic's `source` field says produced it.
+///
+/// The compiler, not the server: an editor shows this beside the message to
+/// separate one producer's diagnostics from another's in the same file, and
+/// `E0401` is the type checker's answer whether it arrived over LSP or out of
+/// `nvs check`. Deliberately not [`crate::SERVER_NAME`], which names the
+/// process an operator has to start.
+pub const SOURCE: &str = "nvs";
+
+/// `severity` as the wire spells it.
+///
+/// A `Bug` crosses as an error rather than as a category of its own: LSP has
+/// four severities and none of them means "the compiler is broken", and the one
+/// thing that must not happen to an internal error is that it renders more
+/// quietly than the mistakes it is a symptom of.
+const fn severity(severity: Severity) -> DiagnosticSeverity {
+    match severity {
+        Severity::Note => DiagnosticSeverity::INFORMATION,
+        Severity::Help => DiagnosticSeverity::HINT,
+        Severity::Warning => DiagnosticSeverity::WARNING,
+        Severity::Error | Severity::Bug => DiagnosticSeverity::ERROR,
+    }
+}
+
+/// `diagnostic` as the wire carries it, positioned against `file` in
+/// `encoding`.
+///
+/// `file` is the file the diagnostic points into and `encoding` is the one
+/// [`crate::negotiate_encoding`] settled on; every column here is
+/// [`crate::position_at`]'s, because `rule:ide/positions-have-one-home` puts
+/// the arithmetic in `nvs-diagnostics` and this crate does none of it.
+///
+/// A diagnostic pointing nowhere lands at the start of the file rather than
+/// being dropped. It is a compiler bug when one has no span at all, and an
+/// editor showing it on line 1 is how that gets reported.
+///
+/// Three things are deliberately not carried yet, each waiting for the slice
+/// that has somewhere to put it: a secondary label wants
+/// `relatedInformation`, which needs the `Uri` of a file that is not
+/// necessarily this one; a [`nvs_diagnostics::Suggestion`] is a code action,
+/// which is `textDocument/codeAction`'s; and the `Unnecessary` tag belongs to
+/// the workspace index `rule:ide/five-features-are-one-reference-index`
+/// builds, because a symbol unused in one buffer is not unused.
+#[must_use]
+pub fn to_wire(
+    diagnostic: &Diagnostic,
+    file: &SourceFile,
+    encoding: PositionEncoding,
+) -> lsp_types::Diagnostic {
+    let range = diagnostic
+        .primary_span()
+        .map_or_else(Range::default, |span| Range {
+            start: position_at(file, span.start, encoding),
+            end: position_at(file, span.end, encoding),
+        });
+
+    lsp_types::Diagnostic {
+        range,
+        severity: Some(severity(diagnostic.severity)),
+        code: diagnostic
+            .code
+            .map(|code| NumberOrString::String(code.as_str().to_owned())),
+        // Left unset, and not for want of a value to put in it: ADR 0099 § 3
+        // has no documentation site for a code to point at, and a
+        // `codeDescription` whose URL 404s is worse than the code alone,
+        // which a person can at least search for.
+        code_description: None,
+        source: Some(SOURCE.to_owned()),
+        message: diagnostic.message.clone(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_diagnostics::{SourceMap, Span, code};
+
+    use super::*;
+
+    /// A diagnostic of `code` over the whole of `file`, at `severity`.
+    fn at(severity: Severity, diagnostic_code: Code, file: SourceId) -> Diagnostic {
+        Diagnostic::new(severity, "a fixture")
+            .with_code(diagnostic_code)
+            .with_primary(Span::new(file, 0, 0), "")
+    }
+
+    /// The codes the gate let through, in order.
+    fn published(diags: &Diagnostics) -> Vec<&'static str> {
+        phase_gated(diags)
+            .iter()
+            .filter_map(|diagnostic| diagnostic.code.map(Code::as_str))
+            .collect()
+    }
+
+    /// The type phase occupies `E04xx`, `E07xx` and `E08xx` because the first
+    /// two filled up, and a gate that knew only the first would publish an
+    /// `E0801` under a parse error — the exact cascade the rule exists to stop,
+    /// hidden behind which band a code happened to be allocated from.
+    #[test]
+    fn the_type_phase_is_gated_in_every_band_it_occupies() {
+        let mut map = SourceMap::new();
+        let broken = map.add("broken.nvs", "");
+
+        let mut diags = Diagnostics::new();
+        diags.report(at(Severity::Error, code::E_EXPECTED_EXPR, broken));
+        for continued in [
+            code::E_TYPE_MISMATCH,
+            code::E_ASSIGN_BY_REFERENCE,
+            code::E_ECHO_BESIDE_A_BODY_MEMBER,
+        ] {
+            diags.report(at(Severity::Error, continued, broken));
+        }
+
+        assert_eq!(
+            published(&diags),
+            vec![code::E_EXPECTED_EXPR.as_str()],
+            "a type diagnostic survived a parse error because of the band it \
+             was allocated from"
+        );
+    }
+
+    /// The gate is opened by a broken tree, and a warning from the lexer or the
+    /// parser did not break one.
+    #[test]
+    fn a_parser_warning_does_not_open_the_gate() {
+        let mut map = SourceMap::new();
+        let warned = map.add("warned.nvs", "");
+
+        let mut diags = Diagnostics::new();
+        diags.report(at(Severity::Warning, code::E_EXPECTED_EXPR, warned));
+        diags.report(at(Severity::Error, code::E_TYPE_MISMATCH, warned));
+
+        assert_eq!(
+            published(&diags),
+            vec![
+                code::E_EXPECTED_EXPR.as_str(),
+                code::E_TYPE_MISMATCH.as_str()
+            ],
+            "a warning that left the tree whole silenced the type check anyway"
+        );
+    }
+
+    /// The crossing to the wire, field by field: the stable code travels as a
+    /// string, `codeDescription` stays unset because ADR 0099 § 3 has nowhere
+    /// to point one, and the range comes out of
+    /// `rule:ide/positions-have-one-home`'s arithmetic rather than this
+    /// module's — which is why the fixture's line holds a `ß`, whose UTF-16
+    /// columns are not its byte offsets.
+    #[test]
+    fn a_diagnostic_carries_its_code_and_no_code_description() {
+        let mut map = SourceMap::new();
+        let id = map.add("case.nvs", "<?nvs\nvar $total = \"ß\" + 1;\n");
+        let file = map.file(id);
+        let text = file.text();
+        let start = u32::try_from(text.find('"').expect("the fixture has a literal"))
+            .expect("a short fixture");
+        let end = start + u32::try_from("\"ß\"".len()).expect("a short literal");
+
+        let reported = Diagnostic::error(code::E_TYPE_MISMATCH, "string is not int")
+            .with_primary(Span::new(id, start, end), "here");
+        let sent = to_wire(&reported, file, PositionEncoding::Utf16);
+
+        assert_eq!(
+            sent.code,
+            Some(NumberOrString::String(
+                code::E_TYPE_MISMATCH.as_str().to_owned()
+            )),
+            "the code a person searches for did not survive the crossing"
+        );
+        assert!(
+            sent.code_description.is_none(),
+            "a code description was invented for a documentation site that does \
+             not exist"
+        );
+        assert_eq!(sent.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(sent.source.as_deref(), Some(SOURCE));
+        assert_eq!(sent.message, "string is not int");
+        assert_eq!(
+            sent.range,
+            Range {
+                start: position_at(file, start, PositionEncoding::Utf16),
+                end: position_at(file, end, PositionEncoding::Utf16),
+            },
+            "the range was computed here instead of in the crate that owns the \
+             arithmetic"
+        );
+
+        let uncoded = Diagnostic::new(Severity::Warning, "no code at all")
+            .with_primary(Span::new(id, start, end), "");
+        assert!(
+            to_wire(&uncoded, file, PositionEncoding::Utf16)
+                .code
+                .is_none(),
+            "a diagnostic with no code was given one"
+        );
+    }
+
+    /// A diagnostic pointing at no file belongs to no file, so no file's parse
+    /// failure can be the reason to hide it.
+    #[test]
+    fn a_diagnostic_with_no_span_is_never_gated() {
+        let mut map = SourceMap::new();
+        let broken = map.add("broken.nvs", "");
+
+        let mut diags = Diagnostics::new();
+        diags.report(at(Severity::Error, code::E_EXPECTED_EXPR, broken));
+        diags.report(Diagnostic::error(code::E_TYPE_MISMATCH, "a fixture"));
+
+        assert_eq!(
+            published(&diags),
+            vec![
+                code::E_EXPECTED_EXPR.as_str(),
+                code::E_TYPE_MISMATCH.as_str()
+            ],
+            "an unplaced diagnostic was attributed to the broken file"
+        );
+    }
+}

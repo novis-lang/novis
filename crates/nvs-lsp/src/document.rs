@@ -264,9 +264,15 @@ pub struct Analysed {
     /// Each file the graph reached, entry first, with the statements the walk
     /// parsed once and every later phase needs again.
     pub loaded: Vec<Loaded>,
-    /// What the lexer, the parser, `check_declarations` and name resolution
-    /// reported. The type phase is not run here — that is the diagnostics
-    /// slice's, along with `rule:ide/diagnostics-are-phase-gated`'s gate.
+    /// Every diagnostic the front end reported, ungated: the lexer's, the
+    /// parser's, `check_declarations`', name resolution's and the type
+    /// phase's.
+    ///
+    /// `rule:ide/diagnostics-are-phase-gated`'s gate is not applied here.
+    /// It is presentation rather than analysis, so it belongs on the way to
+    /// the wire — [`crate::diagnostics::phase_gated`] — and a case asking
+    /// `phase=all` is one that wants exactly what the gate would have held
+    /// back.
     pub diags: Diagnostics,
 }
 
@@ -309,6 +315,35 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let stmts = parse_file(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
     let (module, loaded, _autoload) = resolve_program(entry, stmts, &mut map, &mut diags);
+
+    {
+        // The type phase, continued into exactly the way `nvs-cli`'s
+        // `front_end_granted` continues into it: `E0301`, `E0302` and every
+        // `E04xx` are reported here and nowhere earlier, so a walk that
+        // stopped above this block published parse and declaration
+        // diagnostics alone.
+        //
+        // No grants are passed, which is the one place this front end is
+        // deliberately not `nvs check`'s: `rule:core-classes/db-literal-query-checking`'s
+        // check-time question is asked of a `--config` the editor never
+        // names, and answering it against whichever `nvs.toml` this machine
+        // happens to resolve would put a diagnostic on a line for a reason
+        // the person typing cannot see.
+        let files: Vec<nvs_types::ProgramFile<'_>> = loaded
+            .iter()
+            .map(|file| nvs_types::ProgramFile {
+                src: map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect();
+        let mut interner = nvs_types::TypeInterner::new();
+        let mut exprs = nvs_types::ExprTypeTable::new();
+        // The enum table and the expression types are dropped: this walk
+        // exists for the diagnostics it fills, and nothing here lowers. The
+        // request that needs a type at a cursor is the one that will keep
+        // them.
+        let _ = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+    }
 
     Some(Analysed {
         map,
@@ -429,6 +464,8 @@ fn strip_drive_slash(path: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use std::fs;
+
+    use nvs_diagnostics::{Code, Diagnostic, code};
 
     use super::*;
 
@@ -659,5 +696,126 @@ mod tests {
         assert_eq!(documents.len(), 1);
         assert!(documents.get(&uri).expect("it is open").path().is_none());
         assert!(analyse(&documents, &uri).is_none());
+    }
+
+    /// The bands `rule:ide/diagnostics-are-phase-gated` holds back — name
+    /// resolution's, and the type check's across all three it occupies.
+    /// Spelled out here rather than read off [`crate::diagnostics`] so a test
+    /// and the code it gates cannot agree by sharing one mistake.
+    const READS_THE_TREE: &[&str] = &["E03", "E04", "E07", "E08"];
+
+    /// The codes among `diagnostics` that point into the fixture named `name`.
+    fn codes_in<'a>(
+        diagnostics: impl IntoIterator<Item = &'a Diagnostic>,
+        analysed: &Analysed,
+        name: &str,
+    ) -> Vec<&'static str> {
+        diagnostics
+            .into_iter()
+            .filter(|diagnostic| {
+                diagnostic.primary_span().is_some_and(|span| {
+                    analysed
+                        .map
+                        .file(span.file)
+                        .path()
+                        .is_some_and(|path| path.ends_with(name))
+                })
+            })
+            .filter_map(|diagnostic| diagnostic.code.map(Code::as_str))
+            .collect()
+    }
+
+    /// Whether any of `codes` is one the gate holds back.
+    fn any_reads_the_tree(codes: &[&str]) -> bool {
+        codes
+            .iter()
+            .any(|code| READS_THE_TREE.iter().any(|band| code.starts_with(band)))
+    }
+
+    /// `rule:ide/diagnostics-are-phase-gated` in the direction that motivates
+    /// it: a file whose parse failed publishes the parse error and not the
+    /// cascade underneath it, and the other file in the same graph keeps every
+    /// diagnostic of its own — a broken buffer in one tab is not a reason to go
+    /// dark in another.
+    ///
+    /// The first assertion is the one that keeps this honest. Without it the
+    /// test passes just as well over an analysis that never ran the type phase
+    /// at all, which is exactly the state this crate was in before.
+    #[test]
+    fn a_parse_error_suppresses_the_type_diagnostics_of_that_file_only() {
+        let dir = TempDir::new("gate");
+        dir.write("lib.nvs", "<?nvs\nclass User {}\nvar $stray = $nope;\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire 'lib.nvs';\nvar $broken = ;\nvar $other = $nope;\n",
+        );
+
+        let mut documents = Documents::new();
+        open_from_disk(&mut documents, &dir, &["main.nvs"]);
+        let analysed = analyse(&documents, &dir.uri("main.nvs")).expect("main.nvs is open");
+
+        let ungated = codes_in(analysed.diags.iter(), &analysed, "main.nvs");
+        assert!(
+            any_reads_the_tree(&ungated),
+            "the walk reported nothing for the gate to suppress, so this case \
+             would pass over an analysis that stops at name resolution: {ungated:?}"
+        );
+
+        let published = crate::diagnostics::phase_gated(&analysed.diags);
+        let main = codes_in(published.iter().copied(), &analysed, "main.nvs");
+        assert!(
+            main.contains(&code::E_EXPECTED_EXPR.as_str()),
+            "the parse error itself was not published: {main:?}"
+        );
+        assert!(
+            !any_reads_the_tree(&main),
+            "a diagnostic from below the broken parse reached the editor: {main:?}"
+        );
+
+        let lib = codes_in(published.iter().copied(), &analysed, "lib.nvs");
+        assert!(
+            any_reads_the_tree(&lib),
+            "the gate went workspace-wide: a file that parses fine lost its own \
+             diagnostics because another file in the graph did not: {lib:?}"
+        );
+    }
+
+    /// The other direction, which the rule is equally explicit about: the
+    /// suppression is one-directional. Resolution and the type check read the
+    /// same whole tree, so neither cascades into the other the way a failed
+    /// parse cascades into both, and a file with one of each publishes both.
+    #[test]
+    fn a_resolution_error_does_not_suppress_a_type_error() {
+        let dir = TempDir::new("one way");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nclass Greeter {\n    public function count(): int {\n        \
+             return \"not an int\";\n    }\n}\nvar $stray = $nope;\n",
+        );
+
+        let mut documents = Documents::new();
+        open_from_disk(&mut documents, &dir, &["main.nvs"]);
+        let analysed = analyse(&documents, &dir.uri("main.nvs")).expect("main.nvs is open");
+
+        let published = crate::diagnostics::phase_gated(&analysed.diags);
+        let main = codes_in(published.iter().copied(), &analysed, "main.nvs");
+
+        assert!(
+            main.iter().any(|code| code.starts_with("E03")),
+            "the resolution error is the premise of this case and it is not \
+             here: {main:?}"
+        );
+        assert!(
+            main.iter().any(|code| code.starts_with("E04")
+                || code.starts_with("E07")
+                || code.starts_with("E08")),
+            "the type error was suppressed by a resolution error, which nothing \
+             asked for: {main:?}"
+        );
+        assert_eq!(
+            main,
+            codes_in(analysed.diags.iter(), &analysed, "main.nvs"),
+            "the gate held something back in a file that parses"
+        );
     }
 }
