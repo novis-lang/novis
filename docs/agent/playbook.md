@@ -1658,6 +1658,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   so the emission decision had nothing to read. Spend one call proving the premise before designing
   against it: `target/debug/nvs.exe run` over a three-line probe says what the compiler answers
   today, and the driver already built that binary at this commit. [until: reviewed 2026-09-07]
+- **A new file under `examples/` is walked by `crates/nvs-cli/tests/ast.rs`, which asserts that every
+  node's span sits inside its parent's and that siblings are in offset order.** An example writing
+  `|>` fails both, because the parser substitutes the left side into a call written to its right, and
+  the panic prints a JSON node rather than saying which property broke. Run `cargo test -p nvs-cli
+  --test ast` when an example's tree will not follow its source, and hand that file the walk's
+  `in_source_order = false`. [until: reviewed 2026-09-07]
 
 ## Writing a test case
 
@@ -3296,6 +3302,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   so `d.notes.is_empty()` is false for any diagnostic that offers a fix at all, and a test asserting a
   *second* note is absent fails on the first one. Assert on a note's content — `n.contains("PHP 8.5")` —
   rather than on the vector's length. [until: reviewed 2026-09-07]
+- **A `%A` on its own line cannot reach a diagnostic's `= note:` or `= help:` continuation, because
+  the newline the wildcard ends on has to match one in the output.** Pinning `PHP 8.5's |> applies a
+  callable` as its own expected line fails against `  = note: PHP 8.5's …` — the wildcard absorbs the
+  indentation happily, but the pattern still demands a line break immediately before the literal, and
+  the diff then prints two blocks that read alike. Write the wildcard inline instead, `%A= note: …`,
+  which matches and also survives the gutter widening when the case's line number reaches two digits.
+  [until: reviewed 2026-09-07]
 
 ## Splitting a file that got too big
 

@@ -78,8 +78,10 @@ modules = [
   "crates/nvs-syntax/src/token.rs",
   # Where the hole is substituted, and where precedence is expressed.
   "crates/nvs-syntax/src/parser/expr.rs",
-  # `finally`, constructors and `readonly` -- the three refusals' declaration side.
+  # Constructors and `readonly` -- two of the three refusals' declaration side.
   "crates/nvs-syntax/src/parser/decl.rs",
+  # `try`/`finally`, which is where a `return` that leaves one is refused.
+  "crates/nvs-syntax/src/parser/stmt.rs",
   # The code registry: three reassigned numbers and three new ones, or they do not exist.
   "crates/nvs-diagnostics/src/lib.rs",
   # The dual-mode lexer: HTML/inline-text on one side, Novis code on the other, with a small stack
@@ -99,6 +101,11 @@ rules = [
   "expressions/pipeline-substitution",
   "expressions/pipeline-precedence",
   "expressions/pipeline-hole-once",
+  # Stage 3's four refusals, by id for the same reason: 0124 prints only their titles.
+  "php-migration/let-and-is-are-reserved",
+  "php-migration/no-return-leaves-a-finally",
+  "php-migration/a-constructor-return-carries-no-value",
+  "php-migration/a-readonly-property-declares-no-default",
   "0098",
   "0124",
   "0063",

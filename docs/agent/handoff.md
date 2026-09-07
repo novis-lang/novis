@@ -2,45 +2,48 @@
 
 ## State
 
-**Goal 13's stage 0 and the parser half of stage 2 are on disk and green.** `|>` lexes as one token,
-parses between `instanceof` and unary, and substitutes its one `$_` at parse time; there is no `ExprKind`
-for the operator and none for the hole, so nothing below `nvs-syntax` changed or had to.
+**Goal 13's stage 2 is whole and green.** `|>` lexes as one token, parses between `instanceof` and
+unary, and substitutes its one `$_` at parse time; the four refusal cases under
+`tests/conformance/reject/pipeline/`, the substitution-identity case in `tests/conformance/lang/` and
+`examples/pipeline.nvs` now pin all of it, so every stage-2 check in `docs/agent/loop-goal.toml`
+passes — including the `exact` check whose missing fixture the driver had been reporting.
 
-The three codes are `E0129`, `E0130` and `E0131` — the next free parser-band numbers, since the numbers
-ADR 0098 wrote had been allocated to `for`-header and catch-arm diagnostics in the meantime. `E0124`–
-`E0126` were left with their owners (the registry never reuses or shuffles a number), and § 4's table,
-`rule:expressions/pipeline-hole-once`, `docs/plan/m1.md` item 5 and ADR 0124 § 5's cross-reference all
-carry the new ones.
+**The example turned up one true consequence of substitution:** `nvs ast --json`'s tree for a pipeline
+is not in source order, since the left side becomes an argument of a call written after it, so
+`crates/nvs-cli/tests/ast.rs`'s schema walk now takes an `in_source_order` flag and asserts sibling
+order and containment only for the files that have one. A position-to-node lookup — the LSP goal 14
+opens — cannot assume either over a pipeline; nothing else in the tree changes.
 
-Nothing is blocked. Stage 1's floor and stage 3's PHP 8.6 refusals are untouched.
+**Stage 3 — ADR 0124's four PHP 8.6 refusals — is untouched.** `let` and `is` still parse as ordinary
+identifiers, a `return` still leaves a `finally`, a constructor may still return a value and a
+`readonly` property may still declare a default. Stage 1's floor is untouched. Nothing is blocked.
 
 ## Next group
 
-**Stage 2's proofs — the corpus and the example — one file set:** `tests/conformance/reject/pipeline/`,
-`tests/conformance/lang/`, `examples/pipeline.nvs`. The parser side they pin is already landed, so each
-of these is authored against a binary that already answers; build `cargo build -p nvs-cli` and run
-`target/debug/nvs.exe` rather than the release one.
+**Stage 3's refusals — the parser side and its corpus, one file set:** `crates/nvs-syntax/src/token.rs`,
+`crates/nvs-syntax/src/parser/stmt.rs`, `crates/nvs-syntax/src/parser/decl.rs`,
+`crates/nvs-diagnostics/src/lib.rs`, `tests/conformance/reject/php86/`. Each refusal is a diagnostic
+plus the case that shows it; the band is the decision's own call — the parser band's next free number
+is `E0132` and the rejected-PHP band's is `E0247`, both at `crates/nvs-diagnostics/src/lib.rs:235`.
 
-- [ ] **The three refusals' `.nvst` cases** under `tests/conformance/reject/pipeline/`, which
-      `docs/agent/loop-goal.toml:5037`'s `nvs-suite` check names — `rule:expressions/pipeline-hole-once`.
-      Four cases, because `E0129` has two forms: a right side with no hole, the PHP callable shape
-      (whose extra note is at `crates/nvs-syntax/src/parser/expr.rs:569`), two holes, and a `$_` written
-      outside any `|>` (`crates/nvs-syntax/src/parser/expr.rs:608`). The codes are
-      `crates/nvs-diagnostics/src/lib.rs:224`. `--EXPECTF-ERROR--`, never `--ORACLE--`.
-- [ ] **The substitution identity, as a conformance case** in `tests/conformance/lang/` —
-      `rule:expressions/pipeline-substitution`. A `|>` chain and its nested spelling printing the same
-      output over the four right-side shapes the unit test already compares as trees
-      (`crates/nvs-syntax/src/parser/tests/expr.rs:1209`), which is ADR 0098's own M1 verification line.
-- [ ] **`examples/pipeline.nvs`**, whose two frozen lines are `docs/agent/loop-goal.toml:5043`'s `want`:
-      `a chain reads left to right` and `the nested spelling answers the same`.
-      `rule:testing/examples-live-in-the-repository`.
+- [ ] **`let` and `is` are reserved spellings**, `var` declaring and `instanceof` testing instead —
+      `rule:php-migration/let-and-is-are-reserved`. The keyword table is the match at
+      `crates/nvs-syntax/src/token.rs:468`, and `docs/agent/loop-goal.toml:5067` names the two tests
+      `let_is_a_reserved_spelling` and `is_is_a_reserved_spelling`, which belong beside their
+      neighbours in `crates/nvs-syntax/src/parser/tests/expr.rs:1209`.
+- [ ] **A `return` never leaves a `finally`**, nor a `break` or `continue` whose target lies outside
+      it — `rule:php-migration/no-return-leaves-a-finally`, at
+      `crates/nvs-syntax/src/parser/stmt.rs:653`.
+- [ ] **A constructor's `return` carries no value and a `readonly` property declares no default** —
+      `rule:php-migration/a-constructor-return-carries-no-value` and
+      `rule:php-migration/a-readonly-property-declares-no-default`, both reached from
+      `crates/nvs-syntax/src/parser/decl.rs:649`.
+- [ ] **The three refusals as `.nvst` cases** under `tests/conformance/reject/php86/`, which
+      `docs/agent/loop-goal.toml:5076`'s `nvs-suite` check names — `--EXPECTF-ERROR--`, never
+      `--ORACLE--`, and a case reaches a `Core` class only as `Core\Str::…`.
 
 ## Backlog
 
-- Stage 1's floor — goal 12's whole list — is still the goal's own precondition; nothing here touched it.
-- Stage 3, the four PHP 8.6 refusals (`rule:php-migration/a-deprecation-is-a-refusal`), is a different
-  file set: `crates/nvs-syntax/src/parser/decl.rs` and `stmt.rs`, plus `let`/`is` in `token.rs`.
-- `?|>` stays deferred with its trigger named in ADR 0098 *Revisiting*; the corpus written now is the
-  evidence that decides it.
-- `docs/novis.md`'s code index carries no `E0129`–`E0131` row yet; it filters to `shipped`, and
-  `rule:expressions/pipeline-substitution` is still `designed` until stage 2's proofs land.
+- Stage 4 — the reference chapter that follows the operator (`docs/agent/loop-goal.toml` stage 4).
+- `?|>` stays deferred with its trigger named — ADR 0098 § *Revisiting*, not this goal's work.
+- Partial function application stays non-adopted — `rule:php-migration/no-partial-application`.
