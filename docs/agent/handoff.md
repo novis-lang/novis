@@ -2,61 +2,58 @@
 
 ## State
 
-**Goal 11 stage 3 is whole — attachment and the closed tag set — so all nine names the stage's
-acceptance check lists pass under `cargo test -p nvs-syntax`.** Stages 1 and 2 are unchanged.
+**Goal 11 stage 4 is whole — both tags now buy a check**, so the four names that stage's acceptance
+check lists pass under `cargo test -p nvs-hir`. Stages 1-3 are unchanged.
 
-- **The fork stage 2 named is taken.** `crates/nvs-syntax/src/lexer.rs:@push_trivia` keeps a
-  `TriviaKind::DocComment` whether or not the lexer is collecting, and `collect_trivia` now governs
-  only the three ignorable kinds. So `parse_file` — every compile path — sees doc comments, and both
-  new diagnostics fire where a program is compiled rather than only where it is formatted.
-- **Attachment is decided from source text, not from the trivia beside a run.** `doc_run_joins`
-  (`crates/nvs-syntax/src/parser/mod.rs:@doc_run_joins`) asks whether the gap is whitespace crossing
-  at most one line break; a compile path collects no whitespace trivia, so reading the text is the
-  only way both entry points can answer identically. `Parser::take_doc_comment` walks the collected
-  doc trivia backwards from the declaration's first token — before its attributes — and skips trivia
-  the lookahead buffer has already run past.
-- **`E0127`** is a run that documents nothing, swept at the end of `parse_all` from the runs no
-  declaration took; **`E0128`** is any `@tag` at a line start that is not `@see` or `@example`, with
-  its own help for `@param`, `@return`/`@returns` and `@throws`.
-- `DocComment { span, lines, tags }`, `DocTag { kind, span, argument }` and `DocTagKind` are in
-  `crates/nvs-syntax/src/ast.rs:1491`; `doc: Option<DocComment>` is on `ClassDecl`, `InterfaceDecl`,
-  `EnumDecl`, `EnumCase`, `TypeAliasDecl` and `ClassMember`. One declaration that makes several
-  members (`public int $a, $b;`) gives its run to every one of them.
-- **The three items landed as one commit**, because they interleave inside the same six files and a
-  commit apiece would have to stage the same file twice.
+- **The walk over a `DocTag` has one home**, `crates/nvs-hir/src/members.rs:@check_doc`, reached from
+  `check_stmts` (class, interface, enum and its cases, `type` alias) and from `check_members` (every
+  member inside a body). That is every declaration that carries a `doc`, and it closes the group's
+  third item: nothing re-derives where one hangs.
+- **`@see` is `E0323`** and resolves against the very `MemberTable` a `Class::member` reference does —
+  `self`, `static` and `parent` name a class here exactly as in code, a `Core` target is trusted the
+  same way, and a member is looked up against all four `MemberKind`s because the tag says *what* is
+  named and never which kind. A `$` sigil and a trailing `()` are allowed on the member half.
+- **`@example` is two codes**: `E0325` for a path in no directory the corpus walks, asked first and on
+  the written path alone, and `E0324` for one that is walked but holds no file. **The path is relative
+  to the file that wrote it, exactly as a `require` path is** — decided here rather than escalated,
+  because the alternative was project-root discovery and `nvs-hir` depends on `nvs-diagnostics`,
+  `nvs-syntax` and `rustc-hash` alone. A file with no path of its own (a fixture, an unsaved buffer)
+  resolves against the process's directory, which is its only base. `WALKED_DIRECTORIES` is
+  `examples`, `tests`; ADR 0137 § 2 names the first.
+- This is the only question `members.rs` asks of the filesystem, and its module doc is where that is
+  recorded.
+- **The driver's failing check, `examples/doc-comments.nvs`, is stage 6's** `exact` fixture with four
+  `want` lines — an item still open, not a regression.
+- The goal's `[context] modules` names no `nvs-hir` file, so the pack printed these anchors only
+  because the handoff item carried them; `crates/nvs-hir/src/members.rs` belongs in that manifest.
 - Nothing is blocked. `python tools/verify.py` is green.
 
 ## Next group
 
-**Stage 4: the two checks that keep a tag honest** — one file set:
-`crates/nvs-hir/src/members.rs`, `crates/nvs-hir/src/requires.rs`.
+**Stage 5: one JSON, one more input** — one file set: `crates/nvs-cli/src/meta.rs`,
+`crates/nvs-cli/src/main.rs`.
 
-- [ ] **`@see` must resolve** — `rule:tooling/doc-comment-tags-are-see-and-example`. A `@see` names a
-      class, member, enum or constant, and one that names nothing is refused with a name-resolution
-      code (`E03xx`; take the next free one from `python tools/brief.py`, not from this file).
-      `crates/nvs-hir/src/members.rs:356` is where top-level declarations are walked and
-      `crates/nvs-hir/src/members.rs:436` where a class's members are; the tests go in that file's own
-      `mod tests` at `crates/nvs-hir/src/members.rs:1071`, named
-      `a_see_target_that_resolves_is_accepted` and `a_see_target_that_names_no_member_is_refused`.
-- [ ] **`@example` must exist, and must sit where the corpus walks it** —
-      `rule:tooling/doc-comment-tags-are-see-and-example`. A path that names no file is refused, and
-      so is one outside every directory the test corpus walks, which is what stops an example from
-      rotting in a page. `crates/nvs-hir/src/requires.rs:323` already resolves a file and hands it to
-      `check_declarations`, so it is where a path is turned into something on disk; the two tests are
-      `an_example_naming_a_missing_file_is_refused` and
-      `an_example_outside_every_test_directory_is_refused`.
-- [ ] **Read the tags off the AST once**, rather than each check re-deriving them: a `DocTag` is
-      already parsed and spanned, and both checks want the same walk over every declaration that
-      carries a `doc`. Decide where that walk lives before writing the second check —
-      `crates/nvs-hir/src/members.rs:436` sees members but not the file-scope declarations that
-      `check_stmts` does.
+- [ ] **`nvs meta --json` takes an optional entry** — `rule:tooling/meta-json-takes-a-program`. The
+      no-argument form stays byte-identical, which is the whole point of
+      `rule:tooling/one-json-several-renderers`: `tools/reference.py` and the website's `sync:core`
+      are renderers, not sources. `crates/nvs-cli/src/main.rs:394` is the `Meta` variant that gains
+      the argument and `crates/nvs-cli/src/main.rs:786` the dispatch that still calls `meta::run()`.
+      The tests are `meta_json_with_no_argument_is_byte_identical_to_the_registry_dump` and
+      `meta_json_with_an_entry_emits_the_programs_declarations`.
+- [ ] **The program's declarations join the registry's, in the registry's own shape** —
+      `rule:tooling/meta-json`, whose omission rule holds at every level: nothing written means no
+      `doc` key, never an empty one. `crates/nvs-cli/src/meta.rs:75` is `document()`, where the two
+      halves meet, and `crates/nvs-cli/src/meta.rs:396` is `doc_json`, the shape a card is already
+      emitted in.
+- [ ] **A user declaration's card carries prose, `@see` and `@example`** —
+      `rule:tooling/doc-comment-tags-are-see-and-example`, read off the `DocComment` the parser
+      already spanned rather than re-split from text. `crates/nvs-cli/src/meta.rs:167` is
+      `member_json`, the row a user member's card must line up with; the test is
+      `a_user_declarations_shape_carries_prose_see_and_example`.
 
 ## Backlog
 
-- `examples/doc-comments.nvs` — the end-to-end fixture, stage 6's `exact` check and the file the
-  driver reports missing every session. It is an open item, not a regression; it needs `nvs doc` and
-  `--strict-docs` first (`docs/agent/loop-goal.toml`, stage 6).
-- Stage 5: `nvs meta --json <entry>` emits a program's own declarations —
-  `rule:tooling/meta-json-takes-a-program`, `crates/nvs-cli/src/meta.rs`.
-- The `[context]` manifest printed nothing about `nvs-hir`; stage 4 lives there, so its `modules`
-  pattern needs `nvs-hir` before the next group starts.
+- `examples/doc-comments.nvs`, stage 6's `exact` fixture — docs/agent/loop-goal.toml.
+- Stage 6's renderer and lint — `rule:tooling/nvs-doc-renders-and-decides-nothing`,
+  `rule:tooling/strict-docs`; `--strict-docs` needs the next free `E03xx`.
+- `[context] modules` gains `crates/nvs-hir/src/members.rs` — docs/agent/loop-goal.toml.
