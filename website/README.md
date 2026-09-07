@@ -170,7 +170,9 @@ black.
 2. Replace the sitemap URL in `public/robots.txt`.
 3. Replace the demo data in `src/content/docs/impressum.md` and `datenschutz.md`.
 4. Review pages still carrying `draft: true` / draft-flagged claims.
-5. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host.
+5. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host. No
+   `CNAME` file: GitHub writes one only when publishing from a branch, and ignores any that exists
+   when a workflow publishes — one in `public/` would ship as a dead file at `/CNAME`.
 6. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
 
 ## How it is published
