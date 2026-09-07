@@ -99,13 +99,25 @@ modules = [
   # "crates/nvs-hir/src/requires.rs",
 ]
 
-rules = ["0099", "0101", "0040", "0016", "0117", "0137", "0092", "0134"]
+# THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON. Everything a single stage needs is in
+# that stage's own table at the bottom of this block, and an overlay only ever ADDS to what is
+# here -- so the way this list gets smaller is by moving an entry down, never by deleting one.
+#
+# Two rule ids, because the fragment is the rule and a title is a pointer to it: every slice of
+# this goal writes cases and renders an answer. 0099 stays as the surrounding map -- it is this
+# goal's own record, and its rule titles are the ids a session greps for.
+rules = [
+  "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
+  "ide/the-rendering-has-one-home",
+  "0099",
+]
 
-# The tree and the case format every stage reads; the request set and the gate; redaction's two
-# sections. The colour lists (0099 s4) are goal 15's and are deliberately absent.
-adrs = ["0099 §1", "0099 §3", "0099 §5", "0101 §1", "0101 §2"]
+# Base names no ADR section at all: every one of them argued a particular stage's design, and
+# printing stage 8's redaction sections to the session writing stage 4 was 13,120 B of a 17,746 B
+# section. The colour lists (0099 §4) are goal 15's for the extension half and stage 7's here.
+adrs = []
 
-shapes = ["An `.lspt` case", "A `.nvst` test case", "A diagnostic", "A commit message"]
+shapes = ["An `.lspt` case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -134,6 +146,66 @@ plan = ["Open now", "Blocking"]
 # The acceptance paragraph alone; the request set and its rules are this goal's own prose and
 # `rule:ide/the-request-set-is-closed` and `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`, both already in this manifest.
 milestones = ["M4B:verify"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `loop-goal.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names, and appends its
+# entries to the base above -- an overlay adds and never replaces, so the worst a wrong number can
+# do is print the base pack. A stage with nothing of its own needs no table (0, 1 and 12 have none).
+#
+# These numbers are the PROSE stages, `loop-goal.md`'s `## Stage N`. They are deliberately not the
+# `[[check]]` blocks' `stage = "4 the requests"` labels, which group several prose stages under one
+# acceptance line on purpose -- "Goal prose stages 4 to 9" is written above the suite check itself.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+rules = ["ide/the-server-is-synchronous", "ide/stdout-belongs-to-the-protocol",
+         "ide/positions-have-one-home"]
+adrs = ["0099 §2"]
+
+[context.stage.3]
+rules = ["ide/a-request-line-is-closed", "ide/lspt-coverage-is-inferred",
+         "ide/case-files-have-their-own-grammar"]
+adrs = ["0099 §5"]
+
+[context.stage.4]
+rules = ["ide/an-open-document-is-its-own-entry-point", "ide/positions-have-one-home",
+         "ide/the-index-answers-the-cursor"]
+adrs = ["0099 §1"]
+
+[context.stage.5]
+rules = ["ide/diagnostics-are-phase-gated", "0092"]
+shapes = ["A diagnostic"]
+
+[context.stage.6]
+rules = ["ide/the-index-answers-the-cursor", "core-api/reference-card",
+         "tooling/doc-comment-is-three-slashes", "0117", "0137"]
+adrs = ["0099 §3"]
+
+[context.stage.7]
+rules = ["ide/semantic-tokens-carry-the-qualifiers", "ide/rejected-syntax-gets-no-colour",
+         "ide/novis-ships-names-not-colours"]
+adrs = ["0099 §4"]
+
+[context.stage.8]
+rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-covers-bytes-only",
+         "security/redaction-does-not-reach", "ide/one-server-two-thin-clients"]
+adrs = ["0101 §1", "0101 §2"]
+
+[context.stage.9]
+rules = ["ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
+         "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+         "ide/narrow-an-annotation-to-its-literal"]
+
+[context.stage.10]
+rules = ["ide/a-full-reanalysis-stays-under-a-bound"]
+
+[context.stage.11]
+rules = ["testing/four-proofs", "testing/proof-attribution", "0134"]
+shapes = ["A `.nvst` test case"]
+
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]

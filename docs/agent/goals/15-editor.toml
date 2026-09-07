@@ -29,13 +29,25 @@ modules = [
   "crates/nvs-lsp/src/**",
 ]
 
-rules = ["0099", "0101", "0016", "0040", "0051", "0134"]
+# THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON; a stage's own entries are in its
+# `[context.stage.N]` table below, and an overlay only ever ADDS. The way this list gets shorter is
+# by moving an entry down into a stage, never by deleting one.
+#
+# These three hold in every stage: the extension holds no language logic, it ships names and never
+# colours, and what it may not become is the boundary every stage is measured against. 0099 stays
+# as the surrounding map -- it is this goal's own record.
+rules = [
+  "ide/one-server-two-thin-clients",
+  "ide/novis-ships-names-not-colours",
+  "ide/the-extension-builds-no-ui-the-editor-already-has",
+  "0099",
+]
 
-# The colour lists and the frozen contribution roster are this goal's entire specification; 0101's
-# client half is stage 6.
-adrs = ["0099 §4", "0099 §6", "0101 §3", "0016 §5"]
+# Base names no ADR section: each argued one stage's design, and § 4's colour lists say nothing to
+# the session writing the client or the CI jobs.
+adrs = []
 
-shapes = ["An `.lspt` case", "A commit message"]
+shapes = ["A commit message"]
 
 playbook = [
   'Running things > adding a',
@@ -60,6 +72,52 @@ plan = ["Open now", "Blocking"]
 
 # The acceptance paragraph alone; the colour lists are `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added`, already named above.
 milestones = ["M4B:verify"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `15-editor.md`, holding what only that stage needs.
+# `orient.py` applies the one `handoff.md`'s `## Next group` names and appends it to the base above;
+# an overlay adds and never replaces. Stages 0 and 1 have nothing of their own and need no table.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
+         "ide/language-configuration-is-content", "ide/contributions-are-frozen-and-only-ever-added",
+         "ide/the-extension-runs-where-the-binary-is",
+         "ide/the-lockfile-is-committed-and-build-output-is-not"]
+
+[context.stage.3]
+rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",
+         "types/duration-literal", "types/object-top"]
+adrs = ["0099 §4"]
+
+[context.stage.4]
+rules = ["ide/case-files-have-their-own-grammar"]
+shapes = ["An `.lspt` case"]
+
+[context.stage.5]
+rules = ["ide/vscode-is-the-reference-client",
+         "ide/the-extension-refuses-a-binary-it-does-not-understand",
+         "ide/dependencies-are-allowlisted"]
+adrs = ["0016 §5"]
+
+[context.stage.6]
+rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-covers-bytes-only",
+         "security/reveal-is-explicit-and-window-local",
+         "security/tainted-has-no-default-decoration"]
+adrs = ["0101 §3"]
+
+[context.stage.7]
+rules = ["ide/tasks-carry-a-problem-matcher", "ide/the-ast-panel-shells-out-to-the-cli",
+         "security/redaction-reaches-the-tools-own-renderings"]
+
+[context.stage.8]
+rules = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+         "ide/semantic-tokens-carry-the-qualifiers"]
+adrs = ["0099 §6", "0099 §8"]
+
+[context.stage.9]
+rules = ["testing/four-proofs", "0134"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
