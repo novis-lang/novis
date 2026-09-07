@@ -466,7 +466,6 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let qname = QName::parse(name);
             interner.enum_case(qname, crate::enums::EnumBacking::Int, *case)
         }
-        CoreTy::CallableTo(name) => interner.callable_to(*name),
         CoreTy::CallableShapeTo(name) => interner.callable_shape_to(*name),
         // Lowered field-wise, so a variable a registry row wrote inside a
         // callback's signature is the same `Ty::TypeVar` the member's other
@@ -1934,11 +1933,12 @@ mod tests {
         );
     }
 
-    /// `CoreTy::CallableTo` lowers to a parameter that *describes* as
-    /// `callable` — the variable name it carries is a registry fact, and
-    /// [`crate::ty::Ty::CallableTo`] owns why no diagnostic ever quotes it.
+    /// `Core\Task::map`'s callback is a written signature like every other
+    /// one, so what the member hands it — the value and the key — reads back
+    /// off the seeded row rather than out of a variable name beside an opaque
+    /// `callable`.
     #[test]
-    fn a_callback_result_parameter_lowers_to_something_that_reads_as_callable() {
+    fn a_callback_parameter_lowers_to_the_signature_the_row_writes() {
         let mut interner = TypeInterner::new();
         let mut table = SignatureTable::new();
         seed(&mut table, &mut interner);
@@ -1952,10 +1952,15 @@ mod tests {
         .expect("Core\\Task::map is registered");
         assert_eq!(sig.params.len(), 3);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
-        assert_eq!(interner.describe(sig.params[1]), "callable");
+        assert_eq!(
+            interner.describe(sig.params[1]),
+            "callable(T, string): U",
+            "`rule:types/callable-signature`: the row says what the callback \
+             receives, so the checker can place a literal against it"
+        );
         assert_eq!(interner.describe(sig.return_ty), "array<U>");
-        // Distinct from a plain `callable` all the same, or it would have
-        // nowhere to carry the name it binds.
+        // Distinct from a bare `callable` all the same: that one is the top of
+        // the lattice and constrains nothing.
         let plain = interner.callable();
         assert_ne!(sig.params[1], plain);
     }

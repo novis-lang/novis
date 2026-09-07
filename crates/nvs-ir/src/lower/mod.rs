@@ -2983,7 +2983,7 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// [`Ty::Void`], the representation of "the caller receives nothing", and that
 /// arm owns why the call site keeps its ordinary fall-through. What is left is
 /// the two the checker substitutes away before this boundary ever sees them
-/// ([`CheckedTy::TypeVar`] and [`CheckedTy::CallableTo`], both rewritten by
+/// ([`CheckedTy::TypeVar`] and [`CheckedTy::CallableShapeTo`], both rewritten by
 /// `nvs_types::generics::substitute`), so meeting one here is a checker bug
 /// rather than a missing representation. `mixed` erases to
 /// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much

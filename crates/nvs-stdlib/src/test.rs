@@ -291,7 +291,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "assertThrows",
             names: &["body", "expected"],
             params: &[
-                CoreTy::Callable,
+                CoreTy::CallableSig(&[], &CoreTy::Mixed),
                 CoreTy::Text(Qual::Neutral),
                 CoreTy::Options(MESSAGE),
             ],
@@ -303,7 +303,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "assertDoesNotThrow",
             names: &["body"],
-            params: &[CoreTy::Callable, CoreTy::Options(MESSAGE)],
+            params: &[
+                CoreTy::CallableSig(&[], &CoreTy::Mixed),
+                CoreTy::Options(MESSAGE),
+            ],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_does_not_throw",
@@ -312,7 +315,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "expectFailure",
             names: &["body"],
-            params: &[CoreTy::Callable],
+            params: &[CoreTy::CallableSig(&[], &CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_expect_failure",
@@ -2129,7 +2132,11 @@ mod tests {
             .iter()
             .find(|method| method.name == "expectFailure")
             .expect("§ 5's member is registered");
-        assert!(matches!(member.params, [CoreTy::Callable]));
+        assert!(matches!(
+            member.params,
+            [CoreTy::CallableSig(params, ret)]
+                if params.is_empty() && matches!(ret, CoreTy::Mixed)
+        ));
         assert!(matches!(member.return_ty, CoreTy::Void));
         // It is one of exactly five rows that assert nothing about a subject —
         // this, § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers` and § 18's

@@ -128,7 +128,17 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "mapKeys",
             names: &["a", "fn"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            // The callback answers a *key*, and `rule:types/arrays` normalises
+            // an integer one to its decimal at the subscript rather than
+            // refusing it, so the return type is the same `int|string` an
+            // `indexBy` option accepts — [`ARRAY_KEY_CONTAGIOUS`].
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(
+                    &[CoreTy::Var("T"), CoreTy::Str],
+                    &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
+                ),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_map_keys",
@@ -137,7 +147,15 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "groupBy",
             names: &["a", "key"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            // The bucket name is a key, so it takes [`ARRAY_KEY_CONTAGIOUS`]
+            // for the reason `mapKeys` does.
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(
+                    &[CoreTy::Var("T"), CoreTy::Str],
+                    &CoreTy::Union(ARRAY_KEY_CONTAGIOUS),
+                ),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
             symbol: "nvs_core_arr_group_by",
@@ -148,7 +166,10 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["a", "fn", "initial"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::Callable,
+                CoreTy::CallableSig(
+                    &[CoreTy::Var("U"), CoreTy::Var("T"), CoreTy::Str],
+                    &CoreTy::Var("U"),
+                ),
                 CoreTy::Var("U"),
             ],
             defaults: &[],
@@ -159,7 +180,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "find",
             names: &["a", "predicate"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_find",
@@ -168,7 +192,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "findKey",
             names: &["a", "predicate"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
             symbol: "nvs_core_arr_find_key",
@@ -177,7 +204,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "any",
             names: &["a", "predicate"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+            ],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_any",
@@ -186,7 +216,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "all",
             names: &["a", "predicate"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+            ],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_arr_all",

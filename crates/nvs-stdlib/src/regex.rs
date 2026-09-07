@@ -174,7 +174,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[
                 CoreTy::Text(Qual::Contagious),
                 CoreTy::Union(PATTERN_OR_STRING),
-                CoreTy::Callable,
+                CoreTy::CallableSig(&[CoreTy::Instance(MATCH_NAME)], &CoreTy::Str),
                 CoreTy::Options(REPLACE_OPTIONS),
             ],
             defaults: &[],

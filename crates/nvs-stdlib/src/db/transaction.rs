@@ -729,7 +729,7 @@ mod tests {
             format!(
                 "{:?}",
                 [
-                    CoreTy::CallableTo("T"),
+                    CoreTy::CallableSig(&[CoreTy::Instance(TRANSACTION_NAME)], &CoreTy::Var("T")),
                     CoreTy::Options(TRANSACTION_OPTIONS)
                 ]
             ),

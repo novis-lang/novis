@@ -145,7 +145,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["items", "fn"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
-                CoreTy::CallableTo("U"),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Var("U")),
                 CoreTy::Options(OPTIONS),
             ],
             defaults: &[],
@@ -156,7 +156,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "afterResponse",
             names: &["fn"],
-            params: &[CoreTy::Callable, CoreTy::Options(DEFERRED_OPTIONS)],
+            params: &[
+                CoreTy::CallableSig(&[], &CoreTy::Mixed),
+                CoreTy::Options(DEFERRED_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_task_after_response",

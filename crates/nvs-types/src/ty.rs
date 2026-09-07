@@ -198,29 +198,14 @@ pub enum Ty {
     /// `callable`, plus the name of the type variable its **result** binds —
     /// `U` in `Core\Arr::map(array<T> $a, callable $fn): array<U>`.
     ///
-    /// The third type in this enum no source text can spell, and the only one
-    /// that is not really a type at all: it accepts exactly what
-    /// [`Self::Callable`] accepts (`rule:expressions/first-class-callable-syntax` keeps a `callable` opaque, and
-    /// this changes nothing about that), and exists only to say *where a
-    /// variable comes from* at a position whose own type cannot say it. It
-    /// enters the interner only from `nvs_stdlib::registry`'s `CoreTy::CallableTo`
-    /// through [`crate::core_lib`].
-    ///
-    /// Like [`Self::TypeVar`], it never survives a call site:
-    /// [`crate::generics::substitute`] rewrites it to [`Self::Callable`], so
-    /// `nvs-ir` and every diagnostic only ever meet the plain type. That is also
-    /// why [`TypeInterner::describe`] renders it as `callable` — the variable
-    /// name is a fact about the registry row, and a message quoting it would be
-    /// naming something no program can write.
-    CallableTo(String),
     /// A **shape of zero-argument `fn` literals**, plus the name of the type
     /// variable the shape of their *results* binds — `S` in
     /// `Core\Task::all({...}): S`.
     ///
-    /// [`Self::CallableTo`]'s sibling one level up: that one says "this
-    /// argument is a closure, and its result names a variable"; this one says
-    /// "this argument is a shape literal of closures, and the shape of *their*
-    /// results names a variable". `rule:concurrency/all-answers-a-typed-shape` is the whole reason it exists —
+    /// The one type in this enum no source text can spell and that is not
+    /// really a type at all: it says "this argument is a shape literal of
+    /// closures, and the shape of *their* results names a variable".
+    /// `rule:concurrency/all-answers-a-typed-shape` is the whole reason it exists —
     /// `Task::all`'s answer keeps each field's own declared return type rather
     /// than collapsing to `array<mixed>`, and no ordinary type at this position
     /// could say so, because the argument's own type is a shape of opaque
@@ -557,10 +542,7 @@ impl TypeInterner {
             Ty::IntLiteral(value) => value.to_string(),
             Ty::EnumCase(q, _, case) => format!("{q}::{case}"),
             Ty::Iterable => "iterable".to_owned(),
-            // Deliberately the same rendering as `Ty::Callable` — see that
-            // variant's own doc comment for why the bound variable's name is
-            // never quoted at a user.
-            Ty::Callable | Ty::CallableTo(_) => "callable".to_owned(),
+            Ty::Callable => "callable".to_owned(),
             // Rendered as it is written, so a diagnostic about a signature
             // quotes text the program's author can find — which is why the
             // parameters are joined in their own order and the return type
@@ -818,13 +800,6 @@ impl TypeInterner {
     /// one above rather than a fuller description of it.
     pub fn callable_sig(&mut self, params: Vec<TypeId>, ret: TypeId) -> TypeId {
         self.intern(Ty::CallableSig { params, ret })
-    }
-
-    /// The interned `callable` that binds `name` from its result — see
-    /// [`Ty::CallableTo`], which owns why nothing outside a `Core` signature
-    /// ever calls this.
-    pub fn callable_to(&mut self, name: impl Into<String>) -> TypeId {
-        self.intern(Ty::CallableTo(name.into()))
     }
 
     /// The interned shape-of-`fn`-literals parameter that binds `name` from

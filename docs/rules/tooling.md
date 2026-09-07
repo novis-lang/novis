@@ -364,8 +364,8 @@ Cli::live(fn($live) => {
 });
 ```
 
-`Cli::live<T>(callable $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
-`Cli::progress<T>(uint $total, callable $body): T` hands it a `Cli\Progress` with
+`Cli::live<T>(callable(Cli\Live): T $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
+`Cli::progress<T>(uint $total, callable(Cli\Progress): T $body): T` hands it a `Cli\Progress` with
 `->advance({by?: uint, label?: string})`. Both answer what the body computed, at the body's type.
 **The runtime owns the cursor**: it coalesces frames on a timer rather than repainting per `set`,
 diffs against the previous frame, hides and restores the cursor, and **renders nothing at all when

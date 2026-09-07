@@ -46,7 +46,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "onLimit",
             names: &["handler"],
-            params: &[CoreTy::Callable],
+            params: &[CoreTy::CallableSig(
+                &[CoreTy::Array(&CoreTy::Str)],
+                &CoreTy::Mixed,
+            )],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_fatal_on_limit",
@@ -55,7 +58,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "onUncaughtThrow",
             names: &["handler"],
-            params: &[CoreTy::Callable],
+            params: &[CoreTy::CallableSig(
+                &[CoreTy::Instance("Throwable")],
+                &CoreTy::Mixed,
+            )],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: "nvs_core_fatal_on_uncaught_throw",

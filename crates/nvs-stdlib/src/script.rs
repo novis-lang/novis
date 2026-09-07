@@ -151,7 +151,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "onExit",
             names: &["hook"],
-            params: &[CoreTy::Callable],
+            params: &[CoreTy::CallableSig(
+                &[CoreTy::Instance(EXIT_REPORT_NAME)],
+                &CoreTy::Mixed,
+            )],
             defaults: &[],
             return_ty: CoreTy::Void,
             symbol: ON_EXIT_SYMBOL,

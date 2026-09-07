@@ -246,15 +246,15 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
         return;
     }
 
-    // `Ty::CallableTo` and `Ty::CallableShapeTo` are a `Core` signature's
-    // spelling for "a callable answering this" (`crate::ty`), and
-    // `Ty::CallableSig` is a closure whose signature is written out, so all
-    // four are the same operand as far as this rule is concerned — none of
-    // them is a name the spawn site can see through, and a written signature
-    // says how the value is called rather than where its code came from.
+    // `Ty::CallableShapeTo` is a `Core` signature's spelling for "a shape of
+    // callables answering this" (`crate::ty`), and `Ty::CallableSig` is a
+    // closure whose signature is written out, so all three are the same
+    // operand as far as this rule is concerned — none of them is a name the
+    // spawn site can see through, and a written signature says how the value
+    // is called rather than where its code came from.
     if matches!(
         env.interner.get(ty),
-        Ty::Callable | Ty::CallableTo(_) | Ty::CallableShapeTo(_) | Ty::CallableSig { .. }
+        Ty::Callable | Ty::CallableShapeTo(_) | Ty::CallableSig { .. }
     ) {
         env.diags.report(refuse_entry(path.span, path, form));
         return;

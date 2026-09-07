@@ -68,7 +68,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[CoreMethod {
         name: "capture",
         names: &["fn"],
-        params: &[CoreTy::Callable, CoreTy::Options(CAPTURE_OPTIONS)],
+        params: &[
+            CoreTy::CallableSig(&[], &CoreTy::Mixed),
+            CoreTy::Options(CAPTURE_OPTIONS),
+        ],
         defaults: &[],
         return_ty: CoreTy::Instance(crate::cli::NAME),
         symbol: "nvs_core_out_capture",
@@ -225,7 +228,11 @@ mod tests {
     fn capture_takes_a_callable_and_one_option_and_answers_the_carrier() {
         let capture = CLASS.methods[0];
         assert_eq!(capture.name, "capture");
-        assert!(matches!(capture.params[0], CoreTy::Callable));
+        assert!(matches!(
+            capture.params[0],
+            CoreTy::CallableSig(params, ret)
+                if params.is_empty() && matches!(ret, CoreTy::Mixed)
+        ));
         assert!(matches!(capture.params[1], CoreTy::Options(options) if options.len() == 1));
         assert!(matches!(
             capture.return_ty,

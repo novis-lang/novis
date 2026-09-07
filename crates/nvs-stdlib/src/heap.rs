@@ -94,7 +94,10 @@ const COMPARE_TO: &str = "compareTo";
 pub(crate) const NEW: CoreMethod = CoreMethod {
     name: "constructor",
     names: &["comparator"],
-    params: &[CoreTy::Nullable(&CoreTy::Callable)],
+    params: &[CoreTy::Nullable(&CoreTy::CallableSig(
+        &[CoreTy::Var("T"), CoreTy::Var("T")],
+        &CoreTy::Int,
+    ))],
     defaults: &[Const::Null],
     return_ty: CoreTy::Instance(NAME),
     symbol: NEW_SYMBOL,

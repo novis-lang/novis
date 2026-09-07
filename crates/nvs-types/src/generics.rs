@@ -44,17 +44,14 @@
 //!
 //! # The one variable that is not at a position
 //!
-//! `map(array<T> $a, callable $fn): array<U>` has nowhere for the walk above
-//! to find `U`: the argument's own type is `callable`, and `rule:expressions/first-class-callable-syntax` keeps
-//! that opaque, so no structural position holds the answer. The narrow answer
-//! is [`Ty::CallableTo`] — a parameter type that *is* `callable` for every
-//! purpose the checker has, and additionally names the variable its result
-//! binds. [`callback_result_var`] reads that name, and [`crate::expr`]'s
-//! `check_generic_args` binds it from the `ExprInfo::Closure { return_ty }`
-//! the checker already recorded at the `fn` literal's own span.
+//! `map(array<T> $a, callable(T, string): U $fn): array<U>` finds `U` where
+//! every other variable is found — at a structural position, inside the
+//! parameter's own written signature, which [`bind`] descends into. That is
+//! `rule:types/callable-signature`'s point: a callback's result is a type the
+//! row states rather than a variable named beside an opaque `callable`.
 //!
-//! [`Ty::CallableShapeTo`] is the same answer one level up, and the reason
-//! this section is not about a single variant. `Core\Task::all({...}): S` has
+//! [`Ty::CallableShapeTo`] is what is left, and the reason this section
+//! exists at all. `Core\Task::all({...}): S` has
 //! its whole *result* nowhere in its argument's type: the argument is a shape
 //! of opaque `callable`s, and `rule:concurrency/all-answers-a-typed-shape` wants a shape of what each of them
 //! returns. So `S` binds from the written `fn` literals themselves —
@@ -102,9 +99,10 @@ pub(crate) type Bindings = FxHashMap<String, TypeId>;
 #[must_use]
 pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(id) {
-        // `CallableTo` names a variable rather than being one, but it still has
-        // to be rewritten before the signature is used — see [`substitute`].
-        Ty::TypeVar(_) | Ty::CallableTo(_) | Ty::CallableShapeTo(_) => true,
+        // `CallableShapeTo` names a variable rather than being one, but it
+        // still has to be rewritten before the signature is used — see
+        // [`substitute`].
+        Ty::TypeVar(_) | Ty::CallableShapeTo(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
         Ty::CallableSig { params, ret } => {
             params
@@ -130,26 +128,16 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
-/// The variable a parameter binds from its callback's *result*, if it is
-/// [`Ty::CallableTo`] — the one binding [`bind`] cannot perform, because the
-/// answer is not at any position in the argument's type. See this module's own
-/// docs; [`crate::expr`]'s `check_generic_args` is the only caller.
+/// The variable a parameter binds from the *shape* of its fields' results, if
+/// it is [`Ty::CallableShapeTo`] — the one binding [`bind`] cannot perform,
+/// because the answer is not at any position in the argument's type. See this
+/// module's own docs; [`crate::expr`]'s `check_generic_args` is the only
+/// caller.
 ///
 /// Deliberately shallow: a binding site means nothing nested inside another
 /// type, and `nvs_stdlib::registry`'s
 /// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that no row
 /// writes one there.
-#[must_use]
-pub(crate) fn callback_result_var(id: TypeId, interner: &TypeInterner) -> Option<String> {
-    match interner.get(id) {
-        Ty::CallableTo(name) => Some(name.clone()),
-        _ => None,
-    }
-}
-
-/// The variable a parameter binds from the *shape* of its fields' results, if
-/// it is [`Ty::CallableShapeTo`] — [`callback_result_var`] one level up, and
-/// shallow for the same reason.
 ///
 /// `nvs_stdlib::registry`'s `a_callback_result_type_is_only_ever_a_whole_parameter`
 /// holds that no row writes one anywhere but at a whole parameter, so there is
@@ -235,10 +223,10 @@ pub(crate) fn bind(
         // Two written signatures, paired field-wise — a declared
         // `callable(T, string): U` against the `callable(User, string): string`
         // a written `fn` literal reports binds both variables out of one
-        // argument. This is the binding [`Ty::CallableTo`] exists to fake,
-        // performed structurally instead: the callback's result is a type here
-        // rather than a fact about an expression, so nothing outside this arm
-        // has to know where it came from.
+        // argument. This is the binding a `Core` row used to name beside an
+        // opaque `callable`, performed structurally instead: the callback's
+        // result is a type here rather than a fact about an expression, so
+        // nothing outside this arm has to know where it came from.
         //
         // The parameters stop at the shorter list, which is
         // `rule:types/callable-arity`'s prefix match read at the binding pass: a closure
@@ -361,13 +349,8 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
             .get(&name)
             .copied()
             .unwrap_or_else(|| interner.mixed()),
-        // A binding site has done its job by the time anything substitutes, so
-        // it collapses to the type it always accepted. This is what keeps
-        // `is_assignable`, `nvs-ir` and every diagnostic from ever meeting the
-        // variant at all.
-        Ty::CallableTo(_) => interner.callable(),
-        // The other binding site collapses to `mixed` rather than to the type
-        // it accepted, because there is no such type: what it accepts is a
+        // The binding site collapses to `mixed` rather than to the type it
+        // accepted, because there is no such type: what it accepts is a
         // shape literal whose every field is a written `fn` literal, which is
         // a fact about the *expression* and not about its type.
         // `crate::expr::args` checks that position in full and names each
@@ -598,44 +581,9 @@ mod tests {
         assert!(bindings.is_empty());
     }
 
-    /// `Core\Arr::map`'s second parameter: `bind` finds nothing in it, which
-    /// is exactly why [`callback_result_var`] exists.
-    #[test]
-    fn a_callback_result_parameter_names_its_variable_and_binds_nothing_structurally() {
-        let mut interner = TypeInterner::new();
-        let declared = interner.callable_to("U");
-        let callable = interner.callable();
-        assert_eq!(
-            callback_result_var(declared, &interner).as_deref(),
-            Some("U")
-        );
-        assert_eq!(callback_result_var(callable, &interner), None);
-
-        let mut bindings = Bindings::default();
-        bind(declared, callable, &mut interner, &mut bindings);
-        assert!(bindings.is_empty());
-    }
-
-    /// The property everything downstream rests on: the variant is gone by the
-    /// time the signature is checked against, bound or not.
-    #[test]
-    fn a_callback_result_parameter_substitutes_to_plain_callable() {
-        let mut interner = TypeInterner::new();
-        let declared = interner.callable_to("U");
-        let callable = interner.callable();
-        assert!(mentions_type_var(declared, &interner));
-
-        let empty = Bindings::default();
-        assert_eq!(substitute(declared, &empty, &mut interner), callable);
-
-        let string = interner.string();
-        let mut bound = Bindings::default();
-        bound.insert("U".to_owned(), string);
-        assert_eq!(substitute(declared, &bound, &mut interner), callable);
-    }
-
-    /// And the variable it names is what the *return* type reads back —
-    /// `array<U>` becomes `array<string>` for a callback returning `string`.
+    /// The variable a callback's signature names is what the *return* type
+    /// reads back — `array<U>` becomes `array<string>` for a callback
+    /// returning `string`.
     #[test]
     fn the_bound_callback_result_reaches_the_return_type() {
         let mut interner = TypeInterner::new();

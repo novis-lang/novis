@@ -336,14 +336,14 @@ from `""`, and an empty array is that seed returned unchanged with no call made.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `map` | `map(array<T> $a, callable(T, string): U $fn): array<U>` | `array_map` | |
-| `mapKeys` | `mapKeys(array<T> $a, callable $fn): array<T>` | `array_combine(array_map(...), …)`, the `keyBy` idiom | |
+| `mapKeys` | `mapKeys(array<T> $a, callable(T, string): int\|string $fn): array<T>` | `array_combine(array_map(...), …)`, the `keyBy` idiom | |
 | `filter` | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` | `array_filter` and its two flags | |
-| `reduce` | `reduce(array<T> $a, callable $fn, U $initial): U` | `array_reduce` | |
-| `find` | `find(array<T> $a, callable $predicate): ?T` | `array_find` | |
-| `findKey` | `findKey(array<T> $a, callable $predicate): ?string` | `array_find_key` | neutral |
-| `any` | `any(array<T> $a, callable $predicate): bool` | `array_any` | neutral |
-| `all` | `all(array<T> $a, callable $predicate): bool` | `array_all` | neutral |
-| `groupBy` | `groupBy(array<T> $a, callable $key): array<array<T>>` | nothing — the most-written PHP userland helper | |
+| `reduce` | `reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U` | `array_reduce` | |
+| `find` | `find(array<T> $a, callable(T, string): bool $predicate): ?T` | `array_find` | |
+| `findKey` | `findKey(array<T> $a, callable(T, string): bool $predicate): ?string` | `array_find_key` | neutral |
+| `any` | `any(array<T> $a, callable(T, string): bool $predicate): bool` | `array_any` | neutral |
+| `all` | `all(array<T> $a, callable(T, string): bool $predicate): bool` | `array_all` | neutral |
+| `groupBy` | `groupBy(array<T> $a, callable(T, string): int\|string $key): array<array<T>>` | nothing — the most-written PHP userland helper | |
 | `sum` | `sum(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_sum` | neutral |
 | `product` | `product(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_product` | neutral |
 | `average` | `average(array<int\|float\|decimal> $a): ?(float\|decimal)` | `array_sum($a)/count($a)`, with the empty case answered | neutral |
@@ -565,7 +565,7 @@ are `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter
 | `match` | `match(string $subject, Pattern\|string $pattern, {from?: int}): ?Match` | `preg_match` + `$matches` + `PREG_OFFSET_CAPTURE` | **sink** (pattern) |
 | `matchAll` | `matchAll(string $subject, Pattern\|string $pattern): array<Match>` | `preg_match_all` + `PREG_PATTERN_ORDER`/`PREG_SET_ORDER` | **sink** (pattern) |
 | `replace` | `replace(string $subject, Pattern\|string $pattern, string $replacement, {limit?: uint}): string` | `preg_replace` | **sink** (pattern) |
-| `replaceWith` | `replaceWith(string $subject, Pattern\|string $pattern, callable $fn, {limit?: uint}): string` | `preg_replace_callback`, `preg_replace_callback_array` | **sink** (pattern) |
+| `replaceWith` | `replaceWith(string $subject, Pattern\|string $pattern, callable(Match): string $fn, {limit?: uint}): string` | `preg_replace_callback`, `preg_replace_callback_array` | **sink** (pattern) |
 | `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | `preg_split` and its four flags | **sink** (pattern) |
 | `quote` | `quote(string $literal): string` | `preg_quote` | **launder** (for the pattern sink) |
 
@@ -963,7 +963,7 @@ is not.
 |---|---|---|---|
 | `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |
 | `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | `fputcsv`'s formatting half | |
-| `Out::capture` | `capture(callable $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
+| `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
 
 `Core\Out` has exactly this one member. A buffer is scoped to a closure and nests by call nesting, so
 PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
@@ -1162,7 +1162,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 | `Core\Log`, `Core\Fatal` | structured logging. `write(Log\Level, string $message, array<string, mixed> $fields = [])`, where `Log\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point | [0020](../decisions/0020.md), [0092](../decisions/0092.md) |
 | `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: [0092](../decisions/0092.md); the probes: [0018](../decisions/0018.md) |
 | `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../decisions/0051.md) |
-| `Core\Script` | `onExit(callable $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses | [0127](../decisions/0127.md) |
+| `Core\Script` | `onExit(callable(Script\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses | [0127](../decisions/0127.md) |
 | `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../decisions/0051.md) |
 | `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../decisions/0005.md), [0064](../decisions/0064.md) |
 
@@ -1205,7 +1205,7 @@ mechanism (`rule:security/sink-predicate`).
 | `executeMany` | `$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint` | a loop around `PDOStatement::execute` | **sink** (sql) |
 | `stream` | `$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\Row>` | `MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row` | **sink** (sql) |
 | `streamAs` | `$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>` | — | **sink** (sql) |
-| `transaction` | `$q->transaction(callable $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | `beginTransaction`/`commit`/`rollBack`, `SAVEPOINT` | |
+| `transaction` | `$q->transaction(callable(Transaction): T $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | `beginTransaction`/`commit`/`rollBack`, `SAVEPOINT` | |
 
 `Core\Db\Connection` implements it; `Core\Db\Transaction implements Queryable by $connection`
 (`rule:classes/no-traits`), so the surface is
@@ -1293,8 +1293,8 @@ in Part II and lands at **M5** rather than M8.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `all` | `all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}` | — | |
-| `map` | `map(array<T> $items, callable $fn, {limit?: uint, deadline?: Duration}): array<U>` | `curl_multi_*` | |
-| `afterResponse` | `afterResponse(callable $fn, {deadline?: Duration}): void` | `fastcgi_finish_request` | |
+| `map` | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Duration}): array<U>` | `curl_multi_*` | |
+| `afterResponse` | `afterResponse(callable(): mixed $fn, {deadline?: Duration}): void` | `fastcgi_finish_request` | |
 
 `all` takes a shape literal of zero-argument closures and returns a shape with the same field names, each
 carrying **that closure's own declared return type**. Every field must be a written `fn` literal — a

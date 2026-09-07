@@ -313,9 +313,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "live",
             names: &["body"],
             // The one member here whose answer is the *body's* — `rule:tooling/in-place-output-is-a-scoped-live-region`
-            // writes `live<T>(callable $body): T`, so the region is scenery
-            // around a call that computes whatever it was going to compute.
-            params: &[CoreTy::CallableTo("T")],
+            // writes `live<T>(callable(Live): T $body): T`, so the region is
+            // scenery around a call that computes whatever it was going to
+            // compute, and `T` binds from the body's own declared return type.
+            params: &[CoreTy::CallableSig(
+                &[CoreTy::Instance(LIVE_NAME)],
+                &CoreTy::Var("T"),
+            )],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_cli_live",
@@ -324,7 +328,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "progress",
             names: &["total", "body"],
-            params: &[CoreTy::Uint, CoreTy::CallableTo("T")],
+            params: &[
+                CoreTy::Uint,
+                CoreTy::CallableSig(&[CoreTy::Instance(PROGRESS_NAME)], &CoreTy::Var("T")),
+            ],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
             symbol: "nvs_core_cli_progress",

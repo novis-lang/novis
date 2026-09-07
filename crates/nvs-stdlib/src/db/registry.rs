@@ -515,12 +515,14 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
 pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
-    // Opaque, as `rule:types/callable-absorbs-closure` keeps every `callable`: what this one is handed
-    // is a [`TRANSACTION`] and what it may declare is zero parameters or one,
-    // and neither is sayable here — `nvs_runtime::call_closure` trims to the
-    // arity the closure recorded, which is § 7's R9 allowance.
+    // Written, as `rule:types/callable-signature` has every callback spell what
+    // it receives: what this one is handed is a [`TRANSACTION`], and a closure
+    // declaring no parameter at all still satisfies the row under
+    // `rule:types/callable-arity`'s prefix match — which is § 7's R9 allowance,
+    // now stated where it is checked rather than left to
+    // `nvs_runtime::call_closure`'s trim.
     params: &[
-        CoreTy::CallableTo("T"),
+        CoreTy::CallableSig(&[CoreTy::Instance(TRANSACTION_NAME)], &CoreTy::Var("T")),
         CoreTy::Options(TRANSACTION_OPTIONS),
     ],
     defaults: &[],

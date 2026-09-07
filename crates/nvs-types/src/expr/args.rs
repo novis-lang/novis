@@ -1173,10 +1173,9 @@ pub(crate) fn check_inout_arg(
 /// round, because there the literals are all there is.
 ///
 /// One binding does not come from an argument's *type* at all: a
-/// [`Ty::CallableTo`] parameter takes its variable from the closure literal's
-/// recorded return type, which the first pass has just produced by checking
-/// that literal. [`crate::generics`] owns why, and owns the case that binds
-/// nothing.
+/// [`Ty::CallableShapeTo`] parameter takes its variable from the shape of the
+/// `fn` literals written at the argument's own fields, which the first pass
+/// has just produced by checking them. [`crate::generics`] owns why.
 ///
 /// Two arguments are left out of that first pass. An
 /// `rule:core-api/shape-rules` R2 options bag is checked entirely in the last
@@ -1305,21 +1304,8 @@ pub(crate) fn check_generic_args(
             arg_types[index] = infer(value, Some(expected), live, scope, ctx, env);
         }
         let actual = arg_types[index];
-        // The one binding that is not read out of a type. A `callable`
-        // parameter's argument type says nothing about the value the callback
-        // produces (`rule:expressions/first-class-callable-syntax`), so `Core\Arr::map`'s `U` comes from the
-        // closure literal's own recorded return type instead — and from
-        // nowhere else, which is `crate::generics`' own known gap.
-        if let Some(name) = crate::generics::callback_result_var(declared, env.interner) {
-            if let Some(ExprInfo::Closure { return_ty, .. }) =
-                env.exprs.lookup(list[index].value.span)
-            {
-                bindings.entry(name).or_insert(*return_ty);
-            }
-            continue;
-        }
-        // The same answer one level up, and the other binding not read out of
-        // a type: `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all` answers a shape of what each
+        // The one binding not read out of a type:
+        // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all` answers a shape of what each
         // field's closure returns, and the argument's own type is a shape of
         // opaque `callable`s. `bind_callable_shape` reads the literals.
         if let Some(name) = crate::generics::callable_shape_var(declared, env.interner) {
@@ -1371,8 +1357,8 @@ pub(crate) fn check_generic_args(
 ///
 /// Narrow on purpose, in both halves. A written signature is the only expected
 /// type that names a parameter position at all, so a literal anywhere else —
-/// including at [`Ty::CallableTo`], which reads the *checked* literal's return
-/// type back out of [`Env::exprs`] — has nothing to gain by waiting and would
+/// including at [`Ty::CallableShapeTo`], whose fields are read as *checked*
+/// literals out of [`Env::exprs`] — has nothing to gain by waiting and would
 /// lose the binding it already makes. And a parameter mentioning no variable
 /// is its own final type in the first pass, so deferring it would only move
 /// the same check later.
