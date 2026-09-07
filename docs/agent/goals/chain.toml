@@ -368,6 +368,19 @@ handoff = "docs/agent/goals/29-signed-urls.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# The other half of goal 13's reservation. Goal 13 makes `is` a reserved word that refuses; this makes it
+# the type test, which is what PHP reserved the spelling for and what ADR 0150 decides the shape of. It is
+# here rather than beside goal 13 because the design was reached after that goal was written, and because
+# `is` narrows -- so it wants the type system settled rather than the grammar merely open. Its own checks
+# need no container; the daemon is its floor's, carried from goal 29.
+[[goal]]
+name = "30 type-test"
+md = "docs/agent/goals/30-type-test.md"
+toml = "docs/agent/goals/30-type-test.toml"
+handoff = "docs/agent/goals/30-type-test.handoff.md"
+milestone = "M1"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and

@@ -106,7 +106,7 @@ somebody has already followed.
 | Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
 | done | [M0](plan/m0.md) | Project setup (~3 days) | 0.3 |
-| goal 13 | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
+| goals 13, 30 | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
 | done\* | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
