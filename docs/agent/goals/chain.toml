@@ -397,6 +397,23 @@ handoff = "docs/agent/goals/31-queue-purge.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# `[[schedule]]` fires under `nvs serve` and `[queue] workers` does not: the workers are wired
+# into `run_run` and nowhere else, so the key is read, validated at boot and then silently ignored
+# by the binary a deployment runs. ADR 0154 closes it with one `Option` and one call in
+# `serve.rs`, one predicate in `worker.rs`, four directive rows and one sentence of help text.
+# Directly after goal 31 because the two are one file set and one subject, and because 31 is the
+# entry that gives the queue its missing member while this is the one that gives it its missing
+# process. M7 rather than M8: nothing here is `Core` surface — it is where a subsystem runs and
+# what stops it. Its own checks run a served process against a real queue, so the daemon is its
+# requirement as well as its floor's.
+[[goal]]
+name = "32 serve-runs-the-queue"
+md = "docs/agent/goals/32-serve-runs-the-queue.md"
+toml = "docs/agent/goals/32-serve-runs-the-queue.toml"
+handoff = "docs/agent/goals/32-serve-runs-the-queue.handoff.md"
+milestone = "M7"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and

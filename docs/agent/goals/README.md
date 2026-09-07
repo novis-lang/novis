@@ -114,6 +114,19 @@ two are opposites at the point they touch. It sits here rather than beside goal 
 schema change cheap is goal 9's converge: a nullable column with no default grades `Safe`, so a live
 deployment takes it through the `nvs queue migrate` it already runs.
 
+**Then its pair, from the next question in the same conversation.**
+[32 serve-runs-the-queue](32-serve-runs-the-queue.md) is the other end of the same subsystem: goal 31 gives
+the queue its missing member and this gives it its missing process. `[[schedule]]` fires under `nvs serve`
+and `[queue] workers` does not — the workers are wired into `run_run` and nowhere else, so the key is read,
+validated at boot and then silently ignored by the binary a deployment actually runs, which is why every
+production deployment needs a second process it was never told about.
+[ADR 0154](../../decisions/0154.md) closes it with one `Option` and one call in `serve.rs`, one predicate in
+`worker.rs`, four directive rows and one sentence of help text. Its load-bearing half is the stop condition
+rather than the arming: the server's loop ends when nothing is parked and a polling worker is always
+parked, so a worker that ignores the drain is a server that cannot be stopped — which is why the goal's
+stage 2 lands the predicate before stage 3 arms anything. The command keeps its name; § 6 of the record is
+why, and the sentence under it is what changes.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
 which puts `rule:testing/four-proofs`'s
@@ -181,7 +194,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + `rule:security/protocol-roster`/0077 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | [30 type-test](30-type-test.md) | M1, `rule:types/type-test` — the other half of goal 13's reservation | `nvs-syntax`, `nvs-types`, `nvs-ir`, `nvs-codegen` |
 | [31 queue-purge](31-queue-purge.md) | M8, `rule:concurrency/queue-deletion-is-explicit-and-bounded` + `rule:concurrency/queue-four-members`/0084 changed by a record | `nvs-stdlib`, `nvs-config`, `nvs-cli`, `nvs-db` |
-| 32–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [32 serve-runs-the-queue](32-serve-runs-the-queue.md) | M7, `rule:concurrency/one-process-serves-requests-schedules-and-jobs` + `rule:config/reloadability-is-its-own-field`/0078 changed by a record | `nvs-cli`, `nvs-config`, `nvs-server` |
+| 33–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |
 
