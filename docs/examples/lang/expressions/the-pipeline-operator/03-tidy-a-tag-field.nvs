@@ -1,0 +1,17 @@
+<?nvs
+// Cleaning up the comma-separated tag field of a form before it is stored:
+// split it, trim each tag, drop the duplicates, sort what is left, and put it
+// back together.
+// The tidied list is an ordinary local afterwards, so the last two lines each
+// start from it rather than repeating the work.
+
+string $field = "web, cli , web,  jit ,security";
+
+array<string> $tags = $field
+    |> Core\Str::split($_, ",")
+    |> Core\Arr::map($_, fn(string $t): string => Core\Str::trim($t))
+    |> Core\Arr::unique($_)
+    |> Core\Arr::sort($_);
+
+echo $tags |> Core\Str::join($_, ","), "\n";
+echo $tags |> Core\Arr::count($_), " tags\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Normalising the email address somebody typed into a signup form, so two
+// people cannot register the same one twice.
+// `|>` reads left to right, in the order the steps happen. `$_` marks where
+// the value from the step before goes.
+
+array<string> $submitted = ["  Ada@Example.COM ", "BOB@example.com", " carol@Example.Com  "];
+
+foreach ($submitted as string $raw) {
+    string $email = $raw |> Core\Str::trim($_) |> Core\Str::lower($_);
+    echo $email, "\n";
+}

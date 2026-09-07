@@ -1,0 +1,16 @@
+<?nvs
+// Turning an article title into the slug that goes in its URL.
+// Written as a nest this reads inside out; as a pipeline it reads in the order
+// the steps happen, and each step is one line.
+
+array<string> $titles = ["Hello World", "  Novis Ships 1.0  ", "Web  Servers, Fast"];
+
+foreach ($titles as string $title) {
+    string $slug = $title
+        |> Core\Str::trim($_)
+        |> Core\Str::lower($_)
+        |> Core\Str::replace($_, ",", "")
+        |> Core\Str::replace($_, "  ", " ")
+        |> Core\Str::replace($_, " ", "-");
+    echo $slug, "\n";
+}

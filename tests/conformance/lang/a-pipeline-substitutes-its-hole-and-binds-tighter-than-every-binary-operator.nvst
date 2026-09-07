@@ -1,0 +1,48 @@
+--TEST--
+`|>` substitutes its one hole at parse time and binds tighter than every binary operator (`rule:expressions/pipeline-substitution`, `rule:expressions/pipeline-precedence`)
+--FILE--
+<?nvs
+// covers: lang:expressions/the-pipeline-operator
+// `rule:expressions/pipeline-substitution`: the parser replaces `$_` with the
+// left side, so a pipeline and the nested spelling it stands for are the same
+// tree. The two lines below therefore have to print the same thing.
+string $s = "  Novis  ";
+echo $s |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
+echo Core\Str::lower(Core\Str::trim($s)), "\n";
+
+// Left-associative, so each stage is the next stage's left side.
+class Box {
+    public static function twice(int $v): int { return $v * 2; }
+}
+echo 3 |> Box::twice($_) |> Box::twice($_), "\n";
+
+// `rule:expressions/pipeline-precedence`: looser than unary, so the `-` is
+// applied before the value is piped and `abs` answers 7 rather than -7.
+int $n = -7;
+echo -$n |> Core\Math::abs($_), "\n";
+
+// Tighter than every binary operator. `.` sees the upper-cased tag, not the
+// whole concatenation, and `>` compares the length rather than the string.
+string $tag = "beta";
+echo "release=" . $tag |> Core\Str::upper($_), "\n";
+echo $s |> Core\Str::length($_) > 5, "\n";
+
+// Tighter than assignment, so the whole pipeline is what is assigned.
+string $trimmed = $s |> Core\Str::trim($_);
+echo $trimmed, "\n";
+
+// The right side is a postfix expression: a call, a subscript, a member access
+// or a parenthesised group. Anything else is written parenthesised.
+array<string> $xs = ["a", "b", "c"];
+echo $xs |> $_[1], " ", $xs |> Core\Arr::last($_), "\n";
+echo 5 |> ($_ * 2) |> ($_ + 1), "\n";
+--EXPECT--
+novis
+novis
+12
+7
+release=BETA
+1
+Novis
+b c
+11

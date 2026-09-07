@@ -1,0 +1,101 @@
+<?nvs
+// Attack: the whole operator lives in the parser, which keeps one slot for the
+// value waiting to be substituted -- so this goes after that slot. Pipelines
+// inside a pipeline's right side, inside a closure inside a right side, inside
+// a `match` arm on a right side, and a chain long enough that the tree it
+// builds is nothing a person would write. Then the same shapes with megabytes
+// flowing through them, to put the refcounts under load. Either every one of
+// these answers, or a limit says no; what must not happen is a panic, a wrong
+// substitution, or a parse that never ends.
+// hostile: timeout-ms 20000
+
+class Attack {
+    public static function twice(int $v): int { return $v * 2; }
+    public static function add(int $a, int $b): int { return $a + $b; }
+
+    /// A pipeline on the right side of a pipeline. The inner one takes the
+    /// slot, finishes, and the outer one's hole must still be waiting.
+    public static function nestedRightSides(int $a, int $b): int {
+        return $a |> Attack::add($b |> Attack::twice($_), $_);
+    }
+
+    /// A closure written on a right side, with a pipeline of its own inside it.
+    /// The closure body is parsed while the outer hole is parked.
+    public static function holeUnderAClosure(array<int> $xs): int {
+        return $xs
+            |> Core\Arr::map($_, fn(int $x): int => $x |> Attack::twice($_))
+            |> Core\Arr::sum($_) as int;
+    }
+
+    /// A `match` in argument position on a right side: every arm is parsed
+    /// with the outer value still waiting, and one arm pipes on its own.
+    public static function holeUnderAMatch(int $n): int {
+        return $n |> Attack::add(match ($n % 2) {
+            0 => 10 |> Attack::twice($_),
+            default => 3,
+        }, $_);
+    }
+
+    /// Forty-eight stages on one expression, each wrapping the one before it.
+    /// A chain is a loop in the parser, so nothing charges its stages to the
+    /// recursion guard the nested spelling trips — what bounds the tree this
+    /// builds is the length of the line.
+    public static function longChain(int $seed): int {
+        return $seed
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1)
+            |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1) |> ($_ + 1);
+    }
+
+    /// A right side nested sixteen deep in parentheses, each level a hole of
+    /// its own, so the substitution has to walk down to the innermost one.
+    public static function deepParentheses(int $seed): int {
+        return $seed |> ((((((((((((((((($_ + 1))))))))))))))))) ;
+    }
+
+    /// Megabytes through a chain, so the substituted tree is evaluated with
+    /// something the allocator notices. The result feeds the next round, so
+    /// nothing here can be folded away.
+    public static function bigStringsThroughAChain(uint $mib, uint $rounds): uint {
+        var $chunk = Core\Str::repeat("a b ", 262144);
+        var $s = Core\Str::repeat($chunk, $mib);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ($s
+                |> Core\Str::trim($_)
+                |> Core\Str::upper($_)
+                |> Core\Str::lower($_)
+                |> Core\Str::length($_));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    /// The refcount edge: the piped value is an array element, and the array is
+    /// rewritten while the pipeline that read it is still in flight.
+    public static function pipedElementReplaced(uint $rounds): uint {
+        array<string> $held = ["one", "two", "three"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ($held[$total % 3] |> Core\Str::upper($_) |> Core\Str::length($_));
+            $held[$total % 3] = Core\Str::repeat("x", $total % 7 + 1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::nestedRightSides(3, 4), "\n";
+echo Attack::holeUnderAClosure([1, 2, 3]), "\n";
+echo Attack::holeUnderAMatch(4), "\n";
+echo Attack::longChain(0), "\n";
+echo Attack::deepParentheses(1), "\n";
+echo Attack::bigStringsThroughAChain(8, 4), "\n";
+echo Attack::pipedElementReplaced(100000), "\n";

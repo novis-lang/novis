@@ -1,0 +1,23 @@
+<?nvs
+// A three-stage pipeline over a short label -- the shape a handler writes when
+// it normalises a field it was handed. The operator is substituted at parse
+// time, so what this measures is the nested spelling it stands for.
+// bench: iterations 1000000
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $labels = ["  Ada ", "BOB", " carol  ", "Dee"];
+        var $total = 0;
+        var $i = 0;
+        while ($i < $rounds) {
+            $total = $total + ($labels[$total % 4]
+                |> Core\Str::trim($_)
+                |> Core\Str::lower($_)
+                |> Core\Str::length($_) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1000000), "\n";
