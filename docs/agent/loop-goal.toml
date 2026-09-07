@@ -1,13 +1,11 @@
-# Goal 12 -- the resilient tree, and one home for a position. The acceptance test, as data.
+# Goal 13 -- the pipeline operator and the PHP 8.6 refusals. The acceptance test, as data.
 #
-# `12-resilient-tree.md` is the prose. One home each.
+# `13-surface.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
-# The floor brings its own fixtures; this goal adds none. Every property here is asserted from Rust,
-# because a lossless tree and an offset conversion have no stdout to freeze. Written across lines
-# so goal-switch.py's union has somewhere to put the floor's fixtures.
 files = [
+  "examples/pipeline.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/doc-comments.nvs",
   "examples/typed-callable.nvs",
@@ -76,39 +74,23 @@ files = [
 [context]
 
 modules = [
-  # `MemberName` and `ExprKind::Error` -- what stage 2 makes explicit.
-  "crates/nvs-syntax/src/ast.rs",
-  # Where the synthesized member name is made today.
+  # The `|>` token, and the reserved set `let` and `is` join.
+  "crates/nvs-syntax/src/token.rs",
+  # Where the hole is substituted, and where precedence is expressed.
   "crates/nvs-syntax/src/parser/expr.rs",
-  # The one `match` over the grammar -- `rule:ide/one-grammar-one-tree`'s walk, which `Core\Ast` and
-  # the index both read, so a new production or a new `MemberName` variant lands here.
-  "crates/nvs-syntax/src/walk.rs",
-  # `SyntaxIndex::at(offset)` -- the `NodePath` a cursor is inside, flattened from that walk.
-  "crates/nvs-syntax/src/index.rs",
-  # The crate's other exhaustive `MemberName` match; a variant added to the enum stops here.
-  "crates/nvs-syntax/src/casing.rs",
-  # `Parsed` and the two entry points; the index joins `stmts` and `trivia` here.
-  "crates/nvs-syntax/src/parser/mod.rs",
-  # `line_col` counts chars -- neither encoding a client can negotiate. Stage 5's one home.
-  "crates/nvs-diagnostics/src/source.rs",
-  # The section lexer stage 6 extracts, and the module doc that names the section set.
-  "crates/nvs-test/src/case.rs",
-  "crates/nvs-test/src/lib.rs",
-  # `run_ast` -- stage 7's two flags.
-  "crates/nvs-cli/src/main.rs",
-  # The section lexer: cutting a case file into its `--NAME--` sections.
-  "crates/nvs-test/src/section.rs",
-  # `nvs ast` — the parse tree, printed for a person or for a tool.
-  "crates/nvs-cli/src/ast.rs",
+  # `finally`, constructors and `readonly` -- the three refusals' declaration side.
+  "crates/nvs-syntax/src/parser/decl.rs",
+  # The code registry: three reassigned numbers and three new ones, or they do not exist.
+  "crates/nvs-diagnostics/src/lib.rs",
 ]
 
-rules = ["0099", "0040", "0137", "0092", "0009", "0134"]
+rules = ["0098", "0124", "0063", "0034", "0134"]
 
-# 0099 s1 is the tree being finished; s5 is the case format stage 6 prepares for and does not build.
-# 0040 s3 is the AST panel's assumption that `--json` already exists.
-adrs = ["0099 §1", "0099 §5", "0040 §3"]
+# 0098 whole: it is the operator's entire design, and its diagnostics table is what stage 0 folds.
+# 0124's four refusals and the one it does not adopt.
+adrs = ["0098", "0124"]
 
-shapes = ["A `.nvst` test case", "A commit message", "A diagnostic"]
+shapes = ["A diagnostic", "A `.nvst` test case", "A rule fragment", "A decision record", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -134,9 +116,9 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph, not the whole milestone: M4B's item list now lives in this goal's own
-# prose and in goals 13-15, and the milestone page whole is 6,000 tokens of it a second time.
-milestones = ["M4B:verify"]
+# The acceptance paragraph alone. What these two items build is `rule:expressions/pipeline-substitution` and `rule:php-migration/a-deprecation-is-a-refusal`, both of which
+# this manifest already names whole.
+milestones = ["M1:verify"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -144,12 +126,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-11's container-backed checks.
+# The floor carries goals 4-12's container-backed checks.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 319 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -4886,15 +4874,12 @@ stage = "1 floor"
 name = "conformance (doc comments)"
 args = ["test", "tests/conformance/syntax/doc-comment"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- recovery a consumer can read. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 explicit recovery"
+stage = "1 floor"
 name = "nvs-syntax (recovery is explicit, not an empty span)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -4906,10 +4891,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the index, and the promise that the strict path did not move. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the index"
+stage = "1 floor"
 name = "nvs-syntax (the syntax index)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -4925,10 +4909,9 @@ tests = [
 # `parse`, as those two already do; what runs every iteration is the in-process property.
 # Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the prefix sweep"
+stage = "1 floor"
 name = "nvs-syntax (every prefix of every example)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -4941,10 +4924,9 @@ tests = [
 # Stage 5 -- position arithmetic, in one crate. Invisible on ASCII, wrong on everything else.
 # Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 positions"
+stage = "1 floor"
 name = "nvs-diagnostics (utf16_col and offset_of)"
 args = ["test", "-p", "nvs-diagnostics"]
 tests = [
@@ -4957,10 +4939,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- one section lexer, two formats. The `.nvst` half must not move. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 the section lexer"
+stage = "1 floor"
 name = "nvs-test (the shared section lexer)"
 args = ["test", "-p", "nvs-test"]
 tests = [
@@ -4975,10 +4956,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- `nvs ast --json --resilient`, frozen. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 ast json"
+stage = "1 floor"
 name = "nvs-cli (ast --json)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -4990,7 +4970,7 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "7 ast json"
+stage = "1 floor"
 name = "nvs ast --json emits the node shape"
 argv = ["{nvs}", "ast", "--json", "examples/hello.nvs"]
 want = ['"kind"', '"span"', '"children"']
@@ -4998,6 +4978,97 @@ want = ['"kind"', '"span"', '"children"']
 # A chapter edit that stops regenerating is how `docs/novis.md` goes quietly stale.
 [[check]]
 kind = "command"
-stage = "7 ast json"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- CATCH-UP. `rule:expressions/pipeline-substitution`'s three numbers were allocated elsewhere after it was written. The
+# registry is the allocator; the ADR's table moves. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "nvs-diagnostics (the pipeline codes, reassigned)"
+args = ["test", "-p", "nvs-diagnostics"]
+tests = [
+  "the_pipeline_codes_are_the_next_free_parser_band_numbers",
+  "the_codes_adr_0098_originally_named_still_belong_to_their_owners",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the operator. The identity claim is the design, so it is asserted rather than inspected.
+# Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the pipeline"
+name = "nvs-syntax (the hole, substituted at parse time)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_pipeline_produces_the_same_ast_as_the_nested_spelling",
+  "a_pipeline_chain_associates_left_to_right",
+  "the_hole_binds_to_the_nearest_enclosing_right_side",
+  "a_right_side_with_no_hole_is_refused",
+  "a_right_side_with_two_holes_is_refused",
+  "a_hole_outside_a_pipeline_is_refused",
+  "the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the pipeline"
+name = "conformance (the pipeline's three refusals)"
+args = ["test", "tests/conformance/reject/pipeline"]
+
+[[check]]
+kind = "exact"
+stage = "2 the pipeline"
+file = "examples/pipeline.nvs"
+want = [
+  "a chain reads left to right",
+  "the nested spelling answers the same",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the PHP 8.6 refusals. Asserted as cases rather than as a crate's unit tests: what is
+# frozen is the refusal a user sees, not which pass produced it. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the refusals"
+name = "nvs-syntax (two reserved spellings)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "let_is_a_reserved_spelling",
+  "is_is_a_reserved_spelling",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the refusals"
+name = "conformance (return in finally, a constructor's value, a readonly default)"
+args = ["test", "tests/conformance/reject/php86"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the reference follows, and the one new heading pays for itself. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the reference"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+# Scoped to the one heading this goal adds. The rest of the chapter's roster is the four-proofs
+# program's debt and is deliberately not imported here.
+[[check]]
+kind = "command"
+stage = "4 the reference"
+name = "the pipeline operator owes no proof"
+argv = ["python", "tools/dossier.py", "--only", "lang:expressions/the-pipeline-operator", "--gate"]

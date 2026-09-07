@@ -1,107 +1,89 @@
-# Loop goal 12 — the resilient tree, and one home for a position
+# Loop goal 13 — the last two front-end items, before anything colours them
 
-Finish the half of `rule:ide/one-grammar-one-tree` that
-goal 11 did not build. That goal landed the trivia layer because a doc comment cannot be read without
-it; what is still owed is the part only an editor needs — **an index from a byte offset to the
-innermost node and its ancestors, and recovery a consumer can tell apart from what the user wrote.**
-[docs/plan/m4b.md](../plan/m4b.md) is the milestone and this file does not restate it.
+Land the two M1 items that were scheduled after M4 and never taken:
+`rule:expressions/pipeline-substitution`'s **pipeline
+operator** and `rule:php-migration/a-deprecation-is-a-refusal`'s **PHP
+8.6 refusals**. Both are written and accepted; this goal implements them and reopens neither.
+[docs/plan/m1.md](../plan/m1.md) items 5 and 6 are the scope.
 
-This goal opens no server and writes no editor. It is the three things every later editor slice reads:
-the tree, the position arithmetic, and the section lexer the `.lspt` format will share. Goals 14 and 15
-are unwritable without it, which is why it is first and why its acceptance list is entirely properties
-rather than features.
+**Why here, between the tree and the server.** Goal 15's TextMate grammar must colour `|>` and `let`/`is`
+as things Novis **rejects** (`rule:ide/highlighting-is-two-layers`),
+and `|>` stops being one the moment `rule:expressions/pipeline-substitution` lands. A grammar written against a surface that changes two
+goals later is written twice, and its snapshots are re-frozen by a session that has no idea why. Landing
+both now means the grammar, the semantic legend and every `.lspt` case see the final surface once.
 
-**One thing every session must hold:** `parse_file` keeps its exact behaviour. `nvs check` and
-`nvs run` are the same parse followed by "refuse if anything was reported", and no call site changes.
-A resilient tree that alters what the strict path reports is a regression wearing a feature's clothes,
-and the test that says otherwise is named in the acceptance list.
+Both items are confined to the front end. `|>` substitutes in the parser, so what reaches `nvs-hir` and
+everything after it is the `ExprKind` the nested spelling already produces; the refusals name code no
+fixture writes. **Neither blocks anything else**, which is exactly why they are still open — and why this
+is the smallest goal on the chain after goal 8.
 
-## Stage 0 — the catch-up
+## Stage 0 — the catch-up: three diagnostic numbers are already taken
 
-**Nothing**, and that is a finding rather than a default. The four M4 language holes M4B was staged with
-are closed: `Class::method(...)` and `$obj->method(...)` build an ordinary `callable`
-(`tests/conformance/core/a-first-class-callable-lowers.nvst`), a closure is callable through the variable
-holding it in the same case, `do`/`while` lowers, and `bool as string` renders `""` for `false`. The
-fourth item's other half is **not** a hole and must not be reopened: `bool as int` is refused by
-`rule:types/conversion` — `E0708`, whose help line names `$b ? 1 : 0` —
-which is a decision, not a gap.
+`rule:expressions/pipeline-substitution`'s table assigns `E0124`, `E0125` and `E0126`. **All three were allocated to other diagnostics
+after it was written** — `E_FOR_INIT_MIXES_DECL_AND_EXPR` and `E_FOR_INIT_TWO_DECLARATIONS`
+(`rule:iteration/for-init-clause`) and
+`E_CATCH_ARM_NOT_AN_EXPRESSION` (`rule:expressions/catch-expression`),
+in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator and it wins.
+
+So the first slice **reassigns the pipeline's three codes to the next free numbers in the parser band —
+`E0127`, `E0128`, `E0129` — and rewrites `rule:expressions/pipeline-substitution`'s table to match**, in the rule's own fragment, because a
+later decision rewrites the rule it changes rather than being left as an overlay. This is stage 0 and not a
+detail of stage 2: every conformance case written against the old numbers is a case written twice.
 
 ## Stage 1 — the floor
 
-Goal 11's whole acceptance list, which is the parity program plus goals 7–11. Never traded. Nothing in
-this goal touches `nvs-stdlib`, `nvs-db` or `nvs-server`, so a failure there is a real regression and
-never a scope question.
+Goal 12's whole acceptance list — the parity program, goals 7–11, and the resilient tree. Never traded.
 
-## Stage 2 — recovery a consumer can read
+## Stage 2 — the pipeline operator
 
-`MemberName::Missing(Span)` beside `MemberName::Ident` in `crates/nvs-syntax/src/ast.rs`, produced where
-the synthesized name is made today (`crates/nvs-syntax/src/parser/expr.rs` — `python tools/peek.py
---locate` finds the site), and a span on `ExprKind::Error` naming what it stood in for. **A consumer must
-never infer "did the user write this, or did the parser invent it at the cursor" from an empty span** —
-completion's entire behaviour hangs on that one distinction, and it is cheaper to build now than to
-retrofit under a request handler.
+The `|>` token, the `$_` hole, § 2's precedence level and associativity, and the substitution itself: the
+right side is an ordinary expression containing `$_` **exactly once**, and the parser replaces that hole
+with the left side. The result is the AST the nested spelling already produces, so no later pass changes —
+that identity is the design and the acceptance list asserts it directly rather than by inspection.
 
-## Stage 3 — the index
+Three diagnostics, at their reassigned numbers: no hole on the right side (with the second half of its
+message, the one that names PHP 8.5's callable shape and is what makes sharing the spelling affordable),
+`$_` more than once, and `$_` outside a right side. `tests/conformance/reject/` carries all three,
+including the PHP-callable form, and a positive case carries the identity claim.
 
-`SyntaxIndex` joins `stmts` and `trivia` in the `Parsed` goal 11 built, filled by **one walk** and
-answering `at(offset) -> NodePath` — the innermost node plus its ancestors, in order. `parse_file` stays
-a thin wrapper over the resilient entry point, so the strict path is unchanged by construction rather
-than by care. The ancestor list is not an implementation detail: it is `selectionRange`'s whole response
-at goal 14, which is why it is a list and not a leaf.
+## Stage 3 — the PHP 8.6 refusals
 
-## Stage 4 — the prefix sweep, and the fuzz target
+`let` and `is` join the reserved set in `crates/nvs-syntax/src/token.rs`, and three front-end checks land
+with codes from the **`E02xx` rejected-PHP-constructs band** — the next free numbers are `E0247` onward,
+and `E0213`/`E0214` are retired holes that are never reused:
 
-Every prefix of every `examples/*.nvs` at a token boundary: no panic, a `SyntaxIndex` answer at the final
-offset, and a diagnostic on each prefix that is genuinely incomplete. Then a `fuzz_target` over truncated
-and mid-edit inputs, **separate** from the existing whole-file `parse` target — a truncated input is a
-different shape of input, and folding it into the existing target hides which one found a crash
-(`rule:ide/one-grammar-one-tree` *Verification*).
+1. A `return` — or an escaping `break`/`continue` — inside a `finally` block (`rule:php-migration/no-return-leaves-a-finally`).
+2. `return $value;` in a constructor (§ 2).
+3. A default on a `readonly` property (§ 4).
 
-## Stage 5 — position arithmetic has exactly one home
+Each gets its `--EXPECTF-ERROR--` case under `tests/conformance/reject/`. Partial function application is
+**not** adopted and nothing is built for it: `fn` already spells it, and the ADR says so.
 
-`utf16_col` and `offset_of` beside `line_col` in `crates/nvs-diagnostics/src/source.rs`, whose column
-counts `char`s and is therefore **neither** encoding an LSP client can negotiate. This lands here rather
-than in the server goal for one reason: `nvs-diagnostics` is this goal's file set, and the rule that pays
-for it is *no other crate does its own conversion*. It is invisible on ASCII — which every fixture in this
-repository is — and wrong on the first line holding a multi-byte character, so the test is a round trip
-through both encodings on such a line, not a spot check.
+## Stage 4 — the reference follows
 
-## Stage 6 — the section lexer both case formats read
+`|>` is a new operator, so it gets its own heading in `docs/reference/lang/30-expressions.md` and owes
+what a language feature owes (`rule:testing/four-proofs`,
+`POLICY["lang"]`): two tests, three examples under `docs/examples/`, one program under `tests/hostile/`,
+and one measured figure in `benches/members/`. **That last one is not a formality here** — the figure
+worth recording is the pipeline spelling against the nested spelling, which is the claim of the whole
+design: identical AST, therefore identical cost.
 
-Extract `nvs_test`'s section lexer — its `header` and `parse` — into a module a second format can read,
-with `.nvst` behaviour byte-identical afterwards. **That is the whole of this stage.** The `.lspt` format
-itself, `nvs lsp-test`, and the canonical rendering are goal 14's: [conventions.md](conventions.md)
-§ *An `.lspt` case* puts the format's home in `crates/nvs-lsp`'s module doc and the rendering in
-`nvs_lsp::render`, and a format specified before its only consumer exists is specified twice.
-
-## Stage 7 — `nvs ast --json`, and the reference's first two headings
-
-`--json` and `--resilient` on `run_ast` in `crates/nvs-cli/src/main.rs`. A node is `kind`, `span` as
-`[start, end]`, its own scalar fields and `children`; **trivia and recovery nodes are included**, because
-the panel this feeds is least useful on a file that compiles. `--resilient` is the default, and the schema
-is frozen by a snapshot over `examples/`. `rule:ide/the-ast-panel-shells-out-to-the-cli` reads this flag; it does not exist yet, and
-`{stmts:#?}` has no stability contract.
-
-It is documented under `docs/reference/tools/10-cli.md`'s **existing** `# nvs ast` heading — two new
-flags on a subcommand that already ships, not a new feature — so it adds no row to
-`rule:testing/four-proofs`'s derived roster. The new chapter
-`40-editor.md` and its own headings belong to goals 14 and 15, which is where `nvs lsp` first exists.
-`python tools/reference.py --check` is in the acceptance list because a chapter edit that stops
-regenerating is how `docs/novis.md` goes quietly stale.
+The three refusals need no new heading. They are rows in
+`docs/reference/tools/30-php-differences.md`'s existing sections and in the lang chapters that already
+own `finally`, constructors and `readonly`, and `docs/reference/lang/30-expressions.md`'s
+*Operators PHP has that do not parse* gains PHP 8.5's `|>` shape. `python tools/reference.py --check`
+is in the acceptance list.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **One grammar, one tree. The `rowan` question is closed** by `rule:ide/one-grammar-one-tree`, which names what was given
-  up (incremental reparse) and what protects the trade (goal 14's latency guard). If the implementation
-  seems to force the opposite conclusion, keep this design, record *that* in `nvs-syntax`'s module doc
-  with the reason, and put the CST in the handoff's `## Backlog` — never start a rewrite mid-run.
-- **No ADR slots.** ADRs 0099, 0040 and 0137 decide everything here. Anything smaller is
-  decided-and-recorded in the crate's own module doc or `docs/adr/README.md` § *Decisions taken at project
-  start*, never a new number and never `BLOCKED`.
-- **`SyntaxIndex` is built by the walk that already exists**, not by a second traversal added beside it.
-  If the parse cannot fill it in one pass, fill it in one post-order walk of the finished tree and say so —
-  what is refused is two walks that both know the shape of the tree.
-- **The `.lspt` runner is not here** and a slice that reaches for it is off path: `## Backlog`, move on.
-- **`.lspt` and `.nvst` stay two suites.** They share a section lexer and nothing else. `nvs test`'s
-  `N passed` is the number the floor gates on, and making it count two unlike things breaks that gate and
-  `conformance_coverage.rs` with it.
+- **The two ADRs are implemented, not reopened.** `rule:expressions/pipeline-substitution`'s `?|>` stays deferred with its trigger named,
+  and `rule:php-migration/a-deprecation-is-a-refusal`'s non-adoptions stay non-adopted. A session that thinks either is wrong records the
+  thought in the handoff's `## Backlog` and implements what is written.
+- **The renumbering is mechanical and it is the ADR's body that moves.** No new ADR number, no overlay
+  note, no "see also" — `docs/agent/conventions.md` § *An ADR* is the shape and the registry's own rule
+  about a retired code leaving a hole is why the old numbers are not shuffled.
+- **No ADR slots.** Both designs are written. Anything smaller is decided-and-recorded in the crate's
+  module doc, never `BLOCKED`.
+- **`|>` is parse-time substitution and never a run-time application.** If lowering or the type checker
+  appears to need to know about the operator at all, that is a bug in the substitution — the whole point
+  is that nothing downstream can tell.
