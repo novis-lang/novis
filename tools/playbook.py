@@ -82,11 +82,12 @@ different traps, and a path a bullet quotes may be gone precisely because the tr
 only a reader can tell either way. That is exactly the judgement the `gone` kind lets a reader
 make once, at writing time, instead of at every pass.
 
-Once a reader has told, `DELIBERATE_STALE` below records it, keyed by the exact `(selector, path)`
-pair. Those bullets still print, under their own heading, but out of the list `loop.py`'s
-checkpoint reads -- because a bullet whose whole subject is a path that is gone keeps that signal raised
-forever, and a signal that cannot clear schedules an optimization pass whether or not anything
-drifted.
+Once a reader has told, two tables below record it, and both work the same way: `DELIBERATE_STALE`
+keyed by the exact `(selector, path)` pair, `DELIBERATE_DISTINCT` by the exact `(selector,
+selector)` one. Those bullets still print, under their own heading, but out of the list `loop.py`'s
+checkpoint reads -- because a bullet whose whole subject is a path that is gone, or a pair whose
+overlap is one bullet citing the other, keeps that signal raised forever, and a signal that cannot
+clear schedules an optimization pass whether or not anything drifted.
 
 **Two findings gate, and `--check` exits 1 on them: a selector that does not resolve to exactly
 one bullet, and a bullet with no trailer or a malformed one.** Neither is a judgement call.
@@ -175,6 +176,31 @@ DELIBERATE_STALE: dict[tuple[str, str], str] = {
     # Empty since the 2026-09-06 condensation: the two bullets that quoted a gone path on purpose
     # now state their trap without spelling the path. Add a pair here only when a bullet's whole
     # subject IS a path that is gone, so `--check`'s stale-path signal can still reach `none`.
+}
+
+#: The default `--dupes` floor, and the only threshold at which `DELIBERATE_DISTINCT` is audited.
+DUPES_FLOOR = 0.22
+
+#: Bullet pairs a reader has compared and found to be two different traps. Keyed by the exact
+#: `(selector, selector)` pair, sorted, so either bullet paired with any third one still reports.
+#:
+#: The same argument as `DELIBERATE_STALE` above, for the other pruning signal: `loop.py`'s
+#: checkpoint fires an optimization pass unless `--dupes` prints `none at this threshold`, so a
+#: pair that overlaps for a legitimate reason schedules a pass every checkpoint for as long as both
+#: bullets stand. Overlap is over three-word runs, so one bullet CITING another's fact -- the
+#: ordinary way a trap points at its follow-up step -- reads exactly like the same trap written
+#: twice, and no rewording can fix it without breaking the cross-reference.
+#:
+#: They are still printed, under their own heading, so the next reader sees the pair without the
+#: loop paying to schedule that reader. Add an entry only after reading both bullets and recording
+#: the finding in `.loop/optimization/`. An entry whose pair no longer overlaps is reported rather
+#: than ignored.
+DELIBERATE_DISTINCT: dict[tuple[str, str], str] = {
+    ("Tooling > a loop-goal.toml check can name a test in",
+     "Tooling > docs/agent/loop-goal.toml and"):
+        "the first is a misfiled check whose `args` is wrong; the second is the goals/ copy-back "
+        "drift. The first ends by citing the second as its follow-up step, and that citation is "
+        "the whole overlap.",
 }
 
 
@@ -798,20 +824,50 @@ def run_dupes(every: list[dict], floor: float) -> int:
                 pairs.append((overlap, a, b))
     pairs.sort(key=lambda p: -p[0])
 
+    kept: list[tuple[float, dict, dict]] = []
+    deliberate: list[tuple[float, dict, dict, str]] = []
+    for overlap, a, b in pairs:
+        why = DELIBERATE_DISTINCT.get(tuple(sorted((a["selector"], b["selector"]))))
+        if why:
+            deliberate.append((overlap, a, b, why))
+        else:
+            kept.append((overlap, a, b))
+
     print(f"== BULLETS THAT MAY ALREADY BE SAID ELSEWHERE  (>= {floor:.0%} of the shorter one's "
           "three-word runs)")
-    if not pairs:
+    if not kept:
         print(f"  none at this threshold across {len(every)} bullets. "
               "`--dupes 0.15` lowers it -- `--min` is the `--match` term floor and does "
               "nothing here.")
-        return 0
-    for overlap, a, b in pairs:
-        print(f"\n  {overlap:.0%}  and {a['bytes'] + b['bytes']:,} B between them")
-        print(f"      {a['selector']}")
-        print(f"      {b['selector']}")
-    print(f"\n  {len(pairs)} pair(s). This reports and never prunes -- two bullets about one file")
-    print("  are often two different traps, and only a reader can tell. When they are the same")
-    print("  trap, merge them into the better-written one and say so in the commit.")
+    else:
+        for overlap, a, b in kept:
+            print(f"\n  {overlap:.0%}  and {a['bytes'] + b['bytes']:,} B between them")
+            print(f"      {a['selector']}")
+            print(f"      {b['selector']}")
+        print(f"\n  {len(kept)} pair(s). This reports and never prunes -- two bullets about one "
+              "file")
+        print("  are often two different traps, and only a reader can tell. When they are the same")
+        print("  trap, merge them into the better-written one and say so in the commit.")
+
+    if deliberate:
+        print("\n== PAIRS THAT OVERLAP ON PURPOSE  (already read; not a signal)")
+        for overlap, a, b, why in deliberate:
+            print(f"\n  {overlap:.0%}  {a['selector']}")
+            print(f"       {b['selector']}")
+            print(f"      -- {why}")
+        print(f"\n  {len(deliberate)} pair(s), held in `DELIBERATE_DISTINCT` in this script. They")
+        print("  are kept out of the list above so the run's duplicate signal can reach `none`;")
+        print("  one bullet cites the other, so no merge can remove the overlap.")
+
+    if floor <= DUPES_FLOOR:
+        unseen = set(DELIBERATE_DISTINCT) - {tuple(sorted((a["selector"], b["selector"])))
+                                             for _, a, b, _ in deliberate}
+        if unseen:
+            print("\n== DELIBERATE_DISTINCT ENTRIES THAT NO LONGER APPLY")
+            for first, second in sorted(unseen):
+                print(f"  {first}\n       {second}")
+            print(f"\n  {len(unseen)} entry(s) matched no pair: either a bullet was reworded or")
+            print("  deleted, or the overlap fell below the floor. Drop the entry from this script.")
     return 0
 
 
@@ -940,7 +996,7 @@ def main() -> int:
     # at 23% overlap and the default was blind to it, while the whole 22-30% band held that one
     # pair and no false positive. This reports and never prunes, so the cost of looking lower is a
     # reader's minute.
-    ap.add_argument("--dupes", nargs="?", type=float, const=0.22, metavar="RATIO",
+    ap.add_argument("--dupes", nargs="?", type=float, const=DUPES_FLOOR, metavar="RATIO",
                     help="bullets that may already say what another bullet says (default 0.22)")
     opts = ap.parse_args()
 
