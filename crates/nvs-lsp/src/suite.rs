@@ -44,11 +44,12 @@ use lsp_types::Uri;
 use nvs_diagnostics::PositionEncoding;
 
 use crate::case::{Case, MAIN_PATH, Request};
+use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, uri_of};
 use crate::folding;
 use crate::links;
-use crate::render::{Link, Response};
+use crate::render::{Link, Place, Response};
 use crate::selection;
 use crate::symbols;
 
@@ -182,6 +183,7 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
+        Request::Definition => definition(case),
         Request::DocumentSymbol => document_symbol(case),
         Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
@@ -233,15 +235,23 @@ impl Materialised {
     /// How a case would have written `target`: its path relative to this
     /// directory, with `/` separators whatever the host uses.
     ///
-    /// Both sides are canonicalized before they are compared, because the
-    /// analysis canonicalizes every file it loads and a temporary directory is
-    /// reached through a symlink on more than one platform. A target outside
-    /// this directory keeps its whole path, which no `require` a case's own
-    /// sections resolved can produce — and if one ever does, an absolute path
-    /// in a frozen expectation is a failure a reader can see.
+    /// **Two prefixes are tried, because two kinds of path reach this.** A file
+    /// the graph walk loaded is canonical — `nvs_hir` canonicalizes every
+    /// `require` target, and a temporary directory is reached through a symlink
+    /// on more than one platform — while the entry document's path is the one
+    /// its URI spells, which on Windows lacks the verbatim prefix
+    /// canonicalizing adds. Stripping one of the two would name the entry by
+    /// its whole path and every file it required relatively.
+    ///
+    /// A target under neither keeps its whole path, which no `require` a case's
+    /// own sections resolved can produce — and if one ever does, an absolute
+    /// path in a frozen expectation is a failure a reader can see.
     fn spelling(&self, target: &Path) -> String {
-        let dir = fs::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
-        let relative = target.strip_prefix(&dir).unwrap_or(target);
+        let canonical = fs::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        let relative = target
+            .strip_prefix(&canonical)
+            .or_else(|_| target.strip_prefix(&self.dir))
+            .unwrap_or(target);
         relative.to_string_lossy().replace('\\', "/")
     }
 
@@ -347,6 +357,33 @@ fn selection_range(case: &Case) -> Result<Response, String> {
         u32::try_from(cursor).unwrap_or(u32::MAX),
         COLUMNS,
     )))
+}
+
+/// `textDocument/definition` — where the name under the cursor is declared.
+///
+/// The file is named the way the case wrote it, which is the resolution half
+/// [`crate::definition::Declared`] leaves to the caller, on
+/// [`document_link`]'s terms: the analysis answers an absolute path inside the
+/// directory this case was materialised into. A declaration in a `--FILE
+/// lib/user.nvs--` section is therefore spelled `lib/user.nvs`, which is what
+/// makes a cross-file case readable.
+fn definition(case: &Case) -> Result<Response, String> {
+    let cursor = case.cursor.expect("definition is asked at a position");
+    // Held to the end of the answer, as in `diagnostics` — and here it is also
+    // what the declaring file is named against.
+    let (files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let found = definition::at(
+        &analysed,
+        u32::try_from(cursor).unwrap_or(u32::MAX),
+        COLUMNS,
+    )
+    .map(|declared| Place {
+        path: files.spelling(&declared.path),
+        position: declared.range.start,
+    });
+    Ok(Response::Definition(found))
 }
 
 /// `textDocument/foldingRange` — where the entry document collapses.

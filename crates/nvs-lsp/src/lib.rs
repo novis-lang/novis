@@ -95,6 +95,7 @@
 
 mod capabilities;
 mod case;
+pub mod definition;
 pub mod diagnostics;
 mod document;
 pub mod folding;

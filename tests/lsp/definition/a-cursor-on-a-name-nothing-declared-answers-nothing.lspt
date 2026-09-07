@@ -1,0 +1,14 @@
+--TEST--
+a cursor inside a node that resolved to no declared name answers `none` rather than the nearest declaration, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+echo "no <|>name here";
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,22 @@
+--TEST--
+`instanceof` names a type and nothing allocates, so the cursor on it answers the interface's declaration, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+$s = new Square();
+if ($s instanceof Sha<|>pe) {
+    echo $s->area();
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:11

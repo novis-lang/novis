@@ -1,0 +1,23 @@
+--TEST--
+the resilient parse is what a cursor request rests on, so a document whose last class never closes still answers where the code above it points, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+class Factory
+{
+    public function make(): string
+    {
+        $u = new Us<|>er();
+        return $u->name;
+    }
+}
+
+class Half {
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

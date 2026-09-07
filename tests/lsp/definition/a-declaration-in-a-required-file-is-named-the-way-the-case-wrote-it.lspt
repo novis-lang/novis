@@ -1,0 +1,17 @@
+--TEST--
+a name declared in a required file answers that file, because the span carries its own `SourceId` and the graph walk loaded it, `rule:ide/an-open-document-is-its-own-entry-point`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+$u = new Us<|>er();
+--FILE lib/user.nvs--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+definition
+--EXPECT--
+lib/user.nvs:2:7

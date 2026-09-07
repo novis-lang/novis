@@ -35,18 +35,19 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, Request as _,
+    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, Request as _,
     SelectionRangeRequest,
 };
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, InitializeParams, PublishDiagnosticsParams, Range, SelectionRange,
-    SelectionRangeParams, Uri,
+    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, Location,
+    PublishDiagnosticsParams, Range, SelectionRange, SelectionRangeParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
 use crate::capabilities::initialize_result;
+use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
@@ -173,6 +174,10 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             ),
             Err(error) => unreadable(id, &method, &error),
         },
+        GotoDefinition::METHOD => match serde_json::from_value::<GotoDefinitionParams>(params) {
+            Ok(params) => Response::new_ok(id, definition(documents, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
         SelectionRangeRequest::METHOD => {
             match serde_json::from_value::<SelectionRangeParams>(params) {
                 Ok(params) => Response::new_ok(id, selection_range(documents, encoding, &params)),
@@ -240,6 +245,35 @@ fn folding_range(
     analyse(documents, uri).map_or_else(Vec::new, |analysed| {
         folding::for_document(&analysed, encoding)
     })
+}
+
+/// `textDocument/definition` — where the name under the cursor is declared.
+///
+/// `null` for a document this server has nothing open for, for a cursor on
+/// nothing it can follow, and for a declaration whose file this process cannot
+/// spell as a URI — the three are one answer on the wire, and LSP has no shape
+/// for telling them apart.
+///
+/// `Scalar` and not `Array`: a name resolves to one declaration or to none
+/// (`rule:classes/names-resolve-case-sensitively`), so a list would be a shape
+/// promising alternatives that cannot exist. The lookup is
+/// [`definition::at`], which the `.lspt` suite calls too.
+fn definition(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &GotoDefinitionParams,
+) -> Option<GotoDefinitionResponse> {
+    let position = params.text_document_position_params.position;
+    let analysed = analyse(
+        documents,
+        &params.text_document_position_params.text_document.uri,
+    )?;
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    let declared = definition::at(&analysed, offset, encoding)?;
+    Some(GotoDefinitionResponse::Scalar(Location {
+        uri: uri_of(&declared.path)?,
+        range: declared.range,
+    }))
 }
 
 /// `textDocument/selectionRange` — the expand-selection chain at each position.
