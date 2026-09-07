@@ -16,7 +16,17 @@ modules = [
   "crates/nvs-stdlib/src/registry.rs",
 ]
 
-rules = ["0134", "0026", "0079", "0117", "0004", "0063"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0079, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0134",
+  "0026",
+  "0117",
+  "0004",
+]
 
 # None. `rule:testing/four-proofs` is this goal's decision and it is already written; the goal prose says what the one
 # new thing -- a session may now fire the emitter -- is recorded in instead.

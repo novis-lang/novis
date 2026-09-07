@@ -33,13 +33,24 @@ modules = [
   "crates/nvs-server/src/bounds.rs",
 ]
 
-# 0097 is the server this fans out; 0017 is the swap the shared unit must keep working; 0006 is what an
-# isolate may share; 0042 and 0061 are the other readers of the same digests; 0004 is what it spends.
-rules = ["0097", "0017", "0006", "0042", "0061", "0116", "0004"]
+# 0017 is the swap the shared unit must keep working; 0006 is what an isolate may share; 0061 is the
+# other reader of the same digests; 0116 is the arena a per-core worker owns; 0004 is what it spends.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0097, 0042 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0017",
+  "0006",
+  "0061",
+  "0116",
+  "0004",
+]
 
-# 0097 whole -- its ceiling, its backoff and its h2c refusal all argue from balanced cores.
-# What no single stage owns. An entry a stage named moved into that stage's table
-# below, so it is read by the sessions working there and by no others.
+# 0097's *In short* block, because its ceiling, its backoff and its h2c refusal all argue from
+# balanced cores and no one stage owns that. 0017 -- the lazy revalidation and the pointer swap --
+# moved into stage 3, the only stage whose prose names it.
 adrs = ["0097"]
 
 shapes = ["A rule fragment", "A decision record", "A commit message"]

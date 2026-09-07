@@ -38,12 +38,28 @@ modules = [
   "crates/nvs-cli/src/openapi.rs",
 ]
 
-rules = ["0013", "0066", "0077", "0102", "0024", "0007", "0063", "0088", "0004"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0077, 0102, 0007, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "programs/no-runtime-autoload",
+  "security/route-capture-is-laundered-by-its-type",
+  "routing/a-query-parameter-is-declared-like-a-capture",
+  "0013",
+  "0066",
+  "0024",
+  "0088",
+  "0004",
+]
 
-# 0013 whole: it is the precedent for a global interface gating a language operation, and the only ADR
-# a session should need in full. 0066 s3a is the `tryParse` contract being encoded and s3 the class row
-# this goal must NOT widen; 0077 s3 and 0102 s3+s5 are the roster the predicate replaces.
-adrs = ["0013", "0066 §3", "0066 §3a", "0077 §3", "0102 §3", "0102 §5", "0024 §1"]
+# 0013 whole: it is the precedent for a global interface gating a language operation, the only ADR a
+# session should need in full, and it holds in every stage. 0024 § 1 is the taint axis every stage
+# marks against. The other five each argue one stage and moved into it -- 0066 § 3a is the
+# `tryParse` contract stage 2 encodes and § 3 the class row it must NOT widen; 0077 § 3 and
+# 0102 §§ 3 and 5 are the roster stage 4's predicate replaces.
+adrs = ["0013", "0024 §1"]
 
 shapes = [
   "A `Core` member — the five edits",
@@ -98,11 +114,15 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
+# The contract this stage encodes, and the class row it must not widen.
 [context.stage.2]
 rules = ["expressions/try-parse"]
+adrs = ["0066 §3a", "0066 §3"]
 
+# The roster the predicate replaces.
 [context.stage.4]
 rules = ["routing/a-capture-narrows-to-a-closed-set"]
+adrs = ["0077 §3", "0102 §3", "0102 §5"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]

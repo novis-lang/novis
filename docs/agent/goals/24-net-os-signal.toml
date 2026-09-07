@@ -34,7 +34,19 @@ modules = [
 
 # 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
 # takes; 0142 is where `net.local` was named and deferred; 0052 is why no door dispatches on a scheme.
-rules = ["0051", "0058", "0142", "0052", "0017", "0097", "0004"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0097 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0051",
+  "0058",
+  "0142",
+  "0052",
+  "0017",
+  "0004",
+]
 
 adrs = ["0051 §3", "0058 §3", "0142 §6"]
 

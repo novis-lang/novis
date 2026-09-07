@@ -36,10 +36,22 @@ modules = [
   "crates/nvs-codegen/src/emit.rs",
 ]
 
-# 0150 is the design. 0124 is the reservation this goal is the other half of. 0007 is the type system
-# the right-hand side is drawn from; 0047/0066 are narrowing; 0033 is the qualifier E0810 refuses;
-# 0004 prices it.
-rules = ["0150", "0124", "0007", "0047", "0066", "0033", "0004"]
+# 0150 is the design. 0124 is the reservation this goal is the other half of. 0047/0066 are
+# narrowing; 0033 is the qualifier E0810 refuses; 0004 prices it. The type system the right-hand
+# side is drawn from reaches a session as the rule ids its stages name.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0007 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0150",
+  "0124",
+  "0047",
+  "0066",
+  "0033",
+  "0004",
+]
 
 # One entry per section, and the separator is `§` -- `"0150 section 6"` matched no heading and
 # sliced nothing, silently, in all three of its spellings. The record's *In short* block stays here

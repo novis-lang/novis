@@ -31,14 +31,27 @@ modules = [
   "crates/nvs-stdlib/src/registry.rs",
 ]
 
-rules = ["0079", "0097", "0077", "0024", "0095", "0063", "0117", "0012", "0004"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0079, 0097, 0077, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "core-api/tier-placement",
+  "routing/routes-are-compiled-not-registered",
+  "0024",
+  "0095",
+  "0117",
+  "0012",
+  "0004",
+]
 
 # 0079 § 18 is the section this goal amends; 0097 § 6 is the walk it finally carries; 0079 § 10 is the
 # double, which is what a test uses INSTEAD of this for a service and is worth knowing is not this.
 adrs = ["0079 §18", "0097 §6", "0079 §10"]
 
+# Stage 3 is where the five edits are written; the rest a session may need in any stage.
 shapes = [
-  "A `Core` member — the five edits",
   "A `.nvst` test case",
   "A rule fragment",
   "A decision record",
@@ -95,6 +108,7 @@ rules = ["core-api/shape-rules", "errors/ambiguous-input-refused"]
 
 [context.stage.3]
 rules = ["http-server/trusted-proxies-is-empty-and-empty-reads-nothing"]
+shapes = ["A `Core` member — the five edits"]
 
 [context.stage.4]
 rules = ["testing/in-process-request"]

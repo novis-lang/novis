@@ -38,9 +38,21 @@ modules = [
 ]
 
 # 0060 is the roster this is the fifth entry of; 0146 is the design; 0024/0033 are the two qualifier
-# axes every row here is marked on; 0063 R5/R17 decides the names; 0096 is the written-not-omitted
-# rule `until` copies; 0097/0102 are the mount prefix and the one match; 0004 prices it.
-rules = ["0060", "0146", "0024", "0033", "0063", "0096", "0097", "0102", "0004"]
+# axes every row here is marked on; 0096 is the written-not-omitted rule `until` copies; 0004 prices
+# it. The mount prefix and the one match are stage 4's, and they are named there by rule id.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0063, 0097, 0102 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0060",
+  "0146",
+  "0024",
+  "0033",
+  "0096",
+  "0004",
+]
 
 # One entry per section: `orient.py` slices one heading per entry, so "0060 §§1,4,5" matched no
 # heading at all and this goal would have opened with none of the three it names.

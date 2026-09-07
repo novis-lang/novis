@@ -32,9 +32,20 @@ modules = [
   "crates/nvs-stdlib/src/router.rs",
 ]
 
-# 0004 is the priority ordering an owner decision is taken under; the rest are the ADRs whose gaps are
-# most often mis-attributed, so a session reading this goal has the rule in front of it.
-rules = ["0004", "0116", "0042", "0002"]
+# 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
+# gaps are most often mis-attributed, so a session reading this goal has the rule in front of it.
+# This goal writes no stage table: it opens no ADR and names no section, so its base IS what every
+# stage of it needs, and a stage with nothing of its own does not get one.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0042 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0004",
+  "0116",
+  "0002",
+]
 
 adrs = []
 

@@ -106,13 +106,20 @@ modules = [
 # that stage's own table at the bottom of this block, and an overlay only ever ADDS to what is
 # here -- so the way this list gets smaller is by moving an entry down, never by deleting one.
 #
-# Two rule ids, because the fragment is the rule and a title is a pointer to it: every slice of
-# this goal writes cases and renders an answer. 0099 stays as the surrounding map -- it is this
-# goal's own record, and its rule titles are the ids a session greps for.
+# Rule ids and no record number, because the fragment is the rule and a title is only a pointer to
+# it. These three hold in every stage: one tree with a trivia layer, every slice writes cases, and
+# every answer renders through one module.
+#
+# ADR 0099 came out even though it is this goal's own record: it created 31 rules, so naming it
+# here printed the whole `ide/` chapter as titles -- the extension, the TextMate grammar, PhpStorm,
+# the debug adapter -- to every session of every stage. The rules that bind a stage are named by id
+# in that stage's table, and `brief.py --where ide` reaches the rest in one call.
 rules = [
+  "ide/every-feature-is-staged-behind-its-dependency",
+  "ide/five-features-are-one-reference-index",
+  "ide/one-grammar-one-tree",
   "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
   "ide/the-rendering-has-one-home",
-  "0099",
 ]
 
 # Base names no ADR section at all: every one of them argued a particular stage's design, and

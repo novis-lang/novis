@@ -30,11 +30,22 @@ modules = [
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
-# not launder; 0097 is why the server still compresses nothing; 0009 is the bytes/string boundary.
-rules = ["0051", "0024", "0097", "0009", "0052", "0004"]
+# not launder; 0052 is the closed-doors argument; 0009 is the bytes/string boundary.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0097 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0051",
+  "0024",
+  "0009",
+  "0052",
+  "0004",
+]
 
-# What no single stage owns. An entry a stage named moved into that stage's table
-# below, so it is read by the sessions working there and by no others.
+# What no single stage owns: § 1 is the proxied-origin split every stage of this goal sits inside.
+# 0051 § 3 -- the tier test -- moved into stage 2, the only stage whose prose names it.
 adrs = ["0097 §1"]
 
 shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]

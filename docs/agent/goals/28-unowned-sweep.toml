@@ -36,7 +36,20 @@ modules = [
 # 0036 and 0135 are the shape spelling goal 18 landed and 0147 is the rule stage 2 implements on top
 # of it; 0033 is the sink a queued row is; 0002's Corollary is the panic hook; 0044 § 1 is the
 # directive a capture is bounded by.
-rules = ["0036", "0135", "0147", "0033", "0002", "0044", "0007", "0004"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0007 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0036",
+  "0135",
+  "0147",
+  "0033",
+  "0002",
+  "0044",
+  "0004",
+]
 
 adrs = ["0147", "0002", "0044 §1", "0033 §5"]
 

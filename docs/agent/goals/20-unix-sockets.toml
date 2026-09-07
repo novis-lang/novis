@@ -36,12 +36,28 @@ modules = [
   "crates/nvs-config/src/db.rs",
 ]
 
-rules = ["0142", "0058", "0059", "0075", "0067", "0132", "0118", "0097", "0005", "0004"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0067, 0097 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "http-server/the-server-block-is-boot-class",
+  "0142",
+  "0058",
+  "0059",
+  "0075",
+  "0132",
+  "0118",
+  "0005",
+  "0004",
+]
 
 # 0142 whole: it is this goal's design, already written, and every question the goal meets is in it.
 adrs = ["0142", "0058", "0059"]
 
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+# The diagnostic shape sits with stage 3, the only stage that adds a code (E0627).
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -82,6 +98,9 @@ plan = ["Open now", "Blocking"]
 # group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
 # of it.
 # ---------------------------------------------------------------------------------------------------
+
+[context.stage.3]
+shapes = ["A diagnostic"]
 
 [context.stage.4]
 rules = ["core-classes/db-drivers-are-an-enum"]

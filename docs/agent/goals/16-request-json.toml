@@ -31,20 +31,31 @@ modules = [
   "crates/nvs-stdlib/src/registry.rs",
 ]
 
-rules = ["0105", "0097", "0079", "0095", "0024", "0063", "0117", "0012", "0004", "0051"]
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0097, 0079, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0105",
+  "0095",
+  "0024",
+  "0117",
+  "0012",
+  "0004",
+  "0051",
+]
 
-# Sections, not whole ADRs: 0105 § 2 is the buffering `files` does, 0079 §§ 18 and 23 are the two
-# sentences this goal amends, 0097 § 8 is the body-and-streaming-reader section the new rule replaces.
-# Every one of this goal's sections argued one stage's design, so each moved into that stage's
-# table below: 0105 §2 and 0097 §8 are the body-read rule stage 3 writes, and 0079 §18 and §23 are
-# the `.nvst`/test-framework boundary stage 2's sections sit on.
+# Empty, because every one of this goal's four sections argues one stage's design and each moved
+# into that stage's table below. 0079 § 18 and § 23 are the two sentences this goal amends and sit
+# with stage 2's `.nvst` sections; 0105 § 2 is the buffering `files` does and 0097 § 8 is the
+# body-and-streaming-reader section the new rule replaces, both with the stage 3 that writes it.
 adrs = []
 
+# Stage 4 is "the members" and stage 3 is "the rule", so the five-edit shape and the two
+# record-writing shapes sit with the stage that writes one. What is left every stage may need.
 shapes = [
-  "A `Core` member — the five edits",
   "A `.nvst` test case",
-  "A rule fragment",
-  "A decision record",
   "A commit message",
   "A diagnostic",
 ]
@@ -105,9 +116,11 @@ rules = ["http-server/the-body-is-read-on-demand-under-two-caps",
          "http-server/a-part-is-consumed-in-one-of-three-ways",
          "http-server/a-part-is-a-file-iff-it-carries-a-filename"]
 adrs = ["0105 §2", "0097 §8"]
+shapes = ["A rule fragment", "A decision record"]
 
 [context.stage.4]
 rules = ["core-api/tier-placement", "errors/ambiguous-input-refused"]
+shapes = ["A `Core` member — the five edits"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
