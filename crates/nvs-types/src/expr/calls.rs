@@ -1564,6 +1564,7 @@ pub(crate) fn check_new_target(
 pub(crate) fn check_fn_literal(
     expr: &Expr,
     f: &FnExpr,
+    expected: Option<TypeId>,
     live: &FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -1584,9 +1585,30 @@ pub(crate) fn check_fn_literal(
     // The same ids the body checks against become the signature answered at the
     // end, so the type a call site reads and the type the body was checked
     // under cannot drift apart.
+    // `rule:types/callable-literal-inference`: a parameter the literal left
+    // unannotated takes its type from the position the literal is written in,
+    // and a written signature is the only position that has one to give — bare
+    // `callable` is the top of the lattice and names no parameter. So this list
+    // is empty everywhere else, and [`infer_param_type`] names the parameter it
+    // could not answer rather than guessing.
+    let from_position: Vec<TypeId> = match expected.map(|id| env.interner.get(id)) {
+        Some(crate::ty::Ty::CallableSig { params, .. }) => params.clone(),
+        _ => Vec::new(),
+    };
     let mut params = Vec::with_capacity(f.params.len());
-    for param in &f.params {
-        let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+    for (i, param) in f.params.iter().enumerate() {
+        let ty = match &param.ty {
+            Some(_) => lower_optional_type(param.ty.as_ref(), ctx, env),
+            None => {
+                let inferred = infer_param_type(param.name, i, &from_position, env);
+                // `nvs-ir` reads a parameter's type off the annotation it was
+                // written with (`nvs_ir::lower::lower_decl_type`), and this one
+                // has no annotation to read. The answer goes under the only
+                // span the parameter does have, its own name.
+                env.exprs.record_type(param.name, inferred);
+                inferred
+            }
+        };
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
         if param.inout {
             report_by_reference_parameter(param, env);
@@ -1686,6 +1708,38 @@ pub(crate) fn check_fn_literal(
         },
     );
     env.interner.callable_sig(params, return_ty)
+}
+
+/// The type an unannotated closure parameter binds — the `index`th of
+/// `from_position`, which is the expected type's own parameter list and is
+/// empty where the position expects no written signature
+/// (`rule:types/callable-literal-inference`).
+///
+/// A parameter past that list's end has nothing to take. It is answered
+/// `mixed` after the refusal rather than dropped, so the body around it is
+/// still checked and the literal still answers a signature of the arity it was
+/// written with.
+fn infer_param_type(
+    name: Span,
+    index: usize,
+    from_position: &[TypeId],
+    env: &mut Env<'_>,
+) -> TypeId {
+    if let Some(ty) = from_position.get(index) {
+        return *ty;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE,
+            "this parameter has no type, and no position to take one from",
+        )
+        .with_primary(name, "nothing here says what this parameter holds")
+        .with_help(
+            "write the type — `fn (User $u) => …`. A parameter is left unannotated only \
+             where the expected type is a `callable(...)` signature that names it",
+        ),
+    );
+    env.interner.mixed()
 }
 
 /// `rule:types/callable-absorbs-closure`'s opaque `callable`, as a refusal: a closure declares no `inout $x`

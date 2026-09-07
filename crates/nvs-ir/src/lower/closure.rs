@@ -52,19 +52,19 @@ pub(crate) struct PendingClosure {
 ///
 /// # Panics
 ///
-/// Naming `rule:types/declaration` for a parameter with no declared type, exactly as
-/// [`lower_closure`] does for the same parameter list.
+/// Reading each parameter through [`closure_param_ty`], exactly as
+/// [`lower_closure`] reads the same list.
 pub(crate) fn param_tags_word(
     fn_expr: &FnExpr,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> i64 {
-    let word = super::pack_param_tags(fn_expr.params.iter().map(|p| {
-        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
-            panic!("`rule:types/declaration`: every parameter has a declared type")
-        });
-        lower_decl_type(decl_ty, exprs, checked_types)
-    }));
+    let word = super::pack_param_tags(
+        fn_expr
+            .params
+            .iter()
+            .map(|p| closure_param_ty(p, exprs, checked_types).0),
+    );
     // A sixteenth parameter puts a nibble in the sign bit. The slot holds the
     // same 64 bits whichever way they are read, and the reader takes them
     // apart nibble by nibble.
@@ -218,15 +218,12 @@ pub(crate) fn lower_closure(
              know to stage the cell — `nvs_types::expr::calls` refuses this where it is \
              written, as `E0493`"
         );
-        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
-            panic!("`rule:types/declaration`: every parameter has a declared type")
-        });
-        let ty = lower_decl_type(decl_ty, exprs, checked_types);
+        let (ty, class, ty_span) = closure_param_ty(p, exprs, checked_types);
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
-        if let Some(class) = declared_class(decl_ty, exprs, checked_types) {
-            class_checks.push((i, v, class, decl_ty.span));
+        if let Some(class) = class {
+            class_checks.push((i, v, class, ty_span));
         }
         env.insert(pname, (v, ty));
         param_tys.push(ty);
@@ -754,6 +751,43 @@ pub(crate) fn lower_callable(
             defaults: Vec::new(),
         },
     )
+}
+
+/// One closure parameter's lowered type, the class it must be checked against
+/// where it names one, and the span a failure points at.
+///
+/// A parameter that wrote its type is read off that annotation, exactly as a
+/// declaration's is. One that left it out took its type from the position the
+/// literal was written in (`rule:types/callable-literal-inference`), and
+/// `nvs_types::expr::calls::check_fn_literal` recorded the answer under the
+/// parameter's own name — the only span an unannotated parameter has. The
+/// checker refuses the literal outright where it could not answer, so an
+/// unrecorded one here is a bug in that pass rather than a program.
+fn closure_param_ty(
+    p: &nvs_syntax::ast::Param,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> (Ty, Option<String>, Span) {
+    match &p.ty {
+        Some(decl_ty) => (
+            lower_decl_type(decl_ty, exprs, checked_types),
+            declared_class(decl_ty, exprs, checked_types),
+            decl_ty.span,
+        ),
+        None => {
+            let id = exprs.declared_ty(p.name).unwrap_or_else(|| {
+                panic!(
+                    "`rule:types/callable-literal-inference`: an unannotated closure parameter \
+                     carries the type the checker inferred for it, recorded under its name"
+                )
+            });
+            (
+                lower_checked_ty(id, checked_types),
+                checked_class(id, checked_types),
+                p.name,
+            )
+        }
+    }
 }
 
 /// [`declared_class`]'s question asked of an *already-checked* type rather

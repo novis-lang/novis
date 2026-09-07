@@ -3125,6 +3125,17 @@ pub mod code {
     /// what the help names.
     pub const E_CALLABLE_TYPE_WITHOUT_RETURN: Code = Code::new("E0807");
 
+    /// `fn ($n) => …` written where nothing says what `$n` holds —
+    /// `rule:types/callable-literal-inference`.
+    ///
+    /// A closure literal's parameter may leave its type out, and then takes it
+    /// from the position the literal is written in. Only a written
+    /// `callable(...)` signature is such a position: bare `callable` is the top
+    /// of the lattice and names no parameter, and a signature shorter than the
+    /// literal names this one no type either. The parameter is checked as
+    /// `mixed` afterwards so the body is still checked at all.
+    pub const E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

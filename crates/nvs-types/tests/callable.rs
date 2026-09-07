@@ -118,3 +118,44 @@ fn a_fn_literal_declaring_more_parameters_than_the_type_is_refused() {
         "{diags:?}"
     );
 }
+
+// `rule:types/callable-literal-inference`: a parameter the literal did not
+// annotate takes its type from the position the literal is written in, and a
+// position with no signature to give is named rather than guessed at.
+
+#[test]
+fn an_unannotated_parameter_takes_its_type_from_the_expected_signature() {
+    // `$n * 2` is the assertion: `mixed` has no arithmetic, so this compiles
+    // only if `$n` really arrived as the `int` the type names.
+    let diags = check_in_method("callable(int): int $twice = fn ($n): int => $n * 2;\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_written_parameter_beside_an_inferred_one_keeps_what_it_wrote() {
+    let diags =
+        check_in_method("callable(int, string): string $f = fn ($n, string $k): string => $k;\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_unannotated_parameter_under_a_bare_callable_is_refused() {
+    let diags = check_in_method("callable $f = fn ($n): int => 1;\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn an_unannotated_parameter_past_the_signatures_end_is_refused() {
+    let diags = check_in_method("callable(int): int $f = fn ($n, $k): int => $n;\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE)),
+        "{diags:?}"
+    );
+}

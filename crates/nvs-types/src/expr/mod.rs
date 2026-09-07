@@ -628,7 +628,7 @@ pub(crate) fn infer(
             reject_non_object_clone(ty, inner.span, env);
             ty
         }
-        ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
+        ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, expected, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             // `rule:types/unions-and-mixed`'s fourth narrowing spelling: under `match (true)` a
