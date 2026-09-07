@@ -238,7 +238,7 @@ pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{
-    Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall, UrlPiece,
+    Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding, ResolvedCall, UrlPiece,
 };
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use nvs_stdlib::cli::{

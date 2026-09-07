@@ -968,8 +968,38 @@ pub struct ExprTypeTable {
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     regex_tiers: FxHashMap<Span, nvs_stdlib::regex::Tier>,
     delegations: Vec<Delegation>,
+    locals: Vec<(Span, Vec<LocalBinding>)>,
     routes: crate::routes::RouteTable,
     commands: crate::commands::CommandTable,
+}
+
+/// One local variable, as the body that declared it left it.
+///
+/// A local's type is the one thing this crate resolves that it used to keep
+/// nowhere a later pass could read: [`crate::locals::LocalScope`] is built per
+/// body and dropped with it, and a *read* of a plain variable records no entry
+/// of its own. `nvs_lsp::completion` is what needs it — the receiver of
+/// `$u->` is a plain read, so without this there is nothing to resolve the
+/// members off.
+///
+/// The alternative was an entry per variable read, which is the same fact
+/// keyed the other way and costs a table row at every *occurrence* rather than
+/// at every *declaration*; this crate's priority ordering spends
+/// simplicity to protect compile latency, not the reverse. Nothing is copied
+/// to build one: a scope is moved out of the frame that is being dropped
+/// anyway, so what a compile pays is the memory held to the end of the check
+/// run instead of to the end of the body — freed with the rest of this table,
+/// and attributable to the compile that allocated it.
+#[derive(Clone, Debug)]
+pub struct LocalBinding {
+    /// The name, `$`-sigil not included — [`crate::locals::LocalScope`] keys
+    /// it that way and `ExprInfo::Property`'s `name` does too.
+    pub name: String,
+    /// The type it was declared at, never a narrowing: a narrowing is a fact
+    /// about one path and this is the binding.
+    pub ty: TypeId,
+    /// Where the declaration was written.
+    pub declared: Span,
 }
 
 /// One synthesized `implements I by $field;` forward —
@@ -1055,6 +1085,30 @@ impl ExprTypeTable {
         self.by_span
             .get(&span)
             .map(|id| &self.entries[id.0 as usize])
+    }
+
+    /// Takes one finished body's local scope, keyed by the body's own span.
+    ///
+    /// Called by [`crate::check`] as each frame ends — that is the one moment
+    /// the scope is complete, since declaration is function-scoped
+    /// (`rule:types/declaration`) and a name declared in the last statement is
+    /// a name the whole body has.
+    pub fn record_locals(&mut self, body: Span, locals: Vec<LocalBinding>) {
+        self.locals.push((body, locals));
+    }
+
+    /// Every body's locals, with the span of the body that declared them.
+    ///
+    /// Iterated rather than looked up: which of the bodies covering an offset
+    /// a name belongs to is the consumer's question — a closure's body is
+    /// inside a method's and shares none of its bindings
+    /// (`rule:types/closure-literal`'s capture is by value), so a reader walks
+    /// from the innermost outward and stops at the first body that declares
+    /// the name it is after.
+    pub fn local_scopes(&self) -> impl Iterator<Item = (Span, &[LocalBinding])> {
+        self.locals
+            .iter()
+            .map(|(body, locals)| (*body, locals.as_slice()))
     }
 
     /// Every [`ExprInfo::Closure`] recorded this run, in the order the

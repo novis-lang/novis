@@ -28,7 +28,7 @@
 //! not descended into here at all — only top-level declarations (and ones
 //! nested in a `namespace { ... }` block) are found by [`check_stmts`].
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
+use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
     Block, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier, Name,
@@ -38,7 +38,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
-use crate::expr_table::ExprTypeTable;
+use crate::expr_table::{ExprTypeTable, LocalBinding};
 use crate::lateinit::check_class_lateinit_reads;
 use crate::locals::{LocalScope, check_block, check_stmt};
 use crate::lower::lower_optional_type;
@@ -185,6 +185,16 @@ pub fn check_program_granted(
             return_ty: env.interner.mixed(),
         };
         check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+        // The whole file, because the synthesized frame is the whole file's:
+        // `rule:statements/storage-that-outlives-a-call` makes the script body
+        // a function, and a `namespace { ... }` block's statements land in this
+        // same frame rather than in one of their own.
+        let script = Span::new(
+            file.src.id(),
+            0,
+            BytePos::try_from(file.src.text().len()).unwrap_or(BytePos::MAX),
+        );
+        record_locals(script, &mut frame.scope, &mut env);
         closure_seq = env.closure_seq;
     }
     crate::routes::check_table(&routes, diags);
@@ -210,6 +220,31 @@ pub fn check_program_granted(
     exprs.record_commands(commands);
     record_property_types(&signatures, exprs);
     enums
+}
+
+/// Hands one finished body's locals to the expression table, keyed by the span
+/// the body covers.
+///
+/// Called at each frame's end rather than at each declaration: the scope is a
+/// single table for the whole body (`rule:types/declaration` is
+/// function-scoped), so one call carries every binding and none of them is a
+/// name the body does not have. The map is **moved** out of the scope, which is
+/// about to be dropped — see [`LocalBinding`] for what that costs a compile
+/// that never reads it back.
+///
+/// Sorted by name so the order does not come from a hash map's, which is what
+/// a `.lspt` expectation would otherwise be frozen against.
+pub(crate) fn record_locals(body: Span, scope: &mut LocalScope, env: &mut Env<'_>) {
+    let mut locals: Vec<LocalBinding> = std::mem::take(&mut scope.by_name)
+        .into_iter()
+        .map(|(name, info)| LocalBinding {
+            name,
+            ty: info.ty,
+            declared: info.declared_span,
+        })
+        .collect();
+    locals.sort_by(|left, right| left.name.cmp(&right.name));
+    env.exprs.record_locals(body, locals);
 }
 
 /// Copies every class's own declared property types into the expression
@@ -535,6 +570,7 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
             }
             nvs_syntax::ast::PropertyHookBody::Block(block) => {
                 check_block(&block.stmts, &mut live, &mut scope, return_ty, &inner, env);
+                record_locals(block.span, &mut scope, env);
             }
         }
     }
@@ -627,6 +663,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // `yield` operand in the body is checked against.
     let Some(elem) = generator_element(m, body, return_ty, ctx, env) else {
         check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
+        record_locals(body.span, &mut scope, env);
         check_every_path_returns(m, body, return_ty, env);
         reject_static_return_of_another_class(m, body, ctx, env);
         env.body_writers = outer_writers;
@@ -651,6 +688,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // the `Iterator<T>` the *declaration* names.
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
+    record_locals(body.span, &mut scope, env);
     env.body_writers = outer_writers;
     if let Some(label) = label {
         env.exprs.own_inline_snapshots(snapshots, label);

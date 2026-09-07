@@ -1892,6 +1892,11 @@ pub(crate) fn check_fn_literal(
                 &inner_ctx,
                 env,
             );
+            // Recorded before `inner.captures` is taken below, and holding the
+            // body's own bindings alone: what an outer name reaches this body
+            // through is `Captures`, so a reader walking outward from here
+            // finds the enclosing body's copy rather than a shared one.
+            crate::check::record_locals(block.span, &mut inner, env);
             ret
         }
     };
