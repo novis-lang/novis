@@ -224,8 +224,14 @@ target: a `var` declaration ([`types/var-inference`](/docs/rules/types/declarati
 
 `uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value
 whose payload is already a `u64`, so a `uint` costs **zero additional bytes per value**.
-`Core\Reflect::typeOf` reports it as its own kind, and there is no `is_int`-style predicate to
-disagree with it, because there are no free functions.
+`Core\Reflect::typeOf` reports it as its own kind, and `$x is uint` asks for it directly
+([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")).
+
+Being its own tag is observable, and a migrating program is where it shows: `is_int($id)` was true for
+every integer PHP had, while `$id is int` is **false** for a value that arrived as a `uint` — a
+`BIGINT UNSIGNED` key or a snowflake id, which is what `uint` was added for. `$id is int|uint` is the
+spelling that asks PHP's question. This is the one place the split is reachable by a mechanical
+rewrite rather than by declaring a `uint` on purpose.
 
 `uint` exists because web software needs the half of the 64-bit range PHP's single signed integer
 cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
@@ -239,10 +245,10 @@ throws rather than wrapping ([`types/conversion`](/docs/rules/types/unions-and-c
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p>PHP has one integer type; Novis has two, reported distinctly by <code>Core\Reflect::typeOf</code>, and the whole 64-bit range is representable</p>
+<p>PHP has one integer type; Novis has two, told apart by <code>Core\Reflect::typeOf</code> and by <code>$x is uint</code> (<code>rule:types/type-test</code>), so a value PHP's <code>is_int()</code> accepted answers <code>is uint</code> and not <code>is int</code>, and the whole 64-bit range is representable</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#arithmetic" title="An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting"><code>types/arithmetic</code></a> <a href="/docs/rules/types/declarations-and-numbers/#integer-literals" title="An integer literal is decimal, 0x, 0o or 0b, and a leading zero is not a radix"><code>types/integer-literals</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/uint-spans-its-whole-range.nvst"><code>tests/conformance/lang/uint-spans-its-whole-range.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"><code>tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#arithmetic" title="An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting"><code>types/arithmetic</code></a> <a href="/docs/rules/types/declarations-and-numbers/#integer-literals" title="An integer literal is decimal, 0x, 0o or 0b, and a leading zero is not a radix"><code>types/integer-literals</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/uint-spans-its-whole-range.nvst"><code>tests/conformance/lang/uint-spans-its-whole-range.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"><code>tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst</code></a></dd></div></dl>
 
 </div>
 

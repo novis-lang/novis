@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 923,
-    "shipped": 642,
-    "designed": 281,
-    "diverging": 545
+    "total": 931,
+    "shipped": 648,
+    "designed": 283,
+    "diverging": 552
   },
   "topics": [
     {
@@ -220,10 +220,10 @@
       "url": "/docs/rules/types/",
       "single": false,
       "counts": {
-        "total": 46,
-        "shipped": 42,
-        "designed": 4,
-        "diverging": 25
+        "total": 47,
+        "shipped": 46,
+        "designed": 1,
+        "diverging": 26
       },
       "sections": [
         {
@@ -284,7 +284,7 @@
               "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
               "status": "shipped",
               "href": "/docs/rules/types/declarations-and-numbers/#uint",
-              "diverges": "PHP has one integer type; Novis has two, reported distinctly by `Core\\Reflect::typeOf`, and the whole 64-bit range is representable"
+              "diverges": "PHP has one integer type; Novis has two, told apart by `Core\\Reflect::typeOf` and by `$x is uint` (`rule:types/type-test`), so a value PHP's `is_int()` accepted answers `is uint` and not `is int`, and the whole 64-bit range is representable"
             },
             {
               "id": "types/arithmetic",
@@ -458,10 +458,10 @@
           "blurb": "What a union permits, the four spellings of narrowing, and the single conversion operator that replaced the cast.",
           "url": "/docs/rules/types/unions-and-conversion/",
           "counts": {
-            "total": 6,
+            "total": 7,
             "shipped": 6,
-            "designed": 0,
-            "diverging": 3
+            "designed": 1,
+            "diverging": 4
           },
           "rules": [
             {
@@ -470,12 +470,20 @@
               "title": "A union permits only what every member permits, and `mixed` is the one position checked nowhere",
               "status": "shipped",
               "href": "/docs/rules/types/unions-and-conversion/#unions-and-mixed",
-              "diverges": "there is no `is_int()`-style predicate to narrow with, and `mixed` never absorbs implicitly — `int $n = $m;` is a diagnostic rather than a runtime check"
+              "diverges": "there is no `is_int()`-style free function to narrow with — the question is the `is` operator (`rule:types/type-test`) — and `mixed` never absorbs implicitly: `int $n = $m;` is a diagnostic rather than a runtime check"
+            },
+            {
+              "id": "types/type-test",
+              "slug": "type-test",
+              "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
+              "status": "designed",
+              "href": "/docs/rules/types/unions-and-conversion/#type-test",
+              "diverges": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type"
             },
             {
               "id": "types/narrowing",
               "slug": "narrowing",
-              "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
+              "title": "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it",
               "status": "shipped",
               "href": "/docs/rules/types/unions-and-conversion/#narrowing",
               "diverges": null
@@ -521,8 +529,8 @@
           "url": "/docs/rules/types/closures/",
           "counts": {
             "total": 9,
-            "shipped": 5,
-            "designed": 4,
+            "shipped": 9,
+            "designed": 0,
             "diverging": 4
           },
           "rules": [
@@ -546,7 +554,7 @@
               "id": "types/callable-signature",
               "slug": "callable-signature",
               "title": "A `callable` type may name its parameters, and must then name its return type",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/types/closures/#callable-signature",
               "diverges": null
             },
@@ -554,7 +562,7 @@
               "id": "types/callable-arity",
               "slug": "callable-arity",
               "title": "A closure satisfies a callable type when its arity is at most the type's, matched from the left",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/types/closures/#callable-arity",
               "diverges": null
             },
@@ -562,7 +570,7 @@
               "id": "types/callable-variance",
               "slug": "callable-variance",
               "title": "A callable's parameters are contravariant and its return type covariant",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/types/closures/#callable-variance",
               "diverges": null
             },
@@ -570,7 +578,7 @@
               "id": "types/callable-literal-inference",
               "slug": "callable-literal-inference",
               "title": "An unannotated `fn` parameter takes its type from the position the literal is written in",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/types/closures/#callable-literal-inference",
               "diverges": null
             },
@@ -2734,10 +2742,10 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 60,
+        "total": 61,
         "shipped": 0,
-        "designed": 60,
-        "diverging": 22
+        "designed": 61,
+        "diverging": 23
       },
       "sections": [
         {
@@ -3144,10 +3152,10 @@
           "blurb": "Language smarts and formatting have one implementation each. An editor client holds none of either.",
           "url": "/docs/rules/ide/one-server-thin-clients/",
           "counts": {
-            "total": 7,
+            "total": 8,
             "shipped": 0,
-            "designed": 7,
-            "diverging": 4
+            "designed": 8,
+            "diverging": 5
           },
           "rules": [
             {
@@ -3197,6 +3205,14 @@
               "status": "designed",
               "href": "/docs/rules/ide/one-server-thin-clients/#language-configuration-is-content",
               "diverges": "double-clicking `$total` selects `$total`; a configuration borrowed from a PHP extension selects `total` and puts every rename-adjacent interaction off by one character"
+            },
+            {
+              "id": "ide/doc-comment-authoring-is-the-editors-own",
+              "slug": "doc-comment-authoring-is-the-editors-own",
+              "title": "Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name",
+              "status": "designed",
+              "href": "/docs/rules/ide/one-server-thin-clients/#doc-comment-authoring-is-the-editors-own",
+              "diverges": "a PHP editor continues a `/** */` docblock and autocompletes tags into it; here the continuation is a `///` run and there is no tag to complete"
             },
             {
               "id": "ide/contributions-are-frozen-and-only-ever-added",
@@ -6542,10 +6558,10 @@
       "url": "/docs/rules/observability/",
       "single": false,
       "counts": {
-        "total": 28,
+        "total": 31,
         "shipped": 17,
-        "designed": 11,
-        "diverging": 20
+        "designed": 14,
+        "diverging": 23
       },
       "sections": [
         {
@@ -6595,7 +6611,7 @@
             {
               "id": "observability/default-series",
               "slug": "default-series",
-              "title": "Nine series exist the moment an exporter is configured, with no application code written",
+              "title": "Ten series exist the moment an exporter is configured, with no application code written",
               "status": "designed",
               "href": "/docs/rules/observability/metrics/#default-series",
               "diverges": "request rate, latency, query time, GC pause and spawn overhead are on the scrape endpoint before the application emits anything, where PHP needs an APM agent or a hand-written StatsD client for the first three and cannot reach the last two at all"
@@ -6648,10 +6664,10 @@
           "blurb": "Exactly four things become a span, an inbound `traceparent` is continued, and sampling is decided once at the root.",
           "url": "/docs/rules/observability/traces/",
           "counts": {
-            "total": 13,
+            "total": 16,
             "shipped": 5,
-            "designed": 8,
-            "diverging": 7
+            "designed": 11,
+            "diverging": 10
           },
           "rules": [
             {
@@ -6757,6 +6773,30 @@
               "status": "designed",
               "href": "/docs/rules/observability/traces/#speedscope-timeline-export",
               "diverges": "there is no Xdebug cachegrind file to open in a bespoke viewer; the timeline is speedscope's open evented format, the same file the sampling profiler writes"
+            },
+            {
+              "id": "observability/memory-is-three-numbers-on-core-budget",
+              "slug": "memory-is-three-numbers-on-core-budget",
+              "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
+              "status": "designed",
+              "href": "/docs/rules/observability/traces/#memory-is-three-numbers-on-core-budget",
+              "diverges": "there is no `$real_usage` boolean and no second accounting behind it: `memory_get_usage`'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them"
+            },
+            {
+              "id": "observability/a-memory-peak-is-recorded-not-asked-for",
+              "slug": "a-memory-peak-is-recorded-not-asked-for",
+              "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
+              "status": "designed",
+              "href": "/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for",
+              "diverges": "`memory_get_peak_usage` reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike"
+            },
+            {
+              "id": "observability/memory-high-water-writes-a-warn",
+              "slug": "memory-high-water-writes-a-warn",
+              "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
+              "status": "designed",
+              "href": "/docs/rules/observability/traces/#memory-high-water-writes-a-warn",
+              "diverges": "PHP has no warning short of the fatal: a request that touched 96% of `memory_limit` and returned successfully is indistinguishable from one that never passed 30%"
             }
           ]
         },
@@ -8394,10 +8434,10 @@
       "url": "/docs/rules/packaging/",
       "single": false,
       "counts": {
-        "total": 68,
-        "shipped": 28,
+        "total": 70,
+        "shipped": 30,
         "designed": 40,
-        "diverging": 40
+        "diverging": 41
       },
       "sections": [
         {
@@ -8516,10 +8556,10 @@
           "blurb": "A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph.",
           "url": "/docs/rules/packaging/single-file-builds/",
           "counts": {
-            "total": 11,
-            "shipped": 10,
+            "total": 13,
+            "shipped": 12,
             "designed": 1,
-            "diverging": 5
+            "diverging": 6
           },
           "rules": [
             {
@@ -8581,9 +8621,17 @@
             {
               "id": "packaging/a-build-records-no-timestamp",
               "slug": "a-build-records-no-timestamp",
-              "title": "A build records its target, host, profile, compiler and commit, and never a date",
+              "title": "A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date",
               "status": "shipped",
               "href": "/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp",
+              "diverges": null
+            },
+            {
+              "id": "packaging/the-banner-states-the-build",
+              "slug": "the-banner-states-the-build",
+              "title": "`nvs --help` opens with the README's own title and the version, commit and commit date of the build answering",
+              "status": "shipped",
+              "href": "/docs/rules/packaging/single-file-builds/#the-banner-states-the-build",
               "diverges": null
             },
             {
@@ -8603,12 +8651,20 @@
               "diverges": null
             },
             {
-              "id": "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling",
-              "slug": "nvs-info-is-the-one-call-and-nvs-i-its-php-spelling",
-              "title": "`nvs info` is the one call for build, host and licensing facts, and `nvs -i` is the same command",
+              "id": "packaging/the-cli-surface-is-novis-own",
+              "slug": "the-cli-surface-is-novis-own",
+              "title": "No flag on `nvs` is inherited from PHP; `-h` and `-V` are the Unix baseline and `-o` the only short flag Novis declares",
               "status": "shipped",
-              "href": "/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling",
-              "diverges": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is the one CLI operation reachable two ways"
+              "href": "/docs/rules/packaging/single-file-builds/#the-cli-surface-is-novis-own",
+              "diverges": "`php` carries `-i`, `-a`, `-r`, `-f` and a lowercase `-v`; `nvs` inherits none of them, spells every operation as a subcommand, and declares exactly one short flag of its own"
+            },
+            {
+              "id": "packaging/nvs-info-is-the-one-call",
+              "slug": "nvs-info-is-the-one-call",
+              "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
+              "status": "shipped",
+              "href": "/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call",
+              "diverges": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is spelled one way"
             }
           ]
         },
@@ -9036,10 +9092,10 @@
       "url": "/docs/rules/php-migration/",
       "single": false,
       "counts": {
-        "total": 19,
+        "total": 20,
         "shipped": 6,
-        "designed": 13,
-        "diverging": 18
+        "designed": 14,
+        "diverging": 19
       },
       "sections": [
         {
@@ -9048,10 +9104,10 @@
           "blurb": "Every departure from PHP is listed, and each exists because PHP left a binding untyped. Absent storage is never a zero value.",
           "url": "/docs/rules/php-migration/divergences/",
           "counts": {
-            "total": 10,
+            "total": 11,
             "shipped": 6,
-            "designed": 4,
-            "diverging": 10
+            "designed": 5,
+            "diverging": 11
           },
           "rules": [
             {
@@ -9129,10 +9185,18 @@
             {
               "id": "php-migration/let-and-is-are-reserved",
               "slug": "let-and-is-are-reserved",
-              "title": "`let` and `is` are reserved spellings; `var` declares, `instanceof` tests and `as` converts",
+              "title": "`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test",
               "status": "designed",
               "href": "/docs/rules/php-migration/divergences/#let-and-is-are-reserved",
               "diverges": "`let` and `is` cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them"
+            },
+            {
+              "id": "php-migration/is-takes-pattern-matchings-type-patterns",
+              "slug": "is-takes-pattern-matchings-type-patterns",
+              "title": "`is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it",
+              "status": "designed",
+              "href": "/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns",
+              "diverges": "PHP reserved `is` for pattern matching and has not voted it; Novis ships the settled type-pattern half now, refuses `is 3.14` for want of a float literal type, and leaves binding, destructuring, array patterns, comparison patterns and pinning unclaimed"
             }
           ]
         },

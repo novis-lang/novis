@@ -43,14 +43,23 @@ enum Script\ExitReason { Normal, ExitCall, UncaughtThrow }
 Script\ExitReport::reason(): Script\ExitReason
 Script\ExitReport::status(): int
 Script\ExitReport::error(): ?Throwable
+Script\ExitReport::memoryPeak(): int
 ```
 
-Three accessors and not three properties, because a `Core`-owned instance has no property a program
+Four accessors and not four properties, because a `Core`-owned instance has no property a program
 can reach ([`core-api/shape-rules`](/docs/rules/core-api/naming-and-shape/#shape-rules "Every Core member obeys the same twenty shape rules, R1–R20")). Readonly is then structural: nothing writes a slot and no
 program can construct one, so the only thing that builds a report is the ending itself. `status` is
 the status the process will exit with; `error` is the live `Throwable` for `UncaughtThrow` — the same
 object [`errors/on-uncaught-throw`](/docs/rules/errors/the-escalation-ladder/#on-uncaught-throw "Tier 2 — an uncaught throw reaches the request root as itself")'s handler gets — and `null` otherwise. `ExitCall` carries the
 suffix so the case never shares a spelling with the `exit` keyword.
+
+`memoryPeak` is the request's high-water mark
+([`observability/a-memory-peak-is-recorded-not-asked-for`](/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it")), and it is here so that a one-line
+hook logs the number a reading taken at this same moment would not show:
+`Core\Budget::memoryHeld()` at the end of a script has already fallen back toward the baseline. It
+costs a script that registers no hook nothing, and it never reaches a `FATAL` — which needs no
+compensating mechanism, because a breach is the one case [`errors/on-limit`](/docs/rules/errors/the-escalation-ladder/#on-limit "Tier 1 — a resource limit reaches the request that spent it")'s report already
+names both numbers for.
 
 Which endings drain the queue is [`observability/three-endings-fire-the-exit-queue`](/docs/rules/observability/exit-hooks/#three-endings-fire-the-exit-queue "The exit queue drains once — at a normal end, at exit and at an uncaught throw — and the report says which ending it was"); the two that
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](/docs/rules/observability/exit-hooks/#a-fatal-and-a-cancellation-run-no-exit-hook "A FATAL and a cancellation run no exit hook — Core\Fatal::onLimit is the one observer of a limit breach"). This is the home of
@@ -61,7 +70,7 @@ PHP's `register_shutdown_function` for every ending that is not a fatal.
 <p><code>register_shutdown_function</code> is gone; the hook takes a typed <code>Script\ExitReport</code> with the reason, the status and the live <code>Throwable</code>, where PHP reads <code>error_get_last()</code></p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/exit-hooks/#three-endings-fire-the-exit-queue" title="The exit queue drains once — at a normal end, at exit and at an uncaught throw — and the report says which ending it was"><code>observability/three-endings-fire-the-exit-queue</code></a> <a href="/docs/rules/observability/exit-hooks/#a-fatal-and-a-cancellation-run-no-exit-hook" title="A FATAL and a cancellation run no exit hook — Core\Fatal::onLimit is the one observer of a limit breach"><code>observability/a-fatal-and-a-cancellation-run-no-exit-hook</code></a> <a href="/docs/rules/core-api/naming-and-shape/#shape-rules" title="Every Core member obeys the same twenty shape rules, R1–R20"><code>core-api/shape-rules</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#removals" title="A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name"><code>core-api/removals</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0127.md">record 0127</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst"><code>tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/script-exit-report-members-agree-and-one-queue-sees-one-report.nvst"><code>tests/conformance/core/script-exit-report-members-agree-and-one-queue-sees-one-report.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/exit-hooks/#three-endings-fire-the-exit-queue" title="The exit queue drains once — at a normal end, at exit and at an uncaught throw — and the report says which ending it was"><code>observability/three-endings-fire-the-exit-queue</code></a> <a href="/docs/rules/observability/exit-hooks/#a-fatal-and-a-cancellation-run-no-exit-hook" title="A FATAL and a cancellation run no exit hook — Core\Fatal::onLimit is the one observer of a limit breach"><code>observability/a-fatal-and-a-cancellation-run-no-exit-hook</code></a> <a href="/docs/rules/core-api/naming-and-shape/#shape-rules" title="Every Core member obeys the same twenty shape rules, R1–R20"><code>core-api/shape-rules</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#removals" title="A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name"><code>core-api/removals</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0127.md">record 0127</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0148.md">record 0148</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst"><code>tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/script-exit-report-members-agree-and-one-queue-sees-one-report.nvst"><code>tests/conformance/core/script-exit-report-members-agree-and-one-queue-sees-one-report.nvst</code></a></dd></div></dl>
 
 </div>
 

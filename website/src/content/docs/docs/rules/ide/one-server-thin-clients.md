@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Language smarts and formatting have one implementation each. An editor client holds none of either.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">8</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#one-server-two-thin-clients">Language smarts and formatting have one implementation each, <code>nvs-lsp</code> and <code>nvs-fmt</code>, and an editor client holds none of either</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#editor-clients-live-under-editors">An editor client lives under <code>editors/&lt;editor&gt;</code>, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#vscode-is-the-reference-client">The VS Code extension is a <code>vscode-languageclient</code> shell: it registers <code>.nvs</code>, colours from a TextMate grammar until the server answers, and routes everything else to <code>nvs lsp</code> and <code>nvs fmt</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#nvs-is-its-own-file-type"><code>.nvs</code> is registered as its own language in every editor, activates nothing on <code>.php</code>, and is never handed to a PHP plugin</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-extension-claims-nvs-only">The extension activates on <code>.nvs</code> and never claims <code>.php</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#language-configuration-is-content"><code>language-configuration.json</code> carries comments, pairs, indentation, folding and a <code>wordPattern</code> that includes <code>$</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#contributions-are-frozen-and-only-ever-added">A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#one-server-two-thin-clients">Language smarts and formatting have one implementation each, <code>nvs-lsp</code> and <code>nvs-fmt</code>, and an editor client holds none of either</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#editor-clients-live-under-editors">An editor client lives under <code>editors/&lt;editor&gt;</code>, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#vscode-is-the-reference-client">The VS Code extension is a <code>vscode-languageclient</code> shell: it registers <code>.nvs</code>, colours from a TextMate grammar until the server answers, and routes everything else to <code>nvs lsp</code> and <code>nvs fmt</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#nvs-is-its-own-file-type"><code>.nvs</code> is registered as its own language in every editor, activates nothing on <code>.php</code>, and is never handed to a PHP plugin</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-extension-claims-nvs-only">The extension activates on <code>.nvs</code> and never claims <code>.php</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#language-configuration-is-content"><code>language-configuration.json</code> carries comments, pairs, indentation, folding and a <code>wordPattern</code> that includes <code>$</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#doc-comment-authoring-is-the-editors-own">Writing a <code>///</code> run is the editor's job: <code>onEnterRules</code> continues one, a paste provider prefixes one, and neither contributes a name</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#contributions-are-frozen-and-only-ever-added">A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="one-server-two-thin-clients">
 
@@ -184,19 +184,64 @@ The extension-host run proves activation on `.nvs` and its absence on `.php`.
 </div>
 
 `language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
-auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
-folding markers.
+auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
+([`ide/doc-comment-authoring-is-the-editors-own`](/docs/rules/ide/one-server-thin-clients/#doc-comment-authoring-is-the-editors-own "Writing a /// run is the editor's job: onEnterRules continues one, a paste provider prefixes one, and neither contributes a name")), and folding markers.
 
-The one entry that is Novis-specific, and that a file borrowed from a PHP extension gets wrong, is that
-**`wordPattern` must include `$`**. Without it, double-clicking `$total` selects `total`, every
-rename-adjacent interaction is off by one character, and word-based completion suggests the wrong token.
+Two entries are where a file borrowed from a PHP extension goes wrong. The first is `onEnterRules`,
+which there continues a `/** */` block — in Novis an ordinary comment nothing reads
+([`tooling/doc-comment-is-three-slashes`](/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-is-three-slashes "A doc comment is exactly ///; //// and longer runs are ordinary comments, and # never is one")) — so it carries a shape the language does not document
+with and leaves the shape it does uncontinued.
+
+The second is that **`wordPattern` must include `$`**. Without it, double-clicking `$total` selects
+`total`, every rename-adjacent interaction is off by one character, and word-based completion suggests
+the wrong token.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>Double-clicking <code>$total</code> selects <code>$total</code>; a configuration borrowed from a PHP extension selects <code>total</code> and puts every rename-adjacent interaction off by one character</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#doc-comment-authoring-is-the-editors-own" title="Writing a /// run is the editor's job: onEnterRules continues one, a paste provider prefixes one, and neither contributes a name"><code>ide/doc-comment-authoring-is-the-editors-own</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0149.md">record 0149</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="doc-comment-authoring-is-the-editors-own">
+
+## Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#doc-comment-authoring-is-the-editors-own"><code>ide/doc-comment-authoring-is-the-editors-own</code></a>
+</div>
+
+Writing a `///` run is the editor's job, and it is two affordances that contribute no name.
+`onEnterRules` continues the run — Enter on a line opening with `///` starts the next one at the same
+indentation, and it keeps arriving until the author deletes it, as in Rust and C#. A
+`DocumentPasteEditProvider` offers *Paste as doc comment* when multi-line text is pasted with the cursor
+in a run: each line takes the run's marker and indentation, and an empty line becomes a bare `///`.
+
+Both exist because [`tooling/doc-comment-is-three-slashes`](/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-is-three-slashes "A doc comment is exactly ///; //// and longer runs are ordinary comments, and # never is one") is line-oriented on purpose — the per-line
+marker is what stops anything in the body from ending the comment — and the cost of that is authoring,
+not reading. VS Code's toggle-line-comment inserts `//`, so it answers neither half.
+
+Neither is a command. The editor already surfaces paste alternatives in its own widget
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has "Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them")), so nothing is added to a menu or a
+keymap, and [`ide/contributions-are-frozen-and-only-ever-added`](/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added "A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed")'s roster does not move — except that
+the paste edit's **kind id** reaches a user's `editor.pasteAs.preferences` and is frozen on that rule's
+own terms. Prefixing lines with a marker is not language logic, so
+[`ide/dependencies-are-allowlisted`](/docs/rules/ide/the-vs-code-extension/#dependencies-are-allowlisted "The extension holds no language logic, and its package.json dependencies are checked against an allowlist by its own tests")'s allowlist is unchanged; an aid that had to understand the prose
+inside a doc comment is the first thing here that would have to answer it.
+
+Each client owns its own copy ([`ide/one-server-two-thin-clients`](/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients "Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either")): these are editing affordances,
+not server answers, so the PhpStorm plugin writes both again or goes without.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A PHP editor continues a <code>/** */</code> docblock and autocompletes tags into it; here the continuation is a <code>///</code> run and there is no tag to complete</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#language-configuration-is-content" title="language-configuration.json carries comments, pairs, indentation, folding and a wordPattern that includes $"><code>ide/language-configuration-is-content</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-is-three-slashes" title="A doc comment is exactly ///; //// and longer runs are ordinary comments, and # never is one"><code>tooling/doc-comment-is-three-slashes</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has" title="Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them"><code>ide/the-extension-builds-no-ui-the-editor-already-has</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#dependencies-are-allowlisted" title="The extension holds no language logic, and its package.json dependencies are checked against an allowlist by its own tests"><code>ide/dependencies-are-allowlisted</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0149.md">record 0149</a></dd></div></dl>
 
 </div>
 

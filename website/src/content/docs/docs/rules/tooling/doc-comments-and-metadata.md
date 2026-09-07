@@ -113,6 +113,13 @@ the start of a line is a diagnostic**, and that one sentence is the entire diffe
 and a convention: an unenforced set grows, and the growth is how PHPDoc arrived at documenting a signature
 twice. An `@` anywhere else in the prose is just a character.
 
+**Both tags repeat, and every one of them is checked.** A declaration carries as many `@see` and
+`@example` lines as it has cross-references and examples, in whatever order they are written, and the
+order they are written is the order they are read back: `nvs meta --json` emits `see` and `example` as
+lists ([`tooling/meta-json-takes-a-program`](/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program "nvs meta --json <entry> emits that program's own declarations beside the Core registry, in the registry's own shape")) and `nvs doc` renders each list on one line. A second
+tag is not a weaker one — a `@see` that does not resolve is the same diagnostic whether it is the first
+line of the block or the last.
+
 There is no `@param`, `@return`, `@throws`, `@var`, `@deprecated`, `@since` or `@internal`, because almost
 nothing PHPDoc carried survives as prose. Parameter and return types are the signature, which cannot drift
 from itself; a callable carries its own ([`types/callable-signature`](/docs/rules/types/closures/#callable-signature "A callable type may name its parameters, and must then name its return type")); what a `Core` member throws is

@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">10</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">13</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">12</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#nvs-build-compile-appends-the-program-to-a-copy-of-the-host"><code>nvs build --compile</code> appends a program to a copy of the <code>nvs</code> binary, and rebundling is running it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-carries-source-not-artifacts">A bundle's payload is source, as a flat file list with no archive and no compression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundled-require-resolves-at-build-time">Inside a closed-world target every <code>require</code> resolves at build time, and one that cannot fails the build</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-is-found-by-its-footer-before-argv-is-read">A bundle is recognised by a footer the host reads before it parses one argument</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#build-compile-packages-what-is-on-disk-and-resolves-nothing"><code>nvs build --compile</code> packages what is already resolved on disk and fetches no dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-nvsx-dependency-embeds-in-the-same-payload">A <code>.nvsx</code> the program depends on is embedded as one opaque entry of the same flat list</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-macos-bundle-is-ad-hoc-signed-at-build">A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-build-records-no-timestamp">A build records its target, host, profile, compiler and commit, and never a date</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-third-party-notice-is-generated-never-written-by-hand">The third-party notice is generated from the dependency graph, fails closed, and is never written by hand</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-notice-is-embedded-in-the-binary">The notice and Novis's own license are compiled into the binary from the same tree</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"><code>nvs info</code> is the one call for build, host and licensing facts, and <code>nvs -i</code> is the same command</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#nvs-build-compile-appends-the-program-to-a-copy-of-the-host"><code>nvs build --compile</code> appends a program to a copy of the <code>nvs</code> binary, and rebundling is running it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-carries-source-not-artifacts">A bundle's payload is source, as a flat file list with no archive and no compression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundled-require-resolves-at-build-time">Inside a closed-world target every <code>require</code> resolves at build time, and one that cannot fails the build</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-is-found-by-its-footer-before-argv-is-read">A bundle is recognised by a footer the host reads before it parses one argument</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#build-compile-packages-what-is-on-disk-and-resolves-nothing"><code>nvs build --compile</code> packages what is already resolved on disk and fetches no dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-nvsx-dependency-embeds-in-the-same-payload">A <code>.nvsx</code> the program depends on is embedded as one opaque entry of the same flat list</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-macos-bundle-is-ad-hoc-signed-at-build">A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-build-records-no-timestamp">A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-banner-states-the-build"><code>nvs --help</code> opens with the README's own title and the version, commit and commit date of the build answering</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-third-party-notice-is-generated-never-written-by-hand">The third-party notice is generated from the dependency graph, fails closed, and is never written by hand</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-notice-is-embedded-in-the-binary">The notice and Novis's own license are compiled into the binary from the same tree</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-cli-surface-is-novis-own">No flag on <code>nvs</code> is inherited from PHP; <code>-h</code> and <code>-V</code> are the Unix baseline and <code>-o</code> the only short flag Novis declares</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nvs-info-is-the-one-call"><code>nvs info</code> is the one call for build, host and licensing facts, and the one spelling of it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="nvs-build-compile-appends-the-program-to-a-copy-of-the-host">
 
@@ -240,7 +240,7 @@ which is also why a bundle never re-signs itself
 
 <div class="nv-rule" id="a-build-records-no-timestamp">
 
-## A build records its target, host, profile, compiler and commit, and never a date
+## A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -248,15 +248,53 @@ which is also why a bundle never re-signs itself
 </div>
 
 `build.rs` records the target, the host, the profile, `rustc --version`, the Cranelift version from
-`Cargo.lock` and the commit — and no date. A build date makes two builds of the same commit differ for
-no gain: the commit already answers "which source is this?" exactly, and a byte-identical rebuild is
-worth more than knowing when it happened.
+`Cargo.lock`, the commit and the commit's own committer date — and no build date. A build date makes two
+builds of the same commit differ for no gain: the commit already answers "which source is this?"
+exactly, and a byte-identical rebuild is worth more than knowing when it happened.
 
-`NVS_BUILD_COMMIT` lets a distribution packaging Novis from a tarball supply the revision when no `.git`
-is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
-All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling "nvs info is the one call for build, host and licensing facts, and nvs -i is the same command")'s report.
+The committer date is not that timestamp and does not cost that property. It is read off the commit
+rather than off the clock, so every rebuild of one commit emits the same string, and it answers the one
+question the hash does not: how old is this binary. It is why the banner can carry a date at all.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling" title="nvs info is the one call for build, host and licensing facts, and nvs -i is the same command"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+`NVS_BUILD_COMMIT` and `NVS_BUILD_COMMIT_DATE` let a distribution packaging Novis from a tarball supply
+the revision and its date when no `.git` is present, and every fact that cannot be determined becomes
+`unknown` rather than failing the build. All of it reaches [`packaging/nvs-info-is-the-one-call`](/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call "nvs info is the one call for build, host and licensing facts, and the one spelling of it")'s
+report, and the version, commit and date of it open [`packaging/the-banner-states-the-build`](/docs/rules/packaging/single-file-builds/#the-banner-states-the-build "nvs --help opens with the README's own title and the version, commit and commit date of the build answering").
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call" title="nvs info is the one call for build, host and licensing facts, and the one spelling of it"><code>packaging/nvs-info-is-the-one-call</code></a> <a href="/docs/rules/packaging/single-file-builds/#the-banner-states-the-build" title="nvs --help opens with the README's own title and the version, commit and commit date of the build answering"><code>packaging/the-banner-states-the-build</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md">record 0151</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-banner-states-the-build">
+
+## `nvs --help` opens with the README's own title and the version, commit and commit date of the build answering
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#the-banner-states-the-build"><code>packaging/the-banner-states-the-build</code></a>
+</div>
+
+`nvs --help` opens with two lines and no third:
+
+```
+Novis — The Web-Native Programming Language
+version: 0.0.1 · commit: 9c62ae176 · 2026-09-07
+```
+
+Line one is the identity, and it is [README.md](../../../README.md)'s H1 verbatim rather than a second
+phrasing of it. Line two is which build is answering, which is the first thing a bug report needs and the
+last thing a reporter thinks to look up. `-dirty` is appended to the hash when the tree was modified at
+build time, so a binary built over uncommitted work says so in its own banner.
+
+**The date is the commit's, never the build's.**
+[`packaging/a-build-records-no-timestamp`](/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp "A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date") is the reason and holds the mechanism: derived from the
+commit, it answers how old the binary is while leaving two builds of one commit byte-identical.
+
+`Novis` is underlined through `anstyle`, which clap writes via `anstream`. A redirected or piped
+`--help` therefore gets plain text and `NO_COLOR` is honoured, without the code that builds the string
+testing for a terminal — the same arrangement the diagnostic renderer already runs under.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp" title="A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date"><code>packaging/a-build-records-no-timestamp</code></a> <a href="/docs/rules/packaging/single-file-builds/#the-cli-surface-is-novis-own" title="No flag on nvs is inherited from PHP; -h and -V are the Unix baseline and -o the only short flag Novis declares"><code>packaging/the-cli-surface-is-novis-own</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md">record 0151</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/main.rs"><code>crates/nvs-cli/src/main.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -321,36 +359,76 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
 on a legal obligation, never touching a request path.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-third-party-notice-is-generated-never-written-by-hand" title="The third-party notice is generated from the dependency graph, fails closed, and is never written by hand"><code>packaging/the-third-party-notice-is-generated-never-written-by-hand</code></a> <a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling" title="nvs info is the one call for build, host and licensing facts, and nvs -i is the same command"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-third-party-notice-is-generated-never-written-by-hand" title="The third-party notice is generated from the dependency graph, fails closed, and is never written by hand"><code>packaging/the-third-party-notice-is-generated-never-written-by-hand</code></a> <a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call" title="nvs info is the one call for build, host and licensing facts, and the one spelling of it"><code>packaging/nvs-info-is-the-one-call</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
 
 </div>
 
-<div class="nv-rule" id="nvs-info-is-the-one-call-and-nvs-i-its-php-spelling">
+<div class="nv-rule" id="the-cli-surface-is-novis-own">
 
-## `nvs info` is the one call for build, host and licensing facts, and `nvs -i` is the same command
+## No flag on `nvs` is inherited from PHP; `-h` and `-V` are the Unix baseline and `-o` the only short flag Novis declares
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
-<a class="nv-rule-id" href="#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a>
+<a class="nv-rule-id" href="#the-cli-surface-is-novis-own"><code>packaging/the-cli-surface-is-novis-own</code></a>
+</div>
+
+**No flag on `nvs` exists because PHP spells it that way.** The language copies PHP's observable
+semantics on purpose; the command line is not semantics, and a spelling inherited there buys a PHP
+developer one familiar keystroke and charges every reader of `--help` for it afterwards.
+
+The whole short-flag surface, and where each one comes from:
+
+| Spelling | Source |
+|---|---|
+| `-h`, `--help` | clap, generated |
+| `-V`, `--version` | clap, from `version` in the `#[command]` attribute |
+| `-o`, `--output` | ours, on `nvs build --compile` alone |
+
+`-h` and `-V` stay, and are not the thing this rule is about: they are the Unix baseline every program on
+the machine shares, and `-V` is uppercase because the GNU convention reserves `-v` for verbosity. PHP's
+own version flag is the lowercase `-v`, so adopting it would be the one change that moved *toward* PHP.
+
+A short flag is a decision, not a convenience. Declare one only where a long name is genuinely typed
+often enough to hurt — `-o` is that, and nothing else in the CLI has met the bar. **A short and its long
+form are one flag with two spellings**, which is the getopt convention and not an operation reachable two
+ways; [`core-api/one-paradigm-per-operation`](/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods") governs `Core`'s surface and never had anything to say
+about argv.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>php</code> carries <code>-i</code>, <code>-a</code>, <code>-r</code>, <code>-f</code> and a lowercase <code>-v</code>; <code>nvs</code> inherits none of them, spells every operation as a subcommand, and declares exactly one short flag of its own</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call" title="nvs info is the one call for build, host and licensing facts, and the one spelling of it"><code>packaging/nvs-info-is-the-one-call</code></a> <a href="/docs/rules/packaging/single-file-builds/#the-banner-states-the-build" title="nvs --help opens with the README's own title and the version, commit and commit date of the build answering"><code>packaging/the-banner-states-the-build</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md">record 0151</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/main.rs"><code>crates/nvs-cli/src/main.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="nvs-info-is-the-one-call">
+
+## `nvs info` is the one call for build, host and licensing facts, and the one spelling of it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#nvs-info-is-the-one-call"><code>packaging/nvs-info-is-the-one-call</code></a>
 </div>
 
 ```
 nvs info                # build, host and licensing facts, plus the component table
 nvs info --licenses     # the same, plus every license text in full
-nvs -i / nvs -i --licenses
 ```
 
 "What is this binary, what is in it, and what may I do with it?" is one question asked by one person at
-one moment, so it is one call, the shape `php -i` already has. The default is the summary because the
-full texts are some 55 KB and a terminal is the wrong place to put them unasked; `--licenses` is the
-complete legal record. The report is plain two-column text with no colour and no paging, so it pipes.
+one moment, so it is one call. The default is the summary because the full texts are some 55 KB and a
+terminal is the wrong place to put them unasked; `--licenses` is the complete legal record. The report is
+plain two-column text with no colour and no paging, so it pipes.
 
-**This is the one place in Novis where an operation is deliberately reachable two ways.**
-[`core-api/shape-rules`](/docs/rules/core-api/naming-and-shape/#shape-rules "Every Core member obeys the same twenty shape rules, R1–R20")'s "no operation reachable two ways" governs the `Core` library, not the
-CLI, and the reason is specific: `-i` is the spelling a PHP developer tries first, and the point of the
-command is that nobody should have to hunt for it. Combining `-i` with a subcommand is refused rather
-than guessed at.
+**It is reachable one way.** `php -i` is where the shape came from, and for a while `nvs -i` was carried
+beside the subcommand as the spelling a PHP developer tries first. That alias is gone:
+[`packaging/the-cli-surface-is-novis-own`](/docs/rules/packaging/single-file-builds/#the-cli-surface-is-novis-own "No flag on nvs is inherited from PHP; -h and -V are the Unix baseline and -o the only short flag Novis declares") is why, and what it cost — a global flag, a second
+`--licenses` hanging off it, and a hand-written conflict check for a collision clap cannot express — was
+the whole of the argument for removing it.
 
 Fields that do not exist yet are not printed; the report grows a section as each thing it describes
 lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](/docs/rules/testing/coverage-and-probes/#debug-probes "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier")' territory and is
@@ -358,9 +436,9 @@ flag-gated for reasons this command does not share.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p><code>php -i</code> prints ini settings and the request's own server variables; <code>nvs info</code> reports the build, the host and the licences, never per-request state, and it is the one CLI operation reachable two ways</p>
+<p><code>php -i</code> prints ini settings and the request's own server variables; <code>nvs info</code> reports the build, the host and the licences, never per-request state, and it is spelled one way</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-notice-is-embedded-in-the-binary" title="The notice and Novis's own license are compiled into the binary from the same tree"><code>packaging/the-notice-is-embedded-in-the-binary</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp" title="A build records its target, host, profile, compiler and commit, and never a date"><code>packaging/a-build-records-no-timestamp</code></a> <a href="/docs/rules/core-api/naming-and-shape/#shape-rules" title="Every Core member obeys the same twenty shape rules, R1–R20"><code>core-api/shape-rules</code></a> <a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-notice-is-embedded-in-the-binary" title="The notice and Novis's own license are compiled into the binary from the same tree"><code>packaging/the-notice-is-embedded-in-the-binary</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp" title="A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date"><code>packaging/a-build-records-no-timestamp</code></a> <a href="/docs/rules/packaging/single-file-builds/#the-cli-surface-is-novis-own" title="No flag on nvs is inherited from PHP; -h and -V are the Unix baseline and -o the only short flag Novis declares"><code>packaging/the-cli-surface-is-novis-own</code></a> <a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md">record 0151</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
 
 </div>

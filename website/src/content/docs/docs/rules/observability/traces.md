@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Exactly four things become a span, an inbound <code>traceparent</code> is continued, and sampling is decided once at the root.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">13</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">5</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">8</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">16</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">5</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">11</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">10</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#four-kinds-become-a-span">Exactly four things become a span, and a <code>call</code> event never does</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-call-never-becomes-a-span">A <code>call</code> event never becomes a span; the root, a <code>query</code>, an outbound HTTP call and a <code>spawn</code> do, and <code>gc</code> becomes a metric</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#trace-events-carry-a-kind">A trace event carries one of four kinds — <code>call</code>, <code>gc</code>, <code>spawn</code>, <code>query</code> — and a <code>call</code> keeps its probe shape</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-query-is-a-trace-event">A statement is a <code>query</code> trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-slow-query-is-logged-past-a-threshold">A <code>[db.&lt;name&gt;] slow_query</code> threshold writes a statement's span facts to <code>Core\Log</code>, and is off until a block writes one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#gc-pause-is-its-own-event">A collector pause is a <code>gc</code> event recorded from the collector's run routine, never from the safepoint poll</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spawn-is-its-own-event">An isolate spawn and its join are one <code>spawn</code> event with an overhead split, and the child's stream is stitched in at export time</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-inbound-traceparent-is-continued">An inbound <code>traceparent</code> is continued, and one the process cannot read starts a new trace rather than failing the request</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#an-outbound-call-propagates-traceparent"><code>Core\Http\Client</code> sends <code>traceparent</code> while <code>[trace] propagate</code> is on, and the id it sends is the request's own</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#sampling-is-head-based">Sampling is decided once at the root by <code>[trace] sample</code>, and an inbound trace that is already sampled is always continued</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-exporter-is-a-feature-and-core-metrics-is-not">The exporter is a feature-gated Native subsystem, and <code>Core\Metrics</code> is Tier 0 in every build</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-exporters-are-crates">The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#speedscope-timeline-export">The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#four-kinds-become-a-span">Exactly four things become a span, and a <code>call</code> event never does</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-call-never-becomes-a-span">A <code>call</code> event never becomes a span; the root, a <code>query</code>, an outbound HTTP call and a <code>spawn</code> do, and <code>gc</code> becomes a metric</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#trace-events-carry-a-kind">A trace event carries one of four kinds — <code>call</code>, <code>gc</code>, <code>spawn</code>, <code>query</code> — and a <code>call</code> keeps its probe shape</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-query-is-a-trace-event">A statement is a <code>query</code> trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-slow-query-is-logged-past-a-threshold">A <code>[db.&lt;name&gt;] slow_query</code> threshold writes a statement's span facts to <code>Core\Log</code>, and is off until a block writes one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#gc-pause-is-its-own-event">A collector pause is a <code>gc</code> event recorded from the collector's run routine, never from the safepoint poll</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spawn-is-its-own-event">An isolate spawn and its join are one <code>spawn</code> event with an overhead split, and the child's stream is stitched in at export time</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-inbound-traceparent-is-continued">An inbound <code>traceparent</code> is continued, and one the process cannot read starts a new trace rather than failing the request</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#an-outbound-call-propagates-traceparent"><code>Core\Http\Client</code> sends <code>traceparent</code> while <code>[trace] propagate</code> is on, and the id it sends is the request's own</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#sampling-is-head-based">Sampling is decided once at the root by <code>[trace] sample</code>, and an inbound trace that is already sampled is always continued</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-exporter-is-a-feature-and-core-metrics-is-not">The exporter is a feature-gated Native subsystem, and <code>Core\Metrics</code> is Tier 0 in every build</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-exporters-are-crates">The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#speedscope-timeline-export">The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#memory-is-three-numbers-on-core-budget">A request reads its own memory as <code>memoryHeld</code>, <code>memoryPeak</code> and <code>memoryLimit</code> on <code>Core\Budget</code>, and the process's resident bytes are <code>Core\Os</code>'s</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-memory-peak-is-recorded-not-asked-for">The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#memory-high-water-writes-a-warn">A <code>[limits] memory_high_water</code> fraction writes one <code>Warn</code> when a request's memory peak crosses that share of its ceiling, and is off until a block writes one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="four-kinds-become-a-span">
 
@@ -34,7 +34,7 @@ them would give a trace one span per function call, which no backend can store a
 read. So **exactly four things become a span**: the request (or scheduled run) root, a `query`
 event ([`observability/a-query-is-a-trace-event`](/docs/rules/observability/traces/#a-query-is-a-trace-event "A statement is a query trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter")), an outbound `Core\Http\Client` call, and a
 `spawn` event. A `call`-kind event **never** becomes a span. A `gc` event becomes the pause
-histogram in [`observability/default-series`](/docs/rules/observability/metrics/#default-series "Nine series exist the moment an exporter is configured, with no application code written"), not a span — a collection pause is not a unit of
+histogram in [`observability/default-series`](/docs/rules/observability/metrics/#default-series "Ten series exist the moment an exporter is configured, with no application code written"), not a span — a collection pause is not a unit of
 work in a request's causal graph.
 
 The spans are derived from the same events the timeline already files; there is no second set of
@@ -77,7 +77,7 @@ other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-eve
 <p>An OpenTelemetry SDK installed as a library lets a program open a span around any function; here the set of things that become a span is closed and a function call is not in it</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#trace-events-carry-a-kind" title="A trace event carries one of four kinds — call, gc, spawn, query — and a call keeps its probe shape"><code>observability/trace-events-carry-a-kind</code></a> <a href="/docs/rules/observability/traces/#gc-pause-is-its-own-event" title="A collector pause is a gc event recorded from the collector's run routine, never from the safepoint poll"><code>observability/gc-pause-is-its-own-event</code></a> <a href="/docs/rules/observability/traces/#spawn-is-its-own-event" title="An isolate spawn and its join are one spawn event with an overhead split, and the child's stream is stitched in at export time"><code>observability/spawn-is-its-own-event</code></a> <a href="/docs/rules/observability/metrics/#default-series" title="Nine series exist the moment an exporter is configured, with no application code written"><code>observability/default-series</code></a> <a href="/docs/rules/observability/metrics/#a-registry-is-per-core-and-nothing-reads-it" title="A metrics registry is per core, merged at scrape, and no program reads a metric"><code>observability/a-registry-is-per-core-and-nothing-reads-it</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0041.md">record 0041</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0076.md">record 0076</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#trace-events-carry-a-kind" title="A trace event carries one of four kinds — call, gc, spawn, query — and a call keeps its probe shape"><code>observability/trace-events-carry-a-kind</code></a> <a href="/docs/rules/observability/traces/#gc-pause-is-its-own-event" title="A collector pause is a gc event recorded from the collector's run routine, never from the safepoint poll"><code>observability/gc-pause-is-its-own-event</code></a> <a href="/docs/rules/observability/traces/#spawn-is-its-own-event" title="An isolate spawn and its join are one spawn event with an overhead split, and the child's stream is stitched in at export time"><code>observability/spawn-is-its-own-event</code></a> <a href="/docs/rules/observability/metrics/#default-series" title="Ten series exist the moment an exporter is configured, with no application code written"><code>observability/default-series</code></a> <a href="/docs/rules/observability/metrics/#a-registry-is-per-core-and-nothing-reads-it" title="A metrics registry is per core, merged at scrape, and no program reads a metric"><code>observability/a-registry-is-per-core-and-nothing-reads-it</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0041.md">record 0041</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0076.md">record 0076</a></dd></div></dl>
 
 </div>
 
@@ -404,5 +404,158 @@ implementation, the same way the Clover and lcov shapes were.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#trace-events-carry-a-kind" title="A trace event carries one of four kinds — call, gc, spawn, query — and a call keeps its probe shape"><code>observability/trace-events-carry-a-kind</code></a> <a href="/docs/rules/testing/coverage-and-probes/#debug-surface" title="Each probe starts and stops mid-request, and exports what existing tooling already reads"><code>testing/debug-surface</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0041.md">record 0041</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="memory-is-three-numbers-on-core-budget">
+
+## A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\Budget`, and the process's resident bytes are `Core\Os`'s
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#memory-is-three-numbers-on-core-budget"><code>observability/memory-is-three-numbers-on-core-budget</code></a>
+</div>
+
+A request reads its own memory as three members on `Core\Budget` — `memoryHeld()` is the bytes it
+holds right now, `memoryPeak()` the high-water mark of that figure for this request, and
+`memoryLimit()` the ceiling both are measured against.
+
+```php
+Core\Budget::memoryHeld():  int
+Core\Budget::memoryPeak():  int
+Core\Budget::memoryLimit(): int
+```
+
+**`held`, not `usage`**, because the runtime already says *held*: a breach renders as *"the request
+exceeded its memory limit — N bytes held against a ceiling of M"*, and a member whose name disagrees
+with the error text about the same quantity is a second vocabulary to learn. `usage` is also the word
+that carries PHP's ambiguity between "occupied now" and "consumed in total", and only one of those is
+ever meant.
+
+**`memoryLimit` is among them because a peak with no scale is not actionable.** The ceiling is
+otherwise reachable only as `Core\Config::get('limits.memory')` — a string with a suffix that every
+call site would parse — so the question the trio exists to answer stays one expression:
+
+```php
+if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
+```
+
+An uncapped request — `[limits.hard] memory = false`, which
+[`config/three-changeability-classes`](/docs/rules/config/changeability-classes/#three-changeability-classes "nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes") permits — answers `0` from `memoryLimit`, the same reading
+of zero as "no ceiling" the runtime's own limit check already uses, rather than a second spelling for
+it.
+
+**The process's memory is `Core\Os`'s and is a different question.** `Core\Os::residentBytes()` is
+the resident set — what `getrusage`'s `ru_maxrss` answers — beside `pid`, `hostname`, `cpuCount` and
+`loadAverage`, which are host and process facts too. Two classes, two names, and neither readable as
+the other: a per-request figure sitting among host facts would be read as process memory by everyone
+who had not been told otherwise, which is PHP's own confusion relocated rather than removed.
+
+There is no `$real_usage`-style boolean in any spelling. Two accountings behind one member is what
+[`core-api/no-mode-strings`](/docs/rules/core-api/one-way-to-do-each-thing/#no-mode-strings "A mode is an enum, never a string or an integer constant, and only four grammars are exempt") refuses, and where two numbers are genuinely different questions they
+are two members on the two classes that own them.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>$real_usage</code> boolean and no second accounting behind it: <code>memory_get_usage</code>'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for" title="The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it"><code>observability/a-memory-peak-is-recorded-not-asked-for</code></a> <a href="/docs/rules/observability/traces/#memory-high-water-writes-a-warn" title="A [limits] memory_high_water fraction writes one Warn when a request's memory peak crosses that share of its ceiling, and is off until a block writes one"><code>observability/memory-high-water-writes-a-warn</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#no-mode-strings" title="A mode is an enum, never a string or an integer constant, and only four grammars are exempt"><code>core-api/no-mode-strings</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#tier-roster" title="Every subsystem's tier is recorded once in the roster, including the ones no milestone has built"><code>core-api/tier-roster</code></a> <a href="/docs/rules/config/changeability-classes/#three-changeability-classes" title="nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes"><code>config/three-changeability-classes</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#on-limit" title="Tier 1 — a resource limit reaches the request that spent it"><code>errors/on-limit</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0148.md">record 0148</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/migration-members-outstanding.txt"><code>crates/nvs-stdlib/tests/migration-members-outstanding.txt</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-memory-peak-is-recorded-not-asked-for">
+
+## The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-memory-peak-is-recorded-not-asked-for"><code>observability/a-memory-peak-is-recorded-not-asked-for</code></a>
+</div>
+
+The runtime keeps a request's memory high-water mark in every build, updated where the live-byte
+balance is updated, and a nested `Ctx` restores the larger of its own mark and the one it displaced
+rather than clobbering it.
+
+The peak is **recorded, not sampled and not asked for**. It moves in the same allocator function that
+already maintains the live balance, inside the branch that already tests for a positive delta, so it
+is exact for every allocation rather than approximate between two reads. A sampled peak would miss
+precisely the short spike that deterministic release makes invisible, which is the case the mark
+exists for.
+
+**Why a current figure is not enough here, when it nearly is in PHP.** Novis releases memory when the
+last reference dies ([`security/arena-is-an-ownership-root`](/docs/rules/security/isolates/#arena-is-an-ownership-root "An isolate's arena is an ownership root, not an address range")), so held bytes fall back toward the
+baseline as soon as values die. PHP's allocator keeps its chunks, so a reading taken at the end of a
+script is sticky and approximates the high-water mark by accident. A Novis request that decoded a
+90 MB payload and returned a 2 KB summary reports the 2 KB, and a request that sat at 96% of its
+ceiling for most of its life is indistinguishable at exit from one that never passed 30%. The better
+memory behaviour is what destroys the evidence, so the evidence is kept deliberately.
+
+**Nesting saves and restores.** A `Ctx` created inside another rebases the mark to the current
+balance and holds the enclosing value; on drop it publishes `max(enclosing, reached)`. Without that,
+an isolate that allocated little would erase the peak of the request that spawned it. What the mark
+is a peak *of* — one request, or an isolate tree — is
+[`security/isolate-budget-is-the-trees`](/docs/rules/security/isolates/#isolate-budget-is-the-trees "A request and everything it spawns share one budget, accounted at the tree's root")' to settle, and this rule inherits that boundary rather
+than deciding it.
+
+**It is not resettable.** The peak is evidence an operator needs, and a member that set it back to
+the current figure would let an application hide the number the request-level notices exist to
+surface. Bounding one section of a program is what `Core\Debug`'s probes are for.
+
+What this spends, per [`programs/memory-priority`](/docs/rules/programs/claims-and-priorities/#memory-priority "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"): one `isize` per thread and one per `Ctx`.
+Nothing per process, nothing that grows with requests served, and nothing that outlives a request.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>memory_get_peak_usage</code> reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#memory-is-three-numbers-on-core-budget" title="A request reads its own memory as memoryHeld, memoryPeak and memoryLimit on Core\Budget, and the process's resident bytes are Core\Os's"><code>observability/memory-is-three-numbers-on-core-budget</code></a> <a href="/docs/rules/observability/traces/#memory-high-water-writes-a-warn" title="A [limits] memory_high_water fraction writes one Warn when a request's memory peak crosses that share of its ceiling, and is off until a block writes one"><code>observability/memory-high-water-writes-a-warn</code></a> <a href="/docs/rules/security/isolates/#arena-is-an-ownership-root" title="An isolate's arena is an ownership root, not an address range"><code>security/arena-is-an-ownership-root</code></a> <a href="/docs/rules/security/isolates/#isolate-budget-is-the-trees" title="A request and everything it spawns share one budget, accounted at the tree's root"><code>security/isolate-budget-is-the-trees</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0148.md">record 0148</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/budget.rs"><code>crates/nvs-runtime/src/budget.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="memory-high-water-writes-a-warn">
+
+## A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#memory-high-water-writes-a-warn"><code>observability/memory-high-water-writes-a-warn</code></a>
+</div>
+
+A `[limits]` block may write `memory_high_water`, a fraction between `0.0` and `1.0`; a request whose
+memory peak crosses that share of its effective ceiling writes one `Warn` to `Core\Log` at the end of
+the request, naming the peak, the ceiling and the route.
+
+**Unwritten is off, and off is silent** — a deployment gets no high-water log it did not ask for. A
+written `0` is a threshold every request passes, not a second spelling of off. A request with no
+ceiling at all (`[limits.hard] memory = false`) has no threshold either, because there is nothing for
+a fraction to be a fraction of. A value outside `0.0..=1.0` is refused at boot, where it is written,
+by the same typed-value path that refuses a malformed size.
+
+**A fraction rather than a size**, so it keeps meaning the same thing under an `[app.limits]` block
+that narrows the ceiling ([`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](/docs/rules/config/application-blocks/#an-app-block-may-widen-bounded-by-the-global-ceiling "An [[app]] block may widen a limit or grant a capability up to the global ceiling, and may only lower its own ceiling")). A size
+would have to be re-derived for every application block, and would silently stop being a warning at
+all for any block that narrowed past it.
+
+**One record per request, at the end of it**, from the mark
+[`observability/a-memory-peak-is-recorded-not-asked-for`](/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it") already holds — so this adds no probe
+site to the measured path and [`observability/the-runtime-exports-what-it-already-measures`](/docs/rules/observability/metrics/#the-runtime-exports-what-it-already-measures "Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path") holds
+for it as written.
+
+This is the reading that closes the gap the other two leave. `Script\ExitReport::memoryPeak` requires
+an application to have registered a hook, and `nvs_request_memory_peak_bytes` requires an exporter
+and someone watching it; the request that matters is the one nobody instrumented and nobody was
+watching. A breach needs no equivalent: [`errors/on-limit`](/docs/rules/errors/the-escalation-ladder/#on-limit "Tier 1 — a resource limit reaches the request that spent it")'s report already names both numbers.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>PHP has no warning short of the fatal: a request that touched 96% of <code>memory_limit</code> and returned successfully is indistinguishable from one that never passed 30%</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for" title="The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it"><code>observability/a-memory-peak-is-recorded-not-asked-for</code></a> <a href="/docs/rules/observability/traces/#a-slow-query-is-logged-past-a-threshold" title="A [db.&lt;name&gt;] slow_query threshold writes a statement's span facts to Core\Log, and is off until a block writes one"><code>observability/a-slow-query-is-logged-past-a-threshold</code></a> <a href="/docs/rules/observability/metrics/#the-runtime-exports-what-it-already-measures" title="Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path"><code>observability/the-runtime-exports-what-it-already-measures</code></a> <a href="/docs/rules/config/application-blocks/#an-app-block-may-widen-bounded-by-the-global-ceiling" title="An [[app]] block may widen a limit or grant a capability up to the global ceiling, and may only lower its own ceiling"><code>config/an-app-block-may-widen-bounded-by-the-global-ceiling</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#on-limit" title="Tier 1 — a resource limit reaches the request that spent it"><code>errors/on-limit</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0148.md">record 0148</a></dd></div></dl>
 
 </div>
