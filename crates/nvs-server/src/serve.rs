@@ -1538,14 +1538,53 @@ mod tests {
     use std::net::TcpStream;
     use std::time::Duration;
 
-    /// How long a client waits before it gives up and closes, in the two tests
-    /// whose subject is a connection the *server* is supposed to close.
+    /// How long a test waits on a core before it gives up: the read deadline
+    /// every client here sets, and the bound [`run_the_core`] drives under.
     ///
-    /// Comfortably above every wait those tests configure and comfortably below
+    /// Comfortably above every wait these tests configure and comfortably below
     /// any default, so a phase machine that never armed the wait under test
     /// fails the assertion instead of hanging the suite: the client's own close
     /// is what lets the accept loop finish and the test report.
     const CLIENT_PATIENCE: Duration = Duration::from_secs(10);
+
+    /// Drives `sched` to the end of its work, the way `nvs serve` drives a
+    /// worker rather than the way a one-shot program does.
+    ///
+    /// [`nvs_host::run_until_idle`] returns as soon as one blocking poll wakes
+    /// nothing, and `rule:concurrency/the-reactor-reports-readiness` is why:
+    /// the readiness it collected belongs to no parked task, and continuing
+    /// would spin on a report nobody owns. Readiness for a task that has
+    /// already ended is the ordinary way that happens, and **whether the
+    /// platform reports it at all is the platform's**: a closed descriptor
+    /// leaves an `epoll` set silently, where a completion already in flight for
+    /// one is still delivered. So a single call ends a run that is still
+    /// accepting — the accept loop is a parked task — at whichever stale wake
+    /// came first, on some targets and not others.
+    ///
+    /// The loop is `nvs-cli`'s worker loop, which takes a report with anything
+    /// still parked as a turn to take rather than an end. The deadline is what
+    /// a test adds on top of it, so a core that really is stuck fails here
+    /// instead of hanging the suite.
+    fn run_the_core(sched: &mut nvs_host::Scheduler) -> nvs_host::RunReport {
+        let give_up_at = Instant::now() + CLIENT_PATIENCE;
+        let mut total = nvs_host::RunReport::default();
+        loop {
+            let turn = nvs_host::run_until_idle(sched).expect("the loop failed");
+            total.resumes += turn.resumes;
+            total.finished += turn.finished;
+            total.cancelled += turn.cancelled;
+            total.parked = turn.parked;
+            if turn.parked == 0 {
+                return total;
+            }
+            assert!(
+                Instant::now() < give_up_at,
+                "the core never went idle: {} task(s) are still parked, so whatever the run was \
+                 waiting on never arrived",
+                turn.parked
+            );
+        }
+    }
 
     /// One finished request, as [`answer`] takes it.
     fn completed(output: &str, content_type: Option<&str>) -> Completion {
@@ -4780,7 +4819,7 @@ mod tests {
             )
             .expect("the accept loop failed");
         });
-        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        run_the_core(&mut sched);
 
         let (first, second) = client.join().expect("the client thread panicked");
         assert!(
@@ -4856,7 +4895,7 @@ mod tests {
             )
             .expect("the accept loop failed");
         });
-        let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let report = run_the_core(&mut sched);
         client.join().expect("the client thread panicked");
         assert_eq!(
             sched.tracked_tasks(),
@@ -5345,9 +5384,9 @@ mod tests {
     /// without that yield, so both requests would see the drain. That leaves a
     /// window this case cannot close from the outside: between the two, the
     /// loop is parked in `accept` with nothing else runnable, which is exactly
-    /// the state `run_until_idle` can read as idle when a turn wakes nothing.
-    /// Both halves below are about that window rather than about the endpoint:
-    /// the client's read deadline, and the parked-task assertion on the report.
+    /// the state one `run_until_idle` call can read as idle. [`run_the_core`]
+    /// is what closes it, and the client's read deadline is what turns a core
+    /// that stopped anyway into a failure rather than a wait.
     #[test]
     fn is_draining_answers_during_a_graceful_shutdown() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -5359,13 +5398,11 @@ mod tests {
         let client = std::thread::spawn(move || {
             let probe = || {
                 let mut socket = TcpStream::connect(addr).expect("the loopback refused a socket");
-                // The two sibling multi-connection cases set this and this one
-                // had been the exception. `connect` succeeds against a bound
-                // listener whether or not anything ever accepts — the socket
-                // simply waits in the backlog — so a loop that stopped early
-                // leaves the read below with no answer and no end of file. It
-                // waited three hours that way on the Windows leg of the
-                // 2026-09-06 nightly, until the run was cancelled by hand.
+                // `connect` succeeds against a bound listener whether or not
+                // anything ever accepts — the socket simply waits in the
+                // backlog — so a loop that stopped early leaves the read below
+                // with no answer and no end of file to end it on, and an
+                // unbounded read there hangs the suite rather than failing it.
                 socket
                     .set_read_timeout(Some(CLIENT_PATIENCE))
                     .expect("the socket refused a read timeout");
@@ -5422,18 +5459,12 @@ mod tests {
                 .expect("the accept loop failed");
             }
         });
-        let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
-        // The accept loop ends by draining its children, so nothing of this
-        // case's is parked once it returns — and a report that says otherwise
-        // is the one exit `run_until_idle` documents, a blocking poll that woke
-        // nothing being read as idle. Asserted before the join, because from
-        // there the same failure reads as a client that went unanswered and
-        // says nothing about which side stopped.
-        assert_eq!(
-            report.parked, 0,
-            "the core went idle with the accept loop still parked, so the connection the shutdown \
-             lands on was never accepted"
-        );
+        // Driven rather than run once, per [`run_the_core`]: the accept loop is
+        // parked in `accept` between the two probes with nothing else runnable,
+        // and a single call can read that as idle. Driven before the join,
+        // because from there the same failure reads as a client that went
+        // unanswered and says nothing about which side stopped.
+        run_the_core(&mut sched);
 
         let (accepting, shutting_down) = client.join().expect("the client thread panicked");
         assert!(
