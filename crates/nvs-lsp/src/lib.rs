@@ -101,6 +101,7 @@ mod position;
 mod render;
 mod server;
 pub mod suite;
+pub mod symbols;
 
 pub use capabilities::{
     CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, initialize_result,
