@@ -2,7 +2,7 @@
 id: expressions
 title: Expressions and operators
 summary: every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse
-keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, instanceof, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference
+keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, instanceof, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 ---
 
 # Precedence and associativity
@@ -15,6 +15,7 @@ Highest first. A row binds tighter than every row below it.
 | `new`, `clone` | — |
 | `**` | right |
 | prefix `-` `+` `~` `++` `--` | — |
+| `\|>` | left |
 | `instanceof` | left |
 | `!` | — |
 | `*` `/` `%` | left |
@@ -38,6 +39,7 @@ Highest first. A row binds tighter than every row below it.
 - `**` is right-associative and binds tighter than a prefix sign: `-2 ** 2` is `-4`, `2 ** 3 ** 2` is `512`.
 - `!` binds looser than `instanceof`: `!$o instanceof C` is `!($o instanceof C)`.
 - `.` binds looser than `+`, `-`, `*` and the shifts: `"sum:" . 1 + 2` is `sum:3`.
+- `|>` binds tighter than every binary operator and looser than unary: `-$a |> Core\Math::abs($_)` is `Core\Math::abs(-$a)`, `"x=" . $a |> Core\Str::upper($_)` is `"x=" . Core\Str::upper($a)`, and `$x = $a |> Core\Str::trim($_)` assigns the whole pipeline. Its own section below has the form.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
 - A nested ternary without parentheses groups to the right: `$a ? 1 : $b ? 2 : 3` is `$a ? 1 : ($b ? 2 : 3)`.
 - An expression `catch` sits between the ternary and assignment, so `$x = $a / $b catch (ArithmeticError) => 0` guards the whole division and assigns the whole guard, and a following `catch` is the next **arm of the same guard** rather than a guard over the arm before it. The statements chapter has the form.
@@ -471,6 +473,58 @@ echo $f(1), " ", $f(1, 99), " ", $ops["dbl"](4), " ", (fn(int $x): int => $x * 1
 Hi, Ada! Yo, Bob?
 6 9 0 8
 2 2 8 40
+```
+
+# The pipeline operator
+
+`$subject |> RHS` is `RHS` with its hole `$_` replaced by `$subject`, and the **parser** does the replacing. What every later pass sees is the tree the nested spelling writes, so a pipeline types, converts, taints and compiles exactly as the nesting it stands for. No callable is involved, nothing is allocated, and `|>` has no run-time existence at all.
+
+- The right side is parsed as a postfix expression — a call, a subscript, a member access, or a parenthesised group. Anything else is written parenthesised: `$n |> ($_ * 2)`.
+- `$_` appears **exactly once** on a right side. A right side with none is `E0129`, a second `$_` on one right side is `E0130`, and a `$_` written anywhere outside a right side is `E0131`.
+- `|>` is left-associative: `$a |> f($_) |> g($_)` is `g(f($a))`.
+- It binds tighter than every binary operator and looser than unary, so `$a |> Core\Str::length($_) > 5` compares the length and `$x = $a |> Core\Str::trim($_)` assigns the trimmed string.
+- This is not PHP 8.5's `|>`, which applies a callable resolved at run time. A first-class callable or a closure on the right side is `E0129`, and the diagnostic says which of the two operators you wrote.
+
+```nvs
+<?nvs
+string $s = "  Novis  ";
+echo $s |> Core\Str::trim($_) |> Core\Str::lower($_), "\n";
+int $n = -7;
+echo -$n |> Core\Math::abs($_), " ", $s |> Core\Str::length($_) > 5, "\n";
+array<string> $xs = ["c", "a", "b"];
+echo $xs |> Core\Arr::sort($_) |> Core\Str::join($_, "-"), " ", 5 |> ($_ * 2), "\n";
+```
+```output
+novis
+7 1
+a-b-c 10
+```
+
+```nvs error
+<?nvs
+string $s = "hi";
+echo $s |> Core\Str::upper(...), "\n";
+```
+```output
+the right side of `|>` needs the hole `$_`
+```
+
+```nvs error
+<?nvs
+string $s = "hi";
+echo $s |> Core\Str::replace($_, $_, "x"), "\n";
+```
+```output
+`$_` may appear exactly once on the right side of a `|>`
+```
+
+```nvs error
+<?nvs
+string $s = $_;
+echo $s, "\n";
+```
+```output
+`$_` is the pipeline hole and has no meaning here
 ```
 
 # Closures
