@@ -1,0 +1,15 @@
+--TEST--
+`(int)$x` is refused with `E0225`, and neither the parenthesised type name nor the value behind it enters the tree, so a cast colours nothing at all while the bindings around it stay named — `rule:types/no-legacy-cast`, `rule:ide/rejected-syntax-gets-no-colour`
+--FILE--
+<?nvs
+class Real {}
+var $n = 1;
+var $c = (int)$n;
+var $b = 2;
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+4 class
+3:5+2 variable
+4:5+2 variable
+5:5+2 variable
