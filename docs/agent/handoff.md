@@ -2,50 +2,53 @@
 
 ## State
 
-**Goal 13 stage 2 is unchanged and green** — `|>` lexes, parses between `instanceof` and unary, and
-substitutes its one `$_` at parse time, with the cases under `tests/conformance/reject/pipeline/`,
-`tests/conformance/lang/` and `examples/pipeline.nvs` pinning it.
+**Goal 13 stage 3 is whole.** All four of ADR 0124's PHP 8.6 refusals now land in the parser:
+`let`/`is` as a name is `E0247`, a constructor's returned value `E0248`, a `readonly` default
+`E0249`, and this session's two — `E0250` for a `return` inside a `finally` and `E0251` for a
+`break`/`continue` whose target lies outside one. Three `.nvst` cases under
+`tests/conformance/reject/php86/` pin the refusals a user meets; the two reserved spellings stay
+pinned by `-p nvs-syntax` unit tests, which is what the stage's two checks run.
 
-**Three of ADR 0124's four PHP 8.6 refusals now land, all in the parser** where the other rejected-PHP
-spellings live. `let` and `is` are keywords, so either written as a name is `E0247`, whose help names
-the living spelling (`var` declares, `instanceof` tests, `as` converts); `is` written between two
-operands is refused and then parsed as the `instanceof` it names, so one expression carries one
-diagnostic. `E0248` refuses a value on a constructor's `return` and `E0249` refuses a default on a
-`readonly` property. `Parser::in_callable_body` is the machinery the first of those needed and the
-`finally` refusal will reuse: it parks `in_constructor` at every body a `return` can belong to — a
-closure, a property hook, a method declared inside the constructor — so the flag answers "does this
-`return` leave the constructor", not "is a constructor anywhere above this".
+**How the `finally` state is kept**, since it is the shape the next refusal of its kind copies:
+`Parser::in_finally` is parked by `in_callable_body` exactly as `in_constructor` is, and
+`Parser::finally_breakables` counts the loops and `switch`es opened *since* the innermost `finally`
+began — every loop and `switch` raises it around its body, so a level above it names a target
+outside the block and a loop written wholly inside keeps both spellings.
 
-**What stage 3 still owes:** `rule:php-migration/no-return-leaves-a-finally`, and the `.nvst` cases
-under `tests/conformance/reject/php86/`, a directory that does not exist yet — the stage's second
-check runs it, so that check stays red until the cases are written. Nothing is blocked.
+**Stage 4 is what is left, and only one of its two checks is red.** `python tools/reference.py
+--check` passes (`docs/novis.md` is current, 282 of 282 examples hold). The dossier gate fails
+earlier than the four proofs: `lang:expressions/the-pipeline-operator` is not on the roster at all,
+because the roster is every `#` heading in `docs/reference/lang/*.md`
+(`rule:testing/roster-is-derived`, `tools/dossier.py:475`) and that chapter has no pipeline heading
+yet. Nothing is blocked.
 
 ## Next group
 
-**The `finally` refusal and stage 3's corpus, one file set:** `crates/nvs-syntax/src/parser/stmt.rs`,
-`crates/nvs-syntax/src/parser/mod.rs`, `crates/nvs-diagnostics/src/lib.rs`,
-`tests/conformance/reject/php86/`. The rejected-PHP band's next free number is `E0250`.
+**The reference chapter and the pipeline's four proofs, one file set:**
+`docs/reference/lang/30-expressions.md`, `docs/novis.md` (generated, never hand-edited),
+`docs/examples/`, `tests/conformance/lang/`.
 
-- [ ] **A `return` never leaves a `finally`**, nor a `break` or `continue` whose target lies outside
-      it — `rule:php-migration/no-return-leaves-a-finally`. The `finally` block is parsed at
-      `crates/nvs-syntax/src/parser/stmt.rs:680`; park and set the state with
-      `crates/nvs-syntax/src/parser/mod.rs:625`'s `in_callable_body`, which already does exactly this
-      job for `in_constructor` and is the shape to copy. A `break`/`continue` needs the count of
-      loops and `switch`es opened *inside* the block, so `crates/nvs-syntax/src/parser/stmt.rs:305`,
-      `:586` and their three siblings each raise it around their body, and
-      `crates/nvs-syntax/src/parser/stmt.rs:649` reads it against the written level.
-- [ ] **The three refusals as `.nvst` cases** under `tests/conformance/reject/php86/`, which the
-      stage's `nvs-suite` check runs — a `return` in a `finally`, a constructor returning a value and
-      a `readonly` default. `--EXPECTF-ERROR--` reproduces the diagnostic's own indentation;
-      `tests/conformance/reject/readonly-is-written-once.nvst:1` is the nearest neighbour to copy the
-      shape from. Never `--ORACLE--` under `tests/conformance/`.
+- [ ] **The pipeline operator gets its reference heading**, which is the same act as putting it on
+      the dossier roster — `rule:testing/roster-is-derived`. Write `# The pipeline operator` beside
+      the call forms at `docs/reference/lang/30-expressions.md:443`, and give the precedence table at
+      `docs/reference/lang/30-expressions.md:8` its `|>` row
+      (`rule:expressions/pipeline-precedence` is the ordering it states). Then `python
+      tools/reference.py --check` must still say `docs/novis.md is current`; regenerate with `python
+      tools/reference.py` if it does not.
+- [ ] **Answer what the gate then names as owed** — `python tools/dossier.py --only
+      lang:expressions/the-pipeline-operator --gate` at `docs/agent/loop-goal.toml:5098` is the
+      stage's own check, and `rule:testing/four-proofs` is what it counts: a test from both sides,
+      three examples, a measured figure, an attack. `examples/pipeline.nvs` and the cases under
+      `tests/conformance/lang/` already exist and are attributed by path and by marker
+      (`rule:testing/proof-attribution`), so read the gate's list before writing anything new.
 
 ## Backlog
 
-- The `php-migration` and `expressions` rules this goal implements still read `status: designed` in
-  `docs/rules/php-migration.json` and `docs/rules/expressions.json`; flipping them wants
-  `python tools/rules.py --render` in the same commit, and `guardedBy` wants the `.nvst` paths above.
-- `crates/nvs-syntax/src/token.rs:317` says every `Keyword` variant's `name()` gives its one spelling;
-  there is no such method on the enum.
-- Whether `nvs convert` applies the two mechanical rewrites ADR 0124 names — dropping a constructor's
-  returned value, and moving a `readonly` default — is unwritten; the rules say it does.
+- The seven rules this goal implements are still `status: designed` in `docs/rules/*.json` — the
+  three `|>` rules and the four PHP 8.6 refusals. Flipping them, with `guardedBy` naming
+  `tests/conformance/reject/php86/` and the pipeline cases, is a docs-only slice
+  (`docs/agent/conventions.md` § *A rule fragment*, then `python tools/rules.py --render`).
+- `verify.py` reports this clone has no hooks (`git config core.hooksPath tools/git-hooks`); left
+  alone mid-run on purpose, since `session.py` strips trailers anyway.
+- `.automode_decisions.jsonl` at the repo root is a harness artefact the driver committed once as
+  `117615584`; it is not Novis's and nothing reads it.
