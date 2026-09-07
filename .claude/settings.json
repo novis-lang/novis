@@ -1,28 +1,28 @@
 {
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python tools/guard-read.py"
-          }
-        ]
-      }
+      { "matcher": "Read", "hooks": [ { "type": "command", "command": "python tools/guard-read.py" } ] }
     ]
   },
   "permissions": {
     "allow": [
-      "Bash(python tools/brief.py)",
-      "Bash(python tools/brief.py --no-git)",
       "Bash(python tools/peek.py:*)",
-      "Bash(python tools/session.py --check)",
-      "Bash(python tools/session.py --counts)",
+      "Bash(python tools/brief.py:*)",
+      "Bash(python tools/verify.py:*)",
+      "Bash(python tools/rules.py:*)",
+      "Bash(python tools/plan.py:*)",
+      "Bash(python tools/playbook.py:*)",
+      "Bash(python tools/records.py:*)",
+      "Bash(python tools/reference.py:*)",
+      "Bash(python tools/check-links.py:*)",
+      "Bash(python tools/loop-stats.py:*)",
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",
+      "Bash(cargo check:*)",
       "Bash(cargo clippy:*)",
-      "Bash(cargo fmt:*)"
+      "Bash(cargo fmt:*)",
+      "Bash(./target/debug/nvs.exe:*)",
+      "Bash(target/debug/nvs.exe:*)"
     ]
   }
 }
