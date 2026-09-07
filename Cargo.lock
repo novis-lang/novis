@@ -2076,6 +2076,9 @@ version = "0.0.1"
 dependencies = [
  "lsp-server",
  "lsp-types",
+ "nvs-diagnostics",
+ "nvs-hir",
+ "nvs-syntax",
  "nvs-test",
  "serde_json",
 ]
