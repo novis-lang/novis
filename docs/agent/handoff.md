@@ -2,65 +2,55 @@
 
 ## State
 
-**Goal 14 stage 2 is landed and whole.** `crates/nvs-lsp` exists on `lsp-server` 0.10 and
-`lsp-types` 0.97, synchronous over stdio, and `nvs lsp` starts it. `initialize` declares
-`rule:ide/the-request-set-is-closed`'s whole list plus `serverInfo`, the position encoding is
-negotiated per LSP 3.17, and `tests/stdout_policy.rs` holds `rule:ide/stdout-belongs-to-the-protocol`
-over the closure rather than over one crate. `cargo deny check` is green and
-`THIRD-PARTY-LICENSES.txt` is regenerated for the six crates that entered the distributed graph.
+**Goal 14 stage 3 is landed and whole.** A `.lspt` case is read
+(`crates/nvs-lsp/src/case.rs`), every answer it can freeze is rendered by one module
+(`crates/nvs-lsp/src/render.rs`, `rule:ide/the-rendering-has-one-home`), and `nvs lsp-test <paths>`
+walks a tree and prints `N passed, M failed` (`crates/nvs-lsp/src/suite.rs`). `tests/lsp/` exists
+with its README and no cases.
 
-**No request is answered.** Everything but `shutdown` gets `MethodNotFound` from
-`crates/nvs-lsp/src/server.rs:60`, on purpose: the case format lands before any handler, because a
-request built before `.lspt` exists is one nobody can prove.
+**No request is answered.** `crates/nvs-lsp/src/suite.rs:157`'s `answer` is the seam every request
+slice lands one arm in; until then a case fails naming the request it asked, which is why
+`nvs lsp-test tests/lsp/` prints `0 passed, 0 failed` rather than a number that means nothing.
+`crates/nvs-lsp/src/server.rs:60` still answers everything but `shutdown` with `MethodNotFound`.
 
-**Stage 3 has nothing on disk** — no `.lspt`, no `tests/lsp/`, no `nvs lsp-test`, no
-`nvs_lsp::render`. Position conversion is still `nvs-diagnostics`' alone; none is written here and
-none may be.
+The case reader is the driver's `wip(loop)` commit from the cut-off session; it was unverified when
+written and this session's `verify.py` run covers it unchanged.
 
-Capabilities are declared for the whole goal rather than stage by stage — a client caches them at
-`initialize` and never re-reads, so switching one on later means an editor that started against an
-earlier binary keeps asking nothing. The reasoning is `crates/nvs-lsp/src/capabilities.rs`'s module
-doc; a stage that adds a handler adds no capability.
+Three spellings a case will meet are decided and live in `crates/nvs-lsp/src/render.rs`'s module
+doc: an answer with nothing in it renders `none`, an absent optional field renders `-`, and
+completion's columns are fixed at 8 and 10 rather than computed from the rows, so one added
+completion does not rewrite every frozen expectation.
 
 ## Next group
 
-**Stage 3: the `.lspt` case format, its runner, and the gate** — one file set: two new modules under
-`crates/nvs-lsp/src/`, `crates/nvs-test/src/section.rs` read only, `crates/nvs-cli/src/main.rs`, and
-a new `tests/lsp/`.
+**Stage 4: the document store and the positions under it** — one file set: a new
+`crates/nvs-lsp/src/document.rs`, `crates/nvs-lsp/src/server.rs`, and
+`crates/nvs-diagnostics/src/source.rs` read only.
 
-- [ ] **The case reader.** A new `crates/nvs-lsp/src/case.rs` over `nvs_test::section::lex`
-      (`crates/nvs-test/src/section.rs:48`, `Section` at `:17`, `header` at `:74`) — one section
-      lexer for both formats and nothing else shared. `--FILE <path>--` carries its own path.
-      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`; the format's home is
-      `crates/nvs-lsp/src/lib.rs:1`'s module doc. Tests
-      `an_lspt_case_reads_its_sections_through_the_shared_lexer` and
-      `a_second_file_section_carries_its_own_path`.
-- [ ] **The cursor and the closed request line.** Exactly one `<|>`, removed before analysis and
-      reported as an offset, and none where the request takes none; `--REQUEST--` is one line whose
-      `key=value` set is closed per request, so an unknown argument fails the case loudly — the
-      header parser it reuses is `crates/nvs-test/src/section.rs:74`.
-      `rule:ide/a-request-line-is-closed`, argument set in ADR 0099 § 5. Test
-      `exactly_one_cursor_is_required_where_the_request_takes_one`.
-- [ ] **One home for a rendering.** A new `crates/nvs-lsp/src/render.rs`, joining the export block
-      at `crates/nvs-lsp/src/lib.rs:38` — diagnostics as
-      `L:C-L:C severity CODE message`, hover verbatim, definition as `file:L:C` or `none`,
-      completion as `label kind detail`, semantic tokens as `L:C+len type modifiers`, symbols as an
-      indented outline. `rule:ide/the-rendering-has-one-home`. Test
-      `every_response_kind_renders_through_one_module`.
-- [ ] **`nvs lsp-test <paths>`**, walking directories for `*.lspt` and printing
-      `N passed, M failed` — the line `tools/loop.py`'s `nvs-suite` check kind already parses.
-      Beside the `Lsp` variant at `crates/nvs-cli/src/main.rs:413` and its arm at
-      `crates/nvs-cli/src/main.rs:853`. `.lspt` and `.nvst` stay two suites and share no summary.
+- [ ] **The open-document store.** `didOpen`/`didChange`/`didClose` hold a buffer per URI with a
+      version, overlaid on disk for everything the graph reads, and diagnostics are published only
+      for open documents. `rule:ide/an-open-document-is-its-own-entry-point`; the dispatch it hangs
+      off is `crates/nvs-lsp/src/server.rs:60`. Tests `an_unsaved_buffer_shadows_the_file_on_disk`
+      and `editing_a_required_file_republishes_the_requiring_document`.
+- [ ] **One home for a position.** Every offset conversion goes through `nvs-diagnostics` and none
+      is written in `nvs-lsp`: `crates/nvs-diagnostics/src/source.rs:173`'s `offset_of` takes the
+      negotiated encoding already, `:122` is `line_col` and `:137` `utf16_col`. A document's bytes
+      are never normalised, so a BOM and CRLF answer what LF does.
+      `rule:ide/positions-have-one-home`. Test
+      `a_bom_and_a_crlf_document_answer_the_same_offsets_as_an_lf_one`.
+- [ ] **A superseded analysis is dropped.** A second edit arriving while the first is being analysed
+      makes the first answer unwanted, and the version it was started for is what says so —
+      `crates/nvs-lsp/src/server.rs:60` is single-threaded today, so this is the slice that decides
+      whether an analysis thread joins it. `rule:ide/the-server-is-synchronous` bounds the answer.
+      Test `an_analysis_for_a_superseded_version_is_cancelled`.
 
 ## Backlog
 
-- `nvs lsp-test --coverage` and `every_request_answers_every_construct` — the gate that decides when
-  there are enough cases; `rule:ide/lspt-coverage-is-inferred`, goal file stage 3.
-- The `min_passing = 160` `.lspt` floor is a count, not the gate; goal 14's stage 4-9 checks.
-- `docs/reference/tools/40-editor.md` does not exist — goal 14 stage 11 creates it with
-  `# nvs lsp` and `# nvs lsp-test`, each owing `rule:testing/four-proofs`' set.
-- `Diagnostic::suggestions` is carried by three producers and read by nothing; filling it for the
-  casing and legacy-cast codes is stage 9's actual work, not the code-action plumbing.
-- The `[context] adrs` manifest did not print ADR 0099 § 4, and the semantic-token legend is there;
-  it is now `crates/nvs-lsp/src/capabilities.rs:37`'s, so the next session needs the section only to
-  overturn it. Add `0099.md § 4` if stage 7 reopens the legend.
+- `docs/reference/tools/10-cli.md:34` still says `nvs lsp`, `nvs serve` and `nvs service` are
+  unrecognized subcommands; all three exist. That chapter owns the fix.
+- Stage 4's `lsp cases` check wants 160 passing cases (`docs/agent/loop-goal.toml:5133`); the corpus
+  arrives with the handlers, one slice's cases at a time.
+- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten — they need
+  the cursor's resolved node (`rule:ide/lspt-coverage-is-inferred`).
+- The `.lspt`/`.nvst` grammar for case files is goal 15's
+  (`rule:ide/case-files-have-their-own-grammar`).

@@ -65,9 +65,9 @@
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
 > whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
 > 2.78x php-cgi. **`nvs lsp` speaks the handshake**: `crates/nvs-lsp` on `lsp-server`/`lsp-types`,
-> synchronous over stdio; `initialize` declares `rule:ide/the-request-set-is-closed`'s whole list
-> and the binary's version, the encoding is negotiated, and nothing the server links writes to
-> stdout. No request is answered yet.
+> synchronous over stdio; `initialize` declares the closed list and the version, the encoding is
+> negotiated, and nothing writes to stdout. `.lspt` is read, rendered and run by `nvs lsp-test`; no
+> request is answered yet.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
