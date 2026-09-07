@@ -2,49 +2,60 @@
 
 ## State
 
-**Goal 12 — the resilient tree — has stages 2, 3 and 4's in-process property landed and green.**
-Recovery is explicit (`rule:ide/recovery-is-explicit`), the `SyntaxIndex` is the walk flattened, and
-`crates/nvs-syntax/tests/prefixes.rs` now cuts every `examples/*.nvs` at every token boundary and asks
-all three of stage 4's questions of each cut: 14,268 prefixes parse without panicking and invent no
-span outside their own text, 14,192 of them answer a containment-chain lookup at the last byte they
-contain, and all 8,716 that end inside an open bracket report a diagnostic. The whole sweep is 4s in a
-debug build, so it stays an every-iteration test rather than a nightly one.
+**Goal 12 — the resilient tree — has stages 2, 3 and 4 landed and green.** Recovery is explicit
+(`rule:ide/recovery-is-explicit`), the `SyntaxIndex` is the walk flattened, `crates/nvs-syntax/tests/prefixes.rs`
+cuts every `examples/*.nvs` at every token boundary and asks all three of stage 4's questions of each cut,
+and stage 4's remaining fuzz target is now on disk.
 
-**What stage 4 still owes is the fuzz target**, which is CI's job rather than the loop's: M4B's
-acceptance paragraph names "a fuzz target over truncated and mid-edit inputs finds no panic in five
-minutes", and `fuzz/fuzz_targets/` has `lex`, `parse` and `uri` with only the first two in the
-`fuzz-smoke` matrix.
+**The fuzz target is `fuzz/fuzz_targets/prefix.rs`.** The input's *last* byte says where to cut and
+everything before it is the source, so one entry parses both a truncated document and one that starts
+mid-construct through `nvs_syntax::parse`, asserting nothing beyond "it returned"; the module doc owns the
+format and why the selector is at the end. It is a `[[bin]]` in `fuzz/Cargo.toml` and a third leg of the
+nightly `fuzz-smoke` matrix, and five hand-written seeds sit in `fuzz/seeds/prefix/` rather than in
+`fuzz/corpus/prefix/`, which `.gitignore` ignores — the playbook bullet owns that trap. It was compiled and
+run for real under WSL nightly, not read: `cargo +nightly check` is clean and a `cargo +nightly fuzz run
+prefix` over the seeds found no panic.
 
-**One residue, deliberate and unchanged:** `ExprKind::ClassConstAccess` carries a bare `Span` for its
-name, so `Foo::` at the caret still carries a name nobody wrote. The `::` path routes `Missing` into
-the same arm `Ident` takes rather than reporting an invented second diagnostic; the comment at that
-site says so, and the Backlog carries the fix.
+**The acceptance check that is red is stage 5, and nothing is written for it yet:** `nvs-diagnostics` has
+`SourceFile::line_col`, which counts `char`s, and neither `utf16_col` nor `offset_of`. That is the next
+group below, and it is one file.
 
-**Stage 0 is empty and stays empty**, unchanged: the four M4 language holes are closed and `bool as
-int` is `E0708` under `rule:types/conversion`, not a hole.
+**One residue, deliberate and unchanged:** `ExprKind::ClassConstAccess` carries a bare `Span` for its name,
+so `Foo::` at the caret still carries a name nobody wrote. The `::` path routes `Missing` into the same arm
+`Ident` takes rather than reporting an invented second diagnostic; the comment at that site says so, and
+the Backlog carries the fix.
+
+**Stage 0 is empty and stays empty**, unchanged: the four M4 language holes are closed and `bool as int` is
+`E0708` under `rule:types/conversion`, not a hole.
 
 ## Next group
 
-**The truncation fuzz target** — one new file plus two registrations, all of them outside `crates/`,
-which is why this session stopped rather than taking it: `fuzz/fuzz_targets/prefix.rs` modelled on
-`fuzz/fuzz_targets/parse.rs`, its `[[bin]]` beside the one at `fuzz/Cargo.toml:30`, and the matrix at
-`.github/workflows/ci.yml:414`. The three slices share that file set.
+**Stage 5's position arithmetic**, all of it in one file — `crates/nvs-diagnostics/src/source.rs`, the
+functions beside `line_col` and the four tests in its own `mod tests`. `rule:ide/positions-have-one-home`
+is the whole specification and says what each answer must be; the four test names the check demands are in
+`docs/agent/loop-goal.toml`'s stage 5 block.
 
-- [ ] **A `prefix` fuzz target that truncates its own input** — take the arbitrary bytes as a Novis
-      source, cut it at a byte the input itself chooses, and parse both halves through
-      `crates/nvs-syntax/src/parser/mod.rs:771`, asserting nothing beyond "it returned".
-      `rule:ide/the-tree-survives-a-syntax-error`; M4B's acceptance paragraph names the five minutes.
-- [ ] **Register it as a bin and in the smoke matrix** — a `[[bin]]` beside `fuzz/Cargo.toml:30`, and
-      `prefix` added to `target: [lex, parse]` at `.github/workflows/ci.yml:414`. Note while there
-      whether `uri` belongs in that matrix too; it is a target no job runs.
-- [ ] **A seed corpus under `fuzz/corpus/prefix/`** — a handful of `examples/*.nvs` bodies, so the
-      five minutes start from real Novis rather than from random bytes — `examples/db.nvs:1` is the
-      largest and the first worth seeding. The cache step that restores the corpus across runs is
-      `.github/workflows/ci.yml:429` and needs no edit.
+- [ ] **`utf16_col` counts code units, not characters** — beside `line_col` at
+      `crates/nvs-diagnostics/src/source.rs:95`, with `utf16_col_counts_code_units_not_chars` in the test
+      module at `crates/nvs-diagnostics/src/source.rs:243`. A `ß` is one `char`, one UTF-16 code unit and
+      two bytes; an emoji is one `char`, *two* UTF-16 code units and four bytes, which is the case that
+      separates this from `line_col`. `rule:ide/positions-have-one-home`.
+- [ ] **`offset_of(line, col, encoding)` inverts it** — the same anchor,
+      `crates/nvs-diagnostics/src/source.rs:95`, taking the encoding the rule says is negotiated rather
+      than assuming one. `offset_of_inverts_line_col_on_a_multibyte_line` and
+      `an_offset_past_the_last_line_is_clamped_rather_than_panicking` go at
+      `crates/nvs-diagnostics/src/source.rs:243`: a position the client invents past the end is clamped to
+      the last offset, because a server that panics on a stale position is a server that dies mid-edit.
+      `rule:ide/positions-have-one-home`.
+- [ ] **The round trip, and the two documents that break naive arithmetic** —
+      `a_position_round_trips_through_utf16_and_utf8` at `crates/nvs-diagnostics/src/source.rs:243`, plus
+      the rule's second paragraph on the same anchors: a leading BOM is skipped *and counted*, and CRLF is
+      preserved exactly, so a CRLF document's columns match an LF one's. `rule:ide/positions-have-one-home`.
 
 ## Backlog
 
-- `ExprKind::ClassConstAccess` should carry a `MemberName`, so `Foo::` reports one diagnostic and no
-  invented name — `rule:ide/recovery-is-explicit`, `crates/nvs-syntax/src/ast.rs`.
-- `fuzz/fuzz_targets/uri.rs` is a target the `fuzz-smoke` matrix never runs — `.github/workflows/ci.yml:414`.
-- Stage 5 onward of goal 12 is untouched; `docs/agent/loop-goal.toml` is the roster.
+- `ExprKind::ClassConstAccess` should carry a `MemberName`, not a bare `Span` — `rule:ide/recovery-is-explicit`.
+- The `.lspt` runner and `nvs lsp-test` — ADR 0099 § 5, and off this goal's path by its own standing decisions.
+- `nvs ast --json`'s frozen schema — `rule:ide/ast-json-schema-is-frozen`, named by M4B and not started.
+- The latency guard on a 1,000-line re-analysis — `rule:ide/a-full-reanalysis-stays-under-a-bound`, goal 14.
+- Seeds for `lex` and `parse` under `fuzz/seeds/<target>/` — the CI step already picks up any target that grows one.

@@ -1191,6 +1191,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   per indentation level, with a leading newline inside `old_string` so a 12-space block cannot match
   inside a 16-space line, and keep `splice.py` for the blocks that really are one of a kind.
   [until: reviewed 2026-09-07]
+- **A seed corpus cannot live under `fuzz/corpus/`: `.gitignore` ignores that whole directory.** It is
+  where the nightly `fuzz-smoke` cache accumulates the corpus between runs, and a file inside an ignored
+  *directory* cannot be brought back by a negation pattern. Put seeds in `fuzz/seeds/<target>/` and let the
+  CI step before the run copy them in — it does that for any target that has one.
+  [until: gone .gitignore:/fuzz/corpus]
 
 ## Running things
 
