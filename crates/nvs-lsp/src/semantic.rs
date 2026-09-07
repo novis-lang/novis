@@ -53,6 +53,31 @@
 //!   stage by stage (`crate::capabilities`), so an unemitted type is expected
 //!   rather than a gap.
 //!
+//! # Decision: a modifier is a resolution, so the checker's table answers it
+//!
+//! [`Modifier::DefaultLibrary`] marks a `Core` class, and unlike everything
+//! above it is not a fact the tree holds: `Core\Str` and a user class called
+//! `Core\Str` are the same three tokens, and only resolution tells them apart.
+//! So the modifier is read off the checker's own `nvs_types::ExprTypeTable`
+//! through the [`target_of`] [`crate::hover`] answers a `Core` row with — the standing
+//! rule of [`crate::definition`] applied to a modifier rather than to a name.
+//!
+//! The lookup is keyed by the **enclosing expression's** span, because that is
+//! what the table records: a receiver in `Core\Str::upper()` is not an entry of
+//! its own, the call around it is. A class the checker did not resolve carries
+//! no modifier, which is the same silence a document that does not compile gets
+//! everywhere else here.
+//!
+//! [`Modifier::Tainted`] and [`Modifier::Secret`] are the pair this layer is
+//! built for at all — `rule:security/tainted-qualifier` and
+//! `rule:security/secret-qualifier` make a qualifier travel with a value, and
+//! an editor showing it at **every use site** is the cheapest teaching surface
+//! the language has. So the question is asked in [`Named::push`], once, for
+//! every [`Kind::Variable`] token however the walk reached it; a parameter is
+//! the one binding written outside any body's scope, so [`Named::param`] reads
+//! its written annotation instead. Both answers come from
+//! `nvs_types::expr::quals`, which is where the checker asks them.
+//!
 //! # Decision: the walk is this crate's, and a new production emits nothing
 //!
 //! `nvs_syntax::walk` is the one exhaustive match over the grammar, and it
@@ -70,23 +95,29 @@
 //!
 //! # What it spends
 //!
-//! One `(Span, Kind)` pair per name while the walk runs, then one
+//! One `(Span, Kind, u32)` triple per name while the walk runs, then one
 //! `SemanticToken` per name that survives encoding — both O(names in the entry
-//! document), allocated per request and dropped with the answer. Nothing is
+//! document), allocated per request and dropped with the answer. A qualifier
+//! lookup walks the local scopes covering the name, so a variable costs
+//! O(bodies enclosing it) on top. Nothing is
 //! cached: a re-analysis rebuilds the tree this reads
 //! (`rule:ide/a-full-reanalysis-stays-under-a-bound`).
 
-use lsp_types::{SemanticToken, SemanticTokenType};
+use lsp_types::{SemanticToken, SemanticTokenModifier, SemanticTokenType};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
+use nvs_stdlib::registry;
 use nvs_syntax::ast::{
     Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement, DestructureTarget, Expr,
     ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param, PropertyHook,
-    PropertyHookBody, Stmt, StmtKind, StringPart,
+    PropertyHookBody, Stmt, StmtKind, StringPart, Type,
 };
+use nvs_types::TypeId;
+use nvs_types::expr::quals::{is_secret, is_tainted};
 
-use crate::TOKEN_TYPES;
+use crate::definition::{Target, target_of};
 use crate::document::Analysed;
 use crate::position::range_at;
+use crate::{TOKEN_MODIFIERS, TOKEN_TYPES};
 
 /// The token types this walk can answer, out of the legend's eleven.
 ///
@@ -146,6 +177,50 @@ impl Kind {
     }
 }
 
+/// The three token modifiers, which is the whole legend.
+///
+/// A variant carries no bit of its own for [`Kind`]'s reason: [`Modifier::bit`]
+/// finds its spelling in [`crate::TOKEN_MODIFIERS`], so the wire order is
+/// written once, beside the legend the client registers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Modifier {
+    /// A `Core` class, so the standard library is visibly not user code.
+    DefaultLibrary,
+    /// A value `rule:security/tainted-qualifier` marks as having come from
+    /// outside the program.
+    Tainted,
+    /// A value `rule:security/secret-qualifier` marks as not for the screen,
+    /// the log or the wire.
+    Secret,
+}
+
+impl Modifier {
+    /// LSP's own name for this modifier, or Novis's own where LSP has none.
+    fn spelling(self) -> SemanticTokenModifier {
+        match self {
+            Self::DefaultLibrary => SemanticTokenModifier::DEFAULT_LIBRARY,
+            Self::Tainted => SemanticTokenModifier::new("tainted"),
+            Self::Secret => SemanticTokenModifier::new("secret"),
+        }
+    }
+
+    /// The bit this modifier sets in a token's bitset.
+    ///
+    /// Zero for a modifier the legend does not name, which sets nothing rather
+    /// than setting some other modifier's bit — [`Kind::index`]'s answer to the
+    /// same question, and the test at the foot of this file is what says the
+    /// case cannot arise.
+    fn bit(self) -> u32 {
+        let spelling = self.spelling();
+        TOKEN_MODIFIERS
+            .iter()
+            .position(|named| *named == spelling)
+            .and_then(|at| u32::try_from(at).ok())
+            .and_then(|at| 1_u32.checked_shl(at))
+            .unwrap_or(0)
+    }
+}
+
 /// Every name in one analysed document, in the wire's delta encoding.
 ///
 /// `keep` narrows the answer to the token types it names, and an empty one is
@@ -175,19 +250,25 @@ pub fn for_document(
     of_stmts(
         &loaded.stmts,
         analysed.map.file(analysed.entry),
+        Some(analysed),
         encoding,
         keep,
     )
 }
 
-/// The tokens `stmts` names, encoded against `file`.
+/// The tokens `stmts` names, encoded against `file`, with `analysed` answering
+/// the three modifiers — which class is `Core`'s, and what each value carries.
 fn of_stmts(
     stmts: &[Stmt],
     file: &SourceFile,
+    analysed: Option<&Analysed>,
     encoding: PositionEncoding,
     keep: &[String],
 ) -> Vec<SemanticToken> {
-    let mut named = Named::default();
+    let mut named = Named {
+        tokens: Vec::new(),
+        analysed,
+    };
     named.stmts(stmts);
     encode(named.tokens, file, encoding, keep)
 }
@@ -203,15 +284,15 @@ fn of_stmts(
 /// way to spell one, and a name never spans a line break, so this is a
 /// structural impossibility being refused rather than a case being handled.
 fn encode(
-    mut tokens: Vec<(Span, Kind)>,
+    mut tokens: Vec<(Span, Kind, u32)>,
     file: &SourceFile,
     encoding: PositionEncoding,
     keep: &[String],
 ) -> Vec<SemanticToken> {
-    tokens.sort_by_key(|(span, kind)| (span.start, span.end, *kind));
+    tokens.sort_by_key(|(span, kind, _)| (span.start, span.end, *kind));
     let mut out = Vec::with_capacity(tokens.len());
     let (mut line, mut character) = (0_u32, 0_u32);
-    for (span, kind) in tokens {
+    for (span, kind, modifiers) in tokens {
         if !keep.is_empty() && !keep.iter().any(|named| named == kind.spelling().as_str()) {
             continue;
         }
@@ -233,7 +314,7 @@ fn encode(
             },
             length,
             token_type,
-            token_modifiers_bitset: 0,
+            token_modifiers_bitset: modifiers,
         });
         line = range.start.line;
         character = range.start.character;
@@ -241,28 +322,137 @@ fn encode(
     out
 }
 
-/// The names one walk has reached, with what the tree said each one is.
-#[derive(Default)]
-struct Named {
-    /// In the order the walk found them, which is not source order.
-    tokens: Vec<(Span, Kind)>,
+/// The names one walk has reached, with what the tree said each one is and
+/// what the checker said about it.
+struct Named<'a> {
+    /// In the order the walk found them, which is not source order. The third
+    /// field is the modifier bitset, which [`Modifier::bit`] builds.
+    tokens: Vec<(Span, Kind, u32)>,
+    /// What the checker resolved about this document, where one ran.
+    ///
+    /// The one thing this walk asks rather than reads off the tree, and the
+    /// module doc above says why a modifier is the only question that needs
+    /// asking. `None` is a walk over a parse alone: every *kind* is still
+    /// answered and no modifier is, which is what this file's own tests read
+    /// and what the `.lspt` corpus is the other half of.
+    analysed: Option<&'a Analysed>,
 }
 
-impl Named {
-    /// Records one name, unless it covers no source bytes.
+impl Named<'_> {
+    /// Records one name, with the qualifiers a variable's value carries.
+    ///
+    /// The qualifier question is asked here rather than at each of the eight
+    /// places a variable is recorded, because
+    /// `rule:ide/semantic-tokens-carry-the-qualifiers` is a claim about **every
+    /// use site** — a `foreach` binding, a caught exception and a destructured
+    /// leaf included — and one of those places forgetting to ask is exactly the
+    /// failure the rule exists to prevent.
+    fn push(&mut self, span: Span, kind: Kind) {
+        let modifiers = if kind == Kind::Variable {
+            self.qualifiers_at(span)
+        } else {
+            0
+        };
+        self.push_with(span, kind, modifiers);
+    }
+
+    /// Records one name and its modifiers, unless it covers no source bytes.
     ///
     /// An empty span is `rule:ide/recovery-is-explicit`'s insertion point — a
     /// `MemberName::Missing` after a trailing `->`, a declaration whose name
     /// has not been typed yet — and there is nothing on screen to colour.
-    fn push(&mut self, span: Span, kind: Kind) {
+    fn push_with(&mut self, span: Span, kind: Kind, modifiers: u32) {
         if span.start < span.end {
-            self.tokens.push((span, kind));
+            self.tokens.push((span, kind, modifiers));
         }
     }
 
     /// Records a qualified name's whole span.
     fn name(&mut self, name: &Name, kind: Kind) {
         self.push(name.span, kind);
+    }
+
+    /// The same, for a name a resolution had something to say about.
+    fn name_with(&mut self, name: &Name, kind: Kind, modifiers: u32) {
+        self.push_with(name.span, kind, modifiers);
+    }
+
+    /// [`Modifier::DefaultLibrary`] if the checker resolved the expression at
+    /// `span` to a `Core` class, and no modifier at all otherwise.
+    ///
+    /// `span` is the *enclosing expression's*: the table is keyed by the call
+    /// or the `new` that resolved, and a receiver is never an entry of its own.
+    /// A `Target::Method` is asked about its declaring class rather than about
+    /// the receiver written, which is the same name for a `Core` member —
+    /// `rule:core-api/shape-rules` R20 gives one exactly one way to reach it.
+    fn library_at(&self, span: Span) -> u32 {
+        let Some(target) = self
+            .analysed
+            .and_then(|analysed| analysed.exprs.lookup(span))
+            .and_then(target_of)
+        else {
+            return 0;
+        };
+        let class = match &target {
+            Target::Type(class) | Target::Property { class, .. } => *class,
+            Target::Method(call) => &call.class,
+        };
+        if registry::class(&class.to_string()).is_some() {
+            Modifier::DefaultLibrary.bit()
+        } else {
+            0
+        }
+    }
+
+    /// The qualifiers the binding written at `span` was declared with.
+    ///
+    /// A plain variable read records no entry of its own, so the answer is the
+    /// *binding's* declared type, which [`Analysed::local_ty`] is the one home
+    /// of. That is the right answer at a use site rather than an approximation
+    /// of one: neither qualifier is ever narrowed away, so a name declared
+    /// `tainted string` is tainted everywhere it is written.
+    fn qualifiers_at(&self, span: Span) -> u32 {
+        let Some(analysed) = self.analysed else {
+            return 0;
+        };
+        analysed
+            .local_ty(span, span.start)
+            .map_or(0, |ty| self.qualifiers_of(ty))
+    }
+
+    /// The same, off a written annotation — a parameter's, which is a binding
+    /// no body's local scope covers because the name is written outside it.
+    fn qualifiers_declared(&self, ty: Option<&Type>) -> u32 {
+        let Some((analysed, ty)) = self.analysed.zip(ty) else {
+            return 0;
+        };
+        analysed
+            .exprs
+            .declared_ty(ty.span)
+            .map_or(0, |ty| self.qualifiers_of(ty))
+    }
+
+    /// The modifier bits `ty` sets.
+    ///
+    /// The two questions are asked of `nvs_types::expr::quals`, which is where
+    /// the checker asks them, so an editor and a compile never disagree about
+    /// what a value carries. They are independent bits and a type may set both
+    /// (`secret tainted string`), which is why this ORs rather than matching.
+    ///
+    /// One atom, so a union — `?tainted string` — sets nothing. Widening that
+    /// is a change to what the *checker* calls carried, not to this walk.
+    fn qualifiers_of(&self, ty: TypeId) -> u32 {
+        let Some(analysed) = self.analysed else {
+            return 0;
+        };
+        let mut bits = 0;
+        if is_tainted(ty, &analysed.interner) {
+            bits |= Modifier::Tainted.bit();
+        }
+        if is_secret(ty, &analysed.interner) {
+            bits |= Modifier::Secret.bit();
+        }
+        bits
     }
 
     /// Records a name a production may have omitted.
@@ -486,7 +676,8 @@ impl Named {
     /// the reader is looking at, and what they are looking at is a parameter
     /// list.
     fn param(&mut self, param: &Param) {
-        self.push(param.name, Kind::Parameter);
+        let quals = self.qualifiers_declared(param.ty.as_ref());
+        self.push_with(param.name, Kind::Parameter, quals);
         self.opt_expr(param.default.as_ref());
     }
 
@@ -588,7 +779,8 @@ impl Named {
                 args,
                 ..
             } => {
-                self.receiver(class);
+                let library = self.library_at(expr.span);
+                self.receiver(class, library);
                 self.member(method, Kind::Method);
                 self.args(args);
             }
@@ -599,7 +791,8 @@ impl Named {
                 self.member(property, Kind::Property);
             }
             ExprKind::StaticPropertyAccess { class, name } => {
-                self.receiver(class);
+                let library = self.library_at(expr.span);
+                self.receiver(class, library);
                 self.push(*name, Kind::Property);
             }
             // Both halves silent: the module doc above says why a class
@@ -612,7 +805,8 @@ impl Named {
                 self.opt_expr(index.as_deref());
             }
             ExprKind::New { target, args, .. } => {
-                self.new_target(target);
+                let library = self.library_at(expr.span);
+                self.new_target(target, library);
                 self.args(args);
             }
             ExprKind::Match { subject, arms } => {
@@ -664,17 +858,17 @@ impl Named {
     /// gives an enum neither static methods nor properties, and an interface
     /// declares no body to reach through one. Anything else — `self`, a
     /// variable holding a class reference — is walked as the expression it is.
-    fn receiver(&mut self, class: &Expr) {
+    fn receiver(&mut self, class: &Expr, modifiers: u32) {
         match &class.kind {
-            ExprKind::ConstFetch(name) => self.name(name, Kind::Class),
+            ExprKind::ConstFetch(name) => self.name_with(name, Kind::Class, modifiers),
             _ => self.expr(class),
         }
     }
 
     /// What `new` was written against.
-    fn new_target(&mut self, target: &NewTarget) {
+    fn new_target(&mut self, target: &NewTarget, modifiers: u32) {
         match target {
-            NewTarget::Name(name) => self.name(name, Kind::Class),
+            NewTarget::Name(name) => self.name_with(name, Kind::Class, modifiers),
             NewTarget::Expr(expr) => self.expr(expr),
             NewTarget::AnonClass(decl) => {
                 self.opt_name(decl.extends.as_ref(), Kind::Class);
@@ -744,6 +938,13 @@ mod tests {
         Kind::Variable,
     ];
 
+    /// Every modifier in it, read the same way and for the same reason.
+    const EVERY_MODIFIER: [Modifier; 3] = [
+        Modifier::DefaultLibrary,
+        Modifier::Tainted,
+        Modifier::Secret,
+    ];
+
     /// The tokens of `source`, rendered as a `.lspt` case freezes them.
     fn coloured(source: &str) -> String {
         narrowed(source, &[])
@@ -755,7 +956,10 @@ mod tests {
         let id = map.add("case.nvs", source);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
-        let tokens = of_stmts(&stmts, map.file(id), PositionEncoding::Utf8, keep);
+        // No checker runs here, so every token carries an empty modifier set:
+        // all three modifiers are frozen in `tests/lsp/semantic/`, where a case
+        // is analysed rather than only parsed.
+        let tokens = of_stmts(&stmts, map.file(id), None, PositionEncoding::Utf8, keep);
         Response::SemanticTokens(tokens).render()
     }
 
@@ -770,6 +974,19 @@ mod tests {
                 kind.index().is_some(),
                 "`{:?}` is not in the declared legend",
                 kind
+            );
+        }
+    }
+
+    /// The same claim for the other half of the legend: a modifier this walk
+    /// sets has to be one the client registered, or it would arrive as another
+    /// modifier or as none.
+    #[test]
+    fn every_modifier_this_walk_emits_is_in_the_declared_legend() {
+        for modifier in EVERY_MODIFIER {
+            assert!(
+                modifier.bit() != 0,
+                "`{modifier:?}` is not in the declared legend"
             );
         }
     }

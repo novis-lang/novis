@@ -360,7 +360,8 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 /// The variables the body the cursor is in declared, with the type each was
 /// declared at.
 fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
-    bodies_at(analysed, offset)
+    analysed
+        .bodies_at(offset)
         .into_iter()
         .next()
         .unwrap_or_default()
@@ -373,25 +374,6 @@ fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
             )
         })
         .collect()
-}
-
-/// Every body whose span covers `offset` in the entry document, innermost
-/// first.
-///
-/// A closure's body is inside the body that wrote it and shares none of its
-/// bindings, and a method's is inside the file's own script frame on the same
-/// terms — so which of them a reader takes is its own question, and this
-/// orders them rather than answering it.
-fn bodies_at(analysed: &Analysed, offset: BytePos) -> Vec<&[nvs_types::LocalBinding]> {
-    let mut bodies: Vec<(Span, &[nvs_types::LocalBinding])> = analysed
-        .exprs
-        .local_scopes()
-        .filter(|(body, _)| {
-            body.file == analysed.entry && body.start <= offset && offset < body.end
-        })
-        .collect();
-    bodies.sort_by_key(|(body, _)| body.end - body.start);
-    bodies.into_iter().map(|(_, locals)| locals).collect()
 }
 
 /// The class the value at `span` holds.
@@ -502,7 +484,7 @@ fn receiver_ty(analysed: &Analysed, span: Span, offset: BytePos) -> Option<TypeI
     if let Some(ty) = analysed.exprs.lookup(span).and_then(recorded_ty) {
         return Some(ty);
     }
-    local_ty(analysed, span, offset)
+    analysed.local_ty(span, offset)
 }
 
 /// The type one recorded expression answers with.
@@ -521,21 +503,6 @@ fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
         ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => call.return_ty,
         _ => return None,
     })
-}
-
-/// The type the binding named at `span` was declared with.
-///
-/// Innermost body first, and the first one that declares the name wins: a
-/// closure's body is inside the body that wrote it and shares none of its
-/// bindings, so the enclosing body's entry is the right answer for a name the
-/// closure captured and the wrong one for a name it declared itself.
-fn local_ty(analysed: &Analysed, span: Span, offset: BytePos) -> Option<TypeId> {
-    let text = analysed.map.file(analysed.entry).text();
-    let name = text.get(span.range())?.strip_prefix('$')?;
-    bodies_at(analysed, offset)
-        .into_iter()
-        .find_map(|locals| locals.iter().find(|local| local.name == name))
-        .map(|local| local.ty)
 }
 
 /// Every member a user-declared type writes that `reach` reaches, as it wrote

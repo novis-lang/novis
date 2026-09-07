@@ -44,10 +44,10 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use lsp_types::Uri;
-use nvs_diagnostics::{Diagnostics, SourceId, SourceMap, canonical_key};
+use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
 use nvs_hir::{Loaded, Module, resolve_program};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
-use nvs_types::{ExprTypeTable, TypeInterner};
+use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
 /// One open buffer: what the editor holds, which is not what is on disk.
 #[derive(Debug, Clone)]
@@ -317,6 +317,46 @@ impl Analysed {
         self.loaded
             .iter()
             .filter_map(|file| self.map.file(file.id).path().map(Path::to_path_buf))
+    }
+
+    /// Every body whose span covers `offset` in the entry document, innermost
+    /// first.
+    ///
+    /// A closure's body is inside the body that wrote it and shares none of its
+    /// bindings, and a method's is inside the file's own script frame on the
+    /// same terms — so which of them a reader takes is its own question, and
+    /// this orders them rather than answering it.
+    pub(crate) fn bodies_at(&self, offset: BytePos) -> Vec<&[LocalBinding]> {
+        let mut bodies: Vec<(Span, &[LocalBinding])> = self
+            .exprs
+            .local_scopes()
+            .filter(|(body, _)| {
+                body.file == self.entry && body.start <= offset && offset < body.end
+            })
+            .collect();
+        bodies.sort_by_key(|(body, _)| body.end - body.start);
+        bodies.into_iter().map(|(_, locals)| locals).collect()
+    }
+
+    /// The type the binding named at `span` was declared with, `offset` being
+    /// the position whose bodies are in scope.
+    ///
+    /// Innermost body first, and the first one that declares the name wins: a
+    /// closure's body is inside the body that wrote it and shares none of its
+    /// bindings, so the enclosing body's entry is the right answer for a name
+    /// the closure captured and the wrong one for a name it declared itself.
+    ///
+    /// It lives here rather than beside either caller because two features now
+    /// ask it: [`crate::completion`] resolves the members off `$u->`, and
+    /// [`crate::semantic`] reads a qualifier off every use of a name. A local's
+    /// declared type is a fact about [`Analysed`], so this is its one home.
+    pub(crate) fn local_ty(&self, span: Span, offset: BytePos) -> Option<TypeId> {
+        let text = self.map.file(self.entry).text();
+        let name = text.get(span.range())?.strip_prefix('$')?;
+        self.bodies_at(offset)
+            .into_iter()
+            .find_map(|locals| locals.iter().find(|local| local.name == name))
+            .map(|local| local.ty)
     }
 }
 

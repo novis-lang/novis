@@ -2,55 +2,56 @@
 
 ## State
 
-**Goal 14, stage 7's producer landed: `textDocument/semanticTokens/full` answers**, in the `.lspt`
-suite and in the server both. `crates/nvs-lsp/src/semantic.rs` is the walk;
-`crates/nvs-lsp/src/capabilities.rs:110`'s legend is unchanged and read only.
+**Goal 14, stage 7 is whole bar its last item: a semantic token now carries all three
+modifiers.** `crates/nvs-lsp/src/semantic.rs`'s `Modifier` is the legend's three, each finding its own
+bit in `crates/nvs-lsp/src/capabilities.rs:66` the way `Kind` finds its type index, so the wire order
+is written once.
 
-**The walk emits a token only where the tree itself answers what a name is** — a declaration, a
-position only one kind may stand in (`extends`, `implements`, `new C()`, the receiver of `C::m()`),
-and a member access. Nothing here resolves a written name, which is `crates/nvs-lsp/src/definition.rs`'s
-standing rule. The silences that follow from it are each argued in the module doc: a type
-annotation, a class constant or enum-case access, `instanceof`'s right-hand side, an attribute, a
-`use` target, and `typeParameter`, which no production declares.
+**Every modifier is a resolution, never a reading of the written name.** `defaultLibrary` comes from
+`crate::definition::target_of` over the *enclosing* expression's entry — a receiver is never an entry
+of its own — and `tainted`/`secret` from `nvs_types::expr::quals::is_tainted`/`is_secret`, which are
+now `pub` so the editor and the checker cannot disagree about what a value carries.
 
-**Every token's modifier bitset is 0** — `defaultLibrary`, `tainted` and `secret` are the next item,
-and no `.lspt` case freezes a modifier yet, so adding them appends to expectations rather than
-rewriting them.
+**The qualifier question is asked in one place**, `crates/nvs-lsp/src/semantic.rs:348`'s `push`, for
+every `Kind::Variable` token however the walk reached it — that is what makes "at every use site" a
+property of the code rather than of eight call sites remembering. A parameter is the one binding no
+body's scope covers, so `param` reads its written annotation through
+`nvs_types::ExprTypeTable::declared_ty` instead.
 
-`nvs lsp-test tests/lsp/` reports `65 passed, 0 failed`, against the goal's floor of 160;
-`verify.py` is green. `semanticTokens types=` narrows the answer **before** it is encoded
-(`crates/nvs-lsp/src/semantic.rs:205`), because the wire's deltas are relative and a filter applied
-after would move every token following a dropped one.
+`Analysed::local_ty` and `Analysed::bodies_at` moved to `crates/nvs-lsp/src/document.rs:353`, since
+completion and semantic tokens both ask them now. `nvs lsp-test tests/lsp/` reports `68 passed,
+0 failed` against the goal's floor of 160; `verify.py` is green.
 
 ## Next group
 
-**Stage 7: the two modifiers this layer exists for, and the silence a rejection owes** — one file
-set: `crates/nvs-lsp/src/semantic.rs`, with `crates/nvs-lsp/src/capabilities.rs` and
-`crates/nvs-lsp/src/document.rs` read, and new cases under `tests/lsp/semantic/`.
+**Stage 7's tail, then the qualifier reach it exposed** — one file set:
+`crates/nvs-lsp/src/semantic.rs`, with `crates/nvs-lsp/src/document.rs` read, and new cases under
+`tests/lsp/semantic/`.
 
-- [ ] **`defaultLibrary` on a `Core` class** — `rule:ide/semantic-tokens-carry-the-qualifiers`,
-      ADR 0099 §4. `crates/nvs-lsp/src/capabilities.rs:66`'s `TOKEN_MODIFIERS` is the wire order and
-      is read only; `crates/nvs-lsp/src/semantic.rs:667`'s `receiver` is where `Core\Str::upper()`
-      already earns a `class` token, and `crates/nvs-lsp/src/definition.rs:288`'s `target_of` is how
-      this crate reads the checker's own resolution off `crates/nvs-lsp/src/document.rs:291` rather
-      than resolving a name a second time.
-- [ ] **`tainted` and `secret` at every use site** — `rule:security/tainted-qualifier`,
-      `rule:security/secret-qualifier`. The qualifier is a *type*, so the answer is
-      `crates/nvs-lsp/src/document.rs:291`'s `exprs` keyed by expression span and
-      `crates/nvs-lsp/src/document.rs:298`'s interner beside it; `crates/nvs-lsp/src/semantic.rs:246`'s
-      `Named` collects `(Span, Kind)` pairs today and is what grows a modifier field.
-- [ ] **A rejected construct gets no colour** — `rule:ide/rejected-syntax-gets-no-colour`.
-      `crates/nvs-lsp/src/semantic.rs:422` already refuses to dress a top-level `function` as a
-      method; the remaining question is `$u->if(...)`, which the parser accepts as a member name and
-      this walk therefore colours `method` — decide there whether the walk narrows or the parser does.
+- [ ] **A rejected construct gets no colour** — `rule:ide/rejected-syntax-gets-no-colour`, ADR 0099
+      §4. `crates/nvs-lsp/src/semantic.rs:714`'s `expr` ends in a wildcard that already emits nothing
+      for a production it does not name, so this slice is a `.lspt` case per refused construct
+      proving it — `===`, `(int)$x`, `|>`, `if (...): … endif;` — beside
+      `tests/lsp/semantic/a-refused-free-function-is-not-dressed-as-a-method.lspt`, which is the one
+      that exists. Check the wildcard actually reaches each: a construct the *parser* recovers into
+      some other node would be coloured as that node.
+- [ ] **A `foreach` binding over a qualified element carries nothing** —
+      `rule:security/tainted-qualifier`. `foreach ([$body] as $chunk)` colours `$chunk` bare while
+      `$body` is `tainted`, which is the direction the rule cannot afford:
+      `crates/nvs-lsp/src/semantic.rs:412`'s `qualifiers_at` asks
+      `crates/nvs-lsp/src/document.rs:353`'s `local_ty`, so the question is whether a `foreach`
+      binding is in `nvs_types`' `LocalScope` at all, or is there with the array's own type.
+- [ ] **A property access carries its qualifier too** — same rule.
+      `crates/nvs-lsp/src/semantic.rs:412` handles a variable and nothing else, so `$this->token`
+      declared `secret string` colours bare. The type is on the access's own entry
+      (`nvs_types::ExprInfo::Property`), which `crates/nvs-lsp/src/hover.rs:130` already reads.
 
 ## Backlog
 
-- A type annotation's name is uncoloured; closing it needs `nvs_hir::hierarchy::resolve_ref` at
-  `crates/nvs-hir/src/hierarchy.rs:335` plus the site's namespace and imports — `crates/nvs-lsp/src/semantic.rs`'s module doc.
-- `Config::MAX` and `Status::Draft` are one production and both silent; `ExprInfo::EnumCase` is what
-  tells them apart — same module doc.
-- `tests/lsp/semantic/` is the directory name, not the `semantic-tokens/` the previous handoff
-  guessed, so it matches its sibling `symbols/` and `folding/` — `tests/lsp/README.md`.
-- Stage 8's `nvs/redactions` has no producer yet; its three named tests are the acceptance check
-  that has been failing since the goal opened — `docs/agent/loop-goal.toml:5274`.
+- `qualifiers_of` reads one atom, so `?tainted string` (a union) sets no bit — widening it is a
+  question for `nvs_types::expr::quals`, which has `carries_tainted` and no `carries_secret`.
+- `typeParameter` is in the legend and emitted nowhere; no production declares one — `semantic.rs`'s
+  module doc owns why.
+- The client half of the legend and the `semanticTokenScopes` mapping are goal 15's —
+  `rule:ide/novis-ships-names-not-colours`.
+- `nvs lsp-test` is at 68 of the goal's floor of 160 cases; `python tools/gaps.py` ranks what is thin.

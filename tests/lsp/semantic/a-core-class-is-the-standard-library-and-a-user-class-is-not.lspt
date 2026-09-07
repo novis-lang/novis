@@ -1,0 +1,16 @@
+--TEST--
+a `Core` class carries `defaultLibrary` and the class declared beside it carries nothing, which no regex can tell apart — the two names are the same three tokens and only the checker's resolution separates them, `rule:ide/semantic-tokens-carry-the-qualifiers`
+--FILE--
+<?nvs
+class Cart {}
+var $cart = new Cart();
+var $size = Core\Str::length("cart");
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+4 class
+3:5+5 variable
+3:17+4 class
+4:5+5 variable
+4:13+8 class defaultLibrary
+4:23+6 method
