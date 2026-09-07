@@ -61,7 +61,9 @@ bullets standing on 2026-09-06 and deleted the ones already expired in the same 
 A term is a path (`crates/nvs-ir/src/lower/expr.rs`), a crate (`nvs-ir`), a tool (`peek.py`) or a
 plain word. A path is expanded to the things a bullet would actually spell -- the posix path, the
 file name, the stem, the crate in both `nvs-ir` and `nvs_ir` spellings -- so naming the handoff's
-own file set is enough.
+own file set is enough. Those spellings are not equal: the ones that *name* the term rank, and the
+ones derived by stripping an extension off it only break ties, because `server.rs` stripped is an
+ordinary English word. `spellings` holds that split and `score` applies it.
 
 **This script never appends to the playbook.** Appending a bullet has one home already, and it is
 `session.py`'s `## playbook: <heading>` section, which keeps the whole session tail at one call.
@@ -549,24 +551,48 @@ def run_retire(dry: bool) -> int:
 GENERIC = {"src", "lib", "mod", "main", "crates", "tests", "docs", "tools", "benches", "rs", "md"}
 
 
-def expand(term: str) -> set[str]:
-    """One query term -> every spelling a bullet might use for it."""
+def spellings(term: str) -> tuple[set[str], set[str]]:
+    """One query term -> the `(strong, weak)` spellings a bullet might use for it.
+
+    A **strong** spelling names the term itself: the path as written, its basename *with* the
+    extension, and the crate directory it sits in. A **weak** one is derived by stripping something
+    off, and stripping is what turns a path into an ordinary English word --
+    `crates/nvs-lsp/src/server.rs` yields `server`, which appears in bullets about `nvs-server`,
+    about `nvs-db`'s wire and about the loop driver, none of which is the LSP server. Measured on
+    goal 14's stage-4 item, that stem promoted nine bullets to full text and **not one of them**
+    matched `nvs-lsp`: 4,992 bytes of every session's pack, spent on the wrong crate.
+
+    A term with no `/` is a word the caller typed rather than one this derived, so all of its
+    spellings are strong -- `--match hover` must still find the bullets about hover, and there is
+    nothing else for it to match on.
+
+    `score` is where the two are told apart; this only says which is which.
+    """
     t = term.strip().replace("\\", "/").lower()
-    out = {t}
-    if "/" in t:
-        parts = [p for p in t.split("/") if p]
-        out.add(parts[-1])                                   # expr.rs
-        out.add(parts[-1].rsplit(".", 1)[0])                 # expr
-        if len(parts) >= 2 and parts[0] == "crates":
-            out.add(parts[1])                                # nvs-ir
-            out.add(parts[1].replace("-", "_"))              # nvs_ir
-        if len(parts) >= 2:
-            out.add(parts[-2])                               # lower
-    else:
-        out.add(t.replace("-", "_"))
-        out.add(t.replace("_", "-"))
-    # A one- or two-letter fragment matches everything; so does a segment every path has.
-    return {x for x in out if len(x) > 2 and x not in GENERIC}
+    if "/" not in t:
+        strong = {t, t.replace("-", "_"), t.replace("_", "-")}
+        return _usable(strong), set()
+
+    parts = [p for p in t.split("/") if p]
+    strong = {t, parts[-1]}                                  # the path, and expr.rs
+    weak = {parts[-1].rsplit(".", 1)[0]}                     # expr -- also an English word
+    if len(parts) >= 2 and parts[0] == "crates":
+        strong.add(parts[1])                                 # nvs-ir
+        strong.add(parts[1].replace("-", "_"))               # nvs_ir
+    if len(parts) >= 2:
+        weak.add(parts[-2])                                  # lower
+    return _usable(strong), _usable(weak) - _usable(strong)
+
+
+def _usable(names: set[str]) -> set[str]:
+    """A one- or two-letter fragment matches everything; so does a segment every path has."""
+    return {x for x in names if len(x) > 2 and x not in GENERIC}
+
+
+def expand(term: str) -> set[str]:
+    """Every spelling, strong and weak together. `spellings` is what ranking uses."""
+    strong, weak = spellings(term)
+    return strong | weak
 
 
 def toml_str(s: str) -> str:
@@ -583,10 +609,23 @@ def toml_str(s: str) -> str:
 
 
 def score(bullet: dict, terms: list[str]) -> tuple[int, list[str]]:
-    """How many distinct query terms a bullet mentions, and which ones."""
+    """How many distinct query terms a bullet mentions, and which ones.
+
+    **A weak spelling counts only in a bullet some term already matched strongly.** `spellings`
+    says why the distinction exists; this is the rule it buys. A bullet that names the crate or the
+    file scores its stems too, because there the stem is about the same thing; a bullet that has
+    only the stem is using the word in its ordinary sense and scores nothing.
+
+    The alternative -- dropping weak spellings outright -- loses the bullets that name a module by
+    its bare stem (`expr`, `lower`), which is how this file often writes them.
+    """
     hay = (bullet["body"] + " " + bullet["section"]).lower()
-    hit = [t for t in terms if any(v in hay for v in expand(t))]
-    return len(hit), hit
+    strong = [t for t in terms if any(v in hay for v in spellings(t)[0])]
+    if not strong:
+        return 0, []
+    weak = [t for t in terms
+            if t not in strong and any(v in hay for v in spellings(t)[1])]
+    return len(strong) + len(weak), strong + weak
 
 
 def goal_terms() -> list[str]:
