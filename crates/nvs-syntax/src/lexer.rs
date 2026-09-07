@@ -968,6 +968,12 @@ impl<'a> Lexer<'a> {
                 op!(1, TokenKind::Amp)
             }
             '|' => {
+                // `|>` is tried ahead of `|`: a `|` is never followed by `>`
+                // in any expression Novis accepts, and the type grammar's
+                // unions are the only other place the character appears.
+                if self.starts_with("|>") {
+                    op!(2, TokenKind::PipeGreater)
+                }
                 if self.starts_with("||") {
                     op!(2, TokenKind::PipePipe)
                 }

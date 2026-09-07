@@ -1141,3 +1141,182 @@ fn an_error_expression_carries_the_span_it_stood_in_for() {
     assert_eq!(text(&map, id, *span), "");
     assert_eq!(*span, rhs.span);
 }
+
+// --- the pipeline operator (`rule:expressions/pipeline-substitution`) ------------------------------
+// The design's whole claim is that `|>` leaves no trace: what the parser emits
+// is the tree the nested spelling emits, so the tests below compare the two
+// rather than inspecting a node of their own — there is no node of their own to
+// inspect.
+
+/// The expression's `Debug` shape with every span rewritten: to its own text
+/// when `spans_as_text`, and to `_` otherwise.
+///
+/// Two spellings of one tree cannot agree on positions — the substituted left
+/// side keeps the span it had on the *left* of the `|>` — so the structural
+/// comparison is made modulo them, and the text form is what a spot check of a
+/// leaf uses to say *which* value landed in the hole.
+fn rendered(src: &str, spans_as_text: bool) -> String {
+    let full = format!("<?nvs {src}");
+    let mut map = SourceMap::new();
+    let id = map.add("t.nvs", full.clone());
+    let mut diags = Diagnostics::new();
+    let mut p = Parser::new(map.file(id), &mut diags);
+    p.bump(); // OpenTagNvs
+    let e = p.parse_expr();
+    assert!(
+        !diags.has_errors(),
+        "unexpected diagnostics for {src:?}: {diags:?}"
+    );
+
+    // A span renders as `file:start..end`, and every test here parses one
+    // file, so `0:` is where one begins and nothing else can spell it.
+    let debug = format!("{e:?}");
+    let mut out = String::new();
+    let mut rest = debug.as_str();
+    while let Some(cut) = rest.find("0:") {
+        out.push_str(&rest[..cut]);
+        let (start, tail) = leading_number(&rest[cut + 2..]);
+        let tail = tail
+            .strip_prefix("..")
+            .expect("a span renders as `file:start..end`");
+        let (end, tail) = leading_number(tail);
+        if spans_as_text {
+            out.push('`');
+            out.push_str(&full[start..end]);
+            out.push('`');
+        } else {
+            out.push('_');
+        }
+        rest = tail;
+    }
+    out.push_str(rest);
+    out
+}
+
+fn leading_number(s: &str) -> (usize, &str) {
+    let cut = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+    (
+        s[..cut].parse().expect("a span offset is a number"),
+        &s[cut..],
+    )
+}
+
+/// `rule:expressions/pipeline-substitution`, and
+/// `rule:expressions/pipeline-precedence`'s table in the same breath: each row
+/// is a piped spelling and the nesting it must become, and the last four are
+/// exactly the four groupings a looser placement would get wrong.
+#[test]
+fn a_pipeline_produces_the_same_ast_as_the_nested_spelling() {
+    for (piped, nested) in [
+        // The four shapes a right side may take.
+        ("$a |> Str::trim($_)", "Str::trim($a)"),
+        ("$a |> $_[0]", "$a[0]"),
+        ("$a |> $_->name", "$a->name"),
+        ("$n |> ($_ * 2)", "($n * 2)"),
+        // The precedence table: tighter than every binary, looser than unary.
+        ("-$a |> Math::abs($_)", "Math::abs(-$a)"),
+        (r#""x=" . $a |> Str::upper($_)"#, r#""x=" . Str::upper($a)"#),
+        ("$a |> Str::length($_) > 5", "Str::length($a) > 5"),
+        ("$x = $a |> Str::trim($_)", "$x = Str::trim($a)"),
+    ] {
+        assert_eq!(
+            rendered(piped, false),
+            rendered(nested, false),
+            "{piped} must parse as {nested}"
+        );
+    }
+
+    // Modulo positions is not modulo *values*: the left side, and not some
+    // other variable, is what the hole became.
+    assert!(
+        rendered("$a |> Str::trim($_)", true).contains("Variable(`$a`)"),
+        "the left side is what landed in the hole: {}",
+        rendered("$a |> Str::trim($_)", true)
+    );
+}
+
+#[test]
+fn a_pipeline_chain_associates_left_to_right() {
+    assert_eq!(
+        rendered("$a |> Str::trim($_) |> Str::lower($_)", false),
+        rendered("Str::lower(Str::trim($a))", false),
+    );
+}
+
+/// A hole belongs to the `|>` whose right side encloses it most closely, which
+/// falls out of the substitution being eager: the inner operator has already
+/// taken its own left side by the time the outer one counts.
+#[test]
+fn the_hole_binds_to_the_nearest_enclosing_right_side() {
+    assert_eq!(
+        rendered("$a |> Str::format($b |> Str::trim($_), $_)", false),
+        rendered("Str::format(Str::trim($b), $a)", false),
+    );
+    let shape = rendered("$a |> Str::format($b |> Str::trim($_), $_)", true);
+    assert!(
+        shape.contains("Variable(`$b`)") && shape.contains("Variable(`$a`)"),
+        "each hole takes its own left side: {shape}"
+    );
+}
+
+/// `rule:expressions/pipeline-hole-once`'s lower bound. Recovery keeps the
+/// right side, so the rest of the file reports its own problems in this run.
+#[test]
+fn a_right_side_with_no_hole_is_refused() {
+    let (e, diags) = parse_with_diags("$a |> Str::trim($b)");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE]);
+    assert!(matches!(e.kind, ExprKind::StaticCall { .. }), "{e:?}");
+}
+
+/// The upper bound, and the reason it is exactly one rather than at least one:
+/// a second hole would need the left side evaluated twice or bound to a
+/// temporary, and neither is a substitution.
+#[test]
+fn a_right_side_with_two_holes_is_refused() {
+    let (_, diags) = parse_with_diags("$a |> Math::max($_, $_)");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE]);
+}
+
+/// `$_` is not a variable anywhere, so it is refused before the casing rule
+/// that rejects an all-underscore identifier ever sees one.
+#[test]
+fn a_hole_outside_a_pipeline_is_refused() {
+    for src in ["$_ + 1", "Str::trim($_)", "$_"] {
+        let (_, diags) = parse_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![code::E_HOLE_OUTSIDE_A_PIPELINE], "{src}");
+    }
+}
+
+/// The shared spelling with PHP 8.5 is affordable because the habit is named
+/// where it is written: PHP's `|>` applies a callable, and a right side that
+/// *is* a callable is the shape a reader carrying that habit reaches for.
+#[test]
+fn the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal() {
+    for src in ["$a |> Str::trim(...)", "$a |> fn($x) => $x"] {
+        let (_, diags) = parse_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert!(
+            codes.contains(&code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE),
+            "{src}: {codes:?}"
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.notes.iter().any(|n| n.contains("PHP 8.5"))),
+            "{src}: the callable shape is not named"
+        );
+    }
+
+    // A right side that is an ordinary call gets the refusal without the note:
+    // the reader who forgot the hole is not told about a design they were not
+    // reaching for.
+    let (_, diags) = parse_with_diags("$a |> Str::trim($b)");
+    assert!(
+        diags
+            .iter()
+            .all(|d| d.notes.iter().all(|n| !n.contains("PHP 8.5")))
+    );
+}

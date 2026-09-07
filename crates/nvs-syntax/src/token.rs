@@ -251,6 +251,11 @@ pub enum TokenKind {
     PipeEquals,
     /// `||`
     PipePipe,
+    /// `|>` — the pipeline operator
+    /// (`rule:expressions/pipeline-substitution`). One token rather than
+    /// `Pipe` followed by `Gt`, so that the parser never has to decide whether
+    /// two adjacent tokens were written adjacently.
+    PipeGreater,
     /// `^`
     Caret,
     /// `^=`

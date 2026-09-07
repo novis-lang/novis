@@ -115,6 +115,17 @@ pub struct Parser<'src, 'd> {
     /// the doc comments the lexer kept, and what is left documented nothing
     /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`).
     docs_attached: Vec<BytePos>,
+    /// The left side of the `|>` whose right side is being parsed, waiting for
+    /// the `$_` that will become it — see [`Self::parse_pipe`], which parks it
+    /// here and restores the enclosing one afterwards, and [`Self::parse_hole`],
+    /// which takes it. `None` inside a right side means an earlier `$_` already
+    /// took it, which is the whole of `rule:expressions/pipeline-hole-once`'s
+    /// upper bound.
+    pipe_hole: Option<Expr>,
+    /// How many `|>` right sides enclose the cursor. Only the *lower* bound
+    /// needs this: with the slot alone, "no hole is waiting" cannot tell a
+    /// second `$_` on one right side from a `$_` written nowhere near a `|>`.
+    pipe_rhs_depth: u32,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -177,6 +188,8 @@ impl<'src, 'd> Parser<'src, 'd> {
             depth: 0,
             depth_exceeded: false,
             docs_attached: Vec::new(),
+            pipe_hole: None,
+            pipe_rhs_depth: 0,
         }
     }
 

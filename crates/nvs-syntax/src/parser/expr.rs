@@ -514,9 +514,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     pub(super) fn parse_instanceof(&mut self) -> Expr {
-        let mut lhs = self.parse_unary();
+        let mut lhs = self.parse_pipe();
         while self.eat_keyword(Keyword::InstanceOf).is_some() {
-            let class = self.parse_unary();
+            let class = self.parse_pipe();
             let span = lhs.span.to(class.span);
             lhs = Expr {
                 span,
@@ -527,6 +527,117 @@ impl<'src, 'd> Parser<'src, 'd> {
             };
         }
         lhs
+    }
+
+    /// `|>` — the pipeline operator, one level between `instanceof` and unary
+    /// because `rule:expressions/pipeline-precedence` binds it tighter than
+    /// every binary operator and looser than unary: `-$a |> Math::abs($_)` is
+    /// `Math::abs(-$a)` and `"x=" . $a |> Str::upper($_)` is
+    /// `"x=" . Str::upper($a)`. Its right side is parsed at the postfix level,
+    /// so an operand that is not already a call or an access is written
+    /// parenthesized.
+    ///
+    /// **The substitution happens here and leaves nothing behind.** The left
+    /// side is parked in `pipe_hole` while the right side parses, and the `$_`
+    /// [`Self::parse_hole`] meets takes it — so what this returns is the tree
+    /// the nested spelling produces, and no later pass can tell the two apart
+    /// (`rule:expressions/pipeline-substitution`). There is no `ExprKind` for
+    /// the operator and none for the hole.
+    ///
+    /// What is left in the slot afterwards is the whole arity check
+    /// (`rule:expressions/pipeline-hole-once`): still occupied means the right
+    /// side had no hole, and a second `$_` finds it already empty.
+    pub(super) fn parse_pipe(&mut self) -> Expr {
+        let mut lhs = self.parse_unary();
+        while self.eat(TokenKind::PipeGreater).is_some() {
+            let outer = self.pipe_hole.replace(lhs);
+            self.pipe_rhs_depth += 1;
+            let rhs = self.parse_postfix();
+            self.pipe_rhs_depth -= 1;
+            if std::mem::replace(&mut self.pipe_hole, outer).is_some() {
+                self.report_right_side_without_a_hole(&rhs);
+            }
+            lhs = rhs;
+        }
+        lhs
+    }
+
+    /// The right side of a `|>` never named `$_`, so there was nowhere to put
+    /// the left side. Recovery keeps the right side as the expression, which
+    /// is the tree the author would have got had they written the hole in the
+    /// argument they meant.
+    fn report_right_side_without_a_hole(&mut self, rhs: &Expr) {
+        let applies_a_callable = matches!(
+            &rhs.kind,
+            ExprKind::Fn(_)
+                | ExprKind::Call {
+                    args: CallArgs::FirstClassCallable,
+                    ..
+                }
+                | ExprKind::MethodCall {
+                    args: CallArgs::FirstClassCallable,
+                    ..
+                }
+                | ExprKind::StaticCall {
+                    args: CallArgs::FirstClassCallable,
+                    ..
+                }
+        );
+        let mut diag = Diagnostic::error(
+            code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE,
+            "the right side of `|>` needs the hole `$_`",
+        )
+        .with_primary(
+            rhs.span,
+            "no `$_` here, so the piped value has nowhere to go",
+        )
+        .with_help("write the hole where the value goes — `Str::trim($_)`");
+        if applies_a_callable {
+            diag = diag.with_note(
+                "PHP 8.5's `|>` applies a callable; Novis's substitutes `$_` at compile time",
+            );
+        }
+        self.diags.report(diag);
+    }
+
+    /// `$_`, which is a hole and never a variable — so it is turned into the
+    /// left side of its `|>` here, before [`crate::casing`] ever sees an
+    /// identifier made of underscores (`rule:expressions/pipeline-hole-once`).
+    /// The two ways it can fail to have a left side to become are the other
+    /// two refusals that rule names.
+    fn parse_hole(&mut self, span: Span) -> Expr {
+        self.bump();
+        if self.pipe_rhs_depth == 0 {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_HOLE_OUTSIDE_A_PIPELINE,
+                    "`$_` is the pipeline hole and has no meaning here",
+                )
+                .with_primary(span, "outside the right side of a `|>`")
+                .with_help("a hole is only written on the right side of `|>`"),
+            );
+            return Expr {
+                span,
+                kind: ExprKind::Error(span),
+            };
+        }
+        match self.pipe_hole.take() {
+            Some(lhs) => lhs,
+            None => {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE,
+                        "`$_` may appear exactly once on the right side of a `|>`",
+                    )
+                    .with_primary(span, "the hole was already taken by an earlier `$_`")
+                    .with_help("bind the value to a local instead"),
+                );
+                Expr {
+                    span,
+                    kind: ExprKind::Error(span),
+                }
+            }
+        }
     }
 
     /// Whether `(` at the current position opens a legacy `(T)expr` cast
@@ -1117,6 +1228,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::DoubleQuoteOpen => self.parse_double_quoted_string(),
             TokenKind::HeredocOpen | TokenKind::NowdocOpen => self.parse_heredoc_string(),
             TokenKind::Variable => {
+                if self.file.span_text(start) == Some("$_") {
+                    return self.parse_hole(start);
+                }
                 self.bump();
                 self.check_superglobal(start);
                 Expr {
