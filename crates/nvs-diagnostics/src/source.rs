@@ -5,6 +5,33 @@ use std::path::{Path, PathBuf};
 
 use crate::span::{BytePos, SourceId, Span};
 
+/// How a column is counted, which LSP 3.17 calls a `PositionEncodingKind`.
+///
+/// A server negotiates `Utf8` or `Utf16` and nothing else
+/// (`rule:ide/positions-have-one-home`). `Utf32` is here because it is what
+/// [`SourceFile::line_col`] already counts, so one conversion inverts every
+/// column this crate hands out rather than most of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PositionEncoding {
+    /// Columns are byte offsets into the line.
+    Utf8,
+    /// Columns are UTF-16 code units, which is what VS Code sends.
+    Utf16,
+    /// Columns are `char`s — Unicode scalar values.
+    Utf32,
+}
+
+impl PositionEncoding {
+    /// How many columns `ch` occupies in this encoding, which is never zero.
+    const fn width(self, ch: char) -> usize {
+        match self {
+            Self::Utf8 => ch.len_utf8(),
+            Self::Utf16 => ch.len_utf16(),
+            Self::Utf32 => 1,
+        }
+    }
+}
+
 /// One source file, with a precomputed line index.
 #[derive(Debug)]
 pub struct SourceFile {
@@ -99,6 +126,21 @@ impl SourceFile {
         (line, upto.chars().count())
     }
 
+    /// The 0-based line and *UTF-16 code unit* column of `pos`, which is the
+    /// position an LSP client speaking `utf-16` sends and expects.
+    ///
+    /// This is not [`line_col`](Self::line_col) with a different name: that one
+    /// counts `char`s, so it agrees here on a `ß` — one `char`, one code unit,
+    /// two bytes — and disagrees on anything outside the basic multilingual
+    /// plane, where one `char` is a surrogate pair and counts twice.
+    #[must_use]
+    pub fn utf16_col(&self, pos: BytePos) -> (usize, usize) {
+        let line = self.line_index(pos);
+        let line_start = self.line_starts[line] as usize;
+        let upto = &self.text[line_start..(pos as usize).min(self.text.len())];
+        (line, upto.chars().map(char::len_utf16).sum())
+    }
+
     /// The text of a 0-based line, without its trailing newline.
     ///
     /// Returns `None` if `line` is out of range.
@@ -110,6 +152,38 @@ impl SourceFile {
             .get(line + 1)
             .map_or(self.text.len(), |&e| e as usize);
         Some(self.text[start..end].trim_end_matches(['\n', '\r']))
+    }
+
+    /// The byte offset of a 0-based `line` and `col`, where `col` is counted in
+    /// `encoding` — the inverse of [`line_col`](Self::line_col) under
+    /// [`Utf32`](PositionEncoding::Utf32) and of
+    /// [`utf16_col`](Self::utf16_col) under [`Utf16`](PositionEncoding::Utf16).
+    ///
+    /// A position that does not name a boundary is clamped rather than refused,
+    /// because it arrives from an editor whose buffer can be a keystroke ahead
+    /// of this one: a line past the last is the end of the file, a column past
+    /// its line's content is the end of that content — before the line
+    /// terminator, so a CRLF document answers what an LF one does — and a
+    /// column falling inside a character is that character's start.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "every offset here is within text.len() <= MAX_SOURCE_LEN"
+    )]
+    pub fn offset_of(&self, line: usize, col: usize, encoding: PositionEncoding) -> BytePos {
+        let Some(line_text) = self.line_text(line) else {
+            return self.text.len() as BytePos;
+        };
+        let start = self.line_starts[line] as usize;
+        let mut units = 0usize;
+        for (i, ch) in line_text.char_indices() {
+            // A width is at least 1, so this also catches `units == col`.
+            if units + encoding.width(ch) > col {
+                return (start + i) as BytePos;
+            }
+            units += encoding.width(ch);
+        }
+        (start + line_text.len()) as BytePos
     }
 
     /// The byte offset at which a 0-based line begins.
@@ -290,6 +364,129 @@ mod tests {
         assert_eq!(f.line_col(0), (0, 0));
         assert_eq!(f.line_col(2), (0, 1), "after the 2-byte ä");
         assert_eq!(f.line_col(5), (0, 2), "after the 3-byte €");
+    }
+
+    #[test]
+    fn utf16_col_counts_code_units_not_chars() {
+        let mut map = SourceMap::new();
+        // 'ß' is 2 bytes and one code unit; '😀' is 4 bytes and a surrogate
+        // pair, so it is where the two columns part company.
+        let id = map.add("t.nvs", "ß😀x");
+        let f = map.file(id);
+
+        assert_eq!(f.utf16_col(0), (0, 0));
+        assert_eq!(f.utf16_col(2), (0, 1), "after the 2-byte ß");
+        assert_eq!(f.line_col(2), (0, 1), "one char, one code unit");
+
+        assert_eq!(f.utf16_col(6), (0, 3), "the emoji counted twice");
+        assert_eq!(f.line_col(6), (0, 2), "the emoji counted once");
+    }
+
+    #[test]
+    fn offset_of_inverts_line_col_on_a_multibyte_line() {
+        let mut map = SourceMap::new();
+        //                        a0 b1 \n2 ß3 x5 😀6 \n10 c11 d12
+        let id = map.add("t.nvs", "ab\nßx😀\ncd");
+        let f = map.file(id);
+
+        // The emoji starts at byte 6: two chars into its line, two code units
+        // into it, and three bytes into it.
+        assert_eq!(f.line_col(6), (1, 2));
+        assert_eq!(f.utf16_col(6), (1, 2));
+        assert_eq!(f.offset_of(1, 2, PositionEncoding::Utf32), 6);
+        assert_eq!(f.offset_of(1, 2, PositionEncoding::Utf16), 6);
+        assert_eq!(
+            f.offset_of(1, 2, PositionEncoding::Utf8),
+            5,
+            "two bytes in is the x"
+        );
+
+        assert_eq!(
+            f.offset_of(1, 1, PositionEncoding::Utf8),
+            3,
+            "a byte column inside the ß is the ß"
+        );
+        assert_eq!(
+            f.offset_of(1, 99, PositionEncoding::Utf16),
+            10,
+            "past the content is the end of the content"
+        );
+    }
+
+    #[test]
+    fn a_position_round_trips_through_utf16_and_utf8() {
+        // A BOM is one char, one code unit and three bytes, and it is left in
+        // the text: every offset after it still has to land.
+        let src = "\u{feff}let $x = \"ß\";\n// 😀 a comment\n$y = 1;\n";
+        let mut map = SourceMap::new();
+        let id = map.add("t.nvs", src);
+        let f = map.file(id);
+
+        for (pos, _) in src.char_indices().chain([(src.len(), ' ')]) {
+            let pos = BytePos::try_from(pos).unwrap();
+            let (line, units) = f.utf16_col(pos);
+            assert_eq!(
+                f.offset_of(line, units, PositionEncoding::Utf16),
+                pos,
+                "utf-16 round trip at {pos}"
+            );
+
+            let bytes = pos as usize - f.line_start(line).unwrap() as usize;
+            assert_eq!(
+                f.offset_of(line, bytes, PositionEncoding::Utf8),
+                pos,
+                "utf-8 round trip at {pos}"
+            );
+
+            let (_, chars) = f.line_col(pos);
+            assert_eq!(
+                f.offset_of(line, chars, PositionEncoding::Utf32),
+                pos,
+                "char round trip at {pos}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_crlf_documents_columns_match_an_lf_ones() {
+        let mut map = SourceMap::new();
+        //                    a0 ß1 \n3 b4 😀5 c9
+        let lf = map.add("lf.nvs", "aß\nb😀c");
+        //                        a0 ß1 \r3 \n4 b5 😀6 c10
+        let crlf = map.add("crlf.nvs", "aß\r\nb😀c");
+
+        let (lf, crlf) = (map.file(lf), map.file(crlf));
+        assert_eq!(lf.utf16_col(9), (1, 3));
+        assert_eq!(crlf.utf16_col(10), (1, 3), "the same c, the same column");
+        assert_eq!(lf.offset_of(1, 3, PositionEncoding::Utf16), 9);
+        assert_eq!(crlf.offset_of(1, 3, PositionEncoding::Utf16), 10);
+
+        assert_eq!(
+            lf.offset_of(0, 99, PositionEncoding::Utf16),
+            crlf.offset_of(0, 99, PositionEncoding::Utf16),
+            "a column past the content stops before the terminator in both"
+        );
+    }
+
+    #[test]
+    fn an_offset_past_the_last_line_is_clamped_rather_than_panicking() {
+        let mut map = SourceMap::new();
+        //                        a0 b1 \n2 ß3 😀5, len 9
+        let id = map.add("t.nvs", "ab\nß😀");
+        let f = map.file(id);
+
+        assert_eq!(f.utf16_col(999), (1, 3), "the end of the last line");
+        assert_eq!(
+            f.offset_of(9, 0, PositionEncoding::Utf16),
+            9,
+            "a line past the last is the end of the file"
+        );
+        assert_eq!(
+            f.offset_of(1, 999, PositionEncoding::Utf8),
+            9,
+            "a column past the last is the end of its line"
+        );
+        assert_eq!(f.offset_of(999, 999, PositionEncoding::Utf32), 9);
     }
 
     #[test]
