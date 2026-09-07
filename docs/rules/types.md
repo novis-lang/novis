@@ -3,8 +3,6 @@
 
 # Types
 
-*4 of 46 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -966,7 +964,7 @@ closure that needs to call itself carries a self-name instead ([`types/closure-s
 
 <a id="types-callable-signature"></a>
 
-## A `callable` type may name its parameters, and must then name its return type  *(designed — not yet in the compiler)*
+## A `callable` type may name its parameters, and must then name its return type
 
 `rule:types/callable-signature`
 
@@ -998,7 +996,7 @@ goes with them, because a `callable(): T`-typed variable now carries what the fi
 
 <a id="types-callable-arity"></a>
 
-## A closure satisfies a callable type when its arity is at most the type's, matched from the left  *(designed — not yet in the compiler)*
+## A closure satisfies a callable type when its arity is at most the type's, matched from the left
 
 `rule:types/callable-arity`
 
@@ -1027,7 +1025,7 @@ would instead grow an unused `$key` parameter across every callback ever written
 
 <a id="types-callable-variance"></a>
 
-## A callable's parameters are contravariant and its return type covariant  *(designed — not yet in the compiler)*
+## A callable's parameters are contravariant and its return type covariant
 
 `rule:types/callable-variance`
 
@@ -1057,7 +1055,7 @@ everywhere, which is the whole reason such a helper is written.
 
 <a id="types-callable-literal-inference"></a>
 
-## An unannotated `fn` parameter takes its type from the position the literal is written in  *(designed — not yet in the compiler)*
+## An unannotated `fn` parameter takes its type from the position the literal is written in
 
 `rule:types/callable-literal-inference`
 
@@ -1154,13 +1152,22 @@ the outer variables the body reads — not a second declared name reachable from
 a runtime slot: it resolves the way a method resolves `self::`, entirely at compile time, with no cost
 at literals that do not use it. It composes with both body shapes and is not a third closure form.
 
+**A call written through that name is checked against the closure's own signature**, the way
+[`types/callable-signature`](types.md#types-callable-signature) checks a call through a written `callable(int): string`: each argument
+is held to the parameter it fills, the count is exact, and the call answers the declared return type
+rather than `mixed`. There is no value to be opaque here — the literal being checked is the one right
+there — so the per-argument tag check a call through bare `callable` pays is not what a recursive call
+is finally held to. A literal that declares no return type is checking its body to find out, and a
+self-call there answers `mixed`; its parameter list has no such half-measure, being complete before the
+body is entered.
+
 It does not reopen "every callable is a declared class member": that rule bars a free, globally
 callable function existing outside a class, and this name is unreachable from anywhere but its own
 body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still
 belongs on a class as a named method; the self-name covers only the case where the sole reason a
 closure would need a name is to call itself.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-object-top"></a>
 
