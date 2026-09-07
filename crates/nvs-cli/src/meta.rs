@@ -308,6 +308,13 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::Array(elem) => format!("array<{}>", ty_string(elem)),
         CoreTy::Callable | CoreTy::CallableTo(_) => "callable".into(),
         CoreTy::CallableShapeTo(_) => "{name: callable, ...}".into(),
+        // Spelled as the grammar writes it, because a program can write this
+        // one: the parameters in their own order and the mandatory return
+        // type after the colon.
+        CoreTy::CallableSig(params, ret) => {
+            let params: Vec<String> = params.iter().map(ty_string).collect();
+            format!("callable({}): {}", params.join(", "), ty_string(ret))
+        }
         CoreTy::Var(name) | CoreTy::Written(name) => (*name).into(),
         CoreTy::Union(members) => members.iter().map(ty_string).collect::<Vec<_>>().join("|"),
         CoreTy::IntLiteral(value) => value.to_string(),

@@ -361,6 +361,9 @@ mod tests {
                 *name == class || args.iter().any(|arg| mentions(arg, class))
             }
             CoreTy::Union(members) => members.iter().any(|member| mentions(member, class)),
+            CoreTy::CallableSig(params, ret) => {
+                params.iter().any(|param| mentions(param, class)) || mentions(ret, class)
+            }
             CoreTy::Options(options) => options.iter().any(|option| mentions(&option.ty, class)),
             CoreTy::Shape(arms) => arms
                 .iter()

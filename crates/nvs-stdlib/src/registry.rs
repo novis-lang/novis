@@ -430,6 +430,27 @@ pub enum CoreTy {
     /// [`Self::CallableTo`] is, and held by the same
     /// `a_callback_result_type_is_only_ever_a_whole_parameter`.
     CallableShapeTo(&'static str),
+    /// A **written callback signature** — `callable(T, string): U` in
+    /// `Core\Arr::map(array<T> $a, callable(T, string): U $fn): array<U>`: the
+    /// parameter types the member hands the callback, left to right, and the
+    /// return type `rule:types/callable-signature` makes mandatory.
+    ///
+    /// An ordinary *type*, which is what separates it from the two binding
+    /// sites above it. It says what a callback receives, so the checker
+    /// answers where the call is written what
+    /// [`Self::Callable`] leaves to `nvs_runtime::call_closure`'s per-argument
+    /// tag test, and `nvs_types::expr::calls`' `check_fn_literal` fills an
+    /// unannotated `fn($u) => …`'s parameter from it —
+    /// `rule:types/callable-literal-inference`.
+    ///
+    /// **It nests, and a variable inside it is the member's own.** `T` here is
+    /// bound by whatever argument position writes it — the subject's
+    /// `array<T>` for `map` — because `nvs_types::core_lib` lowers this to
+    /// `Ty::CallableSig` and `nvs_types::generics` rewrites that field-wise
+    /// rather than collapsing it. That is what makes the expected type a
+    /// closure literal is checked against the *substituted* one, and `$u` a
+    /// `User` rather than a `T`.
+    CallableSig(&'static [CoreTy], &'static CoreTy),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
     /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
@@ -1117,6 +1138,12 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
             for member in *members {
                 collect_written(member, found);
             }
+        }
+        CoreTy::CallableSig(params, ret) => {
+            for param in *params {
+                collect_written(param, found);
+            }
+            collect_written(ret, found);
         }
         CoreTy::Options(options) => {
             for option in *options {
@@ -2900,6 +2927,10 @@ mod tests {
                 CoreTy::Union(members) | CoreTy::InstanceAt(_, members) => {
                     members.iter().for_each(|m| inferred(m, found));
                 }
+                CoreTy::CallableSig(params, ret) => {
+                    params.iter().for_each(|p| inferred(p, found));
+                    inferred(ret, found);
+                }
                 CoreTy::Options(options) => {
                     options.iter().for_each(|o| inferred(&o.ty, found));
                 }
@@ -3284,6 +3315,11 @@ mod tests {
                 | CoreTy::Iterated(elem) => nests_one(elem),
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
+                // A written signature is a type and may be nested anywhere,
+                // but a binding site inside one is as meaningless as one
+                // inside an array — the variable it names would be bound from
+                // a position no argument occupies.
+                CoreTy::CallableSig(params, ret) => params.iter().any(nests_one) || nests_one(ret),
                 _ => false,
             }
         }

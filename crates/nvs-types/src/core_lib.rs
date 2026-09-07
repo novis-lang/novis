@@ -468,6 +468,18 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         }
         CoreTy::CallableTo(name) => interner.callable_to(*name),
         CoreTy::CallableShapeTo(name) => interner.callable_shape_to(*name),
+        // Lowered field-wise, so a variable a registry row wrote inside a
+        // callback's signature is the same `Ty::TypeVar` the member's other
+        // parameters intern to — which is what lets `crate::generics`
+        // substitute the call's own bindings through it and hand
+        // `crate::expr::calls`' `check_fn_literal` an expected type naming
+        // `User` rather than `T`. `Ty::CallableSig` owns why this is a type
+        // rather than a binding site like the two arms above it.
+        CoreTy::CallableSig(params, ret) => {
+            let params: Vec<TypeId> = params.iter().map(|param| lower(param, interner)).collect();
+            let ret = lower(ret, interner);
+            interner.callable_sig(params, ret)
+        }
         // A `Core`-owned instance is an ordinary class type from here on, for
         // the reason the enum arm above is an ordinary enum type: `seed` has
         // already put the class in this very table, so `resolve_method` finds
@@ -1946,6 +1958,40 @@ mod tests {
         // nowhere to carry the name it binds.
         let plain = interner.callable();
         assert_ne!(sig.params[1], plain);
+    }
+
+    /// A written callback signature lowers to the interned type it spells, at
+    /// the member's own variables — and substitutes field-wise rather than
+    /// collapsing, which is the whole of what
+    /// `rule:types/callable-literal-inference` needs from a `Core` row: the
+    /// expected type an unannotated `fn` parameter reads is this one with the
+    /// call's bindings already applied.
+    #[test]
+    fn a_written_callback_signature_lowers_to_the_signature_it_spells() {
+        const SIG: CoreTy =
+            CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Var("U"));
+
+        let mut interner = TypeInterner::new();
+        let lowered = lower(&SIG, &mut interner);
+        assert_eq!(interner.describe(lowered), "callable(T, string): U");
+
+        // The id a source-written signature interns to, not a registry-only
+        // shape beside it — the same property `?T` has above.
+        let var_t = interner.type_var("T");
+        let string = interner.string();
+        let var_u = interner.type_var("U");
+        let written = interner.callable_sig(vec![var_t, string], var_u);
+        assert_eq!(lowered, written);
+
+        // `T` becomes what the call bound it to and the unbound `U` becomes
+        // `mixed`, exactly as they would anywhere else in the signature.
+        let user = interner.class(QName::parse(r"App\User"));
+        let mut bindings = crate::generics::Bindings::default();
+        bindings.insert("T".to_owned(), user);
+        let substituted = crate::generics::substitute(lowered, &bindings, &mut interner);
+        let mixed = interner.mixed();
+        let expected = interner.callable_sig(vec![user, string], mixed);
+        assert_eq!(substituted, expected);
     }
 
     /// `CoreTy::Nullable` is `null|T` and *is* the union the checker already
