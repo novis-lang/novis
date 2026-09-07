@@ -2,7 +2,10 @@
 //!
 //! One subcommand per milestone that needed one:
 //!
-//! * `nvs ast` (M1) — dump what the parser produced.
+//! * `nvs ast` (M1) — dump what the parser produced, as Rust's `Debug` for a
+//!   person or as `rule:ide/ast-json-schema-is-frozen`'s JSON for the AST
+//!   panel that shells out to it. Resilient by default, since the file a panel
+//!   is opened for is the one that does not compile; see [`ast`].
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
@@ -110,6 +113,7 @@ use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
 mod api_diff;
+mod ast;
 mod bundle;
 mod cache;
 mod config;
@@ -170,6 +174,16 @@ enum Command {
     Ast {
         /// The file to parse.
         file: PathBuf,
+        /// Print the frozen JSON schema rather than the `Debug` rendering.
+        #[arg(long)]
+        json: bool,
+        /// Print the tree the parser recovered into. The default, and
+        /// spelled out so a caller can pin it.
+        #[arg(long, conflicts_with = "strict")]
+        resilient: bool,
+        /// Print no tree at all once an error is reported.
+        #[arg(long)]
+        strict: bool,
     },
     /// Parse, resolve and type-check a `.nvs`/`.php` file, reporting every
     /// diagnostic found.
@@ -704,7 +718,15 @@ fn main() -> ExitCode {
     };
 
     match command {
-        Command::Ast { file } => run_ast(&file),
+        Command::Ast {
+            file,
+            json,
+            // Selects nothing, because it is the default. It exists so a
+            // caller can write down which half of the pair it wants, and
+            // clap refuses it beside `--strict` rather than picking one.
+            resilient: _,
+            strict,
+        } => ast::run(&file, json, strict),
         Command::Check {
             file,
             autoload_map,
@@ -819,30 +841,6 @@ fn main() -> ExitCode {
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
-    }
-}
-
-fn run_ast(path: &std::path::Path) -> ExitCode {
-    let mut map = SourceMap::new();
-    let id = match map.load(path) {
-        Ok(id) => id,
-        Err(err) => {
-            eprintln!("error: could not read {}: {err}", path.display());
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let mut diags = Diagnostics::new();
-    let stmts = parse_file(map.file(id), &mut diags);
-    check_declarations(&stmts, map.file(id), &mut diags);
-
-    render_diagnostics(&mut diags, &map);
-    println!("{stmts:#?}");
-
-    if diags.has_errors() {
-        ExitCode::FAILURE
-    } else {
-        ExitCode::SUCCESS
     }
 }
 

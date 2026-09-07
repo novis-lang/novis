@@ -1,0 +1,11 @@
+<?nvs
+// The AST panel's own case: a declaration that is finished, and an access
+// that is not. `rule:ide/recovery-is-explicit` is what the parser leaves
+// behind at the last line, and `rule:ide/ast-json-schema-is-frozen`'s
+// resilient default is what prints a tree for it anyway.
+class User {
+    public string $name;
+}
+
+echo "hi", "\n";
+$u->
