@@ -13,11 +13,13 @@ This is a small goal with one way to get it badly wrong, and the stage order exi
 **Three things a session must not re-decide:**
 
 1. **The drain is the stop condition, and stage 2 comes before stage 3 because of it.** `serve.rs`'s
-   loop ends on `parked == 0` and a worker polling its idle turn is parked — so a worker that ignores
-   the drain is a server that *cannot be stopped*: the accept loop returns, every connection finishes,
-   and the process sits in `run_until_idle` forever. Arming workers before they can be stopped gives
-   you a check that hangs rather than fails, and a hanging check reports nothing. Land the predicate
-   first.
+   loop ends on `parked == 0` and a worker polling its idle turn is parked, so an unstoppable worker
+   is a process that can only be killed. **Check the premise before arguing with it**: nothing begins
+   a drain under `nvs serve` today — `Draining::begin` is called only in the accept loop's tail after
+   `keep_serving` breaks, and this command passes a seam that continues forever. The callers that
+   *do* break it are a test harness and the control socket that slice is waiting on. The first is why
+   the order matters here: arming workers before they can be stopped gives you a check that hangs
+   rather than fails, and a hanging check reports nothing. Land the predicate first.
 2. **`TaskRoot::Worker`, not `TaskRoot::Request`.** The ticker three lines above holds `Request`
    because a fire is a child of the loop that serves; a worker has no request beneath it to charge a
    panic to (`rule:http-server/containment-does-not-end-at-the-helper`). This is the one line of the

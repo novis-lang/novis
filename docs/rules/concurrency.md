@@ -1065,9 +1065,10 @@ boot-time read and no task at all when it is not configured.
 
 **The drain is what stops a worker, and it is not merely tidy.** A drain means *stop taking new work*,
 and claiming a job is taking new work — so a claimed job runs to completion exactly as an accepted
-request and an in-flight fire do, and nothing new is claimed after it begins. It is also what lets the
-process end: the server's loop runs while anything is parked, and a worker polling for work is always
-parked, so a worker that ignored the drain would be a server that could not be stopped.
+request and an in-flight fire do, and nothing new is claimed after it begins. It is also what keeps
+the process able to end: the server's loop runs while anything is parked and a worker polling for work
+is always parked, so a worker that ignored the drain would be a server nothing but a signal could
+stop — which is what a test harness and a control socket each ask of one.
 
 **The queue needs no lease and a `fleet` schedule does.** A worker asks the database for a row and
 gets one or does not ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so a fleet of instances each

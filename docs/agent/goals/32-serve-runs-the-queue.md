@@ -45,8 +45,13 @@ Goal 31's whole acceptance list, never traded.
 One file: `crates/nvs-cli/src/worker.rs`.
 
 **Before anything is armed under `serve`, the stop condition has to be able to come from the drain**,
-because a worker that ignores it is a server that cannot be stopped — and a check that arms workers
-first would hang rather than fail.
+and the reason is this goal's own acceptance case rather than production. Nothing begins a drain under
+`nvs serve` today — `Draining::begin` is called only in the accept loop's tail after `keep_serving`
+breaks, and this command's seam continues forever — so a killed process is how a served instance ends
+right now. But a **test** is the caller that breaks that seam, so a check that arms workers before
+they can be stopped **hangs rather than fails**, and a check that hangs when the feature regresses
+reports nothing. The control socket is the other caller, and it is a slice `serve.rs`'s own comment is
+already waiting on.
 
 1. **`Workers` gains a second way to be stopped**, or `Workers::stop` gains a second writer: a
    `Draining` handle read at the top of each turn beside the existing flag. `nvs_server::Draining` is
