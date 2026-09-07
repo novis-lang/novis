@@ -67,17 +67,37 @@ impl<'src, 'd> Parser<'src, 'd> {
         e
     }
 
+    /// The general form of the shape [`Self::parse_postfix`] documents: a
+    /// left-associative tier consumes its chain in a loop, so a long one costs
+    /// this function's own stack nothing, but each operator left-nests the tree
+    /// one level deeper — and that depth is what the first ordinary recursive
+    /// walk over the result has to survive. So each operator is charged one
+    /// level of [`Self::enter_recursive`]'s budget, **held open until the chain
+    /// ends**, which is what makes the counter track the tree being built
+    /// rather than the descent that built it. Every binary tier funnels through
+    /// here, so `$n + 1 + 1 …` and `$a . $b . $c …` draw on the same bounded
+    /// budget as the nesting they are flat alternatives to, instead of a free
+    /// one each. `links` is the count to hand back, since nothing else will.
     pub(super) fn parse_left_assoc(
         &mut self,
         next: fn(&mut Self) -> Expr,
         ops: &[(TokenKind, BinaryOp)],
     ) -> Expr {
         let mut lhs = next(self);
+        let mut links: u32 = 0;
         loop {
             let kind = self.peek().kind;
             let Some(&(_, op)) = ops.iter().find(|(tk, _)| *tk == kind) else {
                 break;
             };
+            if self.enter_recursive() {
+                lhs = Expr {
+                    span: lhs.span,
+                    kind: ExprKind::Error(lhs.span),
+                };
+                break;
+            }
+            links += 1;
             self.bump();
             let rhs = next(self);
             let span = lhs.span.to(rhs.span);
@@ -89,6 +109,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                     rhs: Box::new(rhs),
                 },
             };
+        }
+        for _ in 0..links {
+            self.exit_recursive();
         }
         lhs
     }
@@ -519,7 +542,20 @@ impl<'src, 'd> Parser<'src, 'd> {
         // position a reader reaching for it writes it, and then parsed as the
         // `instanceof` its help names, so one expression carries one
         // diagnostic instead of a cascade.
+        // Left-associative in a loop, so each test is charged one level of the
+        // recursion budget and held open to the end of the chain, for the
+        // reason `parse_left_assoc` gives: the tree nests even though the
+        // parser does not.
+        let mut links: u32 = 0;
         while self.at_keyword(Keyword::InstanceOf) || self.at_keyword(Keyword::Is) {
+            if self.enter_recursive() {
+                lhs = Expr {
+                    span: lhs.span,
+                    kind: ExprKind::Error(lhs.span),
+                };
+                break;
+            }
+            links += 1;
             let reserved = self.at_keyword(Keyword::Is);
             let op = self.bump().span;
             if reserved {
@@ -534,6 +570,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                     class: Box::new(class),
                 },
             };
+        }
+        for _ in 0..links {
+            self.exit_recursive();
         }
         lhs
     }
@@ -556,9 +595,31 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// What is left in the slot afterwards is the whole arity check
     /// (`rule:expressions/pipeline-hole-once`): still occupied means the right
     /// side had no hole, and a second `$_` finds it already empty.
+    ///
+    /// **Every stage is charged one level of [`Self::enter_recursive`]'s
+    /// budget, held open across the whole chain**, the way
+    /// [`Self::parse_postfix`] charges one per link. A chain is a loop, so it
+    /// costs this function's own stack nothing — but each stage wraps the
+    /// previous tree in one more node, so `n` stages build a tree `n` deep,
+    /// and that is what the first ordinary recursive walk over it afterwards
+    /// has to survive. Charging per iteration and giving it back immediately
+    /// would leave the counter flat while the tree grew, so the operator
+    /// could build a depth the substitution it stands for
+    /// (`rule:expressions/pipeline-substitution`) is refused at. `stages`
+    /// tracks the increments to hand back, exactly as `chain_len` does there.
     pub(super) fn parse_pipe(&mut self) -> Expr {
         let mut lhs = self.parse_unary();
-        while self.eat(TokenKind::PipeGreater).is_some() {
+        let mut stages: u32 = 0;
+        while self.at(TokenKind::PipeGreater) {
+            if self.enter_recursive() {
+                lhs = Expr {
+                    span: lhs.span,
+                    kind: ExprKind::Error(lhs.span),
+                };
+                break;
+            }
+            stages += 1;
+            self.bump();
             let outer = self.pipe_hole.replace(lhs);
             self.pipe_rhs_depth += 1;
             let rhs = self.parse_postfix();
@@ -567,6 +628,9 @@ impl<'src, 'd> Parser<'src, 'd> {
                 self.report_right_side_without_a_hole(&rhs);
             }
             lhs = rhs;
+        }
+        for _ in 0..stages {
+            self.exit_recursive();
         }
         lhs
     }

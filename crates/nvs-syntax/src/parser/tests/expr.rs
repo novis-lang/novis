@@ -1243,6 +1243,51 @@ fn a_pipeline_chain_associates_left_to_right() {
     );
 }
 
+/// The same bound at every left-associative tier, on both sides. Each spelling
+/// is one flat chain of one operator, so a tier that charged nothing for its
+/// loop would accept an arbitrarily deep left-nested tree — the general form of
+/// what a `|>` chain could do. `instanceof` is here because it is the one
+/// left-associative tier that does not go through `parse_left_assoc`.
+#[test]
+fn a_left_associative_chain_is_charged_to_the_recursion_guard() {
+    let over = MAX_RECURSION_DEPTH as usize + 1;
+    for link in [" + 1", " . $b", " || $b", " instanceof Foo"] {
+        parse_ok(&format!("$a{}", link.repeat(64)));
+
+        let (_, diags) = parse_with_diags(&format!("$a{}", link.repeat(over)));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TOO_DEEPLY_NESTED)),
+            "a chain of `{link}` past the recursion limit must be refused: {diags:?}"
+        );
+    }
+}
+
+/// The bound on both sides. A `|>` chain is a loop, so nothing about parsing
+/// one grows the parser's own stack — but each stage wraps the previous tree in
+/// one more node, and `rule:expressions/pipeline-substitution` makes that tree
+/// the nested spelling's, which is refused once it is deep enough. Every stage
+/// here is individually shallow, so the refusal can only come from the stages
+/// *accumulating* against the shared budget rather than each being charged and
+/// released.
+#[test]
+fn a_pipeline_chain_is_charged_to_the_recursion_guard() {
+    let stage = " |> Str::trim($_)";
+
+    let short = format!("$a{}", stage.repeat(64));
+    parse_ok(&short);
+
+    let long = format!("$a{}", stage.repeat(MAX_RECURSION_DEPTH as usize + 1));
+    let (_, diags) = parse_with_diags(&long);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TOO_DEEPLY_NESTED)),
+        "a chain past the recursion limit must be refused: {diags:?}"
+    );
+}
+
 /// A hole belongs to the `|>` whose right side encloses it most closely, which
 /// falls out of the substitution being eager: the inner operator has already
 /// taken its own left side by the time the outer one counts.
