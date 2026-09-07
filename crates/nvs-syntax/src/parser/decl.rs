@@ -448,6 +448,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     pub(super) fn parse_type_alias_decl(&mut self, start: Span) -> Stmt {
+        let doc = self.take_doc_comment(start);
         self.bump(); // 'type' (contextual — see `Self::parse_statement`)
         let name = self.parse_decl_name("a type alias name");
         self.expect(TokenKind::Equals, "`=`");
@@ -456,7 +457,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         Stmt {
             span,
-            kind: StmtKind::TypeAliasDecl(TypeAliasDecl { span, name, ty }),
+            kind: StmtKind::TypeAliasDecl(TypeAliasDecl {
+                span,
+                doc,
+                name,
+                ty,
+            }),
         }
     }
 
@@ -473,6 +479,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         start: Span,
         attributes: Vec<AttributeGroup>,
     ) -> Stmt {
+        let doc = self.take_doc_comment(start);
         let modifiers = self.parse_modifiers();
         self.expect_keyword(Keyword::Class, "`class`");
         let name = self.parse_decl_name("a class name");
@@ -492,6 +499,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             kind: StmtKind::ClassDecl(ClassDecl {
                 span,
+                doc,
                 attributes,
                 modifiers,
                 name,
@@ -553,6 +561,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         start: Span,
         attributes: Vec<AttributeGroup>,
     ) -> Stmt {
+        let doc = self.take_doc_comment(start);
         self.bump(); // 'interface'
         let name = self.parse_decl_name("an interface name");
         let extends = if self.eat_keyword(Keyword::Extends).is_some() {
@@ -566,6 +575,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             kind: StmtKind::InterfaceDecl(InterfaceDecl {
                 span,
+                doc,
                 attributes,
                 name,
                 extends,
@@ -638,6 +648,13 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_class_member(&mut self, out: &mut Vec<ClassMember>) {
         let start = self.peek().span;
+        // Before the attributes, because the `///` run is written above them
+        // (`rule:tooling/doc-comment-attaches-to-the-next-declaration`), and
+        // over the members this one declaration produces rather than the first,
+        // because `public int $a, $b;` is one declaration and the run
+        // documents it.
+        let doc = self.take_doc_comment(start);
+        let first = out.len();
         let attributes = self.parse_attribute_groups();
         // Only a class/interface/anonymous-class body redirects `var`; an
         // enum body reaches `parse_class_member_with_attrs` directly and
@@ -645,9 +662,14 @@ impl<'src, 'd> Parser<'src, 'd> {
         // which is the one diagnostic `rule:core-api/written-visibility`'s scope leaves it.
         if self.at_keyword(Keyword::Var) {
             out.push(self.parse_class_body_var(start, attributes));
-            return;
+        } else {
+            self.parse_class_member_with_attrs(start, attributes, out);
         }
-        self.parse_class_member_with_attrs(start, attributes, out);
+        if let Some(doc) = doc {
+            for member in &mut out[first..] {
+                member.doc = Some(doc.clone());
+            }
+        }
     }
 
     /// One or more members can come from a single source construct — a
@@ -671,6 +693,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             for c in consts {
                 out.push(ClassMember {
                     span,
+                    doc: None,
                     kind: ClassMemberKind::Const(c),
                 });
             }
@@ -688,6 +711,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         out.push(ClassMember {
             kind: ClassMemberKind::Error,
             span,
+            doc: None,
         });
     }
 
@@ -727,6 +751,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         ClassMember {
             span: start.to(self.last_span),
+            doc: None,
             kind: ClassMemberKind::Error,
         }
     }
@@ -802,6 +827,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         ClassMember {
             span,
+            doc: None,
             kind: ClassMemberKind::Method(method),
         }
     }
@@ -868,6 +894,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let span = start.to(self.last_span);
                 out.push(ClassMember {
                     span,
+                    doc: None,
                     kind: ClassMemberKind::Property(PropertyMember {
                         attributes,
                         modifiers,
@@ -883,6 +910,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             let span = start.to(self.last_span);
             out.push(ClassMember {
                 span,
+                doc: None,
                 kind: ClassMemberKind::Property(PropertyMember {
                     attributes: attributes.clone(),
                     modifiers: modifiers.clone(),
@@ -1016,6 +1044,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.report_trait_not_supported(span);
         ClassMember {
             span,
+            doc: None,
             kind: ClassMemberKind::Error,
         }
     }
@@ -1052,6 +1081,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         start: Span,
         attributes: Vec<AttributeGroup>,
     ) -> Stmt {
+        let doc = self.take_doc_comment(start);
         self.bump(); // 'enum'
         let name = self.parse_decl_name("an enum name");
         let backing = if self.eat(TokenKind::Colon).is_some() {
@@ -1087,6 +1117,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             kind: StmtKind::EnumDecl(EnumDecl {
                 span,
+                doc,
                 attributes,
                 name,
                 backing,
@@ -1128,6 +1159,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         let mut members = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let before = self.peek().span;
+            // A case takes its `///` run like any other declaration. The
+            // member arm below does not: what it parsed is refused outright, so
+            // there is no node for a run to hang on — and taking it here is
+            // already what keeps it from being reported as documenting nothing.
+            let doc = self.take_doc_comment(before);
             let attributes = self.parse_attribute_groups();
             if matches!(self.peek().kind, TokenKind::Keyword(Keyword::Case)) {
                 // PHP's `case Hearts = 1;`. The case itself is fine — only its
@@ -1149,12 +1185,12 @@ impl<'src, 'd> Parser<'src, 'd> {
                          `case` keyword and no `;` (`rule:enums/declaration`)",
                     ),
                 );
-                cases.push(self.finish_enum_case(before, attributes));
+                cases.push(self.finish_enum_case(before, doc, attributes));
                 if self.eat(TokenKind::Semicolon).is_none() {
                     self.eat(TokenKind::Comma);
                 }
             } else if matches!(self.peek().kind, TokenKind::Ident) {
-                cases.push(self.finish_enum_case(before, attributes));
+                cases.push(self.finish_enum_case(before, doc, attributes));
                 self.eat(TokenKind::Comma);
             } else {
                 self.parse_class_member_with_attrs(before, attributes, &mut members);
@@ -1180,6 +1216,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     pub(super) fn finish_enum_case(
         &mut self,
         start: Span,
+        doc: Option<DocComment>,
         attributes: Vec<AttributeGroup>,
     ) -> EnumCase {
         let name = self.parse_decl_name("a case name");
@@ -1187,6 +1224,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         EnumCase {
             span,
+            doc,
             attributes,
             name,
             value,

@@ -13,7 +13,11 @@
 //!   trivia between the statements ([`Parsed`]), for a caller that has to
 //!   reproduce the file rather than compile it (`rule:ide/one-grammar-one-tree`);
 //!   [`Parser`] and [`parse_expression`] are for callers that want less than a
-//!   whole file.
+//!   whole file. A `///` run is not part of that side channel — both whole-file
+//!   entry points attach one to the declaration below it and refuse one that
+//!   documents nothing
+//!   (`rule:tooling/doc-comment-attaches-to-the-next-declaration`), because the
+//!   language reads documentation rather than skipping it.
 //! - [`casing`] — [`check_declarations`], the two rules a parsed file's
 //!   declarations answer on their own: `rule:core-api/identifier-casing`/0030's identifier casing and
 //!   `rule:core-api/written-visibility`'s required member visibility. See its module docs for exactly

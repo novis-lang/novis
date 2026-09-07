@@ -86,11 +86,13 @@ pub struct Lexer<'a> {
     /// yet — the exact window in which an `<?nvs` is [`code::E_TAG_IN_SHEBANG_FILE`]
     /// rather than a tag. See [`Self::new`].
     shebang_open: bool,
-    /// True when this lexer keeps what it skips. Off for every compile path,
-    /// on for [`Self::with_trivia`]'s callers.
+    /// True when this lexer keeps the runs *nothing but a formatter reads* —
+    /// whitespace, and a comment that is not documentation. Off for every
+    /// compile path, on for [`Self::with_trivia`]'s callers. A
+    /// [`TriviaKind::DocComment`] is kept either way; see [`Self::push_trivia`].
     collect_trivia: bool,
-    /// What has been skipped so far, in source order. Stays empty unless
-    /// `collect_trivia` is set.
+    /// What has been skipped so far, in source order. Holds only the doc
+    /// comments unless `collect_trivia` is set.
     trivia: Vec<Trivia>,
 }
 
@@ -151,8 +153,8 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Every trivium skipped so far, in source order. Empty unless this lexer
-    /// came from [`Self::with_trivia`].
+    /// Every trivium skipped so far, in source order. A lexer that did not come
+    /// from [`Self::with_trivia`] holds only the [`TriviaKind::DocComment`]s.
     #[must_use]
     pub fn trivia(&self) -> &[Trivia] {
         &self.trivia
@@ -235,11 +237,19 @@ impl<'a> Lexer<'a> {
         self.pending.push_back(Token::new(kind, span));
     }
 
-    /// Records the run from `start` to the current position as one trivium,
-    /// when this lexer is collecting. Called once per run and after it has been
-    /// consumed, so the span is exactly the bytes skipped.
+    /// Records the run from `start` to the current position as one trivium.
+    /// Called once per run and after it has been consumed, so the span is
+    /// exactly the bytes skipped.
+    ///
+    /// A [`TriviaKind::DocComment`] is recorded whether or not this lexer is
+    /// collecting, and the flag governs only the three ignorable kinds. A `///`
+    /// is content the language itself reads — it attaches to the declaration
+    /// below it and an unattached one is a diagnostic
+    /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`) — so the
+    /// compile path has to see one, while it still pays nothing for the
+    /// whitespace and ordinary comments only a formatter needs.
     fn push_trivia(&mut self, kind: TriviaKind, start: BytePos) {
-        if self.collect_trivia {
+        if self.collect_trivia || kind == TriviaKind::DocComment {
             self.trivia
                 .push(Trivia::new(kind, self.mk_span(start, self.pos)));
         }

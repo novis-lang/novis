@@ -52,20 +52,20 @@
 
 use std::collections::VecDeque;
 
-use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
+use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, AutoloadDecl, AutoloadKind,
     BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassDecl, ClassMember, ClassMemberKind,
-    ConstMember, DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody,
-    FnExpr, ForInit, ForeachBinding, ImplementsClause, IncDecOp, InterfaceDecl, MatchArm,
-    MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget, ObjectLiteralField, Param,
-    PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember, ShapeField, SpawnOption,
-    SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl,
-    TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
+    ConstMember, DestructureElement, DestructureTarget, DocComment, DocTag, DocTagKind, EnumCase,
+    EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding, ImplementsClause, IncDecOp,
+    InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget,
+    ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
+    ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
+    Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
 };
 use crate::lexer::Lexer;
-use crate::token::{Keyword, Token, TokenKind, Trivia};
+use crate::token::{Keyword, Token, TokenKind, Trivia, TriviaKind};
 
 // The grammar, one module per layer — see the table above and each module's
 // own header. They add methods to the one `impl Parser` below and export
@@ -109,6 +109,11 @@ pub struct Parser<'src, 'd> {
     /// recursion) is the part that actually keeps pathological input to
     /// bounded total work, not just bounded stack depth.
     depth_exceeded: bool,
+    /// Where every `///` run that found a declaration begins — the offset of
+    /// its first slash. [`Self::report_unattached_docs`] subtracts these from
+    /// the doc comments the lexer kept, and what is left documented nothing
+    /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`).
+    docs_attached: Vec<BytePos>,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -170,6 +175,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             suppress_as: false,
             depth: 0,
             depth_exceeded: false,
+            docs_attached: Vec::new(),
         }
     }
 
@@ -191,6 +197,166 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.lexer.take_trivia()
     }
 
+    /// The `///` run attached to a declaration that starts at `at`, if there is
+    /// one, recorded as attached so it is not reported as documenting nothing.
+    ///
+    /// `at` is the declaration's own first token — before its attributes, since
+    /// the run is written above those. Attachment is read off the *source text*
+    /// between the run and `at` rather than off the whitespace trivia beside
+    /// it, because a compile path collects no whitespace
+    /// ([`Lexer::with_trivia`]) and both paths have to answer identically.
+    /// Trivia reaching past `at` belongs to the lookahead buffer — the lexer
+    /// runs ahead of the token a production is looking at — and is skipped
+    /// rather than mistaken for the end of the run.
+    pub(super) fn take_doc_comment(&mut self, at: Span) -> Option<DocComment> {
+        let text = self.file.text();
+        let mut lines = Vec::new();
+        let mut next = at.start;
+        for trivium in self.lexer.trivia().iter().rev() {
+            if trivium.kind != TriviaKind::DocComment || trivium.span.end > at.start {
+                continue;
+            }
+            if !doc_run_joins(text, trivium.span.end, next) {
+                break;
+            }
+            lines.push(trivium.span);
+            next = trivium.span.start;
+        }
+        let (&first, &last) = (lines.last()?, lines.first()?);
+        lines.reverse();
+        self.docs_attached.push(first.start);
+        let tags = self.doc_tags(&lines);
+        Some(DocComment {
+            span: first.to(last),
+            lines,
+            tags,
+        })
+    }
+
+    /// The `@see` and `@example` lines of a run, reporting every other `@tag`
+    /// written at the start of one
+    /// (`rule:tooling/doc-comment-tags-are-see-and-example`).
+    ///
+    /// A tag is recognised only at the start of a line, past the marker and its
+    /// indentation, so an `@` anywhere in the prose is a character. That is why
+    /// this reads the lines rather than the run's text: the distinction lives
+    /// nowhere else, and a run is otherwise just Markdown.
+    fn doc_tags(&mut self, lines: &[Span]) -> Vec<DocTag> {
+        let text = self.file.text();
+        let mut tags = Vec::new();
+        for line in lines {
+            let Some(body) = text
+                .get(line.start as usize..line.end as usize)
+                .and_then(|line| line.get(DOC_MARKER.len()..))
+            else {
+                continue;
+            };
+            let indent = body.len() - body.trim_start().len();
+            let Some(rest) = body[indent..].strip_prefix('@') else {
+                continue;
+            };
+            let name_len = rest.bytes().take_while(u8::is_ascii_alphabetic).count();
+            let (name, after) = rest.split_at(name_len);
+            let lead = after.len() - after.trim_start().len();
+            let written = after.trim();
+            let at = line.start + in_line(DOC_MARKER.len() + indent);
+            let span = Span::new(line.file, at, line.end);
+            let argument_start = at + in_line(1 + name_len + lead);
+            let argument = Span::new(
+                line.file,
+                argument_start,
+                argument_start + in_line(written.len()),
+            );
+            let kind = match name {
+                "see" => DocTagKind::See,
+                "example" => DocTagKind::Example,
+                _ => {
+                    self.report_unknown_doc_tag(span, name);
+                    continue;
+                }
+            };
+            tags.push(DocTag {
+                kind,
+                span,
+                argument,
+            });
+        }
+        tags
+    }
+
+    /// Refuses one tag, naming what to write instead.
+    ///
+    /// The three PHPDoc spellings get their own help because each has a
+    /// specific answer and an author reaching for one is not guessing — they
+    /// are writing what every other PHP project taught them. Everything else,
+    /// invented or merely retired, gets the rule: the set is two.
+    fn report_unknown_doc_tag(&mut self, span: Span, name: &str) {
+        let help = match name {
+            "param" => {
+                "name the parameter in a sentence instead — its type is already in the signature"
+            }
+            "return" | "returns" => {
+                "the return type is already in the signature; a sentence says what the value means"
+            }
+            "throws" => {
+                "say what it throws in a sentence — a `Core` member's errors are its registry card \
+                 (`rule:core-api/reference-card`)"
+            }
+            _ => {
+                "a doc comment is Markdown plus `@see` and `@example`, and the set is closed \
+                 (`rule:tooling/doc-comment-tags-are-see-and-example`)"
+            }
+        };
+        self.diags.report(
+            Diagnostic::error(
+                code::E_DOC_COMMENT_UNKNOWN_TAG,
+                format!("`@{name}` is not a documentation tag"),
+            )
+            .with_primary(span, "not `@see` or `@example`")
+            .with_help(help),
+        );
+    }
+
+    /// Reports every `///` run no declaration took
+    /// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`).
+    ///
+    /// The runs are grouped here, at the end, rather than as the lexer produces
+    /// them: a run is a fact about source text, and the same grouping has to
+    /// answer for a file whose declarations attached none of them — including
+    /// one with no declarations at all, which is where the marker is most often
+    /// a note written with one slash too many.
+    fn report_unattached_docs(&mut self) {
+        let text = self.file.text();
+        let docs: Vec<Span> = self
+            .lexer
+            .trivia()
+            .iter()
+            .filter(|trivium| trivium.kind == TriviaKind::DocComment)
+            .map(|trivium| trivium.span)
+            .collect();
+        let mut run = 0;
+        while run < docs.len() {
+            let mut end = run + 1;
+            while end < docs.len() && doc_run_joins(text, docs[end - 1].end, docs[end].start) {
+                end += 1;
+            }
+            if !self.docs_attached.contains(&docs[run].start) {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_DOC_COMMENT_UNATTACHED,
+                        "this doc comment is attached to nothing",
+                    )
+                    .with_primary(docs[run].to(docs[end - 1]), "documents nothing")
+                    .with_help(
+                        "a doc comment documents the declaration it precedes, across no blank \
+                         line; write `//` for a note to the reader",
+                    ),
+                );
+            }
+            run = end;
+        }
+    }
+
     /// Parses statements until end of input — the body both whole-file entry
     /// points share, so neither can drift from the other.
     fn parse_all(&mut self) -> Vec<Stmt> {
@@ -205,6 +371,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 self.bump();
             }
         }
+        self.report_unattached_docs();
         stmts
     }
 
@@ -536,6 +703,32 @@ fn collapse_string_parts(span: Span, parts: Vec<StringPart>) -> Expr {
             kind: ExprKind::Interpolated(parts),
         }
     }
+}
+
+/// What opens a doc comment (`rule:tooling/doc-comment-is-three-slashes`). The
+/// lexer decides that a trivium is one; this is only how many bytes to step
+/// over to reach the line's content.
+const DOC_MARKER: &str = "///";
+
+/// A byte count inside one doc-comment line, as an offset to add to that line's
+/// own start. A source file is bounded by `MAX_SOURCE_LEN`, so a line inside one
+/// always fits.
+fn in_line(bytes: usize) -> BytePos {
+    BytePos::try_from(bytes).expect("an offset within one line of a source file")
+}
+
+/// Whether `[from, to)` is nothing but whitespace crossing at most one line
+/// break — the gap that keeps two `///` lines in one run, and the gap that
+/// keeps a run attached to the declaration under it
+/// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`). A blank line
+/// crosses two, which is what ends a run and detaches it; anything that is not
+/// whitespace ends it as well, so an ordinary `//` between the two separates
+/// them rather than being absorbed.
+fn doc_run_joins(text: &str, from: BytePos, to: BytePos) -> bool {
+    let Some(gap) = text.get(from as usize..to as usize) else {
+        return false;
+    };
+    gap.chars().all(char::is_whitespace) && gap.bytes().filter(|byte| *byte == b'\n').count() <= 1
 }
 
 /// Parses a single expression from `file`, for tests and tools that want just

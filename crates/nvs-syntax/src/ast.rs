@@ -1384,12 +1384,66 @@ pub enum StmtKind {
 // declarations (`rule:types/grammar`.5, `rule:statements/nothing-gets-a-second-name`)
 // ============================================================================
 
+/// The `///` run a declaration carries
+/// (`rule:tooling/doc-comment-attaches-to-the-next-declaration`).
+///
+/// Lines rather than one blob, and spans rather than text, for the same reason
+/// every other node here holds a [`Span`]: the source is the text. Each line
+/// covers its own `///` through the last byte before the newline, marker
+/// included, so the one place that decides where the prose starts is the
+/// consumer that strips it — nothing downstream has to agree with the parser
+/// about a column.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DocComment {
+    /// The whole run, the first line's first slash through the last line's end.
+    pub span: Span,
+    /// The run's lines, in source order. Never empty.
+    pub lines: Vec<Span>,
+    /// The `@see` and `@example` lines, in source order. Any other tag was
+    /// refused where it was written, so this holds only the two.
+    pub tags: Vec<DocTag>,
+}
+
+/// One tag line of a [`DocComment`]
+/// (`rule:tooling/doc-comment-tags-are-see-and-example`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DocTag {
+    /// Which of the two this is.
+    pub kind: DocTagKind,
+    /// The `@` through the end of the line.
+    pub span: Span,
+    /// What the tag names — a member for `@see`, a path for `@example` — with
+    /// the whitespace around it already off. Empty where nothing was written
+    /// after the tag, which the check that resolves it answers rather than the
+    /// grammar: a tag naming nothing and a tag naming something absent are the
+    /// same mistake and deserve the same diagnostic.
+    pub argument: Span,
+}
+
+/// The closed set of doc-comment tags.
+///
+/// Deliberately not `#[non_exhaustive]`, for
+/// [`TriviaKind`](crate::TriviaKind)'s reason: the set is closed by
+/// `rule:tooling/doc-comment-tags-are-see-and-example`, and a third tag has to
+/// fail to compile everywhere one is read rather than fall into a `_` arm that
+/// renders it as prose.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DocTagKind {
+    /// `@see <member>` — a cross-reference that must resolve.
+    See,
+    /// `@example <path>` — a file that must exist and must be one the test
+    /// corpus walks, so it cannot stop compiling unnoticed.
+    Example,
+}
+
 /// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClassDecl {
     /// The whole declaration, `class` through the closing brace (attributes
     /// and modifiers, if any, are not included).
     pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
     /// `#[...]` attribute groups, if any.
     pub attributes: Vec<AttributeGroup>,
     /// `abstract`/`final`, if written. The parser accepts any [`Modifier`]
@@ -1437,6 +1491,8 @@ pub struct ImplementsClause {
 pub struct InterfaceDecl {
     /// The whole declaration, `interface` through the closing brace.
     pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
     /// `#[...]` attribute groups, if any.
     pub attributes: Vec<AttributeGroup>,
     /// The declared name.
@@ -1455,6 +1511,8 @@ pub struct InterfaceDecl {
 pub struct EnumDecl {
     /// The whole declaration, `enum` through the closing brace.
     pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
     /// `#[...]` attribute groups, if any.
     pub attributes: Vec<AttributeGroup>,
     /// The declared name.
@@ -1478,6 +1536,8 @@ pub struct EnumDecl {
 pub struct EnumCase {
     /// The whole case, name through its optional value.
     pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
     /// `#[...]` attribute groups, if any.
     pub attributes: Vec<AttributeGroup>,
     /// The case's name.
@@ -1496,6 +1556,10 @@ pub struct ClassMember {
     pub kind: ClassMemberKind,
     /// The member's full span, attributes and modifiers included.
     pub span: Span,
+    /// The `///` run above it, if one is attached. One declaration can produce
+    /// several members (`public int $a, $b;`), and the run documents the
+    /// declaration, so every member it produced carries the same one.
+    pub doc: Option<DocComment>,
 }
 
 /// The shape of a [`ClassMember`].
@@ -1698,6 +1762,8 @@ pub enum AutoloadKind {
 pub struct TypeAliasDecl {
     /// The whole declaration.
     pub span: Span,
+    /// The `///` run above it, if one is attached.
+    pub doc: Option<DocComment>,
     /// The alias's declared name.
     pub name: Name,
     /// The type it stands for.

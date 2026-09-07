@@ -34,9 +34,11 @@ impl Token {
 /// the [`Span`] is the text. Retaining these is what lets the stream be put
 /// back together: every token and every trivium, concatenated in offset order,
 /// are the file (`rule:ide/tokens-plus-trivia-reproduce-the-file`). A
-/// [`Lexer`](crate::Lexer) collects them only when it was built to
-/// ([`Lexer::with_trivia`](crate::Lexer::with_trivia)), so a compile path pays
-/// nothing for a layer only a formatter and an editor read.
+/// [`Lexer`](crate::Lexer) collects the three ignorable kinds only when it was
+/// built to ([`Lexer::with_trivia`](crate::Lexer::with_trivia)), so a compile
+/// path pays nothing for a layer only a formatter and an editor read; a
+/// [`TriviaKind::DocComment`] it keeps either way, because the grammar attaches
+/// one to the declaration below it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Trivia {
     /// What kind of run this is.

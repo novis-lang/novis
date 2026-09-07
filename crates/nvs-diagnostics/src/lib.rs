@@ -199,6 +199,21 @@ pub mod code {
     /// than left to the generic expected-expression error, because the fix is
     /// a different construct and not a different token.
     pub const E_CATCH_ARM_NOT_AN_EXPRESSION: Code = Code::new("E0126");
+    /// A `///` run with no declaration under it —
+    /// `rule:tooling/doc-comment-attaches-to-the-next-declaration`. Reported
+    /// rather than ignored because the marker is what separates documentation
+    /// from a note to self: a `///` that documents nothing is either a note
+    /// written with the wrong marker or a declaration that got deleted out from
+    /// under it, and both are worth saying. The fix is one slash fewer.
+    pub const E_DOC_COMMENT_UNATTACHED: Code = Code::new("E0127");
+    /// An `@tag` at the start of a doc comment line that is neither `@see` nor
+    /// `@example` — `rule:tooling/doc-comment-tags-are-see-and-example`. One
+    /// code for every rejected spelling, with the help naming what to write
+    /// instead, because the answer for `@param` and the answer for an invented
+    /// tag differ in wording and not in kind: the set is closed, and this
+    /// diagnostic is the entire difference between a closed set and a
+    /// convention.
+    pub const E_DOC_COMMENT_UNKNOWN_TAG: Code = Code::new("E0128");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
