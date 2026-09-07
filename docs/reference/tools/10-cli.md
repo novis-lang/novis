@@ -27,7 +27,7 @@ usually one file:
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs info` (also `-i`) | build, host and third-party licensing information |
 | `nvs meta --json` | the whole `Core` registry as JSON |
-| `nvs ast <file>` | parse one file and print its syntax tree |
+| `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`.
 
@@ -336,11 +336,21 @@ generated from. `--json` is required. Its six top-level keys:
 
 # nvs ast
 
-    nvs ast <file>
+    nvs ast [--json] [--resilient | --strict] <file>
 
 Parses one file and prints its syntax tree in a debug notation, one node per line, with spans as
 `file-index:start..end` byte offsets. It parses only — names are not resolved and nothing is
 type-checked, so a file `nvs check` refuses may still print a tree.
+
+`--json` prints a frozen document instead of that notation, for a tool rather than a person: one
+object per node, carrying `kind`, `span` as `[start, end]` byte offsets, that production's own
+scalar fields — an operator, a flag, or which form a member name took — and `children`. A literal's
+text is not one of those fields: its span names it, and this command does not type-check, so it
+cannot know which literal is `secret` and owes a placeholder rather than its bytes.
+
+`--resilient` is the default: the tree the parser recovered into is printed whatever it reported,
+which is what makes the output useful on the file that does not compile. `--strict` prints no tree
+at all once an error is reported. The two are refused together.
 
 # The compile cache
 

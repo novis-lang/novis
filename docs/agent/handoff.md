@@ -2,51 +2,44 @@
 
 ## State
 
-**Goal 12 — the resilient tree — has stages 2, 3, 4, 5 and 6 landed and green.** Recovery is explicit
-(`rule:ide/recovery-is-explicit`), the `SyntaxIndex` is the walk flattened, `crates/nvs-syntax/tests/prefixes.rs`
-cuts every `examples/*.nvs` at every token boundary, `fuzz/fuzz_targets/prefix.rs` is the third leg of the
-nightly `fuzz-smoke` matrix, and every offset conversion lives in `crates/nvs-diagnostics/src/source.rs`
-(`rule:ide/positions-have-one-home`).
+**Goal 12 — the resilient tree — has stages 2 to 6 landed and green, and stage 7 half landed.**
+`nvs ast` now takes `--json`, `--resilient` and `--strict`, in `crates/nvs-cli/src/ast.rs`, which is
+the subcommand's own module rather than a `run_ast` in `main.rs`. Resilient is the default and
+strict the opt-in, which is `ast_resilient_is_the_default_and_strict_is_opt_in`; the other three
+tests the acceptance check names are unwritten, so the check is still red.
 
-**Stage 6's section lexer is `crates/nvs-test/src/section.rs`**, declared at `crates/nvs-test/src/lib.rs:164`.
-It holds the *shape* — `Section`, `StrayText`, `lex` and `header` — and knows no section name at all, which
-is what lets `.lspt` reuse it and add only a roster (`docs/decisions/0099.md` § 5). `case.rs` keeps the
-`.nvst` roster and now judges the lexed sections in written order, so the first thing wrong with a file is
-still what it is refused for, message and line unchanged. The lexer's one refusal, text before the first
-header, carries a line and no wording: the name of the section a case must start with is a format's.
+**A node carries the scalars its span does not show.** `walk::Node` gained `fields` and
+`walk::Field` — an operator, a flag, and which form a member name took, so
+`rule:ide/recovery-is-explicit`'s `Missing` is visible to a consumer that never sees a `MemberName`.
+**A literal's text is deliberately not among them**, and `crates/nvs-syntax/src/walk.rs`'s third
+decision is where that is argued: the span names it, and `nvs ast` does not type-check, so it cannot
+know which literal is `secret` and owes the placeholder `rule:ide/ast-json-schema-is-frozen`
+requires. Trivia is not in the JSON yet either — that is the next group's first item.
 
-**Two residues, both unchanged.** `ExprKind::ClassConstAccess` carries a bare `Span` for its name, so
-`Foo::` at the caret still carries a name nobody wrote; the `::` path routes `Missing` into the `Ident` arm
-rather than inventing a second diagnostic, and the comment at that site says so. And `aux_path` stayed in
-`case.rs`: its `RESERVED_NAMES` are the `.nvst` runner's own output files, so it is roster, not shape.
-
-**Stage 0 is empty and stays empty**, unchanged: the four M4 language holes are closed and `bool as int` is
-`E0708` under `rule:types/conversion`, not a hole.
+**The `nvs-server` check the driver reported red after session 0005 was load flake, not a
+regression**: `a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom` passes alone
+and the whole `-p nvs-server` suite passes with it. The playbook bullet under *Tooling* is that.
 
 ## Next group
 
-**Stage 7's `nvs ast --json`**, in one crate: `crates/nvs-cli/src/main.rs`, a new `crates/nvs-cli/tests/`
-file for the four named tests, and `docs/reference/tools/10-cli.md`'s existing `# nvs ast` heading — two
-flags on a subcommand that already ships, so it adds no row to `rule:testing/four-proofs`'s roster. The
-whole specification is `docs/agent/goals/12-resilient-tree.md` § *Stage 7*.
+**Stage 7's remaining half**, over one file set: `crates/nvs-cli/src/ast.rs`,
+`crates/nvs-cli/tests/ast.rs` and the fixture beside it. The reference chapter is already done, so
+what is left is what the schema *contains* and the snapshot that freezes it.
 
-- [ ] **`--json` and `--resilient` on the subcommand** — the `Ast { file }` variant at
-      `crates/nvs-cli/src/main.rs:170` and its arm at `crates/nvs-cli/src/main.rs:707` take both flags, with
-      `--resilient` the default and strict opt-in. A node is `kind`, `span` as `[start, end]`, its own
-      scalar fields and `children`. `rule:ide/ast-json-schema-is-frozen` — `ast_resilient_is_the_default_and_strict_is_opt_in`.
-- [ ] **The schema is frozen, and includes what the panel needs** — a snapshot over `examples/` in a new
-      test file beside `crates/nvs-cli/tests/meta.rs:1`, pinning `ast_json_matches_its_frozen_schema`,
-      `ast_json_renders_a_file_that_does_not_compile` and `ast_json_includes_trivia_and_recovery_nodes`.
-      Trivia and recovery nodes are in the JSON on purpose: the panel is least useful on a file that
-      compiles. `rule:ide/the-ast-panel-shells-out-to-the-cli`.
-- [ ] **The reference chapter regenerates** — the two flags under the existing `# nvs ast` heading at
-      `docs/reference/tools/10-cli.md:337`, whose synopsis is at `docs/reference/tools/10-cli.md:339` and
-      whose summary row is `docs/reference/tools/10-cli.md:30`; then `python tools/reference.py --check`,
-      an acceptance check of its own because a chapter edit that stops regenerating is how `docs/novis.md`
-      goes quietly stale.
+- [ ] **Trivia and recovery nodes join the tree** — `document` at `crates/nvs-cli/src/ast.rs:82`
+      builds from `walk::of_stmts`; it wants `nvs_syntax::parse` at
+      `crates/nvs-syntax/src/parser/mod.rs:771` instead, whose `Parsed.trivia` is a `Vec<Trivia>`
+      of `kind` and `span` (`crates/nvs-syntax/src/token.rs:43`), merged into the children in
+      offset order. `rule:ide/ast-json-schema-is-frozen` — `ast_json_includes_trivia_and_recovery_nodes`.
+- [ ] **The snapshot freezes the schema** — a golden over `examples/` in
+      `crates/nvs-cli/tests/ast.rs:1`, beside the harness already there, plus the file that does not
+      parse at `crates/nvs-cli/tests/fixtures/ast/recovered.nvs:1`.
+      `rule:ide/ast-json-schema-is-frozen` — `ast_json_matches_its_frozen_schema` and
+      `ast_json_renders_a_file_that_does_not_compile`.
 
 ## Backlog
 
+- The `secret` placeholder in `nvs ast --json` waits for a caller that has type-checked — `rule:ide/ast-json-schema-is-frozen`.
 - `ExprKind::ClassConstAccess` should carry a `MemberName` — `crates/nvs-syntax/src/ast.rs`, owed to `rule:ide/recovery-is-explicit`.
 - The `.lspt` runner is goals 14/15's, not this one — the goal's § *Standing decisions*.
 - A BOM is left in the text and counted as one code unit; stripping it is the document store's — `rule:ide/positions-have-one-home`.
