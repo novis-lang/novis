@@ -47,6 +47,7 @@ use lsp_types::Uri;
 use nvs_diagnostics::{Diagnostics, SourceId, SourceMap, canonical_key};
 use nvs_hir::{Loaded, Module, resolve_program};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
+use nvs_types::{ExprTypeTable, TypeInterner};
 
 /// One open buffer: what the editor holds, which is not what is on disk.
 #[derive(Debug, Clone)]
@@ -277,6 +278,24 @@ pub struct Analysed {
     ///
     /// Scoped to the entry for the same reason [`trivia`](Self::trivia) is.
     pub index: SyntaxIndex,
+    /// What the type phase resolved at each expression it recorded, keyed by
+    /// that expression's span — the whole graph's, not the entry's alone,
+    /// because a class the cursor names may be declared in a required file.
+    ///
+    /// This is the other half of a cursor answer: [`index`](Self::index) says
+    /// which node an offset is in, and this says what that node's name and type
+    /// resolved to (`rule:ide/the-index-answers-the-cursor`). It is
+    /// `nvs_types`' own narrow table rather than a typed AST, so an expression
+    /// shape it records nothing for is a cursor question this server cannot
+    /// answer — which is the table's own documented shape and not a gap here.
+    pub exprs: ExprTypeTable,
+    /// The interner every [`TypeId`](nvs_types::TypeId) in
+    /// [`exprs`](Self::exprs) was interned against.
+    ///
+    /// Kept beside the table because a type id read against any other interner
+    /// is a different type, or none: an id is an index into exactly this run's
+    /// table, so the two travel together or neither is readable.
+    pub interner: TypeInterner,
     /// Every diagnostic the front end reported, ungated: the lexer's, the
     /// parser's, `check_declarations`', name resolution's and the type
     /// phase's.
@@ -339,6 +358,8 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     check_declarations(&stmts, map.file(entry), &mut diags);
     let (module, loaded, _autoload) = resolve_program(entry, stmts, &mut map, &mut diags);
 
+    let mut interner = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
     {
         // The type phase, continued into exactly the way `nvs-cli`'s
         // `front_end_granted` continues into it: `E0301`, `E0302` and every
@@ -359,12 +380,9 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
                 stmts: &file.stmts,
             })
             .collect();
-        let mut interner = nvs_types::TypeInterner::new();
-        let mut exprs = nvs_types::ExprTypeTable::new();
-        // The enum table and the expression types are dropped: this walk
-        // exists for the diagnostics it fills, and nothing here lowers. The
-        // request that needs a type at a cursor is the one that will keep
-        // them.
+        // The enum table is dropped and the expression table is not: nothing
+        // here lowers, so a case's constant value has no reader, while what
+        // each expression resolved to is what a cursor request asks about.
         let _ = nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     }
 
@@ -376,6 +394,8 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
         loaded,
         trivia,
         index,
+        exprs,
+        interner,
         diags,
     })
 }
@@ -896,6 +916,49 @@ mod tests {
             path.innermost().map(|node| node.kind),
             Some("ClassDecl"),
             "the index does not answer at the entry's own class declaration"
+        );
+    }
+
+    /// `rule:ide/an-open-document-is-its-own-entry-point`: what the type phase
+    /// resolved is kept rather than dropped, because the walk that resolved it
+    /// is the only one an editor runs and a cursor request asks exactly that.
+    ///
+    /// The required file is the control the other way round from the test
+    /// above: the class the entry allocates is declared over there, so an
+    /// entry-scoped table could not name it. And the type the entry recorded is
+    /// read back through the interner kept beside it, which is the whole reason
+    /// the two travel together.
+    #[test]
+    fn the_entry_documents_expression_types_survive_the_walk() {
+        let dir = TempDir::new("typed");
+        dir.write("lib.nvs", "<?nvs\nclass Lib {}\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'lib.nvs';\n$l = new Lib();\n");
+
+        let mut documents = Documents::new();
+        open_from_disk(&mut documents, &dir, &["main.nvs"]);
+        let analysed = analyse(&documents, &dir.uri("main.nvs")).expect("main.nvs is open");
+
+        let text = analysed.map.file(analysed.entry).text();
+        let written = "new Lib()";
+        let start = text.find(written).expect("the fixture writes it");
+        let span = nvs_diagnostics::Span::new(
+            analysed.entry,
+            u32::try_from(start).expect("a fixture is short"),
+            u32::try_from(start + written.len()).expect("a fixture is short"),
+        );
+
+        let Some(nvs_types::ExprInfo::New { class, ty, .. }) = analysed.exprs.lookup(span) else {
+            panic!("the walk kept no resolution for the `new` the entry writes");
+        };
+        assert_eq!(
+            class.to_string(),
+            "Lib",
+            "the `new` resolved to a class the required file does not declare"
+        );
+        assert!(
+            matches!(analysed.interner.get(*ty), nvs_types::Ty::Class(named, args)
+                if named == class && args.is_empty()),
+            "the type recorded for the `new` does not read back through the interner beside it"
         );
     }
 }
