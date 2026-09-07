@@ -171,8 +171,11 @@
 //!    parameter set — one `sp_prepexec`, an `sp_execute` after it. § 7 is
 //!    [`Transacting`]'s fourth arm over `nvs_db::tds`'s own commands, T-SQL
 //!    spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
-//!    commit to send and no read-only transaction to offer at all. What is still
-//!    PostgreSQL-only is [`crate::queue`]'s four members. **SQLite reaches
+//!    commit to send and no read-only transaction to offer at all. What
+//!    [`crate::queue`]'s four members run on is narrower than this list and is
+//!    that module's gap 5, not one of these: `nvs_stdlib::queue::runs` is the
+//!    roster, and a driver missing from it is missing a text rather than a send
+//!    path. **SQLite reaches
 //!    every member the other four do**: [`rendering_for`] binds a parameter
 //!    through `nvs_db::sqlite::encode` as a storage class rather than as octets
 //!    ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and

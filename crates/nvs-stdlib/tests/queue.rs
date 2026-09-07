@@ -72,25 +72,22 @@ struct Leg {
     server: Server,
 }
 
-/// This process's leg, when it names a driver [`queue::migration`] has a schema
-/// for.
+/// This process's leg, when it names a driver [`queue::runs`] answers for.
 ///
 /// Three shapes of `None` and none of them is a failure: no harness at all; a
-/// leg testing SQLite, which is reached by path and has no queue schema; and a
-/// leg testing SQL Server, which has neither a schema nor a driver that can
-/// send a statement. The per-case gates below narrow it once more, because a
-/// case is written against one dialect's spelling even where both have one.
+/// leg reached by path rather than over a socket, which is SQLite; and a leg
+/// naming a driver the queue has § 2's schema for but no statements — which is
+/// SQLite again and SQL Server, and is what [`queue::runs`] is asked. The
+/// per-case gates below narrow it once more, because a case is written against
+/// one dialect's spelling even where both have one.
 fn endpoint() -> Option<Leg> {
     let endpoint = matrix::endpoint()?;
     let Location::Server(server) = endpoint.location else {
         return None;
     };
-    // Every driver has § 2's schema, so what a leg needs is the narrower thing: a driver `Core\Queue`
-    // has statements for. `queue::no_dialect`'s roster is the one this mirrors.
-    if !matches!(
-        endpoint.driver,
-        Driver::Postgres | Driver::MySql | Driver::MariaDb
-    ) {
+    // Every driver has § 2's schema, so what a leg needs is the narrower thing: a driver
+    // `Core\Queue` has statements for. That roster is `queue::runs` and is not spelled again here.
+    if !queue::runs(endpoint.driver) {
         return None;
     }
     Some(Leg {

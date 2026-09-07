@@ -59,8 +59,9 @@
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //! 5. **All four members, the worker and this module's own test legs run on either dialect.**
-//!    Three drivers send a statement — [`crate::db`]'s gap 2 is the two that do not — and each of
-//!    those three now reaches a text this module has: § 2's schema, § 4's claim and § 6's move as
+//!    Three drivers have a text here — [`runs`] is that roster, and it is the narrow one, because
+//!    [`crate::db`]'s gap 2 sends over all five — and each of those three reaches
+//!    § 2's schema, § 4's claim and § 6's move as
 //!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
 //!    the seam that borrows the connection as whichever dialect it speaks. §§ 4 and 6's remaining
 //!    three — [`QUEUES_MYSQL`], [`SUCCEEDED_MYSQL`] and [`RETRY_MYSQL`] — are here too, so every
@@ -75,8 +76,12 @@
 //!    framed drivers**, down to the two constructs nothing else in the roster spells: an `update`
 //!    whose whole answer is the affected count, and `count(case when … then 1 end)` beside the
 //!    `cast(… as signed)` over the `sum` MySQL answers as a `decimal`. What is left of this gap is
-//!    therefore not a text at all — it is the two drivers that send no statement, which is
-//!    [`crate::db`]'s gap 2 and not this module's to close.
+//!    a text after all, and it is this module's to write: [`crate::db`]'s gap 2 has no driver gap
+//!    left, so SQLite and SQL Server each send a statement over `Core\Db` and neither has one of
+//!    these to be sent. SQLite is one dialect away. SQL Server is a dialect *and* the vocabulary
+//!    behind it, because `rule:core-classes/queue-storage-is-a-table` orders the filtered index its
+//!    nulls need before a fourth dialect is written — [`no_dialect`] is where an operator reads
+//!    which of the two they are waiting on.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -251,8 +256,8 @@ const KEY_WIDTH: u32 = 255;
 ///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
 ///
 /// **What it spends:** one indexed [`KEY_WIDTH`]-wide column per job row, which is what a partial
-/// index costs nothing for — priority 5 spent to buy one spelling on five backends instead of two
-/// on two.
+/// index costs nothing for — priority 5 spent to buy one spelling everywhere the queue runs
+/// instead of two spellings on two backends.
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -1645,13 +1650,36 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
     Ok((id, queue))
 }
 
+/// Whether `Core\Queue`'s four members run over a driver at all, which is this module's roster and
+/// not `nvs-db`'s.
+///
+/// **A driver § 2 has a schema for is not yet a driver § 4 has statements for**, and that gap is the
+/// whole of what this answers. [`migration`] emits [`schema`] for all five, so the wider question —
+/// can a statement be sent at all — is `rule:core-classes/db-drivers-are-an-enum`'s and is answered
+/// one crate down; the narrower one is here, because the texts are here.
+///
+/// One predicate rather than one list per reader: [`queue_connection`] is the seam itself and hands
+/// back a borrow, so it cannot be written as a `bool`, but the roster it implements is also what
+/// [`no_dialect`]'s last arm is the complement of and what
+/// `crates/nvs-stdlib/tests/queue.rs`'s leg gate skips a matrix run on. The match is exhaustive for
+/// the same reason [`no_dialect`]'s is: a sixth driver is a build failure rather than a silent
+/// `false`.
+#[must_use]
+pub fn runs(driver: nvs_db::Driver) -> bool {
+    match driver {
+        nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => true,
+        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => false,
+    }
+}
+
 /// The queue's connection, as the dialect the member's statements are written in.
 ///
 /// **Two arms and not five, because that is how many dialects this module has** — § 2's two
 /// migration lists, and § 4's statements once as PostgreSQL's single-statement text and once as a
 /// [`Split`]. The second arm is [`crate::db::Framed`] rather than a pair of its own: MySQL and
 /// MariaDB are one send path and one dialect here, and that constant's doc owns why a driver
-/// difference that is only the type of the borrow is flattened at the call sites.
+/// difference that is only the type of the borrow is flattened at the call sites. [`runs`] is the
+/// same roster as a predicate, for the readers that need to ask without holding a connection.
 ///
 /// # Errors
 ///
@@ -1701,33 +1729,36 @@ enum Queued<'a> {
 
 /// The refusal a connection this module cannot run its statements over earns.
 ///
-/// **What is left in the way is the wire and no longer the dialect.** This function used to say
-/// which of two things was missing, because for a while the queue could reach a MySQL server and
-/// had nothing to send it: [`INSERT_POSTGRES`]'s and [`CLAIM_POSTGRES`]'s `returning` and
-/// [`DEAD_LETTER_POSTGRES`]'s data-modifying CTE are constructs MySQL has no spelling for, so § 4
-/// owed a second backend statements of its own rather than a translation of these. That debt is
-/// paid — [`schema`] is § 2's schema in every dialect, [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and
-/// [`DEAD_LETTER_MYSQL`] are § 4's and § 6's statements as [`Split`]s, and [`STATUS_MYSQL`],
-/// [`CANCEL_MYSQL`] and [`COUNTS_MYSQL`] are § 5's three readers — and [`queue_connection`] is the
-/// seam that reaches them, so every driver `nvs-db` can send a statement over is one all four
-/// members run on.
+/// **What is missing is the statements, and never § 2's schema.** [`migration`] emits [`schema`] in
+/// whichever dialect a driver speaks, so `nvs queue migrate` converges the two tables on all five
+/// backends and an operator reading this sentence has already been able to build them. What a
+/// driver arriving here lacks is § 4's and § 6's texts: [`INSERT_POSTGRES`] and [`INSERT_MYSQL`] are
+/// the two this module holds, and [`queue_connection`] is the seam that reaches them.
 ///
-/// So two sentences are left, and they name two different gaps — which is the whole of what SQL
-/// Server changed here. `Core\Db` reads over it now ([`crate::db::rendering_for`] binds and
-/// `tds_rows` sends), and § 2's schema has no dialect for it, so *this* module is the one with the
-/// open item and an operator told to wait on `Core\Db`'s gap 2 would be waiting on the wrong thing.
-/// SQLite is the other sentence and is still gap 2's: it sends nothing at all. The two arms that
-/// cannot be reached are spelled rather than left to a `_`, so that a sixth driver arrives as a
-/// build failure instead of as whichever sentence happens to be written last.
+/// **The two arms name two different gaps**, which is why they are two sentences rather than one.
+/// SQLite is one text away — its unique keys read nulls as distinct, so the shape [`schema`]
+/// converges to is already the guarantee `rule:core-classes/queue-storage-is-a-table` states. SQL
+/// Server is two, and the order is that rule's own: two nulls are equal there, so `dedupe_pending`'s
+/// plain unique key admits one released row rather than any number of them, and the vocabulary grows
+/// the filtered index `rule:core-classes/schema-plan` keeps out of v1 before a fourth dialect is
+/// written against it. An operator told that statements are the only thing left would be waiting on
+/// half of what SQL Server needs.
+///
+/// Every arm is spelled rather than left to a `_`, so a sixth driver arrives as a build failure here
+/// instead of as whichever sentence happens to be written last. [`runs`] is the roster the last arm
+/// is the complement of, and the test below holds the two together.
 fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
     let missing = match driver {
-        // One sentence for both now: `Core\Db` binds and sends over either, so
-        // what an operator is waiting on is this module's schema and not that
-        // one's driver. SQLite joined this arm when `nvs_db::sqlite` gained
-        // § 4's statements.
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
-            "and `rule:core-classes/queue-storage-is-a-table`'s schema and § 4's statements are written for PostgreSQL and MySQL \
-             only — `Core\\Db` reads over this driver and the queue has nothing to send it yet"
+        nvs_db::Driver::SqlServer => {
+            "and the queue has no statements for it yet — `nvs queue migrate` converges \
+             `rule:core-classes/queue-storage-is-a-table`'s tables here, but this backend reads two nulls as equal, so \
+             `dedupe_pending`'s unique key needs a filtered index the schema vocabulary does not \
+             hold yet and § 4's statements are written after it"
+        }
+        nvs_db::Driver::Sqlite => {
+            "and the queue has no statements for it yet — `nvs queue migrate` converges \
+             `rule:core-classes/queue-storage-is-a-table`'s tables here, and § 4's statements are written for PostgreSQL and \
+             MySQL only"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
         nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
@@ -2576,13 +2607,14 @@ mod tests {
     /// five drivers here — so a driver gaining a statement path in that module moves this refusal
     /// with it, and a sixth arriving fails the build in [`no_dialect`] before it reaches this test.
     ///
-    /// **Which gap the sentence names is the thing under test**, and there are two of them now.
-    /// The queue's own roster is [`migration`] — a driver § 2 has a schema for is one all four
-    /// members run on, so a driver reaching [`no_dialect`] with one at all means
-    /// [`queue_connection`] grew a hole. For a driver without one, which gap it is told to wait on
-    /// is [`crate::db::rendering_for`]'s answer: SQL Server binds and sends over `Core\Db` and is
-    /// this module's open item, while SQLite is `Core\Db`'s gap 2 and would still be if the queue
-    /// were finished.
+    /// **Which gap the sentence names is the thing under test**, and there are two of them. Every
+    /// driver has § 2's schema — [`migration`] emits it in whichever dialect the driver speaks — so
+    /// no refusal may send an operator off to build tables `nvs queue migrate` already converges,
+    /// and the only thing left to wait on is § 4's statements. For SQL Server there is a second
+    /// thing behind them, which `rule:core-classes/queue-storage-is-a-table` orders: two nulls are
+    /// equal there, so the vocabulary grows a filtered index before the fourth dialect is written.
+    /// The sentence has to say so, because an operator who reads only the first half will expect
+    /// the queue with the next release.
     #[test]
     fn the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send() {
         for driver in nvs_db::Driver::ALL {
@@ -2591,12 +2623,9 @@ mod tests {
                 refused.contains(driver.display_name()),
                 "a refusal an operator can act on names the driver the block resolved to: {refused}"
             );
-            // Every driver has § 2's schema, so what decides this is the roster `no_dialect` is
-            // about: which drivers `queue_connection` can send a statement over at all.
-            let runs = matches!(
-                driver,
-                nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb
-            );
+            // The roster is `runs` and not a second list here, so a fourth backend moves this test
+            // with the seam rather than after it.
+            let runs = super::runs(driver);
             assert_eq!(
                 runs,
                 refused.contains("this is a bug"),
@@ -2605,14 +2634,16 @@ mod tests {
             if runs {
                 continue;
             }
-            // `Core\Db` binds and sends for every driver now, so there is only
-            // one thing left to be waiting on and the refusal has to name it.
-            // The second assertion this replaced asked which of two gaps a
-            // driver was in; the other one is closed.
             assert!(
-                refused.contains("the queue has nothing to send it yet"),
-                "{driver:?} sends a statement over `Core\\Db`, so what it waits on is this \
-                 module's own gap: {refused}"
+                refused.contains("the queue has no statements for it yet")
+                    && refused.contains("`nvs queue migrate` converges"),
+                "{driver:?} has § 2's schema, so what it waits on is § 4's statements and the \
+                 refusal may not claim otherwise: {refused}"
+            );
+            assert_eq!(
+                driver == nvs_db::Driver::SqlServer,
+                refused.contains("filtered index"),
+                "only SQL Server waits on the vocabulary as well as on the statements: {refused}"
             );
         }
     }
