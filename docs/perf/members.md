@@ -19,3 +19,4 @@ is not one.
 | Feature | ns/op | units | Δ | Measured at | Implementation |
 |---|---:|---:|---:|---|---|
 | `Core\Str::length` | 39.7 | 12.075 | +0.4% | 5c7c823bac04 | 5c7c823bac04 |
+| `lang:expressions/the-pipeline-operator` | 64.3 | 21.370 | -1.0% | a7b0d8219005 | d65bcf96709b |
