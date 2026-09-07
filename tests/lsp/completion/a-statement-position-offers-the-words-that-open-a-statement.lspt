@@ -1,0 +1,18 @@
+--TEST--
+a body of statements offers the words that may open one, taken from the grammar's own dispatch and never a word it routes to a rejection — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Cart {
+    public function total(): int {
+        <|>
+        return 1;
+    }
+}
+--REQUEST--
+completion prefix=f
+--EXPECT--
+false   keyword
+final   keyword
+fn      keyword
+for     keyword
+foreach keyword

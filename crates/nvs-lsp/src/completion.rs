@@ -1,13 +1,13 @@
 //! What may be written where the cursor is.
 //!
 //! `textDocument/completion` answers four things in
-//! `rule:ide/the-request-set-is-closed`'s list, and this module holds three of
-//! them: the members reachable off a receiver whose class the analysis
-//! resolved, the static members and constants reached through a class name,
-//! and the cases of an enum written after `Type::` — a user-declared class and
-//! a `Core` one alike. The fourth, the keywords and the variables in scope a
-//! bare position offers, is the same walk asked at a node that is no access at
-//! all, and lands beside this one.
+//! `rule:ide/the-request-set-is-closed`'s list: the members reachable off a
+//! receiver whose class the analysis resolved, the static members and
+//! constants reached through a class name, the cases of an enum written after
+//! `Type::` — a user-declared class and a `Core` one alike — and what a bare
+//! position offers, which is the keywords that may be written there and the
+//! variables in scope, and is the same walk asked at a node that is no access
+//! at all.
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -73,6 +73,33 @@
 //! would be the second implementation [`crate::definition`] refuses to keep;
 //! handing it its two inputs is not.
 //!
+//! # What a bare cursor is offered
+//!
+//! A cursor in no access is a *position*, and a file has three of them because
+//! it is made of three kinds of body: one of statements — a method's, a
+//! function's, or the file's own script frame — one of members, which is a
+//! class or an interface, and an enum's, which takes cases and nothing else
+//! (`rule:enums/no-class-machinery`). Each has its own list of words, read out
+//! of the grammar's own dispatch over the first token of one, and only the
+//! first has a variable in it.
+//!
+//! The node the index answers with is what tells the three apart, and it has
+//! to be something like this, because the script frame's span is the *whole
+//! file*: a cursor between two members of a class sits inside that frame too,
+//! so "the innermost body covering the offset" would offer a class body the
+//! file's own variables, which are names no member can reach
+//! (`rule:statements/storage-that-outlives-a-call` — the script body is a
+//! function, and its locals are locals). "The innermost node is a body" is not
+//! the test either: a half-written `$na` is a `Variable` node of its own, so
+//! the question is asked the other way round — which body the node the cursor
+//! is *directly* inside belongs to.
+//!
+//! The variables offered are the innermost body's own and only its own. An
+//! enclosing body's are not in scope: a closure captures by value
+//! (`rule:types/closure-literal`) and a file-scope local is unreachable from a
+//! function, so a name taken from the body outside would be one the checker
+//! refuses where it was offered.
+//!
 //! # What a member's detail column says
 //!
 //! The declaration is the home, and there are two kinds of declaration. A user
@@ -100,16 +127,23 @@
 //! it was written, rather than a wrong answer that compiles. The third is the
 //! class name that is not written down: `self::`, `static::` and `parent::`
 //! reach a class only through the recorded answer above, so an access whose
-//! member half is still empty offers nothing after them.
+//! member half is still empty offers nothing after them. The fourth is the
+//! receiver half of an access, which is a position and is answered as though
+//! it were not: `$u<|>->name` is a variable being written, and offering the
+//! variables in scope there is right and is not done, because the walk decides
+//! it is in an access before it asks what half of one. The fifth is the
+//! parameter list and the return type of a method, which are inside its own
+//! node and no statement's, so a cursor there is answered as the body it
+//! precedes rather than as the type position it is.
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nvs_diagnostics::{BytePos, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
-use nvs_syntax::IndexNode;
 use nvs_syntax::ast::{
     ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind,
 };
+use nvs_syntax::{IndexNode, NodePath};
 use nvs_types::{ExprInfo, Ty, TypeId};
 use rustc_hash::FxHashMap;
 
@@ -142,48 +176,222 @@ enum Reach {
 
 /// What may be written at `offset` in the entry document, sorted by label.
 ///
-/// Empty for a cursor that is in no node, in one this cannot resolve a receiver
-/// for, or in the receiver half of an access rather than the member half —
-/// which are one answer for a client, since LSP has no shape for "ask me
-/// again somewhere else".
+/// Empty for a cursor in an access this cannot resolve a receiver for, or in
+/// the receiver half of one rather than the member half — which are one answer
+/// for a client, since LSP has no shape for "ask me again somewhere else".
 #[must_use]
 pub fn at(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
-    let Some((class, reach)) = receiver_class(analysed, offset) else {
-        return Vec::new();
-    };
-    let name = class.to_string();
-    let mut items = if let Some(core) = registry::class(&name) {
-        core_members(core, reach)
-    } else if let Some(core) = registry::core_enum(&name) {
-        core_cases(core, reach)
-    } else {
-        declared_members(analysed, &class, reach)
+    let path = analysed.index.at(offset);
+    let mut items = match asked(analysed, &path, offset) {
+        Asked::Member(class, reach) => members_of(analysed, &class, reach),
+        Asked::Position => position(analysed, &path, offset),
+        Asked::Nothing => return Vec::new(),
     };
     items.sort_by(|left, right| left.label.cmp(&right.label));
     items
 }
 
-/// The class the cursor is writing a member of, and the half of it the access
-/// it is in reaches.
-fn receiver_class(analysed: &Analysed, offset: BytePos) -> Option<(QName, Reach)> {
-    let path = analysed.index.at(offset);
-    let (access, reach) = path.nodes().iter().find_map(|node| {
+/// What the cursor is asking for, which is decided before anything is looked
+/// up.
+enum Asked {
+    /// The member half of an access, off the class it resolved to and reaching
+    /// the half of it the access shape names.
+    Member(QName, Reach),
+    /// No access at all — what may be written where a statement or an
+    /// expression goes.
+    Position,
+    /// Nothing this module answers: the receiver half of an access, or one
+    /// whose receiver resolved to no class.
+    Nothing,
+}
+
+/// Every member of `class` that `reach` reaches, whoever declared it.
+fn members_of(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<CompletionItem> {
+    let name = class.to_string();
+    if let Some(core) = registry::class(&name) {
+        core_members(core, reach)
+    } else if let Some(core) = registry::core_enum(&name) {
+        core_cases(core, reach)
+    } else {
+        declared_members(analysed, class, reach)
+    }
+}
+
+/// Which of the three questions the cursor at `offset` is asking.
+fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
+    let Some((access, reach)) = path.nodes().iter().find_map(|node| {
         ACCESS
             .iter()
             .find(|(kind, _)| *kind == node.kind)
             .map(|(_, reach)| (*node, *reach))
-    })?;
-    let receiver = analysed.index.children_of(access).into_iter().next()?;
+    }) else {
+        return Asked::Position;
+    };
+    let Some(receiver) = analysed.index.children_of(access).into_iter().next() else {
+        return Asked::Nothing;
+    };
     // A cursor still inside the receiver is writing the receiver, and the
     // members of its own class are not what it is asking for.
     if offset < receiver.span.end {
-        return None;
+        return Asked::Nothing;
     }
     let class = match reach {
-        Reach::Instance => held_class(analysed, receiver.span, offset)?,
-        Reach::Static => named_class(analysed, access, receiver.span)?,
+        Reach::Instance => held_class(analysed, receiver.span, offset),
+        Reach::Static => named_class(analysed, access, receiver.span),
     };
-    Some((class, reach))
+    class.map_or(Asked::Nothing, |class| Asked::Member(class, reach))
+}
+
+/// The words that may open a statement, whether as a statement form of their
+/// own or as the expression one.
+///
+/// Read out of `nvs_syntax::parser`'s two dispatches — the one over a
+/// statement's first token and the one over a primary expression's — minus
+/// every arm either of them routes to a rejection, so no word here is one the
+/// compiler answers with an `E02xx`. `else`, `elseif`, `case`, `catch` and
+/// `finally` are absent for the other reason: they continue a construct rather
+/// than open one, and the construct that takes them writes them itself.
+const STATEMENT_WORDS: &[&str] = &[
+    "abstract",
+    "autoload",
+    "break",
+    "class",
+    "clone",
+    "continue",
+    "do",
+    "echo",
+    "empty",
+    "enum",
+    "false",
+    "final",
+    "fn",
+    "for",
+    "foreach",
+    "if",
+    "interface",
+    "isset",
+    "match",
+    "namespace",
+    "new",
+    "null",
+    "parent",
+    "print",
+    "require",
+    "return",
+    "self",
+    "static",
+    "switch",
+    "throw",
+    "true",
+    "try",
+    "unset",
+    "use",
+    "var",
+    "while",
+    "yield",
+];
+
+/// The words that may open a member of a class or an interface — the modifiers
+/// `nvs_syntax::parser`'s `parse_modifiers` takes, and the two introducers
+/// after them.
+///
+/// `use` is not among them: it opens a trait member, and
+/// `rule:classes/no-traits` is why there are no traits.
+const MEMBER_WORDS: &[&str] = &[
+    "abstract",
+    "const",
+    "final",
+    "function",
+    "lateinit",
+    "private",
+    "protected",
+    "public",
+    "readonly",
+    "static",
+];
+
+/// The one word an enum body takes.
+///
+/// An enum declares its cases and nothing else
+/// (`rule:enums/no-class-machinery`), so this is not the member list narrowed —
+/// it is a different list, the same way `nvs_stdlib::registry::ENUMS` is a
+/// roster beside `CLASSES` rather than a filter over it.
+const CASE_WORDS: &[&str] = &["case"];
+
+/// What may be written at a cursor that is in no access.
+///
+/// The node the cursor is *directly* inside decides, which the module doc's
+/// *What a bare cursor is offered* is the reasoning for: the body that
+/// **covers** the offset is the whole file for a class body too, so covering
+/// cannot be the question. A member's own node — a property, a class constant,
+/// an enum case — is a value position with no local in scope and no word of
+/// its own, and answers nothing.
+fn position(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Vec<CompletionItem> {
+    match path.innermost().map(|node| node.kind) {
+        Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
+        Some("EnumDecl") => words(CASE_WORDS),
+        Some("Property" | "Const" | "EnumCase") => Vec::new(),
+        _ => {
+            let mut items = words(STATEMENT_WORDS);
+            items.extend(in_scope(analysed, offset));
+            items
+        }
+    }
+}
+
+/// One list of reserved words, as items a client can insert.
+///
+/// No detail: a keyword has neither a type nor a signature, and the column
+/// `crate::render` writes it into is empty rather than filled with a category
+/// the label already is.
+fn words(offered: &[&str]) -> Vec<CompletionItem> {
+    offered
+        .iter()
+        .map(|word| {
+            item(
+                (*word).to_owned(),
+                CompletionItemKind::KEYWORD,
+                String::new(),
+            )
+        })
+        .collect()
+}
+
+/// The variables the body the cursor is in declared, with the type each was
+/// declared at.
+fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
+    bodies_at(analysed, offset)
+        .into_iter()
+        .next()
+        .unwrap_or_default()
+        .iter()
+        .map(|local| {
+            item(
+                format!("${}", local.name),
+                CompletionItemKind::VARIABLE,
+                analysed.interner.describe(local.ty),
+            )
+        })
+        .collect()
+}
+
+/// Every body whose span covers `offset` in the entry document, innermost
+/// first.
+///
+/// A closure's body is inside the body that wrote it and shares none of its
+/// bindings, and a method's is inside the file's own script frame on the same
+/// terms — so which of them a reader takes is its own question, and this
+/// orders them rather than answering it.
+fn bodies_at(analysed: &Analysed, offset: BytePos) -> Vec<&[nvs_types::LocalBinding]> {
+    let mut bodies: Vec<(Span, &[nvs_types::LocalBinding])> = analysed
+        .exprs
+        .local_scopes()
+        .filter(|(body, _)| {
+            body.file == analysed.entry && body.start <= offset && offset < body.end
+        })
+        .collect();
+    bodies.sort_by_key(|(body, _)| body.end - body.start);
+    bodies.into_iter().map(|(_, locals)| locals).collect()
 }
 
 /// The class the value at `span` holds.
@@ -324,15 +532,9 @@ fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
 fn local_ty(analysed: &Analysed, span: Span, offset: BytePos) -> Option<TypeId> {
     let text = analysed.map.file(analysed.entry).text();
     let name = text.get(span.range())?.strip_prefix('$')?;
-    let mut bodies: Vec<(Span, &[nvs_types::LocalBinding])> = analysed
-        .exprs
-        .local_scopes()
-        .filter(|(body, _)| body.file == span.file && body.start <= offset && offset < body.end)
-        .collect();
-    bodies.sort_by_key(|(body, _)| body.end - body.start);
-    bodies
+    bodies_at(analysed, offset)
         .into_iter()
-        .find_map(|(_, locals)| locals.iter().find(|local| local.name == name))
+        .find_map(|locals| locals.iter().find(|local| local.name == name))
         .map(|local| local.ty)
 }
 
@@ -553,5 +755,29 @@ fn item(label: String, kind: CompletionItemKind, detail: String) -> CompletionIt
         kind: Some(kind),
         detail: Some(detail),
         ..CompletionItem::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CASE_WORDS, MEMBER_WORDS, STATEMENT_WORDS};
+    use nvs_syntax::Keyword;
+
+    /// The three lists above are spellings copied out of a grammar that owns
+    /// them, and this is what keeps the copy honest: a word that stops being
+    /// reserved — or was never spelled the way it is written here — fails the
+    /// crate rather than being offered to a developer who then writes it.
+    ///
+    /// Completeness is not checkable the same way and is not claimed: which
+    /// reserved words belong at which position is this module's judgement, and
+    /// the grammar has no table of it to compare against.
+    #[test]
+    fn every_word_offered_is_one_the_lexer_reserves() {
+        for word in STATEMENT_WORDS.iter().chain(MEMBER_WORDS).chain(CASE_WORDS) {
+            assert!(
+                Keyword::from_lowercase(word).is_some(),
+                "`{word}` is offered by completion and is not a reserved word"
+            );
+        }
     }
 }

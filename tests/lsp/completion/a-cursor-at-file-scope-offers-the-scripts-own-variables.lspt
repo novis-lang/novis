@@ -1,0 +1,13 @@
+--TEST--
+the file's own statements are a body like any other, so a cursor written between two of them offers the script frame's variables — `rule:ide/the-request-set-is-closed`, `rule:statements/storage-that-outlives-a-call`
+--FILE--
+<?nvs
+var $name = "novis";
+var $port = 8080;
+<|>
+echo $name;
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$name   variable  string
+$port   variable  int
