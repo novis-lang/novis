@@ -2,63 +2,53 @@
 
 ## State
 
-**Goal 10 — stage 2 is green: the callable atom parses under the five names the acceptance check
-lists, and two callable types compare under its other seven.**
+**Goal 10 — stage 3 is green: a `fn` literal's parameter types come from its position, under the four
+names the acceptance check lists.**
 
-- **Nothing in stage 2 was a new feature.** Both mechanisms were already landed and green; the
-  twelve names the checks list were the specification for how the claims are split across `#[test]`
-  functions, and this session split them. `rule:types/callable-signature`,
-  `rule:types/callable-arity` and `rule:types/callable-variance` are unchanged.
-- **The parser's three parsing claims are three tests** (`crates/nvs-syntax/src/parser/tests/ty.rs:703`):
-  parameters-and-return, the empty parameter list with its `void`, and bare `callable` keeping its
-  own atom. The two refusals are two more — a named parameter, and a missing return type with its
-  bare-`callable` recovery.
-- **Two of the seven `nvs-types` names were claims nothing asserted**:
-  `a_callable_parameter_may_be_wider_than_the_slot_declares` and
-  `a_callable_return_may_be_narrower_than_the_slot_declares` — the *accepting* side of each variance
-  direction, which existed only as its refusal. `every_callable_signature_is_assignable_to_bare_callable`
-  gained the assignment through a written-signature *variable*, since a literal alone did not make
-  its name true.
-- **`a_callable_return_wider_than_the_slot_is_refused` asserts the union case too**
-  (`callable(int): string` filled by `fn (int $n): string|int`), because an unrelated return type
-  was the only spelling the old body had and it does not make the name's claim.
-- **Stage 3 is the driver's next failing check**, and three of its four names are claims already
-  asserted under other names in the same file — but not names this session may reuse, since two of
-  them are now spent on stage 2's variance rows. See the next group.
+- **Nothing in stage 3 was a new feature either.** Inference, the annotated-parameter check and
+  `E0450` were all landed and green; the four names were the specification for how the claims split
+  across `#[test]` functions. `rule:types/callable-literal-inference` and
+  `rule:types/closure-literal` are unchanged.
+- **`an_unannotated_fn_parameter_takes_the_expected_types_position`** is the rename of
+  `an_unannotated_parameter_takes_its_type_from_the_expected_signature`, `$n * 2` still the whole
+  proof the parameter arrived as `int`.
+- **The two annotated-parameter names are new bodies, not renames.** Each annotates one parameter
+  beside an inferred one — `fn (int|string $n, $k): string` under `callable(int, string): string`
+  and its narrower twin — so what is judged is the *literal's* annotation rather than the bare
+  relation two written types already pin at `crates/nvs-types/tests/callable.rs:126`.
+- **`a_block_bodied_fn_still_declares_its_return_type` asserts both sides**: the expected type gives
+  a literal its parameters and never its return, so `fn ($n): int => { return $n * 2; }` is accepted
+  under `callable(int): int` and `fn (int $n) => { ... }` in the same slot is `E0450`.
+- **Every remaining acceptance artefact is already on disk and green.** Stages 4, 5 and 6 name six
+  Rust tests, one example and two `.nvst` cases; all exist, `cargo test` is 3436 passing, and
+  `examples/typed-callable.nvs` prints the `exact` check's four lines verbatim. `CoreTy::CallableTo`
+  and `CoreTy::CallableShapeTo` appear nowhere in `crates/`. This session reports `DONE`; the
+  driver's own acceptance run is what settles it.
 
 Conformance 1574. Verify: 7 of 7 green.
 
 ## Next group
 
-**Stage 3's four acceptance names, `docs/agent/loop-goal.toml:4667`** — file set:
-`crates/nvs-types/tests/callable.rs` alone. `rule:types/callable-literal-inference`. Stage 3's
-mechanism is landed; what is missing is again the naming, plus one claim (a block body) nothing
-asserts.
+**Whatever the driver's acceptance names next, `docs/agent/loop-goal.toml:4679`** — file set: the
+stage-4-to-6 test files, none of which this session edited. If a check is still red, its artefact
+exists, so the assertion drifted rather than the name being unwritten.
 
-- [ ] **`an_unannotated_fn_parameter_takes_the_expected_types_position` exists.** Rename
-      `an_unannotated_parameter_takes_its_type_from_the_expected_signature`
-      (`crates/nvs-types/tests/callable.rs:159`), keeping the `$n * 2` assertion — `mixed` has no
-      arithmetic, so it is the whole proof the parameter arrived as `int`.
-      `rule:types/callable-literal-inference`.
-- [ ] **`an_annotated_fn_parameter_may_be_wider_than_the_expected_type` and
-      `an_annotated_fn_parameter_narrower_than_expected_is_refused` exist**, next to
-      `crates/nvs-types/tests/callable.rs:185`. These are the *annotated* half of inference — a
-      parameter the literal wrote for itself — and must not be the same two source spellings as
-      `a_callable_parameter_may_be_wider_than_the_slot_declares` /
-      `..._narrower_than_the_slot_is_refused` at `crates/nvs-types/tests/callable.rs:126`, which
-      already pin the bare relation. Reach for a literal that annotates one parameter and infers
-      another. `rule:types/callable-variance`.
-- [ ] **`a_block_bodied_fn_still_declares_its_return_type` exists** at
-      `crates/nvs-types/tests/callable.rs:185`. `rule:types/closure-literal` gives `fn` two bodies;
-      the block-bodied one is asserted nowhere in this file, and `rule:types/callable-signature`'s
-      mandatory return is what it has to keep. `E0450` is not relaxed — goal § *Standing decisions*.
+- [ ] **Stage 4's six names hold as written.** `map_binds_its_result_from_a_written_fn_literal` and
+      its two siblings are at `crates/nvs-types/tests/core_members.rs:81`,
+      `bind_descends_into_a_callable_types_parameters` at `crates/nvs-types/src/generics.rs:521`,
+      and both `nvs-stdlib` names at `crates/nvs-stdlib/src/registry.rs:3386`.
+      `rule:types/callable-signature`.
+- [ ] **Stage 5's three names hold as written**, at `crates/nvs-types/tests/core_members.rs:387` —
+      `Task::all` rebuilding a shape from literals, from `callable`-typed variables, and no longer
+      refusing a field that is not a literal. `rule:concurrency/an-all-field-answers-what-its-callable-declares`.
+- [ ] **Stage 6's three codegen names hold as written**, at
+      `crates/nvs-codegen/tests/closures.rs:301` — the proven site emitting no per-argument tag
+      check, the bare-`callable` site still emitting it, and both metadata slots surviving.
+      `rule:types/callable-variance`.
 
 ## Backlog
 
-- Stage 4: `map_binds_its_result_from_a_callable_typed_variable` and the three beside it —
-  `docs/agent/loop-goal.toml:4683`.
-- Stage 4: `nvs-stdlib`'s two rows checks, and `CoreTy::CallableTo` retired — ADR 0136 § *In short*.
-- Stage 5: `Task::all` over a shape of `callable`-typed variables — `rule:concurrency/an-all-field-answers-what-its-callable-declares`.
-- Stage 6: the tag check a proven call site stops emitting — `docs/agent/loop-goal.toml:4724`.
-- `docs/rules/observability.json` and `.md` carry an uncommitted hand edit that is not this loop's;
-  leave them alone.
+- Goal 10's ADR 0136 § *Revisiting* keeps whole-body return-type inference and optional/variadic
+  callable parameters parked; neither is this goal's — `docs/decisions/0136.md`.
+- A `callable(...)` type nested inside another callable's parameter list has no test in
+  `crates/nvs-types/tests/callable.rs`; `rule:types/callable-variance` says what it should answer.

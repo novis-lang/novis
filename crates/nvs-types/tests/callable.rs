@@ -156,7 +156,7 @@ fn a_closure_of_higher_arity_than_the_type_is_refused() {
 // position with no signature to give is named rather than guessed at.
 
 #[test]
-fn an_unannotated_parameter_takes_its_type_from_the_expected_signature() {
+fn an_unannotated_fn_parameter_takes_the_expected_types_position() {
     // `$n * 2` is the assertion: `mixed` has no arithmetic, so this compiles
     // only if `$n` really arrived as the `int` the type names.
     let diags = check_in_method("callable(int): int $twice = fn ($n): int => $n * 2;\n");
@@ -188,6 +188,49 @@ fn an_unannotated_parameter_past_the_signatures_end_is_refused() {
         diags
             .iter()
             .any(|d| d.code == Some(code::E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE)),
+        "{diags:?}"
+    );
+}
+
+// `rule:types/callable-literal-inference`: a parameter the literal wrote for
+// itself is checked against the position rather than taking it, so
+// `rule:types/callable-variance` decides it — each spelling annotating one
+// parameter beside an inferred one, which is what makes it the *literal's*
+// annotation being judged rather than the bare relation between two types.
+
+#[test]
+fn an_annotated_fn_parameter_may_be_wider_than_the_expected_type() {
+    let diags = check_in_method(
+        "callable(int, string): string $f = fn (int|string $n, $k): string => $k;\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_annotated_fn_parameter_narrower_than_expected_is_refused() {
+    let diags = check_in_method(
+        "callable(int|string, string): string $f = fn (int $n, $k): string => $k;\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+/// `rule:types/closure-literal`: the expected type gives a literal its
+/// parameter types and never its return type, so a block body still writes
+/// its own — inferring one there is whole-body return-type inference.
+#[test]
+fn a_block_bodied_fn_still_declares_its_return_type() {
+    let diags =
+        check_in_method("callable(int): int $twice = fn ($n): int => { return $n * 2; };\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_in_method("callable(int): int $twice = fn (int $n) => { return $n * 2; };\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLOSURE_RETURN_TYPE_REQUIRED)),
         "{diags:?}"
     );
 }
