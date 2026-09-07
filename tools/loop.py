@@ -3746,6 +3746,79 @@ def overload_wait(n):
     return OVERLOAD_BACKOFF[min(max(n, 1), len(OVERLOAD_BACKOFF)) - 1]
 
 
+# --------------------------------------------------------------- a stream that dropped
+#
+# The third exit that is not a crash, and the only one the driver answers by CONTINUING rather
+# than starting over.
+#
+# A refused session never ran: the account said no, or the server did, and there is nothing on
+# disk but the refusal. A DROPPED session is the opposite -- it ran, it was healthy, and what
+# died was the connection carrying the answer back. Its transcript is complete in the harness's
+# own project directory, and `claude --resume <id>` replays it.
+#
+# What that is worth is measured: on 2026-09-07, run 20260907-193447, session 0002 lost its
+# stream nine minutes and 24 turns into a group, at $2.89, with 786 lines of `nvs-lsp` in the
+# tree. The driver swept the tree, started a FRESH session, and that session spent its opening
+# minutes rebuilding a 78 KB pack and reading back the wip commit to work out what its
+# predecessor had been doing. The work survived; the reasoning did not, and it did not have to
+# go.
+
+#: What a session's terminal event calls the end when its stream died rather than the server
+#: answering. Paired with a null `api_error_status`, because that pairing is the whole signature:
+#: a refusal carries a status -- 529, 500 -- and is a verdict the driver already classifies
+#: above, while a drop carries none at all, since nothing answered to supply one.
+DROP_REASON = "api_error"
+
+#: How many times in a row one dropped session is resumed before the driver gives up on the
+#: transcript and starts fresh. Three, because a resume that fails three times is no longer a
+#: network blip, and the fresh path -- sweep, re-orient, read the wip commit -- is the one that
+#: recovers from a transcript the harness will not replay.
+MAX_RESUMES = 3
+
+#: What the driver waits before resuming a dropped session, by consecutive attempt; the last
+#: entry repeats. Short, and far shorter than `OVERLOAD_BACKOFF`, because a dropped connection is
+#: not a busy server: there is nothing to wait out, and every second spent waiting is spent
+#: holding a context that is only worth resuming while the run still wants it.
+RESUME_BACKOFF = (15, 30, 60)
+
+#: What a resumed session is told, in place of the session prompt it already has. It answers the
+#: three questions a session cut off mid-answer actually has -- whether anything moved under it,
+#: whether its last call landed, and what it still owes. Everything else it needs, the goal and
+#: the pack and the rules, is in the transcript being replayed and is not worth a second copy.
+RESUME_PROMPT = (
+    "The connection to the API dropped mid-response and this session was rejoined with "
+    "`--resume`, so the conversation above is yours and you are continuing it.\n"
+    "\n"
+    "Nothing moved under you. The working tree is exactly as you left it and the driver "
+    "committed nothing on your behalf. Your last tool call may or may not have landed -- read "
+    "back whatever it touched rather than assuming either way.\n"
+    "\n"
+    "Pick up where you stopped and finish the session the way the prompt at the top told you "
+    "to, ending with the wrap. Do not re-orient, and do not restart the group."
+)
+
+
+def stream_dropped(line):
+    """True when this session's terminal `result` event blames a connection that died mid-answer.
+
+    Three fields off that one event, never the words: `is_error` is set, so a session that merely
+    quoted the phrase cannot supply it; `terminal_reason` is `api_error`; and `api_error_status`
+    is null, because nothing answered with a status. The last is what separates a drop from a
+    refusal, and the two need opposite recoveries."""
+    try:
+        e = json.loads(line)
+    except json.JSONDecodeError:
+        return False
+    if e.get("type") != "result" or not e.get("is_error"):
+        return False
+    return e.get("terminal_reason") == DROP_REASON and not e.get("api_error_status")
+
+
+def resume_wait(n):
+    """How long to wait before the nth consecutive resume of a dropped session."""
+    return RESUME_BACKOFF[min(max(n, 1), len(RESUME_BACKOFF)) - 1]
+
+
 #: The subject of the commit a swept session leaves behind. Matched by `orient.py` and by
 #: `holes.py`, so it is spelled once here rather than three times in prose.
 SWEEP_SUBJECT = "wip(loop): the unfinished slice of"
@@ -3830,7 +3903,7 @@ def mark_interrupted(index, why=None):
     return len(dirty)
 
 
-def run_session(run_id, index, prompt_text, opts, renderer):
+def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
     """One `claude -p` session, its NDJSON streamed to the console and to
     .loop/logs/<run>-NNNN.log. The run stamp is in the name because the index restarts at 1
     every run: named by index alone, session 3 of today's run appended to session 3 of last
@@ -3842,14 +3915,25 @@ def run_session(run_id, index, prompt_text, opts, renderer):
 
     The file is opened through `CONSOLE` rather than here, and stays open after this returns: the
     acceptance check that judges this session runs next, and its lines belong in this session's
-    log. `drive()` closes it once that verdict is in."""
+    log. `drive()` closes it once that verdict is in.
+
+    `resume` is a session id whose transcript this launch rejoins instead of starting a new
+    conversation: no pack is built, `RESUME_PROMPT` goes on argv in place of the session prompt,
+    and the log still gets its own index, so a resumed session is a separate transcript on disk
+    and mixes with nothing. It gets its own log line, its own subagent sweep and its own row in
+    `loop-stats.py` -- everything except a `loop_pack` line, which it must not have. Returns the
+    exit code, that log, the session id, any rate limit, the API status, and whether the terminal
+    event blamed a dropped stream."""
     log = LOGDIR / f"{run_id}-{index:04d}.log"
     CONSOLE.open_session(log)
     exe = shutil.which("claude") or "claude"
+    # A resumed session is handed the CONTINUATION, not the session prompt. That prompt is
+    # already the first turn of the transcript being replayed, and sending it a second time asks
+    # a session standing in the middle of a slice to orient from the top.
     cmd = [
         exe,
         "-p",
-        prompt_text,
+        RESUME_PROMPT if resume else prompt_text,
         "--model",
         opts.model,
         "--permission-mode",
@@ -3858,6 +3942,8 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         "stream-json",
         "--verbose",
     ]
+    if resume:
+        cmd += ["--resume", resume]
     # Only when it was asked for: the flag and the model's own default are not the same thing to
     # the harness, and passing `--effort high` would record a choice where none was made.
     if opts.effort:
@@ -3865,29 +3951,46 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     # `orient.py` runs a `brief.py`, a `git log` and a plan read before the child is even
     # spawned, and on a cold filesystem cache that is tens of seconds between the "== session"
     # banner and the first token. It is the second half of the gap between two sessions.
-    step("building the orientation pack (tools/orient.py)")
-    TICKER.set(phase="orienting", detail="tools/orient.py")
-    started = time.monotonic()
-    pack = orientation_pack()
-    spent = mmss(time.monotonic() - started)
-    if pack:
-        step(f"orientation pack: {len(pack.encode('utf-8')):,} bytes in {spent}")
+    #
+    # A resume skips all of it. The session being rejoined read a pack already, it is in the
+    # transcript, and building a second would spend that minute to hand a session standing
+    # mid-slice the map it opened on.
+    if resume:
+        pack = ""
+        step(f"resuming session {resume} -- no pack, its transcript already carries one", C.CYAN)
+        SLICES.pick("resumed after a dropped connection")
     else:
-        step(f"orientation pack: orient.py failed after {spent} -- "
-             "the session will run it itself", C.YELLOW)
-    SLICES.pick(session_goal(pack))
+        step("building the orientation pack (tools/orient.py)")
+        TICKER.set(phase="orienting", detail="tools/orient.py")
+        started = time.monotonic()
+        pack = orientation_pack()
+        spent = mmss(time.monotonic() - started)
+        if pack:
+            step(f"orientation pack: {len(pack.encode('utf-8')):,} bytes in {spent}")
+        else:
+            step(f"orientation pack: orient.py failed after {spent} -- "
+                 "the session will run it itself", C.YELLOW)
+        SLICES.pick(session_goal(pack))
     session_id = ""
     limit = None  # the last `rate_limit_event` this session reported; see `RateLimit`
     said_limit = False  # the text fallback, read only off a non-zero exit's `result` event
     api_error = 0  # the HTTP status its terminal `result` event blamed; see `api_error_status`
+    dropped = False  # did that same event blame a lost stream? see `stream_dropped`
     # The pack's size, recorded beside the transcript that paid for it. Two sessions with
     # different pack sizes are a two-point regression against their measured `ctx_start`,
     # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
     # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
-    CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
+    #
+    # A resumed session writes NO such line, and the omission is what keeps it out of that
+    # regression: `loop-stats.py` skips any session whose `pack_bytes` is falsy, and a session
+    # opening on a whole replayed conversation with no pack at all is a point that would tilt
+    # the fit by itself.
+    if not resume:
+        CONSOLE.raw(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
     effort = f", --effort {opts.effort}" if opts.effort else ""
+    rejoin = f", --resume {resume}" if resume else ""
     step(f"launching {exe} (--model {opts.model}{effort}, "
-         f"--permission-mode {opts.permission_mode})")
+         f"--permission-mode {opts.permission_mode}{rejoin})")
     TICKER.set(phase="launching", detail=f"{exe} --model {opts.model}{effort}")
     launched = time.monotonic()
     VERIFY.arm()
@@ -3936,6 +4039,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
                 if LIMIT_TEXT.search(line):
                     said_limit = True
                 api_error = api_error_status(line) or api_error
+                dropped = stream_dropped(line) or dropped
             if not session_id and '"session_id"' in line:
                 try:
                     e = json.loads(line)
@@ -3972,7 +4076,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         step(f"a usage limit was reported in text but no event named a reset -- treating it as a "
              f"wall and coming back in {hms(BLIND_WAIT)}", C.YELLOW)
         limit = RateLimit({"status": "rejected", "resetsAt": int(time.time()) + BLIND_WAIT})
-    return proc.returncode, log, session_id, limit, api_error
+    return proc.returncode, log, session_id, limit, api_error, dropped
 
 
 # ------------------------------------------------------------------- subagent transcripts
@@ -4659,6 +4763,8 @@ def drive(opts, goal, chain):
     walls = 0
     overloads = 0  # consecutive sessions the API refused as overloaded; see `OVERLOAD_STATUS`
     overloaded_since = 0.0  # monotonic, when the current overload streak began
+    resumes = 0  # consecutive resumes of one dropped session; see `MAX_RESUMES`
+    resume_from = ""  # the transcript the next launch rejoins, set by the drop branch below
     wall = standing_limit()  # left standing by a driver killed or rebooted during one
     if wall:
         step(f"{rel_to_root(LIMIT)} says {wall.describe()}", C.YELLOW)
@@ -4702,8 +4808,11 @@ def drive(opts, goal, chain):
             say(f"   {rel_to_root(PROMPT)} did not read, using the last good one -- {e}", C.YELLOW)
 
         session_started = time.monotonic()
-        cli_exit, log, session_id, limit, api_error = run_session(
-            run_id, index, prompt_text, opts, renderer)
+        # Consumed here whatever happens below, so a launch can only ever rejoin a transcript the
+        # branch that set it chose: every other path leaves this empty and starts a fresh session.
+        rejoined, resume_from = resume_from, ""
+        cli_exit, log, session_id, limit, api_error, dropped = run_session(
+            run_id, index, prompt_text, opts, renderer, resume=rejoined)
         step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "
              f"claude exit {cli_exit}", C.CYAN)
 
@@ -4757,8 +4866,40 @@ def drive(opts, goal, chain):
                 CONTROL.parked = False
             continue
 
+        # A dropped stream is the third exit that is not a crash, judged before the exit code for
+        # the same reason the other two are: it explains it. The session was healthy and its
+        # transcript is whole on disk, so it is handed back to `claude --resume` and picks up
+        # mid-slice, instead of being swept and replaced by a stranger that has to read the wip
+        # commit to find out what it was doing.
+        #
+        # **The tree is deliberately NOT swept here.** `mark_interrupted` exists because the NEXT
+        # session cannot tell an unfinished slice from its own starting state -- and the next
+        # session here is the SAME session, which can. Sweeping would also take the wrap out from
+        # under it: `session.py --wrap` stages a slice's files and commits them, and a sweep that
+        # has already committed them leaves it staging nothing. The exposure is one backoff plus
+        # one session, and the moment the resumes run out the branch below sweeps as it always
+        # did.
+        if cli_exit != 0 and dropped and session_id and resumes < MAX_RESUMES:
+            resumes += 1
+            back = resume_wait(resumes)
+            resume_from = session_id
+            ledger(f"- {index:04d} the connection dropped mid-response -- rejoining its "
+                   f"transcript, attempt {resumes}/{MAX_RESUMES} in {mmss(back)}; the tree is "
+                   f"left as the session had it -- see {log.relative_to(ROOT).as_posix()}")
+            step(f"the connection dropped mid-response -- the session is intact on disk, so it "
+                 f"is resumed rather than restarted. Attempt {resumes}/{MAX_RESUMES} in "
+                 f"{mmss(back)}, and the tree is left exactly as it was", C.YELLOW)
+            TICKER.set(phase="resuming a dropped session",
+                       detail=f"attempt {resumes}/{MAX_RESUMES}")
+            wait(back, "the connection dropped, resuming")
+            continue
+
         if cli_exit != 0:
             fails += 1
+            # The streak is over either way: this exit was not a drop, or it was one resumed
+            # `MAX_RESUMES` times without sticking. A later drop in a later session gets its own
+            # three, which is the point -- the cap is per drop, not per run.
+            resumes = 0
             mark_interrupted(index, None)
             ledger(
                 f"- {index:04d} CLI exit {cli_exit} (attempt {fails}/{opts.max_retries}) -- "
@@ -4776,6 +4917,7 @@ def drive(opts, goal, chain):
         fails = 0
         walls = 0
         overloads = 0
+        resumes = 0
         served += 1
         PROGRESS["served"] = served
 
