@@ -105,6 +105,7 @@ pub mod links;
 mod position;
 mod render;
 pub mod selection;
+pub mod semantic;
 mod server;
 pub mod suite;
 pub mod symbols;
