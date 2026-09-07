@@ -31,12 +31,12 @@
 //! has no column for one, so filling it would put a field no `.lspt` case can
 //! see into every symbol the server sends.
 
-use lsp_types::{DocumentSymbol, Range, SymbolKind};
+use lsp_types::{DocumentSymbol, SymbolKind};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, EnumDecl, NamespaceDecl, Stmt, StmtKind};
 
 use crate::document::Analysed;
-use crate::position::position_at;
+use crate::position::range_at;
 
 /// The outline of one analysed document, positioned in `encoding`.
 ///
@@ -246,8 +246,8 @@ fn symbol(
         kind,
         tags: None,
         deprecated: None,
-        range: range(file, encoding, whole),
-        selection_range: range(file, encoding, name),
+        range: range_at(file, whole, encoding),
+        selection_range: range_at(file, name, encoding),
         // `Some(vec![])` and `None` render the same and mean different things
         // to a client: an empty list is a container a person can expand onto
         // nothing.
@@ -258,14 +258,6 @@ fn symbol(
 /// An optional symbol as the list a caller concatenates.
 fn one(symbol: Option<DocumentSymbol>) -> Vec<DocumentSymbol> {
     symbol.into_iter().collect()
-}
-
-/// `span` as the wire carries it, in `encoding`.
-fn range(file: &SourceFile, encoding: PositionEncoding, span: Span) -> Range {
-    Range {
-        start: position_at(file, span.start, encoding),
-        end: position_at(file, span.end, encoding),
-    }
 }
 
 /// The source text `span` covers, or nothing for a span outside the file.

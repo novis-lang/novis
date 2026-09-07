@@ -16,8 +16,8 @@
 //! at its terminator, and a leading BOM stays in the text as the one column it
 //! occupies in each encoding, so every offset after it still lands.
 
-use lsp_types::{Position, PositionEncodingKind};
-use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile};
+use lsp_types::{Position, PositionEncodingKind, Range};
+use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 
 /// The negotiated encoding, as the crate that owns the arithmetic spells it.
 ///
@@ -52,6 +52,20 @@ pub fn position_at(file: &SourceFile, offset: BytePos, encoding: PositionEncodin
     Position {
         line: narrow(line),
         character: narrow(character),
+    }
+}
+
+/// The range in `file` that `span` covers, as the wire carries one.
+///
+/// A span is a byte range and a range is a pair of positions, so this is
+/// [`position_at`] twice — here rather than in each answer that needs one,
+/// because an answer converting its own spans is one more place the conversion
+/// can be wrong.
+#[must_use]
+pub fn range_at(file: &SourceFile, span: Span, encoding: PositionEncoding) -> Range {
+    Range {
+        start: position_at(file, span.start, encoding),
+        end: position_at(file, span.end, encoding),
     }
 }
 

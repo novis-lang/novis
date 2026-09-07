@@ -46,7 +46,9 @@ use nvs_diagnostics::PositionEncoding;
 use crate::case::{Case, MAIN_PATH, Request};
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, uri_of};
-use crate::render::Response;
+use crate::folding;
+use crate::links;
+use crate::render::{Link, Response};
 use crate::symbols;
 
 /// The units a case's columns are counted in — see the module doc.
@@ -180,6 +182,8 @@ fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
         Request::DocumentSymbol => document_symbol(case),
+        Request::FoldingRange => folding_range(case),
+        Request::DocumentLink => document_link(case),
         unanswered => Err(format!(
             "`{unanswered}` is not answered yet; the handler and this case's own slice land together"
         )),
@@ -222,6 +226,21 @@ impl Materialised {
             materialised.file(&aux.path, &aux.body)?;
         }
         Ok(materialised)
+    }
+
+    /// How a case would have written `target`: its path relative to this
+    /// directory, with `/` separators whatever the host uses.
+    ///
+    /// Both sides are canonicalized before they are compared, because the
+    /// analysis canonicalizes every file it loads and a temporary directory is
+    /// reached through a symlink on more than one platform. A target outside
+    /// this directory keeps its whole path, which no `require` a case's own
+    /// sections resolved can produce — and if one ever does, an absolute path
+    /// in a frozen expectation is a failure a reader can see.
+    fn spelling(&self, target: &Path) -> String {
+        let dir = fs::canonicalize(&self.dir).unwrap_or_else(|_| self.dir.clone());
+        let relative = target.strip_prefix(&dir).unwrap_or(target);
+        relative.to_string_lossy().replace('\\', "/")
     }
 
     /// Writes one section, creating the directories its relative path names —
@@ -304,6 +323,43 @@ fn document_symbol(case: &Case) -> Result<Response, String> {
     Ok(Response::DocumentSymbol(symbols::for_document(
         &analysed, COLUMNS,
     )))
+}
+
+/// `textDocument/foldingRange` — where the entry document collapses.
+///
+/// No cursor and no arguments, as the outline takes none:
+/// [`crate::folding::for_document`] is the same call the server makes, on an
+/// analysis produced the same way.
+fn folding_range(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::FoldingRange(folding::for_document(
+        &analysed, COLUMNS,
+    )))
+}
+
+/// `textDocument/documentLink` — every `require` the entry document writes.
+///
+/// The target is named the way the case wrote it, which is the resolution half
+/// [`Link`]'s doc leaves to the runner: what the analysis answers is an
+/// absolute path inside the directory this case was materialised into, and
+/// nothing else knows what that directory is.
+fn document_link(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer, as in `diagnostics` — and here it is also
+    // what a target is named against.
+    let (files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let links = links::for_document(&analysed, COLUMNS)
+        .into_iter()
+        .map(|link| Link {
+            range: link.range,
+            target: files.spelling(&link.target),
+        })
+        .collect();
+    Ok(Response::DocumentLink(links))
 }
 
 #[cfg(test)]

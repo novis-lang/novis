@@ -29,21 +29,26 @@
 use std::error::Error;
 use std::path::PathBuf;
 
-use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
     PublishDiagnostics,
 };
-use lsp_types::request::{DocumentSymbolRequest, Request as _};
+use lsp_types::request::{
+    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, Request as _,
+};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentSymbolParams, DocumentSymbolResponse, InitializeParams, PublishDiagnosticsParams, Uri,
+    DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, InitializeParams, PublishDiagnosticsParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
 use crate::capabilities::initialize_result;
 use crate::diagnostics::{Phases, for_document};
-use crate::document::{Documents, analyse, path_of};
+use crate::document::{Documents, analyse, path_of, uri_of};
+use crate::folding;
+use crate::links;
 use crate::position::encoding_of;
 use crate::symbols;
 
@@ -155,19 +160,41 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
                     id,
                     document_symbol(documents, encoding, &params.text_document.uri),
                 ),
-                Err(error) => Response::new_err(
-                    id,
-                    ErrorCode::InvalidParams as i32,
-                    format!("`{method}` carried parameters this server could not read: {error}"),
-                ),
+                Err(error) => unreadable(id, &method, &error),
             }
         }
+        FoldingRangeRequest::METHOD => match serde_json::from_value::<FoldingRangeParams>(params) {
+            Ok(params) => Response::new_ok(
+                id,
+                folding_range(documents, encoding, &params.text_document.uri),
+            ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        DocumentLinkRequest::METHOD => match serde_json::from_value::<DocumentLinkParams>(params) {
+            Ok(params) => Response::new_ok(
+                id,
+                document_link(documents, encoding, &params.text_document.uri),
+            ),
+            Err(error) => unreadable(id, &method, &error),
+        },
         _ => Response::new_err(
             id,
             ErrorCode::MethodNotFound as i32,
             format!("`{method}` is not answered by this server"),
         ),
     }
+}
+
+/// `InvalidParams`, for a request on the list whose payload will not read.
+///
+/// One place rather than one per arm: every arm can fail this way, and what a
+/// person is shown should not depend on which request it was.
+fn unreadable(id: RequestId, method: &str, error: &serde_json::Error) -> Response {
+    Response::new_err(
+        id,
+        ErrorCode::InvalidParams as i32,
+        format!("`{method}` carried parameters this server could not read: {error}"),
+    )
 }
 
 /// `textDocument/documentSymbol` — the outline of one open document.
@@ -188,6 +215,52 @@ fn document_symbol(
     // `Nested` and never `Flat`: the outline is a tree and `SymbolInformation`
     // would flatten a class's members out beside it.
     DocumentSymbolResponse::Nested(outline)
+}
+
+/// `textDocument/foldingRange` — where one open document collapses.
+///
+/// Empty for a document this server has nothing open for, on
+/// [`document_symbol`]'s terms. The walk is [`folding::for_document`], which
+/// the `.lspt` suite calls too, so what an editor folds and what a case freezes
+/// cannot drift apart.
+fn folding_range(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> Vec<FoldingRange> {
+    analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+        folding::for_document(&analysed, encoding)
+    })
+}
+
+/// `textDocument/documentLink` — every `require` in one open document.
+///
+/// Empty for a document this server has nothing open for, on
+/// [`document_symbol`]'s terms. A link whose target this process cannot spell
+/// as a URI is dropped rather than sent with none: `target: None` means "ask me
+/// again", and a second question would get the same answer.
+///
+/// No tooltip. LSP shows one in place of the target, and the target is the file
+/// path, which is the more useful of the two things there is to say.
+fn document_link(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> Vec<DocumentLink> {
+    let Some(analysed) = analyse(documents, uri) else {
+        return Vec::new();
+    };
+    links::for_document(&analysed, encoding)
+        .into_iter()
+        .filter_map(|link| {
+            Some(DocumentLink {
+                range: link.range,
+                target: Some(uri_of(&link.target)?),
+                tooltip: None,
+                data: None,
+            })
+        })
+        .collect()
 }
 
 /// What a document-sync notification changed, and so what has to be published

@@ -97,6 +97,8 @@ mod capabilities;
 mod case;
 pub mod diagnostics;
 mod document;
+pub mod folding;
+pub mod links;
 mod position;
 mod render;
 mod server;
@@ -110,6 +112,6 @@ pub use capabilities::{
 pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
 pub use diagnostics::{Phases, SOURCE, for_document, phase_gated, to_wire};
 pub use document::{Analysed, Document, Documents, analyse, analyse_current, path_of, uri_of};
-pub use position::{encoding_of, offset_at, position_at};
+pub use position::{encoding_of, offset_at, position_at, range_at};
 pub use render::{Link, Place, Redaction, Response};
 pub use server::{ServerError, run, serve};
