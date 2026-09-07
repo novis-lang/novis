@@ -64,10 +64,10 @@
 > `validate`, 10k cold compile once.
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
 > whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
-> 2.78x php-cgi. **`nvs lsp` speaks the handshake**: `crates/nvs-lsp` on `lsp-server`/`lsp-types`,
-> synchronous over stdio; `initialize` declares the closed list and the version, the encoding is
-> negotiated, and nothing writes to stdout. `.lspt` is read, rendered and run by `nvs lsp-test`; no
-> request is answered yet.
+> 2.78x php-cgi. **`nvs lsp` speaks the handshake**: synchronous on `lsp-server`/`lsp-types`,
+> nothing on stdout; `.lspt` runs under `nvs lsp-test`. **The document store is whole**: buffers
+> overlay the graph, an edit republishes its requirers, a superseded version drops; no request is
+> answered.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

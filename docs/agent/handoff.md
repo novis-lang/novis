@@ -2,55 +2,57 @@
 
 ## State
 
-**Goal 14 stage 3 is landed and whole.** A `.lspt` case is read
-(`crates/nvs-lsp/src/case.rs`), every answer it can freeze is rendered by one module
-(`crates/nvs-lsp/src/render.rs`, `rule:ide/the-rendering-has-one-home`), and `nvs lsp-test <paths>`
-walks a tree and prints `N passed, M failed` (`crates/nvs-lsp/src/suite.rs`). `tests/lsp/` exists
-with its README and no cases.
+**Goal 14 stage 4's document store is landed and whole.** `crates/nvs-lsp/src/document.rs` holds a
+buffer per URI with its version, overlays every open buffer on the `SourceMap` so the whole
+`require` graph reads unsaved text, keeps the reverse index an edit is republished from, and drops
+an analysis started for a version the client has already replaced.
+`crates/nvs-lsp/src/position.rs` is the wire's positions and holds no arithmetic — the conversions
+are `nvs-diagnostics`' (`rule:ide/positions-have-one-home`).
 
-**No request is answered.** `crates/nvs-lsp/src/suite.rs:157`'s `answer` is the seam every request
-slice lands one arm in; until then a case fails naming the request it asked, which is why
-`nvs lsp-test tests/lsp/` prints `0 passed, 0 failed` rather than a number that means nothing.
-`crates/nvs-lsp/src/server.rs:60` still answers everything but `shutdown` with `MethodNotFound`.
+`nvs-lsp` now links `nvs-diagnostics`, `nvs-syntax` and `nvs-hir`, and `no_crate_the_server_links_writes_to_stdout` still passes over the widened closure.
 
-The case reader is the driver's `wip(loop)` commit from the cut-off session; it was unverified when
-written and this session's `verify.py` run covers it unchanged.
+**No request is answered.** `crates/nvs-lsp/src/server.rs:67` applies `didOpen`/`didChange`/
+`didClose` to the store and publishes nothing; `crates/nvs-lsp/src/suite.rs:157`'s `answer` is still
+the seam every request slice lands one arm in, and `tests/lsp/` is still empty, so the goal's
+`lsp cases` check (160 passing) stays red until the request slices land.
 
-Three spellings a case will meet are decided and live in `crates/nvs-lsp/src/render.rs`'s module
-doc: an answer with nothing in it renders `none`, an absent optional field renders `-`, and
-completion's columns are fixed at 8 and 10 rather than computed from the rows, so one added
-completion does not rewrite every frozen expectation.
+**The analysis thread `rule:ide/the-server-is-synchronous` names is deliberately not spawned yet**,
+and `crates/nvs-lsp/src/document.rs`'s module doc is where that decision is written: what the rule
+needs at this stage is that a superseded answer is dropped, which is a fact about versions rather
+than about threads. It arrives with the first answer that has somewhere to go.
 
 ## Next group
 
-**Stage 4: the document store and the positions under it** — one file set: a new
-`crates/nvs-lsp/src/document.rs`, `crates/nvs-lsp/src/server.rs`, and
-`crates/nvs-diagnostics/src/source.rs` read only.
+**Stage 5: diagnostics, phase-gated and published** — one file set: `crates/nvs-lsp/src/document.rs`,
+a new `crates/nvs-lsp/src/diagnostics.rs`, `crates/nvs-lsp/src/server.rs`, with
+`crates/nvs-lsp/src/render.rs` and `crates/nvs-lsp/src/position.rs` read only.
 
-- [ ] **The open-document store.** `didOpen`/`didChange`/`didClose` hold a buffer per URI with a
-      version, overlaid on disk for everything the graph reads, and diagnostics are published only
-      for open documents. `rule:ide/an-open-document-is-its-own-entry-point`; the dispatch it hangs
-      off is `crates/nvs-lsp/src/server.rs:60`. Tests `an_unsaved_buffer_shadows_the_file_on_disk`
-      and `editing_a_required_file_republishes_the_requiring_document`.
-- [ ] **One home for a position.** Every offset conversion goes through `nvs-diagnostics` and none
-      is written in `nvs-lsp`: `crates/nvs-diagnostics/src/source.rs:173`'s `offset_of` takes the
-      negotiated encoding already, `:122` is `line_col` and `:137` `utf16_col`. A document's bytes
-      are never normalised, so a BOM and CRLF answer what LF does.
-      `rule:ide/positions-have-one-home`. Test
-      `a_bom_and_a_crlf_document_answer_the_same_offsets_as_an_lf_one`.
-- [ ] **A superseded analysis is dropped.** A second edit arriving while the first is being analysed
-      makes the first answer unwanted, and the version it was started for is what says so —
-      `crates/nvs-lsp/src/server.rs:60` is single-threaded today, so this is the slice that decides
-      whether an analysis thread joins it. `rule:ide/the-server-is-synchronous` bounds the answer.
-      Test `an_analysis_for_a_superseded_version_is_cancelled`.
+- [ ] **The type phase joins the analysis, and the gate over it.** A file that produced an `E00xx`
+      or `E01xx` diagnostic publishes those and its declaration diagnostics and suppresses its own
+      `E03xx`/`E04xx`, for that file alone. `rule:ide/diagnostics-are-phase-gated`; extend
+      `crates/nvs-lsp/src/document.rs:296`'s `analyse`, which stops at `resolve_program` today, the
+      way `nvs-cli`'s `front_end_granted` continues into `nvs_types::check_program`. Tests
+      `a_parse_error_suppresses_the_type_diagnostics_of_that_file_only` and
+      `a_resolution_error_does_not_suppress_a_type_error`.
+- [ ] **A diagnostic crosses to the wire.** `Code` becomes `code`, the span becomes a `Range`
+      through `crates/nvs-lsp/src/position.rs:50`'s `position_at`, and `codeDescription` is left
+      unset because there is no documentation site to point one at (ADR 0099 § 3's last paragraph).
+      The rendering `crates/nvs-lsp/src/render.rs:109` freezes is what a case compares against.
+      Test `a_diagnostic_carries_its_code_and_no_code_description`.
+- [ ] **Publishing, for open documents only.** `crates/nvs-lsp/src/server.rs:67` publishes after an
+      edit for `crates/nvs-lsp/src/document.rs:232`'s `to_republish`, checking
+      `crates/nvs-lsp/src/document.rs:218`'s `is_current` again before it sends, and `phase=all`
+      defeats the gate for a case. `rule:ide/an-open-document-is-its-own-entry-point`. Test
+      `phase_all_publishes_what_the_gate_suppressed`, plus the first `.lspt` cases under `tests/lsp/`.
 
 ## Backlog
 
-- `docs/reference/tools/10-cli.md:34` still says `nvs lsp`, `nvs serve` and `nvs service` are
-  unrecognized subcommands; all three exist. That chapter owns the fix.
-- Stage 4's `lsp cases` check wants 160 passing cases (`docs/agent/loop-goal.toml:5133`); the corpus
-  arrives with the handlers, one slice's cases at a time.
-- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten — they need
-  the cursor's resolved node (`rule:ide/lspt-coverage-is-inferred`).
-- The `.lspt`/`.nvst` grammar for case files is goal 15's
-  (`rule:ide/case-files-have-their-own-grammar`).
+- 160 passing `.lspt` cases is stage 4's other check; every request slice ships its own.
+- A BOM is a column of line 0 in the source map, and VS Code's buffer excludes it — so a `Location`
+  answered for a *closed* BOM file is one column out on line 0 only. The definition slice decides it;
+  `crates/nvs-diagnostics/src/source.rs`'s `a_position_round_trips_through_utf16_and_utf8` is where
+  the current answer is pinned.
+- `nvs.lsp.debounce`'s 150 ms is unimplemented, and belongs with the analysis thread.
+- `Documents::iter`/`len`/`is_empty` exist for the publish loop and have no caller until stage 5.
+- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten
+  (`rule:ide/lspt-coverage-is-inferred`), and are stage 9's gate.

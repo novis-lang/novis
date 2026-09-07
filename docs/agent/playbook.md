@@ -1210,6 +1210,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   while checking the stronger property — no crate of ours names it, and what compiles of it is
   synchronisation alone. Read the test rather than the paragraph, and do not hunt for a lock entry
   to delete. [until: gone docs/plan/m4b.md:appears in neither]
+- **`session.py --wrap` can refuse over a link no session touched, because a rule fragment's
+  relative link is resolved from two different places.** A fragment's links are copied verbatim
+  into the chapter one directory above it, so `../../../README.md` resolved from
+  `docs/rules/packaging/the-banner-states-the-build.md` and escaped the repository from
+  `docs/rules/packaging.md` — `git show HEAD:<file>` showed the line unchanged, so "this session's"
+  was about which resolver ran rather than about the diff. Write a fragment's links to resolve from
+  the *chapter*, `python tools/rules.py --render`, and confirm with `python tools/check-links.py`.
+  [until: reviewed 2026-09-07]
 
 ## Running things
 
@@ -3329,6 +3337,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   errors it meant to pin and inside the `aborting due to N errors` count. Declare every local a
   reject case writes (`var $n = 1;`), and take the expected block from the runner's own `actual:`
   dump rather than from what the refusal alone would print. [until: reviewed 2026-09-07]
+- **`nvs_hir::resolve_program` reports no unresolved-name error, so a `-p nvs-lsp` test asserting
+  `!diags.has_errors()` over it passes whatever the walk actually read.** `E0301` and `E0303` come
+  from `nvs-types`, which `nvs-cli`'s `front_end` runs *after* the walk, so an analysis that stops at
+  name resolution collects parse, declaration and require-graph diagnostics and nothing else. Assert
+  on what that walk did produce — the `Module`'s own symbols, or the text the `SourceMap` holds for a
+  file — until the type phase joins it.
+  [until: gone crates/nvs-lsp/src/document.rs:let (module, loaded, _autoload) = resolve_program]
 
 ## Splitting a file that got too big
 
@@ -5033,13 +5048,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which is why this is a windows-x86_64 failure against two green legs; drive with `serve.rs`'s
   `run_the_core`, which is `nvs-cli`'s worker loop with a deadline on it.
   [until: gone crates/nvs-server/src/serve.rs:fn run_the_core]
-- **Renaming a rule means editing the `changes:` block of the frozen record that created it**, which
-  reads as a violation of the freeze and is not one. `tools/records.py`'s check refuses a `changes:`
-  id the rulebook no longer defines, and its sibling refuses a rule whose first `because` entry names
-  a record that does not claim it under `creates` — so the old slug cannot simply be left behind. The
-  freeze is over a record's *body*, which states what was decided and carries no history; the YAML
-  block is a machine-read relation that must keep agreeing with the rulebook, and updating one id in
-  it is maintenance, not rationale. [until: gone tools/records.py:"which the rulebook does not define"]
 - **A rulebook edit leaves the website's generated pages stale, and `verify.py` does not look at
   them.** `docs/rules/*.md`, `ground-rules.md` and `divergences.md` come from `python tools/rules.py
   --render`, but `website/src/content/docs/docs/rules/` and `website/src/data/rules.json` come from
