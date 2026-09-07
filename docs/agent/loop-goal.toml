@@ -95,8 +95,12 @@ modules = [
   "crates/nvs-test/src/case.rs",
 
   # -- Stages 4-7 (uncomment when the document store opens; drop what a stage no longer reads) --
-  # "crates/nvs-syntax/src/parser/mod.rs",
-  # "crates/nvs-hir/src/requires.rs",
+  # `parse` answers `Parsed { stmts, trivia, index }`; the store still calls the strict `parse_file`.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # `SyntaxIndex::at` -- the ancestor path every cursor request is a different depth of.
+  "crates/nvs-syntax/src/index.rs",
+  # `Loaded::requires` is the only place a `require` edge exists, which `documentLink` reads.
+  "crates/nvs-hir/src/requires.rs",
   # `nvs info` — one call that answers "what is this binary, and what is in it?", the way `php -i`
   # does for PHP.
   "crates/nvs-cli/src/info.rs",
@@ -120,6 +124,10 @@ rules = [
   "ide/one-grammar-one-tree",
   "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
   "ide/the-rendering-has-one-home",
+  # The list itself. Every request slice's first question is whether what it is about to answer is on
+  # it, and a session that had to reconstruct the roster from `capabilities.rs` was reading the
+  # promise rather than the rule.
+  "ide/the-request-set-is-closed",
 ]
 
 # Base names no ADR section at all: every one of them argued a particular stage's design, and
