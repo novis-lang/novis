@@ -1,0 +1,56 @@
+--TEST--
+A `///` run attaches to the declaration below it and changes nothing about the program that carries it, while `//` and `////` document nothing — `rule:tooling/doc-comment-is-three-slashes`, `rule:tooling/doc-comment-attaches-to-the-next-declaration`, `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+/// A greeting, and the text a reader of it sees.
+///
+/// `rule:tooling/doc-comment-attaches-to-the-next-declaration`: the lines
+/// above and this one are a single comment however many there are, and the
+/// declaration under them is what they document.
+///
+/// @see Greeting::render
+/// @example examples/greeting.nvs
+class Greeting {
+    /// The text this greeting carries.
+    public string $text;
+
+    /// Builds a greeting over its own text.
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    /// The greeting as a reader sees it.
+    ///
+    /// There is no `@param` and no `@return` here on purpose: the signature is
+    /// on the line below, and a signature cannot drift from itself.
+    ///
+    /// @see Greeting::$text
+    public function render(): string {
+        return $this->text;
+    }
+
+    // An ordinary comment documents nothing, and the walk that resolves a doc
+    // comment's tags never sees one. A private member is outside
+    // `rule:tooling/strict-docs` as well, so nothing here is owed a `///`.
+    private function hidden(): string {
+        return "";
+    }
+}
+
+//// Four slashes are an ordinary comment too, as in Rust. `///` is the marker,
+//// and a longer run of them is a divider somebody drew.
+
+var $greeting = new Greeting("a documented declaration runs unchanged");
+echo $greeting->render(), "\n";
+echo "two slashes are not documentation\n";
+echo "four slashes are not documentation\n";
+--FILE examples/greeting.nvs--
+<?nvs
+// The file the `@example` above names. A tag's target has to exist and has to
+// sit in a directory the test corpus walks, so the case writes one beside the
+// program that documents itself with it.
+echo "a greeting\n";
+--EXPECT--
+a documented declaration runs unchanged
+two slashes are not documentation
+four slashes are not documentation
