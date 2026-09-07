@@ -3363,6 +3363,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   becomes `1 passed, 1 failed`, and the failure reads as the new handler having broken the runner. Point
   the fixture at a request still falling through to the `unanswered` arm — `hover` today — rather than at
   the one you have just landed. [until: gone crates/nvs-lsp/src/suite.rs:is not answered yet]
+- **A free `function` at top level is refused, so nothing in its body is type-checked and a cursor
+  request inside one answers about nothing.** An `.lspt` case that wrapped `new User()` in
+  `function make(): void` got `none` from `definition` for a reason that had nothing to do with the
+  request: `check_declarations` reports `E0215` for the declaration
+  (`rule:classes/no-free-functions-or-constants`) and the walk never types the body. Put a fixture's
+  executable code at the top level or inside a method. [until: reviewed 2026-09-07]
 
 ## Splitting a file that got too big
 

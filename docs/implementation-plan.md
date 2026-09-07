@@ -65,8 +65,8 @@
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
 > whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
 > 2.78x php-cgi. **`nvs lsp` speaks the handshake**: silent on stdout, `.lspt` under `nvs lsp-test`.
-> **The store publishes** gated diagnostics per open document, and the four projections answer —
-> `selectionRange` off the index, comment folds off trivia: 27 cases.
+> **The store publishes** gated diagnostics, and five requests answer — the four projections plus
+> `definition`, off the type phase's own kept table: 33 cases.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

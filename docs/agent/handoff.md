@@ -2,60 +2,53 @@
 
 ## State
 
-**Goal 14 answers four of the ten requests, and the resilient parse is what the fourth rests on.**
-`crates/nvs-lsp/src/document.rs:338` calls `nvs_syntax::parse` rather than `parse_file`, so an
-`Analysed` carries the entry document's whole `Parsed` — the same statements plus the trivia
-(`crates/nvs-lsp/src/document.rs:274`) and the `SyntaxIndex`
-(`crates/nvs-lsp/src/document.rs:279`). A required file keeps the strict parse, because a cursor is
-only ever in the open one. `rule:ide/one-grammar-one-tree`.
+**Goal 14 answers five of the ten requests, and `definition` is the first that needed a name and a
+type.** `crates/nvs-lsp/src/document.rs:291` keeps the `ExprTypeTable` the type phase fills and
+`crates/nvs-lsp/src/document.rs:298` the `TypeInterner` it is read against, so a cursor answer is
+the index saying which node an offset is in and that table saying what the node's name resolved to.
+`crates/nvs-lsp/src/definition.rs` is the whole request: `New`, `NewDynamic`, `InstanceOf` and
+`EnumCase` each name a class, and `nvs_hir::SymbolTable` has where it was declared. A member —
+method or property — is `nvs_hir::MemberTable`'s and is not answered yet.
 
-**`selectionRange` is `crates/nvs-lsp/src/selection.rs` and nothing else**: the index's ancestor
-list turned into the wire's parent-linked chain, unedited. An offset inside no node answers nothing;
-the server sends the empty range at that position so its array stays paired with the client's, and a
-`.lspt` case renders it `none`. `foldingRange` gained the one kind its walk could not reach — a run
-of comment lines, out of that trivia, with the two rules for what joins a run in
-`crates/nvs-lsp/src/folding.rs`'s module doc.
+**`nvs lsp-test tests/lsp/` reports `33 passed, 0 failed`**, against the goal's floor of 160.
 
-**`nvs lsp-test tests/lsp/` reports `27 passed, 0 failed`**, against the goal's floor of 160.
+**The `.lspt` runner named the entry document by its absolute path**, because only a required file's
+path is canonical and `Materialised::spelling` stripped one prefix. It strips either now
+(`crates/nvs-lsp/src/suite.rs:244`); no expectation was edited.
 
-**Stage 7's four projections are done; `semanticTokens/full` is the fifth and waits on the same
-thing stage 6 does.** `crates/nvs-lsp/src/document.rs:368` still drops `nvs_types::ExprTypeTable` on
-the floor, and every remaining request wants it.
+**`semanticTokens/full` and `hover` are what stage 6 has left**, and both now have the table they
+were waiting on.
 
 ## Next group
 
-**Stage 6: the cursor requests that need a name and a type** — one file set:
+**Stage 6: the cursor requests that read a declaration** — one file set:
 `crates/nvs-lsp/src/document.rs`, `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/suite.rs`,
-`crates/nvs-lsp/src/render.rs`, and two new siblings of `crates/nvs-lsp/src/selection.rs`, with
-`crates/nvs-hir/src/symbol.rs` read only. Each is the index plus one table that already exists.
+`crates/nvs-lsp/src/render.rs` and `crates/nvs-lsp/src/definition.rs`, plus one new sibling of it,
+with `crates/nvs-syntax/src/ast.rs` and `crates/nvs-hir/src/members.rs` read only.
 
-- [ ] **`Analysed` keeps the expression types it computes and throws away.** The type phase at
-      `crates/nvs-lsp/src/document.rs:368` fills an `ExprTypeTable` and drops it with the comment
-      saying which request would keep it; that request is here. Keep it and the `TypeInterner` it is
-      read against beside the index on `Analysed` (`crates/nvs-lsp/src/document.rs:279`) — a type
-      without its interner is an id nothing can spell. `rule:ide/an-open-document-is-its-own-entry-point`.
-- [ ] **`definition`, for a declared type name.** `nvs_hir::Symbol::decl_span`
-      (`crates/nvs-hir/src/symbol.rs:47`) is the answer — the declared name's own span, anywhere in
-      the resolved graph. The open question to settle first: the index answers a kind and a span,
-      not a name (`crates/nvs-lsp/src/selection.rs:44` is the whole of how a request reads it), so
-      the identifier has to come out of the entry's text at that span. New
-      `crates/nvs-lsp/src/definition.rs`, arms at `crates/nvs-lsp/src/server.rs:156` and
-      `crates/nvs-lsp/src/suite.rs:182`, rendered as `crates/nvs-lsp/src/render.rs:68`'s `Place`,
-      cases under `tests/lsp/definition/`. `rule:ide/the-index-answers-the-cursor`.
-- [ ] **`hover`, starting with a declaration's doc comment.** The `DocComment` trivia
-      `Analysed` now carries is the run directly above a declaration, and
-      `crates/nvs-lsp/src/render.rs:270` already freezes a `Hover` as its markdown verbatim. The
-      `Core`-member signature row is the same handler's second source and can follow in its own
-      slice. `rule:tooling/doc-comment-is-three-slashes`.
+- [ ] **`hover`, starting with a declaration's doc comment.** The parser already attaches one:
+      `crates/nvs-syntax/src/parser/decl.rs:451` calls `take_doc_comment` and the node holds it at
+      `crates/nvs-syntax/src/ast.rs:1463`, so nothing here rescans trivia. What is missing is the
+      step from the cursor to the declaration — `crates/nvs-lsp/src/definition.rs:68` already makes
+      it as far as a `Symbol` and its `decl_span`. Render as Markdown through
+      `crates/nvs-lsp/src/render.rs:270`. `rule:tooling/doc-comment-is-three-slashes`,
+      `rule:ide/the-rendering-has-one-home`.
+- [ ] **`hover` over a `Core` member, out of the registry's signature row.** ADR 0099 § 3's second
+      hover source; the row is `crates/nvs-stdlib/src/registry.rs` and `rule:core-api/reference-card`
+      is what guarantees every implemented member carries one. The dispatch to add it to is
+      `crates/nvs-lsp/src/server.rs:160`.
+- [ ] **`definition` for a method or a property.** `crates/nvs-lsp/src/definition.rs:82` reads four
+      `ExprInfo` variants that name a class; `ExprInfo::Call` and `ExprInfo::Property` name a member,
+      whose declaration is `nvs_hir::MemberTable`'s rather than `SymbolTable`'s — that table is keyed
+      by a class label, which is the one thing to check before writing the arm.
 
 ## Backlog
 
-- `semanticTokens/full` with ADR 0099 § 4's legend, including `tainted`/`secret` — stage 7's fifth,
-  and the second reader of the kept `ExprTypeTable`. `docs/agent/loop-goal.md` § *Stage 7*.
-- `completion` — the third of stage 6's group, and the largest. `docs/agent/loop-goal.md` § *Stage 6*.
-- `nvs/redactions`, which is the driver's currently-failing acceptance check.
-  `docs/agent/loop-goal.md` § *Stage 8*.
-- The two code actions and the boundary test. `docs/agent/loop-goal.md` § *Stage 9*.
-- The latency guard on a 1,000-line document. `docs/agent/loop-goal.md` § *Stage 10*.
-- `#region` folds: a marker convention nothing in this language has decided.
-  `crates/nvs-lsp/src/folding.rs`'s module doc says why it is not built.
+- `semanticTokens/full`, the fifth projection — `docs/decisions/0099.md` § 4.
+- `nvs/redactions`, the goal's stage 8 and the earliest acceptance check still red —
+  `rule:security/redaction-ranges-come-from-the-server`.
+- The two code actions, stage 9 — `docs/decisions/0099.md` § 3's closing paragraph.
+- `completion`, which is the last request with real work behind it — ADR 0099 § 3.
+- The `.lspt` corpus stands at 33 against a floor of 160; every request slice ships cases.
+- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are not written —
+  `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
