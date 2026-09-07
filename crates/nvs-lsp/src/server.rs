@@ -5,12 +5,19 @@
 //! taken off the channel, answered, and the next one is taken; there is no
 //! executor to hand it to and nothing here returns a `Future`.
 //!
-//! **The dispatch is a refusal, and refusing is the correct answer.** A request
-//! this server does not answer gets `MethodNotFound` rather than silence,
-//! because a client waiting on a response that never comes is a client that
-//! hangs. The set that gets a real answer grows as
+//! **[`answer`] is the dispatch, and a refusal is one of its answers.** Every
+//! request gets a response: an arm's when there is one, and `MethodNotFound`
+//! otherwise, because a client waiting on a response that never comes is a
+//! client that hangs. The set with an arm grows as
 //! `rule:ide/the-request-set-is-closed`'s list is implemented; the set that
-//! gets a refusal is everything else, permanently.
+//! gets a refusal is everything outside that list, permanently.
+//!
+//! An arm answers out of the store it is handed and writes nothing back to it.
+//! A request carries no version — the client is asking about whatever it last
+//! sent — so `rule:ide/the-server-is-synchronous`'s version check has nothing
+//! to compare against here, and the one thing that would be wrong is analysing
+//! a document the client has since replaced, which cannot happen on a thread
+//! that reads the next message only after this one is answered.
 //!
 //! **`textDocument/publishDiagnostics` is the one thing sent unasked**, and
 //! [`publish`] is the whole of it: a document-sync notification is applied to
@@ -22,14 +29,15 @@
 use std::error::Error;
 use std::path::PathBuf;
 
-use lsp_server::{Connection, ErrorCode, Message, Notification, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::notification::{
     DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
     PublishDiagnostics,
 };
+use lsp_types::request::{DocumentSymbolRequest, Request as _};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, PublishDiagnosticsParams, Uri,
+    DocumentSymbolParams, DocumentSymbolResponse, InitializeParams, PublishDiagnosticsParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
@@ -37,6 +45,7 @@ use crate::capabilities::initialize_result;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of};
 use crate::position::encoding_of;
+use crate::symbols;
 
 /// What a failure on the wire is reported as.
 ///
@@ -106,12 +115,8 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
                 }
-                let refusal = Response::new_err(
-                    request.id,
-                    ErrorCode::MethodNotFound as i32,
-                    format!("`{}` is not answered by this server", request.method),
-                );
-                connection.sender.send(refusal.into())?;
+                let answered = answer(&documents, encoding, request);
+                connection.sender.send(answered.into())?;
             }
             Message::Notification(notification) => {
                 if let Some(changed) = apply(&mut documents, notification) {
@@ -125,6 +130,64 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     }
 
     Ok(())
+}
+
+/// The response to one request.
+///
+/// The seam every request slice lands an arm in, and the one place a method
+/// name is matched. Three outcomes and no fourth: an arm's answer, a refusal
+/// for a method outside `rule:ide/the-request-set-is-closed`'s list, and
+/// `InvalidParams` for one inside it whose payload will not deserialize —
+/// which is a client sending something other than what the handshake agreed,
+/// and is worth saying rather than answering as if the document were empty.
+///
+/// [`crate::suite`]'s own `answer` is the same seam for a `.lspt` case, and the
+/// two share what does the work rather than the dispatch: a case names its
+/// request in a `--REQUEST--` line and never a method string, and it holds no
+/// `RequestId` to answer with.
+fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -> Response {
+    let Request { id, method, params } = request;
+
+    match method.as_str() {
+        DocumentSymbolRequest::METHOD => {
+            match serde_json::from_value::<DocumentSymbolParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    document_symbol(documents, encoding, &params.text_document.uri),
+                ),
+                Err(error) => Response::new_err(
+                    id,
+                    ErrorCode::InvalidParams as i32,
+                    format!("`{method}` carried parameters this server could not read: {error}"),
+                ),
+            }
+        }
+        _ => Response::new_err(
+            id,
+            ErrorCode::MethodNotFound as i32,
+            format!("`{method}` is not answered by this server"),
+        ),
+    }
+}
+
+/// `textDocument/documentSymbol` — the outline of one open document.
+///
+/// A document this server has nothing open for answers an empty outline rather
+/// than an error: the client asked what is in a file, and "nothing this server
+/// knows of" is an answer to that. The walk itself is [`symbols::for_document`],
+/// which the `.lspt` suite calls too, so what an editor draws and what a case
+/// freezes cannot drift apart.
+fn document_symbol(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> DocumentSymbolResponse {
+    let outline = analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+        symbols::for_document(&analysed, encoding)
+    });
+    // `Nested` and never `Flat`: the outline is a tree and `SymbolInformation`
+    // would flatten a class's members out beside it.
+    DocumentSymbolResponse::Nested(outline)
 }
 
 /// What a document-sync notification changed, and so what has to be published

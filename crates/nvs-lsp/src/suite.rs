@@ -47,6 +47,7 @@ use crate::case::{Case, MAIN_PATH, Request};
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, uri_of};
 use crate::render::Response;
+use crate::symbols;
 
 /// The units a case's columns are counted in — see the module doc.
 const COLUMNS: PositionEncoding = PositionEncoding::Utf8;
@@ -178,6 +179,7 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
+        Request::DocumentSymbol => document_symbol(case),
         unanswered => Err(format!(
             "`{unanswered}` is not answered yet; the handler and this case's own slice land together"
         )),
@@ -289,6 +291,21 @@ fn diagnostics(case: &Case) -> Result<Response, String> {
     )))
 }
 
+/// `textDocument/documentSymbol` — the entry document's outline.
+///
+/// No cursor and no arguments: the outline is a walk of the whole file, so a
+/// case asks for it and nothing else. [`crate::symbols::for_document`] is the
+/// same call the server makes, on an analysis produced the same way.
+fn document_symbol(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::DocumentSymbol(symbols::for_document(
+        &analysed, COLUMNS,
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,8 +387,8 @@ mod tests {
         let dir = scratch("tree");
         write(
             &dir.join("unanswered.lspt"),
-            "--TEST--\nthe outline of a class\n--FILE--\n<?nvs\nclass User {}\n\
-             --REQUEST--\ndocumentSymbol\n--EXPECT--\nUser class\n",
+            "--TEST--\nwhat a class name hovers as\n--FILE--\n<?nvs\nclass Us<|>er {}\n\
+             --REQUEST--\nhover\n--EXPECT--\nnone\n",
         );
         write(
             &dir.join("nested").join("malformed.lspt"),
@@ -398,10 +415,7 @@ mod tests {
         // The two failures read differently: one file is not a case, and the
         // other is a case nothing answers yet.
         assert!(report.contains("no `--REQUEST--` section"), "{report}");
-        assert!(
-            report.contains("`documentSymbol` is not answered yet"),
-            "{report}"
-        );
+        assert!(report.contains("`hover` is not answered yet"), "{report}");
         assert!(!report.contains("README"), "{report}");
 
         // A path that does not exist is the mistake it looks like, rather than
