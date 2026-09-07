@@ -119,14 +119,18 @@ def relabel(lines, stage):
 def union_list(new_text, field, extra):
     """Add every element of `extra` that `new_text`'s `field = [...]` does not already hold.
 
-    Both list shapes this repository writes are matched: the multi-line one, whose `]` sits at the
-    start of its own line, and the single-line one. Only the first was matched until the switch to
-    goal 4, where the single-line `[valgrind] skip` carried none of the previous goal's entries and
-    the regex simply did not fire -- `examples/limits.nvs` lost its skip, the sweep graded a fixture
-    that exits nonzero by design as a leak, and an acceptance run failed on a fixture no session had
-    touched. A union that kept nothing and a union with nothing to add look identical from the
-    outside, which is why a missing field is `None` here and a refusal in the caller rather than a
-    quiet pass-through.
+    Both list shapes this repository writes are matched, and the **single-line one is tried first**:
+    its `[` and `]` sit on one line, so it is the narrower claim and the only one that can be read
+    off a single line with certainty. The multi-line pattern is `.*?` under `re.S` and stops at the
+    first `]` starting a line, which for a single-line `files = []` is not its own closing bracket
+    at all but the next multi-line list's -- `[context] modules`, a few lines below in every goal
+    file. Matched that way the union splices the carried entries into `modules`, leaves `files`
+    empty, and hands the driver a floor whose every fixture check names a file `files` does not
+    hold. Ordering the alternatives the other way is what makes the narrower shape unmistakable.
+
+    A union that kept nothing and a union with nothing to add look identical from the outside, which
+    is why a missing field is `None` here and a refusal in the caller rather than a quiet
+    pass-through.
 
     Written as a text edit rather than a re-serialization on purpose: re-emitting the whole TOML
     from `tomllib`'s parse would throw away every comment in the file, and this repository's TOML is
@@ -134,8 +138,9 @@ def union_list(new_text, field, extra):
     """
     if not extra:
         return new_text
-    multi = re.search(rf'^{field}\s*=\s*\[(.*?)^\]', new_text, re.S | re.M)
-    m = multi or re.search(rf'^{field}\s*=\s*\[([^\[\]\n]*)\]', new_text, re.M)
+    single = re.search(rf'^{field}\s*=\s*\[([^\[\]\n]*)\]', new_text, re.M)
+    multi = None if single else re.search(rf'^{field}\s*=\s*\[(.*?)^\]', new_text, re.S | re.M)
+    m = single or multi
     if not m:
         return None
     body = m.group(1)
