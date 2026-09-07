@@ -9,7 +9,10 @@ class Threshold {
         $this->least = $least;
     }
 
-    public function test(): callable {
+    // The signature `Core\Arr::filter` asks its callback for, written out:
+    // `rule:types/callable-signature`, and the literal below satisfies it by
+    // declaring the prefix of it that it uses.
+    public function test(): callable(int, string): bool {
         return fn(int $v): bool => $v >= $this->least;
     }
 }

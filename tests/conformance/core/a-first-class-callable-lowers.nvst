@@ -68,9 +68,12 @@ callable $upper = Core\Str::upper(...);
 echo $upper("shout") as string, "\n";
 
 // The whole point of the syntax: a `Core` member that takes a callback
-// cannot tell one of these from a written closure.
-array<mixed> $sides = [1, 2, 3];
-array<mixed> $doubled = Core\Arr::map($sides, Core\Math::abs(...));
+// cannot tell one of these from a written closure. The reference carries
+// `abs`'s own signature (`rule:types/callable-signature`), so `map`'s
+// element type is what `abs` answers and the subject must be something
+// `abs` accepts.
+array<int> $sides = [1, 2, 3];
+array<int|float|decimal> $doubled = Core\Arr::map($sides, Core\Math::abs(...));
 foreach ($doubled as mixed $one) {
     echo $one, " ";
 }

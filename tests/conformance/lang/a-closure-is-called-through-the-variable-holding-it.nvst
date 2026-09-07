@@ -11,9 +11,11 @@ callable $upper = fn (string $s): string => Core\Str::upper($s);
 // `Core\Arr::map`, which reaches the closure's `invoke` through
 // `nvs_runtime::call_closure` too. A direct call that grew a second entry
 // point with a convention of its own would fail here while each half still
-// printed plausibly on its own line.
+// printed plausibly on its own line. A bare `callable` promises no signature
+// and `map`'s callback asks for one (`rule:types/callable-signature`), so it
+// travels there inside a literal that forwards to it.
 array<string> $words = ["ab", "cd", "ef"];
-array<mixed> $mapped = Core\Arr::map($words, $upper);
+array<mixed> $mapped = Core\Arr::map($words, fn (string $w) => $upper($w));
 int $agree = 0;
 int $i = 0;
 foreach ($words as string $w) {

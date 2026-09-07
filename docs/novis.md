@@ -7136,8 +7136,8 @@ ada:92 bo:67 cy:85 di:74
 | Member | Signature |
 |---|---|
 | [`Core\Arr::count`](#core-core-arr-count) | `count(array<T> $a): uint` |
-| [`Core\Arr::filter`](#core-core-arr-filter) | `filter(array<T> $a, callable $predicate): array<T>` |
-| [`Core\Arr::map`](#core-core-arr-map) | `map(array<T> $a, callable $fn): array<U>` |
+| [`Core\Arr::filter`](#core-core-arr-filter) | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` |
+| [`Core\Arr::map`](#core-core-arr-map) | `map(array<T> $a, callable(T, string): U $fn): array<U>` |
 | [`Core\Arr::mapKeys`](#core-core-arr-mapkeys) | `mapKeys(array<T> $a, callable $fn): array<T>` |
 | [`Core\Arr::groupBy`](#core-core-arr-groupby) | `groupBy(array<T> $a, callable $key): array<array<T>>` |
 | [`Core\Arr::reduce`](#core-core-arr-reduce) | `reduce(array<T> $a, callable $fn, U $initial): U` |
@@ -7210,7 +7210,7 @@ Counts the entries in `$a`, as `count` and `sizeof` do.
 #### `Core\Arr::filter`
 
 ```nvs skip
-Core\Arr::filter(array<T> $a, callable $predicate): array<T>
+Core\Arr::filter(array<T> $a, callable(T, string): bool $predicate): array<T>
 ```
 
 Keeps the entries `$predicate` answers truthily for, as `array_filter` does — with both of its flags folded in, since the callback receives `($value, $key)` and may declare fewer parameters.
@@ -7218,7 +7218,7 @@ Keeps the entries `$predicate` answers truthily for, as `array_filter` does — 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to filter. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry; a truthy answer keeps the entry, on the same truthiness table `if` reads. |
+| `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry; a truthy answer keeps the entry, on the same truthiness table `if` reads. |
 
 **Returns** `array<T>` — The kept entries under their own keys, never renumbered; an empty array when nothing passes.
 
@@ -7226,7 +7226,7 @@ Keeps the entries `$predicate` answers truthily for, as `array_filter` does — 
 #### `Core\Arr::map`
 
 ```nvs skip
-Core\Arr::map(array<T> $a, callable $fn): array<U>
+Core\Arr::map(array<T> $a, callable(T, string): U $fn): array<U>
 ```
 
 Replaces every value with what `$fn` answers for it, as `array_map` does over one array; keys are preserved.
@@ -7234,7 +7234,7 @@ Replaces every value with what `$fn` answers for it, as `array_map` does over on
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to map. |
-| `$fn` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters; its return type is the result's `U`. |
+| `$fn` | `callable(T, string): U` | Called as `($value, $key)` per entry, and may declare fewer parameters; its return type is the result's `U`. |
 
 **Returns** `array<U>` — One entry per entry of `$a`, under the same key, holding the callback's answer.
 

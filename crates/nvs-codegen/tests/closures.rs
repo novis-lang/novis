@@ -100,8 +100,15 @@ try {
 /// The mismatch lands on the *third* entry on purpose, so `Core\Arr::filter`
 /// is two kept entries into its walk when the check refuses — which is what
 /// gives the leak guard a partial result to abandon.
+///
+/// `$forward` is what carries the bare `callable` to a member that declares
+/// its callback's signature (`rule:types/callable-signature`): the position
+/// hands a `mixed`, which is what the forwarder declares, and the argument
+/// that gets refused is the one it passes on. Declared once and outside every
+/// loop below, so the leak guard is still measuring one closure's walk.
 const MISMATCH: &str = "<?nvs
 callable $wantsString = fn (string $s): bool => $s != \"zzz\";
+callable(mixed, string): bool $forward = fn (mixed $m): bool => $wantsString($m) as bool;
 array<mixed> $mixed = [\"a\", \"b\", 3];
 ";
 
@@ -117,7 +124,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
     // two apart.
     let caught = format!(
         "{MISMATCH}try {{
-    var $kept = Core\\Arr::filter($mixed, $wantsString);
+    var $kept = Core\\Arr::filter($mixed, $forward);
     echo \"did not throw \", Core\\Arr::count($kept) as string;
 }} catch (LogicError $e) {{
     echo \"caught: \", $e->message;
@@ -133,7 +140,7 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
     // message — never a `Fault::Fatal`, which is what the check reserves for a
     // compiler bug (`nvs_runtime::closure`'s `check_param_tags`).
     let mut ctx = Ctx::buffered();
-    let uncaught = format!("{MISMATCH}Core\\Arr::filter($mixed, $wantsString);\n");
+    let uncaught = format!("{MISMATCH}Core\\Arr::filter($mixed, $forward);\n");
     assert_eq!(run_with(&mut ctx, &uncaught).unwrap_err(), THROWN);
     assert_eq!(
         ctx.pending().as_deref(),
@@ -162,7 +169,11 @@ callable $half = fn (float $f): float => $f / 2.0;
 // row accepts — asserted beside 7, which no reading of the value could
 // mistake for anything else.
 array<int> $ints = [7, 9007199254740992];
-echo Core\\Json::encode(Core\\Arr::map($ints, $half)), \"\\n\";
+// `map` declares what it hands its callback (`rule:types/callable-signature`),
+// which a bare `callable` does not promise, so `$half` is reached through a
+// literal — and the conversion under test is still the one
+// `nvs_runtime::call_closure` makes on the way into `$half`.
+echo Core\\Json::encode(Core\\Arr::map($ints, fn (int $n) => $half($n))), \"\\n\";
 
 // The first refused one, one past that bound. Caught as `ArithmeticError`
 // specifically — `rule:types/arithmetic`'s class for a numeric overflow, and the
@@ -173,7 +184,7 @@ try {
     // Bound before it is echoed: `echo` writes its arguments one at a time,
     // so evaluating the call inside the list prints the prefix before the
     // throw reaches the `catch`.
-    var $past = Core\\Arr::map($edge, $half);
+    var $past = Core\\Arr::map($edge, fn (int $n) => $half($n));
     echo \"did not throw \", Core\\Json::encode($past), \"\\n\";
 } catch (ArithmeticError $e) {
     echo \"caught: \", $e->message, \"\\n\";
@@ -182,7 +193,7 @@ try {
 // `uint` is a tag of its own and takes the same row rather than a second one.
 uint $nine = 9;
 array<uint> $uints = [$nine];
-echo Core\\Json::encode(Core\\Arr::map($uints, $half)), \"\\n\";
+echo Core\\Json::encode(Core\\Arr::map($uints, fn (uint $n) => $half($n))), \"\\n\";
 ";
     assert_eq!(
         output_of(source),
@@ -242,7 +253,7 @@ while ($i < {iterations}) {{
     string $tag = \"t\" . $i;
     array<mixed> $fresh = [$tag, $tag . \"!\", 3];
     try {{
-        var $kept = Core\\Arr::filter($fresh, $wantsString);
+        var $kept = Core\\Arr::filter($fresh, $forward);
         $caught = $caught + Core\\Arr::count($kept) as int;
     }} catch (LogicError $e) {{
         $caught = $caught + 1;

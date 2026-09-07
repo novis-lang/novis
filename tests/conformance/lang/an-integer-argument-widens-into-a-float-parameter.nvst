@@ -10,9 +10,12 @@ callable $half = fn (float $f): float => $f / 2.0;
 
 // Agreement, not one answer: the same closure and the same argument through
 // `$fn(...)` and through a `Core` member's callback. A widening that lived in
-// one caller would still print plausibly on the other's line.
+// one caller would still print plausibly on the other's line. `map`'s callback
+// declares its signature (`rule:types/callable-signature`), which a bare
+// `callable` does not satisfy, so it reaches the member through a literal that
+// forwards to it.
 array<int> $ints = [7];
-array<mixed> $mapped = Core\Arr::map($ints, $half);
+array<mixed> $mapped = Core\Arr::map($ints, fn (int $n) => $half($n));
 echo "direct ", $half(7) as string, " callback ", Core\Json::encode($mapped), "\n";
 
 // `uint` is a tag of its own and takes the same row.

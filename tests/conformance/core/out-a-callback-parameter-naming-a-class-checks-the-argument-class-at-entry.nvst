@@ -121,8 +121,14 @@ echo Core\Arr::count(Core\Arr::filter($shows, fn (Shown $s): bool => $s->shown()
 // found in: one wrong callback over a list of another final class. Before the
 // check this wrote through `Holder`'s `string` slot at the offset `Shows` lays
 // out something else in.
+//
+// Asked of `any`, whose callback is a bare `callable`: at `filter`, whose
+// written signature (`rule:types/callable-signature`) names what the callback
+// is handed, the same confusion is refused where it is written and never
+// reaches the entry check. That is the check being *spent* rather than
+// removed, and this line is what it still answers where nothing was proven.
 try {
-    echo Core\Arr::count(Core\Arr::filter($shows, fn (Holder $h): bool => $h->name == "held")), "\n";
+    echo Core\Arr::any($shows, fn (Holder $h): bool => $h->name == "held") as string, "\n";
 } catch (LogicError $confused) {
     echo $confused->message, "\n";
 }

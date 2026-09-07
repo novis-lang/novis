@@ -11,8 +11,11 @@ callable $isKeep = fn (string $s): bool => $s == "keep";
 // The matching side, asked of both callers. Agreement rather than one answer:
 // a check that grew a second entry point with a convention of its own would
 // fail here while each half still printed plausibly on its own line.
+// `filter`'s callback declares its signature (`rule:types/callable-signature`)
+// and a bare `callable` promises none, so both callers below reach `$isKeep`
+// through a literal — which is what keeps them the *same* two callers.
 array<string> $words = ["keep", "drop", "keep"];
-array<string> $kept = Core\Arr::filter($words, $isKeep);
+array<string> $kept = Core\Arr::filter($words, fn (string $w): bool => $isKeep($w) as bool);
 int $agree = 0;
 foreach ($words as string $w) {
     if ($isKeep($w)) {
@@ -26,7 +29,7 @@ echo "kept ", Core\Arr::count($kept) as string, " agree ", $agree as string, "\n
 // fault, and it names the position, what it required and what arrived.
 array<int> $ints = [1, 2, 3];
 try {
-    array<int> $none = Core\Arr::filter($ints, $isKeep);
+    array<int> $none = Core\Arr::filter($ints, fn (int $n): bool => $isKeep($n) as bool);
     echo "filter did not throw, kept ", Core\Arr::count($none) as string, "\n";
 } catch (Throwable $e) {
     echo "filter: ", $e->message, "\n";
