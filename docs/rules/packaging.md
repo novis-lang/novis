@@ -3,7 +3,7 @@
 
 # Packaging
 
-*40 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*40 of 70 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -482,20 +482,53 @@ which is also why a bundle never re-signs itself
 
 <a id="packaging-a-build-records-no-timestamp"></a>
 
-## A build records its target, host, profile, compiler and commit, and never a date
+## A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date
 
 `rule:packaging/a-build-records-no-timestamp`
 
 `build.rs` records the target, the host, the profile, `rustc --version`, the Cranelift version from
-`Cargo.lock` and the commit — and no date. A build date makes two builds of the same commit differ for
-no gain: the commit already answers "which source is this?" exactly, and a byte-identical rebuild is
-worth more than knowing when it happened.
+`Cargo.lock`, the commit and the commit's own committer date — and no build date. A build date makes two
+builds of the same commit differ for no gain: the commit already answers "which source is this?"
+exactly, and a byte-identical rebuild is worth more than knowing when it happened.
 
-`NVS_BUILD_COMMIT` lets a distribution packaging Novis from a tarball supply the revision when no `.git`
-is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
-All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling)'s report.
+The committer date is not that timestamp and does not cost that property. It is read off the commit
+rather than off the clock, so every rebuild of one commit emits the same string, and it answers the one
+question the hash does not: how old is this binary. It is why the banner can carry a date at all.
 
-<sub>See also [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
+`NVS_BUILD_COMMIT` and `NVS_BUILD_COMMIT_DATE` let a distribution packaging Novis from a tarball supply
+the revision and its date when no `.git` is present, and every fact that cannot be determined becomes
+`unknown` rather than failing the build. All of it reaches [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call)'s
+report, and the version, commit and date of it open [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build).
+
+<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build). Decided in [0065](../decisions/0065.md), [0151](../decisions/0151.md).</sub>
+
+<a id="packaging-the-banner-states-the-build"></a>
+
+## `nvs --help` opens with the README's own title and the version, commit and commit date of the build answering
+
+`rule:packaging/the-banner-states-the-build`
+
+`nvs --help` opens with two lines and no third:
+
+```
+Novis — The Web-Native Programming Language
+version: 0.0.1 · commit: 9c62ae176 · 2026-09-07
+```
+
+Line one is the identity, and it is [README.md](../../../README.md)'s H1 verbatim rather than a second
+phrasing of it. Line two is which build is answering, which is the first thing a bug report needs and the
+last thing a reporter thinks to look up. `-dirty` is appended to the hash when the tree was modified at
+build time, so a binary built over uncommitted work says so in its own banner.
+
+**The date is the commit's, never the build's.**
+[`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp) is the reason and holds the mechanism: derived from the
+commit, it answers how old the binary is while leaving two builds of one commit byte-identical.
+
+`Novis` is underlined through `anstyle`, which clap writes via `anstream`. A redirected or piped
+`--help` therefore gets plain text and `NO_COLOR` is honoured, without the code that builds the string
+testing for a terminal — the same arrangement the diagnostic renderer already runs under.
+
+<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own). Decided in [0151](../decisions/0151.md).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -550,36 +583,65 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
 on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0065](../decisions/0065.md).</sub>
 
-<a id="packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"></a>
+<a id="packaging-the-cli-surface-is-novis-own"></a>
 
-## `nvs info` is the one call for build, host and licensing facts, and `nvs -i` is the same command
+## No flag on `nvs` is inherited from PHP; `-h` and `-V` are the Unix baseline and `-o` the only short flag Novis declares
 
-`rule:packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`
+`rule:packaging/the-cli-surface-is-novis-own`
+
+**No flag on `nvs` exists because PHP spells it that way.** The language copies PHP's observable
+semantics on purpose; the command line is not semantics, and a spelling inherited there buys a PHP
+developer one familiar keystroke and charges every reader of `--help` for it afterwards.
+
+The whole short-flag surface, and where each one comes from:
+
+| Spelling | Source |
+|---|---|
+| `-h`, `--help` | clap, generated |
+| `-V`, `--version` | clap, from `version` in the `#[command]` attribute |
+| `-o`, `--output` | ours, on `nvs build --compile` alone |
+
+`-h` and `-V` stay, and are not the thing this rule is about: they are the Unix baseline every program on
+the machine shares, and `-V` is uppercase because the GNU convention reserves `-v` for verbosity. PHP's
+own version flag is the lowercase `-v`, so adopting it would be the one change that moved *toward* PHP.
+
+A short flag is a decision, not a convenience. Declare one only where a long name is genuinely typed
+often enough to hurt — `-o` is that, and nothing else in the CLI has met the bar. **A short and its long
+form are one flag with two spellings**, which is the getopt convention and not an operation reachable two
+ways; [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) governs `Core`'s surface and never had anything to say
+about argv.
+
+<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0151](../decisions/0151.md).</sub>
+
+<a id="packaging-nvs-info-is-the-one-call"></a>
+
+## `nvs info` is the one call for build, host and licensing facts, and the one spelling of it
+
+`rule:packaging/nvs-info-is-the-one-call`
 
 ```
 nvs info                # build, host and licensing facts, plus the component table
 nvs info --licenses     # the same, plus every license text in full
-nvs -i / nvs -i --licenses
 ```
 
 "What is this binary, what is in it, and what may I do with it?" is one question asked by one person at
-one moment, so it is one call, the shape `php -i` already has. The default is the summary because the
-full texts are some 55 KB and a terminal is the wrong place to put them unasked; `--licenses` is the
-complete legal record. The report is plain two-column text with no colour and no paging, so it pipes.
+one moment, so it is one call. The default is the summary because the full texts are some 55 KB and a
+terminal is the wrong place to put them unasked; `--licenses` is the complete legal record. The report is
+plain two-column text with no colour and no paging, so it pipes.
 
-**This is the one place in Novis where an operation is deliberately reachable two ways.**
-[`core-api/shape-rules`](core-api.md#core-api-shape-rules)'s "no operation reachable two ways" governs the `Core` library, not the
-CLI, and the reason is specific: `-i` is the spelling a PHP developer tries first, and the point of the
-command is that nobody should have to hunt for it. Combining `-i` with a subcommand is refused rather
-than guessed at.
+**It is reachable one way.** `php -i` is where the shape came from, and for a while `nvs -i` was carried
+beside the subcommand as the spelling a PHP developer tries first. That alias is gone:
+[`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own) is why, and what it cost — a global flag, a second
+`--licenses` hanging off it, and a hand-written conflict check for a collision clap cannot express — was
+the whole of the argument for removing it.
 
 Fields that do not exist yet are not printed; the report grows a section as each thing it describes
 lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](testing.md#testing-debug-probes)' territory and is
 flag-gated for reasons this command does not share.
 
-<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../decisions/0065.md).</sub>
+<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../decisions/0065.md), [0151](../decisions/0151.md).</sub>
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 

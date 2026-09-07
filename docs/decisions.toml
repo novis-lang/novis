@@ -875,7 +875,7 @@ Core\Config::set and Core\Config::get.
 [[entry]]
 adr      = '0065'
 group    = 'tooling'
-digest   = '5a7ee2975592'
+digest   = 'bbef6d4e3b5e'
 headline = 'Third-party licence notices are generated, committed and built into the binary'
 body     = '''
 Novis is MIT-licensed and links around eighty permissive components, every one of which asks
@@ -2035,4 +2035,18 @@ pressing Enter inside a doc comment starts the next line, and pasting several li
 prefix them all. Neither adds a setting or a command. The alternative — a block form writing the
 marker once at each end — was turned down: its closing marker is what a code example inside the
 comment would contain.
+'''
+
+[[entry]]
+adr      = '0151'
+group    = 'tooling'
+digest   = '6da405b34fb4'
+headline = 'The nvs command line drops inherited PHP flags, and --help names the build'
+body     = '''
+Novis copies PHP's semantics, never its command line. The one inherited flag, nvs -i, is gone,
+with the derived --info spelling and the global --licenses that hung off it; nvs info is now
+spelled one way. The -h and -V flags stay, since they come from the argument parser and Unix
+convention, not PHP. And --help now opens with two lines: the project title as the README states
+it, then the version, commit and date of the build answering. That date is the commit's, not the
+build's, so rebuilds stay identical.
 '''

@@ -862,6 +862,12 @@
           "headline": "Writing a doc comment is the editor’s job, not the language’s",
           "body": "A doc comment is a run of `///` lines, and the per-line marker is what stops anything inside from ending it early. What it costs is typing, and both halves of that belong to the editor: pressing Enter inside a doc comment starts the next line, and pasting several lines in offers to prefix them all. Neither adds a setting or a command. The alternative — a block form writing the marker once at each end — was turned down: its closing marker is what a code example inside the comment would contain.",
           "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0149.md"
+        },
+        {
+          "adr": "0151",
+          "headline": "The nvs command line drops inherited PHP flags, and --help names the build",
+          "body": "Novis copies PHP's semantics, never its command line. The one inherited flag, nvs -i, is gone, with the derived --info spelling and the global --licenses that hung off it; nvs info is now spelled one way. The -h and -V flags stay, since they come from the argument parser and Unix convention, not PHP. And --help now opens with two lines: the project title as the README states it, then the version, commit and date of the build answering. That date is the commit's, not the build's, so rebuilds stay identical.",
+          "url": "https://github.com/novis-lang/novis/blob/main/docs/decisions/0151.md"
         }
       ]
     },

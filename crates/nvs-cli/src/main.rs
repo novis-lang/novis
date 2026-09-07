@@ -108,6 +108,7 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use clap::builder::styling::{Effects, Style};
 use clap::{Parser as ClapParser, Subcommand};
 use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
@@ -130,11 +131,32 @@ mod service;
 mod tmp;
 mod worker;
 
+/// The two lines every `nvs --help` opens with: what this program is, then
+/// exactly which build is answering.
+///
+/// The date is the commit's own rather than the build's, for the reason
+/// `rule:packaging/a-build-records-no-timestamp` gives — two builds of one
+/// commit print the same banner and stay byte-identical. The underline is an
+/// `anstyle` sequence, which clap writes through `anstream`, so a redirected
+/// or piped `--help` gets plain text and `NO_COLOR` is honoured without this
+/// function testing for either.
+fn header() -> String {
+    let name = Style::new().effects(Effects::UNDERLINE);
+    format!(
+        "{}Novis{} — The Web-Native Programming Language\nversion: {} · commit: {} · {}",
+        name.render(),
+        name.render_reset(),
+        env!("CARGO_PKG_VERSION"),
+        env!("NVS_COMMIT"),
+        env!("NVS_COMMIT_DATE"),
+    )
+}
+
 #[derive(ClapParser)]
 #[command(
     name = "nvs",
     version,
-    about = "The Novis compiler and CLI",
+    about = header(),
     arg_required_else_help = true
 )]
 struct Cli {

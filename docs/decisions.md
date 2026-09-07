@@ -1260,6 +1260,15 @@ all. Neither adds a setting or a command. The alternative — a block form writi
 each end — was turned down: its closing marker is what a code example inside the comment would
 contain.
 
+**The nvs command line drops inherited PHP flags, and --help names the build**
+
+Novis copies PHP's semantics, never its command line. The one inherited flag, nvs -i, is gone, with
+the derived --info spelling and the global --licenses that hung off it; nvs info is now spelled one
+way. The -h and -V flags stay, since they come from the argument parser and Unix convention, not
+PHP. And --help now opens with two lines: the project title as the README states it, then the
+version, commit and date of the build answering. That date is the commit's, not the build's, so
+rebuilds stay identical.
+
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.

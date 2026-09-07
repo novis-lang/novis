@@ -67,6 +67,7 @@ fn report(licenses: bool) -> String {
     out.push_str("\nBuild\n");
     row(&mut out, "version", env!("CARGO_PKG_VERSION"));
     row(&mut out, "commit", env!("NVS_COMMIT"));
+    row(&mut out, "commit date", env!("NVS_COMMIT_DATE"));
     row(&mut out, "profile", env!("NVS_PROFILE"));
     row(&mut out, "target", env!("NVS_TARGET"));
     row(&mut out, "built on", env!("NVS_HOST"));

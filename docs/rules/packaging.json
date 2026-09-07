@@ -305,16 +305,33 @@
     },
     {
       "id": "packaging/a-build-records-no-timestamp",
-      "title": "A build records its target, host, profile, compiler and commit, and never a date",
+      "title": "A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date",
       "status": "shipped",
       "because": [
-        "0065"
+        "0065",
+        "0151"
       ],
       "seeAlso": [
-        "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"
+        "packaging/nvs-info-is-the-one-call",
+        "packaging/the-banner-states-the-build"
       ],
       "guardedBy": [
         "crates/nvs-cli/src/info.rs"
+      ]
+    },
+    {
+      "id": "packaging/the-banner-states-the-build",
+      "title": "`nvs --help` opens with the README's own title and the version, commit and commit date of the build answering",
+      "status": "shipped",
+      "because": [
+        "0151"
+      ],
+      "seeAlso": [
+        "packaging/a-build-records-no-timestamp",
+        "packaging/the-cli-surface-is-novis-own"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/main.rs"
       ]
     },
     {
@@ -339,24 +356,42 @@
       ],
       "seeAlso": [
         "packaging/the-third-party-notice-is-generated-never-written-by-hand",
-        "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"
+        "packaging/nvs-info-is-the-one-call"
       ],
       "guardedBy": [
         "crates/nvs-cli/src/info.rs"
       ]
     },
     {
-      "id": "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling",
-      "title": "`nvs info` is the one call for build, host and licensing facts, and `nvs -i` is the same command",
+      "id": "packaging/the-cli-surface-is-novis-own",
+      "title": "No flag on `nvs` is inherited from PHP; `-h` and `-V` are the Unix baseline and `-o` the only short flag Novis declares",
       "status": "shipped",
       "because": [
-        "0065"
+        "0151"
       ],
-      "divergesFromPhp": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is the one CLI operation reachable two ways",
+      "divergesFromPhp": "`php` carries `-i`, `-a`, `-r`, `-f` and a lowercase `-v`; `nvs` inherits none of them, spells every operation as a subcommand, and declares exactly one short flag of its own",
+      "seeAlso": [
+        "packaging/nvs-info-is-the-one-call",
+        "packaging/the-banner-states-the-build",
+        "core-api/one-paradigm-per-operation"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/main.rs"
+      ]
+    },
+    {
+      "id": "packaging/nvs-info-is-the-one-call",
+      "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
+      "status": "shipped",
+      "because": [
+        "0065",
+        "0151"
+      ],
+      "divergesFromPhp": "`php -i` prints ini settings and the request's own server variables; `nvs info` reports the build, the host and the licences, never per-request state, and it is spelled one way",
       "seeAlso": [
         "packaging/the-notice-is-embedded-in-the-binary",
         "packaging/a-build-records-no-timestamp",
-        "core-api/shape-rules",
+        "packaging/the-cli-surface-is-novis-own",
         "testing/debug-probes"
       ],
       "guardedBy": [

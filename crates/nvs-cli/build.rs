@@ -1,6 +1,6 @@
 //! Captures the handful of facts `nvs info` reports that only exist at build
-//! time — the target triple, the profile, the compiler, the commit and the
-//! code generator's version.
+//! time — the target triple, the profile, the compiler, the commit and its
+//! date, and the code generator's version.
 //!
 //! Everything here is passed through `cargo:rustc-env`, so `src/info.rs`
 //! reads them with `env!` and holds no build logic of its own. Nothing in
@@ -8,10 +8,13 @@
 //! the string `unknown`, because a source tarball with no `.git` is a
 //! perfectly ordinary way to build Novis and is not an error.
 //!
-//! No timestamp is recorded. A build date would make two builds of the same
-//! commit differ, and `nvs info` is the wrong place to spend a reproducible
-//! build on a cosmetic field — the commit already answers "which source is
-//! this?" exactly.
+//! No build timestamp is recorded. A build date would make two builds of the
+//! same commit differ, and `nvs info` is the wrong place to spend a
+//! reproducible build on a cosmetic field — the commit already answers "which
+//! source is this?" exactly. The commit's own committer date is recorded in
+//! its place: it answers how old a binary is, and because it is derived from
+//! the commit rather than read off the clock, every rebuild of one commit
+//! still produces the same bytes.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -29,6 +32,7 @@ fn main() {
     emit("NVS_PROFILE", &env("PROFILE"));
     emit("NVS_RUSTC", &rustc_version());
     emit("NVS_COMMIT", &commit(&workspace));
+    emit("NVS_COMMIT_DATE", &commit_date(&workspace));
     emit(
         "NVS_CRANELIFT",
         &locked_version(&workspace, "cranelift-codegen"),
@@ -49,6 +53,7 @@ fn main() {
         workspace.join("Cargo.lock").display()
     );
     println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT");
+    println!("cargo:rerun-if-env-changed=NVS_BUILD_COMMIT_DATE");
 }
 
 fn env(key: &str) -> String {
@@ -109,6 +114,29 @@ fn commit(workspace: &Path) -> String {
     .is_some_and(|status| !status.is_empty());
 
     if dirty { format!("{hash}-dirty") } else { hash }
+}
+
+/// The commit's own committer date, as `YYYY-MM-DD`.
+///
+/// The commit's date and never the build's, which is what lets the banner say
+/// how old a binary is without costing the reproducible build this file's
+/// module doc protects: the value is derived from the commit, so every
+/// rebuild of one commit emits the same string. `NVS_BUILD_COMMIT_DATE` is
+/// the tarball escape hatch `NVS_BUILD_COMMIT` already is for the hash.
+fn commit_date(workspace: &Path) -> String {
+    if let Ok(supplied) = std::env::var("NVS_BUILD_COMMIT_DATE")
+        && !supplied.trim().is_empty()
+    {
+        return supplied.trim().to_owned();
+    }
+    if !workspace.join(".git").exists() {
+        return unknown();
+    }
+    // `commit` above already registered the rerun triggers for a moved HEAD.
+    run(Command::new("git")
+        .current_dir(workspace)
+        .args(["log", "-1", "--format=%cs", "HEAD"]))
+    .unwrap_or_else(unknown)
 }
 
 /// The version of `name` recorded in the workspace `Cargo.lock`.

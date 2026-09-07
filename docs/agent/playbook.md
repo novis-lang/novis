@@ -5033,3 +5033,17 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which is why this is a windows-x86_64 failure against two green legs; drive with `serve.rs`'s
   `run_the_core`, which is `nvs-cli`'s worker loop with a deadline on it.
   [until: gone crates/nvs-server/src/serve.rs:fn run_the_core]
+- **Renaming a rule means editing the `changes:` block of the frozen record that created it**, which
+  reads as a violation of the freeze and is not one. `tools/records.py`'s check refuses a `changes:`
+  id the rulebook no longer defines, and its sibling refuses a rule whose first `because` entry names
+  a record that does not claim it under `creates` — so the old slug cannot simply be left behind. The
+  freeze is over a record's *body*, which states what was decided and carries no history; the YAML
+  block is a machine-read relation that must keep agreeing with the rulebook, and updating one id in
+  it is maintenance, not rationale. [until: gone tools/records.py:"which the rulebook does not define"]
+- **A rulebook edit leaves the website's generated pages stale, and `verify.py` does not look at
+  them.** `docs/rules/*.md`, `ground-rules.md` and `divergences.md` come from `python tools/rules.py
+  --render`, but `website/src/content/docs/docs/rules/` and `website/src/data/rules.json` come from
+  `npm --prefix website run sync:rules`, which nothing in the verification pipeline runs. Expect that
+  sync to also rewrite chapters you never touched — it catches up every status change landed since
+  the last one — so commit the catch-up separately from your own change.
+  [until: gone website/scripts/sync-rules.mjs]
