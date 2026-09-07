@@ -31,12 +31,62 @@
 //! [`server_capabilities`] is the single place that declaration is written.
 //! A tenth request is a decision, not an addition — ADR 0099 § 3
 //! holds the test a candidate has to pass.
+//!
+//! # The `.lspt` case format
+//!
+//! This is that format's one home. A `.lspt` case is a document, a cursor, a
+//! request and the response rendered canonically
+//! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`), read by [`Case`] and
+//! run by `nvs lsp-test <paths>`:
+//!
+//! ```text
+//! --TEST--
+//! member completion survives an unclosed brace
+//! --FILE--
+//! <?nvs
+//! class User { public string $name; }
+//! $u = new User();
+//! $u-><|>
+//! if (true) {
+//! --REQUEST--
+//! completion
+//! --EXPECT--
+//! name    property  string
+//! ```
+//!
+//! | section | meaning |
+//! |---|---|
+//! | `--TEST--` | the one-line title, required |
+//! | `--FILE--` | the document the request is asked about, required |
+//! | `--FILE <relative/path>--` | another file beside it, any number of times |
+//! | `--REQUEST--` | the question, one line, required |
+//! | `--EXPECT--` | the frozen rendering, exact, required |
+//!
+//! Four names and no more. A `.lspt` case runs no program, so `.nvst`'s
+//! `--ARGS--`, `--ENV--`, `--SKIPIF--`, `--CLEAN--` and oracle sections mean
+//! nothing here and are refused rather than ignored. What the two formats share
+//! is the line-oriented shape alone — `nvs_test::section` is the one lexer for
+//! it, and sharing the *suite* would make `nvs test`'s count mean two things.
+//!
+//! `<|>` is the cursor: exactly one for a request asked at a position, and none
+//! for one asked of the whole document, which [`Request::takes_cursor`] decides.
+//! It is removed before the document is analysed and reported as a byte offset,
+//! so what the server sees is what an editor holds.
+//!
+//! `--REQUEST--` is one line whose argument set is closed per request
+//! (`rule:ide/a-request-line-is-closed`), and `--EXPECT--` is frozen: a case's
+//! source may be corrected freely, its expectation may not be edited to make it
+//! pass. The rendering it is compared against has one home, `nvs_lsp::render`
+//! — a case that seems to need a spelling of its own has found a gap in that
+//! module.
 
 mod capabilities;
+mod case;
 mod server;
 
 pub use capabilities::{
     CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, initialize_result,
     negotiate_encoding, semantic_tokens_legend, server_capabilities, server_info, server_version,
 };
+pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
 pub use server::{ServerError, run, serve};

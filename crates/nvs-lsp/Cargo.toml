@@ -15,6 +15,11 @@ lsp-server.workspace = true
 # The vocabulary. Same, and the two are versioned together because a
 # `lsp-server` example is written against a `lsp-types` shape.
 lsp-types.workspace = true
+# The section lexer, and nothing else: `.lspt` and `.nvst` are two suites that
+# share one parser for the `--NAME--` shape (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
+# This crate is std-only and writes nothing to standard output, so the closure
+# `tests/stdout_policy.rs` walks stays clean.
+nvs-test.workspace = true
 # `initialize`'s params and result cross the wire as `serde_json::Value` —
 # `lsp_server::Connection` takes and returns one — so this crate names the
 # type it converts through rather than reaching for a second JSON library.
