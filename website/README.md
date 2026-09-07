@@ -124,7 +124,7 @@ block. A hex literal belongs in that block and nowhere else.
 | --- | --- | --- |
 | `--nv-accent` | `#b20038` | links, active nav, focus rings — the one color allowed to shout |
 | `--nv-rose` | `#bd767a` | as `--nv-quiet`: the small annotations beside something else — a comment in a signature, a chip, a hint |
-| `--nv-mist` | `#ffe4e4` | what the accent lies *on* — the light theme's highlight ground, selected text, the home-screen icon |
+| `--nv-mist` | `#ffe4e4` | what the accent lies *on* — the light theme's highlight ground, selected text |
 | `--nv-teal` | `#5abab6` | affirmative ("accepted", "proof", keywords) and, at a whisper, the tint of every neutral surface |
 
 Surfaces are the load-bearing part. Page, panels, hairlines and body text are one ramp of
@@ -155,14 +155,17 @@ magick mark.png -filter Lanczos -resize 48x48 -unsharp 0x0.6+0.5+0.02 i48.png
 magick mark.png -filter Lanczos -resize 32x32 -unsharp 0x0.6+0.6+0.02 i32.png
 magick mark.png -filter Lanczos -resize 16x16 -unsharp 0x0.6+0.8+0.02 i16.png
 magick i48.png i32.png i16.png public/favicon.ico
-magick mark.png -filter Lanczos -resize 160x160 -background '#ffe4e4' \
+magick mark.png -filter Lanczos -resize 160x160 -background white \
   -gravity center -extent 180x180 -alpha remove -alpha off public/apple-touch-icon.png
 ```
 
-The trim matters: the export carries ~7% transparent margin, which at 16px costs the ring
+`mark.png` and the three `i*.png` are scratch, and nothing ignores them — delete them once
+the two icons are written.
+
+The trim matters: the export carries a thin transparent margin, which at 16px costs the ring
 its counters. Each size is sharpened for the size it is, which `-define icon:auto-resize`
-cannot do. The home-screen icon sits on `--nv-mist` because iOS fills transparency with
-black.
+cannot do. The home-screen icon is padded to white because iOS fills transparency with black,
+and white is the ground the mark's own disc already carries under its lower half.
 
 ## Going live checklist
 

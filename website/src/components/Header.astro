@@ -79,7 +79,7 @@ const isCurrent = (href: string) =>
      boxes is enough: the links share a baseline with each other, and the mark
      sits on the bar's midline. */
   .start-group {
-    --mark-size: 2.25rem;
+    --mark-size: 2rem;
     display: flex;
     align-items: center;
     gap: calc(var(--sl-nav-gap) + 0.5rem);
@@ -87,7 +87,7 @@ const isCurrent = (href: string) =>
   }
   @media (max-width: 50rem) {
     .start-group {
-      --mark-size: 1.9rem;
+      --mark-size: 1.7rem;
     }
   }
 
@@ -99,9 +99,9 @@ const isCurrent = (href: string) =>
   }
 
   /* Starlight sizes a logo to the nav height less its padding, which suits a
-     wide wordmark. Ours is a square mark inside a 512px export that carries
-     ~7% transparent margin of its own, so the box is set a little larger to
-     land the mark itself at the nav's text height. */
+     wide wordmark. Ours is a square mark that all but fills its 512px export,
+     so the box clears the nav's text height by the padding alone and the disc
+     itself lands on that height. */
   .title-wrapper :global(.site-title img) {
     box-sizing: border-box;
     height: var(--mark-size);
@@ -110,8 +110,8 @@ const isCurrent = (href: string) =>
     border-radius: 0.5rem;
   }
   /* In the dark theme the mark stands on a white rounded tile, as it does on
-     the home-screen icon; the padding above is what keeps the crimson off the
-     tile's edge, and it stays in the light theme so the mark is the same size
+     the home-screen icon; the padding above is what keeps the disc's edge off
+     the tile's, and it stays in the light theme so the mark is the same size
      in both. The light theme is the opted-in one, so "dark" is its absence. */
   :global(:root:not([data-theme='light'])) .title-wrapper :global(.site-title img) {
     background: white;
