@@ -170,7 +170,9 @@ tools/orient.py --audit` prints what its `[context]` block costs a session.
 **Every session ends on one line that says whether the run needs you** — `nothing for you to do`, or
 `YOUR HAND IS NEEDED` and the reason. `verdict()` in `tools/loop.py` writes it from what the driver
 decided rather than from the session's own `CONTINUE`/`DONE`/`BLOCKED` line, because those two disagree
-exactly when it matters: a session reports `CONTINUE` and the driver is stopping on a stall streak.
+exactly when it matters: a session reports `CONTINUE` and the driver is stopping on a stall streak. On
+that second line the run **holds** instead of ending, so answering it and pressing `p` is the whole of
+what a `BLOCKED` costs — [coordinator.md](coordinator.md) § *Holding the tree* owns the rule.
 
 The `[context]` block lives with the checks rather than with the prose for the same reason the checks do:
 it is read by a program, and a selector that names a section is either right or a loud warning. Prose about
@@ -178,7 +180,7 @@ it is read by a program, and a selector that names a section is either right or 
 
 ## 5. Pre-authorize every tradeoff, before the run
 
-**Anything a session could reasonably stop and ask about will eventually halt the run on `BLOCKED`.** So
+**Anything a session could reasonably stop and ask about will eventually hold the run on `BLOCKED`.** So
 walk the path first and settle it with the user, then write each decision into `loop-goal.md`
 § *Standing decisions* as an instruction rather than a question. The current goal's section is the worked
 example — dependency choices, representation choices, which language holes are in scope, which questions

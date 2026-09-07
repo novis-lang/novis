@@ -577,6 +577,7 @@ class Control:
         self.retry = False
         self.parked = False  # a wall is up, so `r` has something to end
         self.pause_by = ""  # "user", "agent" or "": who owns the hold armed for the next boundary
+        self.pause_why = ""  # what the hold is for, when the driver armed it rather than a person
         self.held = False  # the driver is sitting in `hold_pause` right now, not merely armed
         self._pause_seen = 0.0  # monotonic of the last look at the file; see `_sync_pause`
         self.tty = False
@@ -675,18 +676,38 @@ class Control:
         """`p`. Arms a hold this console owns, or releases whichever hold stands."""
         if self.pause_by:
             mine = self.pause_by == "user"
+            drivers = bool(self.pause_why)
             self.pause_by = ""
+            self.pause_why = ""
             self.held = False
             PAUSE.unlink(missing_ok=True)
             say("   [p] carrying on -- the hold is lifted" if mine else
+                "   [p] carrying on -- the driver's hold is lifted and the run takes another leg"
+                if drivers else
                 f"   [p] carrying on -- {rel_to_root(PAUSE)} was another agent's hold, and the "
                 f"console outranks it", C.GREEN)
             return
         self.pause_by = "user"
+        self.pause_why = ""
         self._write_pause()
         say(f"   [p] hold requested -- the run stops between sessions and waits. Press p again "
             f"to carry on; deleting {rel_to_root(PAUSE)} will not, because this hold was taken "
             f"at the console", C.YELLOW)
+
+    def arm_hold(self, why):
+        """Hold the run because the driver has decided a person is needed, naming the decision.
+
+        An *agent's* hold rather than a console one, deliberately: this one is lifted by deleting
+        `.loop/pause` as well as by `p`, and the person it is waiting for may be reading the tree
+        over ssh rather than sitting at the terminal it was printed on. A hold already standing is
+        left exactly as it is -- whoever armed it owns it, and this is not a reason to take it
+        away from them."""
+        with self.lock:
+            if self.pause_by:
+                return
+            self.pause_by = "agent"
+            self.pause_why = why
+            self._write_pause()
 
     def _write_pause(self):
         """(Re)write `.loop/pause` to say who owns the hold and whether it has taken effect yet.
@@ -708,7 +729,8 @@ class Control:
             f"by:      {'user (the console)' if mine else 'agent (this file)'}\n"
             f"held:    {f'{datetime.now():%Y-%m-%d %H:%M:%S}' if self.held else '(not yet)'}\n"
             f"pid:     {os.getpid()}\n"
-            f"\n{note}",
+            + (f"why:     {self.pause_why}\n" if self.pause_why else "")
+            + f"\n{note}",
             encoding="utf-8",
             newline="\n",
         )
@@ -787,11 +809,17 @@ class Control:
     def drop_pause(self):
         """Called when the run ends. A hold taken at the console belongs to a console that is
         going away with this process, and leaving its file behind would hand the next driver --
-        or the run, between legs -- a hold nobody armed and nobody is watching."""
+        or the run, between legs -- a hold nobody armed and nobody is watching.
+
+        A hold `arm_hold` took goes the same way, and `pause_why` is how it is told from another
+        agent's: `s` during one of those ends the run without ever lifting the hold, and the file
+        left behind would silently hold the *next* run at its first boundary. Another agent's file
+        is never touched -- they are waiting on it, and this run ending is not their answer."""
         with self.lock:
-            if self.pause_by == "user":
+            if self.pause_by == "user" or self.pause_why:
                 PAUSE.unlink(missing_ok=True)
             self.pause_by = ""
+            self.pause_why = ""
             self.held = False
 
     # -- what the driver asks ----------------------------------------------------------
@@ -4106,6 +4134,12 @@ def run_cli():
              "does not (default 6h: a five-hour window fits inside it, a weekly one does not)"
     )
     ap.add_argument("--delay-seconds", type=int, default=0)
+    ap.add_argument(
+        "--no-hold", dest="hold_on_hand", action="store_false",
+        help="end the run on a verdict that needs a person, instead of holding for one. The "
+             "default holds: the answer is usually one edit away and a held run carries on with "
+             "`p` where an ended one has to be relaunched. Pass this for a run nobody is watching"
+    )
     ap.add_argument("--max-result-lines", type=int, default=60)
     ap.add_argument("--max-input-lines", type=int, default=40)
     ap.add_argument("--max-line-chars", type=int, default=500)
@@ -4883,7 +4917,13 @@ def drive(opts, goal, chain):
     # `RESTARTABLE` is the one verdict the run itself recovers from -- it waits for the window and
     # starts another leg. Every other one is a reason a person should look, which is the whole of
     # what this line says.
-    verdict(kind != RESTARTABLE, reason)
+    #
+    # Said here only when nothing above will say it: `supervise` prints a verdict for every leg it
+    # started and holds the run on the ones a person has to answer, so a leg that said its own
+    # would print the same sentence twice, a line apart. A `--leg` run by hand has no supervisor,
+    # and a restartable end is one `supervise` passes over in silence.
+    if not opts.leg or kind == RESTARTABLE:
+        verdict(kind != RESTARTABLE, reason)
 
 
 # ------------------------------------------------------------------------------------ the run
@@ -4923,6 +4963,16 @@ def drive(opts, goal, chain):
 #: streak, a CLI that keeps failing and a usage window that never reopened are all reasons a
 #: *human* should look, and a run that retried them would turn one bad hour into eight.
 RESTARTABLE = "budget"
+
+#: The verdicts a person can answer, after which the run is worth carrying on: the goal is not
+#: finished, the tree is where the leg left it, and everything the next leg reads -- the chain, the
+#: goal, the handoff, `loop.py` itself -- is re-read from disk. So the run **holds** on these
+#: rather than ending, and a lifted hold starts a fresh leg where a relaunch used to be needed.
+#:
+#: The two verdicts deliberately outside it are the two that a hold would insult. `asked` is `s` or
+#: `.loop/stop`: someone said end the run, and holding would be arguing with them. `chain-complete`
+#: has nothing left to walk, so there is no leg to start when the hold lifts.
+HOLD_KINDS = frozenset({"blocked", "stalled", "done-claim", "cli-failed", "chain-error", "wall"})
 
 #: What an optimization pass may commit. Everything outside this is reverted, unread: the pass is
 #: the loop working on itself, and `crates/`, `tests/` and `examples/` are the work, not the loop.
@@ -5573,6 +5623,10 @@ def supervise(opts):
     served_total = 0
     since = int((read_json(OPTSTATE, default={}) or {}).get("since") or 0)
     leg = 0
+    #: The verdict the last hold was taken on. A leg that comes back with the same one was not
+    #: answered -- the hold was lifted and nothing changed -- and holding again would spend another
+    #: session to ask the identical question, so the second one ends the run.
+    last_hand = ()
     # Everything said BETWEEN legs -- the checkpoints above all -- was printed and kept nowhere:
     # a leg's own console log belongs to the leg, and the leg is over by then. One file per run,
     # on the same tee a leg uses, so "did the cadence fire" has a record. `loop-stats.py` skips
@@ -5615,9 +5669,29 @@ def supervise(opts):
         since = credit(since, end)
 
         if end.get("kind") != RESTARTABLE:
-            verdict(True, f"the run ended for good: "
-                          f"{end.get('reason') or f'the leg exited {code}'}")
+            kind = str(end.get("kind") or "")
+            why = end.get("reason") or f"the leg exited {code}"
+            hand = (kind, why)
+            if opts.hold_on_hand and kind in HOLD_KINDS and hand != last_hand:
+                last_hand = hand
+                verdict(True, f"{why}\n       The run is HOLDING, not ending. Answer it, then "
+                              f"press p -- or delete {rel_to_root(PAUSE)} -- to carry on with a "
+                              f"fresh leg; s ends the run.")
+                CONTROL.arm_hold(why)
+                stop = hold_pause()
+                if not stop:
+                    say("the hold is lifted -- another leg, on the tree as it stands", C.GREEN)
+                    ledger(f"## run held on {kind} and carried on -- {why}")
+                    continue
+                verdict(True, f"{why}, and then: {stop}")
+                return 0 if code == 0 else code
+            if hand == last_hand:
+                verdict(True, f"{why} -- twice, with a hold in between, so the run ends rather "
+                              f"than asking the same question again")
+                return 0 if code == 0 else code
+            verdict(True, f"the run ended for good: {why}")
             return 0 if code == 0 else code
+        last_hand = ()
         stop = hold_pause()
         if stop:
             say(f"stopping: {stop}", C.YELLOW)

@@ -40,7 +40,8 @@ changes about them, and step 6.
    - `CONTINUE <what you landed>` — the normal case.
    - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met.
    - `BLOCKED <the decision only the user can make>` — a tradeoff expensive to reverse. Prefer the safe
-     option and a note in the handoff; the driver stops the loop on this.
+     option and a note in the handoff; the driver **holds** the run on this, waiting for the person who
+     can answer it, and carries on from the tree as it stands when they lift the hold.
 
 **Steps 4 to 6 are one wrap file and two calls.** The pack ends with the skeleton `python
 tools/session.py --template` would print for this tree; fill it in and apply it with `python

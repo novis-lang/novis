@@ -96,9 +96,9 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     run the acceptance test from docs/agent/loop-goal.toml
       -> passes, the chain has a next goal -> install it and keep going, stall streak reset
       -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
-    if status is DONE but acceptance fails -> stop and say so (the session was wrong)
-    if status is BLOCKED                   -> stop, surface the decision
-    if HEAD did not move                   -> stall++; stop after --max-stalls consecutive stalls
+    if status is DONE but acceptance fails -> hold and say so (the session was wrong)
+    if status is BLOCKED                   -> hold, surfacing the decision
+    if HEAD did not move                   -> stall++; hold after --max-stalls consecutive stalls
     otherwise                              -> next iteration
 
 The acceptance check running *before* the `DONE` check is deliberate: the machine outranks the claim.
@@ -191,6 +191,18 @@ taken at the keyboard is not one an agent gets to overrule. A hold armed by the 
 `p` lifts it — the asymmetry is deliberate, so that the person watching a run held by an agent that
 crashed, or forgot, has one key that always works. A `by: user` hold is deleted when the run ends, so a
 console that has gone away cannot leave a hold behind for the next driver to sit in.
+
+**A verdict that needs a person holds the run rather than ending it.** `blocked`, `stalled`,
+`done-claim`, `cli-failed`, `chain-error` and `wall` are all things one edit usually answers, and
+everything the next leg reads — the chain, the goal file, the handoff, `loop.py` itself — is re-read from
+disk, so there is nothing a relaunch would do that lifting the hold does not. The driver arms the hold as
+an agent's, with a `why:` line naming the verdict, and `HOLD_KINDS` in `tools/loop.py` is the list. `p`
+or deleting the file starts a fresh leg; `s` ends the run, and the hold the driver armed goes with it
+rather than being left to catch the next one. `--no-hold` restores ending, for a run nobody is watching.
+
+**The same verdict twice ends the run.** A hold lifted and a leg that comes back with the identical
+reason means the question was not answered, and holding again would spend another session asking it. This
+is the one place the driver decides a person has had their turn.
 
 Three more things it does, none of which is obvious:
 
