@@ -506,9 +506,17 @@ pub(crate) fn run(
         let stopped = Rc::clone(&stopped);
         let draining = draining.clone();
         move |_ctx| {
-            // `ControlFlow::Continue` forever: a development server runs until
-            // the process is stopped, and `rule:http-server/the-server-block-is-boot-class`'s drain is the slice that
-            // gives this command a control socket to be asked by.
+            // `ControlFlow::Continue` forever: nothing yet asks this command to
+            // stop. Both of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
+            // deployments run until the process ends — the proxied production
+            // origin as much as the laptop — so this is not a development
+            // shortcut but the absence of a caller. The two that will ask are
+            // each their own slice: `Core\Signal`'s handler, which enters this
+            // same drain rather than a second state machine, and the control
+            // socket `rule:config/the-config-is-an-immutable-snapshot` gives
+            // this command. Until one lands, the tail below is unreachable,
+            // `Draining::begin` is never called, and an instance ends by being
+            // killed mid-request.
             let served = nvs_server::serve_on_this_core(
                 &mut listener,
                 &handler,
