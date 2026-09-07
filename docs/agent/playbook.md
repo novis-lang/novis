@@ -3264,6 +3264,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the only `////` in source sits inside the text of a `//` comment at line 47 of that same file. Read
   which section a cited line falls in before writing the test that pins it: a case file is several
   languages stacked, and only the `--FILE--` one is Novis. [until: reviewed 2026-09-07]
+- **A Rust test that sweeps the corpus reads your new refusal cases as corpus, and the failure lands
+  in a crate you did not touch.** `tests/conformance/` holds cases whose whole subject is a
+  diagnostic, so a sweep asserting "no corpus file reports `E0nnn`" fails the moment someone pins
+  `E0nnn` — the report named a `-p nvs-syntax` test while the edit was six `.nvst` files. Such a
+  sweep has to drop a case carrying `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, which states a
+  diagnostic rather than carrying one. [until: reviewed 2026-09-07]
 
 ## Splitting a file that got too big
 

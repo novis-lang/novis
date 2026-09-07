@@ -2,59 +2,39 @@
 
 ## State
 
-**Goal 11 stage 6 is all but whole: the lint, the renderer and the end-to-end example are on disk.**
-Every `-p nvs-cli` test the goal's stage-6 check names passes, and the driver's failing check —
-`examples/doc-comments.nvs` — now prints its four lines. One acceptance check is left in the whole
-goal, and it is the next group below.
+**Goal 11 is whole. `///` is documentation end to end, and the last two acceptance checks are green.**
+Every stage's check passes: the trivia layer, attachment, the two tags, `nvs meta --json`'s program
+half, `nvs doc`, `nvs check --strict-docs`, `examples/doc-comments.nvs`, and now the conformance
+suite. `python tools/verify.py` is green and the conformance corpus is 1580 cases.
 
-- **`nvs check --strict-docs` reports a public member with no `///`** (`E0326`, `rule:tooling/strict-docs`).
-  It rides in the walk that already resolves a doc comment's tags rather than in a second one:
-  `crates/nvs-hir/src/members.rs`'s `check_documented`, reached from `check_members`. The flag threads
-  `nvs-cli`'s `run_check` → `front_end_granted` → `nvs_hir::resolve_program_linted` →
-  `MemberResolver::check`, which is the shape `front_end_granted` already uses for the `[capabilities]`
-  question: one entry point per caller that asks, so the plain `resolve_program`'s five call sites did
-  not move.
-- **What it reports is a *member*** — a method, a property, a class constant — and public is the absence
-  of `private` and `protected`. A class, an interface, an enum, an enum case and a `type` alias are
-  deliberately outside it; `crates/nvs-hir/src/members.rs`'s module doc is that boundary's home, and
-  widening it is the publisher's call, not a session's.
-- **`nvs doc <entry> [--out dir]` writes one Markdown page per class, interface and enum**, from
-  `nvs meta --json`'s document and nothing else (`crates/nvs-cli/src/doc.rs`). A `@see` whose target has
-  a page in the same run becomes a link into it; every other target stays code.
-- **A program member now carries `visibility` in the JSON**, which the registry half has no counterpart
-  for. `crates/nvs-cli/src/meta.rs` § *The program half* is that key's home. It is what lets a page show
-  the surface a package's reader can reach, and it is additive — `tools/reference.py` and the website
-  read the registry half, which is byte-identical still.
-- Nothing is blocked. `python tools/verify.py` is green.
+- **The corpus reclassified with no edit, and a test says so** —
+  `crates/nvs-syntax/tests/trivia.rs:158` walks `examples/` and `tests/` for the `///` an opening run,
+  and asserts no file reports `E0127` or `E0128`. It is a sweep with a floor of seven rather than a
+  list of paths, so a case added later is covered the day it lands.
+- **`tests/conformance/syntax/doc-comment/` holds six cases** — one green, and one per refusal
+  (`E0127`, `E0128`, `E0323`, `E0324`, `E0325`). `E0326` is not among them because `nvs test` runs a
+  case with no flags; `crates/nvs-cli/tests/strict_docs.rs` pins it instead.
+- Nothing is blocked. The next goal in `docs/agent/goals/chain.toml` is **12 resilient-tree**, and it
+  installs its own handoff, so the group below is what that goal opens on rather than leftover work.
 
 ## Next group
 
-**The last check in the goal: the doc-comment conformance suite** — one new directory,
-`tests/conformance/syntax/doc-comment/`, which does not exist yet. `nvs test` runs a case with no
-flags, so `E0326` cannot be pinned here; it is pinned by `crates/nvs-cli/tests/strict_docs.rs` instead.
+**`rule:ide/one-grammar-one-tree`'s remaining half, in `nvs-syntax`'s own two files** — the tree
+`Parsed` already carries trivia for, plus the recovery a consumer must not have to infer.
 
-- [ ] **A green case: a `///` run attaches to the declaration below it and changes nothing about the
-      run** — `rule:tooling/doc-comment-attaches-to-the-next-declaration`. Prose, both tags, an ordinary
-      `//` comment and a `////` run in one file, `--EXPECT--` the program's own output.
-      `examples/doc-comments.nvs:1` is the same surface as a runnable program and is what to copy;
-      `crates/nvs-hir/src/members.rs:513` is the walk that must stay silent about it.
-- [ ] **Two `--EXPECTF-ERROR--` cases for the parser's half** — an unattached run (`E0127`) and an
-      unknown `@tag` (`E0128`), `rule:tooling/doc-comment-tags-are-see-and-example`. The codes and their
-      reasoning are `crates/nvs-diagnostics/src/lib.rs:208` and `crates/nvs-diagnostics/src/lib.rs:216`;
-      an error case has to reproduce the diagnostic's own indentation, which widens with the line number.
-- [ ] **Three `--EXPECTF-ERROR--` cases for the two tags that must resolve** — `E0323` at
-      `crates/nvs-hir/src/members.rs:525`, and `E0324`/`E0325` at
-      `crates/nvs-hir/src/members.rs:694`. The playbook bullet added this session says why an `@example`
-      path inside a walked directory still has to name one.
+- [ ] **`SyntaxIndex` joins `Parsed` and answers `at(offset)`** — `rule:ide/the-index-answers-the-cursor`,
+      built by one walk and rebuilt per analysis. `crates/nvs-syntax/src/parser/mod.rs:750` is the
+      struct the field is added to; goal 11 deliberately did not build it, since nothing read it then.
+- [ ] **Recovery says so rather than being inferable** — `rule:ide/recovery-is-explicit`:
+      `MemberName::Missing(Span)` beside `MemberName::Ident` at `crates/nvs-syntax/src/ast.rs:386`, and
+      the span of what it stood in for on `ExprKind::Error`. An empty span is a coincidence, not a
+      contract, and completion's whole behaviour hangs on telling the two apart.
 
 ## Backlog
 
-- `nvs doc` writes a flat directory and no index page; widening that is
-  `rule:tooling/nvs-doc-renders-and-decides-nothing`'s call, and it is kept cheap to replace on purpose.
-- The goal's `[context] rules` names ADR numbers, which print one line per rule; a rule the item's work
-  *implements* needs its fragment whole, so `rules = [...]` wants the `tooling/strict-docs`-style tokens
-  beside the numbers. This session peeked three of them by hand.
-- The goal's `[context] modules` still does not name `crates/nvs-hir/src/members.rs`, which the last two
-  sessions have both edited.
-- `docs/plan/m4b.md`'s hover row reads the `TriviaKind::DocComment` run this goal landed; nothing is owed
-  there, per the goal's stage 6 § 3.
+- Widening `--strict-docs` past a member to a class, interface, enum or `type` alias — the publisher's
+  call, and `crates/nvs-hir/src/members.rs`'s module doc is that boundary's home.
+- The `visibility` key on a program member has one renderer, `nvs doc`; `tools/reference.py` and the
+  website still read the registry half only (`crates/nvs-cli/src/meta.rs` § *The program half*).
+- `collect`/`case_source` now exist in both `tests/trivia.rs` and `tests/lossless.rs`; a third copy
+  is the point at which they want a shared module.
