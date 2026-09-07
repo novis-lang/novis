@@ -58,7 +58,7 @@ echo "\n";
 // takes the run's bytes back as a value, and the assertion is the number of
 // pairs that matched — a run that grew a rendering of its own fails the count
 // while still looking plausible on its own line.
-array<callable> $runs = [
+array<callable(): mixed> $runs = [
     fn (): void => { ?>plain<?nvs },
     fn (): void => { ?><b>&amp;</b><?nvs },
     fn (): void => { ?>  spaces  <?nvs },

@@ -25,7 +25,7 @@ Probe::subjects();
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `array<mixed>`, found `{rows: callable(): int}`
+error[E0401]: expected `array<int>`, found `{rows: callable(): int}`
    --> case.nvs:15:33
 %A
 error[E0773]: this argument must be written out as `{...}` at the call site

@@ -3251,13 +3251,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the `isize::MAX` seam, past every 64-bit address space — as
   `count-shaped-producers-refuse-alike.nvst` does.
   [until: gone tests/conformance/core/count-shaped-producers-refuse-alike.nvst:1000000000000000]
-- **A `.nvst` case that pins the *runtime* callback check must reach it through a member whose
-  callback is still a bare `callable`.** `Core\Arr::filter` and `::map` now spell their callback's
-  signature, so a wrong parameter type there is `E0401` where it is written and the closure is never
-  called — which silently deletes what a case asserting `LogicError` was measuring. `Core\Arr::any`
-  takes the same `($value, $key)` callback and still takes a bare one, and `::mapKeys` is the one
-  that carries a callback's answer back out; both keep the case's own subject.
-  [until: test every_callback_parameter_declares_its_signature]
 
 ## Splitting a file that got too big
 
@@ -4722,6 +4715,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   half-substituted type reports a mismatch the last pass would have reported correctly, and the
   message names the unsubstituted variable's `mixed`. Call `infer` where the expectation is there to
   place a literal rather than to judge it. [until: reviewed 2026-09-07]
+- **A `Core` callback whose result the member discards returns `mixed`, never `void`.** `void` is
+  what the row means and it refuses every `fn (): int` body a program may reasonably write, where
+  `Ty::Void` *is* assignable to `mixed` in return position — so `mixed` takes a `fn (): void` body
+  and a value-returning one alike, and still constrains the parameters. Write `CoreTy::Mixed` at any
+  callback the member does not read back, and a concrete return only where it uses the answer.
+  [until: reviewed 2026-09-07]
 
 ## Divergences and refusals already pinned
 

@@ -7138,13 +7138,13 @@ ada:92 bo:67 cy:85 di:74
 | [`Core\Arr::count`](#core-core-arr-count) | `count(array<T> $a): uint` |
 | [`Core\Arr::filter`](#core-core-arr-filter) | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` |
 | [`Core\Arr::map`](#core-core-arr-map) | `map(array<T> $a, callable(T, string): U $fn): array<U>` |
-| [`Core\Arr::mapKeys`](#core-core-arr-mapkeys) | `mapKeys(array<T> $a, callable $fn): array<T>` |
-| [`Core\Arr::groupBy`](#core-core-arr-groupby) | `groupBy(array<T> $a, callable $key): array<array<T>>` |
-| [`Core\Arr::reduce`](#core-core-arr-reduce) | `reduce(array<T> $a, callable $fn, U $initial): U` |
-| [`Core\Arr::find`](#core-core-arr-find) | `find(array<T> $a, callable $predicate): ?T` |
-| [`Core\Arr::findKey`](#core-core-arr-findkey) | `findKey(array<T> $a, callable $predicate): ?string` |
-| [`Core\Arr::any`](#core-core-arr-any) | `any(array<T> $a, callable $predicate): bool` |
-| [`Core\Arr::all`](#core-core-arr-all) | `all(array<T> $a, callable $predicate): bool` |
+| [`Core\Arr::mapKeys`](#core-core-arr-mapkeys) | `mapKeys(array<T> $a, callable(T, string): int\|string $fn): array<T>` |
+| [`Core\Arr::groupBy`](#core-core-arr-groupby) | `groupBy(array<T> $a, callable(T, string): int\|string $key): array<array<T>>` |
+| [`Core\Arr::reduce`](#core-core-arr-reduce) | `reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U` |
+| [`Core\Arr::find`](#core-core-arr-find) | `find(array<T> $a, callable(T, string): bool $predicate): ?T` |
+| [`Core\Arr::findKey`](#core-core-arr-findkey) | `findKey(array<T> $a, callable(T, string): bool $predicate): ?string` |
+| [`Core\Arr::any`](#core-core-arr-any) | `any(array<T> $a, callable(T, string): bool $predicate): bool` |
+| [`Core\Arr::all`](#core-core-arr-all) | `all(array<T> $a, callable(T, string): bool $predicate): bool` |
 | [`Core\Arr::isEmpty`](#core-core-arr-isempty) | `isEmpty(array<T> $a): bool` |
 | [`Core\Arr::hasKey`](#core-core-arr-haskey) | `hasKey(array<T> $a, int\|string $key): bool` |
 | [`Core\Arr::contains`](#core-core-arr-contains) | `contains(array<T> $haystack, T $needle): bool` |
@@ -7242,7 +7242,7 @@ Replaces every value with what `$fn` answers for it, as `array_map` does over on
 #### `Core\Arr::mapKeys`
 
 ```nvs skip
-Core\Arr::mapKeys(array<T> $a, callable $fn): array<T>
+Core\Arr::mapKeys(array<T> $a, callable(T, string): int|string $fn): array<T>
 ```
 
 Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and `array_combine(array_map(…), …)` as one member.
@@ -7250,7 +7250,7 @@ Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to re-key. |
-| `$fn` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters; it answers the entry's new key, an `int` or a `string`. |
+| `$fn` | `callable(T, string): int\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters; it answers the entry's new key, an `int` or a `string`. |
 
 **Returns** `array<T>` — The values under their new keys, in first-occurrence order; two entries given one key collapse to the last, and `1` and `"1"` are one key.
 
@@ -7258,7 +7258,7 @@ Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and
 #### `Core\Arr::groupBy`
 
 ```nvs skip
-Core\Arr::groupBy(array<T> $a, callable $key): array<array<T>>
+Core\Arr::groupBy(array<T> $a, callable(T, string): int|string $key): array<array<T>>
 ```
 
 Partitions the entries into buckets named by what `$key` answers for each — the group-by loop PHP has no function for.
@@ -7266,7 +7266,7 @@ Partitions the entries into buckets named by what `$key` answers for each — th
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to partition. |
-| `$key` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters; it answers the bucket's name, an `int` or a `string`. |
+| `$key` | `callable(T, string): int\|string` | Called as `($value, $key)` per entry, and may declare fewer parameters; it answers the bucket's name, an `int` or a `string`. |
 
 **Returns** `array<array<T>>` — One inner array per distinct answer, in first-occurrence order, each keeping its entries under their own keys; `1` and `"1"` name one bucket.
 
@@ -7274,7 +7274,7 @@ Partitions the entries into buckets named by what `$key` answers for each — th
 #### `Core\Arr::reduce`
 
 ```nvs skip
-Core\Arr::reduce(array<T> $a, callable $fn, U $initial): U
+Core\Arr::reduce(array<T> $a, callable(U, T, string): U $fn, U $initial): U
 ```
 
 Folds the entries into one value from `$initial`, as `array_reduce` does; the callback receives `($carry, $value, $key)` and may declare fewer parameters.
@@ -7282,7 +7282,7 @@ Folds the entries into one value from `$initial`, as `array_reduce` does; the ca
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to fold. |
-| `$fn` | `callable` | Called as `($carry, $value, $key)` per entry, answering the next carry. |
+| `$fn` | `callable(U, T, string): U` | Called as `($carry, $value, $key)` per entry, answering the next carry. |
 | `$initial` | `U` | The seed, whose type is the fold's `U` and therefore the result's. |
 
 **Returns** `U` — The last carry; `$initial` itself over an empty array, with no call made.
@@ -7291,7 +7291,7 @@ Folds the entries into one value from `$initial`, as `array_reduce` does; the ca
 #### `Core\Arr::find`
 
 ```nvs skip
-Core\Arr::find(array<T> $a, callable $predicate): ?T
+Core\Arr::find(array<T> $a, callable(T, string): bool $predicate): ?T
 ```
 
 The first value `$predicate` answers truthily for, as `array_find` does; the walk stops at the match.
@@ -7299,7 +7299,7 @@ The first value `$predicate` answers truthily for, as `array_find` does; the wal
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to search. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
+| `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
 
 **Returns** `?T` — The matching value, or `null` when nothing matches — which a stored `null` in an `array<?T>` cannot be told from.
 
@@ -7307,7 +7307,7 @@ The first value `$predicate` answers truthily for, as `array_find` does; the wal
 #### `Core\Arr::findKey`
 
 ```nvs skip
-Core\Arr::findKey(array<T> $a, callable $predicate): ?string
+Core\Arr::findKey(array<T> $a, callable(T, string): bool $predicate): ?string
 ```
 
 The key of the first entry `$predicate` answers truthily for, as `array_find_key` does; the walk stops at the match.
@@ -7315,7 +7315,7 @@ The key of the first entry `$predicate` answers truthily for, as `array_find_key
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to search. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
+| `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
 
 **Returns** `?string` — The key as a `string`, whatever it was written as; `null` when nothing matches.
 
@@ -7323,7 +7323,7 @@ The key of the first entry `$predicate` answers truthily for, as `array_find_key
 #### `Core\Arr::any`
 
 ```nvs skip
-Core\Arr::any(array<T> $a, callable $predicate): bool
+Core\Arr::any(array<T> $a, callable(T, string): bool $predicate): bool
 ```
 
 Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk stops at the first match.
@@ -7331,7 +7331,7 @@ Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to test. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
+| `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
 
 **Returns** `bool` — `true` at the first truthy answer; `false` over the empty array.
 
@@ -7339,7 +7339,7 @@ Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk
 #### `Core\Arr::all`
 
 ```nvs skip
-Core\Arr::all(array<T> $a, callable $predicate): bool
+Core\Arr::all(array<T> $a, callable(T, string): bool $predicate): bool
 ```
 
 Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops at the first failure.
@@ -7347,7 +7347,7 @@ Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to test. |
-| `$predicate` | `callable` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
+| `$predicate` | `callable(T, string): bool` | Called as `($value, $key)` per entry, and may declare fewer parameters. |
 
 **Returns** `bool` — `false` at the first falsy answer; `true` over the empty array.
 
@@ -9075,7 +9075,7 @@ a\.b\*c\?
 | [`Core\Regex::match`](#core-core-regex-match) | `match(string $subject, Core\Regex\Pattern\|string $pattern, {from?: int}): ?Core\Regex\Match` |
 | [`Core\Regex::matchAll`](#core-core-regex-matchall) | `matchAll(string $subject, Core\Regex\Pattern\|string $pattern): array<Core\Regex\Match>` |
 | [`Core\Regex::replace`](#core-core-regex-replace) | `replace(string $subject, Core\Regex\Pattern\|string $pattern, string $replacement, {limit?: uint}): string` |
-| [`Core\Regex::replaceWith`](#core-core-regex-replacewith) | `replaceWith(string $subject, Core\Regex\Pattern\|string $pattern, callable $fn, {limit?: uint}): string` |
+| [`Core\Regex::replaceWith`](#core-core-regex-replacewith) | `replaceWith(string $subject, Core\Regex\Pattern\|string $pattern, callable(Core\Regex\Match): string $fn, {limit?: uint}): string` |
 | [`Core\Regex::split`](#core-core-regex-split) | `split(string $subject, Core\Regex\Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` |
 | [`Core\Regex::quote`](#core-core-regex-quote) | `quote(string $literal): string` |
 
@@ -9179,7 +9179,7 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, 
 #### `Core\Regex::replaceWith`
 
 ```nvs skip
-Core\Regex::replaceWith(string $subject, Core\Regex\Pattern|string $pattern, callable $fn, {limit?: uint}): string
+Core\Regex::replaceWith(string $subject, Core\Regex\Pattern|string $pattern, callable(Core\Regex\Match): string $fn, {limit?: uint}): string
 ```
 
 Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answers for each, as `preg_replace_callback` does; the callback receives one `Match` and its answer is inserted literally, with no group expansion.
@@ -9188,7 +9188,7 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answe
 |---|---|---|
 | `$subject` | `string` | The text to search. |
 | `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
-| `$fn` | `callable` | A `callable(Match): string` called once per replaced match, in subject order, after every match has been found. |
+| `$fn` | `callable(Core\Regex\Match): string` | A `callable(Match): string` called once per replaced match, in subject order, after every match has been found. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, `0` replaces nothing, and `$fn` is never called for a match beyond it. |
 
 **Returns** `string` — The subject with its matches replaced — unchanged when the pattern matches nowhere or `limit` is `0`.
@@ -12936,7 +12936,7 @@ deploy
 
 | Member | Signature |
 |---|---|
-| `new Core\Heap` | `new Core\Heap(?callable $comparator = null): Core\Heap` |
+| `new Core\Heap` | `new Core\Heap(?callable(T, T): int $comparator = null): Core\Heap` |
 | [`Core\Heap->push`](#core-core-heap-push) | `push(T $value): void` |
 | [`Core\Heap->peek`](#core-core-heap-peek) | `peek(): T` |
 | [`Core\Heap->pop`](#core-core-heap-pop) | `pop(): T` |
@@ -12947,14 +12947,14 @@ deploy
 #### `Core\Heap::constructor`
 
 ```nvs skip
-new Core\Heap(?callable $comparator = null): Core\Heap
+new Core\Heap(?callable(T, T): int $comparator = null): Core\Heap
 ```
 
 Builds an empty `Core\Heap<T>` — a priority queue that replaces `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` — ordered by `$comparator` when one is given, otherwise by `Comparable::compareTo`, and otherwise by the natural order of scalars.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$comparator` | `?callable` (default `null`) | An optional `fn ($a, $b)` answering a negative number, zero or a positive number as `Core\Arr::sort`'s comparator does; `null` for `compareTo` or the natural order. |
+| `$comparator` | `?callable(T, T): int` (default `null`) | An optional `fn ($a, $b)` answering a negative number, zero or a positive number as `Core\Arr::sort`'s comparator does; `null` for `compareTo` or the natural order. |
 
 <a id="core-core-heap-push"></a>
 #### `Core\Heap->push`
@@ -14392,20 +14392,20 @@ threw: stop
 
 | Member | Signature |
 |---|---|
-| [`Core\Out::capture`](#core-core-out-capture) | `capture(callable $fn, {through?: callable}): Core\Cli\Text` |
+| [`Core\Out::capture`](#core-core-out-capture) | `capture(callable(): mixed $fn, {through?: callable}): Core\Cli\Text` |
 
 <a id="core-core-out-capture"></a>
 #### `Core\Out::capture`
 
 ```nvs skip
-Core\Out::capture(callable $fn, {through?: callable}): Core\Cli\Text
+Core\Out::capture(callable(): mixed $fn, {through?: callable}): Core\Cli\Text
 ```
 
 Runs `$fn` with this request's output sink redirected into a buffer and answers what it wrote, as the carrier of the sink in force — `ob_start`/`ob_get_clean` and `ob_start($callback)`, scoped to one closure so it nests by call nesting and always swallows.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | The closure to run; its own return value is discarded, since the capture answers what was written rather than what was computed. |
+| `$fn` | `callable(): mixed` | The closure to run; its own return value is discarded, since the capture answers what was written rather than what was computed. |
 | `{through: …}` | `callable` (default `null`) | A `callable(Core\Cli\Text): Core\Cli\Text` applied to the captured carrier before it is answered; the default answers it as captured. |
 
 **Returns** `Core\Cli\Text` — The captured output as a `Core\Cli\Text` — never a plain `string`, since those bytes have already been through the sink — and an empty carrier when `$fn` wrote nothing. Nothing `$fn` echoed reaches the sink below; re-emitting is a visible `echo Core\Out::capture(…)`, and a `Core\Debug::dump` inside `$fn` is not captured.
@@ -14564,9 +14564,9 @@ final class CartTest {
 | [`Core\Test::assertCount`](#core-core-test-assertcount) | `assertCount(array<T> $actual, uint $expected, {message?: string}): void` |
 | [`Core\Test::assertContains`](#core-core-test-assertcontains) | `assertContains(array<T> $actual, T $expected, {message?: string}): void` |
 | [`Core\Test::assertMatchesInline`](#core-core-test-assertmatchesinline) | `assertMatchesInline(mixed $actual, string $expected, {message?: string}): void` |
-| [`Core\Test::assertThrows`](#core-core-test-assertthrows) | `assertThrows(callable $body, string $expected, {message?: string}): void` |
-| [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable $body, {message?: string}): void` |
-| [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
+| [`Core\Test::assertThrows`](#core-core-test-assertthrows) | `assertThrows(callable(): mixed $body, string $expected, {message?: string}): void` |
+| [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable(): mixed $body, {message?: string}): void` |
+| [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable(): mixed $body): void` |
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
@@ -14726,14 +14726,14 @@ Asserts that `$actual`, rendered as `Core\Debug::render` renders it, is exactly 
 #### `Core\Test::assertThrows`
 
 ```nvs skip
-Core\Test::assertThrows(callable $body, string $expected, {message?: string}): void
+Core\Test::assertThrows(callable(): mixed $body, string $expected, {message?: string}): void
 ```
 
 Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's `expectException` does; the throw it judged is consumed, so only the assertion's own verdict propagates.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable` | The closure to run; a value it returns is released. |
+| `$body` | `callable(): mixed` | The closure to run; a value it returns is released. |
 | `$expected` | `string` (neutral) | The fully-qualified class name, as `ParseError::class` folds to; the thrown class or any ancestor of it matches. |
 | `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
 
@@ -14745,14 +14745,14 @@ Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's
 #### `Core\Test::assertDoesNotThrow`
 
 ```nvs skip
-Core\Test::assertDoesNotThrow(callable $body, {message?: string}): void
+Core\Test::assertDoesNotThrow(callable(): mixed $body, {message?: string}): void
 ```
 
 Runs `$body` and asserts it returns without throwing — the way out of the rule that a test asserting nothing fails; the throw it judged is consumed, so only the assertion's own verdict propagates.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable` | The closure to run; a value it returns is released. |
+| `$body` | `callable(): mixed` | The closure to run; a value it returns is released. |
 | `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
 
 **Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger. A `FATAL` or an exit from the body is nobody's assertion to judge and propagates unchanged.
@@ -14763,14 +14763,14 @@ Runs `$body` and asserts it returns without throwing — the way out of the rule
 #### `Core\Test::expectFailure`
 
 ```nvs skip
-Core\Test::expectFailure(callable $body): void
+Core\Test::expectFailure(callable(): mixed $body): void
 ```
 
 Runs `$body` and asserts that an assertion inside it failed, then discharges those failures from the test's ledger — the one greppable spelling for a failure that was on purpose, and the only way an entry ever leaves the ledger.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable` | The closure to run; what the ledger records decides the verdict, so a body that caught its own failed assertion and returned normally still counts as having failed. |
+| `$body` | `callable(): mixed` | The closure to run; what the ledger records decides the verdict, so a body that caught its own failed assertion and returned normally still counts as having failed. |
 
 **Returns** `void` — Nothing; the failed assertions inside `$body` are discharged and the throw carrying one is consumed, while a passing assertion inside it stays counted.
 
@@ -14942,8 +14942,8 @@ deadline hit
 | Member | Signature |
 |---|---|
 | [`Core\Task::all`](#core-core-task-all) | `all({name: callable, ...} $tasks, {limit?: uint, deadline?: Core\Time\Duration}): S` |
-| [`Core\Task::map`](#core-core-task-map) | `map(array<T> $items, callable $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>` |
-| [`Core\Task::afterResponse`](#core-core-task-afterresponse) | `afterResponse(callable $fn, {deadline?: Core\Time\Duration}): void` |
+| [`Core\Task::map`](#core-core-task-map) | `map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>` |
+| [`Core\Task::afterResponse`](#core-core-task-afterresponse) | `afterResponse(callable(): mixed $fn, {deadline?: Core\Time\Duration}): void` |
 
 <a id="core-core-task-all"></a>
 #### `Core\Task::all`
@@ -14968,7 +14968,7 @@ Runs every closure of the `$tasks` shape literal as a concurrent child task and 
 #### `Core\Task::map`
 
 ```nvs skip
-Core\Task::map(array<T> $items, callable $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>
+Core\Task::map(array<T> $items, callable(T, string): U $fn, {limit?: uint, deadline?: Core\Time\Duration}): array<U>
 ```
 
 Calls `$fn` once per element of `$items`, each call a concurrent child task, and answers the results under the subject's own keys and in its order regardless of completion order — what `curl_multi_*` was for.
@@ -14976,7 +14976,7 @@ Calls `$fn` once per element of `$items`, each call a concurrent child task, and
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$items` | `array<T>` | The array whose elements are handed to `$fn`. |
-| `$fn` | `callable` | The callback, receiving `($value, $key)` and free to declare fewer parameters; its declared return type is `U`. |
+| `$fn` | `callable(T, string): U` | The callback, receiving `($value, $key)` and free to declare fewer parameters; its declared return type is `U`. |
 | `{limit: …}` | `uint` (default `null`) | The most children running at once; omitted, every child runs at once, and a child past the limit is scheduled rather than refused. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on the whole call, not per child; omitted, the request tree's own `wall_time` is the bound. |
 
@@ -14988,14 +14988,14 @@ Calls `$fn` once per element of `$items`, each call a concurrent child task, and
 #### `Core\Task::afterResponse`
 
 ```nvs skip
-Core\Task::afterResponse(callable $fn, {deadline?: Core\Time\Duration}): void
+Core\Task::afterResponse(callable(): mixed $fn, {deadline?: Core\Time\Duration}): void
 ```
 
 Runs `$fn` once the request's own execution is over, still charged to the request tree — for receipts, webhooks, cache warming and audit shipping. **This is not a queue**: nothing is durable, nothing retries, and a process that dies loses the work with no record.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | What to run. It takes no arguments and its answer is discarded; a throw out of it is logged and reaches no `catch`, because the request that registered it is over. |
+| `$fn` | `callable(): mixed` | What to run. It takes no arguments and its answer is discarded; a throw out of it is logged and reaches no `catch`, because the request that registered it is over. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | A wall-clock bound on this closure; omitted, `[deferred] deadline` is the bound. `[limits] wall_time` is what the client waited for and no longer applies, while every other `[limits]` value still bounds the tree. |
 
 **Returns** `void` — Nothing. Registering is request-local, the registrations run in the order they were made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.
@@ -15151,7 +15151,7 @@ Keywords: args, onExit
 | Member | Signature |
 |---|---|
 | [`Core\Script::args`](#core-core-script-args) | `args(): mixed` |
-| [`Core\Script::onExit`](#core-core-script-onexit) | `onExit(callable $hook): void` |
+| [`Core\Script::onExit`](#core-core-script-onexit) | `onExit(callable(Core\Script\ExitReport): mixed $hook): void` |
 
 <a id="core-core-script-args"></a>
 #### `Core\Script::args`
@@ -15168,14 +15168,14 @@ Answers the value this script was spawned with — `spawn script … with(args: 
 #### `Core\Script::onExit`
 
 ```nvs skip
-Core\Script::onExit(callable $hook): void
+Core\Script::onExit(callable(Core\Script\ExitReport): mixed $hook): void
 ```
 
 Registers a closure to run as the last user code of this script — at a normal end, at an `exit`, and when a throw reaches the root with nothing left to catch it. Hooks run in registration order, once, and a `FATAL` or a cancellation runs none of them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$hook` | `callable` | What to run. It is handed one readonly `Core\Script\ExitReport` saying which ending this was, and answers nothing; declaring no parameter is allowed. A hook that throws is logged and abandoned, and the hooks behind it still run. |
+| `$hook` | `callable(Core\Script\ExitReport): mixed` | What to run. It is handed one readonly `Core\Script\ExitReport` saying which ending this was, and answers nothing; declaring no parameter is allowed. A hook that throws is logged and abandoned, and the hooks behind it still run. |
 
 **Returns** `void` — Nothing. Registering is request-local, registering twice registers twice, and a hook registered by a hook joins the tail of the same drain. Nothing a hook does changes the ending: the report is fixed before the first one runs, and `exit` inside a hook is a `RuntimeError` rather than a second ending.
 
@@ -15346,8 +15346,8 @@ Keywords: arguments, write, escape, isTty, width, height, colorDepth, displayWid
 | [`Core\Cli::select`](#core-core-cli-select) | `select(string $question, array<T> $choices, {labels?: callable, default?: T}): T` |
 | [`Core\Cli::multiSelect`](#core-core-cli-multiselect) | `multiSelect(string $question, array<T> $choices, {labels?: callable}): array<T>` |
 | [`Core\Cli::secret`](#core-core-cli-secret) | `secret(string $question): secret tainted string` |
-| [`Core\Cli::live`](#core-core-cli-live) | `live(callable $body): T` |
-| [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable $body): T` |
+| [`Core\Cli::live`](#core-core-cli-live) | `live(callable(Core\Cli\Live): T $body): T` |
+| [`Core\Cli::progress`](#core-core-cli-progress) | `progress(uint $total, callable(Core\Cli\Progress): T $body): T` |
 
 <a id="core-core-cli-arguments"></a>
 #### `Core\Cli::arguments`
@@ -15554,14 +15554,14 @@ Asks `$question` with the terminal's echo turned off, so a password is not left 
 #### `Core\Cli::live`
 
 ```nvs skip
-Core\Cli::live(callable $body): T
+Core\Cli::live(callable(Core\Cli\Live): T $body): T
 ```
 
 Runs `$body` with a live region open on the terminal, and answers whatever `$body` answered. `$body` receives a `Core\Cli\Live` whose `set` replaces the region's rows in place — the scoped replacement for `moveUp`/`clearLine` cursor primitives, which break the moment output is piped and leave a shell unusable when a program dies holding them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `callable` | The work to do while the region is open. Its own return value is this member's, so a region costs a call site nothing in what it can compute. |
+| `$body` | `callable(Core\Cli\Live): T` | The work to do while the region is open. Its own return value is this member's, so a region costs a call site nothing in what it can compute. |
 
 **Returns** `T` — Exactly what `$body` answered, at `$body`'s own type. The terminal is restored on every path out — a return, a throw, a fatal, an internal panic — and a run whose output is not a terminal renders nothing at all rather than a smear of escape sequences.
 
@@ -15569,7 +15569,7 @@ Runs `$body` with a live region open on the terminal, and answers whatever `$bod
 #### `Core\Cli::progress`
 
 ```nvs skip
-Core\Cli::progress(uint $total, callable $body): T
+Core\Cli::progress(uint $total, callable(Core\Cli\Progress): T $body): T
 ```
 
 Runs `$body` with a progress bar open on the terminal, and answers whatever `$body` answered. A closed, named behaviour over `live`'s general one: the region is a bar the runtime draws, so counting toward `$total` is all a program says.
@@ -15577,7 +15577,7 @@ Runs `$body` with a progress bar open on the terminal, and answers whatever `$bo
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$total` | `uint` | How many units of work the bar is scaled to. A total of `0` is work already done, and draws a full bar rather than refusing. |
-| `$body` | `callable` | The work to do while the bar is open. Its own return value is this member's. |
+| `$body` | `callable(Core\Cli\Progress): T` | The work to do while the bar is open. Its own return value is this member's. |
 
 **Returns** `T` — Exactly what `$body` answered, at `$body`'s own type — `live`'s contract, since this is that member with a frame the runtime writes.
 
@@ -16949,21 +16949,21 @@ work done: 1000 items, no limit reached
 
 | Member | Signature |
 |---|---|
-| [`Core\Fatal::onLimit`](#core-core-fatal-onlimit) | `onLimit(callable $handler): void` |
-| [`Core\Fatal::onUncaughtThrow`](#core-core-fatal-onuncaughtthrow) | `onUncaughtThrow(callable $handler): void` |
+| [`Core\Fatal::onLimit`](#core-core-fatal-onlimit) | `onLimit(callable(array<string>): mixed $handler): void` |
+| [`Core\Fatal::onUncaughtThrow`](#core-core-fatal-onuncaughtthrow) | `onUncaughtThrow(callable(Throwable): mixed $handler): void` |
 
 <a id="core-core-fatal-onlimit"></a>
 #### `Core\Fatal::onLimit`
 
 ```nvs skip
-Core\Fatal::onLimit(callable $handler): void
+Core\Fatal::onLimit(callable(array<string>): mixed $handler): void
 ```
 
 Registers the closure this request runs when a resource limit stops it — memory, CPU time, output, wall time, script depth or call-stack depth. It runs out of a slice of the request's budget reserved for it, once and never twice, and it is the only thing that observes a `FATAL` a `catch` never sees.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$handler` | `callable` | What to run. It is handed one array whose `limit` key names the limit that stopped the request — `memory` or `cpu_time`, the directive's own spelling — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts the reserved slice itself, is abandoned where it stands. |
+| `$handler` | `callable(array<string>): mixed` | What to run. It is handed one array whose `limit` key names the limit that stopped the request — `memory` or `cpu_time`, the directive's own spelling — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts the reserved slice itself, is abandoned where it stands. |
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it.
 
@@ -16971,14 +16971,14 @@ Registers the closure this request runs when a resource limit stops it — memor
 #### `Core\Fatal::onUncaughtThrow`
 
 ```nvs skip
-Core\Fatal::onUncaughtThrow(callable $handler): void
+Core\Fatal::onUncaughtThrow(callable(Throwable): mixed $handler): void
 ```
 
 Registers the closure this request runs when a throw reaches the top of it with nothing left to catch it. It runs out of the request's ordinary remaining budget, once and never twice, and it is handed the exception itself.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$handler` | `callable` | What to run. It is handed the `Throwable` that went uncaught — the object the program threw, with its own class, message and backtrace — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts what the request has left, is abandoned where it stands, and the failure reported is still the one that reached the root. |
+| `$handler` | `callable(Throwable): mixed` | What to run. It is handed the `Throwable` that went uncaught — the object the program threw, with its own class, message and backtrace — and answers nothing; declaring no parameter is allowed. A handler that throws, or that exhausts what the request has left, is abandoned where it stands, and the failure reported is still the one that reached the root. |
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it. It does not stop the failure being reported — the engine still writes its own record — and it does not change the exit status.
 
@@ -18511,7 +18511,7 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driv
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
 | [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
-| [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
+| [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
 | [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
 | [`Core\Db\Connection->isOpen`](#core-core-db-connection-isopen) | `isOpen(): bool` |
@@ -18615,14 +18615,14 @@ Runs one statement and walks its rows one at a time, holding the connection open
 #### `Core\Db\Connection->transaction`
 
 ```nvs skip
-$connection->transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
+$connection->transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
 Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
+| `$fn` | `callable(Core\Db\Transaction): T` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
 | `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |
@@ -18678,7 +18678,7 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
 | [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
-| [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
+| [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
 
 <a id="core-core-db-transaction-query"></a>
@@ -18780,14 +18780,14 @@ Runs one statement and walks its rows one at a time, holding the connection open
 #### `Core\Db\Transaction->transaction`
 
 ```nvs skip
-$transaction->transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
+$transaction->transaction(callable(Core\Db\Transaction): T $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T
 ```
 
 Runs `$fn` inside a transaction and answers whatever it answered: returning commits, throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` and every savepoint member with the one shape that cannot be left open by an early return.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
+| `$fn` | `callable(Core\Db\Transaction): T` | The work. It is handed a `Core\Db\Transaction`, which has the same query surface the connection has, and may declare that parameter or no parameter at all. |
 | `{isolation: …}` | `Core\Db\Isolation` (default `null`) | What this transaction may see of the work running beside it. Left out, it runs at the level the server was configured with. A nested call may not ask for one at all — the level belongs to the whole transaction, not to a savepoint inside it. |
 | `{readOnly: …}` | `bool` (default `false`) | Refuses writes for the length of the transaction, which lets the server plan for a reader. False by default, and a nested call may not ask for it for the reason `isolation` may not. |
 | `{retries: …}` | `uint` (default `0`) | How many times a deadlock or a serialization failure the commit reports may re-run `$fn`, outermost transactions only. Zero by default, because a closure with side effects should not be re-run without being asked for; nothing else is ever retried, there is no wait between attempts, and a conflict a statement inside `$fn` raised is thrown rather than re-run. |

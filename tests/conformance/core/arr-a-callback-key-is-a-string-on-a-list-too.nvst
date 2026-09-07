@@ -62,34 +62,24 @@ echo Core\Arr::find($list, fn(int $v, string $k) => $k == "2") ?? -1, "|",
 echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
     {by: fn(int $v, string $k) => $k, preserveKeys: true})), ","), "\n";
 
-// The other half. `nvs_runtime::call_closure` checks each argument against the
-// tags the closure declared, so a callback writing `int $k` throws
-// `LogicError` — `rule:types/conversion` has no implicit `string` → `int` conversion, and
-// the only widening it does admit runs the other way. Both counters are
-// incremented from inside the same twelve blocks, so a member that quietly
-// stopped offering a key raises `asked` without raising `refused`.
+// The other half, and the two places it is answered from. Nine of the members
+// swept above declare their callback's signature
+// (`rule:types/callable-signature`), so `callable(T, string)` places the `$k`
+// an `int $k` would have to satisfy and the mismatch is refused where it is
+// written — none of them can reach a `try` at all, which is the whole point of
+// the goal that typed them.
 //
-// Twelve rather than fourteen: `filter` and `map` declare their callback's
-// signature (`rule:types/callable-signature`), so an `int $k` written at
-// either one is refused where it is written and never reaches a `try`. They
-// are still swept above, where the question is what key a member offers.
+// What is left bare is an **option bag's** callback, and there the same
+// mistake is still the runtime's to catch: `nvs_runtime::call_closure` checks
+// each argument against the tags the closure declared, so a callback writing
+// `int $k` throws `LogicError` — `rule:types/conversion` has no implicit
+// `string` → `int` conversion, and the only widening it does admit runs the
+// other way. Both counters are incremented from inside the same five blocks,
+// so a bag that quietly stopped offering a key raises `asked` without raising
+// `refused`.
 var $asked = 0;
 var $refused = 0;
-try { $asked = $asked + 1; Core\Arr::mapKeys($list, fn(int $v, int $k) => $v as string); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::groupBy($list, fn(int $v, int $k) => $v); }
-catch (LogicError $e) { $refused = $refused + 1; }
 try { $asked = $asked + 1; Core\Arr::countBy($list, {by: fn(int $v, int $k) => $v}); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::reduce($list, fn(int $c, int $v, int $k) => $c + $v, 0); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::find($list, fn(int $v, int $k) => $v > 10); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::findKey($list, fn(int $v, int $k) => $v > 10); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::any($list, fn(int $v, int $k) => $v > 10); }
-catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::all($list, fn(int $v, int $k) => $v > 10); }
 catch (LogicError $e) { $refused = $refused + 1; }
 try { $asked = $asked + 1; Core\Arr::unique($list, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
@@ -105,4 +95,4 @@ echo $refused, " of ", $asked, " refused\n";
 9 of 9
 30|2|1|
 0,1,2,3
-12 of 12 refused
+5 of 5 refused

@@ -18,10 +18,10 @@ A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callbac
 // `arr-a-callback-key-is-a-string-on-a-list-too` pins, so every refusal below
 // is a `string` argument meeting a parameter of some other representation.
 //
-// Every question is asked of a member whose callback is a bare `callable` —
-// `any` and `mapKeys` rather than `filter` and `map`, whose written signatures
-// (`rule:types/callable-signature`) answer half of these before the run and so
-// cannot show what the representation check does.
+// Every question is asked through an option bag's `{by:}`, which is a bare
+// `callable`. A member whose callback is a whole parameter writes its
+// signature (`rule:types/callable-signature`) and answers most of these before
+// the run, so it cannot show what the representation check does.
 
 array<int> $list = [10, 20, 30, 40];
 array<int> $map = ["a" => 1, "b" => 2];
@@ -29,49 +29,52 @@ array<int> $map = ["a" => 1, "b" => 2];
 // One character per declaration, in pairs: the bare form then its nullable
 // twin. `y` is "the member ran", `n` is "the call threw `LogicError`".
 var $marks = "";
-try { Core\Arr::any($list, fn(int $v, int $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, int $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, ?int $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, ?int $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, bool $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, bool $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, ?bool $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, ?bool $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, array<string> $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, array<string> $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, ?array<string> $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, ?array<string> $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
 // The pair the key's own representation is on: both halves accept, one
 // because the tag matches and one because nothing looked.
-try { Core\Arr::any($list, fn(int $v, string $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, string $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-try { Core\Arr::any($list, fn(int $v, ?string $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, ?string $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
 // `mixed` is `rule:types/conversion`'s one unchecked position and has no bare twin.
-try { Core\Arr::any($list, fn(int $v, mixed $k) => true); $marks = $marks . "y"; }
+try { Core\Arr::unique($list, {by: fn(int $v, mixed $k) => true}); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
 echo $marks, "\n";
 
 // The same pair in the *value* position, so the rule is about an argument
 // rather than about the key: an `int` element meeting a `string` parameter.
 var $value = "";
-try { Core\Arr::any($list, fn(string $v, string $k) => true); $value = $value . "y"; }
+try { Core\Arr::unique($list, {by: fn(string $v, string $k) => true}); $value = $value . "y"; }
 catch (LogicError $e) { $value = $value . "n"; }
-try { Core\Arr::any($list, fn(?string $v, string $k) => true); $value = $value . "y"; }
+try { Core\Arr::unique($list, {by: fn(?string $v, string $k) => true}); $value = $value . "y"; }
 catch (LogicError $e) { $value = $value . "n"; }
 echo $value, "\n";
 
 // And the argument arrives intact under a declaration that disagrees with it:
 // `$k as string` inside a `?int $k` reads the tag the value actually carries,
 // so the keys come back whole rather than converted, defaulted or nulled.
-echo Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($list, fn(int $v, ?int $k) => $k as string)), ","), "\n";
-echo Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($map, fn(int $v, ?int $k) => $k as string)), ","), "\n";
-// Both parameters wrong at once, over a member that offers three arguments:
-// the `?bool $v` holds the `int` element, and renders as one.
-echo Core\Arr::reduce($map, fn(string $c, ?bool $v, mixed $k) => $c . ($k as string) . ($v as string), ""), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($list, {by: fn(int $v, ?int $k) => $k as string})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($map, {by: fn(int $v, ?int $k) => $k as string})), ","), "\n";
+// Both parameters wrong at once: the `?bool $v` holds the `int` element, and
+// renders as one. Two arguments rather than three, because the three-argument
+// callback — `reduce`'s — writes its signature now, and every position that
+// still reaches the representation check is offered `($value, $key)`.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($map,
+    {by: fn(?bool $v, mixed $k) => ($k as string) . ($v as string)})), ","), "\n";
 --EXPECT--
 nynynyyyy
 ny
 0,1,2,3
 a,b
-a1b2
+a1,b2

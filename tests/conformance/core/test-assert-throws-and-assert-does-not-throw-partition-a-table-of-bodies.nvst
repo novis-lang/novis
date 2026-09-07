@@ -28,7 +28,7 @@ final class Ask {
     // The verdict as a `bool` rather than as control flow. A refusal is a
     // `Core\Test\Failure` on both members (`rule:testing/assertions-are-typed`), which is the whole
     // reason one helper can ask either of them.
-    public static function throws(callable $body, string $class): bool {
+    public static function throws(callable(): mixed $body, string $class): bool {
         try {
             Core\Test::assertThrows($body, $class);
             return true;
@@ -37,7 +37,7 @@ final class Ask {
         }
     }
 
-    public static function quiet(callable $body): bool {
+    public static function quiet(callable(): mixed $body): bool {
         try {
             Core\Test::assertDoesNotThrow($body);
             return true;
@@ -64,7 +64,7 @@ final class Ran {
     // `call_closure` is watching, which is the edge a member reading its own
     // frame rather than the pending throw would part company on.
     public static function nested(): void {
-        callable $inner = fn (): void => { throw new IOError("the disk is full"); };
+        callable(): mixed $inner = fn (): void => { throw new IOError("the disk is full"); };
         $inner();
     }
 
@@ -108,7 +108,7 @@ final class Ran {
     }
 }
 
-array<callable> $throwing = [
+array<callable(): mixed> $throwing = [
     fn (): void => { Ran::parse(); },
     fn (): void => { Ran::logic(); },
     fn (): void => { Ran::arithmetic(); },
@@ -116,7 +116,7 @@ array<callable> $throwing = [
     fn (): int => { return Ran::late(); },
 ];
 
-array<callable> $returning = [
+array<callable(): mixed> $returning = [
     fn (): void => { Ran::nothing(); },
     fn (): int => { return Ran::seven(); },
     fn (): ?int => { return Ran::absent(); },
@@ -130,7 +130,7 @@ array<callable> $returning = [
 // being wrong cannot reach 10 here.
 int $partition = 0;
 int $threwHeld = 0;
-foreach ($throwing as string $t => callable $body) {
+foreach ($throwing as string $t => callable(): mixed $body) {
     if (Ask::throws($body, Throwable::class)) {
         $threwHeld = $threwHeld + 1;
     }
@@ -140,7 +140,7 @@ foreach ($throwing as string $t => callable $body) {
 }
 
 int $quietHeld = 0;
-foreach ($returning as string $r => callable $body2) {
+foreach ($returning as string $r => callable(): mixed $body2) {
     if (Ask::quiet($body2)) {
         $quietHeld = $quietHeld + 1;
     }
@@ -158,7 +158,7 @@ echo "assertDoesNotThrow held on the returning table: ", $quietHeld, "/5\n";
 // rows `assertThrows` refuses *and* so does `assertDoesNotThrow`: neither holds,
 // and the pair is not a partition. Only the root makes it one.
 int $neither = 0;
-foreach ($throwing as string $n => callable $body3) {
+foreach ($throwing as string $n => callable(): mixed $body3) {
     if (Ask::throws($body3, LogicError::class) == false && Ask::quiet($body3) == false) {
         $neither = $neither + 1;
     }

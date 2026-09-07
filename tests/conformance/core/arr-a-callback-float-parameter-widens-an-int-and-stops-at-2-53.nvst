@@ -68,20 +68,21 @@ echo $marks, "\n";
 // `string` does not widen either — the widening reads the argument's own tag,
 // so it is the pair `int|uint` → `float` and nothing else.
 //
-// Asked of `any`, whose callback is a bare `callable`: `filter`'s declares its
-// signature (`rule:types/callable-signature`) and refuses every one of these
-// four where it is written, which is the same four answers a compile-time
-// pass earlier. What is asserted here is the *runtime* check's own shape, so
-// it is asked of the member that still reaches it.
+// Asked through an option bag's `{by:}`, which is a bare `callable`: every
+// member whose callback is a whole parameter declares its signature
+// (`rule:types/callable-signature`) and refuses all four of these where they
+// are written, which is the same four answers a compile-time pass earlier.
+// What is asserted here is the *runtime* check's own shape, so it is asked of
+// the position that still reaches it.
 array<float> $floats = [1.5, 2.5];
 var $one = "";
-try { Core\Arr::any($floats, fn(int $v, string $k) => true); $one = $one . "y"; }
+try { Core\Arr::unique($floats, {by: fn(int $v, string $k) => true}); $one = $one . "y"; }
 catch (LogicError $l) { $one = $one . "n"; }
-try { Core\Arr::any($ints, fn(string $v, string $k) => true); $one = $one . "y"; }
+try { Core\Arr::unique($ints, {by: fn(string $v, string $k) => true}); $one = $one . "y"; }
 catch (LogicError $l) { $one = $one . "n"; }
-try { Core\Arr::any($ints, fn(bool $v, string $k) => true); $one = $one . "y"; }
+try { Core\Arr::unique($ints, {by: fn(bool $v, string $k) => true}); $one = $one . "y"; }
 catch (LogicError $l) { $one = $one . "n"; }
-try { Core\Arr::any($ints, fn(float $v, float $k) => true); $one = $one . "y"; }
+try { Core\Arr::unique($ints, {by: fn(float $v, float $k) => true}); $one = $one . "y"; }
 catch (LogicError $l) { $one = $one . "n"; }
 echo $one, "\n";
 

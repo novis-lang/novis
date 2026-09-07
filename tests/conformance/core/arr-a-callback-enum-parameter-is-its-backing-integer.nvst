@@ -62,30 +62,30 @@ array<uint> $uints = [7 as uint, 8 as uint];
 // that lines 1 and 2 are the same line and lines 3 and 4 are the same line —
 // an enum agreeing with its backing integer, twice, over two backings that
 // disagree with each other.
-// `any` rather than `filter`: the member is here only to make the runtime's
-// own call, and `filter` now declares its callback's signature
-// (`rule:types/callable-signature`), which a bare `callable` does not satisfy.
-// `any` still takes one, and every declaration above answers `true` on the
-// first element, so what each line records is still whether the *call* was
-// made or refused.
+// An option bag's `{by:}` rather than a whole parameter: every `Core\Arr`
+// member whose callback is a *parameter* now declares its signature
+// (`rule:types/callable-signature`), which a bare `callable` variable does not
+// satisfy, and a bag's field is what is still handed to the runtime unchecked.
+// `unique` calls `by` once per element and compares what it answered, so what
+// each line records is still whether the *call* was made or refused.
 var $a = "";
 foreach ($decls as callable $d) {
-    try { Core\Arr::any($modes, $d); $a = $a . "y"; }
+    try { Core\Arr::unique($modes, {by: $d}); $a = $a . "y"; }
     catch (LogicError $e) { $a = $a . "n"; }
 }
 var $b = "";
 foreach ($decls as callable $d) {
-    try { Core\Arr::any($ints, $d); $b = $b . "y"; }
+    try { Core\Arr::unique($ints, {by: $d}); $b = $b . "y"; }
     catch (LogicError $e) { $b = $b . "n"; }
 }
 var $c = "";
 foreach ($decls as callable $d) {
-    try { Core\Arr::any($weights, $d); $c = $c . "y"; }
+    try { Core\Arr::unique($weights, {by: $d}); $c = $c . "y"; }
     catch (LogicError $e) { $c = $c . "n"; }
 }
 var $u = "";
 foreach ($decls as callable $d) {
-    try { Core\Arr::any($uints, $d); $u = $u . "y"; }
+    try { Core\Arr::unique($uints, {by: $d}); $u = $u . "y"; }
     catch (LogicError $e) { $u = $u . "n"; }
 }
 echo $a, "\n", $b, "\n", $c, "\n", $u, "\n";
@@ -94,14 +94,15 @@ echo $a, "\n", $b, "\n", $c, "\n", $u, "\n";
 // untested: `7` reaches a `Mode` parameter although `Mode` has no case backed
 // by it, and `Mode::Read` reaches a `Level` parameter as the `1` it is. The
 // closed-set membership `as Mode` tests (`rule:types/enum-case-type`) belongs to the
-// conversion, and a `callable`'s parameter is not one. `mapKeys` carries the
-// callback's answer out here for the reason `any` does above: it takes a bare
-// `callable`, where `map`'s written signature would refuse a `Mode` parameter
-// over an `array<int>` before the run — the same disagreement, answered
-// earlier, which is `rule:types/callable-signature`'s point rather than a
-// contradiction of this one.
-echo Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($ints, fn (Mode $v, string $k) => ($v as int) as string)), ","), "\n";
-echo Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($modes, fn (Level $v, string $k) => ($v as int) as string)), ","), "\n";
+// conversion, and a `callable`'s parameter is not one. `countBy` carries the
+// callback's answer out here for the reason `unique` does above — its `{by:}`
+// is a bare `callable`, and its keys are what that callback answered — where
+// `mapKeys`' written signature would refuse a `Mode` parameter over an
+// `array<int>` before the run: the same disagreement, answered earlier, which
+// is `rule:types/callable-signature`'s point rather than a contradiction of
+// this one.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($ints, {by: fn (Mode $v, string $k) => ($v as int) as string})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($modes, {by: fn (Level $v, string $k) => ($v as int) as string})), ","), "\n";
 --EXPECT--
 yynynnnyy
 yynynnnyy

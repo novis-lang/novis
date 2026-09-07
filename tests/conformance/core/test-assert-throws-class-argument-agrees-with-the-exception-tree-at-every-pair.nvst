@@ -24,7 +24,7 @@
 // that could drift from it. `""` is the root's absent parent.
 
 final class Ask {
-    public static function throws(callable $body, string $class): bool {
+    public static function throws(callable(): mixed $body, string $class): bool {
         try {
             Core\Test::assertThrows($body, $class);
             return true;
@@ -62,7 +62,7 @@ array<string> $parent = [
     Core\Test\Failure::class => Throwable::class,
 ];
 
-array<callable> $bodies = [
+array<callable(): mixed> $bodies = [
     Throwable::class => fn (): void => { throw new Throwable("the root itself"); },
     LogicError::class => fn (): void => { throw new LogicError("the caller had it backwards"); },
     RuntimeError::class => fn (): void => { throw new RuntimeError("the world said no"); },
@@ -79,7 +79,7 @@ array<callable> $bodies = [
 // disagreement names the class it is about; `agreed` is the invariant.
 int $agreed = 0;
 int $held = 0;
-foreach ($bodies as string $thrown => callable $body) {
+foreach ($bodies as string $thrown => callable(): mixed $body) {
     int $row = 0;
     foreach ($parent as string $named => string $up) {
         bool $expected = Tree::conforms($parent, $thrown, $named);
@@ -104,7 +104,7 @@ echo "held=", $held, "/81\n";
 // answer as a sibling class, which is what stops an unknown name from reading
 // as a wildcard.
 int $outside = 0;
-foreach ($bodies as string $unknown => callable $body2) {
+foreach ($bodies as string $unknown => callable(): mixed $body2) {
     if (Ask::throws($body2, "NotInTheTree") == false) {
         $outside = $outside + 1;
     }
