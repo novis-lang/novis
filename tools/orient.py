@@ -23,12 +23,22 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
     the playbook traps, narrowed twice              [context] playbook, then the item's own paths
     the milestone this goal builds inside           [context] milestones
 
+every one of those but `modules` and `plan` narrowed again by  [context.stage.N], N being the
+stage handoff.md's `## Next group` names
+
 The pack exists to buy **turns**, not bytes. A session's wall clock is very nearly its turn count
 times a constant -- measured over one 33-session run, time-to-first-token was ~80% of a turn and
 did not depend on what the turn fetched -- so a section here earns its place by removing a call a
 session would otherwise make, not by being short. That is why the item's anchors are expanded
 inline (they replace one `peek.py` call each) while the traps are narrowed to the item (a trap for
 a file the item never opens removes no call at all).
+
+And a goal is narrowed again, by the **stage** of it in flight. A goal runs five to twelve stages
+and a session works in one: goal 14's stage 8 argues from ADR 0101's redaction sections, which say
+nothing at all to the session writing its stage 4. So `[context]` may carry a `[context.stage.N]`
+table per prose stage, `orient.py` applies the one `handoff.md`'s `## Next group` names, and the
+base holds only what every stage needs. `Manifest` is where that merge lives and why it only ever
+adds. A goal with no stage tables prints exactly the pack it printed before they existed.
 
 Every one of those is sliced out of the live file at run time. **Nothing here is a copy**, so a
 manifest cannot go stale in the way a frozen context pack would -- it can only go *wrong*, by
@@ -37,6 +47,7 @@ naming something that no longer exists, and that prints as a loud warning rather
     python tools/orient.py              # the pack
     python tools/orient.py --audit      # + what each section cost, in bytes and approximate tokens
     python tools/orient.py --item N     # pin a specific checklist item instead of the first unticked
+    python tools/orient.py --stage N    # price a stage the run has not reached, instead of the live one
     python tools/orient.py --full       # ignore the manifest and print everything it could select
     python tools/orient.py --goal docs/agent/goals/14-lsp-server.toml --audit  # price a STAGED manifest
 
@@ -334,24 +345,90 @@ def slice_head(text: str) -> str:
 
 
 class Manifest:
-    """`[context]` out of loop-goal.toml. Every field is optional; an absent one selects nothing
-    rather than everything, because a goal that forgot to name its modules should print a short
-    pack and a loud warning, not the whole repository."""
+    """`[context]` out of loop-goal.toml, narrowed to one stage. Every field is optional; an absent
+    one selects nothing rather than everything, because a goal that forgot to name its modules
+    should print a short pack and a loud warning, not the whole repository.
 
-    FIELDS = ("modules", "rules", "adrs", "spec", "shapes", "playbook", "plan", "milestones")
+    A goal is a finite contained group of work, and a *stage* of one is finite again: goal 14 runs
+    twelve, and the ADR sections its stage 8 argues from say nothing to the session writing its
+    stage 4. Measured on that goal, 13,120 of 17,746 B of sliced ADR text belonged to a stage that
+    was either already landed or not yet open. So `[context]` may carry per-stage tables:
 
-    def __init__(self, spec: dict):
+        [context]                       # what a session needs whatever stage it is on
+        rules = ["ide/the-rendering-has-one-home"]
+
+        [context.stage.4]               # ... and what stage 4 needs on top of that
+        rules = ["ide/an-open-document-is-its-own-entry-point"]
+        adrs  = ["0099 §1"]
+
+    **An overlay only ever adds.** Its entries are appended to the base's, deduplicated, base
+    first. That is the one semantic, it applies to every field, and it is chosen over "replace"
+    because the failure it can produce is a pack that carries something the stage did not need --
+    which costs bytes -- rather than one missing something it did -- which costs a turn, and the
+    turn is the expensive half (`orient.py`'s module doc has the measurement). The saving comes
+    from keeping the *base* small, not from the overlay's ability to take anything away.
+
+    A goal that writes no `[context.stage.N]` table behaves exactly as it did before this existed,
+    which is what makes the field safe to add to sixteen queued goals one at a time.
+
+    The stage number is the one the goal's **prose** uses -- `docs/agent/goals/<goal>.md`'s
+    `## Stage N` headings, which is what `handoff.md`'s `## Next group` names. It is deliberately
+    *not* a `[[check]]`'s `stage = "4 the requests"` label: those are coarser on purpose, one
+    acceptance label spanning several prose stages ("Goal prose stages 4 to 9" says so in goal 14's
+    own comment), and making the two agree would mean giving up that grouping for nothing.
+    """
+
+    FIELDS = ("modules", "rules", "adrs", "spec", "shapes", "playbook", "plan", "milestones",
+              "stage")
+    #: The fields an overlay may narrow. `plan` is absent because its default is two status fields
+    #: every session reads, and `modules` because `context-sync.py` writes to the base list and a
+    #: stage-local copy would silently stop receiving what a session edited.
+    STAGE_FIELDS = ("rules", "adrs", "spec", "shapes", "playbook", "milestones")
+
+    def __init__(self, spec: dict, stage: int | None = None):
         ctx = spec.get("context") or {}
         self.present = bool(ctx)
-        self.modules = list(ctx.get("modules", []))
-        self.rules = [str(r) for r in ctx.get("rules", [])]
-        self.adrs = [str(a) for a in ctx.get("adrs", [])]
-        self.spec = [str(s) for s in ctx.get("spec", [])]
-        self.shapes = list(ctx.get("shapes", []))
-        self.playbook = list(ctx.get("playbook", []))
+        self.stages = {str(k): v for k, v in (ctx.get("stage") or {}).items()}
+        self.stage = str(stage) if stage is not None else None
+        over = self.stages.get(self.stage) or {} if self.stage else {}
+        self.applied = self.stage if self.stage in self.stages else None
+
+        def field(name: str, default=()):
+            base = list(ctx.get(name, default))
+            if name in self.STAGE_FIELDS:
+                base += [x for x in over.get(name, []) if x not in base]
+            return base
+
+        self.modules = field("modules")
+        self.rules = [str(r) for r in field("rules")]
+        self.adrs = [str(a) for a in field("adrs")]
+        self.spec = [str(s) for s in field("spec")]
+        self.shapes = field("shapes")
+        self.playbook = field("playbook")
         self.plan = list(ctx.get("plan", ["Open now", "Blocking"]))
-        self.milestones = [str(x) for x in ctx.get("milestones", [])]
+        self.milestones = [str(x) for x in field("milestones")]
         self.unknown = [k for k in ctx if k not in self.FIELDS]
+        #: `(stage, complaint)` for anything a stage table gets wrong. Reported, never raised: a
+        #: malformed overlay must not be able to stop a session opening.
+        self.stage_problems: list[tuple[str, str]] = []
+        for key, table in self.stages.items():
+            if not isinstance(table, dict):
+                self.stage_problems.append((key, "is not a table of fields"))
+                continue
+            if not key.isdigit():
+                self.stage_problems.append((key, "is not a stage number"))
+            for name in table:
+                if name not in self.STAGE_FIELDS:
+                    self.stage_problems.append(
+                        (key, f"names `{name}`, which a stage table may not narrow -- "
+                              f"one of {', '.join(self.STAGE_FIELDS)}"))
+
+    def merged_for(self, key: str) -> dict:
+        """One stage table's own entries, for the auditors that check every stage rather than the
+        one in flight -- `chain.py --check` must catch a bad selector in stage 9 before the run
+        reaches stage 9, not when it gets there at 3am."""
+        table = self.stages.get(key)
+        return table if isinstance(table, dict) else {}
 
 
 # --------------------------------------------------------------------------- sections
@@ -712,6 +789,35 @@ def run_anchors(item: str) -> None:
         emit()
     for gone in missing:
         warn(f"{rel(HANDOFF)}'s item anchors {gone}, which does not resolve -- the anchor is stale")
+
+
+#: `Stage 4`, `stage 4:`, `stages 4-5` -- the number the goal's prose uses, wherever the handoff's
+#: `## Next group` line names it. Written this loosely on purpose: the handoff is prose a session
+#: writes, and every one of the last 25 revisions named its stage in a slightly different shape.
+STAGE_IN_GROUP = re.compile(r"\bstages?\s+(\d+)", re.I)
+
+
+def current_stage() -> int | None:
+    """The prose stage the handoff's `## Next group` is working in, or `None`.
+
+    Read here rather than out of `run_state` so the manifest can be built before anything is
+    emitted -- the pack's very first section already depends on it. `None` means the handoff named
+    no stage, and that is not an error: the manifest falls back to its base `[context]`, which is
+    exactly the pack a goal with no stage tables gets. Failing *open* is deliberate, because the
+    cost of guessing the stage wrong is a session missing the rule it came to work against.
+    """
+    text = read(HANDOFF)
+    if not text:
+        return None
+    group = next(
+        (slice_section(text, t) for _, lvl, t in headings(text)
+         if lvl == 2 and normalize(t).startswith("next group")),
+        None,
+    )
+    if not group:
+        return None
+    m = STAGE_IN_GROUP.search(group)
+    return int(m.group(1)) if m else None
 
 
 def run_state(item_index: int | None) -> None:
@@ -1090,7 +1196,15 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
         spec = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
         return problems, notes  # chain.py --check reports an unreadable goal itself
+    # Every stage's entries at once, not just the one in flight. A goal walks its stages over days,
+    # and a selector that resolves to nothing in stage 9 is discovered by the session that opens
+    # stage 9 -- which is the failure this whole function exists to move forward in time.
     m = Manifest(spec)
+    for key in sorted(m.stages, key=lambda k: (not k.isdigit(), k)):
+        for name, entries in m.merged_for(key).items():
+            if name in Manifest.STAGE_FIELDS:
+                setattr(m, name, list(getattr(m, name)) + [x for x in entries
+                                                           if x not in getattr(m, name)])
     where = rel(path)
     if not m.present:
         notes.append(f"{where}: has no `[context]` block, so a session opens on the unscoped pack")
@@ -1098,6 +1212,8 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
     for key in m.unknown:
         problems.append(f"{where}: `[context] {key}` is not a field orient.py reads -- "
                         f"one of {', '.join(Manifest.FIELDS)}")
+    for key, complaint in m.stage_problems:
+        problems.append(f"{where}: `[context.stage.{key}]` {complaint}")
 
     conventions = read(CONVENTIONS)
     for name in m.shapes:
@@ -1149,6 +1265,23 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
                                      f"rule with that id")
                 elif not any(entry in r.because for r in book.by_id.values()):
                     notes.append(f"{where}: rules names {entry}, and no rule's `because` names it")
+
+    # The two shapes a manifest is written in when nobody has read § 2 -- reported, never gating,
+    # because both are judgement the goal's author makes and neither can stop a session opening.
+    #
+    # They are here because the doc alone did not work: on 2026-09-07 all sixteen queued goals held
+    # 4-10 `rules` entries and ZERO rule ids between them, against a table that had said "name the
+    # two or three the item is written against" since the field existed. A note in `chain.py
+    # --check` is read at the moment the goal is being written, which the table is not.
+    if m.rules and not any("/" in e for e in m.rules):
+        notes.append(f"{where}: rules names {len(m.rules)} record number(s) and no rule id, so the "
+                     f"pack carries titles and no rule text -- loop-authoring.md § 2")
+    prose = path.with_suffix(".md")
+    stages = len(re.findall(r"^## Stage ", read(prose), flags=re.M)) if prose.is_file() else 0
+    if stages >= 3 and not m.stages:
+        notes.append(f"{where}: runs {stages} stages and narrows to none of them -- every session "
+                     f"reads all {stages} stages' rules and record sections "
+                     f"(`[context.stage.N]`, loop-authoring.md § 2)")
     return problems, notes
 
 
@@ -1514,6 +1647,11 @@ def main() -> int:
              "STAGED goal's manifest with --audit before switching to it, which is when "
              "loop-authoring.md § 2 says to look at that number",
     )
+    ap.add_argument(
+        "--stage", type=int, metavar="N",
+        help="apply this goal stage's [context.stage.N] overlay instead of the one handoff.md's "
+             "`## Next group` names -- for pricing a stage a run has not reached yet",
+    )
     opts = ap.parse_args()
 
     goal_toml = Path(opts.goal) if opts.goal else GOAL_TOML
@@ -1523,12 +1661,25 @@ def main() -> int:
             "Run `python tools/brief.py` for the unscoped orientation.\n"
         )
         return 2
-    m = Manifest(tomllib.loads(read(goal_toml)))
+    stage = opts.stage if opts.stage is not None else current_stage()
+    m = Manifest(tomllib.loads(read(goal_toml)), None if opts.full else stage)
     if opts.full:
         m.modules = ["crates/**", "editors/**"]
 
     emit("Novis -- oriented to the current goal. This is deliberately narrow: it prints what this")
     emit("goal's [context] manifest names and nothing else. `python tools/brief.py` is the wide one.")
+    if m.stages:
+        named_by = "--stage" if opts.stage is not None else "handoff.md's `## Next group`"
+        if m.applied:
+            emit(f"Narrowed to STAGE {m.applied}, which {named_by} names: the base [context] plus")
+            emit("that stage's own entries. If you need something it did not print, say so in the")
+            emit("handoff naming the field -- see the closing block.")
+        elif m.stage:
+            emit(f"The handoff names stage {m.stage}, and this goal has no [context.stage.{m.stage}]")
+            emit("table, so only the base [context] applies.")
+        else:
+            emit("This goal has per-stage tables and the handoff's `## Next group` names no stage,")
+            emit("so only the base [context] applies -- the widest pack this goal can print.")
 
     run_marker()
     run_state(opts.item)
@@ -1555,6 +1706,8 @@ def main() -> int:
         )
     if m.unknown:
         warn(f"[context] has unknown field(s): {', '.join(sorted(m.unknown))}")
+    for key, complaint in m.stage_problems:
+        warn(f"[context.stage.{key}] {complaint}")
 
     body = "\n".join(out).lstrip("\n")
     if opts.audit:
