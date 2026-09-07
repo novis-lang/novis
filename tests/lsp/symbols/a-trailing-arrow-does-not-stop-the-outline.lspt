@@ -1,0 +1,21 @@
+--TEST--
+the outline of the well-formed code around the cursor survives a member access with nothing after it, which is what one resilient tree buys, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User {
+    public string $name;
+    public function greet(): string {
+        return $this->
+    }
+}
+class Order {
+    public int $total;
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+User class
+  $name property
+  greet method
+Order class
+  $total property
