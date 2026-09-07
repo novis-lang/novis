@@ -349,63 +349,14 @@ fn signature(member: &CoreMethod) -> String {
     )
 }
 
-/// A [`CoreTy`] in the spelling a program writes it — the spec's column, so
-/// `Text(Sink)` is `string` and `Iterated(T)` is the shapes `foreach`
-/// accepts. The wildcard arm is the one `#[non_exhaustive]` requires, and it
-/// is where a variant this crate has not learned to spell would show up.
+/// A [`CoreTy`] in the spelling a program writes it.
+///
+/// One line, because the spelling itself is `nvs_stdlib::registry`'s: it sits
+/// beside the type it spells, so the editor's own reading of a row
+/// (`nvs_lsp::completion`) and this document cannot describe one member two
+/// ways.
 fn ty_string(ty: &CoreTy) -> String {
-    match ty {
-        CoreTy::Bool => "bool".into(),
-        CoreTy::Int => "int".into(),
-        CoreTy::Uint => "uint".into(),
-        CoreTy::Float => "float".into(),
-        CoreTy::Decimal => "decimal".into(),
-        // `rule:security/isolate-shares-nothing`'s entry is a `string` in the spec's column: the method form
-        // it also accepts is a *written shape* rather than a second type, so
-        // spelling it as a union here would document a `callable` variable as
-        // accepted where `nvs_types::expr::isolate` refuses one.
-        CoreTy::Str | CoreTy::Text(_) | CoreTy::Entry => "string".into(),
-        CoreTy::Bytes | CoreTy::Blob(_) => "bytes".into(),
-        CoreTy::SecretBytes | CoreTy::SecretBlob(_) => "secret bytes".into(),
-        CoreTy::TaintedStr => "tainted string".into(),
-        CoreTy::TaintedBytes => "tainted bytes".into(),
-        CoreTy::SecretTaintedStr => "secret tainted string".into(),
-        CoreTy::Void => "void".into(),
-        CoreTy::Mixed => "mixed".into(),
-        CoreTy::Array(elem) => format!("array<{}>", ty_string(elem)),
-        CoreTy::Callable => "callable".into(),
-        CoreTy::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),
-        // Spelled as the grammar writes it, because a program can write this
-        // one: the parameters in their own order and the mandatory return
-        // type after the colon.
-        CoreTy::CallableSig(params, ret) => {
-            let params: Vec<String> = params.iter().map(ty_string).collect();
-            format!("callable({}): {}", params.join(", "), ty_string(ret))
-        }
-        CoreTy::Var(name) | CoreTy::Written(name) => (*name).into(),
-        CoreTy::Union(members) => members.iter().map(ty_string).collect::<Vec<_>>().join("|"),
-        CoreTy::IntLiteral(value) => value.to_string(),
-        CoreTy::Nullable(inner) => format!("?{}", ty_string(inner)),
-        CoreTy::Enum(name) | CoreTy::Instance(name) => (*name).into(),
-        CoreTy::InstanceAt(name, args) => {
-            let args: Vec<String> = args.iter().map(ty_string).collect();
-            format!("{name}<{}>", args.join(", "))
-        }
-        CoreTy::EnumCase(owner, case) => format!("{owner}::{case}"),
-        CoreTy::Iterated(elem) => {
-            let elem = ty_string(elem);
-            format!("array<{elem}>|Iterable<{elem}>|Iterator<{elem}>")
-        }
-        CoreTy::Variadic(elem) => format!("{} ...", ty_string(elem)),
-        CoreTy::Options(options) => {
-            let fields: Vec<String> = options
-                .iter()
-                .map(|option| format!("{}?: {}", option.name, ty_string(&option.ty)))
-                .collect();
-            format!("{{{}}}", fields.join(", "))
-        }
-        _ => "?".into(),
-    }
+    ty.spelled()
 }
 
 /// A [`Const`] as a program would write it: a scalar as its literal, a

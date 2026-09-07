@@ -1040,6 +1040,82 @@ impl CoreTy {
         }
     }
 
+    /// This type in the spelling a program writes it — the spec's column, so
+    /// `Text(Sink)` is `string` and `Iterated(T)` is the shapes `foreach`
+    /// accepts.
+    ///
+    /// Here rather than in a consumer because more than one of them asks:
+    /// `nvs meta --json` prints it as a row's `type`, and `nvs_lsp::completion`
+    /// puts it in the detail column of a member offered off a `Core` receiver.
+    /// A type has one spelling, and a second copy of this match is how the
+    /// documentation and the editor start disagreeing about what a member
+    /// takes. A consumer holding an interned type spells it with
+    /// `nvs_types::TypeInterner::describe` instead — that is the checker's own
+    /// answer for a type it has already resolved, and this is the registry's
+    /// for a row nothing has resolved yet.
+    ///
+    /// The wildcard arm is the one `#[non_exhaustive]` requires, and it is
+    /// where a variant this has not learned to spell would show up.
+    #[must_use]
+    pub fn spelled(&self) -> String {
+        match self {
+            Self::Bool => "bool".into(),
+            Self::Int => "int".into(),
+            Self::Uint => "uint".into(),
+            Self::Float => "float".into(),
+            Self::Decimal => "decimal".into(),
+            // `rule:security/isolate-shares-nothing`'s entry is a `string` in the spec's column: the method form
+            // it also accepts is a *written shape* rather than a second type, so
+            // spelling it as a union here would document a `callable` variable as
+            // accepted where `nvs_types::expr::isolate` refuses one.
+            Self::Str | Self::Text(_) | Self::Entry => "string".into(),
+            Self::Bytes | Self::Blob(_) => "bytes".into(),
+            Self::SecretBytes | Self::SecretBlob(_) => "secret bytes".into(),
+            Self::TaintedStr => "tainted string".into(),
+            Self::TaintedBytes => "tainted bytes".into(),
+            Self::SecretTaintedStr => "secret tainted string".into(),
+            Self::Void => "void".into(),
+            Self::Mixed => "mixed".into(),
+            Self::Array(elem) => format!("array<{}>", elem.spelled()),
+            Self::Callable => "callable".into(),
+            Self::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),
+            // Spelled as the grammar writes it, because a program can write this
+            // one: the parameters in their own order and the mandatory return
+            // type after the colon.
+            Self::CallableSig(params, ret) => {
+                let params: Vec<String> = params.iter().map(Self::spelled).collect();
+                format!("callable({}): {}", params.join(", "), ret.spelled())
+            }
+            Self::Var(name) | Self::Written(name) => (*name).into(),
+            Self::Union(members) => members
+                .iter()
+                .map(Self::spelled)
+                .collect::<Vec<_>>()
+                .join("|"),
+            Self::IntLiteral(value) => value.to_string(),
+            Self::Nullable(inner) => format!("?{}", inner.spelled()),
+            Self::Enum(name) | Self::Instance(name) => (*name).into(),
+            Self::InstanceAt(name, args) => {
+                let args: Vec<String> = args.iter().map(Self::spelled).collect();
+                format!("{name}<{}>", args.join(", "))
+            }
+            Self::EnumCase(owner, case) => format!("{owner}::{case}"),
+            Self::Iterated(elem) => {
+                let elem = elem.spelled();
+                format!("array<{elem}>|Iterable<{elem}>|Iterator<{elem}>")
+            }
+            Self::Variadic(elem) => format!("{} ...", elem.spelled()),
+            Self::Options(options) => {
+                let fields: Vec<String> = options
+                    .iter()
+                    .map(|option| format!("{}?: {}", option.name, option.ty.spelled()))
+                    .collect();
+                format!("{{{}}}", fields.join(", "))
+            }
+            _ => "?".into(),
+        }
+    }
+
     /// Whether this type is a `string` or `bytes`, classified or not — the one
     /// place a consumer asks the question without caring which spelling it is
     /// looking at.
