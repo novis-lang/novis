@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::atan2 answers exactly what Core\Math::atan answers of the quotient on the half-plane where a quotient carries the angle, differs from it by a half turn on the other half, and answers on the five rows where there is no quotient to take at all — docs/spec/01-core-library.md § 3
+Core\Math::atan2 answers what Core\Math::atan answers of the quotient, to a rounding step, on the half-plane where a quotient carries the angle, differs from it by a half turn on the other half, and answers on the five rows where there is no quotient to take at all — docs/spec/01-core-library.md § 3
 --FILE--
 <?nvs
 // § 3 carries `atan` and `atan2` as separate members, and the reason is that a
@@ -11,10 +11,12 @@ Core\Math::atan2 answers exactly what Core\Math::atan answers of the quotient on
 //
 // Asserted by counting, so a member that had grown its own quadrant rule fails
 // here while still printing plausibly on any single line. Every ratio in the
-// table is dyadic, so $y / $x is exact and both sides are computing the same
+// table is dyadic, so $y / $x is exact and both members are asked for the
 // arctangent of the same `float` — the restriction the `hypot` case beside this
-// one is built on, and the only thing that makes an exact agreement a property
-// of the table rather than of one libm.
+// one is built on. Each of the two rounds its own answer through the platform's
+// libm, which need not land on the same last bit twice, so what is counted here
+// is agreement to a rounding step: the quadrant is the language's promise and
+// the final ulp is not.
 array<array<float>> $pairs = [
     [1.0, 1.0], [1.0, 2.0], [3.0, 4.0], [1.0, 8.0],
     [5.0, 8.0], [7.0, 4.0], [9.0, 2.0], [1.0, 1024.0],
@@ -34,7 +36,11 @@ foreach ($pairs as array<float> $p) {
         float $one = Core\Math::atan($y / $x);
         float $gap = $two - $one;
         $rows = $rows + 1;
-        if ($two == $one) {
+        float $apart = $gap;
+        if ($apart < 0.0) {
+            $apart = 0.0 - $apart;
+        }
+        if ($apart < 0.000000000000001) {
             $agreed = $agreed + 1;
         }
         // The half turn is added or subtracted depending on which side of the
