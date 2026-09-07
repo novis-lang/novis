@@ -1178,11 +1178,26 @@ pub(crate) fn check_inout_arg(
 /// that literal. [`crate::generics`] owns why, and owns the case that binds
 /// nothing.
 ///
-/// An `rule:core-api/shape-rules` R2 options bag is the one argument left out of the first pass
-/// and checked entirely in the second. It is always the last parameter, so
-/// nothing it could bind is ever needed by an earlier one; and its own option
-/// types may mention a variable the earlier arguments bind, so checking it
-/// first would check a field against an unsubstituted `T`.
+/// Two arguments are left out of that first pass. An
+/// `rule:core-api/shape-rules` R2 options bag is checked entirely in the last
+/// one: it is always the last parameter, so nothing it could bind is ever
+/// needed by an earlier one; and its own option types may mention a variable
+/// the earlier arguments bind, so checking it first would check a field
+/// against an unsubstituted `T`.
+///
+/// A `fn` literal at a parameter written in variables is the other, and it is
+/// checked inside the binding pass, in a round of its own, because it is the
+/// one argument that both *takes* a binding and *gives* one.
+/// `rule:types/callable-literal-inference` types `$u` in
+/// `Core\Arr::map($users, fn($u) => $u->name)` from the substituted parameter,
+/// so that check cannot run until `T` is bound; the signature the literal then
+/// reports is what binds `U`, so it has to run before
+/// [`MethodSig::substituted`], which is where a variable nothing bound becomes
+/// `mixed` and stops being bindable at all. Its round sits between the two:
+/// after everything written, whose types are evidence it needs, and before the
+/// untyped literals, because a parameter the author *annotated* is better
+/// evidence about a variable than the type an unplaced literal takes with
+/// nothing to be placed against.
 pub(crate) fn check_generic_args(
     list: &[Arg],
     slots: &[ArgSlot],
@@ -1201,6 +1216,11 @@ pub(crate) fn check_generic_args(
     // against, which is what the second round of binding may fall back on;
     // the third pass places them properly.
     let mut unplaced = vec![false; list.len()];
+    // The closure literals whose parameter types only the bindings can give,
+    // by argument index. Their entry in `arg_types` is a placeholder too, and
+    // the pass between the binding and the substitution below is where they
+    // are checked.
+    let mut deferred_fn = vec![false; list.len()];
     for (index, Arg { value, .. }) in list.iter().enumerate() {
         // A placeholder for the bag: overwritten in the second pass below,
         // and never read in between — `crate::generics::bind` is skipped for
@@ -1213,6 +1233,18 @@ pub(crate) fn check_generic_args(
         // function's own docs for what an expected type carries that
         // assignability alone does not.
         let declared = declared_for(slots[index], &sig, env.interner);
+        // A `fn` literal at a parameter still written in variables is left for
+        // the pass below: `rule:types/callable-literal-inference` gives its
+        // unannotated parameters the types of the position it stands in, and
+        // that position says `callable(T, string): U` until the other
+        // arguments have bound `T`. Checked here it would take those types
+        // from an unsubstituted variable — or, with none to take, report
+        // `E0808` for a parameter the call site does describe.
+        if defers_to_bindings(value, declared, env.interner) {
+            deferred_fn[index] = true;
+            arg_types.push(env.interner.mixed());
+            continue;
+        }
         let open = declared.is_some_and(|id| crate::generics::mentions_type_var(id, env.interner));
         let expected = if open {
             super::literals::unplaced_expectation(value, env)
@@ -1238,10 +1270,12 @@ pub(crate) fn check_generic_args(
     // the single pass it reads as, and `or_insert` is what makes the second
     // round a fallback rather than a second opinion.
     let order = (0..arg_types.len())
-        .filter(|index| !unplaced[*index])
+        .filter(|index| !unplaced[*index] && !deferred_fn[*index])
+        .chain((0..arg_types.len()).filter(|index| deferred_fn[*index]))
         .chain((0..arg_types.len()).filter(|index| unplaced[*index]));
     for index in order {
-        let actual = &arg_types[index];
+        // The bag alone: `arg_types` holds a placeholder for it until the last
+        // pass, and binding a variable against that would bind it to `mixed`.
         if deferred == Some(slots[index]) {
             continue;
         }
@@ -1252,6 +1286,25 @@ pub(crate) fn check_generic_args(
         let Some(declared) = declared_for(slots[index], &sig, env.interner) else {
             continue;
         };
+        // The deferred literal, checked in its own round: the expected type is
+        // its parameter with the bindings so far put in, which is what types an
+        // unannotated parameter, and the signature it answers with is then
+        // bound below like any other argument's type. Before the substitution,
+        // because [`crate::generics::substitute`] collapses a variable nothing
+        // bound to `mixed` on the way past — including the one in the return
+        // position, which is the one this check was run to learn.
+        //
+        // [`infer`] rather than [`check_expr`], so the expectation places the
+        // literal's parameters without also *reporting* against it: a variable
+        // still open here is one a later round may yet bind, and the pass below
+        // asks the same question of the substituted type. That is where a
+        // mismatched callback is reported, once.
+        if deferred_fn[index] {
+            let expected = crate::generics::substitute(declared, &bindings, env.interner);
+            let value = &list[index].value;
+            arg_types[index] = infer(value, Some(expected), live, scope, ctx, env);
+        }
+        let actual = arg_types[index];
         // The one binding that is not read out of a type. A `callable`
         // parameter's argument type says nothing about the value the callback
         // produces (`rule:expressions/first-class-callable-syntax`), so `Core\Arr::map`'s `U` comes from the
@@ -1276,7 +1329,7 @@ pub(crate) fn check_generic_args(
         }
         crate::generics::bind(
             declared,
-            *actual,
+            actual,
             env.interner,
             env.graph,
             env.signatures,
@@ -1310,6 +1363,26 @@ pub(crate) fn check_generic_args(
         }
     }
     (arg_types, Some(sig))
+}
+
+/// Whether this argument is a closure literal the bindings have to reach
+/// before it can be checked: a `fn` written at a `rule:types/callable-signature`
+/// parameter that still mentions a variable.
+///
+/// Narrow on purpose, in both halves. A written signature is the only expected
+/// type that names a parameter position at all, so a literal anywhere else —
+/// including at [`Ty::CallableTo`], which reads the *checked* literal's return
+/// type back out of [`Env::exprs`] — has nothing to gain by waiting and would
+/// lose the binding it already makes. And a parameter mentioning no variable
+/// is its own final type in the first pass, so deferring it would only move
+/// the same check later.
+fn defers_to_bindings(value: &Expr, declared: Option<TypeId>, interner: &TypeInterner) -> bool {
+    let Some(declared) = declared else {
+        return false;
+    };
+    matches!(value.kind, ExprKind::Fn(_))
+        && matches!(interner.get(declared), Ty::CallableSig { .. })
+        && crate::generics::mentions_type_var(declared, interner)
 }
 
 /// The shape a [`Ty::CallableShapeTo`] parameter binds: the argument's own
