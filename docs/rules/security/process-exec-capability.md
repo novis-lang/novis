@@ -12,3 +12,8 @@ is an instruction, so the path is the sink and the arguments are not
 
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 (`rule:security/path-scope-canonicalise-then-prefix`).
+
+The target is a path and never a `PATH` lookup. A bare name resolves against the current directory,
+which is the resolution the grant was compared against, so the program the operating system starts is
+the one the check approved — a name a `PATH` entry would have answered instead is a program from a
+directory no grant named.

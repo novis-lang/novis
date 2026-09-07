@@ -22,8 +22,9 @@
 //! without a snapshot has a bug that should fail closed rather than quietly succeed.
 //!
 
+use std::borrow::Cow;
 use std::fs::{File, ReadDir};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// What [`metadata`] and [`metadata_if_present`] hand back, re-exported so that their callers can
@@ -909,6 +910,10 @@ fn private_builder() -> std::fs::DirBuilder {
 /// by the same `execve` that already has the split argv — because a refusal that exists on one
 /// platform only is a behaviour no test on the other can pin.
 ///
+/// **A bare name is a path here and never a `PATH` search**, which is [`spawn_target`]'s whole job:
+/// the capability was asked about a name resolved in the current directory, so a search would start
+/// a program from a directory no grant named.
+///
 /// The capability is asked **first**, before the target's kind, so the rule every other door here
 /// states holds without an exception: the grant is consulted before anything else is looked at.
 /// Both refusals are the same catchable class, since neither is a condition a program can recover
@@ -931,13 +936,35 @@ pub fn exec(ctx: &Ctx, program: &Path, argv: &[&str], member: &str) -> Result<Ch
             program.display()
         )));
     }
-    Command::new(program)
+    Command::new(&*spawn_target(program))
         .args(argv)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|err| io_failure(member, program, &err))
+}
+
+/// The path [`exec`] hands the operating system: `program` itself, or a bare name spelled against
+/// the current directory.
+///
+/// `Command::new` searches `PATH` for a program name with no separator in it, and that is a
+/// different target from the one the capability approved: a grant is compared against
+/// `nvs_config::capability::resolved`, which reads a bare name as a file in the current directory —
+/// the same resolution that lets `read = ["."]` cover `missing.txt`. Left alone the two disagree,
+/// and `exec = ["."]` would approve `./say` while the operating system started `/usr/bin/say` on any
+/// machine that ships one. Naming the directory closes that: nothing below the check can resolve to
+/// a file the check did not see (`rule:security/process-exec-capability`).
+///
+/// The name is made relative rather than absolute, and nothing is canonicalized: a symlink is a
+/// target a caller may mean, and a program that reads its own `argv[0]` — which is the spelling this
+/// hands the operating system — would be started as something other than what it was asked for.
+fn spawn_target(program: &Path) -> Cow<'_, Path> {
+    let mut components = program.components();
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(name)), None) => Cow::Owned(Path::new(".").join(name)),
+        _ => Cow::Borrowed(program),
+    }
 }
 
 /// The lower-cased extension of a target [`exec`] refuses, or `None` for one it will start.
@@ -970,7 +997,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::{
-        Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target, temp_dir,
+        Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target,
+        spawn_target, temp_dir,
     };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
@@ -1065,6 +1093,22 @@ mod tests {
             assert!(
                 shell_target(Path::new(allowed)).is_none(),
                 "`{allowed}` is started by the operating system, not by a command-line parser"
+            );
+        }
+    }
+
+    /// `rule:security/process-exec-capability` on the target rather than on the grant: the program
+    /// the operating system is handed is the one the check approved, so a bare name names the
+    /// current directory and no `PATH` entry can answer in its place.
+    #[test]
+    fn a_bare_name_is_started_from_the_current_directory_and_never_off_the_path() {
+        assert_eq!(spawn_target(Path::new("say")).as_ref(), Path::new("./say"));
+        // Every other spelling is already explicit about a directory, and `Command` searches
+        // nothing for it — so it reaches the spawn as the caller wrote it, symlink and all.
+        for written in ["./say", "bin/say", "../say", "/usr/bin/say"] {
+            assert_eq!(
+                spawn_target(Path::new(written)).as_ref(),
+                Path::new(written)
             );
         }
     }

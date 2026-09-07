@@ -2,11 +2,15 @@
 `Core\Process::run` refuses `.bat`, `.cmd` and `.ps1` in any letter case and on every platform, and refuses nothing else by kind — asserted by counting a sweep, so a member that let one through fails here while still answering plausibly to each row on its own — `rule:core-classes/process-refuses-a-shell-target`
 --FILE--
 <?nvs
-// Every target below is granted and none of them exists. That is the point:
-// the refusal is about what kind of thing the name says it is, not about what
-// is on disk, so the whole sweep asks one question with the filesystem held
-// still. The three that are not shell targets reach the operating system and
-// are refused by it instead, which is the other side of the same bound.
+// Every target below is granted and none of them is on disk. That is the
+// point: the refusal is about what kind of thing the name says it is, not
+// about what is on disk, so the whole sweep asks one question with the
+// filesystem held still. A bare name is a file in the current directory and
+// never a `PATH` search, which is the resolution the grant was compared
+// against, so a machine that ships a `say` of its own still has nothing at
+// any of these eight names. The three that are not shell targets reach the
+// operating system and are refused by it instead, which is the other side of
+// the same bound.
 array<string> $targets = [
     "say.bat", "say.cmd", "say.ps1",
     // The door lower-cases before it compares, and Windows resolves a name

@@ -721,6 +721,11 @@ is an instruction, so the path is the sink and the arguments are not
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
+The target is a path and never a `PATH` lookup. A bare name resolves against the current directory,
+which is the resolution the grant was compared against, so the program the operating system starts is
+the one the check approved — a name a `PATH` entry would have answered instead is a program from a
+directory no grant named.
+
 <sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-net-address-policy"></a>
