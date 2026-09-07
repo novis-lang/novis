@@ -205,6 +205,26 @@ pub enum TypeAtom {
     Iterable,
     /// `callable`
     Callable,
+    /// `callable(T, U): R` — `rule:types/callable-signature`'s written
+    /// signature.
+    ///
+    /// Its own atom rather than an option on [`Self::Callable`], because bare
+    /// `callable` is the top of the callable lattice and keeps meaning exactly
+    /// what it meant: the two never collapse, and a reader that understands
+    /// only the top still answers for every value written against it.
+    ///
+    /// The return type is not optional here, since the grammar makes it
+    /// mandatory and a signature written without one is refused where it is
+    /// written. Parameters carry no names: a name in the type would imply
+    /// calling through the value by name, which nothing supports.
+    CallableSig {
+        /// The parameter types, left to right. Empty for `callable(): void`,
+        /// which is a signature promising no parameters rather than a bare
+        /// `callable` promising nothing.
+        params: Vec<Type>,
+        /// The mandatory return type.
+        ret: Box<Type>,
+    },
     /// `self`
     SelfTy,
     /// `static`

@@ -141,6 +141,12 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::False => env.interner.false_ty(),
         TypeAtom::Iterable => env.interner.iterable(),
         TypeAtom::Callable => env.interner.callable(),
+        // `rule:types/callable-signature`'s written signature answers as the
+        // top of the callable lattice: `Ty` carries no signature of its own,
+        // so the annotation admits exactly what bare `callable` admits — a
+        // closure and nothing else — and a call through it keeps the dynamic
+        // path and its per-argument tag check.
+        TypeAtom::CallableSig { .. } => env.interner.callable(),
         TypeAtom::SelfTy => resolve_special(span, "self", ctx, env),
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),

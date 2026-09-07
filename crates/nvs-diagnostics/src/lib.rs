@@ -3027,9 +3027,18 @@ pub mod code {
     // § *Decisions taken at project start* sets `E08xx` aside for whichever
     // band fills next — it is the project-level home of both.
     //
-    // `E0800` is not a hole to fill: ADR 0136 § *Diagnostics* claims it for
-    // the first of the `callable`-signature refusals, and a number another
-    // decision has already named is not reissued here.
+
+    /// `callable(int $x): string` — a parameter name inside a `callable` type,
+    /// `rule:types/callable-signature`.
+    ///
+    /// The band's first code, claimed by ADR 0136 § *Diagnostics* before
+    /// anything below it was written, which is why it sits ahead of the
+    /// numbers rather than filling a hole. A name in the type would imply
+    /// calling through the value by name, which nothing supports; reported
+    /// once per type however many parameters carry one, since writing PHP's
+    /// parameter spelling is one mistake and deleting the names is one fix.
+    pub const E_CALLABLE_TYPE_NAMES_A_PARAMETER: Code = Code::new("E0800");
+
     /// `echo` and a `Core\Response` body member writing one response body —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's sixth row.
@@ -3104,6 +3113,17 @@ pub mod code {
     /// `queryAs`: this one is about a *call*, and the class it names may be
     /// perfectly well formed for every other purpose it has.
     pub const E_QUERY_AS_NOT_A_ROW_CLASS: Code = Code::new("E0806");
+
+    /// `callable(int)` — a `callable` type written with a parameter list and
+    /// no return type, `rule:types/callable-signature`.
+    ///
+    /// The return type is mandatory because `callable(int)` says strictly less
+    /// than bare `callable` while costing a second spelling of "unknown": the
+    /// arguments would be proven where the call is written and the result
+    /// would not, so the site keeps the dynamic path anyway. `void` and
+    /// `never` are writable there as in any other return position, which is
+    /// what the help names.
+    pub const E_CALLABLE_TYPE_WITHOUT_RETURN: Code = Code::new("E0807");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

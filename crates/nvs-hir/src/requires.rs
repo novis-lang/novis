@@ -658,6 +658,16 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
                     walk_type(&field.ty, src, out);
                 }
             }
+            // `rule:types/callable-signature`: every position inside a written
+            // signature is an ordinary type position, so a class named only
+            // there — `callable(User): Row` — is a reference that pulls its
+            // file in exactly as a shape field's is.
+            TypeAtom::CallableSig { params, ret } => {
+                for param in params {
+                    walk_type(param, src, out);
+                }
+                walk_type(ret, src, out);
+            }
             TypeAtom::Member(name, _) => record_name(name, src, out),
             TypeAtom::Name(name, args) => {
                 record_name(name, src, out);

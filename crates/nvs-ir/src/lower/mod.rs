@@ -2876,6 +2876,11 @@ pub(crate) fn lower_decl_type(
         // synthesizes one class per literal to hold the captured environment
         // — so it erases here exactly the way a class name does.
         TypeKind::Atom(TypeAtom::Callable) => Ty::Object,
+        // `rule:types/callable-signature`'s written signature erases to the
+        // same object for the same reason: what a signature buys is a proof
+        // the checker holds, and no part of it has a representation below this
+        // boundary.
+        TypeKind::Atom(TypeAtom::CallableSig { .. }) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
         // `mixed` — `rule:types/grammar`. See `Ty::Tagged`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a

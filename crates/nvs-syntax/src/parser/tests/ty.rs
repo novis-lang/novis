@@ -696,3 +696,109 @@ fn shape_type_can_be_empty_and_composes_with_array_and_union() {
         TypeKind::Atom(TypeAtom::Shape(_))
     ));
 }
+
+/// `rule:types/callable-signature`: the signature is one atom holding its
+/// parameters and its mandatory return type, and bare `callable` keeps its own
+/// atom beside it as the top of the lattice.
+#[test]
+fn a_callable_type_carries_its_parameters_and_its_return_type() {
+    let e = parse_ok("$m as callable(User, string): string");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::CallableSig { params, ret }) = ty.kind else {
+        panic!("expected a callable signature: {ty:?}");
+    };
+    assert_eq!(params.len(), 2);
+    assert!(matches!(params[0].kind, TypeKind::Atom(TypeAtom::Name(..))));
+    assert!(matches!(params[1].kind, TypeKind::Atom(TypeAtom::String)));
+    assert!(matches!(ret.kind, TypeKind::Atom(TypeAtom::String)));
+
+    // No parameters, and the `void` return the rule writes for a callable
+    // that returns nothing. An empty list is not the bare spelling.
+    let e = parse_ok("$m as callable(): void");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::CallableSig { params, ret }) = ty.kind else {
+        panic!("expected a callable signature: {ty:?}");
+    };
+    assert!(params.is_empty());
+    assert!(matches!(ret.kind, TypeKind::Atom(TypeAtom::Void)));
+
+    // Bare `callable` is untouched: no `(` follows, so no signature is built
+    // and nothing already written changes meaning.
+    let e = parse_ok("$m as callable");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Callable)));
+}
+
+/// `rule:types/callable-signature` in the declaration slot the trial parse in
+/// `parse_stmt_maybe_local_decl` has to reach, and nested in itself — with the
+/// return type read greedily, so an outer union needs the parens.
+#[test]
+fn a_callable_signature_declares_a_local_and_nests_in_itself() {
+    let s = parse_stmt_ok("callable(int): string $format = $f;");
+    let StmtKind::LocalDecl { ty: Some(ty), .. } = s.kind else {
+        panic!("expected a typed local: {s:?}");
+    };
+    assert!(matches!(
+        ty.kind,
+        TypeKind::Atom(TypeAtom::CallableSig { .. })
+    ));
+
+    let e = parse_ok("$m as callable(callable(int): string): int|null");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::CallableSig { params, ret }) = ty.kind else {
+        panic!("expected a callable signature: {ty:?}");
+    };
+    assert!(matches!(
+        params[0].kind,
+        TypeKind::Atom(TypeAtom::CallableSig { .. })
+    ));
+    assert!(matches!(ret.kind, TypeKind::Union(_)));
+
+    // The parenthesized operand is how the union over a callable is written,
+    // and it is what keeps the greedy return above from being a trap.
+    let e = parse_ok("$m as (callable(): int)|null");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Union(members) = ty.kind else {
+        panic!("expected a union: {ty:?}");
+    };
+    assert!(matches!(members[0].kind, TypeKind::Paren(_)));
+}
+
+/// `rule:types/callable-signature`'s two refusals, and the recovery both take:
+/// bare `callable`, which admits every callable value and so cascades nowhere.
+#[test]
+fn a_callable_type_refuses_a_parameter_name_and_a_missing_return() {
+    let (_, diags) = parse_with_diags("$m as callable(int $x): string");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CALLABLE_TYPE_NAMES_A_PARAMETER)),
+        "expected E_CALLABLE_TYPE_NAMES_A_PARAMETER, got {diags:?}"
+    );
+
+    // Two names are one mistake with one fix, so one diagnostic.
+    let (_, diags) = parse_with_diags("$m as callable(int $x, string $y): string");
+    assert_eq!(diags.len(), 1, "expected one diagnostic, got {diags:?}");
+
+    let (e, diags) = parse_with_diags("$m as callable(int)");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CALLABLE_TYPE_WITHOUT_RETURN)),
+        "expected E_CALLABLE_TYPE_WITHOUT_RETURN, got {diags:?}"
+    );
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Callable)));
+}

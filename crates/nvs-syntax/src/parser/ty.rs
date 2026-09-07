@@ -415,7 +415,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::True) => atom!(True),
             TokenKind::Keyword(Keyword::False) => atom!(False),
             TokenKind::Keyword(Keyword::Iterable) => atom!(Iterable),
-            TokenKind::Keyword(Keyword::Callable) => atom!(Callable),
+            TokenKind::Keyword(Keyword::Callable) => self.parse_callable_type(),
             TokenKind::Keyword(Keyword::SelfKw) => atom!(SelfTy),
             TokenKind::Keyword(Keyword::Static) => atom!(StaticTy),
             TokenKind::Keyword(Keyword::Parent) => atom!(Parent),
@@ -580,6 +580,96 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
         Type {
             kind: TypeKind::Atom(TypeAtom::Float),
+            span,
+        }
+    }
+
+    /// `callable`, and the signature `rule:types/callable-signature` lets it
+    /// carry: `'callable' '(' (type (',' type)*)? ')' ':' type`.
+    ///
+    /// One token of lookahead decides between the two spellings, with no
+    /// checkpointed trial parse: type position never admits a call, so a `(`
+    /// after `callable` can only open a parameter list. Bare `callable` stays
+    /// [`TypeAtom::Callable`] — the top of the lattice, not a signature whose
+    /// list happens to be empty.
+    ///
+    /// The return type is parsed as a whole union, so `callable(): int|string`
+    /// returns the union. A union *over* a callable is written
+    /// `(callable(): int)|string`, which [`Self::parse_type_operand_inner`]'s
+    /// paren operand already parses.
+    ///
+    /// Both refusals recover as bare `callable`, dropping the list that was
+    /// written. That is the type every callable value satisfies, so a file
+    /// that misspells one signature reports that mistake and not a second one
+    /// about every use of the value, which is what recovering into an invented
+    /// signature would cost.
+    pub(super) fn parse_callable_type(&mut self) -> Type {
+        let start = self.bump().span; // 'callable'
+        if !self.at(TokenKind::LParen) {
+            return Type {
+                kind: TypeKind::Atom(TypeAtom::Callable),
+                span: start,
+            };
+        }
+        self.bump(); // '('
+        let mut params = Vec::new();
+        let mut named_at: Option<Span> = None;
+        while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
+            let ty = self.parse_type();
+            // `callable(int $x): string`. The type itself is well formed and
+            // only the name is refused, so every name is consumed — the `eat`
+            // runs before the `&&` is asked — and the parameter kept, with one
+            // report below however many of them carried one.
+            if let Some(name) = self.eat(TokenKind::Variable)
+                && named_at.is_none()
+            {
+                named_at = Some(name);
+            }
+            params.push(ty);
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        let close = self.expect(TokenKind::RParen, "`)`");
+        if let Some(name) = named_at {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_CALLABLE_TYPE_NAMES_A_PARAMETER,
+                    "a `callable` type does not name its parameters",
+                )
+                .with_primary(name, "a parameter name")
+                .with_help(
+                    "write the types alone, as `callable(int): string` — a name here would \
+                     imply calling through the value by name (`rule:types/callable-signature`)",
+                ),
+            );
+        }
+        if self.eat(TokenKind::Colon).is_none() {
+            let span = start.to(close);
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_CALLABLE_TYPE_WITHOUT_RETURN,
+                    "a `callable` type must declare its return type",
+                )
+                .with_primary(span, "no `:` and return type after the parameter list")
+                .with_help(
+                    "write `callable(int): void` if it returns nothing — a parameter list \
+                     without a return type says less than bare `callable` \
+                     (`rule:types/callable-signature`)",
+                ),
+            );
+            return Type {
+                kind: TypeKind::Atom(TypeAtom::Callable),
+                span,
+            };
+        }
+        let ret = self.parse_type();
+        let span = start.to(ret.span);
+        Type {
+            kind: TypeKind::Atom(TypeAtom::CallableSig {
+                params,
+                ret: Box::new(ret),
+            }),
             span,
         }
     }

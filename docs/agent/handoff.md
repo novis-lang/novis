@@ -2,48 +2,54 @@
 
 ## State
 
-**Goal 10 — a `callable` carries its signature — has just started; nothing of it has landed yet.** Goal
-9's whole list is this goal's Stage 1 floor. The design is settled and is not to be re-derived:
-`rule:types/callable-signature` landed with this goal and its five decisions
-were taken with the user — the spelling `callable(T, U): R` with a mandatory return and no parameter
-names, bare `callable` kept as the top of the lattice, arity a prefix match (`n ≤ m`, matching what
-`call_closure` already does when it trims), parameters contravariant with a covariant return, and a `fn`
-literal taking its parameter types from the position it is written in. The goal prose's standing
-decisions carry the rest, including the `E08xx` band the new diagnostics open at `E0800`.
+**Goal 10 — a `callable` carries its signature. Stage 2's first slice is on disk: the production
+parses.** `callable(T, U): R` is `TypeAtom::CallableSig { params, ret }`
+(`crates/nvs-syntax/src/ast.rs:220`), built by `Parser::parse_callable_type`
+(`crates/nvs-syntax/src/parser/ty.rs:614`) off one token of lookahead — a `(` after `callable`, no
+checkpointed trial parse. The two refusals `rule:types/callable-signature` names are `E0800`
+(a named parameter, reported once per type) and `E0807` (no return type); both recover as **bare
+`callable`**, so a misspelt signature cascades nowhere.
 
-The reason this goal is worth its sessions is `crates/nvs-runtime/src/closure.rs`'s own module doc:
-`check_param_tags` is a **priority 1** guard standing between a mismatched argument and an arbitrary
-dereference, paid per argument per call. This goal makes it a compile-time proof.
+**Nothing checks a signature yet.** `crates/nvs-types/src/lower.rs:149` lowers the new atom to the
+lattice top, so the annotation today admits exactly what bare `callable` admits and a call through it
+keeps the dynamic path — the guard `crates/nvs-runtime/src/closure.rs`'s module doc calls priority 1
+is still paid per argument. `crates/nvs-ir/src/lower/mod.rs` erases it to `Ty::Object` beside
+`Callable`. The three walks that read names out of a type expression — `nvs_hir::requires::walk_type`,
+`nvs_hir::aliases::record_names` and `::substitute` — learned the atom, so a class named only inside a
+signature still pulls its file in and an alias inside one still expands.
+
+The design is settled and is not re-derived: `rule:types/callable-signature` plus the goal's own
+§ *Standing decisions*.
 
 ## Next group
 
-**Stage 2: the atom and what it compares to** — one file set:
-`crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`, `crates/nvs-types/src/ty.rs`,
-`crates/nvs-types/src/expr/assign.rs`.
+**Stage 2 slices 2 and 3: the representation and what it compares to** — one file set:
+`crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/lower.rs`, `crates/nvs-types/src/expr/assign.rs`.
+Take both: slice 2 alone leaves the new atom representable and assignable from nothing, which is a
+worse resting state than the lattice-top interim on disk now.
 
-- [ ] **The production** — `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) parses
-      `rule:types/callable-signature`'s `'callable' '(' (type (',' type)*)? ')' ':' type`. A `(` after `callable` is
-      unambiguous in type position, so no checkpointed trial parse is needed. A missing `: R` and a named
-      parameter are diagnostics here — the first two codes in the new `E08xx` band, declared with the
-      band's legend row in `crates/nvs-diagnostics/src/lib.rs`.
-- [ ] **The representation** — a `Ty::CallableSig { params, ret }` beside `Ty::Callable`
-      (`crates/nvs-types/src/ty.rs:170`), interned like every other type, with the display arm at `:520`
-      rendering it as written. Leave `Ty::CallableTo` (`:188`) and `Ty::CallableShapeTo` (`:208`) alone —
-      they are retired in stages 4 and 5, not here.
-- [ ] **Assignability** — `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains `rule:types/callable-arity` and `rule:types/callable-variance`. The seven named tests of the TOML's stage 2 `nvs-types` check are the shape of it; § 4 of
-      the ADR is the one home for why `array<T>`'s invariance does not reach this relation.
+- [ ] **The representation** — a `Ty::CallableSig { params: Vec<TypeId>, ret: TypeId }` beside
+      `Ty::Callable` (`crates/nvs-types/src/ty.rs:171`), an interner constructor beside
+      `TypeInterner::callable` (`crates/nvs-types/src/ty.rs:775`), and a `describe` arm beside the one
+      that renders `Ty::Callable` (`crates/nvs-types/src/ty.rs:537`). Then
+      `crates/nvs-types/src/lower.rs:149` builds it instead of answering the lattice top.
+      `rule:types/callable-signature`. `Ty::CallableTo` (`crates/nvs-types/src/ty.rs:189`) and
+      `Ty::CallableShapeTo` (`crates/nvs-types/src/ty.rs:209`) are what ADR 0136 § *In short* retires
+      once this exists; deleting them is stage 4's, not this slice's.
+- [ ] **Assignability** — `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains
+      `rule:types/callable-arity`'s prefix match (`n ≤ m`, first `n` parameters compared) and
+      `rule:types/callable-variance` (parameters contravariant, return covariant). Every
+      `CallableSig` is assignable to bare `Ty::Callable`, which is the lattice top and stays so.
 
 ## Backlog
 
-- Stage 3 (inference at the `fn` literal — `crates/nvs-types/src/expr/calls.rs:1513`,
-  `crates/nvs-types/src/expr/args.rs:1129`) shares only the `nvs-types` crate with stage 2, not its
-  files. A session that lands stage 2 with headroom under 120k should take it anyway: the checker is
-  already loaded and the expected-type plumbing is what stage 2's assignability rule exists to feed.
-- Stages 4 and 5 retire `CoreTy::CallableTo` and `CoreTy::CallableShapeTo` respectively, each with its
-  spec edit in the *same* slice as the registry rows it must agree with.
-- Stage 6 is the codegen and the valgrind leg, and it is the only stage that touches `nvs-ir`,
-  `nvs-codegen` and `nvs-runtime`. It shares nothing with the four before it — expect it to want its own
-  session.
-- When this goal's last check goes green the driver takes goal 11 — `rule:tooling/doc-comment-is-three-slashes`'s doc comments, whose
-  stage 2 is M4B's trivia layer landing early. The chain then runs to goal 17 — M4B is entries 12–15,
-  and 16–17 are the request-body and test-request pair.
+- Stage 3: a `fn` literal takes its parameter types from the expected position —
+  `rule:types/callable-literal-inference`.
+- Stage 4: retire `CoreTy::CallableTo`/`CallableShapeTo` from `crates/nvs-stdlib/src/registry.rs`,
+  editing `docs/spec/01-core-library.md` in the same slice — `rule:core-api/reference-card`.
+- Stage 5: `Core\Task::all`'s "must be a written `fn` literal" restriction lifts —
+  `rule:concurrency/an-all-field-must-be-a-written-fn-literal`.
+- Not to be attempted here: `E0450` is not relaxed and whole-body return inference is not tried —
+  the goal's § *Standing decisions*.
+- `nvs_hir::aliases::record_names`/`substitute` still skip `TypeAtom::Shape`, so an alias inside a
+  shape type does not expand. Pre-existing, not this goal's; `crates/nvs-hir/src/aliases.rs:194`.

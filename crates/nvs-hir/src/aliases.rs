@@ -202,6 +202,12 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
         TypeKind::Atom(TypeAtom::Array(Some(inner)) | TypeAtom::ClassRef(inner)) => {
             record_names(inner, src, out);
         }
+        TypeKind::Atom(TypeAtom::CallableSig { params, ret }) => {
+            for param in params {
+                record_names(param, src, out);
+            }
+            record_names(ret, src, out);
+        }
         TypeKind::Atom(TypeAtom::Name(name, args)) => {
             out.insert(name.span, name_text(src, name).to_owned());
             for arg in args {
@@ -345,6 +351,19 @@ fn substitute(
             kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(substitute(
                 inner, namespace, imports, ctx,
             )))),
+            span: ty.span,
+        },
+        // `rule:types/callable-signature`: a parameter and a return type are
+        // ordinary type positions, so an alias standing for one expands there
+        // exactly as it does inside `array<T>`.
+        TypeKind::Atom(TypeAtom::CallableSig { params, ret }) => Type {
+            kind: TypeKind::Atom(TypeAtom::CallableSig {
+                params: params
+                    .iter()
+                    .map(|param| substitute(param, namespace, imports, ctx))
+                    .collect(),
+                ret: Box::new(substitute(ret, namespace, imports, ctx)),
+            }),
             span: ty.span,
         },
         TypeKind::Atom(TypeAtom::Name(name, args)) => {
