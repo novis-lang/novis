@@ -35,7 +35,7 @@ Three rules are enforced rather than documented, because all three fail silently
   takes 51 collides with a generated one. `--new` picks the next free number below 50 and `--check`
   says so when something is sitting in the emitter's range.
 * **A walked entry is retired, never removed.** `--retire N` deletes goal N's `.toml` and
-  `.handoff.md` and marks the entry `retired = "<date>"`; the `[[goal]]` block and the `.md` stay,
+  `.handoff.md` and marks the entry `retired = true`; the `[[goal]]` block and the `.md` stay,
   so no position shifts and nothing that cites the prose breaks. It is refused unless every
   `[[check]]` of that goal is *provably* in the live goal already -- which is the whole safety
   argument, and the reason this is a check rather than a note in a doc. See `--retire` below.
@@ -60,7 +60,6 @@ import subprocess
 import sys
 import textwrap
 import tomllib
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -90,15 +89,18 @@ DOSSIER_NUM = 50
 
 #: The keys a `[[goal]]` may carry, in the order they are written. `loop.py`'s `Chain._load`
 #: requires the first four; `preflight` is optional and `milestone` is what `plan.py` derives every
-#: `Carried by` cell from. `retired` is the date a walked entry's acceptance list was dropped, and
+#: `Carried by` cell from. `retired` says a walked entry's acceptance list has been dropped, and
 #: it is the one key whose PRESENCE removes two others -- a retired entry names no `toml` and no
-#: `handoff`, because there are none.
+#: `handoff`, because there are none. It is a flag and not a date: when the fold happened is what
+#: `git log` answers, and nothing here has ever read the day back.
 KEYS = ("name", "md", "toml", "handoff", "milestone", "preflight", "retired")
 
 WIDTH = 100
 
 GOAL_NUM_RE = re.compile(r"^\s*(\d+)\b")
-KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)"(.*)"\s*$')
+#: A `key = value` line, where the value is a quoted string or the bare `true` that `retired` is
+#: written as. Group 4 is the literal as written, quotes included; `get` is what strips them.
+KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)("(?:[^"]*)"|true)\s*$')
 HEADER = "[[goal]]"
 
 
@@ -136,7 +138,8 @@ class Entry:
         for line in self.body:
             m = KEY_RE.match(line)
             if m and m.group(2) == key:
-                return m.group(4)
+                raw = m.group(4)
+                return raw[1:-1] if raw.startswith('"') else raw
         return default
 
     @property
@@ -161,8 +164,8 @@ class Entry:
 
     @property
     def retired(self):
-        """The date this entry's acceptance list was dropped, or `""` while it still has one."""
-        return self.get("retired")
+        """Whether this entry's acceptance list has been dropped."""
+        return bool(self.get("retired"))
 
     @property
     def files(self):
@@ -172,14 +175,16 @@ class Entry:
     # -- writing -------------------------------------------------------------------------------
 
     def set(self, key, value):
-        """Overwrite a key in place, or append it in `KEYS` order. `None` removes it."""
+        """Overwrite a key in place, or append it in `KEYS` order. `None` removes it; `True`
+        writes the bare TOML `true`, which is how `retired` is spelled."""
+        literal = "true" if value is True else f'"{value}"'
         for i, line in enumerate(self.body):
             m = KEY_RE.match(line)
             if m and m.group(2) == key:
                 if value is None:
                     del self.body[i]
                 else:
-                    self.body[i] = f'{m.group(1)}{key}{m.group(3)}"{value}"'
+                    self.body[i] = f"{m.group(1)}{key}{m.group(3)}{literal}"
                 return
         if value is None:
             return
@@ -189,7 +194,7 @@ class Entry:
             m = KEY_RE.match(line)
             if m and m.group(2) in after:
                 at = i + 1
-        self.body.insert(at, f'{key} = "{value}"')
+        self.body.insert(at, f"{key} = {literal}")
 
     def why(self, text):
         """Replace the leading comment run. `""` drops it."""
@@ -343,7 +348,7 @@ def cmd_list(entries, show_all):
             continue
         state = "walked" if i < live else "LIVE" if i == live else "ahead"
         if e.retired:
-            state += f", retired {e.retired}"
+            state += ", retired"
         missing = [k for k in e.files if not (ROOT / e.get(k)).is_file()]
         if missing:
             state += f"  !! {', '.join(missing)} missing"
@@ -361,7 +366,7 @@ def cmd_show(entries, num):
     pos = entries.index(e)
     print(f"chain: position {pos + 1} of {len(entries)} -- "
           f"{'walked' if pos < live else 'LIVE' if pos == live else 'ahead of the run'}"
-          + (f", retired {e.retired} (its checks are the live goal's floor)" if e.retired else ""))
+          + (", retired (its checks are the live goal's floor)" if e.retired else ""))
     print()
     print(e.text)
     print()
@@ -828,7 +833,7 @@ def cmd_retire(text, head, entries, opts):
     e = find(entries, opts.retire)
     pos, live = entries.index(e), live_index()
     if e.retired:
-        return die(f"goal {e.num} ({e.name}) was already retired on {e.retired}")
+        return die(f"goal {e.num} ({e.name}) is already retired")
     if pos >= live and not opts.force:
         where = ("is the live goal -- its `.toml` is the file the driver runs" if pos == live else
                  "is ahead of the run" if live >= 0 else
@@ -888,7 +893,7 @@ def cmd_retire(text, head, entries, opts):
 
     e.set("toml", None)
     e.set("handoff", None)
-    e.set("retired", date.today().isoformat())
+    e.set("retired", True)
     CHAIN.write_text(render(head, entries), encoding="utf-8", newline="\n")
     print(f"chain: goal {e.num} ({e.name}) retired -- its whole acceptance list is in "
           f"{rel(live_path)}")

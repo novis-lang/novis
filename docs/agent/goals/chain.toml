@@ -15,19 +15,19 @@
 name = "1 core-depth"
 md = "docs/agent/goals/1-core-depth.md"
 milestone = "M4S"
-retired = "2026-09-05"
+retired = true
 
 [[goal]]
 name = "2 concurrency"
 md = "docs/agent/goals/2-concurrency.md"
 milestone = "M5"
-retired = "2026-09-05"
+retired = true
 
 [[goal]]
 name = "3 governance"
 md = "docs/agent/goals/3-governance.md"
 milestone = "M6"
-retired = "2026-09-05"
+retired = true
 
 # The first of the two goals with an external precondition, and the cheaper one: only its stage 6 needs a
 # container, the Redis `Core\Cache`'s coherent tier and `Core\RateLimit`'s limiter both open. The
@@ -38,7 +38,7 @@ name = "4 core-part-ii"
 md = "docs/agent/goals/4-core-part-ii.md"
 milestone = "M8"
 preflight = "docker"
-retired = "2026-09-05"
+retired = true
 
 # The second, and the one it costs the most: `rule:core-classes/db-one-api` verifies four of the five drivers against real
 # servers, so the driver preflights a reachable Docker daemon before this goal's first session and stops
@@ -48,13 +48,13 @@ name = "5 database"
 md = "docs/agent/goals/5-database.md"
 milestone = "M8"
 preflight = "docker"
-retired = "2026-09-05"
+retired = true
 
 [[goal]]
 name = "6 server"
 md = "docs/agent/goals/6-server.md"
 milestone = "M7"
-retired = "2026-09-05"
+retired = true
 
 # Post-parity, and first of the post-parity entries because this is where the orphans are made. A
 # goal switch carries the outgoing goal's [[check]] blocks forward and its unclosed *items* not at
@@ -74,7 +74,7 @@ name = "21 carried-gaps"
 md = "docs/agent/goals/21-carried-gaps.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-05"
+retired = true
 
 # Post-parity: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache, which goal 3 built exactly as specified and
 # which has had no caller since. `crates/nvs-cli/src/cache.rs` is the whole store -- layout,
@@ -93,7 +93,7 @@ name = "22 warm-start"
 md = "docs/agent/goals/22-warm-start.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-06"
+retired = true
 
 # Post-parity: `rule:core-classes/temporary-dir-sweep`'s temporary-directory sweep. It rides the same chain after the program's gate
 # because its server half — the post-response sweep and the boot orphan sweep — needs the `nvs-server`
@@ -103,7 +103,7 @@ name = "7 temp-sweep"
 md = "docs/agent/goals/7-temp-sweep.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-06"
+retired = true
 
 # Post-parity: `Core\Program::id()` — the program fingerprint the freeze/thaw design needs and userland
 # gets. One member over hashes the artifact cache already computes; the smallest goal on the chain.
@@ -113,7 +113,7 @@ name = "8 program-id"
 md = "docs/agent/goals/8-program-id.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-06"
+retired = true
 
 # Post-parity: `Core\Db\Schema`, closing `rule:core-classes/db-one-api`'s own *Revisiting* item. It is last for a reason that
 # is not tidiness. Its acceptance property — apply a schema, introspect it back, get an empty plan —
@@ -127,7 +127,7 @@ name = "9 schema"
 md = "docs/agent/goals/9-schema.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-07"
+retired = true
 
 # Post-parity: `rule:types/callable-signature`'s typed `callable`. Last on the chain because it is the only entry that reaches
 # the front end -- `nvs-syntax` through `nvs-codegen` -- and every goal before it writes callbacks whose
@@ -138,7 +138,7 @@ name = "10 typed-callable"
 md = "docs/agent/goals/10-typed-callable.md"
 milestone = "post-parity"
 preflight = "docker"
-retired = "2026-09-07"
+retired = true
 
 # Post-parity: `rule:tooling/doc-comment-is-three-slashes`'s doc comments. After goal 10 because both reach the front end and goal 10's
 # signature work is the larger edit there, and because its stage 2 builds `rule:ide/one-grammar-one-tree` s1's trivia layer --

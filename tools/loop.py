@@ -3235,7 +3235,7 @@ class Chain:
                 # `self.goals` alone when only keys changed, and `_retired_error` reads this list.
                 prev.pop("toml", None)
                 prev.pop("handoff", None)
-                prev["retired"] = f"{datetime.now():%Y-%m-%d}"
+                prev["retired"] = True
             else:
                 say(f"  chain: goal {num} was not retired -- {r.first_err_line}", C.GRAY)
 
