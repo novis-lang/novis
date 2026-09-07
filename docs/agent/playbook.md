@@ -4748,6 +4748,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   names the helper rather than the extraction. Fold the discriminator into the data it selects over
   — an enum whose variants each hold the `&[TypeId]`, rather than an enum passed beside it — which
   keeps the count at seven and reads better at both call sites. [until: reviewed 2026-09-07]
+- **An `@example` written inside `examples/` is refused unless it says `../examples/`, because the tag's
+  two halves read two different paths.** `E0325`'s walked-directory test looks at the path *as written*
+  (any `Normal` component named `examples` or `tests`), while `E0324`'s existence test resolves that same
+  path relative to the file that wrote it — so `@example doc-comments.nvs`, sitting beside the file it
+  names, is refused for being in no walked directory. Write the walked directory into the path and let
+  `..` carry the resolution: `@example ../examples/doc-comments.nvs` passes both halves.
+  [until: gone crates/nvs-hir/src/members.rs:let walked = written.components()]
 
 ## Divergences and refusals already pinned
 

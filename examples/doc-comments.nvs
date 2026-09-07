@@ -1,0 +1,51 @@
+<?nvs
+/// A line of a page, carrying the text a reader sees.
+///
+/// A doc comment is `///` and nothing else marks one. Its content is prose
+/// plus exactly two tags, and every other `@tag` is a diagnostic rather than a
+/// convention — `rule:tooling/doc-comment-tags-are-see-and-example`.
+///
+/// An `@example` path is relative to the file that wrote it, as a `require`
+/// path is, and must name a directory the test corpus walks — so a file that
+/// is itself the example writes `../examples/`.
+///
+/// @see Line::render
+/// @example ../examples/doc-comments.nvs
+class Line {
+    /// The text this line carries.
+    public string $text;
+
+    /// Builds a line over its own text.
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    /// The line as a reader sees it.
+    ///
+    /// There is no `@param` and no `@return` here on purpose: the signature is
+    /// above, and a signature cannot drift from itself.
+    ///
+    /// @see Line::$text
+    public function render(): string {
+        return $this->text;
+    }
+
+    // An ordinary comment, and it documents nothing. Two slashes are what a
+    // note to the next reader of this file is written with; `nvs meta --json`
+    // and `nvs doc` never see one.
+    private function hidden(): string {
+        return "";
+    }
+}
+
+//// Four slashes are an ordinary comment too, as in Rust. `///` is the marker,
+//// and a longer run of them is a divider somebody drew.
+
+var $line = new Line("a documented member runs unchanged");
+echo $line->render() . "\n";
+echo "an ordinary comment is not documentation\n";
+echo "four slashes are not documentation\n";
+// `nvs check` says nothing about documentation unless it is asked with
+// `--strict-docs` (`rule:tooling/strict-docs`), and this file passes it: every
+// public member above carries a `///`, and the private one is never reported.
+echo "the program compiles with no documentation diagnostics\n";
