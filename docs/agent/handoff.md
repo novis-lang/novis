@@ -2,66 +2,65 @@
 
 ## State
 
-**Goal 10 — stage 4 is whole: every `Core` callback *parameter* writes its signature, and
-`CoreTy::CallableTo` is deleted.**
+**Goal 10 — stage 5 is whole: `Core\Task::all` binds from its argument's *type*, and the
+written-`fn`-literal restriction is gone.**
 
-- **Nineteen rows now spell what they hand their callback**, across `Core\Arr` (`mapKeys`,
-  `groupBy`, `reduce`, `find`, `findKey`, `any`, `all`), `Core\Cli` (`live`, `progress`),
-  `Core\Db\Connection::transaction`, `Core\Fatal`'s two, `Core\Heap`'s comparator,
-  `Core\Out::capture`, `Core\Regex::replaceWith`, `Core\Script::onExit`, `Core\Task`'s `map` and
-  `afterResponse`, and `Core\Test`'s three. `rule:types/callable-signature`. The spec's rows and
-  `rule:tooling/in-place-output-is-a-scoped-live-region` were edited in the same slice, which is
-  `rule:core-api/reference-card`.
-- **A key-answering callback returns `int|string`, not `string`** —
-  `crates/nvs-stdlib/src/arr.rs:128`'s `mapKeys` and `groupBy` take `ARRAY_KEY_CONTAGIOUS`, because
-  `rule:types/arrays` normalises an integer key at the subscript rather than refusing it.
-- **Bare `CoreTy::Callable` survives in exactly two places**, and
-  `every_callback_parameter_declares_its_signature`
-  (`crates/nvs-stdlib/src/registry.rs:3398`) is the list: `Core\Attributes::get`/`::all`, whose
-  `$target` is a reference to a declaration and not a callback, and every **option bag's** field,
-  which is not a parameter. That bag is now the only surface reaching
-  `nvs_runtime::call_closure`'s per-argument tag check, so the six conformance cases that pin the
-  runtime check ask it through `{by:}` instead of through `Core\Arr::any`/`::mapKeys`.
-- **`Ty::CallableTo`, `TypeInterner::callable_to` and `generics::callback_result_var` are gone**
-  with it; `Ty::CallableShapeTo` is the one binding site left, and stage 5 takes it.
+- **`CoreTy::CallableShapeTo` is re-founded as `CoreTy::ShapeOfCallables`, not deleted**, and
+  `docs/decisions/0136.md` § *Revisiting* is where that reports back. It is now an ordinary type
+  in both halves: what it accepts is `crates/nvs-types/src/expr/assign.rs:200`'s assignability arm
+  (a `Ty::Shape` whose every field is a callable) and what it binds is
+  `crates/nvs-types/src/generics.rs:214`'s own walk over the argument's fields. Neither reads an
+  expression. **Deleting it outright was tried and rejected**: it is also the parameter's *bound*,
+  and with only `CoreTy::Var("S")` there `Core\Task::all(5)` type-checks — see the playbook bullet.
+- **`bind_callable_shape`, `generics::callable_shape_var`, `E0773` and `E0774` are gone.** A field
+  holding a `callable(): T` variable, a first-class callable, or a whole shape held in a variable
+  all bind exactly as a written literal does; a field declaring bare `callable` answers `mixed` for
+  itself alone. `rule:concurrency/an-all-field-answers-what-its-callable-declares` replaced
+  `…/an-all-field-must-be-a-written-fn-literal` at the same slot, with 0072/0114/0136's `changes:`
+  blocks re-pointed.
+- **`Ty::ShapeOfCallables` is the one checker type that survives substitution** —
+  `crates/nvs-types/src/generics.rs:352` is the arm that says so — so `nvs-ir` meets it, and
+  `erase_checked_ty` (`crates/nvs-ir/src/lower/mod.rs:3067`) answers `Ty::Object` for it beside
+  `Shape`.
+- **Two acceptance names moved** in `docs/agent/loop-goal.toml` and its byte-identical goal copy:
+  `no_registry_row_names_a_callable_binding_site_variant` → `only_task_all_names_a_shape_of_callables`,
+  and the goal-6-era `a_task_all_field_holding_a_callable_variable_is_a_compile_error` →
+  `task_all_no_longer_refuses_a_field_that_is_not_a_literal`.
 
-Conformance is 1571 green.
+Conformance is 1570: two cases retired for a restriction that no longer exists, one agreement case
+written in their place.
 
 ## Next group
 
-**Stage 5 — `Task::all`, and the second binding-site variant retired** — file set:
-`crates/nvs-types/src/generics.rs`, `crates/nvs-types/src/expr/args.rs`,
-`crates/nvs-stdlib/src/task.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/ty.rs`,
-`docs/spec/01-core-library.md`. Take them in order; the second is the first one's fallout.
+**Stage 6 — spending the proof: a statically proven call site stops paying the per-argument tag
+check** — file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs`,
+`crates/nvs-runtime/src/closure.rs`, `crates/nvs-codegen`, `examples/typed-callable.nvs`. Take them
+in order; the fixture is the whole goal read end to end and is the driver's oldest red check.
 
-- [ ] **A shape of callables rebuilds a shape, and `CoreTy::CallableShapeTo` is deleted.**
-      The variant is `crates/nvs-stdlib/src/registry.rs:427` and its `Ty` counterpart
-      `crates/nvs-types/src/ty.rs:220`; its one row is
-      `crates/nvs-stdlib/src/task.rs:137`, which writes `{name: callable(): T, …}` instead. The
-      readers to delete are `callable_shape_var` (`crates/nvs-types/src/generics.rs:146`) and its
-      caller in `check_generic_args` (`crates/nvs-types/src/expr/args.rs:1318`); the walk that
-      replaces them takes each field's callable return type and assembles a shape with the same
-      names, in `substitute`'s own single pass. `rule:concurrency/all-answers-a-typed-shape` and
-      `rule:types/callable-signature`; `no_registry_row_names_a_callable_binding_site_variant`
-      (`crates/nvs-stdlib/src/registry.rs:3349`) asserts the whole list and goes to `[]` the day
-      this lands.
-- [ ] **`Task::all`'s written-literal restriction is removed, in the checker and in the spec.**
-      `bind_callable_shape` (`crates/nvs-types/src/expr/args.rs:1389`) is the only reader of a
-      field, and `E0773`/`E0774` go with it; the spec's own sentence is
-      `docs/spec/01-core-library.md:1301`. A field holding a `callable(): T` variable now carries
-      what the field needs, which is
-      `rule:concurrency/an-all-field-must-be-a-written-fn-literal`'s own condition for lifting —
-      that rule is amended in the same slice, not left standing.
+- [ ] **A call through a written signature emits no `check_param_tags`, and a bare `callable` still
+      does.** The sequence is `crates/nvs-runtime/src/closure.rs:543`, reached from
+      `call_closure` (`crates/nvs-runtime/src/closure.rs:161`); the emission decision is at the
+      lowering of the call in `crates/nvs-ir/src/lower/expr.rs`, which is where the callee's checked
+      type is still in hand. `rule:types/callable-signature`; `-p nvs-codegen` owes
+      `a_proven_callable_call_site_emits_no_param_tag_check` and
+      `a_bare_callable_call_site_still_emits_the_param_tag_check`
+      (`docs/agent/loop-goal.toml` stage 6 is the whole list).
+- [ ] **Both closure metadata slots stay on every closure object.** `CLOSURE_ARITY_SLOT` and
+      `CLOSURE_PARAM_TAGS_SLOT` are written at `lower_closure`
+      (`crates/nvs-ir/src/lower/closure.rs:160`); a literal does not know which kind of site will
+      call it, so what stage 6 removes is the work and never the metadata —
+      `a_closure_object_still_carries_both_metadata_slots`.
+- [ ] **`examples/typed-callable.nvs` is written and prints the four lines the goal names.**
+      The `exact` check at `docs/agent/loop-goal.toml:4740` is the specification, verbatim, down to
+      `Task::all answers a shape of its callbacks' return types`; the surface it exercises is
+      `crates/nvs-stdlib/src/task.rs:131`'s rows. This is the acceptance check that has been red
+      since session 0003.
 
 ## Backlog
-
-- An option bag's `{by?: callable}` / `{comparator?: callable}` is still bare — seven fields across
-  `Core\Arr`'s four bags, `Core\Cli`'s three and `Core\Out`'s one. Whether a bag's field can carry a
-  member variable through substitution is untested; `crates/nvs-stdlib/src/arr.rs:2010` is the first.
-- `examples/typed-callable.nvs` is stage 6's fixture and is still missing —
-  `docs/agent/loop-goal.toml:4740` freezes its four output lines.
-- Stage 6's codegen half: a proven call site emits no `check_param_tags` — `docs/agent/loop-goal.md`
-  stage 6.
-- `cache::tests::a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` (`nvs-cli`)
-  failed once under `verify.py`'s parallel load and passed alone; it is timing-sensitive, not this
-  work.
+- The valgrind leg is not optional for stage 6 — `docs/agent/loop-goal.md` § *Stage 6* item 3.
+- `[context] modules` for this goal has no `nvs-codegen` or `nvs-runtime/src/closure.rs` pattern,
+  so stage 6 opens without its own map — add both when you take it.
+- The handoff's file set named `docs/spec/01-core-library.md`, which no longer exists; the `Core`
+  reference is `docs/reference/core/<Class>.md` and `docs/reference/lang/`.
+- `docs/agent/loop-goal.md` § *Stage 5* still says the variant is deleted; ADR 0136 § *Revisiting*
+  is the current answer, and the goal prose is frozen input rather than a rule.
