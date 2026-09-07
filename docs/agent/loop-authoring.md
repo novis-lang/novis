@@ -83,6 +83,48 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
 | `milestones` | `"M4S"` for a whole milestone out of [docs/plan/](../plan/), `"M4S:lead"` or `"M4S:verify"` for one paragraph | naming the whole milestone when `:verify` was the question — M8 is 11k, its acceptance paragraph is under 1k |
 
+### Write it per stage, not per goal
+
+A goal is a finite contained group of work; **a stage of one is finite again**, and the manifest is the
+place that distinction is worth money. Goal 14 runs twelve stages, and its stage 8 argues from ADR 0101's
+redaction sections — which say nothing at all to the session writing its stage 4. Measured before this
+existed: 13,120 of that goal's 17,746 B of sliced ADR text belonged to a stage either already landed or
+not yet open, and its whole pack was 71,627 B.
+
+So `[context]` carries a table per **prose stage** — the `## Stage N` headings in the goal's own `.md`:
+
+```toml
+[context]                    # what a session needs whatever stage it is on
+rules = ["ide/an-lsp-answer-is-frozen-as-an-lspt-case", "0099"]
+adrs  = []
+
+[context.stage.4]            # ... and what stage 4 needs on top of that
+rules = ["ide/an-open-document-is-its-own-entry-point", "ide/positions-have-one-home"]
+adrs  = ["0099 §1"]
+```
+
+- **`orient.py` applies the stage `handoff.md`'s `## Next group` names**, and `--stage N` prices one the
+  run has not reached. A goal with no stage tables prints exactly the pack it printed before they existed,
+  which is what makes this safe to add to queued goals one at a time.
+- **An overlay only ever adds.** Its entries are appended to the base's, deduplicated. The saving comes
+  from keeping the *base* small — from moving an entry down into a stage, never from deleting one — and
+  the worst a wrong stage number can do is print the base pack.
+- **Narrowable: `rules`, `adrs`, `spec`, `shapes`, `playbook`, `milestones`.** Not `modules`, because
+  `context-sync.py` writes to the base list and a stage-local copy would silently stop receiving what a
+  session edited; not `plan`, whose default is two fields every session reads.
+- **The number is the prose stage, not a `[[check]]`'s `stage = "4 the requests"` label.** Those are
+  coarser on purpose — one acceptance line often spans several prose stages, and goal 14's own comment
+  says so — and making the two agree would give that grouping up for nothing.
+- **`chain.py --check` audits every stage's entries**, not the one in flight, so a selector that resolves
+  to nothing in stage 9 is caught while the goal is being written rather than by the session that opens
+  stage 9 at 3am.
+
+**Name rule ids.** This is the rule § 2's table has always stated and that no goal had ever once followed:
+across the sixteen goals queued on 2026-09-07, `rules` held 4–10 entries each and **zero** rule ids
+between them. A record number prints titles; the fragment is the rule. Two or three ids per stage, in that
+stage's own table, is the shape — and it is *smaller* as well as more useful, because three rule bodies
+run about 4 kB against the 15 kB of titles eight record numbers expand to.
+
 Three rules make it work:
 
 - **Every entry is a selector, never a copy.** `orient.py` slices the live file at session start, so a
@@ -124,7 +166,7 @@ and only one of them is work.
 
 | Per-goal, and owed before the run | Cost |
 |---|---|
-| The `[context]` manifest | The real work. It names the files, rules, record sections, shapes and traps *this* goal's sessions read, and nothing else knows them. |
+| The `[context]` manifest, **and a `[context.stage.N]` table per stage** | The real work. It names the files, rules, record sections, shapes and traps *this* goal's sessions read, and nothing else knows them. The stage tables are where most of that lands: the base holds only what every stage needs. |
 | A fresh `python tools/loop-stats.py` | One call. § 1 above: the constants are measurements, and a number you did not just measure is probably stale. |
 
 So the answer to "do we have to re-do this every time" is **no for the tooling and yes for the manifest** —

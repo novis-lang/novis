@@ -107,11 +107,15 @@ Every future session reads this file in full, so it is a **bounded state file, n
 - In this order:
   1. `## State` — 3–8 lines: which milestone, what is on disk, what is blocked.
   2. `## Next group` — two to four related slices as a checklist, in order, under one line naming the
-     **file set they share** (same files, not same topic). Each names the rule that specifies it
+     **goal stage they are in** and the **file set they share** (same files, not same topic) —
+     `**Stage 5: diagnostics, phase-gated** — one file set: …`. Each names the rule that specifies it
      (`rule:<topic>/<rule>`, or a record section when only the reasoning has it) and the anchors it
      touches, **repo-rooted in the item** — `crates/nvs-runtime/src/ctx/isolate.rs:116`, never a bare
      file name and never up in `## State` — because that is the only place `orient.py` reads them from
      to inline the code into the next pack, and `session.py --wrap` refuses an open item without one.
+     The stage number is read the same way, to pick the goal's `[context.stage.N]` overlay
+     ([loop-authoring.md](loop-authoring.md) § 2); a group that names none gets the goal's base
+     manifest, which is the wider pack and never a broken one.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc; trim the stale ones. A goal switch
      overwrites the whole handoff, so what must survive one goes in [carried-gaps.md](carried-gaps.md).
 
