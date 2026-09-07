@@ -98,6 +98,8 @@ modules = [
   "crates/nvs-cli/src/main.rs",
   # The section lexer: cutting a case file into its `--NAME--` sections.
   "crates/nvs-test/src/section.rs",
+  # `nvs ast` — the parse tree, printed for a person or for a tool.
+  "crates/nvs-cli/src/ast.rs",
 ]
 
 rules = ["0099", "0040", "0137", "0092", "0009", "0134"]
