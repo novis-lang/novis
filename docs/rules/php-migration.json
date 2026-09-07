@@ -30,7 +30,8 @@
       "title": "`->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written",
       "status": "shipped",
       "because": [
-        "0007"
+        "0007",
+        "0150"
       ],
       "divergesFromPhp": "`$i->name` on an `int` and `1 instanceof Box` are compile errors (`E0495`, `E0497`) rather than a warning yielding `null` and a `false`; only `mixed`, `object`, a shape and a union holding a class keep PHP's run-time answer",
       "seeAlso": [
@@ -38,6 +39,7 @@
         "types/narrowing",
         "types/unions-and-mixed",
         "types/class-reference",
+        "types/type-test",
         "expressions/disjoint-comparison-refused"
       ],
       "guardedBy": [
@@ -170,19 +172,39 @@
     },
     {
       "id": "php-migration/let-and-is-are-reserved",
-      "title": "`let` and `is` are reserved spellings; `var` declares, `instanceof` tests and `as` converts",
+      "title": "`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test",
       "status": "designed",
       "because": [
-        "0124"
+        "0124",
+        "0150"
       ],
       "divergesFromPhp": "`let` and `is` cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them",
       "seeAlso": [
         "types/var-inference",
         "types/narrowing",
+        "types/type-test",
         "expressions/nullable-conversion",
         "classes/reserved-spellings-are-lower-case",
         "security/no-eval",
-        "php-migration/a-deprecation-is-a-refusal"
+        "php-migration/a-deprecation-is-a-refusal",
+        "php-migration/is-takes-pattern-matchings-type-patterns"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "php-migration/is-takes-pattern-matchings-type-patterns",
+      "title": "`is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it",
+      "status": "designed",
+      "because": [
+        "0150"
+      ],
+      "divergesFromPhp": "PHP reserved `is` for pattern matching and has not voted it; Novis ships the settled type-pattern half now, refuses `is 3.14` for want of a float literal type, and leaves binding, destructuring, array patterns, comparison patterns and pinning unclaimed",
+      "seeAlso": [
+        "types/type-test",
+        "types/literal-types",
+        "types/class-reference-sites",
+        "php-migration/let-and-is-are-reserved",
+        "php-migration/every-divergence-is-deliberate-and-listed"
       ],
       "guardedBy": []
     },

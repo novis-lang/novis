@@ -3,6 +3,8 @@
 
 # Types
 
+*1 of 47 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -161,8 +163,14 @@ target: a `var` declaration ([`types/var-inference`](types.md#types-var-inferenc
 
 `uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value
 whose payload is already a `u64`, so a `uint` costs **zero additional bytes per value**.
-`Core\Reflect::typeOf` reports it as its own kind, and there is no `is_int`-style predicate to
-disagree with it, because there are no free functions.
+`Core\Reflect::typeOf` reports it as its own kind, and `$x is uint` asks for it directly
+([`types/type-test`](types.md#types-type-test)).
+
+Being its own tag is observable, and a migrating program is where it shows: `is_int($id)` was true for
+every integer PHP had, while `$id is int` is **false** for a value that arrived as a `uint` — a
+`BIGINT UNSIGNED` key or a snowflake id, which is what `uint` was added for. `$id is int|uint` is the
+spelling that asks PHP's question. This is the one place the split is reachable by a mechanical
+rewrite rather than by declaring a `uint` on purpose.
 
 `uint` exists because web software needs the half of the 64-bit range PHP's single signed integer
 cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
@@ -174,7 +182,7 @@ exact answer over the mathematical integers, and they do not mix in arithmetic, 
 representable common type to return ([`types/arithmetic`](types.md#types-arithmetic)). Converting between them is `as`, and it
 throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0004](../decisions/0004.md), [0150](../decisions/0150.md).</sub>
 
 <a id="types-arithmetic"></a>
 
@@ -726,10 +734,12 @@ priority 1 points in.
 `rule:types/unions-and-mixed`
 
 A union permits only the operations valid for *every* member. Reaching a member's own operations means
-narrowing ([`types/narrowing`](types.md#types-narrowing)), and there is no `is_int()`-style predicate to narrow with, because
-there are no free functions. Getting a scalar out of a union or out of `mixed` is `as T`, which
-throws, or `as ?T`, which yields `null` — deliberately the same reviewable spelling either way, which
-is why `Core\Validate` carries no numeric predicates.
+narrowing ([`types/narrowing`](types.md#types-narrowing)), and the spelling that narrows is the `is` operator
+([`types/type-test`](types.md#types-type-test)) — never an `is_int()`-style free function, because there are no free
+functions, which is also why `Core\Validate` carries no numeric predicates. *Getting* a scalar out of
+a union or out of `mixed` is a different question from testing for one: that is `as T`, which throws,
+or `as ?T`, which yields `null`. `as` converts and so accepts what can be converted — `"7" as ?int` is
+`7` — while `is` reads the representation and so answers `false` for the same value.
 
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
@@ -749,18 +759,106 @@ uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", o
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md).</sub>
+
+<a id="types-type-test"></a>
+
+## `$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable  *(designed — not yet in the compiler)*
+
+`rule:types/type-test`
+
+`$x is T` asks whether a value currently holds a `T` and answers `bool`, for any type a value can
+inhabit. It is **strict** — nothing is coerced on the way to the answer — and it is **total**: it
+always compiles, and a result the checker can settle by itself folds to a constant rather than
+becoming a diagnostic.
+
+The right-hand side is a **type**, parsed by the same production `as` uses
+([`types/conversion`](types.md#types-conversion)), not an expression. `is` is the question `as` was standing in for and never
+answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, while `"7" is int` is
+`false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
+*is*.
+
+```php
+mixed $m = Core\Request::query('id');
+if ($m is int) {
+    // $m is an int here — no `as`, no throw path
+}
+```
+
+## What may appear on the right
+
+| form | example |
+|---|---|
+| a scalar type | `$x is int`, `is uint`, `is float`, `is decimal`, `is string`, `is bytes`, `is bool`, `is null` |
+| `object`, a class, an interface | `$x is object`, `$x is Request` |
+| an array | `$x is array`, `$x is array<int>` |
+| a shape | `$x is {x: int, y: int}` |
+| `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
+| a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
+| a class constant or an enum case | `$x is Mode::Read`, `$x is self::Wild` |
+| `mixed` | `$x is mixed` — always `true`, and the RFC's wildcard |
+| a union or an intersection of any of those | `$x is int\|float`, `$x is Countable&Traversable` |
+
+`array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
+`as array<T>` already performs, in a spelling that answers instead of throwing. Every other row is one
+tag comparison, or the descriptor walk `instanceof` already does.
+
+There is no float literal type to test against ([`types/literal-types`](types.md#types-literal-types)), so `$x is 3.14` is
+refused by that rule and not by this one.
+
+## The three refusals
+
+| refused | code | why |
+|---|---|---|
+| `$x is tainted string`, `is secret bytes` | `E0810` | [`security/tainted-qualifier`](security.md#security-tainted-qualifier) erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
+| `$x is void`, `$x is never` | `E0811` | no value inhabits either |
+| `$x is $cls` | `E0812` | that is a *value*, not a type. `$x instanceof $cls` is the dynamic class test ([`types/class-reference-sites`](types.md#types-class-reference-sites)), and the spelling stays refused because PHP's grammar binds a variable there ([`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns)) |
+
+Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
+`int $n; $n is int` compiles and is `true`, and `int $n; $n is string` compiles and is `false`. That
+differs from `instanceof`, which refuses a subject that can hold no object at all (`E0497`,
+[`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs)) — but `instanceof` needs a class
+to test against and a scalar has none, so the operator is genuinely *inapplicable* there. `is` is
+applicable everywhere, because every value has a representation. A knowable answer is not a
+meaningless question.
+
+Narrowing is the second reason. Once `is` narrows, a guard written inside an already-narrowed branch
+is statically true by construction, and refusing that would let a flow analysis turn working code into
+a compile error.
+
+## What it narrows
+
+`is` narrows its subject on the **true edge**, and is the fifth spelling in [`types/narrowing`](types.md#types-narrowing) —
+which owns every other property of narrowing, including that it changes what is known about a binding
+and never its declared type.
+
+## Where it answers differently from PHP
+
+`int` and `uint` are separate tags ([`types/uint`](types.md#types-uint)), so a value from a `BIGINT UNSIGNED` column
+answers `is uint` and **not** `is int`, where PHP's `is_int()` is true for both; `is int|uint` is the
+migration spelling. `string` and `bytes` are separate the same way
+([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers `is bytes` where PHP's
+`is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
+`is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
+
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns). Decided in [0150](../decisions/0150.md).</sub>
 
 <a id="types-narrowing"></a>
 
-## Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it
+## Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it
 
 `rule:types/narrowing`
 
-Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `instanceof`, a
-`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
-narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
-narrowing described the value that was there, not the slot.
+Narrowing is flow-sensitive and **branch-local**, and there are five spellings of it: `is`,
+`instanceof`, a `== null` test, a comparison against a literal-typed value, and `match (true)`. A
+`switch (true)` narrows per arm the same way. A write inside a narrowed block widens the binding
+again, because the narrowing described the value that was there, not the slot.
+
+`is` is the general one — it tests a value against any type a value can inhabit, where `instanceof`
+tests only a class ([`types/type-test`](types.md#types-type-test) owns both the accepted set and why the two coexist). Every
+spelling narrows on the **true edge alone**. Subtracting a union member on the failing edge is
+deliberately not done by any of the five: it is a separable improvement, and one that has to be taken
+for all of them at once or not at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
@@ -772,7 +870,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md).</sub>
 
 <a id="types-conversion"></a>
 

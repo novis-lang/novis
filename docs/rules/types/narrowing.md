@@ -1,7 +1,13 @@
-Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `instanceof`, a
-`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
-narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
-narrowing described the value that was there, not the slot.
+Narrowing is flow-sensitive and **branch-local**, and there are five spellings of it: `is`,
+`instanceof`, a `== null` test, a comparison against a literal-typed value, and `match (true)`. A
+`switch (true)` narrows per arm the same way. A write inside a narrowed block widens the binding
+again, because the narrowing described the value that was there, not the slot.
+
+`is` is the general one — it tests a value against any type a value can inhabit, where `instanceof`
+tests only a class (`rule:types/type-test` owns both the accepted set and why the two coexist). Every
+spelling narrows on the **true edge alone**. Subtracting a union member on the failing edge is
+deliberately not done by any of the five: it is a separable improvement, and one that has to be taken
+for all of them at once or not at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a

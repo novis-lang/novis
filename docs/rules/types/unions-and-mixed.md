@@ -1,8 +1,10 @@
 A union permits only the operations valid for *every* member. Reaching a member's own operations means
-narrowing (`rule:types/narrowing`), and there is no `is_int()`-style predicate to narrow with, because
-there are no free functions. Getting a scalar out of a union or out of `mixed` is `as T`, which
-throws, or `as ?T`, which yields `null` — deliberately the same reviewable spelling either way, which
-is why `Core\Validate` carries no numeric predicates.
+narrowing (`rule:types/narrowing`), and the spelling that narrows is the `is` operator
+(`rule:types/type-test`) — never an `is_int()`-style free function, because there are no free
+functions, which is also why `Core\Validate` carries no numeric predicates. *Getting* a scalar out of
+a union or out of `mixed` is a different question from testing for one: that is `as T`, which throws,
+or `as ?T`, which yields `null`. `as` converts and so accepts what can be converted — `"7" as ?int` is
+`7` — while `is` reads the representation and so answers `false` for the same value.
 
 `mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
 is allowed, and every operation on it is resolved dynamically at runtime through the generic helper

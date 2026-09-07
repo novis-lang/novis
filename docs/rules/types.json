@@ -71,9 +71,9 @@
       "id": "types/uint",
       "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
       "status": "shipped",
-      "because": ["0007", "0004"],
-      "divergesFromPhp": "PHP has one integer type; Novis has two, reported distinctly by `Core\\Reflect::typeOf`, and the whole 64-bit range is representable",
-      "seeAlso": ["types/arithmetic", "types/integer-literals", "types/conversion"],
+      "because": ["0007", "0004", "0150"],
+      "divergesFromPhp": "PHP has one integer type; Novis has two, told apart by `Core\\Reflect::typeOf` and by `$x is uint` (`rule:types/type-test`), so a value PHP's `is_int()` accepted answers `is uint` and not `is int`, and the whole 64-bit range is representable",
+      "seeAlso": ["types/arithmetic", "types/integer-literals", "types/conversion", "types/type-test"],
       "guardedBy": [
         "tests/conformance/lang/uint-spans-its-whole-range.nvst",
         "tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"
@@ -309,9 +309,9 @@
       "id": "types/unions-and-mixed",
       "title": "A union permits only what every member permits, and `mixed` is the one position checked nowhere",
       "status": "shipped",
-      "because": ["0007", "0012", "0066", "0047"],
-      "divergesFromPhp": "there is no `is_int()`-style predicate to narrow with, and `mixed` never absorbs implicitly — `int $n = $m;` is a diagnostic rather than a runtime check",
-      "seeAlso": ["types/narrowing", "types/conversion", "types/grammar", "types/mixed-subscript"],
+      "because": ["0007", "0012", "0066", "0047", "0150"],
+      "divergesFromPhp": "there is no `is_int()`-style free function to narrow with — the question is the `is` operator (`rule:types/type-test`) — and `mixed` never absorbs implicitly: `int $n = $m;` is a diagnostic rather than a runtime check",
+      "seeAlso": ["types/narrowing", "types/conversion", "types/grammar", "types/mixed-subscript", "types/type-test"],
       "guardedBy": [
         "tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst",
         "tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst",
@@ -320,11 +320,20 @@
       ]
     },
     {
+      "id": "types/type-test",
+      "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
+      "status": "designed",
+      "because": ["0150"],
+      "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type",
+      "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/is-takes-pattern-matchings-type-patterns"],
+      "guardedBy": []
+    },
+    {
       "id": "types/narrowing",
-      "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
+      "title": "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it",
       "status": "shipped",
-      "because": ["0007", "0047", "0066"],
-      "seeAlso": ["types/unions-and-mixed", "types/conversion", "types/enum-case-type"],
+      "because": ["0007", "0047", "0066", "0150"],
+      "seeAlso": ["types/unions-and-mixed", "types/conversion", "types/enum-case-type", "types/type-test"],
       "guardedBy": [
         "tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst",
         "tests/conformance/lang/an-instanceof-narrows-its-subject-on-the-true-edge.nvst",
