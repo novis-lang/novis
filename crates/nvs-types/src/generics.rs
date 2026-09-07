@@ -232,6 +232,34 @@ pub(crate) fn bind(
         (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
             vec![(*declared_elem, *actual_elem)]
         }
+        // Two written signatures, paired field-wise — a declared
+        // `callable(T, string): U` against the `callable(User, string): string`
+        // a written `fn` literal reports binds both variables out of one
+        // argument. This is the binding [`Ty::CallableTo`] exists to fake,
+        // performed structurally instead: the callback's result is a type here
+        // rather than a fact about an expression, so nothing outside this arm
+        // has to know where it came from.
+        //
+        // The parameters stop at the shorter list, which is
+        // `rule:types/callable-arity`'s prefix match read at the binding pass: a closure
+        // declaring fewer parameters than the position hands it binds from the
+        // ones it wrote, and a position's surplus parameter binds nothing
+        // rather than pairing with something else.
+        (
+            Ty::CallableSig {
+                params: declared_params,
+                ret: declared_ret,
+            },
+            Ty::CallableSig {
+                params: actual_params,
+                ret: actual_ret,
+            },
+        ) => declared_params
+            .iter()
+            .copied()
+            .zip(actual_params.iter().copied())
+            .chain(std::iter::once((*declared_ret, *actual_ret)))
+            .collect(),
         // `Iterator<T>` against `Iterator<int>` — `rule:iteration/concrete-generic-implements`'s generic
         // interfaces, the only class-shaped type that carries arguments at
         // all. Two *different* names bind nothing, deliberately: this walk
@@ -470,6 +498,45 @@ mod tests {
         bind(declared, actual, &mut interner, &mut bindings);
         assert_eq!(bindings.get("T"), Some(&int));
         assert_eq!(substitute(declared, &bindings, &mut interner), actual);
+    }
+
+    /// The shape a `Core` row spelling its callback's signature needs: both of
+    /// `map`'s variables bound out of the one closure argument, structurally.
+    #[test]
+    fn a_written_callback_signature_binds_from_the_literals_own_signature() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let u = interner.type_var("U");
+        let string = interner.string();
+        let declared = interner.callable_sig(vec![t, string], u);
+        let int = interner.int();
+        let actual = interner.callable_sig(vec![int, string], string);
+        let mut bindings = Bindings::default();
+        bind(declared, actual, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&int));
+        assert_eq!(bindings.get("U"), Some(&string));
+        assert_eq!(substitute(declared, &bindings, &mut interner), actual);
+    }
+
+    /// `rule:types/callable-arity`'s prefix match, read at the binding pass: a
+    /// closure that declares fewer parameters than the position hands it binds
+    /// from the ones it wrote, and the surplus parameter binds nothing rather
+    /// than pairing with the return type.
+    #[test]
+    fn a_shorter_literal_binds_the_parameters_it_wrote_and_no_others() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let k = interner.type_var("K");
+        let u = interner.type_var("U");
+        let int = interner.int();
+        let string = interner.string();
+        let declared = interner.callable_sig(vec![t, k], u);
+        let actual = interner.callable_sig(vec![int], string);
+        let mut bindings = Bindings::default();
+        bind(declared, actual, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&int));
+        assert_eq!(bindings.get("K"), None);
+        assert_eq!(bindings.get("U"), Some(&string));
     }
 
     #[test]

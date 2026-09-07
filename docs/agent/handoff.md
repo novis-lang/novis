@@ -2,63 +2,52 @@
 
 ## State
 
-**Goal 10 — stage 3 is whole: a closure literal's parameter may leave its type out, and takes
-it from the position the literal stands in.** Three layers, one rule
-(`rule:types/callable-literal-inference`):
+**Goal 10 — stage 4 has its two halves in the type layer, and no `Core` row carries one yet.**
 
-- **Parser.** `parse_closure_params` (`crates/nvs-syntax/src/parser/expr.rs:1670`) is the one
-  list where a missing type is not reported; every declaration still goes through
-  `parse_params` and keeps `rule:types/declaration`'s refusal.
-- **Checker.** `check_fn_literal` (`crates/nvs-types/src/expr/calls.rs:1564`) takes the
-  expected `TypeId`, reads `Ty::CallableSig`'s parameter list and fills each empty slot.
-  `E0808` names a parameter that had nothing to take — bare `callable`, or a signature shorter
-  than the literal — and it is checked as `mixed` so the body is still checked at all.
-- **IR.** `closure_param_ty` (`crates/nvs-ir/src/lower/closure.rs`) reads that answer back: the
-  checker records it under the parameter's own name span, because an inferred parameter has no
-  annotation node for `lower_decl_type` to read. The playbook bullet above is the trap that made
-  this third layer necessary.
+- **`CoreTy::CallableSig(&[CoreTy], &CoreTy)`** (`crates/nvs-stdlib/src/registry.rs:433`) spells a
+  written callback signature, and `nvs_types::core_lib`'s `lower` interns it field-wise to
+  `Ty::CallableSig` — so a variable inside it is the same `Ty::TypeVar` the member's other
+  parameters intern to, and `nvs_types::generics::substitute` (which already rewrote that type
+  field-wise) carries the call's own bindings through it. `rule:types/callable-signature`.
+- **`nvs_types::generics::bind` pairs two `Ty::CallableSig`s** — a declared
+  `callable(T, string): U` against the signature a written `fn` literal reports binds both variables
+  out of the one argument, structurally, where `Ty::CallableTo` needed a bespoke read of the
+  literal's recorded return type. Parameters stop at the shorter list, which is
+  `rule:types/callable-arity`'s prefix match at the binding pass.
 
-`tests/conformance/lang/an-unannotated-closure-parameter-takes-its-type-from-the-position.nvst`
-runs all of it end to end, a class-typed inferred parameter included.
+**What blocks the rows is a third piece, and it is stage 5's.** `nvs_types::expr::args`'
+`check_generic_args` checks a closure argument in its **first** pass, before `sig.substituted`, so a
+row spelling `callable(T, string): U` today would reach `check_fn_literal` with no expected type at
+all and `E0808` would refuse `fn($u) => …` exactly as it does now. The playbook bullet above is that
+trap. `Core\Arr::map` and `Core\Arr::filter` still carry `CoreTy::Callable`/`CoreTy::CallableTo`,
+and the goal's acceptance fixture `examples/typed-callable.nvs` is stage 6, behind both.
 
-**Stages 4-5 are what is left, and nothing reaches a real callback until they land.**
-`Core\Arr::map($users, fn($u) => $u->name)` still refuses `$u` with `E0808`, because `map`'s
-callback parameter is a `CoreTy::CallableTo` rather than a signature. The goal's acceptance
-fixture `examples/typed-callable.nvs` is stage 6 and needs those two first.
-
-The design is settled and is not re-derived: `rule:types/callable-signature`, `-arity`,
-`-variance`, `-literal-inference`, plus the goal's own § *Standing decisions*.
+The design is settled and is not re-derived: `rule:types/callable-signature`, `-arity`, `-variance`,
+`-literal-inference`, plus the goal's own § *Standing decisions*.
 
 ## Next group
 
-**Stage 4: a `Core` signature writes its callback's signature** — file set:
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/arr.rs`,
-`crates/nvs-types/src/core_lib.rs`, `docs/spec/01-core-library.md`. Take both; the second is
-where the first is proven, and the spec row moves in the same slice as the registry row.
+**Stage 5: a closure argument is checked against the substituted parameter, and then the rows
+land** — file set: `crates/nvs-types/src/expr/args.rs`, `crates/nvs-stdlib/src/arr.rs`,
+`docs/spec/01-core-library.md`. The first item is what the second needs; take them in order.
 
-- [ ] **A `Core` signature gains a variant that spells a written signature.** `CoreTy`
-      (`crates/nvs-stdlib/src/registry.rs:406`) has `CallableTo` and `CallableShapeTo` and
-      nothing that names parameter types; add the variant beside them and lower it at
-      `crates/nvs-types/src/core_lib.rs:469` to `interner.callable_sig`, with the call's own
-      type-variable substitution already applied — the expected type that reaches
-      `check_fn_literal` has to be the substituted one or `T` never becomes `User`.
-      `rule:types/callable-signature`.
-- [ ] **`Core\Arr::map` and `Core\Arr::filter` carry theirs, spec row included.**
-      `crates/nvs-stdlib/src/arr.rs:116` is `map`'s row. The result-variable binding
-      `Ty::CallableTo` does today lives at `crates/nvs-types/src/expr/args.rs:1176` and is what
-      the new variant replaces for these two members — a signature's own return type binds `U`,
-      so the bespoke path is dead weight once the row moves. `docs/spec/01-core-library.md` § 2
-      changes in the same slice, `rule:core-api/reference-card`.
+- [ ] **A `fn` literal at a parameter that mentions a type variable is deferred to the substituted
+      pass.** `check_generic_args` (`crates/nvs-types/src/expr/args.rs:1186`) checks every argument
+      but the options bag at `crates/nvs-types/src/expr/args.rs:1225`, then substitutes at
+      `crates/nvs-types/src/expr/args.rs:1286` and re-checks the bag at
+      `crates/nvs-types/src/expr/args.rs:1293`. Defer a closure literal the same way — its own
+      declared signature is still what `crate::generics::bind` reads at
+      `crates/nvs-types/src/expr/args.rs:1277`, so the binding pass must keep seeing it while the
+      *check* moves to the third pass. `rule:types/callable-literal-inference`.
+- [ ] **`Core\Arr::map` and `Core\Arr::filter` carry `CoreTy::CallableSig`, spec row included.**
+      `crates/nvs-stdlib/src/arr.rs:107` is `map`'s row and its callback is `CoreTy::CallableTo("U")`
+      today; `filter`'s binds nothing and is the safer one to move first. The spec's § 2 row moves in
+      the same slice — `rule:core-api/reference-card`, and the goal's § *Standing decisions* says so
+      outright. `rule:types/callable-signature`.
 
 ## Backlog
-- Stage 5: `Core\Task::all`'s `CoreTy::CallableShapeTo` (`crates/nvs-stdlib/src/registry.rs:432`)
-  — ADR 0072 § 1.
-- Stage 6: `examples/typed-callable.nvs`, the goal's four `want` lines in
-  `docs/agent/loop-goal.toml`.
-- Every `rule:types/callable-*` fragment still reads `status: designed` while three of them are
-  implemented and guarded; `tools/rules.py` offers no way to flip one, so who does it is
-  undecided — `docs/agent/doc-cleanup.md`.
-- `check_param_tags` still runs per argument for a call through a written signature; discharging
-  it at compile time is ADR 0136 § *In short*'s priority-1 half.
-- `nvs-cli` and `nvs-stdlib` still describe a callback as `callable` in help text; harmless, but
-  it stops reading as the truth once stage 4 lands — `docs/spec/01-core-library.md`.
+
+- Stage 6: `examples/typed-callable.nvs`, the goal's acceptance fixture — `docs/agent/loop-goal.md`.
+- `Ty::CallableTo`/`CallableShapeTo` are deleted once every row spells a signature — ADR 0136 § *In
+  short*.
+- `Core\Task::all`'s `CallableShapeTo` is the second binding site, and the last one — ADR 0072 § 1.
