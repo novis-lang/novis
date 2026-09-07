@@ -335,9 +335,9 @@ from `""`, and an empty array is that seed returned unchanged with no call made.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
-| `map` | `map(array<T> $a, callable $fn): array<U>` | `array_map` | |
+| `map` | `map(array<T> $a, callable(T, string): U $fn): array<U>` | `array_map` | |
 | `mapKeys` | `mapKeys(array<T> $a, callable $fn): array<T>` | `array_combine(array_map(...), …)`, the `keyBy` idiom | |
-| `filter` | `filter(array<T> $a, callable $predicate): array<T>` | `array_filter` and its two flags | |
+| `filter` | `filter(array<T> $a, callable(T, string): bool $predicate): array<T>` | `array_filter` and its two flags | |
 | `reduce` | `reduce(array<T> $a, callable $fn, U $initial): U` | `array_reduce` | |
 | `find` | `find(array<T> $a, callable $predicate): ?T` | `array_find` | |
 | `findKey` | `findKey(array<T> $a, callable $predicate): ?string` | `array_find_key` | neutral |

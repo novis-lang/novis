@@ -67,19 +67,31 @@ fn a_core_union_parameter_takes_either_member_and_nothing_else() {
     );
 }
 
-/// `Core\Arr::map(array<T> $a, callable $fn): array<U>` — the `U` binds
-/// from the `fn` literal's own return type, so the result is `array<string>`
-/// and reaches `Core\Str::join`, which takes exactly that.
+/// `Core\Arr::map(array<T> $a, callable(T, string): U $fn): array<U>` — the
+/// `U` binds from the signature the `fn` literal reports, so the result is
+/// `array<string>` and reaches `Core\Str::join`, which takes exactly that.
 /// `crate::generics` owns the rule; this is it end to end through the
 /// checker.
+///
+/// The unannotated spelling is the one the written signature buys
+/// (`rule:types/callable-literal-inference`): `$n` takes `int` from the
+/// substituted parameter, which is only substituted because the literal is
+/// checked after the subject bound `T`.
 #[test]
-fn a_callback_result_binds_the_members_result_element_type() {
+fn map_binds_its_result_from_a_written_fn_literal() {
     let inferred = check_in_method(
         "array<int> $a = [1, 2];\n\
          array<string> $out = Core\\Arr::map($a, fn(int $n) => \"n\" . $n);\n\
          echo Core\\Str::join($out, \",\");\n",
     );
     assert!(!inferred.has_errors(), "{inferred:?}");
+
+    let unannotated = check_in_method(
+        "array<int> $a = [1, 2];\n\
+         array<string> $out = Core\\Arr::map($a, fn($n) => \"n\" . $n);\n\
+         echo Core\\Str::join($out, \",\");\n",
+    );
+    assert!(!unannotated.has_errors(), "{unannotated:?}");
 
     // The declared-return spelling of the same closure binds identically —
     // `ExprInfo::Closure`'s `return_ty` is the declared type where one is
@@ -104,38 +116,65 @@ fn a_callback_result_binds_the_members_result_element_type() {
     );
 }
 
-/// The gap `crate::generics` records: only a written `fn` literal has a
-/// recorded return type to bind from, so a callable reached through a
-/// variable leaves the result `array<mixed>` — honest, and diagnosed at the
-/// point it is used as something narrower rather than silently accepted.
+/// The callback need not be written at the call site: a variable carrying a
+/// `rule:types/callable-signature` signature binds `U` structurally out of its
+/// own type, where the binding used to need the literal's recorded return type
+/// and so needed the literal.
+///
+/// Bare `callable` is what is left of that gap, and it is a refusal rather
+/// than an `array<mixed>`: the top of the lattice promises no return type, so
+/// it cannot fill a position that names one, and the annotation the variable
+/// declares is what threw the signature away.
 #[test]
-fn a_callback_that_is_not_a_literal_leaves_the_result_unbound() {
-    let diags = check_in_method(
+fn map_binds_its_result_from_a_callable_typed_variable() {
+    let bound = check_in_method(
         "array<int> $a = [1, 2];\n\
          var $fn = fn(int $n): string => \"n\" . $n;\n\
+         array<string> $out = Core\\Arr::map($a, $fn);\n\
+         echo Core\\Str::join($out, \",\");\n",
+    );
+    assert!(!bound.has_errors(), "{bound:?}");
+
+    let bare = check_in_method(
+        "array<int> $a = [1, 2];\n\
+         callable $fn = fn(int $n): string => \"n\" . $n;\n\
          array<string> $out = Core\\Arr::map($a, $fn);\n",
     );
     assert!(
-        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
-        "{diags:?}"
+        bare.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{bare:?}"
     );
-}
 
-/// A `Ty::CallableTo` parameter accepts exactly what a `callable` one
-/// accepts — it is a binding site, not a constraint — and refuses what a
-/// `callable` refuses.
-#[test]
-fn a_callback_result_parameter_still_accepts_any_callable() {
-    let ok = check_in_method(
-        "array<int> $a = [1, 2];\n\
-         var $fn = fn(int $n): string => \"n\" . $n;\n\
-         var $out = Core\\Arr::map($a, $fn);\n\
-         echo Core\\Arr::count($out);\n",
-    );
-    assert!(!ok.has_errors(), "{ok:?}");
-
+    // And what was never a callable at all is refused where it is written, by
+    // the same one comparison.
     let refused = check_in_method("array<int> $a = [1];\nvar $out = Core\\Arr::map($a, 7);\n");
     assert!(refused.has_errors(), "{refused:?}");
+}
+
+/// `rule:expressions/first-class-callable-syntax`'s reference carries the
+/// member's own signature, so it binds `U` from `Core\Str::length`'s declared
+/// `uint` and satisfies the parameter for the same reason a literal wrapping
+/// the same call would. The reference is the spelling that has no body to read
+/// a return type out of, which is why it needed the signature to be a *type*.
+#[test]
+fn map_binds_its_result_from_a_first_class_callable_reference() {
+    let bound = check_in_method(
+        "array<string> $a = [\"ab\", \"c\"];\n\
+         array<uint> $out = Core\\Arr::map($a, Core\\Str::length(...));\n\
+         echo Core\\Arr::count($out);\n",
+    );
+    assert!(!bound.has_errors(), "{bound:?}");
+
+    // A real binding, not a widening: the element type is the member's return
+    // type and nothing else will hold it.
+    let wrong = check_in_method(
+        "array<string> $a = [\"ab\"];\n\
+         array<string> $out = Core\\Arr::map($a, Core\\Str::length(...));\n",
+    );
+    assert!(
+        wrong.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{wrong:?}"
+    );
 }
 
 /// The rule that makes a bag its own type rather than an `rule:types/object-top` shape:

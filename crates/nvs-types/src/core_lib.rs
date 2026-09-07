@@ -1944,13 +1944,13 @@ mod tests {
         seed(&mut table, &mut interner);
 
         let (_, sig) = resolve_method(
-            &QName::parse(r"Core\Arr"),
+            &QName::parse(r"Core\Task"),
             "map",
             &table,
             &ClassGraph::default(),
         )
-        .expect("Core\\Arr::map is registered");
-        assert_eq!(sig.params.len(), 2);
+        .expect("Core\\Task::map is registered");
+        assert_eq!(sig.params.len(), 3);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.params[1]), "callable");
         assert_eq!(interner.describe(sig.return_ty), "array<U>");

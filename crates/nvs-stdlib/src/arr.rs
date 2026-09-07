@@ -104,7 +104,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "filter",
             names: &["a", "predicate"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Bool),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "nvs_core_arr_filter",
@@ -113,7 +116,10 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "map",
             names: &["a", "fn"],
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::CallableTo("U")],
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::CallableSig(&[CoreTy::Var("T"), CoreTy::Str], &CoreTy::Var("U")),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
             symbol: "nvs_core_arr_map",

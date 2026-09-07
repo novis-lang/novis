@@ -539,6 +539,29 @@ mod tests {
         assert_eq!(bindings.get("U"), Some(&string));
     }
 
+    /// A variable a parameter *contains* binds as readily as one that is a
+    /// whole parameter: the pairs an arm answers with are walked, so
+    /// `callable(array<T>, string): U` reaches `T` through the array the same
+    /// way `array<T>` at an argument does. Nothing in the walk is special to
+    /// the top level, and a row nesting one is therefore not a shape this has
+    /// to grow an arm for.
+    #[test]
+    fn bind_descends_into_a_callable_types_parameters() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let u = interner.type_var("U");
+        let string = interner.string();
+        let int = interner.int();
+        let var_array = interner.array(t);
+        let int_array = interner.array(int);
+        let declared = interner.callable_sig(vec![var_array, string], u);
+        let actual = interner.callable_sig(vec![int_array, string], string);
+        let mut bindings = Bindings::default();
+        bind(declared, actual, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&int));
+        assert_eq!(bindings.get("U"), Some(&string));
+    }
+
     #[test]
     fn the_first_binding_of_a_repeated_variable_wins() {
         let mut interner = TypeInterner::new();
