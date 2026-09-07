@@ -1278,7 +1278,11 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
                      f"pack carries titles and no rule text -- loop-authoring.md § 2")
     prose = path.with_suffix(".md")
     stages = len(re.findall(r"^## Stage ", read(prose), flags=re.M)) if prose.is_file() else 0
-    if stages >= 3 and not m.stages:
+    # Only where there is something a stage could take. A process goal that opens no ADR and names
+    # four records -- goal 27 is the worked example -- has a base that IS what every stage needs,
+    # and "a stage with nothing of its own needs no table" is the design rather than a shortfall.
+    # A signal that cannot clear schedules a pass whether or not anything drifted.
+    if stages >= 3 and not m.stages and (m.adrs or len(m.rules) >= 5):
         notes.append(f"{where}: runs {stages} stages and narrows to none of them -- every session "
                      f"reads all {stages} stages' rules and record sections "
                      f"(`[context.stage.N]`, loop-authoring.md § 2)")

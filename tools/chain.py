@@ -489,18 +489,44 @@ modules = [
   # the session's whole read budget; loop-authoring.md section 2 is how it is chosen.
 ]
 
-# TODO: the ADR numbers whose one-line rule this goal lives inside.
+# TODO: the two or three RULE IDS -- `topic/slug`, not an ADR number -- that every stage of this
+# goal works inside. A rule id prints the fragment, which is the rule; a record number prints its
+# rules' titles, which is a pointer to them. Name a record here only for the surrounding map, and
+# put the rules a single stage is written against in that stage's own table below.
 rules = []
 
-# TODO: the ADR numbers a session may read WHOLE -- this goal's own design, and little else.
+# TODO: usually empty. An ADR section argues one stage's design, so it belongs in that stage's
+# table below -- naming it here prints it to every session of every stage.
 adrs = []
 
-# TODO: the conventions.md shapes this goal writes.
+# TODO: the conventions.md shapes this goal writes -- the ones EVERY stage writes.
 shapes = ["A commit message"]
+
+# TODO: the milestone this goal builds inside, as "M8:verify" for its acceptance paragraph alone.
+milestones = []
 
 {carried[0]}
 
 {carried[1]}
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `{num}-{slug}.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 TODO"` labels, which may group several prose stages under one
+# acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# TODO: the rule ids stage 2 is written against, and the ADR sections that argue it.
+rules = []
+adrs = []
 
 {(chr(10) * 2).join(tables)}
 
