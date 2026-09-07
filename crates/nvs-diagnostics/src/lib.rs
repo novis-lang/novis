@@ -214,6 +214,25 @@ pub mod code {
     /// diagnostic is the entire difference between a closed set and a
     /// convention.
     pub const E_DOC_COMMENT_UNKNOWN_TAG: Code = Code::new("E0128");
+    /// The right side of a `|>` with no `$_` in it — the help names the shape
+    /// (`Str::trim($_)`), and when the right side is first-class callable
+    /// syntax or a closure value it adds that PHP 8.5's `|>` applies a
+    /// callable where this one substitutes a hole.
+    /// `rule:expressions/pipeline-hole-once`: the whole affordability of
+    /// sharing the spelling with PHP is that the habit is refused at the
+    /// character where it goes wrong rather than meaning something else.
+    pub const E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE: Code = Code::new("E0129");
+    /// `$_` more than once on one right side of a `|>`, whose help is to bind
+    /// the value to a local instead. Exactly one hole is what makes
+    /// `rule:expressions/pipeline-substitution` a substitution with no
+    /// temporary and no double evaluation, so this is a refusal and not a
+    /// second lowering.
+    pub const E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE: Code = Code::new("E0130");
+    /// `$_` anywhere that is not the right side of a `|>`, where it names
+    /// nothing — `rule:expressions/pipeline-hole-once`. Separate from the
+    /// unresolved-variable error because the fix is a `|>` and not a
+    /// declaration.
+    pub const E_HOLE_OUTSIDE_A_PIPELINE: Code = Code::new("E0131");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -3218,4 +3237,51 @@ pub mod code {
     /// authentication failure at the far end, which is the bug this code
     /// exists to make loud.
     pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Code, code};
+
+    /// Every `E01xx` number this file declares, read out of the registry's own
+    /// source. The escaped quote in the pattern below is what keeps this
+    /// function from matching itself.
+    fn parser_band() -> Vec<u32> {
+        include_str!("lib.rs")
+            .split("Code::new(\"E01")
+            .skip(1)
+            .filter_map(|rest| rest.get(..2))
+            .map(|digits| digits.parse::<u32>().expect("a code is four digits"))
+            .collect()
+    }
+
+    #[test]
+    fn the_pipeline_codes_are_the_next_free_parser_band_numbers() {
+        let pipeline = [
+            code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE,
+            code::E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE,
+            code::E_HOLE_OUTSIDE_A_PIPELINE,
+        ];
+        assert_eq!(pipeline.map(Code::as_str), ["E0129", "E0130", "E0131"]);
+
+        let mut band = parser_band();
+        assert!(band.len() > 3, "the band did not parse: {band:?}");
+        band.sort_unstable();
+        let mut unique = band.clone();
+        unique.dedup();
+        assert_eq!(band, unique, "two parser-band codes share a number");
+        assert_eq!(
+            band.split_off(band.len() - 3),
+            [29, 30, 31],
+            "the pipeline's three are no longer the band's highest, so they are \
+             no longer the next free numbers",
+        );
+    }
+
+    #[test]
+    fn the_codes_adr_0098_originally_named_still_belong_to_their_owners() {
+        assert_eq!(code::E_FOR_INIT_MIXES_DECL_AND_EXPR.as_str(), "E0124");
+        assert_eq!(code::E_FOR_INIT_TWO_DECLARATIONS.as_str(), "E0125");
+        assert_eq!(code::E_CATCH_ARM_NOT_AN_EXPRESSION.as_str(), "E0126");
+    }
 }
