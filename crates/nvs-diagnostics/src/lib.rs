@@ -476,6 +476,28 @@ pub mod code {
     /// nothing to guess from. See `docs/adr/README.md` § *Decisions taken at
     /// project start*.
     pub const E_CONSTANT_WITHOUT_TYPE: Code = Code::new("E0246");
+    /// `let` or `is` written as a name, which PHP 8.6 deprecates and Novis
+    /// refuses outright (`rule:php-migration/let-and-is-are-reserved`). Both
+    /// are reserved for a construct that does not exist — the family `eval`,
+    /// `goto` and `list` are already in — so the spelling stays available and
+    /// the help names the living one: `var` declares an inferred local,
+    /// `instanceof` tests and `as` converts. The rewrite is a rename.
+    pub const E_RESERVED_FOR_FUTURE_USE: Code = Code::new("E0247");
+    /// `return $value;` inside a `constructor`, which PHP 8.6 deprecates and
+    /// this refuses (`rule:php-migration/a-constructor-return-carries-no-value`).
+    /// The object under construction is the result and nothing else can be. A
+    /// bare `return;` still leaves early and
+    /// `rule:classes/definite-property-initialization` goes on checking that
+    /// path, so only the value is named; the rewrite is dropping it.
+    pub const E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE: Code = Code::new("E0248");
+    /// `public readonly int $n = 1;`, which PHP 8.6 allows and this refuses
+    /// (`rule:php-migration/a-readonly-property-declares-no-default`).
+    /// `readonly` is one assignment during construction, so a property whose
+    /// single assignment is its own declaration-site default is a per-instance
+    /// constant — and `const` already spells one (`rule:types/class-constant`).
+    /// The help names moving the value into the constructor and dropping
+    /// `readonly` as the other fix.
+    pub const E_READONLY_PROPERTY_WITH_DEFAULT: Code = Code::new("E0249");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

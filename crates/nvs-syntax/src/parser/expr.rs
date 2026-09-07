@@ -515,7 +515,16 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_instanceof(&mut self) -> Expr {
         let mut lhs = self.parse_pipe();
-        while self.eat_keyword(Keyword::InstanceOf).is_some() {
+        // `rule:php-migration/let-and-is-are-reserved`: `is` is refused in the
+        // position a reader reaching for it writes it, and then parsed as the
+        // `instanceof` its help names, so one expression carries one
+        // diagnostic instead of a cascade.
+        while self.at_keyword(Keyword::InstanceOf) || self.at_keyword(Keyword::Is) {
+            let reserved = self.at_keyword(Keyword::Is);
+            let op = self.bump().span;
+            if reserved {
+                self.report_reserved_for_future_use(Keyword::Is, op);
+            }
             let class = self.parse_pipe();
             let span = lhs.span.to(class.span);
             lhs = Expr {
@@ -1335,6 +1344,17 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Keyword(Keyword::Isset) => self.parse_isset(),
             TokenKind::Keyword(Keyword::Empty) => self.parse_empty(),
+            // `rule:php-migration/let-and-is-are-reserved`: either spelling
+            // where an expression begins is a name, and the error node keeps
+            // the word from reaching a pass that has no meaning for it.
+            TokenKind::Keyword(word @ (Keyword::Let | Keyword::Is)) => {
+                let span = self.bump().span;
+                self.report_reserved_for_future_use(word, span);
+                Expr {
+                    span,
+                    kind: ExprKind::Error(span),
+                }
+            }
             TokenKind::Keyword(Keyword::Exit | Keyword::Die) => self.parse_exit(),
             TokenKind::Keyword(Keyword::Eval) => self.parse_eval(),
             TokenKind::Keyword(Keyword::Extract) => self.parse_extract(),
@@ -1897,7 +1917,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         } else {
             None
         };
-        let body = self.parse_block();
+        let body = self.in_callable_body(false, Self::parse_block);
         let span = start.to(body.span);
         self.diags.report(
             Diagnostic::error(
@@ -1996,7 +2016,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // object literal needs `fn() => ({...})` instead.
                 FnBody::Expr(Box::new(self.parse_object_literal_needs_parens()))
             } else {
-                FnBody::Block(self.parse_block())
+                FnBody::Block(self.in_callable_body(false, Self::parse_block))
             }
         } else {
             FnBody::Expr(Box::new(self.parse_expr()))

@@ -858,8 +858,14 @@ impl<'src, 'd> Parser<'src, 'd> {
         } else {
             None
         };
+        // `rule:php-migration/a-constructor-return-carries-no-value` is asked
+        // of the body, and the name it was declared with is the whole of what
+        // decides it. A method that is not the constructor parks the flag by
+        // passing `false` through the same call, so a method declared inside a
+        // constructor's body does not inherit it.
+        let constructor = self.ident_text(name) == "constructor";
         let body = if self.at(TokenKind::LBrace) {
-            Some(self.parse_block())
+            Some(self.in_callable_body(constructor, Self::parse_block))
         } else {
             self.expect(TokenKind::Semicolon, "`;`");
             None
@@ -907,6 +913,28 @@ impl<'src, 'd> Parser<'src, 'd> {
                 return;
             }
             let default = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+            // `rule:php-migration/a-readonly-property-declares-no-default`:
+            // `readonly` is one assignment, during construction, in the
+            // declaring class's own constructor, so a declaration-site default
+            // *is* that assignment and the property is a per-instance constant
+            // — which `const` already spells. Refused at the value rather than
+            // at the modifier, because that is what a fix removes or moves.
+            if let Some(value) = default
+                .as_ref()
+                .filter(|_| modifiers.contains(&Modifier::Readonly))
+            {
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_READONLY_PROPERTY_WITH_DEFAULT,
+                        "a `readonly` property declares no default",
+                    )
+                    .with_primary(value.span, "this would be the property's one assignment")
+                    .with_help(
+                        "assign it in the constructor, write `const` for a value known at \
+                         the declaration, or drop `readonly`",
+                    ),
+                );
+            }
             let span = start.to(self.last_span);
             out.push(ClassMember {
                 span,
@@ -976,7 +1004,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             self.expect(TokenKind::Semicolon, "`;`");
             Some(PropertyHookBody::Expr(Box::new(e)))
         } else if self.at(TokenKind::LBrace) {
-            Some(PropertyHookBody::Block(self.parse_block()))
+            Some(PropertyHookBody::Block(
+                self.in_callable_body(false, Self::parse_block),
+            ))
         } else {
             self.expect(TokenKind::Semicolon, "`;`");
             None

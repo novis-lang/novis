@@ -1320,3 +1320,55 @@ fn the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal() {
             .all(|d| d.notes.iter().all(|n| !n.contains("PHP 8.5")))
     );
 }
+
+/// `rule:php-migration/let-and-is-are-reserved`: `let` is a reserved word with
+/// no construct behind it, so it is refused wherever a program could have used
+/// it as a name, and the help names `var` — the spelling that declares an
+/// inferred local.
+#[test]
+fn let_is_a_reserved_spelling() {
+    for src in ["let", "let(1)", "$a + let"] {
+        let (_, diags) = parse_with_diags(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RESERVED_FOR_FUTURE_USE)),
+            "expected E_RESERVED_FOR_FUTURE_USE for {src:?}, got {diags:?}"
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.notes.iter().any(|n| n.contains("`var`"))),
+            "{src}: the living spelling is not named"
+        );
+    }
+}
+
+/// The same for `is`, whose help names both living spellings: `instanceof`
+/// tests and `as` converts. Written between two operands it is refused and
+/// then parsed as the `instanceof` it names, so recovery leaves one
+/// diagnostic and the node the reader meant.
+#[test]
+fn is_is_a_reserved_spelling() {
+    for src in ["is", "is($a)"] {
+        let (_, diags) = parse_with_diags(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RESERVED_FOR_FUTURE_USE)),
+            "expected E_RESERVED_FOR_FUTURE_USE for {src:?}, got {diags:?}"
+        );
+        assert!(
+            diags.iter().any(|d| d
+                .notes
+                .iter()
+                .any(|n| n.contains("`instanceof`") && n.contains("`as`"))),
+            "{src}: the living spellings are not named"
+        );
+    }
+
+    let (e, diags) = parse_with_diags("$a is Foo");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_RESERVED_FOR_FUTURE_USE]);
+    assert!(matches!(e.kind, ExprKind::InstanceOf { .. }), "{e:?}");
+}

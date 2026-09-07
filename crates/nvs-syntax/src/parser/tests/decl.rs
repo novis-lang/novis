@@ -912,3 +912,52 @@ fn an_attribute_payload_has_no_positional_field() {
         assert!(diags.has_errors(), "expected an error for {src:?}");
     }
 }
+
+/// `rule:php-migration/a-constructor-return-carries-no-value`: the object
+/// under construction is the result, so only the *value* is refused — a bare
+/// `return;` still leaves early, and a `return` that belongs to a body nested
+/// inside the constructor leaves that body instead.
+#[test]
+fn a_constructor_return_carries_no_value() {
+    let refused = "class C { public function constructor() { return 1; } }";
+    let (_, diags) = parse_stmt_with_diags(refused);
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE]);
+
+    for src in [
+        // The early exit the rule keeps.
+        "class C { public function constructor() { return; } }",
+        // A closure's own body, and an ordinary method's.
+        "class C { public function constructor() { $f = fn() => 1; } }",
+        "class C { public function value(): int { return 1; } }",
+        // A method declared inside the constructor's body does not inherit it.
+        "class C { public function constructor() { class D { public function v(): int { return 1; } } } }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE)),
+            "{src}: {diags:?}"
+        );
+    }
+}
+
+/// `rule:php-migration/a-readonly-property-declares-no-default`: a property
+/// whose single assignment is its own default is a per-instance constant, and
+/// `const` already spells one. The refusal lands on the value, and a property
+/// that is not `readonly` keeps its default.
+#[test]
+fn a_readonly_property_declares_no_default() {
+    let (_, diags) = parse_stmt_with_diags("class C { public readonly int $n = 1; }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_READONLY_PROPERTY_WITH_DEFAULT]);
+
+    for src in [
+        "class C { public int $n = 1; }",
+        "class C { public readonly int $n; }",
+    ] {
+        let (_, diags) = parse_stmt_with_diags(src);
+        assert!(!diags.has_errors(), "{src}: {diags:?}");
+    }
+}

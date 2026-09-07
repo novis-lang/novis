@@ -126,6 +126,14 @@ pub struct Parser<'src, 'd> {
     /// needs this: with the slot alone, "no hole is waiting" cannot tell a
     /// second `$_` on one right side from a `$_` written nowhere near a `|>`.
     pipe_rhs_depth: u32,
+    /// Set while the cursor is inside the body of a method named
+    /// `constructor`, which is what
+    /// `rule:php-migration/a-constructor-return-carries-no-value` refuses a
+    /// returned value in. Every nested body parks it — see
+    /// [`Self::in_callable_body`] — because a `return` written in a closure,
+    /// a property hook or a method declared inside a constructor leaves that
+    /// body and not the constructor.
+    in_constructor: bool,
 }
 
 /// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
@@ -190,6 +198,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             docs_attached: Vec::new(),
             pipe_hole: None,
             pipe_rhs_depth: 0,
+            in_constructor: false,
         }
     }
 
@@ -607,6 +616,42 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(span, "not found here"),
         );
         span
+    }
+
+    /// Parses a nested body with [`Self::in_constructor`] set to `constructor`
+    /// and restored afterwards. Every body a `return` can belong to goes
+    /// through here, so the flag answers "does a `return` here leave the
+    /// constructor" rather than "is a constructor anywhere above this".
+    fn in_callable_body<T>(&mut self, constructor: bool, f: impl FnOnce(&mut Self) -> T) -> T {
+        let outer = std::mem::replace(&mut self.in_constructor, constructor);
+        let parsed = f(self);
+        self.in_constructor = outer;
+        parsed
+    }
+
+    /// `rule:php-migration/let-and-is-are-reserved`: `let` and `is` name a
+    /// construct that does not exist, so either spelling is a name the program
+    /// still owes a rename. The label says the word means nothing here and the
+    /// help names the living spelling for what it would have meant.
+    fn report_reserved_for_future_use(&mut self, word: Keyword, span: Span) {
+        let (spelling, living) = if word == Keyword::Let {
+            ("let", "`var` declares an inferred local")
+        } else {
+            ("is", "`instanceof` tests a class and `as` converts")
+        };
+        self.diags.report(
+            Diagnostic::error(
+                code::E_RESERVED_FOR_FUTURE_USE,
+                format!("`{spelling}` is a reserved spelling"),
+            )
+            .with_primary(
+                span,
+                "reserved for a future construct — it names nothing here",
+            )
+            .with_help(format!(
+                "{living}; rename any `{spelling}` the program used as a name"
+            )),
+        );
     }
 
     /// `rule:statements/no-function-static-and-no-global`: `static` is not a closure modifier — a closure captures

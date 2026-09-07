@@ -163,6 +163,25 @@ impl<'src, 'd> Parser<'src, 'd> {
                 };
                 self.expect(TokenKind::Semicolon, "`;`");
                 let span = start.to(self.last_span);
+                // `rule:php-migration/a-constructor-return-carries-no-value`:
+                // the object under construction is the result, so a value here
+                // has nowhere to go. A bare `return;` is untouched — it still
+                // leaves early — and the node keeps the value it was written
+                // with, so the rest of the body reports its own problems in
+                // this run.
+                if self.in_constructor && value.is_some() {
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE,
+                            "a constructor's `return` carries no value",
+                        )
+                        .with_primary(span, "the object under construction is the result")
+                        .with_help(
+                            "drop the value — a bare `return;` still leaves the constructor \
+                             early, provided every property is assigned on that path",
+                        ),
+                    );
+                }
                 Stmt {
                     span,
                     kind: StmtKind::Return(value),

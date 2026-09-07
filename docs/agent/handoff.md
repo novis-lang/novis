@@ -2,48 +2,50 @@
 
 ## State
 
-**Goal 13's stage 2 is whole and green.** `|>` lexes as one token, parses between `instanceof` and
-unary, and substitutes its one `$_` at parse time; the four refusal cases under
-`tests/conformance/reject/pipeline/`, the substitution-identity case in `tests/conformance/lang/` and
-`examples/pipeline.nvs` now pin all of it, so every stage-2 check in `docs/agent/loop-goal.toml`
-passes — including the `exact` check whose missing fixture the driver had been reporting.
+**Goal 13 stage 2 is unchanged and green** — `|>` lexes, parses between `instanceof` and unary, and
+substitutes its one `$_` at parse time, with the cases under `tests/conformance/reject/pipeline/`,
+`tests/conformance/lang/` and `examples/pipeline.nvs` pinning it.
 
-**The example turned up one true consequence of substitution:** `nvs ast --json`'s tree for a pipeline
-is not in source order, since the left side becomes an argument of a call written after it, so
-`crates/nvs-cli/tests/ast.rs`'s schema walk now takes an `in_source_order` flag and asserts sibling
-order and containment only for the files that have one. A position-to-node lookup — the LSP goal 14
-opens — cannot assume either over a pipeline; nothing else in the tree changes.
+**Three of ADR 0124's four PHP 8.6 refusals now land, all in the parser** where the other rejected-PHP
+spellings live. `let` and `is` are keywords, so either written as a name is `E0247`, whose help names
+the living spelling (`var` declares, `instanceof` tests, `as` converts); `is` written between two
+operands is refused and then parsed as the `instanceof` it names, so one expression carries one
+diagnostic. `E0248` refuses a value on a constructor's `return` and `E0249` refuses a default on a
+`readonly` property. `Parser::in_callable_body` is the machinery the first of those needed and the
+`finally` refusal will reuse: it parks `in_constructor` at every body a `return` can belong to — a
+closure, a property hook, a method declared inside the constructor — so the flag answers "does this
+`return` leave the constructor", not "is a constructor anywhere above this".
 
-**Stage 3 — ADR 0124's four PHP 8.6 refusals — is untouched.** `let` and `is` still parse as ordinary
-identifiers, a `return` still leaves a `finally`, a constructor may still return a value and a
-`readonly` property may still declare a default. Stage 1's floor is untouched. Nothing is blocked.
+**What stage 3 still owes:** `rule:php-migration/no-return-leaves-a-finally`, and the `.nvst` cases
+under `tests/conformance/reject/php86/`, a directory that does not exist yet — the stage's second
+check runs it, so that check stays red until the cases are written. Nothing is blocked.
 
 ## Next group
 
-**Stage 3's refusals — the parser side and its corpus, one file set:** `crates/nvs-syntax/src/token.rs`,
-`crates/nvs-syntax/src/parser/stmt.rs`, `crates/nvs-syntax/src/parser/decl.rs`,
-`crates/nvs-diagnostics/src/lib.rs`, `tests/conformance/reject/php86/`. Each refusal is a diagnostic
-plus the case that shows it; the band is the decision's own call — the parser band's next free number
-is `E0132` and the rejected-PHP band's is `E0247`, both at `crates/nvs-diagnostics/src/lib.rs:235`.
+**The `finally` refusal and stage 3's corpus, one file set:** `crates/nvs-syntax/src/parser/stmt.rs`,
+`crates/nvs-syntax/src/parser/mod.rs`, `crates/nvs-diagnostics/src/lib.rs`,
+`tests/conformance/reject/php86/`. The rejected-PHP band's next free number is `E0250`.
 
-- [ ] **`let` and `is` are reserved spellings**, `var` declaring and `instanceof` testing instead —
-      `rule:php-migration/let-and-is-are-reserved`. The keyword table is the match at
-      `crates/nvs-syntax/src/token.rs:468`, and `docs/agent/loop-goal.toml:5067` names the two tests
-      `let_is_a_reserved_spelling` and `is_is_a_reserved_spelling`, which belong beside their
-      neighbours in `crates/nvs-syntax/src/parser/tests/expr.rs:1209`.
 - [ ] **A `return` never leaves a `finally`**, nor a `break` or `continue` whose target lies outside
-      it — `rule:php-migration/no-return-leaves-a-finally`, at
-      `crates/nvs-syntax/src/parser/stmt.rs:653`.
-- [ ] **A constructor's `return` carries no value and a `readonly` property declares no default** —
-      `rule:php-migration/a-constructor-return-carries-no-value` and
-      `rule:php-migration/a-readonly-property-declares-no-default`, both reached from
-      `crates/nvs-syntax/src/parser/decl.rs:649`.
-- [ ] **The three refusals as `.nvst` cases** under `tests/conformance/reject/php86/`, which
-      `docs/agent/loop-goal.toml:5076`'s `nvs-suite` check names — `--EXPECTF-ERROR--`, never
-      `--ORACLE--`, and a case reaches a `Core` class only as `Core\Str::…`.
+      it — `rule:php-migration/no-return-leaves-a-finally`. The `finally` block is parsed at
+      `crates/nvs-syntax/src/parser/stmt.rs:680`; park and set the state with
+      `crates/nvs-syntax/src/parser/mod.rs:625`'s `in_callable_body`, which already does exactly this
+      job for `in_constructor` and is the shape to copy. A `break`/`continue` needs the count of
+      loops and `switch`es opened *inside* the block, so `crates/nvs-syntax/src/parser/stmt.rs:305`,
+      `:586` and their three siblings each raise it around their body, and
+      `crates/nvs-syntax/src/parser/stmt.rs:649` reads it against the written level.
+- [ ] **The three refusals as `.nvst` cases** under `tests/conformance/reject/php86/`, which the
+      stage's `nvs-suite` check runs — a `return` in a `finally`, a constructor returning a value and
+      a `readonly` default. `--EXPECTF-ERROR--` reproduces the diagnostic's own indentation;
+      `tests/conformance/reject/readonly-is-written-once.nvst:1` is the nearest neighbour to copy the
+      shape from. Never `--ORACLE--` under `tests/conformance/`.
 
 ## Backlog
 
-- Stage 4 — the reference chapter that follows the operator (`docs/agent/loop-goal.toml` stage 4).
-- `?|>` stays deferred with its trigger named — ADR 0098 § *Revisiting*, not this goal's work.
-- Partial function application stays non-adopted — `rule:php-migration/no-partial-application`.
+- The `php-migration` and `expressions` rules this goal implements still read `status: designed` in
+  `docs/rules/php-migration.json` and `docs/rules/expressions.json`; flipping them wants
+  `python tools/rules.py --render` in the same commit, and `guardedBy` wants the `.nvst` paths above.
+- `crates/nvs-syntax/src/token.rs:317` says every `Keyword` variant's `name()` gives its one spelling;
+  there is no such method on the enum.
+- Whether `nvs convert` applies the two mechanical rewrites ADR 0124 names — dropping a constructor's
+  returned value, and moving a `readonly` default — is unwritten; the rules say it does.
