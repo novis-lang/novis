@@ -156,16 +156,6 @@ struct Cli {
     /// dump` audit the same files without running anything.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
-
-    /// Print build, host and third-party licensing information.
-    ///
-    /// The same report as `nvs info`, under the spelling PHP uses.
-    #[arg(short = 'i', long)]
-    info: bool,
-
-    /// With `-i`: include every third-party license text in full.
-    #[arg(long, requires = "info")]
-    licenses: bool,
 }
 
 #[derive(Subcommand)]
@@ -411,6 +401,20 @@ enum Command {
     /// and in `workspace/didChangeConfiguration`, because the editor is what
     /// owns the settings and a flag here would be a second, staler copy.
     Lsp,
+    /// Run a tree of `.lspt` cases against the language server.
+    ///
+    /// The editor-behaviour suite: each case is a document, a cursor, a request
+    /// and the answer frozen as text
+    /// (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). It answers a
+    /// different question from `nvs test` and shares no summary with it — two
+    /// suites, two counts, because a number that meant both would mean neither.
+    ///
+    /// Prints `N passed, M failed` and exits non-zero if any case failed.
+    LspTest {
+        /// The case files and directories to run.
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -713,17 +717,6 @@ fn main() -> ExitCode {
 
     let cli = Cli::parse();
 
-    // `-i` and a subcommand are two requests, and guessing which one was
-    // meant is worse than saying so. Clap cannot express this as a conflict
-    // — a subcommand is not an argument it can name — so it is checked here.
-    if cli.info && cli.command.is_some() {
-        eprintln!("error: `-i`/`--info` cannot be combined with a subcommand");
-        return ExitCode::FAILURE;
-    }
-    if cli.info {
-        return info::run(cli.licenses);
-    }
-
     // Unreachable: `arg_required_else_help` makes a bare `nvs` print help.
     let Some(command) = cli.command else {
         return ExitCode::FAILURE;
@@ -862,6 +855,22 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
+        Command::LspTest { paths } => {
+            // The report is this terminal program's own output, which is where
+            // a `.lspt` summary belongs: `rule:ide/stdout-belongs-to-the-protocol` gives stdout to
+            // the protocol only in the process `nvs lsp` runs, and this is not
+            // that process — `nvs_lsp::suite` writes to the sink it is handed
+            // and names none.
+            let mut out = std::io::stdout().lock();
+            match nvs_lsp::suite::run(&paths, &mut out) {
+                Ok(summary) if summary.is_success() => ExitCode::SUCCESS,
+                Ok(_) => ExitCode::FAILURE,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
