@@ -1,15 +1,19 @@
 //! Parsing one `.nvst` file into a [`Case`].
 //!
-//! The format is line-oriented: a section header is a line that is exactly
-//! `--NAME--`, and a section's body is every line after it up to the next
-//! header or end of file. Anything before the first header is an error, so a
-//! file that is not a case cannot be silently read as an empty one.
+//! The line-oriented shape — what a header looks like, and where a section's
+//! body ends — is [`crate::section`]'s, shared with the other case format.
+//! What this module owns is the roster: which names `.nvst` knows, which of
+//! them takes an argument, and what each one means once it has been read.
+//! Anything before the first header is an error, so a file that is not a case
+//! cannot be silently read as an empty one.
 //!
 //! The recognised names, and what each is for, are in this crate's own module
 //! documentation — that is the one home for the format.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+
+use crate::section;
 
 /// What a case's output is compared against.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,18 +217,6 @@ fn err(message: impl Into<String>, line: Option<usize>) -> ParseError {
     }
 }
 
-/// One section as the line scanner found it, before any of it is interpreted.
-struct Section {
-    /// The header's name, e.g. `EXPECT`.
-    name: String,
-    /// The header's argument, for the one name that takes one.
-    arg: Option<String>,
-    /// The 1-based line the header is on.
-    line: usize,
-    /// Every line under the header, each still carrying its newline.
-    body: String,
-}
-
 /// The section names this format knows, in the order the module doc lists
 /// them. Anything else is a parse error naming the offender.
 const KNOWN: &[&str] = &[
@@ -257,28 +249,6 @@ const TAKES_A_PATH: &str = "FILE";
 /// The names the runner writes into the working directory itself, which an
 /// auxiliary file therefore may not claim.
 const RESERVED_NAMES: &[&str] = &["case.nvs", "skipif.nvs", "clean.nvs", "oracle.php"];
-
-/// Returns a header's section name and its argument, if `line` is a header.
-///
-/// A header is `--NAME--` or `--NAME argument--`; the name is uppercase ASCII,
-/// digits and `-` alone, so a body line that merely contains dashes is not
-/// read as one.
-fn header(line: &str) -> Option<(&str, Option<&str>)> {
-    let line = line.trim_end();
-    let inner = line.strip_prefix("--")?.strip_suffix("--")?;
-    let (name, arg) = match inner.split_once(' ') {
-        Some((name, arg)) => (name, Some(arg.trim())),
-        None => (inner, None),
-    };
-    if name.is_empty()
-        || !name
-            .chars()
-            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-')
-    {
-        return None;
-    }
-    Some((name, arg))
-}
 
 /// Checks an auxiliary file's path, returning it or the reason it is refused.
 ///
@@ -319,58 +289,43 @@ fn aux_path(raw: &str) -> Result<String, String> {
 /// Returns [`ParseError`] for an unknown section, a repeated section, a
 /// missing required section, or two sections that contradict each other.
 pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
-    let mut sections: Vec<Section> = Vec::new();
-    let mut current: Option<Section> = None;
+    let sections = section::lex(text).map_err(|stray| {
+        err(
+            "text before the first section; a case starts with `--TEST--`",
+            Some(stray.line),
+        )
+    })?;
 
-    for (index, line) in text.lines().enumerate() {
-        let number = index + 1;
-        if let Some((name, arg)) = header(line) {
-            if !KNOWN.contains(&name) {
-                return Err(err(format!("unknown section `--{name}--`"), Some(number)));
-            }
-            let arg = match (arg, name) {
-                (None, _) => None,
-                (Some(raw), TAKES_A_PATH) => {
-                    Some(aux_path(raw).map_err(|why| err(why, Some(number)))?)
-                }
-                (Some(_), _) => {
-                    return Err(err(
-                        format!("`--{name}--` does not take an argument"),
-                        Some(number),
-                    ));
-                }
-            };
-            if let Some(previous) = current.take() {
-                sections.push(previous);
-            }
-            if sections
-                .iter()
-                .any(|seen| seen.name == name && seen.arg == arg)
-            {
-                let shown = match &arg {
-                    Some(arg) => format!("--{name} {arg}--"),
-                    None => format!("--{name}--"),
-                };
-                return Err(err(format!("`{shown}` appears twice"), Some(number)));
-            }
-            current = Some(Section {
-                name: name.to_owned(),
-                arg,
-                line: number,
-                body: String::new(),
-            });
-        } else if let Some(section) = current.as_mut() {
-            section.body.push_str(line);
-            section.body.push('\n');
-        } else if !line.trim().is_empty() {
-            return Err(err(
-                "text before the first section; a case starts with `--TEST--`",
-                Some(number),
-            ));
+    // The lexer reports the shape and this module holds the roster, so every
+    // section is judged in the order it was written: the first thing wrong
+    // with a file is still what the file is refused for.
+    for (index, seen) in sections.iter().enumerate() {
+        let (name, number) = (seen.name.as_str(), seen.line);
+        if !KNOWN.contains(&name) {
+            return Err(err(format!("unknown section `--{name}--`"), Some(number)));
         }
-    }
-    if let Some(previous) = current.take() {
-        sections.push(previous);
+        match (seen.arg.as_deref(), name) {
+            (None, _) => {}
+            (Some(raw), TAKES_A_PATH) => {
+                aux_path(raw).map_err(|why| err(why, Some(number)))?;
+            }
+            (Some(_), _) => {
+                return Err(err(
+                    format!("`--{name}--` does not take an argument"),
+                    Some(number),
+                ));
+            }
+        }
+        if sections[..index]
+            .iter()
+            .any(|earlier| earlier.name == seen.name && earlier.arg == seen.arg)
+        {
+            let shown = match &seen.arg {
+                Some(arg) => format!("--{name} {arg}--"),
+                None => format!("--{name}--"),
+            };
+            return Err(err(format!("`{shown}` appears twice"), Some(number)));
+        }
     }
     if sections.is_empty() {
         return Err(err("no sections; a case starts with `--TEST--`", None));
@@ -568,6 +523,149 @@ mod tests {
     }
 
     const MINIMAL: &str = "--TEST--\nthe title\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n";
+
+    /// Every section name this format knows whose partner is not in the other
+    /// document below, so the two of them together name all of `KNOWN`.
+    const EVERY_SECTION: &str = r#"--TEST--
+every section, once
+--RUN--
+test
+--SKIPIF--
+<?nvs
+echo "skip - always";
+--INI--
+memory_limit=1M
+--ARGS--
+first
+second
+--ENV--
+NOVIS_X=1
+--FILE--
+<?nvs
+echo "hi";
+--FILE lib/helper.nvs--
+<?nvs
+function h(): int { return 1; }
+--EXPECT--
+hi
+--EXPECT-ERROR--
+nothing
+--CLEAN--
+<?nvs
+echo "clean";
+--ORACLE-DIVERGES--
+PHP counts this one differently
+"#;
+
+    /// The other half of each mutually exclusive pair, which a case cannot
+    /// write in the same file as the one above.
+    const THE_OTHER_HALVES: &str = r#"--TEST--
+the other half of each pair
+--FILE--
+<?nvs
+echo "hi";
+--EXPECTF--
+%s
+--EXPECTF-ERROR--
+%d
+--ORACLE--
+<?php
+echo "hi";
+"#;
+
+    #[test]
+    fn every_nvst_section_parses_exactly_as_it_did_before_the_extraction() {
+        // The section lexer is `crate::section`'s now, so this asks the whole
+        // roster — every name, both halves of every exclusive pair, and each
+        // refusal the scan used to raise while it read — for the same answers
+        // it gave when the scanner lived here.
+        let parsed = case(EVERY_SECTION).expect("it parses");
+        assert_eq!(parsed.path, Path::new("t.nvst"));
+        assert_eq!(parsed.title, "every section, once");
+        assert_eq!(parsed.run, Subcommand::Test);
+        assert_eq!(
+            parsed.skipif.as_deref(),
+            Some("<?nvs\necho \"skip - always\";\n")
+        );
+        assert_eq!(parsed.args, ["first", "second"]);
+        assert_eq!(parsed.env, [("NOVIS_X".to_owned(), "1".to_owned())]);
+        assert_eq!(parsed.file, "<?nvs\necho \"hi\";\n");
+        assert_eq!(
+            parsed.aux,
+            [AuxFile {
+                path: "lib/helper.nvs".to_owned(),
+                body: "<?nvs\nfunction h(): int { return 1; }\n".to_owned(),
+            }]
+        );
+        assert_eq!(parsed.expect, Some(Expectation::Exact("hi\n".to_owned())));
+        assert_eq!(
+            parsed.expect_error,
+            Some(Expectation::Exact("nothing\n".to_owned()))
+        );
+        assert_eq!(parsed.clean.as_deref(), Some("<?nvs\necho \"clean\";\n"));
+        assert_eq!(
+            parsed.oracle,
+            Some(Oracle::Diverges(
+                "PHP counts this one differently".to_owned()
+            ))
+        );
+        assert!(
+            parsed.unsupported.is_some(),
+            "`--INI--` is not honoured yet"
+        );
+
+        let other = case(THE_OTHER_HALVES).expect("it parses");
+        assert_eq!(other.expect, Some(Expectation::Format("%s\n".to_owned())));
+        assert_eq!(
+            other.expect_error,
+            Some(Expectation::Format("%d\n".to_owned()))
+        );
+        assert_eq!(
+            other.oracle,
+            Some(Oracle::Php("<?php\necho \"hi\";\n".to_owned()))
+        );
+
+        let refused = |text: &str| case(text).expect_err("it is refused");
+        assert_eq!(
+            refused("hello\n--TEST--\nt\n"),
+            ParseError {
+                message: "text before the first section; a case starts with `--TEST--`".to_owned(),
+                line: Some(1),
+            }
+        );
+        assert_eq!(
+            refused(""),
+            ParseError {
+                message: "no sections; a case starts with `--TEST--`".to_owned(),
+                line: None,
+            }
+        );
+        assert_eq!(
+            refused("--TEST--\nt\n--BOGUS--\n--TEST--\nt\n").message,
+            "unknown section `--BOGUS--`"
+        );
+        assert_eq!(refused("--TEST--\nt\n--BOGUS--\n").line, Some(3));
+        assert_eq!(
+            refused("--TEST--\nt\n--EXPECT hi--\n").message,
+            "`--EXPECT--` does not take an argument"
+        );
+        assert_eq!(
+            refused(&format!("{MINIMAL}--FILE--\n<?nvs\n")).message,
+            "`--FILE--` appears twice"
+        );
+        assert_eq!(
+            refused(&format!(
+                "{MINIMAL}--FILE lib/h.nvs--\na\n--FILE lib/h.nvs--\nb\n"
+            ))
+            .message,
+            "`--FILE lib/h.nvs--` appears twice"
+        );
+        assert!(
+            refused(&format!("{MINIMAL}--FILE ../h.nvs--\na\n"))
+                .message
+                .contains("`..` segment"),
+        );
+    }
 
     #[test]
     fn a_case_that_says_nothing_is_run_through_nvs_run() {

@@ -161,6 +161,7 @@
 pub mod case;
 pub mod expect;
 pub mod run;
+pub mod section;
 
 use std::collections::BTreeMap;
 use std::fs;
