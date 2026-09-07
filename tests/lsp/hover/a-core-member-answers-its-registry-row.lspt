@@ -1,0 +1,20 @@
+--TEST--
+a `Core` member is declared in Rust and has no `///` run to reach, so hovering one answers its registry row — the signature the checker resolved out of it, and the reference card beside it, `rule:core-api/reference-card`
+--FILE--
+<?nvs
+var $count = Core\Str::len<|>gth("héllo");
+echo $count;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+Core\Str::length(string $s): uint
+```
+
+Counts the graphemes in `$s` — user-perceived characters, the unit every `Core\Str` member counts in — so a combining sequence counts once and this is never a byte count.
+
+**Parameters**
+
+- `$s` — The string to measure.
+
+**Returns** The grapheme count; `0` for the empty string.

@@ -1,0 +1,12 @@
+--TEST--
+the innermost node carrying an answer is the one given, so a subscript written inside a `Core` call answers the element it reads rather than the row around it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+array<string> $names = ["ada"];
+echo Core\Str::length($nam<|>es[0]);
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+string
+```

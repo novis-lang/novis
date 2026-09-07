@@ -30,6 +30,12 @@ nvs-diagnostics.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
+# The `Core` registry, for the one answer that has no Novis declaration behind
+# it: a `Core` member documents itself in its registry row
+# (`rule:core-api/reference-card`), so `hover` reads the row rather than looking
+# for a `///` run that is not written anywhere. Already in the link closure
+# beneath `nvs-types`; named here because this crate reads it directly.
+nvs-stdlib.workspace = true
 # The section lexer, and nothing else: `.lspt` and `.nvst` are two suites that
 # share one parser for the `--NAME--` shape (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 # This crate is std-only and writes nothing to standard output, so the closure

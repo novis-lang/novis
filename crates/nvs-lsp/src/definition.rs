@@ -50,7 +50,7 @@ use lsp_types::Range;
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, DocComment, Stmt, StmtKind};
-use nvs_types::ExprInfo;
+use nvs_types::{ExprInfo, ResolvedCall};
 
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -95,15 +95,17 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
 pub(crate) enum Target<'a> {
     /// A class, an interface or an enum, by its fully-qualified name.
     Type(&'a QName),
-    /// A method, named on the class that **declares** it rather than on the
-    /// receiver's — which is what `nvs_types::ResolvedCall::class` already is,
-    /// so an inherited method answers where its body was written.
-    Method {
-        /// The declaring class.
-        class: &'a QName,
-        /// The method's own name.
-        name: &'a str,
-    },
+    /// A method, as the checker resolved the call to it — named on the class
+    /// that **declares** it rather than on the receiver's, which is what
+    /// `nvs_types::ResolvedCall::class` already is, so an inherited method
+    /// answers where its body was written.
+    ///
+    /// The whole resolution travels rather than the two names off it, because
+    /// [`crate::hover`] spells a `Core` member's signature out of the parameter
+    /// types and names recorded here. That member has no declaration for the
+    /// walk below to reach, so the call site is the only place its signature
+    /// survives in a form this crate can read.
+    Method(&'a ResolvedCall),
     /// A property, on [`Target::Method`]'s terms, with the `$` sigil not
     /// included — `nvs_types::ExprInfo` records it that way and the source
     /// writes it the other, so the comparison strips rather than the table
@@ -135,7 +137,7 @@ pub(crate) struct Site<'a> {
 pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Site<'a>> {
     let (class, member) = match target {
         Target::Type(qname) => (*qname, None),
-        Target::Method { class, name } => (*class, Some((*name, true))),
+        Target::Method(call) => (&call.class, Some((call.method.as_str(), true))),
         Target::Property { class, name } => (*class, Some((*name, false))),
     };
     let symbol = analysed.module.symbols.get(class)?;
@@ -252,28 +254,39 @@ fn text_of(file: &SourceFile, span: Span) -> &str {
 /// carry the `nvs_types::ResolvedCall` the checker made, and which of the two
 /// the site wrote decides what happens to the closure, not where the method is.
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
-    analysed.index.at(offset).nodes().iter().find_map(|node| {
-        let target = match analysed.exprs.lookup(node.span)? {
-            ExprInfo::New { class, .. } | ExprInfo::InstanceOf { class } => Target::Type(class),
-            // The bound, which is the only class this site named — the one
-            // allocated is whatever descriptor is in hand, and no compile
-            // knows it (`nvs_types::ExprInfo::NewDynamic`).
-            ExprInfo::NewDynamic { bound, .. } => Target::Type(bound),
-            ExprInfo::EnumCase { enum_, .. } => Target::Type(enum_),
-            ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
-                Target::Method {
-                    class: &call.class,
-                    name: &call.method,
-                }
-            }
-            // A hooked property is a call to an accessor and still a property
-            // where it was written, so it jumps to the declaration that carries
-            // the hooks rather than into one of their bodies.
-            ExprInfo::Property { class, name, .. }
-            | ExprInfo::StaticProperty { class, name, .. }
-            | ExprInfo::HookedProperty { class, name, .. } => Target::Property { class, name },
-            _ => return None,
-        };
-        Some((target, node.span))
+    analysed
+        .index
+        .at(offset)
+        .nodes()
+        .iter()
+        .find_map(|node| Some((target_of(analysed.exprs.lookup(node.span)?)?, node.span)))
+}
+
+/// The name one recorded expression carries, or `None` for one that carries
+/// none this can follow.
+///
+/// Split out of the walk above because [`crate::hover`] has a second answer for
+/// a node that names nothing — the type it was recorded with — and trying both
+/// at each node is what keeps the innermost node the one answered. A walk that
+/// found the nearest *named* node first would answer a call's own card for a
+/// cursor sitting on one of its arguments.
+pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
+    Some(match info {
+        ExprInfo::New { class, .. } | ExprInfo::InstanceOf { class } => Target::Type(class),
+        // The bound, which is the only class this site named — the one
+        // allocated is whatever descriptor is in hand, and no compile
+        // knows it (`nvs_types::ExprInfo::NewDynamic`).
+        ExprInfo::NewDynamic { bound, .. } => Target::Type(bound),
+        ExprInfo::EnumCase { enum_, .. } => Target::Type(enum_),
+        ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
+            Target::Method(call)
+        }
+        // A hooked property is a call to an accessor and still a property
+        // where it was written, so it jumps to the declaration that carries
+        // the hooks rather than into one of their bodies.
+        ExprInfo::Property { class, name, .. }
+        | ExprInfo::StaticProperty { class, name, .. }
+        | ExprInfo::HookedProperty { class, name, .. } => Target::Property { class, name },
+        _ => return None,
     })
 }

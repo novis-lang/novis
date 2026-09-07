@@ -1,0 +1,17 @@
+--TEST--
+a property nobody documented still answers what it holds, because the declared type is what is left when no `///` run and no registry row reached the cursor, ADR 0099 § 3
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+string
+```
