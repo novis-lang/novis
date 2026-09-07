@@ -65,9 +65,9 @@
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
 > whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
 > 2.78x php-cgi. **`nvs lsp` speaks the handshake**: synchronous on `lsp-server`/`lsp-types`,
-> nothing on stdout; `.lspt` runs under `nvs lsp-test`. **The document store is whole**: buffers
-> overlay the graph, an edit republishes its requirers, a superseded version drops; no request is
-> answered.
+> nothing on stdout; `.lspt` runs under `nvs lsp-test`. **The store is whole and typed**: buffers
+> overlay it, `E03xx`/`E04xx` gate per file behind a clean parse and cross to the wire; nothing
+> publishes.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

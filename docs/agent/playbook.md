@@ -1686,6 +1686,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   charges it none. Run a hostile case or an example against both binaries before committing it;
   `dossier.py` takes release first and will only ever have judged that one.
   [until: reviewed 2026-09-07]
+- **`nvs-lsp` gaining a `nvs-types` dependency fails `no_crate_the_server_links_writes_to_stdout`,
+  and every line named is in `nvs-runtime`.** The type checker links `nvs-stdlib`, which links the
+  runtime, whose `OutputSink::Stdout` is how a program's `echo` reaches a terminal, so the guard's
+  `stdout()` pattern fires two hops past the crate you added and names neither. The exemption is in
+  that test as `THE_OUTPUT_SINK`, paired with `nothing_under_the_server_wires_a_program_to_stdout`;
+  widen the closure again and check both rather than dropping the pattern.
+  [until: gone crates/nvs-lsp/tests/stdout_policy.rs:const THE_OUTPUT_SINK]
 
 ## Writing a test case
 
@@ -3337,13 +3344,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   errors it meant to pin and inside the `aborting due to N errors` count. Declare every local a
   reject case writes (`var $n = 1;`), and take the expected block from the runner's own `actual:`
   dump rather than from what the refusal alone would print. [until: reviewed 2026-09-07]
-- **`nvs_hir::resolve_program` reports no unresolved-name error, so a `-p nvs-lsp` test asserting
-  `!diags.has_errors()` over it passes whatever the walk actually read.** `E0301` and `E0303` come
-  from `nvs-types`, which `nvs-cli`'s `front_end` runs *after* the walk, so an analysis that stops at
-  name resolution collects parse, declaration and require-graph diagnostics and nothing else. Assert
-  on what that walk did produce — the `Module`'s own symbols, or the text the `SourceMap` holds for a
-  file — until the type phase joins it.
-  [until: gone crates/nvs-lsp/src/document.rs:let (module, loaded, _autoload) = resolve_program]
 
 ## Splitting a file that got too big
 

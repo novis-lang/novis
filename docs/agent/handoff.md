@@ -2,57 +2,57 @@
 
 ## State
 
-**Goal 14 stage 4's document store is landed and whole.** `crates/nvs-lsp/src/document.rs` holds a
-buffer per URI with its version, overlays every open buffer on the `SourceMap` so the whole
-`require` graph reads unsaved text, keeps the reverse index an edit is republished from, and drops
-an analysis started for a version the client has already replaced.
-`crates/nvs-lsp/src/position.rs` is the wire's positions and holds no arithmetic — the conversions
-are `nvs-diagnostics`' (`rule:ide/positions-have-one-home`).
+**Goal 14 stage 5 is two thirds landed.** `crates/nvs-lsp/src/document.rs`'s `analyse` continues
+into `nvs_types::check_program` the way `nvs-cli`'s `front_end_granted` does — with no grants, since
+the editor names no `--config` — so `E03xx` and `E04xx` exist to be published at all.
+`crates/nvs-lsp/src/diagnostics.rs` is the presentation half: `phase_gated` is
+`rule:ide/diagnostics-are-phase-gated` as a filter over a finished walk, and `to_wire` is one
+`nvs_diagnostics::Diagnostic` as one `lsp_types::Diagnostic`.
 
-`nvs-lsp` now links `nvs-diagnostics`, `nvs-syntax` and `nvs-hir`, and `no_crate_the_server_links_writes_to_stdout` still passes over the widened closure.
+**`nvs-lsp` now links `nvs-types`**, which puts `nvs-stdlib` and `nvs-runtime` under the server.
+`tests/stdout_policy.rs` exempts the runtime's own `stdout()` — a sink a caller wires into a `Ctx`,
+and the server builds none — and a second test pins that nothing between them wires one.
+`rule:ide/stdout-belongs-to-the-protocol` carries the reasoning.
 
-**No request is answered.** `crates/nvs-lsp/src/server.rs:67` applies `didOpen`/`didChange`/
-`didClose` to the store and publishes nothing; `crates/nvs-lsp/src/suite.rs:157`'s `answer` is still
-the seam every request slice lands one arm in, and `tests/lsp/` is still empty, so the goal's
-`lsp cases` check (160 passing) stays red until the request slices land.
-
-**The analysis thread `rule:ide/the-server-is-synchronous` names is deliberately not spawned yet**,
-and `crates/nvs-lsp/src/document.rs`'s module doc is where that decision is written: what the rule
-needs at this stage is that a superseded answer is dropped, which is a fact about versions rather
-than about threads. It arrives with the first answer that has somewhere to go.
+**Nothing is published yet.** `crates/nvs-lsp/src/server.rs:116`'s `apply` still applies
+`didOpen`/`didChange`/`didClose` to the store and sends nothing back,
+`crates/nvs-lsp/src/suite.rs:157`'s `answer` is still the seam every request slice lands one arm in,
+and `tests/lsp/` is empty, so the goal's `lsp cases` check stays red. Three of the stage's four
+acceptance tests exist and pass; `phase_all_publishes_what_the_gate_suppressed` is the open one.
 
 ## Next group
 
-**Stage 5: diagnostics, phase-gated and published** — one file set: `crates/nvs-lsp/src/document.rs`,
-a new `crates/nvs-lsp/src/diagnostics.rs`, `crates/nvs-lsp/src/server.rs`, with
-`crates/nvs-lsp/src/render.rs` and `crates/nvs-lsp/src/position.rs` read only.
+**Stage 5: publishing, which closes the stage** — one file set: `crates/nvs-lsp/src/server.rs`,
+`crates/nvs-lsp/src/suite.rs`, `crates/nvs-lsp/src/document.rs`, with
+`crates/nvs-lsp/src/diagnostics.rs` and `crates/nvs-lsp/src/render.rs` read only.
 
-- [ ] **The type phase joins the analysis, and the gate over it.** A file that produced an `E00xx`
-      or `E01xx` diagnostic publishes those and its declaration diagnostics and suppresses its own
-      `E03xx`/`E04xx`, for that file alone. `rule:ide/diagnostics-are-phase-gated`; extend
-      `crates/nvs-lsp/src/document.rs:296`'s `analyse`, which stops at `resolve_program` today, the
-      way `nvs-cli`'s `front_end_granted` continues into `nvs_types::check_program`. Tests
-      `a_parse_error_suppresses_the_type_diagnostics_of_that_file_only` and
-      `a_resolution_error_does_not_suppress_a_type_error`.
-- [ ] **A diagnostic crosses to the wire.** `Code` becomes `code`, the span becomes a `Range`
-      through `crates/nvs-lsp/src/position.rs:50`'s `position_at`, and `codeDescription` is left
-      unset because there is no documentation site to point one at (ADR 0099 § 3's last paragraph).
-      The rendering `crates/nvs-lsp/src/render.rs:109` freezes is what a case compares against.
-      Test `a_diagnostic_carries_its_code_and_no_code_description`.
-- [ ] **Publishing, for open documents only.** `crates/nvs-lsp/src/server.rs:67` publishes after an
-      edit for `crates/nvs-lsp/src/document.rs:232`'s `to_republish`, checking
-      `crates/nvs-lsp/src/document.rs:218`'s `is_current` again before it sends, and `phase=all`
-      defeats the gate for a case. `rule:ide/an-open-document-is-its-own-entry-point`. Test
-      `phase_all_publishes_what_the_gate_suppressed`, plus the first `.lspt` cases under `tests/lsp/`.
+- [ ] **The server publishes, for open documents only.** After a notification,
+      `crates/nvs-lsp/src/server.rs:116`'s `apply` analyses and sends
+      `textDocument/publishDiagnostics` for every URI `crates/nvs-lsp/src/document.rs:232`'s
+      `to_republish` names, asking `crates/nvs-lsp/src/document.rs:218`'s `is_current` again
+      immediately before each send, and publishing an empty list when a document's diagnostics are
+      gone so the client clears them. One document's own file only — a diagnostic in a `require`d
+      file that nobody opened is workspace scope, which is M10's.
+      `rule:ide/an-open-document-is-its-own-entry-point`.
+- [ ] **`phase=all` defeats the gate for a case.** `crates/nvs-lsp/src/suite.rs:157`'s `answer`
+      grows its `diagnostics` arm: `phase_gated` by default, `crate::Analysed::diags` whole when the
+      request line says `phase=all`, both rendered by `crates/nvs-lsp/src/render.rs:154`'s
+      `Response::Diagnostics`. `crates/nvs-lsp/src/case.rs` already closes the argument set
+      (`rule:ide/a-request-line-is-closed`), so check `phase` is in it before adding one. Test
+      `phase_all_publishes_what_the_gate_suppressed`.
+- [ ] **The first `.lspt` cases, under `tests/lsp/`.** The gate in both directions as M4B's
+      acceptance paragraph words it — `E0102` and not `E0301` gated, both with `phase=all` — plus a
+      document whose unclosed brace does not stop diagnostics on the well-formed code around it.
+      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`; the shape is `conventions.md` § *An `.lspt`
+      case*, and `crates/nvs-lsp/src/suite.rs:68`'s `collect` is what walks the directory they go in
+      — no registration, so the only thing to get right is the path and the sections.
 
 ## Backlog
 
-- 160 passing `.lspt` cases is stage 4's other check; every request slice ships its own.
-- A BOM is a column of line 0 in the source map, and VS Code's buffer excludes it — so a `Location`
-  answered for a *closed* BOM file is one column out on line 0 only. The definition slice decides it;
-  `crates/nvs-diagnostics/src/source.rs`'s `a_position_round_trips_through_utf16_and_utf8` is where
-  the current answer is pinned.
-- `nvs.lsp.debounce`'s 150 ms is unimplemented, and belongs with the analysis thread.
-- `Documents::iter`/`len`/`is_empty` exist for the publish loop and have no caller until stage 5.
-- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten
-  (`rule:ide/lspt-coverage-is-inferred`), and are stage 9's gate.
+- `analyse` drops the `TypeInterner` and `ExprTypeTable` the type phase filled; hover and definition
+  will want them kept rather than recomputed — `crates/nvs-lsp/src/document.rs`'s `analyse`.
+- A secondary label is not carried as `relatedInformation`, a `Suggestion` is not a code action, and
+  no `Unnecessary` tag is set — all three named in `crates/nvs-lsp/src/diagnostics.rs`'s `to_wire`.
+- The goal's `lsp cases` check wants 160 passing and `tests/lsp/` holds none.
+- The analysis thread `rule:ide/the-server-is-synchronous` names is still not spawned;
+  `crates/nvs-lsp/src/document.rs`'s module doc owns why and when.
