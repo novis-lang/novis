@@ -1,5 +1,6 @@
 //! The source map: every file the compiler has read, addressable by [`SourceId`].
 
+use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -114,16 +115,30 @@ impl SourceFile {
         }
     }
 
+    /// The 0-based line and column of `pos`, counted in `encoding`.
+    ///
+    /// The inverse of [`offset_of`](Self::offset_of), and the direction a
+    /// language server converts in when it answers with a position rather than
+    /// being asked about one. [`line_col`](Self::line_col) and
+    /// [`utf16_col`](Self::utf16_col) are this walk with the encoding written
+    /// into the name, because a diagnostic asks for one of them by name; a
+    /// caller that negotiated its encoding passes it as a value instead
+    /// (`rule:ide/positions-have-one-home`).
+    #[must_use]
+    pub fn line_col_in(&self, pos: BytePos, encoding: PositionEncoding) -> (usize, usize) {
+        let line = self.line_index(pos);
+        let line_start = self.line_starts[line] as usize;
+        let upto = &self.text[line_start..(pos as usize).min(self.text.len())];
+        (line, upto.chars().map(|ch| encoding.width(ch)).sum())
+    }
+
     /// The 0-based line and *character* column of `pos`.
     ///
     /// The column counts `char`s, not bytes, so a diagnostic on a line
     /// containing multi-byte UTF-8 points at the right place.
     #[must_use]
     pub fn line_col(&self, pos: BytePos) -> (usize, usize) {
-        let line = self.line_index(pos);
-        let line_start = self.line_starts[line] as usize;
-        let upto = &self.text[line_start..(pos as usize).min(self.text.len())];
-        (line, upto.chars().count())
+        self.line_col_in(pos, PositionEncoding::Utf32)
     }
 
     /// The 0-based line and *UTF-16 code unit* column of `pos`, which is the
@@ -135,10 +150,7 @@ impl SourceFile {
     /// plane, where one `char` is a surrogate pair and counts twice.
     #[must_use]
     pub fn utf16_col(&self, pos: BytePos) -> (usize, usize) {
-        let line = self.line_index(pos);
-        let line_start = self.line_starts[line] as usize;
-        let upto = &self.text[line_start..(pos as usize).min(self.text.len())];
-        (line, upto.chars().map(char::len_utf16).sum())
+        self.line_col_in(pos, PositionEncoding::Utf16)
     }
 
     /// The text of a 0-based line, without its trailing newline.
@@ -211,6 +223,22 @@ impl SourceFile {
 #[derive(Debug, Default)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
+    /// Text that stands in for a path's bytes, keyed by [`canonical_key`].
+    /// Empty for every batch compilation — see [`SourceMap::overlay`].
+    overlays: HashMap<PathBuf, String>,
+}
+
+/// The form a path is keyed and compared under.
+///
+/// `std::fs::canonicalize` where the path resolves, and the path itself where
+/// it does not, since a buffer for a file nobody has saved yet still needs a
+/// key. One function because two would disagree the first time one was handed
+/// `./b.nvs` and the other `/home/x/b.nvs`: `nvs-hir`'s graph walk
+/// canonicalizes every `require` target before it loads it, so an overlay
+/// registered under the path an editor sent would never be found.
+#[must_use]
+pub fn canonical_key(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
 /// Largest source file Novis will load.
@@ -226,6 +254,34 @@ impl SourceMap {
         Self::default()
     }
 
+    /// The id the next file pushed will be given.
+    fn next_id(&self) -> SourceId {
+        SourceId(u32::try_from(self.files.len()).expect("too many source files"))
+    }
+
+    /// Overlays `text` on `path`, so every later [`load`](Self::load) of that
+    /// file reads this text and never touches the disk.
+    ///
+    /// This is how an editor's unsaved buffer reaches the compiler
+    /// (`rule:ide/an-open-document-is-its-own-entry-point`): the `require`
+    /// graph is resolved exactly as `nvs check` resolves it, so a class edited
+    /// in one tab and named in another has to be the class the *buffer*
+    /// declares. The substitution lives here rather than in the language server
+    /// because the walk that reads the graph loads by path and is the only
+    /// thing that knows which paths a program reads.
+    ///
+    /// A batch compilation registers none and pays one emptiness check per
+    /// file for the possibility.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `text` exceeds [`MAX_SOURCE_LEN`], as [`add`](Self::add) does.
+    pub fn overlay(&mut self, path: impl AsRef<Path>, text: impl Into<String>) {
+        let text = text.into();
+        assert!(text.len() <= MAX_SOURCE_LEN, "source file exceeds 4 GiB");
+        self.overlays.insert(canonical_key(path.as_ref()), text);
+    }
+
     /// Adds a file with an explicit display name, for input not read from disk
     /// (a REPL line, a test fixture, generated code).
     ///
@@ -235,7 +291,7 @@ impl SourceMap {
     pub fn add(&mut self, name: impl Into<String>, text: impl Into<String>) -> SourceId {
         let text = text.into();
         assert!(text.len() <= MAX_SOURCE_LEN, "source file exceeds 4 GiB");
-        let id = SourceId(u32::try_from(self.files.len()).expect("too many source files"));
+        let id = self.next_id();
         self.files
             .push(SourceFile::new(id, name.into(), None, text));
         id
@@ -250,11 +306,26 @@ impl SourceMap {
     /// [`MAX_SOURCE_LEN`].
     pub fn load(&mut self, path: impl AsRef<Path>) -> io::Result<SourceId> {
         let path = path.as_ref();
+        // An open buffer stands in for the file's bytes, and stands in front of
+        // the embedded payload because the two can never answer for one path: a
+        // bundled executable has no editor attached to it.
+        if !self.overlays.is_empty()
+            && let Some(text) = self.overlays.get(&canonical_key(path)).cloned()
+        {
+            let id = self.next_id();
+            self.files.push(SourceFile::new(
+                id,
+                path.display().to_string(),
+                Some(path.to_path_buf()),
+                text,
+            ));
+            return Ok(id);
+        }
         // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`: inside a bundled executable the payload is the byte
         // source, and the name a diagnostic prints is the path the *build* saw
         // rather than the synthetic one this process resolves against.
         if let Some((name, text)) = crate::embedded::text(path) {
-            let id = SourceId(u32::try_from(self.files.len()).expect("too many source files"));
+            let id = self.next_id();
             self.files.push(SourceFile::new(
                 id,
                 name.to_owned(),
@@ -270,7 +341,7 @@ impl SourceMap {
                 "source file exceeds 4 GiB",
             ));
         }
-        let id = SourceId(u32::try_from(self.files.len()).expect("too many source files"));
+        let id = self.next_id();
         let name = path.display().to_string();
         self.files
             .push(SourceFile::new(id, name, Some(path.to_path_buf()), text));

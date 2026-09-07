@@ -34,7 +34,7 @@ mod span;
 
 pub use diagnostic::{Code, Diagnostic, Diagnostics, Label, LabelStyle, Severity, Suggestion};
 pub use render::Renderer;
-pub use source::{MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap};
+pub use source::{MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key};
 pub use span::{BytePos, SourceId, Span, Spanned};
 
 /// Stable diagnostic codes.
