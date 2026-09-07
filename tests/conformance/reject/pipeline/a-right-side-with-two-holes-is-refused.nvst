@@ -1,0 +1,15 @@
+--TEST--
+a second `$_` on one right side of a `|>` is refused, and the help names the local — `rule:expressions/pipeline-hole-once`'s E0130
+--FILE--
+<?nvs
+// rule:expressions/pipeline-substitution — exactly one hole is what makes the
+// substitution total: no temporary and no double evaluation, so a second `$_`
+// is a refusal rather than a second lowering.
+int $n = -3;
+echo $n |> Core\Str::format("%s%s", $_, $_), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0130]: `$_` may appear exactly once on the right side of a `|>`
+%A
+error: aborting due to 1 error

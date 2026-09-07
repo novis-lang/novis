@@ -1,0 +1,16 @@
+--TEST--
+a `|>` whose right side is first-class callable syntax is refused, and the note names PHP 8.5's operator — `rule:expressions/pipeline-hole-once`'s E0129
+--FILE--
+<?nvs
+// rule:expressions/pipeline-substitution — this `|>` substitutes a hole where
+// PHP 8.5's applies a callable, so the habit is caught at the character where
+// it goes wrong rather than meaning something else.
+string $padded = "  x  ";
+echo $padded |> Core\Str::trim(...), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0129]: the right side of `|>` needs the hole `$_`
+%A= note: PHP 8.5's `|>` applies a callable; Novis's substitutes `$_` at compile time
+%A
+error: aborting due to 1 error

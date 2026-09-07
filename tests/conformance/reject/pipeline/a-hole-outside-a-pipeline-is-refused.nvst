@@ -1,0 +1,13 @@
+--TEST--
+`$_` written where no `|>` encloses it names nothing and is refused — `rule:expressions/pipeline-hole-once`'s E0131
+--FILE--
+<?nvs
+// rule:expressions/pipeline-hole-once — `$_` is a hole and never a variable,
+// so outside a right side the fix is a `|>` and not a declaration.
+echo $_, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0131]: `$_` is the pipeline hole and has no meaning here
+%A
+error: aborting due to 1 error

@@ -1,0 +1,15 @@
+--TEST--
+a `|>` whose right side never names `$_` is refused, because the left side has nowhere to go — `rule:expressions/pipeline-hole-once`'s E0129
+--FILE--
+<?nvs
+// rule:expressions/pipeline-hole-once — the hole appears exactly once on a
+// right side, so a right side carrying none is a refusal and not a discarded
+// left side.
+string $padded = "  x  ";
+echo $padded |> Core\Str::trim("y"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0129]: the right side of `|>` needs the hole `$_`
+%A
+error: aborting due to 1 error
