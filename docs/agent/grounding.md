@@ -27,6 +27,15 @@ session owes its goal; [doc-style.md](doc-style.md) owns how anything under `doc
    spend the call.
 7. **When you do revise, say what still stands.** Churn in one corner otherwise reads as churn
    everywhere, and sound conclusions get discarded with the rest.
+8. **End when the answer ends.** No trailing notes about state the asker can already see — what was
+   committed, what is running, what is untracked. If a note would not change what they do next, cut
+   it.
+9. **Never hand back a decision you have already made.** Flagging something "rather than deciding" it,
+   when you hold a view, is hedging dressed as thoroughness. Give the view.
+10. **Default to short, and let the question set the depth.** A simple question gets a simple answer;
+    go long only where the subject needs it or the asker asked for it. Length is not thoroughness —
+    an answer skimmed because it is long transfers less than a short one read whole, and a follow-up
+    question is cheap.
 
 ## Not this
 
