@@ -1,0 +1,29 @@
+--TEST--
+A constructor's `return` carries no value, while a bare `return;` still leaves it early (`rule:php-migration/a-constructor-return-carries-no-value`)
+--FILE--
+<?nvs
+// `rule:php-migration/a-constructor-return-carries-no-value`: the object under
+// construction is the result, so a value here has nowhere to go. The early
+// exit is untouched — the bare `return;` above the refused line is not
+// reported, and `rule:classes/definite-property-initialization` goes on
+// checking that path.
+class Point {
+    public int $x;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+        if ($x == 0) {
+            return;
+        }
+        return $x;
+    }
+}
+
+var $p = new Point(1);
+echo $p->x, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0248]: a constructor's `return` carries no value
+%A
+error: aborting due to 1 error

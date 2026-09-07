@@ -1,0 +1,41 @@
+--TEST--
+A `return` never leaves a `finally` block, and neither does a `break` whose target lies outside it (`rule:php-migration/no-return-leaves-a-finally`)
+--FILE--
+<?nvs
+// `rule:php-migration/no-return-leaves-a-finally`: the `return` below would
+// replace whatever the region was leaving with — including a throw in flight,
+// which no `catch` anywhere in the program would then see. Whether that was
+// the intent is a human's call, so the spelling is refused where it is written
+// rather than rewritten.
+class Reader {
+    public function read(): int {
+        try {
+            return 1;
+        } finally {
+            return 2;
+        }
+    }
+}
+
+// A `break` is refused on the same grounds when its target is the loop around
+// the `try`. The level is read against the loops the block itself opened, so
+// the `while` written inside the `finally` keeps its own `break` — that one is
+// not reported here.
+while (true) {
+    try {
+        var $n = 1;
+    } finally {
+        while (true) {
+            break;
+        }
+        break;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0250]: a `return` never leaves a `finally` block
+%A
+error[E0251]: a `break` never leaves a `finally` block
+%A
+error: aborting due to 2 errors

@@ -1,0 +1,22 @@
+--TEST--
+A `readonly` property declares no default, while a property that is not `readonly` keeps one (`rule:php-migration/a-readonly-property-declares-no-default`)
+--FILE--
+<?nvs
+// `rule:php-migration/a-readonly-property-declares-no-default`: `readonly` is
+// one assignment during construction, so a property whose single assignment is
+// its own declaration-site default is a per-instance constant — and `const`
+// already spells one. The plain property below keeps its default, so the
+// refusal reads the modifier and not the `=`.
+class Config {
+    public int $retries = 3;
+    public readonly int $timeout = 30;
+}
+
+var $c = new Config();
+echo $c->retries, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0249]: a `readonly` property declares no default
+%A
+error: aborting due to 1 error
