@@ -1,0 +1,16 @@
+--TEST--
+a declaration nobody documented answers `none` rather than an empty popup, and an ordinary `//` comment above it is not a run, `rule:tooling/doc-comment-is-three-slashes`
+--FILE--
+<?nvs
+// Not a doc comment: two slashes, so nothing reads it.
+class User
+{
+    public string $name = "";
+}
+
+var $u = new Us<|>er();
+echo $u->name;
+--REQUEST--
+hover
+--EXPECT--
+none

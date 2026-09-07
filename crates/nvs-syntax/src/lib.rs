@@ -107,5 +107,5 @@ pub mod walk;
 pub use casing::check_declarations;
 pub use index::{IndexNode, NodePath, SyntaxIndex};
 pub use lexer::{Lexer, tokenize};
-pub use parser::{Parsed, Parser, parse, parse_expression, parse_file};
+pub use parser::{DOC_MARKER, Parsed, Parser, parse, parse_expression, parse_file};
 pub use token::{Keyword, Token, TokenKind, Trivia, TriviaKind};

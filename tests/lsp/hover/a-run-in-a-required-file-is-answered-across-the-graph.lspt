@@ -1,0 +1,19 @@
+--TEST--
+the run is read out of the file that declares the name rather than the open one, because a declaration's statements are kept for every file the graph reached, `rule:ide/an-open-document-is-its-own-entry-point`
+--FILE--
+<?nvs
+require 'lib/user.nvs';
+
+var $u = new Us<|>er();
+echo $u->name;
+--FILE lib/user.nvs--
+<?nvs
+/// The person the library declares.
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+hover
+--EXPECT--
+The person the library declares.

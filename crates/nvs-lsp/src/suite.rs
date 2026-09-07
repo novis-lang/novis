@@ -48,6 +48,7 @@ use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, uri_of};
 use crate::folding;
+use crate::hover;
 use crate::links;
 use crate::render::{Link, Place, Response};
 use crate::selection;
@@ -183,6 +184,7 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 fn answer(case: &Case) -> Result<Response, String> {
     match case.request {
         Request::Diagnostics => diagnostics(case),
+        Request::Hover => hover(case),
         Request::Definition => definition(case),
         Request::DocumentSymbol => document_symbol(case),
         Request::SelectionRange => selection_range(case),
@@ -386,6 +388,26 @@ fn definition(case: &Case) -> Result<Response, String> {
     Ok(Response::Definition(found))
 }
 
+/// `textDocument/hover` — what the declaration under the case's `<|>` says
+/// about itself.
+///
+/// The rendering is the Markdown verbatim, so a case's `--EXPECT--` is the doc
+/// comment's own prose with its markers off — which is the point of freezing it
+/// here rather than in a Rust test: the run is read the way a reader will see
+/// it. [`crate::hover::at`] is the same call the server makes.
+fn hover(case: &Case) -> Result<Response, String> {
+    let cursor = case.cursor.expect("hover is asked at a position");
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::Hover(hover::at(
+        &analysed,
+        u32::try_from(cursor).unwrap_or(u32::MAX),
+        COLUMNS,
+    )))
+}
+
 /// `textDocument/foldingRange` — where the entry document collapses.
 ///
 /// No cursor and no arguments, as the outline takes none:
@@ -504,8 +526,8 @@ mod tests {
         let dir = scratch("tree");
         write(
             &dir.join("unanswered.lspt"),
-            "--TEST--\nwhat a class name hovers as\n--FILE--\n<?nvs\nclass Us<|>er {}\n\
-             --REQUEST--\nhover\n--EXPECT--\nnone\n",
+            "--TEST--\nwhat a class name completes to\n--FILE--\n<?nvs\nclass Us<|>er {}\n\
+             --REQUEST--\ncompletion\n--EXPECT--\nnone\n",
         );
         write(
             &dir.join("nested").join("malformed.lspt"),
@@ -532,7 +554,10 @@ mod tests {
         // The two failures read differently: one file is not a case, and the
         // other is a case nothing answers yet.
         assert!(report.contains("no `--REQUEST--` section"), "{report}");
-        assert!(report.contains("`hover` is not answered yet"), "{report}");
+        assert!(
+            report.contains("`completion` is not answered yet"),
+            "{report}"
+        );
         assert!(!report.contains("README"), "{report}");
 
         // A path that does not exist is the mistake it looks like, rather than

@@ -1,0 +1,23 @@
+--TEST--
+the resilient parse is what a cursor request rests on, so a document whose last class never closes still documents the enum above it, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+/// Where a request got to.
+///
+/// `Draft` is written but not visible; `Live` is both.
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Li<|>ve;
+echo $s;
+
+class Half {
+--REQUEST--
+hover
+--EXPECT--
+Where a request got to.
+
+`Draft` is written but not visible; `Live` is both.

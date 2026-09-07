@@ -99,6 +99,7 @@ pub mod definition;
 pub mod diagnostics;
 mod document;
 pub mod folding;
+pub mod hover;
 pub mod links;
 mod position;
 mod render;

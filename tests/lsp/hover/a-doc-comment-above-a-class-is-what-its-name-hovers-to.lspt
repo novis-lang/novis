@@ -1,0 +1,20 @@
+--TEST--
+the `///` run the parser attached to a declaration is what hovering a name that resolves to it answers, as Markdown with the markers off, `rule:tooling/doc-comment-is-three-slashes`
+--FILE--
+<?nvs
+/// One person, as the store holds them.
+///
+/// The name is what a greeting is built from, and it is never null.
+class User
+{
+    public string $name = "";
+}
+
+var $u = new Us<|>er();
+echo $u->name;
+--REQUEST--
+hover
+--EXPECT--
+One person, as the store holds them.
+
+The name is what a greeting is built from, and it is never null.

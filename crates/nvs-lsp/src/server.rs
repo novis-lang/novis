@@ -35,14 +35,15 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, Request as _,
-    SelectionRangeRequest,
+    DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition, HoverRequest,
+    Request as _, SelectionRangeRequest,
 };
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DocumentLink, DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
-    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, Location,
-    PublishDiagnosticsParams, Range, SelectionRange, SelectionRangeParams, Uri,
+    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    InitializeParams, Location, PublishDiagnosticsParams, Range, SelectionRange,
+    SelectionRangeParams, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
@@ -51,6 +52,7 @@ use crate::definition;
 use crate::diagnostics::{Phases, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
+use crate::hover;
 use crate::links;
 use crate::position::{encoding_of, offset_at};
 use crate::selection;
@@ -178,6 +180,10 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             Ok(params) => Response::new_ok(id, definition(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
+        HoverRequest::METHOD => match serde_json::from_value::<HoverParams>(params) {
+            Ok(params) => Response::new_ok(id, hover(documents, encoding, &params)),
+            Err(error) => unreadable(id, &method, &error),
+        },
         SelectionRangeRequest::METHOD => {
             match serde_json::from_value::<SelectionRangeParams>(params) {
                 Ok(params) => Response::new_ok(id, selection_range(documents, encoding, &params)),
@@ -274,6 +280,27 @@ fn definition(
         uri: uri_of(&declared.path)?,
         range: declared.range,
     }))
+}
+
+/// `textDocument/hover` — what the name under the cursor documents.
+///
+/// `null` for a document this server has nothing open for and for a cursor on
+/// nothing it can say anything about, which are one answer on the wire for
+/// [`definition`]'s reason. The lookup is [`hover::at`], which the `.lspt`
+/// suite calls too, so what an editor shows and what a case freezes cannot
+/// drift apart.
+fn hover(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &HoverParams,
+) -> Option<lsp_types::Hover> {
+    let position = params.text_document_position_params.position;
+    let analysed = analyse(
+        documents,
+        &params.text_document_position_params.text_document.uri,
+    )?;
+    let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
+    hover::at(&analysed, offset, encoding)
 }
 
 /// `textDocument/selectionRange` — the expand-selection chain at each position.

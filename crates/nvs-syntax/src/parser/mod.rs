@@ -809,7 +809,12 @@ fn collapse_string_parts(span: Span, parts: Vec<StringPart>) -> Expr {
 /// What opens a doc comment (`rule:tooling/doc-comment-is-three-slashes`). The
 /// lexer decides that a trivium is one; this is only how many bytes to step
 /// over to reach the line's content.
-const DOC_MARKER: &str = "///";
+///
+/// Exported because a [`DocComment`] holds its lines as spans and leaves the
+/// stripping to whoever reads the prose — `nvs_lsp::hover` is the first such
+/// reader, and a second spelling of `///` in another crate is a place the two
+/// could disagree about where a line's content starts.
+pub const DOC_MARKER: &str = "///";
 
 /// A byte count inside one doc-comment line, as an offset to add to that line's
 /// own start. A source file is bounded by `MAX_SOURCE_LEN`, so a line inside one
