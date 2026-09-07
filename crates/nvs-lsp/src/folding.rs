@@ -21,12 +21,27 @@
 //! declarations and a `switch` arm both end at content rather than at a brace,
 //! and every line of one but the first is what folding it means to hide.
 //!
-//! **`kind` is set on an import run and nothing else.** LSP names three
-//! (`comment`, `imports`, `region`) and only one of them is reachable from
-//! statements: a comment fold needs the trivia `rule:ide/one-grammar-one-tree`
-//! keeps beside the tree, which this crate cannot reach yet, and a `#region`
-//! marker is a comment convention, so both wait on the same thing. A body has
-//! no kind in the protocol at all, which is what `-` is in a rendering.
+//! **Two of LSP's three kinds are answered, and the third is a convention
+//! rather than a construct.** An import run is `imports` and a comment block is
+//! `comment`; a body has no kind in the protocol at all, which is what `-` is
+//! in a rendering. `region` is a `#region`/`#endregion` marker pair written
+//! inside comments, and nothing in this language has decided that spelling, so
+//! a fold for one would be this module inventing a convention rather than
+//! projecting the tree.
+//!
+//! **A comment block is a run of comment lines, and it comes out of the
+//! trivia** the same parse produced (`rule:ide/one-grammar-one-tree`) — the
+//! one fold in this module that is not a statement. Two rules make a run:
+//!
+//! - **A comment sharing its line with code is not part of one.** A fold hides
+//!   every line but its first, so merging the trailing `// why` on two
+//!   consecutive statements would hide the second statement with it. Only a
+//!   comment with nothing but whitespace before it on its line starts or
+//!   extends a run.
+//! - **A run is comment lines with no gap.** One blank line ends it, because a
+//!   reader who left one wrote two blocks. A block comment joins the run it
+//!   touches rather than standing apart: `/* … */` above `// …` is one thing
+//!   on screen and folds as one.
 //!
 //! **A body written inside an expression is not reached.** A closure's
 //! `=> { ... }` and an anonymous class body are both foldable and both sit in
@@ -45,6 +60,7 @@ use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_syntax::ast::{
     Block, ClassMember, ClassMemberKind, MethodMember, PropertyHookBody, Stmt, StmtKind,
 };
+use nvs_syntax::{Trivia, TriviaKind};
 
 use crate::document::Analysed;
 use crate::position::position_at;
@@ -69,6 +85,7 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Fold
         found: Vec::new(),
     };
     walk.stmts(&loaded.stmts);
+    walk.comments(&analysed.trivia);
     walk.found
         .sort_by_key(|range| (range.start_line, range.end_line));
     walk.found
@@ -113,6 +130,58 @@ impl Walk<'_> {
         if let Some((first, last)) = run {
             self.import_run(first, last);
         }
+    }
+
+    /// One `comment` range per run of comment lines.
+    ///
+    /// The trivia is the entry document's and is already in source order, so
+    /// this is one pass: a comment alone on its line either continues the run
+    /// below it or starts a new one, and anything else — a trailing comment, a
+    /// whitespace run, a blank line — closes whatever was open.
+    fn comments(&mut self, trivia: &[Trivia]) {
+        let mut run: Option<(Span, u32)> = None;
+        for trivium in trivia {
+            if !matches!(
+                trivium.kind,
+                TriviaKind::LineComment | TriviaKind::BlockComment | TriviaKind::DocComment
+            ) || !self.alone_on_its_line(trivium.span)
+            {
+                continue;
+            }
+            let first_line = self.line(trivium.span.start);
+            let last_line = self.line(trivium.span.end.saturating_sub(1));
+            run = match run {
+                Some((first, previous)) if first_line <= previous + 1 => Some((first, last_line)),
+                Some((first, previous)) => {
+                    self.comment_run(first, previous);
+                    Some((trivium.span, last_line))
+                }
+                None => Some((trivium.span, last_line)),
+            };
+        }
+        if let Some((first, last)) = run {
+            self.comment_run(first, last);
+        }
+    }
+
+    /// One run of comment lines, folded through its last.
+    ///
+    /// Through rather than one short, because a comment block has no closing
+    /// line to leave on screen — even a `*/` is the end of the text rather than
+    /// the shape a reader folds back to.
+    fn comment_run(&mut self, first: Span, last_line: u32) {
+        let start = self.line(first.start);
+        if last_line > start {
+            self.push(start, last_line, Some(FoldingRangeKind::Comment));
+        }
+    }
+
+    /// Whether nothing but whitespace precedes `span` on its own line.
+    fn alone_on_its_line(&self, span: Span) -> bool {
+        let text = self.file.text();
+        let before = &text[..span.start as usize];
+        let line = before.rsplit_once('\n').map_or(before, |(_, tail)| tail);
+        line.chars().all(char::is_whitespace)
     }
 
     /// One run of imports, as the one span it folds over.

@@ -1,0 +1,14 @@
+--TEST--
+a `/* ... */` written over lines folds through the line its `*/` is on, and a `//` line directly under it is the same block on screen and the same fold, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+/*
+ * a licence header,
+ * or something like one
+ */
+// and a note under it
+class Header { }
+--REQUEST--
+foldingRange
+--EXPECT--
+2-6 comment
