@@ -21553,14 +21553,13 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports (`rule:config/check-and-dump-audit-the-tree-offline`) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
 | `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` (`rule:errors/escalation-ladder`) |
-| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which `rule:errors/escalation-ladder`'s limit report already carries when one is breached |
-| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it (`rule:errors/on-limit`) |
+| `memory_reset_peak_usage` | dropped | the peak is evidence an operator needs, and a member that set it back to the current figure would let a program hide the number `rule:observability/memory-high-water-writes-a-warn` exists to surface. Bounding one section of a program is `Core\Debug`'s probes |
 | `gc_enable` | dropped | memory is refcounted and released deterministically (`rule:security/arena-is-an-ownership-root`); there is no collector to turn on |
 | `gc_disable` | dropped | same, in the other direction |
 | `gc_enabled` | dropped | same — the answer would be a constant |
 | `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound `rule:security/arena-is-an-ownership-root` states in place of a collector's schedule |
 | `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
-| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
+| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Budget::memoryHeld` |
 | `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` (`rule:config/the-extension-set-is-in-every-unit-key`) and revalidated by `opcache.validate` (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
 | `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason `rule:config/an-edit-reaches-the-next-request-without-a-restart` gives, and a per-path reset is that directive reached sideways |
 | `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`); a program does not schedule it |

@@ -2,66 +2,63 @@
 
 ## State
 
-**Goal 10 — the checker's proof reaches every callable position ADR 0136 names, and the rulebook
-says so: all four of the record's rules are `shipped` with their guards.**
+**Goal 10 — stage 2 is green: the callable atom parses under the five names the acceptance check
+lists, and two callable types compare under its other seven.**
 
-- **A self-name recursive call is checked against the closure it names.** `FnSelf` carries the
-  literal's own parameter list beside its return type (`crates/nvs-types/src/lib.rs:346`), and
-  `calls::check_self_name_args` holds each argument to the parameter it fills, with `E0809` on the
-  count. It is the same list a written `callable(int): string` gives, read off the literal being
-  checked rather than off a value's type, so `rule:types/closure-self-name` gained the paragraph
-  saying what a call through the name is held to.
-- **Nothing is recorded for `nvs-ir` there.** A self-call still reaches the closure through the
-  dynamic path and its tag check; the proof buys the diagnostic, not a helper row.
-- **A `...` argument through a written signature answers the declared return type** rather than
-  falling back to `mixed` (`crates/nvs-types/src/expr/calls.rs:1441`). The count is the spread
-  subject's own run-time length, so the arguments stay `nvs_runtime::closure`'s business and no
-  `ExprInfo::CallThroughSignature` is recorded — what the callee answers with does not depend on
-  them.
-- **`E0809` names its subject.** `Signature::Written` keeps the wording the existing conformance
-  case pins; `Signature::SelfName` says "this closure" and why a shorter list has no wider type to
-  be matched against.
-- **The driver's earliest failing check is stage 2, and both of its checks name tests that exist
-  under other names** — the five parsing claims are three tests at
-  `crates/nvs-syntax/src/parser/tests/ty.rs:704`, and the assignability claims are the run at
-  `crates/nvs-types/tests/callable.rs:70`. The check is the specification; the next group renames
-  and splits to it.
-- **`session.py --wrap` refused this session's tail and these commits were made by hand**, staging
-  own paths only: `rules.py --check` fails on three untracked `docs/rules/observability/` fragments
-  and `docs/decisions/0148.md`, none of them this session's, and that gate is whole-tree. It clears
-  itself once whoever is writing ADR 0148 declares those fragments in `observability.json`.
+- **Nothing in stage 2 was a new feature.** Both mechanisms were already landed and green; the
+  twelve names the checks list were the specification for how the claims are split across `#[test]`
+  functions, and this session split them. `rule:types/callable-signature`,
+  `rule:types/callable-arity` and `rule:types/callable-variance` are unchanged.
+- **The parser's three parsing claims are three tests** (`crates/nvs-syntax/src/parser/tests/ty.rs:703`):
+  parameters-and-return, the empty parameter list with its `void`, and bare `callable` keeping its
+  own atom. The two refusals are two more — a named parameter, and a missing return type with its
+  bare-`callable` recovery.
+- **Two of the seven `nvs-types` names were claims nothing asserted**:
+  `a_callable_parameter_may_be_wider_than_the_slot_declares` and
+  `a_callable_return_may_be_narrower_than_the_slot_declares` — the *accepting* side of each variance
+  direction, which existed only as its refusal. `every_callable_signature_is_assignable_to_bare_callable`
+  gained the assignment through a written-signature *variable*, since a literal alone did not make
+  its name true.
+- **`a_callable_return_wider_than_the_slot_is_refused` asserts the union case too**
+  (`callable(int): string` filled by `fn (int $n): string|int`), because an unrelated return type
+  was the only spelling the old body had and it does not make the name's claim.
+- **Stage 3 is the driver's next failing check**, and three of its four names are claims already
+  asserted under other names in the same file — but not names this session may reuse, since two of
+  them are now spent on stage 2's variance rows. See the next group.
 
 Conformance 1574. Verify: 7 of 7 green.
 
 ## Next group
 
-**Stage 2's two acceptance checks, under the names they list** — file set:
-`crates/nvs-syntax/src/parser/tests/ty.rs`, `crates/nvs-types/tests/callable.rs`. Nothing here is a
-new feature: both stages run, and only the test names the goal fixed are missing.
+**Stage 3's four acceptance names, `docs/agent/loop-goal.toml:4667`** — file set:
+`crates/nvs-types/tests/callable.rs` alone. `rule:types/callable-literal-inference`. Stage 3's
+mechanism is landed; what is missing is again the naming, plus one claim (a block body) nothing
+asserts.
 
-- [ ] **The five `nvs-syntax` names in `docs/agent/loop-goal.toml:4631` exist.** Split
-      `a_callable_type_carries_its_parameters_and_its_return_type`
-      (`crates/nvs-syntax/src/parser/tests/ty.rs:704`) into
-      `a_callable_type_parses_its_parameters_and_return`, `a_callable_type_with_no_parameters_parses`
-      and `a_bare_callable_still_parses_as_the_opaque_atom`, and
-      `a_callable_type_refuses_a_parameter_name_and_a_missing_return`
-      (`crates/nvs-syntax/src/parser/tests/ty.rs:780`) into
-      `a_callable_type_without_a_return_type_is_refused` and
-      `a_callable_type_naming_a_parameter_is_refused`. `rule:types/callable-signature`.
-- [ ] **The seven `nvs-types` names in `docs/agent/loop-goal.toml:4648` exist.** Five are renames of
-      the run at `crates/nvs-types/tests/callable.rs:70`; two directions have no test at all —
-      `a_callable_parameter_may_be_wider_than_the_slot_declares` and
-      `a_callable_return_may_be_narrower_than_the_slot_declares`, the *accepted* half of
-      `rule:types/callable-variance` — and `every_callable_signature_is_assignable_to_bare_callable`
-      is the lattice top read from a signature-typed value rather than from a literal.
-      `rule:types/callable-arity`, `rule:types/callable-variance`.
+- [ ] **`an_unannotated_fn_parameter_takes_the_expected_types_position` exists.** Rename
+      `an_unannotated_parameter_takes_its_type_from_the_expected_signature`
+      (`crates/nvs-types/tests/callable.rs:159`), keeping the `$n * 2` assertion — `mixed` has no
+      arithmetic, so it is the whole proof the parameter arrived as `int`.
+      `rule:types/callable-literal-inference`.
+- [ ] **`an_annotated_fn_parameter_may_be_wider_than_the_expected_type` and
+      `an_annotated_fn_parameter_narrower_than_expected_is_refused` exist**, next to
+      `crates/nvs-types/tests/callable.rs:185`. These are the *annotated* half of inference — a
+      parameter the literal wrote for itself — and must not be the same two source spellings as
+      `a_callable_parameter_may_be_wider_than_the_slot_declares` /
+      `..._narrower_than_the_slot_is_refused` at `crates/nvs-types/tests/callable.rs:126`, which
+      already pin the bare relation. Reach for a literal that annotates one parameter and infers
+      another. `rule:types/callable-variance`.
+- [ ] **`a_block_bodied_fn_still_declares_its_return_type` exists** at
+      `crates/nvs-types/tests/callable.rs:185`. `rule:types/closure-literal` gives `fn` two bodies;
+      the block-bodied one is asserted nowhere in this file, and `rule:types/callable-signature`'s
+      mandatory return is what it has to keep. `E0450` is not relaxed — goal § *Standing decisions*.
 
 ## Backlog
 
-- Goal 10's stages 1-6 are whole; stage 2's names above are all that stands between the tree and the
-  goal's acceptance list (`docs/agent/loop-goal.toml`).
-- `E0450` and whole-body return-type inference stay refused — ADR 0136 § *Revisiting*, second entry.
-- Optional and variadic parameters in a callable type stay refused — ADR 0136 § *Revisiting*, first
-  entry.
-- A self-name call passing a `...` is answered but not held to the parameter list, the same shape
-  `check_call_through_signature` leaves to the runtime (`crates/nvs-types/src/expr/calls.rs:1475`).
+- Stage 4: `map_binds_its_result_from_a_callable_typed_variable` and the three beside it —
+  `docs/agent/loop-goal.toml:4683`.
+- Stage 4: `nvs-stdlib`'s two rows checks, and `CoreTy::CallableTo` retired — ADR 0136 § *In short*.
+- Stage 5: `Task::all` over a shape of `callable`-typed variables — `rule:concurrency/an-all-field-answers-what-its-callable-declares`.
+- Stage 6: the tag check a proven call site stops emitting — `docs/agent/loop-goal.toml:4724`.
+- `docs/rules/observability.json` and `.md` carry an uncommitted hand edit that is not this loop's;
+  leave them alone.
