@@ -1498,8 +1498,27 @@ pub(crate) fn check_new_target(
 ///   "exactly the outer variables its body reads" (§ 2) rather than the whole
 ///   enclosing frame. `$this` is in that set like any other name, which is
 ///   `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
-/// * The literal's own [`ExprInfo::Closure`] entry is recorded, because a
-///   `callable` type carries none of it (§ 4 keeps that type opaque).
+/// * The literal's own [`ExprInfo::Closure`] entry is recorded — the
+///   synthesized class its captures lower into, and that capture set — because
+///   no type carries either of them.
+///
+/// # The answer is the literal's own signature
+///
+/// The type handed back is [`Ty::CallableSig`](crate::ty::Ty::CallableSig),
+/// built from the parameters' types and the return type computed below, which
+/// is what `rule:types/callable-literal-inference` asks for: a literal written
+/// where a signature is expected satisfies it through
+/// `rule:types/callable-variance`, rather than arriving as the lattice top and
+/// being refused against every signature under it.
+///
+/// Every parameter carries the type it was written with, because every
+/// parameter is written with one: `nvs_syntax`'s `parse_param` is
+/// `rule:types/declaration`'s declare-every-parameter rule and has no closure
+/// exemption yet, so [`lower_optional_type`]'s `mixed` is unreachable from
+/// source here. `rule:types/callable-literal-inference`'s other half — an
+/// unannotated parameter taking its type from the position the literal is
+/// written in — is what removes that requirement, and needs the expected type
+/// threaded in from the call site rather than anything this function computes.
 ///
 /// **A block body must declare its return type.** An expression body is its
 /// own answer, so it needs no annotation; inferring one for a block would
@@ -1562,12 +1581,17 @@ pub(crate) fn check_fn_literal(
 
     let mut inner = LocalScope::new();
     let mut inner_live = live.clone();
+    // The same ids the body checks against become the signature answered at the
+    // end, so the type a call site reads and the type the body was checked
+    // under cannot drift apart.
+    let mut params = Vec::with_capacity(f.params.len());
     for param in &f.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
         if param.inout {
             report_by_reference_parameter(param, env);
         }
+        params.push(ty);
         inner.declare_param(name.clone(), ty, param.name);
         inner_live.insert(name);
     }
@@ -1661,7 +1685,7 @@ pub(crate) fn check_fn_literal(
             return_ty,
         },
     );
-    env.interner.callable()
+    env.interner.callable_sig(params, return_ty)
 }
 
 /// `rule:types/callable-absorbs-closure`'s opaque `callable`, as a refusal: a closure declares no `inout $x`

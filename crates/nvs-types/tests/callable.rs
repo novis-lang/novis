@@ -60,3 +60,61 @@ fn calling_a_closure_value_is_unaffected() {
     let diags = check_in_method("callable $fn = fn(): int => 1;\n$fn();\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+// `rule:types/callable-literal-inference`: a `fn` literal answers its own
+// written signature, which is what gives every row of
+// `rule:types/callable-arity` and `rule:types/callable-variance` a source
+// spelling to be reached by.
+
+#[test]
+fn a_fn_literal_satisfies_a_written_signature() {
+    let diags = check_in_method("callable(int): string $format = fn (int $n): string => \"n\";\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_fn_literal_still_satisfies_bare_callable() {
+    let diags = check_in_method("callable $format = fn (int $n): string => \"n\";\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_fn_literal_answering_another_type_is_refused_where_it_is_written() {
+    let diags = check_in_method("callable(int): string $format = fn (int $n): int => $n;\n");
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_fn_literal_taking_a_narrower_parameter_is_refused() {
+    let diags =
+        check_in_method("callable(int|string): string $format = fn (int $n): string => \"n\";\n");
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+// The prefix rule, asserted on both sides: the last arity accepted and the
+// first refused, so a relation that stopped one parameter early fails here
+// while still looking right on either line alone.
+
+#[test]
+fn a_fn_literal_declaring_fewer_parameters_satisfies_the_type() {
+    let diags =
+        check_in_method("callable(int, string): string $format = fn (int $n): string => \"n\";\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_fn_literal_declaring_more_parameters_than_the_type_is_refused() {
+    let diags = check_in_method(
+        "callable(int): string $format = fn (int $n, string $k): string => \"n\";\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
