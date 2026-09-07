@@ -3351,6 +3351,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Materialised` writes every section into a scratch directory and opens the buffers over those real
   paths — anything else that drives the front end from text alone owes the same.
   [until: gone crates/nvs-lsp/src/suite.rs:Materialised]
+- **`suite.rs`'s tree test names an unanswered request as its fixture, so landing that request's arm turns
+  a green test red.** `a_tree_of_cases_reports_one_summary_line` writes a case whose `--REQUEST--` nothing
+  answers yet and asserts `0 passed, 2 failed`; the moment that arm lands the case passes, the summary
+  becomes `1 passed, 1 failed`, and the failure reads as the new handler having broken the runner. Point
+  the fixture at a request still falling through to the `unanswered` arm — `hover` today — rather than at
+  the one you have just landed. [until: gone crates/nvs-lsp/src/suite.rs:is not answered yet]
 
 ## Splitting a file that got too big
 

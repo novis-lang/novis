@@ -2,52 +2,52 @@
 
 ## State
 
-**Goal 14 stage 5 is closed.** `crates/nvs-lsp/src/server.rs`'s `apply` says what a document-sync
-notification changed and `publish` sends `textDocument/publishDiagnostics` for every URI
-`Documents::to_republish` names — the edited document and every open document whose last analysis read
-it, each analysed as its own entry point, each asked `is_current` again immediately before the send.
-An empty list is sent rather than skipped, because that is the only thing that clears a squiggle the
-edit fixed, and a closed document is retracted with one last empty publish at no version.
+**Goal 14 stage 4 has opened: `documentSymbol` is answered end to end.**
+`crates/nvs-lsp/src/symbols.rs`'s `for_document` walks the entry file's `Analysed::loaded` statements into
+the `lsp_types::DocumentSymbol` tree `crates/nvs-lsp/src/render.rs:370`'s `outline` renders — classes,
+interfaces, enums and their members, namespaces, type aliases, and the top-level `function` and `const`
+`rule:classes/no-free-functions-or-constants` refuses, because an outline says what the file holds rather
+than what the checker allows. A declaration whose name covers no bytes contributes nothing; that module's
+doc owns the reasoning for both, and for the `TypeParameter` kind a type alias lands under.
 
-**`crates/nvs-lsp/src/diagnostics.rs`'s `for_document` is the one call the server and the suite both
-make**: the gate, narrowed to the entry file, crossed to the wire. The narrowing is the half that is
-easy to miss — one analysis reports over a whole `require` graph, and a notification is about one URI.
-`Phases::All` is the same walk with the filter off, which is `diagnostics phase=all`.
+**`crates/nvs-lsp/src/server.rs:148`'s `answer` is the request seam.** One place matches a method name,
+with three outcomes and no fourth: an arm's answer, `MethodNotFound` outside
+`rule:ide/the-request-set-is-closed`'s list, and `InvalidParams` for a payload that will not deserialize.
+`crates/nvs-lsp/src/suite.rs:179`'s `answer` is the same seam for a `.lspt` case and now has two arms.
 
-**`nvs lsp-test tests/lsp/` reports `5 passed, 0 failed`.** `crates/nvs-lsp/src/suite.rs`'s `answer`
-has its first arm; a case is materialised into a scratch directory and opened as buffers over it
-(the playbook bullet says why). Columns in a `--EXPECT--` line are UTF-8, which that module's doc owns.
+**`nvs lsp-test tests/lsp/` reports `9 passed, 0 failed`**, four of them under `tests/lsp/symbols/`.
 
-**Nothing answers a request yet.** `crates/nvs-lsp/src/server.rs:111` still refuses every one with
-`MethodNotFound`, and eight of the nine `Response` variants have no producer.
+**No cursor request can land yet.** `crates/nvs-lsp/src/document.rs:315` calls `parse_file`, so an
+`Analysed` carries statements and no `Parsed` — neither the trivia nor `crates/nvs-syntax/src/index.rs:103`'s
+`SyntaxIndex` reaches this crate, and `rule:ide/the-index-answers-the-cursor` is what hover, definition,
+completion and `selectionRange` are all waiting on.
 
 ## Next group
 
-**Stage 4: the requests, opening with `documentSymbol`** — one file set:
-`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/suite.rs`, `crates/nvs-lsp/src/document.rs`, with
-`crates/nvs-lsp/src/render.rs` read only. `documentSymbol` first because it takes no cursor and no
-type: the outline is a walk of `Analysed::loaded`'s statements and nothing else.
+**Stage 4: the two remaining requests that need no cursor and no types** — one file set:
+`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/suite.rs`, a new module beside
+`crates/nvs-lsp/src/symbols.rs`, with `crates/nvs-lsp/src/render.rs` read only. Both are projections of
+what one analysis already holds, which is why they come before the index work above.
 
-- [ ] **The outline, from the statements the analysis already parsed.** A walk over
-      `crates/nvs-lsp/src/document.rs:266`'s `Analysed::loaded` entry file, building the
-      `lsp_types::DocumentSymbol` tree `crates/nvs-lsp/src/render.rs:370`'s `outline` renders —
-      classes, their members, functions and constants, each with the range its span names.
+- [ ] **`foldingRange`, from the spans the statements already carry.** A walk of
+      `crates/nvs-lsp/src/document.rs:266`'s `Analysed::loaded` entry file for every construct with a
+      body — a class or interface body, a method, a block statement — rendered by
+      `crates/nvs-lsp/src/render.rs:398`'s `folding_range`, with the arm going into
+      `crates/nvs-lsp/src/server.rs:148` and `crates/nvs-lsp/src/suite.rs:179`.
       `rule:ide/the-request-set-is-closed`.
-- [ ] **The request seam, and `documentSymbol` as its first arm.**
-      `crates/nvs-lsp/src/server.rs:111`'s blanket refusal becomes a dispatch that answers the methods
-      it has and refuses the rest by the same `MethodNotFound` — a request for a document that is not
-      open is an answer of nothing, never an error. `rule:ide/the-request-set-is-closed`.
-- [ ] **Its `.lspt` cases, under `tests/lsp/symbols/`.** `crates/nvs-lsp/src/suite.rs:178`'s `answer`
-      takes the second arm; the cases include a document with an unclosed brace, because an outline of
-      code that parses is not what the resilient tree exists for.
-      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
+- [ ] **`documentLink`, out of the require edges the graph walk already resolved.**
+      `crates/nvs-hir/src/requires.rs:154`'s `Loaded::requires` is the `(Span, SourceId)` pair per
+      `require` literal; the range is the span and the target is the path, which the runner resolves back
+      to the case's own spelling as `crates/nvs-lsp/src/render.rs:404`'s `Link` wants
+      (`crates/nvs-lsp/src/suite.rs:247`'s `store` is where the materialised directory is known).
+      `rule:ide/the-rendering-has-one-home`.
+- [ ] **Their `.lspt` cases, under `tests/lsp/folding/` and `tests/lsp/links/`.** Each request ships its
+      own, and at least one document per request that does not parse —
+      `crates/nvs-lsp/src/suite.rs:179` is where an unanswered request still fails a case by name.
 
 ## Backlog
 
-- `nvs lsp-test --coverage` and `every_request_answers_every_construct` — `rule:ide/lspt-coverage-is-inferred`.
-- The `lsp cases` check wants 160 passing cases; five are on disk, and each request slice ships its own.
-- The analysis thread `rule:ide/the-server-is-synchronous` names is still unspawned: publishing runs on
-  the message loop, and the second `is_current` is what will make that swap safe.
-- A `require` to an unsaved new file cannot resolve — the playbook bullet's `[until:]`.
-- `render.rs`'s `Place`/`Link` need the case-relative name of a materialised path; nothing maps one back
-  yet, and `definition` is the slice that will need it.
+- The cursor requests need `Analysed` to carry `Parsed` rather than `Vec<Stmt>` — `crates/nvs-lsp/src/document.rs:315`.
+- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten; `rule:ide/lspt-coverage-is-inferred` owns them.
+- `render.rs`'s outline has no column for `DocumentSymbol::detail`, so the server sends none — `crates/nvs-lsp/src/symbols.rs`'s module doc.
+- Seven `Response` variants still have no producer; `docs/agent/carried-gaps.md` is where this goes if the goal switches.
