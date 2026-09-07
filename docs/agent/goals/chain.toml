@@ -125,10 +125,9 @@ retired = "2026-09-06"
 [[goal]]
 name = "9 schema"
 md = "docs/agent/goals/9-schema.md"
-toml = "docs/agent/goals/9-schema.toml"
-handoff = "docs/agent/goals/9-schema.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = "2026-09-07"
 
 # Post-parity: `rule:types/callable-signature`'s typed `callable`. Last on the chain because it is the only entry that reaches
 # the front end -- `nvs-syntax` through `nvs-codegen` -- and every goal before it writes callbacks whose

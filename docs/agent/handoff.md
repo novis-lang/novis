@@ -2,49 +2,48 @@
 
 ## State
 
-**Goal 9's stages are whole; what moved is the queue's own gap 5 — which backend waits on what.**
-`nvs queue migrate` converges `rule:core-classes/queue-storage-is-a-table`'s two tables on all five
-drivers, so a driver `Core\Queue` refuses is waiting on § 4's statements and never on a schema. The
-refusal, this module's gap 5 and `crate::db`'s gap 2 all said the opposite; all three now agree with
-the tree, and `crate::db`'s gap 2 has no driver gap left at all.
+**Goal 10 — a `callable` carries its signature — has just started; nothing of it has landed yet.** Goal
+9's whole list is this goal's Stage 1 floor. The design is settled and is not to be re-derived:
+`rule:types/callable-signature` landed with this goal and its five decisions
+were taken with the user — the spelling `callable(T, U): R` with a mandatory return and no parameter
+names, bare `callable` kept as the top of the lattice, arity a prefix match (`n ≤ m`, matching what
+`call_closure` already does when it trims), parameters contravariant with a covariant return, and a `fn`
+literal taking its parameter types from the position it is written in. The goal prose's standing
+decisions carry the rest, including the `E08xx` band the new diagnostics open at `E0800`.
 
-**`nvs_stdlib::queue::runs` is the one roster** for which drivers the queue has statements for —
-PostgreSQL, MySQL and MariaDB. `no_dialect`'s last arm is its complement, the src test asks it
-rather than a second list, and `crates/nvs-stdlib/tests/queue.rs`'s leg gate calls it, so a fourth
-backend is one exhaustive `match` to edit rather than three lists to remember.
-
-**SQL Server's order is decided and recorded, and it was already the rule's:** the vocabulary grows
-the filtered index `rule:core-classes/schema-plan` keeps out of v1 *before* `Core\Queue` gains a
-fourth dialect, because two nulls are equal there and a plain unique key over `dedupe_pending` would
-admit one released row rather than any number of them. So the fourth dialect is SQLite's, which
-needs nothing added to the vocabulary at all. `python tools/verify.py` is green.
+The reason this goal is worth its sessions is `crates/nvs-runtime/src/closure.rs`'s own module doc:
+`check_param_tags` is a **priority 1** guard standing between a mismatched argument and an arbitrary
+dereference, paid per argument per call. This goal makes it a compile-time proof.
 
 ## Next group
 
-**The queue's fourth dialect — SQLite, the one that needs no vocabulary first** — one file set:
-`crates/nvs-stdlib/src/queue.rs` and `crates/nvs-stdlib/tests/queue.rs`.
+**Stage 2: the atom and what it compares to** — one file set:
+`crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`, `crates/nvs-types/src/ty.rs`,
+`crates/nvs-types/src/expr/assign.rs`.
 
-- [ ] **§ 4's claim and § 6's move as a third text** — `rule:concurrency/claiming-is-one-statement`.
-      SQLite has `returning` and no `skip locked`, and one writer at a time is what makes the second
-      unnecessary rather than missing — so decide whether the claim is one statement like
-      `crates/nvs-stdlib/src/queue.rs:357` (`INSERT_POSTGRES`) or a `Split` like
-      `crates/nvs-stdlib/src/queue.rs:591` (`INSERT_MYSQL`), and write the six texts beside the pair
-      they are read against.
-- [ ] **`Queued` grows a third arm and `runs` a third `true`** —
-      `rule:core-classes/db-drivers-are-an-enum`, at `crates/nvs-stdlib/src/queue.rs:1721`
-      (`Queued`), `crates/nvs-stdlib/src/queue.rs:1689` (`queue_connection`) and
-      `crates/nvs-stdlib/src/queue.rs:1668` (`runs`). `crates/nvs-stdlib/src/queue.rs:1750`
-      (`no_dialect`) then loses its `Sqlite` arm and keeps SQL Server's, which is the one that names
-      the vocabulary.
-- [ ] **A leg the matrix can run it on** — `crates/nvs-stdlib/tests/queue.rs:83` (`endpoint`)
-      returns `None` for anything that is not `Location::Server`, and SQLite is reached by path, so
-      the gate a SQLite case needs is a second one rather than a widening of that predicate.
+- [ ] **The production** — `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) parses
+      `rule:types/callable-signature`'s `'callable' '(' (type (',' type)*)? ')' ':' type`. A `(` after `callable` is
+      unambiguous in type position, so no checkpointed trial parse is needed. A missing `: R` and a named
+      parameter are diagnostics here — the first two codes in the new `E08xx` band, declared with the
+      band's legend row in `crates/nvs-diagnostics/src/lib.rs`.
+- [ ] **The representation** — a `Ty::CallableSig { params, ret }` beside `Ty::Callable`
+      (`crates/nvs-types/src/ty.rs:170`), interned like every other type, with the display arm at `:520`
+      rendering it as written. Leave `Ty::CallableTo` (`:188`) and `Ty::CallableShapeTo` (`:208`) alone —
+      they are retired in stages 4 and 5, not here.
+- [ ] **Assignability** — `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains `rule:types/callable-arity` and `rule:types/callable-variance`. The seven named tests of the TOML's stage 2 `nvs-types` check are the shape of it; § 4 of
+      the ADR is the one home for why `array<T>`'s invariance does not reach this relation.
 
 ## Backlog
 
-- The filtered index itself in `nvs_db::schema`'s vocabulary — `rule:core-classes/schema-plan` keeps
-  it out of v1, so it is a record's decision rather than a session's.
-- The other `gap N` citations across `crates/nvs-stdlib/src/` may carry the same inversion; one grep
-  for `gap [0-9]` against each cited list would say.
-- Goal 9's acceptance, `python tools/db-matrix.py --all`, last failed bringing four containers up on
-  a cold tree rather than on anything in the tree.
+- Stage 3 (inference at the `fn` literal — `crates/nvs-types/src/expr/calls.rs:1513`,
+  `crates/nvs-types/src/expr/args.rs:1129`) shares only the `nvs-types` crate with stage 2, not its
+  files. A session that lands stage 2 with headroom under 120k should take it anyway: the checker is
+  already loaded and the expected-type plumbing is what stage 2's assignability rule exists to feed.
+- Stages 4 and 5 retire `CoreTy::CallableTo` and `CoreTy::CallableShapeTo` respectively, each with its
+  spec edit in the *same* slice as the registry rows it must agree with.
+- Stage 6 is the codegen and the valgrind leg, and it is the only stage that touches `nvs-ir`,
+  `nvs-codegen` and `nvs-runtime`. It shares nothing with the four before it — expect it to want its own
+  session.
+- When this goal's last check goes green the driver takes goal 11 — `rule:tooling/doc-comment-is-three-slashes`'s doc comments, whose
+  stage 2 is M4B's trivia layer landing early. The chain then runs to goal 17 — M4B is entries 12–15,
+  and 16–17 are the request-body and test-request pair.

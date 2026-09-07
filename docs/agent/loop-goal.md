@@ -1,187 +1,141 @@
-# Loop goal 9 — `Core\Db\Schema`: tables, columns and indexes, converged
+# Loop goal 10 — a `callable` carries its signature
 
-Make a database schema a **value**: written in Novis with typed builders, or read from a file, or read
-back off a live server — three spellings of one thing. Diff that value against what a connection actually
-holds, grade every difference by what it risks, and print a plan whose every step is complete executable
-SQL. Applying it is an operator act.
+Give the type system the one thing it still cannot say about a function value: what it takes and what it
+gives back. `rule:types/callable-signature` is the whole design and this
+goal is its implementation — the grammar, the assignability rule, the inference that makes it free to
+use, the retirement of the two bespoke binding-site variants that stood in for it, and the codegen that
+finally spends the proof.
 
-This is the door `rule:core-classes/db-one-api`'s *Revisiting* leaves open —
-*"a portable `Core\Db\Schema`, **if migration tooling in `nvs` itself needs it**, rather than userland"* —
-and the trigger has already fired. [crates/nvs-stdlib/src/queue.rs:201](../../crates/nvs-stdlib/src/queue.rs)
-is a hand-written two-dialect DDL emitter for **two tables**, it needed a guard test whose only job is to
-stop the two lists drifting, and `migration()` at `:272` answers `None` for SQL Server and SQLite. Goal 5
-owes those two dialects by hand because `rule:core-classes/queue-storage-is-a-table` says all
-five backends. **Those hand-written lists are this goal's oracle, not waste**: stage 7 replaces all four
-with one schema value, and goal 5's own frozen checks — already inside this goal's floor — are what proves
-the replacement behaves identically.
+The reason this is worth a goal is in `crates/nvs-runtime/src/closure.rs`'s own module doc, not in
+ergonomics. With no parameter list "**no checker can compare a call site against the body it will
+reach**, and the compiled `invoke` reads argument slot *i* at its own declared representation. Hand it a
+mismatch and the callee reinterprets the payload — an `int` read as an `NvsStr` pointer is an arbitrary
+dereference, not a fault." Today `check_param_tags` stands in that gap with a mask-and-compare per
+argument, per call, on the path `Core\Arr::map` sits on. This goal turns a **priority 1** runtime guard
+into a compile-time proof and stops paying for it where it is proven.
 
-Its floor is goal 8's whole list, which is the parity program, the temp sweep and the program id.
+Its floor is goal 9's whole list, which is the parity program plus the temp sweep, the program id and
+`Core\Db\Schema`.
 
-## What this is, and the three things it deliberately is not
+## The surface, in one block
 
-**It is convergence.** A schema value says what the tables should be; a plan is the difference between
-that and what is there. There is no version number, no history table, no ordering between changes, no
-`up`/`down`, and no fleet lock. **`Core` never learns what "a migration" is** — that is
-`rule:programs/no-migration-runner`'s deliberately-blocked design, it stays
-blocked, and `Web\Migration` may still not ship a runner. This goal makes the layer that a runner would
-one day sit on, and stops there.
+```php
+callable(User, string): string   $format;     // parameters, then a mandatory return type
+callable(): void                 $onExit;
+callable                         $anything;   // still legal: the top of the lattice
 
-**It is a closed vocabulary.** Tables, columns and indexes — the constructs all five backends have. A
-schema value has **no raw escape hatch**: there is no `Schema::raw()` and no `->rawSql()`, because a
-schema you can express is exactly what the vocabulary covers and anything else is an `execute()` a human
-wrote. Two things follow, and both are the point. The diff is **total** over a schema value, since nothing
-opaque can be inside one. And a vendor shipping a new feature costs this project **nothing** — a new
-PostgreSQL index type, a new MySQL column option, a new SQL Server data type are all outside the
-vocabulary and reachable through `Core\Db::execute` as they are today. The vocabulary grows only when a
-construct exists on all five backends *and* something needs it, never to chase a release note.
-
-**It is not a SQL parser, and never will be.** `rule:core-classes/db-literal-query-checking` already refuses
-per-dialect SQL grammars for queries — *"it would mean maintaining four vendors' grammars in `nvs-syntax`
-forever"* — and that refusal extends to DDL here. Reverse-engineering an existing database is **live
-introspection** (`nvs schema dump`), which is strictly better than reading a `CREATE TABLE` its server
-printed: catalogs are structured tables rather than grammars, the statement came from that server anyway,
-and the introspector has to exist for the diff regardless. A `CREATE TABLE` parser would be a second,
-worse implementation of a job already done — `rule:core-api/tier-placement` test 6.
+// arity is a prefix match — the runtime already trims, so the type says so
+Core\Arr::map($users, fn($u) => $u->name);    // $u : User, inferred; result array<string>
+```
 
 ## Stage 0 — the catch-up
 
-Nothing. No fixture predates the rule; the ADR lands inside this goal as stage 2's first slice.
+Nothing. `rule:types/callable-signature` landed with this goal, and no fixture predates it.
 
 ## Stage 1 — the floor
 
-Goal 8's whole acceptance list — the parity program, the temp sweep and the program id, never traded.
-**Goal 5's two `nvs queue migrate` checks are inside it**, which is what makes stage 7 a
-behaviour-preserving refactor with a frozen expected output rather than a rewrite that has to be trusted.
+Goal 9's whole acceptance list — the parity program, the temp sweep, `Core\Program::id()` and
+`Core\Db\Schema` — never traded.
 
-## Stage 2 — the ADR slot, and the vocabulary it decides
+## Stage 2 — the keystone: the atom, and what it compares to
 
-1. **The ADR**, this goal's one design act and its first slice. It carries: the closed vocabulary and the
-   rule that it never grows to chase a vendor; convergence rather than versioning, and why `Core` holds no
-   notion of a migration; the three grades and the rule that an unknown grade grades *up*; absence never
-   destroying; the plan as a document; live introspection as the only reverse path; and the placement
-   argument — `rule:core-api/tier-placement` test 2 (DDL is a sink, and only a
-   `Core` function may launder an identifier), test 1 (introspection reads a pooled connection), test 6
-   (otherwise the queue's emitter, a framework's and userland's are three spellings of one job).
-2. **The vocabulary, as types in a new `crates/nvs-db/src/schema.rs`.** A table, its columns, its primary
-   key, its unique constraints and its indexes. The column type enum is
-   `rule:core-classes/db-column-types`'s type map **in the write direction** — the read direction is
-   already on disk and tested, so this is one table used both ways rather than a second table to keep in
-   step, and the named test that holds them together is what proves it.
-3. **The array form round-trips.** `fromArray(toArray(x)) == x`, as a named test over every construct in
-   the vocabulary. This is the one property that makes a file, a live introspection and a hand-written
-   builder be the same value — the user's "save the structure and read it back later" and stage 4's
-   `dump` are the same mechanism, not two.
+One file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`,
+`crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/expr/assign.rs`.
 
-## Stage 3 — four dialect emitters, and the plan as a document
+1. **The grammar.** `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) gains `rule:types/callable-signature`'s
+   production. A `(` after `callable` is only ever a parameter list — a type position has no call syntax
+   — so this needs none of the checkpointed trial parse `array<T>` and `new Foo<...>` require. A missing
+   `: R` and a named parameter are both diagnostics here, not parses that fail later.
+2. **The representation.** A `Ty::CallableSig { params, ret }` beside `Ty::Callable`
+   (`crates/nvs-types/src/ty.rs:170`), interned like every other type, and rendered by the display arm at
+   `:520` as it is written.
+3. **Assignability.** `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains `rule:types/callable-arity` and `rule:types/callable-variance`:
+   arity `n ≤ m` comparing the first *n*, parameters contravariant, return covariant, and every callable
+   type assignable to bare `callable`. This is the first non-invariant relation in the checker; § 4 of
+   the ADR is the one home for why `array<T>`'s invariance does not reach it.
 
-1. **Four, not five.** `nvs_db::Dialect` at [crates/nvs-db/src/sql.rs:72](../../crates/nvs-db/src/sql.rs)
-   is already four values for five drivers, because MariaDB and MySQL share SQL text exactly and are two
-   drivers for auth plugins and error tables, neither of which reaches DDL. The emitters follow `Dialect`,
-   not `Driver`.
-2. **Every construct in the vocabulary emits in all four**, as a named test per construct. The traps are
-   already written down in [queue.rs:296](../../crates/nvs-stdlib/src/queue.rs) and are transcription
-   rather than discovery: MySQL has no `create index if not exists` and no partial index at all, and
-   cannot index a `text` column without a prefix length.
-3. **A step carries complete, terminated, dialect-correct SQL** — including the steps this tool will not
-   run itself. The plan is a document an operator can paste into a server by hand, which is what makes a
-   dry run useful even against a database Novis is never granted permission to write to.
+## Stage 3 — the inference that makes it free
 
-## Stage 4 — five introspectors, and `nvs schema dump`
+One file set: `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/args.rs`.
 
-1. **One catalog reader per driver**, answering the *same* schema value the builder produces:
-   `information_schema` for MySQL, MariaDB and SQL Server, `pg_catalog` for PostgreSQL, `sqlite_master`
-   plus `pragma table_info`/`index_list` for SQLite.
-2. **`nvs schema dump --connection <name>`** writes that value out. This is the whole of
-   reverse-engineering an existing database, and it is free: the diff cannot exist without it.
+1. **A `fn` literal takes its parameter types from the position it is written in.** `check_fn_literal`
+   (`crates/nvs-types/src/expr/calls.rs:1513`) already checks the body in a scope of its own; it gains an
+   expected type, and each unannotated parameter takes the corresponding position's type from it. An
+   annotated parameter is checked against it under § 4 and wins where it is wider.
+2. **`E0450` is unchanged** — a block-bodied `fn` still declares its return type. `rule:types/callable-literal-inference` says so
+   explicitly; do not relax it here.
 
-## Stage 5 — the diff, the normalization, and the three grades
+## Stage 4 — the stdlib rows, and the first variant retired
 
-1. **The diff compares normalized schema values, never SQL text.** This is where every tool of this kind
-   fails, and it fails the same way: the server rewrites what you gave it — default-expression spelling,
-   implicit indexes created by a unique constraint, integer display widths, `varchar` promotion, column
-   order — and a naive diff reports a phantom change it wants to re-apply forever.
-2. **The acceptance criterion is one property, and it is the whole feasibility question**: apply a schema
-   to a real server, introspect it back, assert the plan is **empty**. On all five backends.
-3. **Three grades, not two.** `Safe` — cannot lose data, cannot fail on existing rows, cannot hold a long
-   lock. `Locking` — cannot lose data, can fail or block writes for a long time (a unique index over data
-   that already has duplicates, `not null` on a populated column, a type change that rewrites the table).
-   `Destructive` — can lose data.
-4. **A grade is computed by the dialect emitter, keyed on driver *and* server version**, because adding a
-   column with a default is instant on PostgreSQL 11+ and MySQL 8.0.12+ and a full rewrite on older
-   servers. **When the emitter does not know, it grades up.** That rule is what keeps the one ageing part
-   of this system harmless: an out-of-date grader is an annoyance, never a correctness bug.
-5. **Absence never destroys.** A table or column present in the database and not in the schema value is
-   *reported* by the plan, with the SQL that would drop it, and is never dropped. Dropping is an operation
-   you write, and it is `Destructive`.
+One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db/registry.rs`,
+`crates/nvs-types/src/core_lib.rs`, `crates/nvs-cli/src/meta.rs`.
 
-## Stage 6 — the member, the CLI, and the risky gate
+1. **`CoreTy::CallableTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:335`), with its `Ty`
+   counterpart (`crates/nvs-types/src/ty.rs:188`), its lowering (`crates/nvs-types/src/core_lib.rs:454`),
+   its reader `callback_result_var` (`crates/nvs-types/src/generics.rs:137`) and its `meta` rendering
+   (`crates/nvs-cli/src/meta.rs:305`).
+2. **Five rows write an ordinary type instead** — `arr.rs:118` (`map`), `cli.rs:318` and `:327`,
+   `db/registry.rs:361` and `db/transaction.rs:646`. `map` becomes
+   `map(array<T> $a, callable(T, string): U $fn): array<U>`.
+3. **`bind` descends into a callable type** (`crates/nvs-types/src/generics.rs`), which is `rule:types/callable-signature`'s
+   first extension: one more structural position, no constraint set, no occurs check. The gap this
+   closes is that module's own — a callback that is a *variable* now binds what only a written literal
+   bound before.
+4. **[docs/spec/01-core-library.md](../spec/01-core-library.md) § *Arr* is edited in the same slice**
+   as the registry rows it must agree with, never before them.
 
-1. **`Core\Db\Schema` in a new `crates/nvs-stdlib/src/schema.rs`** — the builder, `fromArray`/`toArray`,
-   `planAgainst(Queryable)`, and a plan whose steps expose their grade, their reason and their SQL.
-   Registry cards per `rule:core-api/reference-card`,
-   a reference doc at `docs/reference/core/Db/Schema.md`.
-2. **Planning is a read; applying is gated.** `planAgainst` runs ordinary catalog queries under the
-   `db.connect` a program already holds. Applying takes a new deny-by-default `db.schema` capability, and
-   the two entry points are named for what they do: `applySafe()` refuses if any step is not `Safe`, and
-   `applyIncludingRisky()` says so at the call site.
-3. **`nvs schema plan|apply|dump`** in a new `crates/nvs-cli/src/schema.rs`, beside `nvs queue migrate`
-   and for its reason — `rule:core-classes/queue-storage-is-a-table`'s rule that the runtime
-   never issues DDL implicitly at boot or from a request. `plan` is the dry run and prints every step with
-   its grade, its reason and its full SQL, including the ones `apply` would refuse.
-4. **`examples/schema.nvs`** — define, plan, print the grades, apply the safe half.
+## Stage 5 — `Task::all`, and the second variant retired
 
-## Stage 7 — the retirement
+One file set: `crates/nvs-types/src/generics.rs`, `crates/nvs-stdlib/src/task.rs`, the spec's *Task*
+section.
 
-1. **`nvs queue migrate` runs a `Core\Db\Schema` value.** All four `MIGRATION_*` lists in
-   [queue.rs](../../crates/nvs-stdlib/src/queue.rs) collapse to one, `migration()`'s `None` arm for SQL
-   Server and SQLite goes away with it, and `the_ddl_creates_every_column_the_statements_name` keeps
-   standing over the one remaining home.
-2. **It needs no new check.** Goal 5's `nvs queue migrate prints both tables` and `creates both tables`
-   are already in stage 1's floor with their output frozen. If the schema value emits what the hand-written
-   lists emitted, they pass untouched; if it does not, the floor goes red. That is the verification, and
-   it is why this goal is at the end of the chain rather than beside goal 5.
+1. **`CoreTy::CallableShapeTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:361`) with
+   `callable_shape_var` (`crates/nvs-types/src/generics.rs:152`), and `task.rs:137`/`:148` write
+   `{name: callable(): T, …}` instead.
+2. **A shape of callables rebuilds a shape** — `rule:types/callable-signature`'s second extension: walk each field, take its
+   callable return type, assemble a shape with the same names. One descent, one construction, in the
+   same single pass the module already makes.
+3. **`Task::all`'s written-literal restriction is removed**, in the spec and in the checker: a field
+   holding a `callable(): T` variable now carries what the field needs, so the compile error naming the
+   field goes with it.
 
-## Standing decisions — pre-authorized, do not stop the loop for these
+## Stage 6 — spending the proof
 
-- **Decide and record; never `BLOCKED` for a design call.**
-- **One ADR slot: `Core\Db\Schema` itself**, and it is stage 2's first slice. Everything in *What this is*
-  above is settled input to it, not a question it reopens. It amends
-  `rule:core-classes/db-one-api` — closing its *Revisiting* item — and
-  `rule:core-classes/queue-storage-is-a-table`, whose schema it takes over.
-- **`Web\Migration` stays blocked.** `rule:programs/no-migration-runner` is not
-  closed by this goal and no session may close it: ordering, fleet locking, reversibility and safety
-  against a live multi-tenant database are exactly the things convergence does not need, which is why
-  convergence is what is built here.
-- **No SQL parser, at any tier, in any form.** Including "just for the CLI", "just best-effort" and "just
-  for `CREATE TABLE`". If offline `.sql` input is ever wanted it is a separate tool with its own decision.
-- **Foreign keys are out of v1.** The five backends agree on the syntax and disagree on the behaviour —
-  SQLite enforces them only under a pragma, adding one is `Locking` because it validates existing rows,
-  and they create implicit indexes, which is precisely the normalization trap stage 5 exists to avoid.
-  They are added once round-trip emptiness is proven without them.
-- **Also out of v1**, and each for the same reason — no portable spelling: partial and expression indexes,
-  index types (`GIN`, `GIST`, `FULLTEXT`), collations and charsets, storage and engine options, comments,
-  check constraints, generated columns, triggers, views, sequences, partitioning.
-- **Defaults are a closed set: a literal of a vocabulary scalar type, or `Default::Now`.** No expression
-  defaults. This closes the DDL injection hole and the diff-normalization hole with one rule — an
-  expression default is both an unbindable string in a sink and the value the server is most likely to
-  spell back differently.
-- **SQLite's non-additive alters go through the create-copy-drop-rename rebuild, graded `Destructive`
-  unconditionally.** Its `ALTER TABLE` can add, rename (3.25+) and drop a column (3.35+) and essentially
-  nothing else. The rebuild is a data copy, so `Destructive` is the honest grade rather than a
-  concession, and refusing it outright would make SQLite second-class in the one tool where a dev-machine
-  SQLite is most useful.
-- **An identifier is validated, never delimited**, by the judgement `Core\Db::quoteIdentifier` already
-  states at [crates/nvs-stdlib/src/db/open.rs:1022](../../crates/nvs-stdlib/src/db/open.rs). A second answer to
-  that question is the thing `rule:security/tainted-qualifier` refuses.
-- **Ambiguity about a seam resolves toward `nvs-db`**: the vocabulary, the emitters, the introspectors and
-  the diff are all sans-io and belong beside `Dialect`, per
-  `rule:core-classes/db-drivers-are-an-enum`. `nvs-stdlib` holds
-  the members and `nvs-cli` the command, and neither decides anything about DDL.
+One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs`,
+`crates/nvs-runtime/src/closure.rs`, `crates/nvs-codegen`.
 
-## What this goal does not touch
+1. **A proven call site emits no tag check.** Where the callee's type names its parameters, the
+   `check_param_tags` sequence (`crates/nvs-runtime/src/closure.rs:444`) is not emitted; where it is bare
+   `callable`, it is emitted exactly as today.
+2. **Both metadata slots stay on every closure object** — `CLOSURE_ARITY_SLOT` and
+   `CLOSURE_PARAM_TAGS_SLOT`, written at `lower_closure_literal`
+   (`crates/nvs-ir/src/lower/expr.rs:2378`). A closure does not know at its literal which kind of site
+   will call it, and bare `callable` still needs both. What is removed is the work, not the metadata.
+3. **The valgrind leg is not optional here.** § 7 changes what is emitted around a call whose refcount
+   protocol `call_closure` owns, which is the one place `Core`'s borrow convention and a compiled
+   method's ownership convention are reconciled.
 
-The framework half — `Web\Migration`, migration files, ordering, history tables, fleet locking,
-reversibility. Schema-aware query checking (`nvs check --schema`), which is
-`rule:core-classes/db-one-api`'s own separate *Revisiting* item and needs a build-time dependency
-on a reachable database. And the deferred driver items that are not schema at all — LOB streaming, stored
-procedures, `COPY`, `LISTEN`/`NOTIFY`.
+## Standing decisions
+
+- **`rule:types/callable-signature` is settled and is not re-derived.** Its five decisions — the spelling with a mandatory
+  return, no parameter names, bare `callable` as the lattice top, prefix arity, contravariant
+  parameters with a covariant return, and inference from the expected type — were taken with the user
+  before this goal was written. A session that finds an implementation reason one of them is wrong
+  records it in the ADR's *Revisiting* and implements the decision as written; it does not choose
+  differently and it does not report `BLOCKED`.
+- **This goal may open no new ADR number.** Every design question inside it has a home: `rule:types/callable-signature`'s body
+  for the rule, the touched module's doc comment for a mechanism, the playbook for a trap.
+- **The new diagnostics go in `E08xx`, opening at `E0800`** — ADR 0136 § *Diagnostics* and
+  [docs/adr/README.md](../adr/README.md) § *Decisions taken at project start* both record the
+  allocation. Add the band's row to `nvs_diagnostics::code`'s legend table with the first code.
+- **`E0450` is not relaxed** and whole-body return-type inference is not attempted, however tempting it
+  looks once stage 3's expected type is in hand. It is ADR 0136 § *Revisiting*'s second entry and belongs
+  to a later decision.
+- **Optional and variadic parameters in a callable type are refused**, not deferred with a shape in
+  mind — ADR 0136 § *Revisiting*'s first entry says why the prefix rule already covers the demand.
+- **Ambiguity about where a rule lives resolves toward the checker, not the runtime.** The whole point
+  of the goal is moving a check earlier; a case that could be answered in either place is answered in
+  `nvs-types`, and the runtime keeps only what bare `callable` still needs.
+- **Stages 4 and 5 edit the spec in the same slice as the registry rows**, never as a separate tidy-up:
+  `rule:core-api/reference-card` makes the registry and the spec answer field-wise, and a slice that moves one without the
+  other is what that rule exists to prevent.

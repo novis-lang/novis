@@ -1,17 +1,13 @@
-# Goal 9 -- Core\Db\Schema: tables, columns and indexes, converged. The acceptance test, as data.
+# Goal 10 -- a `callable` carries its signature. The acceptance test, as data.
 #
-# `9-schema.md` is the prose. One home each.
-#
-# THIS GOAL HAS AN EXTERNAL PRECONDITION. `chain.toml` marks it `preflight = "docker"`. Unlike goals 7
-# and 8, which bring up only what their own checks touch, this goal's own stage 5 property -- apply,
-# introspect, and the plan comes back empty -- is asserted against every backend, so all four servers
-# come up here as they do for goal 5. SQLite is a file and needs nothing.
+# `10-typed-callable.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  "examples/schema.nvs",
+  "examples/typed-callable.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/schema.nvs",
   "examples/program-id.nvs",
   "examples/tempdir.nvs",
   "examples/cycles.nvs",
@@ -76,52 +72,41 @@ files = [
 [context]
 
 modules = [
-  # The vocabulary, the four emitters, the five introspectors and the diff. `schema.rs` is created by
-  # stage 2, so orient.py warns that this line matches it only once it exists.
-  "crates/nvs-db/src/schema.rs",
-  # `Dialect` is already four values for five drivers, and the emitters follow it rather than `Driver`.
-  "crates/nvs-db/src/sql.rs",
-  # The four emitters themselves, and §§ 6-8's grades, steps and plan beside them.
-  "crates/nvs-db/src/ddl.rs",
-  "crates/nvs-db/src/plan.rs",
-  # What a connection is, and the `Driver` the grade table is keyed on beside its server version.
-  "crates/nvs-db/src/conn.rs",
-  # The four hand-written MIGRATION_* lists stage 7 retires, and the guard test over them.
-  "crates/nvs-stdlib/src/queue.rs",
-  # `quoteIdentifier`'s judgement, which the identifier rule reuses rather than restating.
-  "crates/nvs-stdlib/src/db/open.rs",
-  # `Core\Db\Schema` and its plan types are registered here.
+  # The type grammar's parser -- `rule:types/callable-signature` s1's production lands in `parse_type`.
+  "crates/nvs-syntax/src/parser/ty.rs",
+  # The `Ty` enum, the interner, the display arm, and the two variants being retired.
+  "crates/nvs-types/src/ty.rs",
+  # `is_assignable` -- the first non-invariant relation in the checker.
+  "crates/nvs-types/src/expr/assign.rs",
+  # `check_fn_literal` -- where a closure body is checked, and where the expected type lands.
+  "crates/nvs-types/src/expr/calls.rs",
+  # `check_generic_args` -- the call-site half of binding.
+  "crates/nvs-types/src/expr/args.rs",
+  # The structural walk: `bind`, `substitute`, and both binding-site readers being deleted.
+  "crates/nvs-types/src/generics.rs",
+  # `CoreTy` -> `Ty` lowering, including the two variants' arms.
+  "crates/nvs-types/src/core_lib.rs",
+  # `CoreTy` itself, its guard tests, and the registry rows' shape.
   "crates/nvs-stdlib/src/registry.rs",
-  # `nvs queue migrate`, which stage 7 rewrites, and where `nvs schema` is wired in beside it.
-  "crates/nvs-cli/src/queue.rs",
-  "crates/nvs-cli/src/main.rs",
+  # `map`'s row -- the first and most-used `CallableTo`.
+  "crates/nvs-stdlib/src/arr.rs",
+  # `Task::all` and `Task::map` -- the `CallableShapeTo` pair.
+  "crates/nvs-stdlib/src/task.rs",
+  # The closure representation, the two metadata slots, and `check_param_tags` itself.
+  "crates/nvs-runtime/src/closure.rs",
+  # `lower_closure_literal` writes both slots; the call sites are lowered beside it.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The synthesized class -- one field per capture, one `invoke`.
+  "crates/nvs-ir/src/lower/closure.rs",
 ]
 
-# Record numbers for the surrounding map -- the rules each one created or changed, as titles. Then
-# the four rules the remaining stages are written against, by id, which prints each one's fragment
-# WHOLE. Those four were `adrs = ["0145 §4", "0145 §5", "0145 §9"]` until the rulebook absorbed
-# them: the record is frozen on its date and the fragment is what the work is held to, so naming
-# the record shipped this goal the history and left the current text a call away.
-rules = [
-  "0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117",
-  "core-classes/schema-introspection",     # stage 4
-  "core-classes/schema-converges",         # stage 5
-  "core-classes/schema-plan",              # stage 5's grades
-  "core-classes/schema-apply-capability",  # stage 6
-]
+rules = ["0136", "0007", "0027", "0031", "0036", "0063", "0072", "0002", "0004"]
 
-# 0067 whole -- its Revisiting item is what this goal closes, and its § 9 type map is the vocabulary
-# read in the other direction. 0084 § 2 for the schema this goal takes over. 0082 § 7 for the design
-# that stays blocked. 0145's sections are gone from here on purpose; see the note above `rules`.
-# §§ 6-8 are landed and their rules are now stated in crates/nvs-db/src/plan.rs's module doc, which
-# the map prints -- do not add them back.
-adrs = ["0067", "0084", "0082"]
+# 0136 whole: it is this goal's entire design and the only ADR a session should need in full.
+# The rest are sections, not bodies.
+adrs = ["0136", "0007 §3", "0007 §5", "0031 §4", "0072 §1"]
 
-# Neither "A rule fragment" nor "A decision record" is named: stage 2's one ADR slot is landed as
-# 0145, every rule stages 6-7 are held to is on disk, and no remaining check writes either. A
-# session that does need one peeks conventions.md, and the wrap's rulebook gate refuses a malformed
-# fragment loudly rather than letting it land.
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
+shapes = ["A diagnostic", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -154,18 +139,19 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Every backend, because stage 5's round-trip property is asserted against every backend. Same compose
-# file and the same memoization as goal 5, whose driver checks the floor also carries.
+# The floor carries goals 4-9's container-backed checks, and goal 9's round-trip property asserts on
+# all five backends. Same compose file, same memoization.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["mysql", "mariadb", "postgres", "mssql", "redis"]
-memoize_on = ["crates/nvs-db", "crates/nvs-stdlib/src/queue.rs", "tests/db"]
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
-# The `certs` service's CA, where `nvs.toml`'s `[db.main] tls_ca_file` names it. Gitignored and
-# regenerated with its volume, so it is copied rather than committed -- goal 5's block, verbatim.
-[docker.copy]
-"tests/db/ca.crt" = "postgres:/certs/ca.crt"
 
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 293 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -4492,16 +4478,13 @@ want = [
   "two reads within one run agree",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the vocabulary, and the round-trip that makes a file, a builder and an introspection one
 # value. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the vocabulary"
+stage = "1 floor"
 name = "nvs-db (the schema value)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -4515,10 +4498,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- four emitters, and a step that carries SQL an operator could paste. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the emitters"
+stage = "1 floor"
 name = "nvs-db (four dialects)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -4533,10 +4515,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- five introspectors answering the same value the builder produces. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 introspection"
+stage = "1 floor"
 name = "nvs-db (the catalog readers)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -4551,7 +4532,7 @@ tests = [
 # jobs-first asserts an ordering no server produces. `nvs_dead_jobs` sorts before `nvs_jobs`.
 [[check]]
 kind = "command"
-stage = "4 introspection"
+stage = "1 floor"
 name = "nvs schema dump answers a schema value"
 argv = ["{nvs}", "schema", "dump", "--connection", "main"]
 want = ["nvs_dead_jobs", "nvs_jobs"]
@@ -4559,10 +4540,9 @@ want = ["nvs_dead_jobs", "nvs_jobs"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the property the whole goal reduces to, and the three grades. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the diff"
+stage = "1 floor"
 name = "nvs-db (apply, introspect, empty)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -4577,7 +4557,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the diff"
+stage = "1 floor"
 name = "nvs-db (the grades)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -4594,10 +4574,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the member, the capability, and the command. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 the member"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Db\\Schema)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4608,14 +4587,14 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "6 the member"
+stage = "1 floor"
 name = "nvs schema plan grades every step and prints its SQL"
 argv = ["{nvs}", "schema", "plan", "--connection", "main", "--schema", "examples/schema.json"]
 want = ["Safe", "create table", "Destructive"]
 
 [[check]]
 kind = "exact"
-stage = "6 the member"
+stage = "1 floor"
 file = "examples/schema.nvs"
 want = [
   "planned 3 steps",
@@ -4629,10 +4608,9 @@ want = [
 # in stage 1's floor with their output frozen, so the schema value either emits what the four
 # hand-written lists emitted or the floor goes red. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 the retirement"
+stage = "1 floor"
 name = "nvs-stdlib (one home for the queue's schema)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4643,7 +4621,135 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "7 the retirement"
+stage = "1 floor"
 name = "nvs queue migrate runs on a backend it had no dialect for"
 argv = ["{nvs}", "queue", "migrate", "--connection", "mssql", "--dry-run"]
 want = ["jobs", "dead_letter"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the atom parses, and two callable types compare. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the atom"
+name = "nvs-syntax (the callable signature production)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_callable_type_parses_its_parameters_and_return",
+  "a_callable_type_with_no_parameters_parses",
+  "a_callable_type_without_a_return_type_is_refused",
+  "a_callable_type_naming_a_parameter_is_refused",
+  "a_bare_callable_still_parses_as_the_opaque_atom",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the atom"
+name = "nvs-types (assignability between two callable types)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_closure_of_lower_arity_satisfies_a_wider_callable_type",
+  "a_closure_of_higher_arity_than_the_type_is_refused",
+  "a_callable_parameter_may_be_wider_than_the_slot_declares",
+  "a_callable_parameter_narrower_than_the_slot_is_refused",
+  "a_callable_return_may_be_narrower_than_the_slot_declares",
+  "a_callable_return_wider_than_the_slot_is_refused",
+  "every_callable_signature_is_assignable_to_bare_callable",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the inference: a literal takes its parameter types from its position. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the inference"
+name = "nvs-types (parameter types inferred at an fn literal)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_unannotated_fn_parameter_takes_the_expected_types_position",
+  "an_annotated_fn_parameter_may_be_wider_than_the_expected_type",
+  "an_annotated_fn_parameter_narrower_than_expected_is_refused",
+  "a_block_bodied_fn_still_declares_its_return_type",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the stdlib rows, and CallableTo retired. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the rows"
+name = "nvs-types (a callback that is a variable binds its result)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "map_binds_its_result_from_a_written_fn_literal",
+  "map_binds_its_result_from_a_callable_typed_variable",
+  "map_binds_its_result_from_a_first_class_callable_reference",
+  "bind_descends_into_a_callable_types_parameters",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the rows"
+name = "nvs-stdlib (no row names a retired binding-site variant)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "no_registry_row_names_a_callable_binding_site_variant",
+  "every_callback_parameter_declares_its_signature",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- Task::all, and CallableShapeTo retired. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 task all"
+name = "nvs-types (a shape of typed callables rebuilds a shape)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "task_all_binds_its_result_shape_from_written_literals",
+  "task_all_binds_its_result_shape_from_callable_typed_variables",
+  "task_all_no_longer_refuses_a_field_that_is_not_a_literal",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- spending the proof: a proven site emits no tag check. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the codegen"
+name = "nvs-codegen (the tag check is emitted only where it is still needed)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_proven_callable_call_site_emits_no_param_tag_check",
+  "a_bare_callable_call_site_still_emits_the_param_tag_check",
+  "a_closure_object_still_carries_both_metadata_slots",
+]
+
+# The end-to-end fixture: the surface, the inference, and the safety property in one runnable file.
+
+[[check]]
+kind = "exact"
+stage = "6 the codegen"
+file = "examples/typed-callable.nvs"
+want = [
+  "a typed callback runs and returns its declared type",
+  "a shorter callback receives only what it declares",
+  "a callable-typed variable reaches Core\\Arr::map",
+  "Task::all answers a shape of its callbacks' return types",
+]
+
+# The safety property, as the case `closure.rs` names: a mismatched callback is a compile error rather
+# than a runtime LogicError. This is the goal's reason for existing, so it is its own check.
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the codegen"
+name = "conformance (typed callables)"
+args = ["test", "tests/conformance/types/callable"]
