@@ -1855,17 +1855,24 @@ fn a_framed_dedupe_push_is_refused_by_the_index_and_not_by_the_guard() {
         "the refused insert wrote nothing"
     );
 
-    // The other side. `state = 1` is `Core\Queue\State::Claimed`, and the
-    // generated column reads null for it — which is where MySQL's own rule that
-    // a unique key does not constrain nulls becomes § 2's partial index.
-    apply(
-        &mut conn,
-        "update nvs_jobs set state = 1 where id = ?",
-        &[Some(id.as_bytes())],
+    // The other side. The claim is what carries the job out of `Pending`, and
+    // `dedupe_pending` is a plain column, so clearing it is that statement's own
+    // work rather than something the server derives from `state`. An ad-hoc
+    // `update` here would assert the emulation against a row no statement of § 2's
+    // maintains, which is why this half runs [`queue::CLAIM_MYSQL`] itself — the
+    // pairing of a null column with MySQL's rule that a unique key does not
+    // constrain nulls is what stands in for the partial index.
+    let took = claim(&mut conn, QUEUE, DUE, 0);
+    assert_eq!(
+        took.iter()
+            .map(|row| row[0].as_deref().expect("a claimed row names its id"))
+            .collect::<Vec<_>>(),
+        vec![id.as_str()],
+        "the pending job is the one the claim named, and it is the key's only holder"
     );
     assert!(
         pending_for(&mut conn, KEY).is_none(),
-        "a claimed job holds no key: the column is null for every state but `Pending`"
+        "a claimed job holds no key: the claim cleared the column as it left `Pending`"
     );
     let again = push_keyed(&mut conn, QUEUE, DUE, KEY)
         .expect("the key is free the moment its only holder stops being pending");
