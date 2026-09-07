@@ -170,4 +170,20 @@ black.
 2. Replace the sitemap URL in `public/robots.txt`.
 3. Replace the demo data in `src/content/docs/impressum.md` and `datenschutz.md`.
 4. Review pages still carrying `draft: true` / draft-flagged claims.
-5. `npm run sync && npm run build`, deploy `dist/`.
+5. Set the Pages source to **GitHub Actions** and the custom domain to `SITE_URL`'s host.
+6. `npm run sync`, review what it wrote, and commit it — publishing is the push, not a command.
+
+## How it is published
+
+`.github/workflows/pages.yml` builds this folder on every push to `main` and hands `dist/` to
+GitHub Pages as an artifact. Nothing built is ever committed: `dist/` is gitignored, there is no
+`gh-pages` branch, and the deployed site is the build of the commit it came from.
+
+The workflow runs `npm ci && npm run build` — **not** `npm run sync`. Sync rewrites tracked files
+and reads the built `nvs` binary for registry docs, so a deploy that ran it would publish less than
+your local sync does and would decide page ownership with nobody looking. The site therefore
+follows the repository only as far as the last committed sync: after landing rules, spec or
+registry changes, run `npm run sync` and commit what it wrote.
+
+The same workflow builds on pull requests without deploying, so a build that no longer compiles
+fails there rather than on `main`.

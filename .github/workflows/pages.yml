@@ -1,0 +1,103 @@
+name: Website
+
+# The site is published from the build this workflow makes, and nothing built ever enters the tree:
+# `website/dist/` is gitignored, GitHub Pages' source is set to **GitHub Actions** in the repository
+# settings, and the artifact `deploy-pages` publishes is the one `build` below produced from the
+# commit being deployed. A `gh-pages` branch would be the same bytes committed a second time, and
+# `git log` is this repository's only changelog — a branch of build commits is not history anyone
+# reads.
+#
+# `build` runs on pull requests too, so a broken `astro build` is caught before it reaches `main`
+# rather than at deploy time. It is deliberately not a job in `ci.yml`: that file is the definition
+# of what a *release* must clear, and a typo in a website component is not a reason to hold the
+# compiler back. The site building is one definition, and it lives here, whichever event ran it.
+#
+# There is no path gate. `ci.yml` has one because its jobs are tens of minutes of Rust; this is
+# `npm ci` and a seven-second build, and a second copy of "what the site is built from" would drift
+# against `tools/ci-changes.py` for less than a runner-minute a push. The site also reads far more
+# of the tree than `website/` — the rulebook, the spec, the decision records, the examples — so the
+# gate would have to name most of `docs/` to be correct.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default, stated here rather than left to the repository setting for the reason
+# `ci.yml` gives. `deploy` grants itself the two it needs and no job else has them.
+permissions:
+  contents: read
+
+# Same shape as `ci.yml`'s: a pull request's run is disposable, a run on `main` is the one that
+# publishes. The deploy job carries a second, narrower group — see there.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# `timeout-minutes` on both jobs, for the reason `ci.yml`'s header states once.
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # `website/.nvmrc` is the one home for the Node version; naming a number here would be a
+      # second. `npm ci` installs exactly `package-lock.json`, which is what the cache keys on.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: website/.nvmrc
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install
+        working-directory: website
+        run: npm ci
+
+      # `npm run sync` is deliberately **not** run here. It is a human-fired command that rewrites
+      # tracked files — it publishes the rulebook into `src/content/`, regenerates `src/data/*.json`,
+      # creates member pages and reports orphans for review — and `sync:core` reads the built `nvs`
+      # binary for its registry docs, so a run without one silently publishes *less* than a
+      # developer's sync did. Ownership is per page (website/README.md § Who owns which file), and a
+      # deploy is the wrong place to decide it. So the site is built from what is committed, which
+      # is why the four `src/data/*.json` files are in the tree at all.
+      #
+      # Building for the webroot: `SITE_URL` in `website/config/site.mjs` is a custom domain at the
+      # root, which is what the Pages settings must be configured with. Served from
+      # `<owner>.github.io/<repo>` instead, every asset URL would need the repository prefix — set
+      # `ASTRO_BASE` here, as `website/astro.config.ts` documents.
+      - name: Build
+        working-directory: website
+        run: npm run build
+
+      # Uploaded on pull requests as well as pushes, so the bytes `deploy` publishes are the exact
+      # ones this job checked rather than a rebuild that could differ.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: website/dist
+
+  # A pull request builds and stops. Only a push to `main` (or a hand-fired run) publishes, and
+  # `pull_request_target` is nowhere in this file on purpose: a fork's pull request must never
+  # reach a job holding `pages: write`.
+  deploy:
+    name: deploy
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    # Named `pages` and never cancelled, unlike the workflow-level group above: two deploys racing
+    # decide what is live by which finishes last, and a cancelled one can leave the deployment
+    # half-applied. A superseded run here is a few wasted seconds; a wrong live site is not.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
