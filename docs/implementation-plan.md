@@ -27,10 +27,10 @@
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
-> `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `fuzz/`, `tools/`, `benches/abi-probe`,
-> and the two case trees `tests/conformance` and `tests/differential`. **Each crate's own module doc
-> is the authority on what it holds and what it still owes**; `python tools/brief.py` prints one map
-> line each, and `python tools/disk.py` the live counts.
+> `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `nvs-lsp`, `fuzz/`, `tools/`,
+> `benches/abi-probe`, and the two case trees `tests/conformance` and `tests/differential`. **Each
+> crate's own module doc is the authority on what it holds and what it still owes**; `python
+> tools/brief.py` prints one map line each, and `python tools/disk.py` the live counts.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -46,17 +46,12 @@
 > the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
 > `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows;
 > `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
-> `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file; `E0621`/`E0622` refuse a
-> mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before an isolate; § 6's walk decides
-> the peer, `400` on a bad token; § 8's accept backs off, § 5's drain answers the probe;
-> `Core\Response` has seven, `Core\Request` thirteen, an upload walks;
-> `rule:http-server/secure-headers-with-nothing-written` and
-> `rule:http-server/cors-is-closed-until-origins-are-named` hold; `route()`, `match`, `methodsFor`,
-> CSRF and the label read one match; four capture kinds convert, decoded once; § 7's mount answers a
-> class, `E0801` refuses `echo`. **`rule:http-server/a-session-store-answers-four-operations`'s
-> session is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR
-> 0073's ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§
-> 6-7 land**: `afterResponse` drains detached; § 7's cap counts trees;
+> `Isolate`**, whole: mounts, statics, the admission ceiling, the proxy walk, the two `Core` request
+> types, routing, captures and a class mount.
+> **`rule:http-server/a-session-store-answers-four-operations`'s session is whole**: shared or db,
+> `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's ticker fires**: a root
+> isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§ 6-7 land**: `afterResponse`
+> drains detached; § 7's cap counts trees;
 > `rule:observability/the-runtime-exports-what-it-already-measures`'s trace reaches a log record,
 > both blocks boot, a core meters § 1's nine; `rule:security/isolate-shares-nothing`'s method entry
 > binds `args:` at a `Core` row too; `rule:concurrency/a-connection-is-a-root-isolate` is whole — §
@@ -68,8 +63,11 @@
 > guarded**: `never` never `stat`s, one window is one check, a swap publishes, § 3a picks
 > `validate`, 10k cold compile once.
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
-> whole.** Conformance 1590, differential 276, migration 100%; valgrind green, arrays too. Serve:
-> 2.78x php-cgi.
+> whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
+> 2.78x php-cgi. **`nvs lsp` speaks the handshake**: `crates/nvs-lsp` on `lsp-server`/`lsp-types`,
+> synchronous over stdio; `initialize` declares `rule:ide/the-request-set-is-closed`'s whole list
+> and the binary's version, the encoding is negotiated, and nothing the server links writes to
+> stdout. No request is answered yet.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

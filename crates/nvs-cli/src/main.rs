@@ -399,6 +399,18 @@ enum Command {
         #[command(subcommand)]
         command: ServiceCommand,
     },
+    /// Speak the Language Server Protocol on standard input and output.
+    ///
+    /// Started by an editor, not by a person: it reads LSP 3.17 frames on
+    /// stdin and writes them on stdout, so a terminal that runs it sees
+    /// nothing and appears to hang. `rule:ide/one-server-two-thin-clients`
+    /// makes this the one implementation of Novis's language smarts, which
+    /// every editor client is a shell around.
+    ///
+    /// Takes no arguments. Everything configurable arrives in `initialize`
+    /// and in `workspace/didChangeConfiguration`, because the editor is what
+    /// owns the settings and a flag here would be a second, staler copy.
+    Lsp,
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -838,6 +850,18 @@ fn main() -> ExitCode {
             account.as_deref(),
             password.as_deref(),
         ),
+        Command::Lsp => match nvs_lsp::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            // stderr, and never stdout: the writer thread owns stdout and a
+            // line printed there would be read as a protocol frame
+            // (`rule:ide/stdout-belongs-to-the-protocol`). By the time this is
+            // reached the client is usually gone, so this is for the editor's
+            // server log rather than for anyone watching.
+            Err(err) => {
+                eprintln!("error: {err}");
+                ExitCode::FAILURE
+            }
+        },
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
