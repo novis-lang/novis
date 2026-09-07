@@ -337,17 +337,25 @@ pub(crate) struct Ctx<'a> {
 /// own body has to spell to mean *this* closure, and what such a call answers
 /// with.
 ///
-/// Carries the return type rather than a `TypeId` for the closure, because
-/// there is none to carry: § 4 gives every closure the one opaque `callable`,
-/// so the recursive call's own type can only come from what the literal
-/// declared. A literal that declared nothing gets `mixed` here — its body is
-/// mid-check, so its inferred type is not a fact yet, and `mixed` is the same
-/// answer every other call through a `callable` gives.
+/// Carries the signature itself rather than a `TypeId` for the closure,
+/// because there is none to carry: § 4 gives every closure the one opaque
+/// `callable`, so the recursive call's own types can only come from what the
+/// literal declared. A literal that declared no return type gets `mixed` here —
+/// its body is mid-check, so its inferred type is not a fact yet, and `mixed`
+/// is the same answer every other call through a `callable` gives.
 pub(crate) struct FnSelf {
     /// The name as written, which a callee spelling must equal exactly:
     /// § 3's name is lexical and is not resolved through the namespace or the
     /// `use` table.
     pub name: String,
+    /// The literal's own parameter types, in written order — what
+    /// `rule:types/callable-signature` checks a recursive call's arguments
+    /// against, the closure being written *being* the signature. Unlike `ret`
+    /// this is never a stand-in: a parameter is annotated or takes its type
+    /// from the position the literal is written in
+    /// (`rule:types/callable-literal-inference`), so the list is a fact before
+    /// the body is checked.
+    pub params: Vec<crate::ty::TypeId>,
     /// The declared return type, or `mixed`.
     pub ret: crate::ty::TypeId,
 }

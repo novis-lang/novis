@@ -1413,13 +1413,17 @@ pub(crate) fn check_args(
 /// [`Some`] is the proven site, and it records
 /// [`ExprInfo::CallThroughSignature`] for `nvs-ir` to spend.
 ///
-/// Three argument shapes are handed back rather than proven. A `...` makes the
-/// argument *count* the spread subject's own run-time length, so no argument
-/// has a parameter to be checked against. A `name:` and an `inout` argument are
-/// refused where they are written by [`report_args_with_no_parameter_list`] —
-/// a signature names no parameter for a name to fill and a closure declares no
-/// `inout` parameter at all — and reaching that refusal is why they are left to
-/// the caller.
+/// Two argument shapes are handed back rather than answered here: a `name:` and
+/// an `inout` argument are refused where they are written by
+/// [`report_args_with_no_parameter_list`] — a signature names no parameter for a
+/// name to fill and a closure declares no `inout` parameter at all — and
+/// reaching that refusal is why they are left to the caller.
+///
+/// A `...` argument is answered but not proven. It makes the argument *count*
+/// the spread subject's own run-time length, so no argument has a parameter to
+/// be checked against and nothing is recorded for `nvs-ir` to spend; what the
+/// callee answers with does not depend on its arguments, so the call still
+/// reads the signature's own return type rather than falling back to `mixed`.
 ///
 /// The argument *count* is exact, which the value's own arity is deliberately
 /// not ([`code::E_CALLABLE_CALL_ARITY`] owns the asymmetry). An argument past
@@ -1438,6 +1442,104 @@ pub(crate) fn check_call_through_signature(
         return None;
     };
     let (params, ret) = (params.clone(), *ret);
+    if let CallArgs::List(list) = args
+        && list.iter().any(|arg| arg.spread)
+        && !list.iter().any(|arg| arg.name.is_some() || arg.inout)
+    {
+        check_args(args, live, scope, ctx, env);
+        return Some(ret);
+    }
+    let exact = check_args_against_params(
+        expr,
+        &Signature::Written(&params),
+        args,
+        live,
+        scope,
+        ctx,
+        env,
+    )?;
+    if exact {
+        env.exprs
+            .record(expr.span, ExprInfo::CallThroughSignature { params, ret });
+    }
+    Some(ret)
+}
+
+/// `fact($n - 1)` inside `fn fact(int $n): int` — the recursive call
+/// `rule:types/closure-self-name` admits, checked against the parameter list of
+/// the very closure being written.
+///
+/// The self-name is not a value of the opaque `callable` type, so there is no
+/// callee type to read a signature off; [`crate::FnSelf`] carries the literal's
+/// own parameters instead, which is the same list the body is being checked
+/// under. The answer is [`crate::FnSelf::ret`] either way — this decides only
+/// whether the arguments were held to anything. [`None`] is an argument list a
+/// parameter list cannot be matched against at all — a `...`, whose count is the
+/// spread subject's own run-time length, and the `name:` and `inout` arguments
+/// a closure has nothing to fill — and the caller then checks the arguments
+/// with nothing to check them against.
+///
+/// Nothing is recorded for `nvs-ir`: a self-name call still reaches the closure
+/// through the ordinary dynamic path, so its per-argument tag check is what the
+/// arguments are finally passed under.
+pub(crate) fn check_self_name_args(
+    expr: &Expr,
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<bool> {
+    let params = env.fn_self.as_ref()?.params.clone();
+    check_args_against_params(
+        expr,
+        &Signature::SelfName(&params),
+        args,
+        live,
+        scope,
+        ctx,
+        env,
+    )
+}
+
+/// The written parameter list a call's arguments are held to, and which of
+/// [`code::E_CALLABLE_CALL_ARITY`]'s two subjects wrote it — the list is the
+/// same shape either way, and only what a reader looks at to see the count
+/// differs.
+enum Signature<'a> {
+    /// The callee's own `callable(T, U): R` type.
+    Written(&'a [TypeId]),
+    /// `rule:types/closure-self-name`'s self-name: the closure being written.
+    SelfName(&'a [TypeId]),
+}
+
+impl<'a> Signature<'a> {
+    fn params(&self) -> &'a [TypeId] {
+        match *self {
+            Self::Written(params) | Self::SelfName(params) => params,
+        }
+    }
+}
+
+/// Each argument against the parameter it fills, and the count against the list
+/// — the half [`check_call_through_signature`] and [`check_self_name_args`]
+/// share, since a written signature and a closure literal's own parameters are
+/// the same list read off two different places.
+///
+/// [`None`] is an argument shape no parameter list can be matched against, and
+/// nothing has been checked when it is returned. [`Some`] carries whether the
+/// count matched exactly, which is what a proven call site needs on top of
+/// having its arguments checked.
+fn check_args_against_params(
+    expr: &Expr,
+    signature: &Signature<'_>,
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<bool> {
+    let params = signature.params();
     let CallArgs::List(list) = args else {
         return None;
     };
@@ -1448,33 +1550,45 @@ pub(crate) fn check_call_through_signature(
         return None;
     }
     if list.len() != params.len() {
-        report_callable_call_arity(expr.span, params.len(), list.len(), env);
+        report_callable_call_arity(expr.span, signature, params.len(), list.len(), env);
     }
     for (index, arg) in list.iter().enumerate() {
         let expected = params.get(index).copied();
         check_expr(&arg.value, expected, live, scope, ctx, env);
     }
-    if list.len() == params.len() {
-        env.exprs
-            .record(expr.span, ExprInfo::CallThroughSignature { params, ret });
-    }
-    Some(ret)
+    Some(list.len() == params.len())
 }
 
-/// `code::E_CALLABLE_CALL_ARITY` — a call through a written signature passing a
-/// number of arguments the signature does not name.
-fn report_callable_call_arity(span: Span, declared: usize, given: usize, env: &mut Env<'_>) {
-    env.diags.report(
-        Diagnostic::error(
-            code::E_CALLABLE_CALL_ARITY,
-            format!("this `callable` names {declared} parameter(s), and this call passes {given}"),
-        )
-        .with_primary(span, format!("expected {declared}, found {given}"))
-        .with_help(
+/// `code::E_CALLABLE_CALL_ARITY` — a call through a written parameter list
+/// passing a number of arguments that list does not name.
+fn report_callable_call_arity(
+    span: Span,
+    signature: &Signature<'_>,
+    declared: usize,
+    given: usize,
+    env: &mut Env<'_>,
+) {
+    let (what, help) = match signature {
+        Signature::Written(_) => (
+            "this `callable`",
             "a call through a written signature passes exactly the parameters the type names — \
              the value may hold a closure declaring fewer, and the runtime hands that closure \
              only the ones it declares",
         ),
+        Signature::SelfName(_) => (
+            "this closure",
+            "a closure calling itself by its own name passes exactly the parameters it declares — \
+             the signature being checked is the one written right here, so there is no wider type \
+             for a shorter list to be matched against",
+        ),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CALLABLE_CALL_ARITY,
+            format!("{what} names {declared} parameter(s), and this call passes {given}"),
+        )
+        .with_primary(span, format!("expected {declared}, found {given}"))
+        .with_help(help),
     );
 }
 
@@ -1648,13 +1762,17 @@ pub(crate) fn check_new_target(
 /// has a receiver of its own, so this name is not visible in it — hence the
 /// save-and-replace below rather than a stack.
 ///
-/// **What the call answers with is the declared return type**, not `mixed`,
-/// which is the one place this differs from `$f(...)`. § 4's opacity is a
-/// property of the `callable` *type*, and the self-name is not a value of it:
-/// the literal being checked is right here, so its declared return type is a
-/// fact the checker holds. A literal that declares none is checking its body
-/// to find out, so [`FnSelf`] takes `mixed` there and the recursion is
-/// unchecked rather than circular.
+/// **The call is checked against this literal's own signature**, which is the
+/// one place this differs from `$f(...)`. § 4's opacity is a property of the
+/// `callable` *type*, and the self-name is not a value of it: the literal being
+/// checked is right here, so both halves of its signature are facts the checker
+/// holds. So [`FnSelf`] carries the parameter list
+/// [`check_self_name_args`] holds the arguments to, and the call answers the
+/// declared return type rather than `mixed`. A literal that declares no return
+/// type is checking its body to find out, so `FnSelf` takes `mixed` for that
+/// half and the recursion answers rather than being circular; the parameter
+/// list has no such half-measure, because it is complete before the body is
+/// entered.
 pub(crate) fn check_fn_literal(
     expr: &Expr,
     f: &FnExpr,
@@ -1739,6 +1857,7 @@ pub(crate) fn check_fn_literal(
         .map(|t| lower_type(t, &inner_ctx, env));
     let self_name = f.name.map(|span| FnSelf {
         name: span_text(env.src, span).to_owned(),
+        params: params.clone(),
         ret: declared.unwrap_or_else(|| env.interner.mixed()),
     });
     let outer_self = std::mem::replace(&mut env.fn_self, self_name);

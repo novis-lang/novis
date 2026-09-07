@@ -405,7 +405,15 @@ pub(crate) fn infer(
             {
                 let ret = fn_self.ret;
                 env.exprs.record(callee.span, ExprInfo::ClosureSelf);
-                check_args(args, live, scope, ctx, env);
+                // The closure being written is its own signature, so the
+                // arguments are held to its parameter list here rather than to
+                // `nvs_runtime::closure`'s tag at a time
+                // (`calls::check_self_name_args`). The three argument shapes it
+                // hands back are the ones with no parameter to be checked
+                // against, and they take the ordinary walk below.
+                if check_self_name_args(expr, args, live, scope, ctx, env).is_none() {
+                    check_args(args, live, scope, ctx, env);
+                }
                 report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
                 if matches!(args, CallArgs::FirstClassCallable) {
                     return env.interner.callable();
