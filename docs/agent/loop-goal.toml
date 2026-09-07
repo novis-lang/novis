@@ -200,7 +200,7 @@ shapes = ["A diagnostic"]
 [context.stage.6]
 rules = ["ide/the-index-answers-the-cursor", "core-api/reference-card",
          "tooling/doc-comment-is-three-slashes", "0117", "0137"]
-adrs = ["0099 §3"]
+adrs = ["0099 §3", "0088 §5"]
 
 [context.stage.7]
 rules = ["ide/semantic-tokens-carry-the-qualifiers", "ide/rejected-syntax-gets-no-colour",

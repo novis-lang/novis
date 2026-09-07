@@ -3369,6 +3369,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   request: `check_declarations` reports `E0215` for the declaration
   (`rule:classes/no-free-functions-or-constants`) and the walk never types the body. Put a fixture's
   executable code at the top level or inside a method. [until: reviewed 2026-09-07]
+- **A `.lspt` case that writes `$u = new User();` records no member entry at all.** `var` is what
+  declares a variable, so a bare assignment is `E0301` and the receiver has no type — the checker
+  still records `ExprInfo::New` for the `new`, and nothing for `$u->name`, so a `definition` or
+  `hover` case on the member answers `none` while the same case on the class name passes. Write
+  `var $u = new User();` in any case whose cursor is on a member.
+  [until: reviewed 2026-09-07]
 
 ## Splitting a file that got too big
 
