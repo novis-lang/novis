@@ -1,0 +1,335 @@
+//! What a client is sent, unasked, as it opens, edits and closes documents.
+//!
+//! Driven over `lsp_server::Connection::memory()` the way `handshake.rs` is:
+//! this is `serve`'s own loop with only the descriptors different, so what the
+//! test reads off the channel is what an editor would read off the pipe.
+//!
+//! The claims here are the ones no unit test over `Documents` can reach —
+//! that a notification is actually *sent*, that it is sent once per open
+//! document the edit made stale, and that each carries that document's own
+//! file and nothing else. The gate inside one is
+//! `rule:ide/diagnostics-are-phase-gated`'s, pinned in `document.rs`.
+
+use std::fs;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use lsp_types::notification::{
+    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Notification as _,
+    PublishDiagnostics,
+};
+use lsp_types::{
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    InitializeParams, NumberOrString, PublishDiagnosticsParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
+};
+
+/// A file that parses, resolves and type-checks with nothing to report.
+const CLEAN: &str = "<?nvs\nclass Typed {}\n";
+
+/// A directory of this run's own, removed when the test that made it ends.
+///
+/// The fixtures are on disk rather than buffers alone because a `require`
+/// resolves against the requiring file's directory: an open buffer overlays the
+/// file under it, and there has to be a file under it for the graph to name.
+struct TempDir {
+    path: PathBuf,
+}
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let path = std::env::temp_dir().join(format!("nvs-publish-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("a scratch directory");
+        Self { path }
+    }
+
+    fn write(&self, name: &str, text: &str) {
+        fs::write(self.path.join(name), text).expect("a fixture file");
+    }
+
+    fn uri(&self, name: &str) -> Uri {
+        nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+/// Runs `exchange` against a server in this process that has already answered
+/// `initialize`, then shuts it down and asserts it served without a protocol
+/// error.
+fn served(exchange: impl FnOnce(&Connection)) {
+    let (server, client) = Connection::memory();
+    let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
+
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(1),
+            "initialize".to_owned(),
+            InitializeParams::default(),
+        )))
+        .expect("the server is still reading");
+    match client.receiver.recv() {
+        Ok(Message::Response(_)) => {}
+        other => panic!("expected the `initialize` response, got {other:?}"),
+    }
+    notify(
+        &client,
+        Notification::new("initialized".to_owned(), serde_json::json!({})),
+    );
+
+    exchange(&client);
+
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            RequestId::from(2),
+            "shutdown".to_owned(),
+            serde_json::json!(null),
+        )))
+        .expect("the server is still reading");
+    // Anything still queued ahead of the acknowledgement is drained: a publish
+    // the exchange did not read is not a protocol error.
+    while !matches!(client.receiver.recv(), Ok(Message::Response(_)) | Err(_)) {}
+    notify(
+        &client,
+        Notification::new("exit".to_owned(), serde_json::json!(null)),
+    );
+
+    serving
+        .join()
+        .expect("the server thread did not panic")
+        .expect("the server served without a protocol error");
+}
+
+fn notify(client: &Connection, notification: Notification) {
+    client
+        .sender
+        .send(Message::Notification(notification))
+        .expect("the server is still reading");
+}
+
+/// `textDocument/didOpen`.
+fn open(client: &Connection, uri: &Uri, version: i32, text: &str) {
+    let params = DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: uri.clone(),
+            language_id: "novis".to_owned(),
+            version,
+            text: text.to_owned(),
+        },
+    };
+    notify(
+        client,
+        Notification::new(DidOpenTextDocument::METHOD.to_owned(), params),
+    );
+}
+
+/// `textDocument/didChange`, carrying the whole document as `FULL` sync means.
+fn change(client: &Connection, uri: &Uri, version: i32, text: &str) {
+    let params = DidChangeTextDocumentParams {
+        text_document: VersionedTextDocumentIdentifier {
+            uri: uri.clone(),
+            version,
+        },
+        content_changes: vec![TextDocumentContentChangeEvent {
+            range: None,
+            range_length: None,
+            text: text.to_owned(),
+        }],
+    };
+    notify(
+        client,
+        Notification::new(DidChangeTextDocument::METHOD.to_owned(), params),
+    );
+}
+
+/// `textDocument/didClose`.
+fn close(client: &Connection, uri: &Uri) {
+    let params = DidCloseTextDocumentParams {
+        text_document: TextDocumentIdentifier { uri: uri.clone() },
+    };
+    notify(
+        client,
+        Notification::new(DidCloseTextDocument::METHOD.to_owned(), params),
+    );
+}
+
+/// The next `textDocument/publishDiagnostics` the server sends.
+///
+/// Waited for with a bound rather than forever, so a server that publishes
+/// nothing fails this suite instead of hanging it.
+fn published(client: &Connection) -> PublishDiagnosticsParams {
+    match client.receiver.recv_timeout(Duration::from_secs(30)) {
+        Ok(Message::Notification(notification))
+            if notification.method == PublishDiagnostics::METHOD =>
+        {
+            serde_json::from_value(notification.params)
+                .expect("the params deserialize as a `PublishDiagnosticsParams`")
+        }
+        other => panic!("expected a `textDocument/publishDiagnostics`, got {other:?}"),
+    }
+}
+
+/// The codes in one publish, in the order the client will show them.
+fn codes(params: &PublishDiagnosticsParams) -> Vec<String> {
+    params
+        .diagnostics
+        .iter()
+        .filter_map(|diagnostic| match &diagnostic.code {
+            Some(NumberOrString::String(code)) => Some(code.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether any of `codes` is one a phase that reads the tree reported —
+/// resolution's, and the type check's across all three bands it occupies.
+fn reads_the_tree(codes: &[String]) -> bool {
+    codes.iter().any(|code| {
+        ["E03", "E04", "E07", "E08"]
+            .iter()
+            .any(|band| code.starts_with(band))
+    })
+}
+
+/// The lifecycle of one document: opening it publishes for it, and fixing it
+/// publishes the empty list that clears what was there.
+#[test]
+fn opening_a_document_publishes_for_it_and_fixing_it_clears() {
+    let dir = TempDir::new("one");
+    let broken = "<?nvs\nvar $broken = ;\n";
+    dir.write("main.nvs", broken);
+
+    served(|client| {
+        open(client, &dir.uri("main.nvs"), 1, broken);
+        let opened = published(client);
+        assert_eq!(opened.uri, dir.uri("main.nvs"));
+        assert_eq!(
+            opened.version,
+            Some(1),
+            "the version the analysis read is what says which buffer this is about"
+        );
+
+        let reported = codes(&opened);
+        assert!(
+            reported.iter().any(|code| code.starts_with("E01")),
+            "the parse error was not published: {reported:?}"
+        );
+        assert!(
+            !reads_the_tree(&reported),
+            "the cascade under the broken parse reached the client: {reported:?}"
+        );
+
+        change(client, &dir.uri("main.nvs"), 2, CLEAN);
+        let fixed = published(client);
+        assert_eq!(fixed.uri, dir.uri("main.nvs"));
+        assert_eq!(fixed.version, Some(2));
+        assert!(
+            fixed.diagnostics.is_empty(),
+            "an edit that fixed the file published {:?} rather than the empty \
+             list that clears it — a client keeps its last squiggles until it \
+             is told otherwise",
+            codes(&fixed)
+        );
+    });
+}
+
+/// Editing a file another open document requires republishes that document,
+/// with its own diagnostics untouched and none of the edited file's.
+#[test]
+fn editing_a_required_file_publishes_for_the_requiring_document_too() {
+    let dir = TempDir::new("graph");
+    let clean_lib = "<?nvs\nclass Counter {\n    public function count(): int {\n        \
+                     return 1;\n    }\n}\n";
+    let broken_lib = "<?nvs\nclass Counter {\n    public function count(): int {\n        \
+                      return \"not an int\";\n    }\n}\n";
+    let main = "<?nvs\nrequire 'lib.nvs';\nvar $stray = $nope;\n";
+    dir.write("lib.nvs", clean_lib);
+    dir.write("main.nvs", main);
+
+    served(|client| {
+        // Opened one at a time, and each publishes only for itself: `lib.nvs`
+        // is not in `main.nvs`'s graph yet because `main.nvs` is not open, and
+        // `main.nvs` is in nobody's.
+        open(client, &dir.uri("lib.nvs"), 1, clean_lib);
+        let lib = published(client);
+        assert_eq!(lib.uri, dir.uri("lib.nvs"));
+        assert!(lib.diagnostics.is_empty(), "{:?}", codes(&lib));
+
+        open(client, &dir.uri("main.nvs"), 1, main);
+        let opened = published(client);
+        assert_eq!(opened.uri, dir.uri("main.nvs"));
+        let its_own = codes(&opened);
+        assert!(
+            its_own.iter().any(|code| code.starts_with("E03")),
+            "main.nvs's own resolution error is the premise of this case and it \
+             is not here: {its_own:?}"
+        );
+
+        // The edit to the required file, which is stale in two documents at
+        // once: the one being typed in, and the one that read it.
+        change(client, &dir.uri("lib.nvs"), 2, broken_lib);
+        let after = [published(client), published(client)];
+        let for_lib = after
+            .iter()
+            .find(|params| params.uri == dir.uri("lib.nvs"))
+            .expect("the edited document is published for");
+        let for_main = after
+            .iter()
+            .find(|params| params.uri == dir.uri("main.nvs"))
+            .expect("the document that requires the edited file was left stale");
+
+        let broke = codes(for_lib);
+        assert!(
+            reads_the_tree(&broke),
+            "the type error the edit introduced was not published: {broke:?}"
+        );
+        assert_eq!(
+            codes(for_main),
+            its_own,
+            "main.nvs was published a diagnostic about a file it only requires: \
+             one notification is about one URI, and lib.nvs has its own"
+        );
+    });
+}
+
+/// Closing a document retracts what it was published, and stops it being
+/// analysed at all.
+#[test]
+fn a_closed_document_is_published_for_one_last_time_with_nothing_in_it() {
+    let dir = TempDir::new("closed");
+    let broken = "<?nvs\nvar $broken = ;\n";
+    dir.write("main.nvs", broken);
+    dir.write("other.nvs", CLEAN);
+
+    served(|client| {
+        open(client, &dir.uri("main.nvs"), 1, broken);
+        assert!(!published(client).diagnostics.is_empty());
+
+        close(client, &dir.uri("main.nvs"));
+        let retracted = published(client);
+        assert_eq!(retracted.uri, dir.uri("main.nvs"));
+        assert!(
+            retracted.diagnostics.is_empty(),
+            "a squiggle outlived the buffer it was about: {:?}",
+            codes(&retracted)
+        );
+        assert_eq!(
+            retracted.version, None,
+            "a retraction is about no version, because the buffer it would name is gone"
+        );
+
+        // Nothing follows it. Messages are answered in order, so the next
+        // publish being about the document opened next is what says the closed
+        // one was not analysed again.
+        open(client, &dir.uri("other.nvs"), 1, CLEAN);
+        assert_eq!(published(client).uri, dir.uri("other.nvs"));
+    });
+}

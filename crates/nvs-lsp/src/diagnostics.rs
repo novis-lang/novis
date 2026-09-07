@@ -30,11 +30,14 @@
 //! the same value.
 //!
 //! **This is presentation, not analysis.** [`crate::analyse`] runs every phase
-//! and keeps every diagnostic, so nothing is lost and `nvs check` is untouched;
-//! a `.lspt` case asking `phase=all` is one that publishes
-//! [`crate::Analysed::diags`] without calling this function at all, which is
-//! why the gate is a filter over a finished walk rather than a bail-out inside
-//! one.
+//! and keeps every diagnostic, so nothing is lost and `nvs check` is untouched.
+//! The gate is a filter over a finished walk rather than a bail-out inside one,
+//! which is what lets [`Phases::All`] hand back exactly what it held — a `.lspt`
+//! case asking `phase=all` is the same walk read with the filter switched off.
+//!
+//! [`for_document`] is what the two halves compose into, and the one function
+//! the server and the suite both call: the gate, narrowed to the entry file,
+//! crossed to the wire.
 
 use std::collections::BTreeSet;
 
@@ -43,6 +46,7 @@ use nvs_diagnostics::{
     Code, Diagnostic, Diagnostics, PositionEncoding, Severity, SourceFile, SourceId,
 };
 
+use crate::document::Analysed;
 use crate::position::position_at;
 
 /// The bands whose error means this file's tree is broken, so what the phases
@@ -94,6 +98,58 @@ pub fn phase_gated(diags: &Diagnostics) -> Vec<&Diagnostic> {
             !in_bands(diagnostic, READS_THE_TREE)
                 || file_of(diagnostic).is_none_or(|file| !broken.contains(&file))
         })
+        .collect()
+}
+
+/// Whether the phase gate is applied to what a document publishes.
+///
+/// An editor is always sent [`Gated`](Phases::Gated): the rule is what a person
+/// typing sees and there is no setting that turns it off.
+/// [`All`](Phases::All) is the `.lspt` case that pins the gate from the other
+/// side, because a filter is only shown to be filtering by what it holds back.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Phases {
+    /// [`phase_gated`] applied, which is `rule:ide/diagnostics-are-phase-gated`.
+    #[default]
+    Gated,
+    /// Every phase's, gate and all — `diagnostics phase=all` and nothing a
+    /// client ever asks for.
+    All,
+}
+
+/// The diagnostics an editor is sent for one analysed document, positioned in
+/// `encoding`.
+///
+/// Three things happen here: the phase gate is applied unless `phases` defeats
+/// it, what survives is narrowed to the entry file, and that crosses to the
+/// wire. The second is the one that is easy to miss.
+///
+/// **The entry file only.** One analysis reads a whole `require` graph and
+/// reports over all of it, but a `publishDiagnostics` notification is about one
+/// URI. A diagnostic in a file the entry required belongs to *that* file's own
+/// notification, which it gets when it is open and analysed as its own entry
+/// point — and which is nothing at all when nobody opened it, because
+/// publishing for an unopened file is workspace scope and
+/// `rule:ide/an-open-document-is-its-own-entry-point` puts that at M10.
+///
+/// A diagnostic with no span at all is kept rather than dropped: it belongs to
+/// no file, so filtering by file is how it would be lost everywhere at once,
+/// and [`to_wire`] lands it at the start of the entry where it can be reported.
+#[must_use]
+pub fn for_document(
+    analysed: &Analysed,
+    phases: Phases,
+    encoding: PositionEncoding,
+) -> Vec<lsp_types::Diagnostic> {
+    let surviving = match phases {
+        Phases::Gated => phase_gated(&analysed.diags),
+        Phases::All => analysed.diags.iter().collect(),
+    };
+    let entry = analysed.map.file(analysed.entry);
+    surviving
+        .into_iter()
+        .filter(|diagnostic| file_of(diagnostic).is_none_or(|file| file == analysed.entry))
+        .map(|diagnostic| to_wire(diagnostic, entry, encoding))
         .collect()
 }
 
