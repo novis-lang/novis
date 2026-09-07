@@ -41,11 +41,14 @@
 //! * `nvs info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `nvs -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
-//! * `nvs meta --json` — the `Core` registry as JSON: every class, every
-//!   member, and each documented member's reference card, which is
+//! * `nvs meta --json [entry]` — the `Core` registry as JSON: every class,
+//!   every member, and each documented member's reference card, which is
 //!   `rule:tooling/meta-json`
-//!   's contract. A build-time consumer's input, never a runtime feature;
-//!   see [`meta`].
+//!   's contract. Given an entry point it prints that program's own
+//!   declarations beside the registry
+//!   (`rule:tooling/meta-json-takes-a-program`), which is the one input every
+//!   documentation renderer reads. A build-time consumer's input, never a
+//!   runtime feature; see [`meta`].
 //! * `nvs tmp clean` —
 //!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
@@ -385,7 +388,8 @@ enum Command {
         licenses: bool,
     },
     /// Print the `Core` registry — every class and member, with each
-    /// documented member's reference card.
+    /// documented member's reference card — and, given an entry point, that
+    /// program's own declarations beside it.
     ///
     /// `--json` is required for the reason `build --openapi` is: a `meta`
     /// with nothing named would succeed having printed nothing, and the flag
@@ -395,6 +399,11 @@ enum Command {
         /// Write the registry as JSON to standard output.
         #[arg(long, required = true)]
         json: bool,
+        /// A program's entry point, whose own declarations join the registry
+        /// under a `program` key (`rule:tooling/meta-json-takes-a-program`).
+        /// Omitted, the document is the registry alone and is byte-identical
+        /// to what it was before this argument existed.
+        entry: Option<PathBuf>,
     },
 }
 
@@ -783,7 +792,7 @@ fn main() -> ExitCode {
             password.as_deref(),
         ),
         Command::Info { licenses } => info::run(licenses),
-        Command::Meta { json: _ } => meta::run(),
+        Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
     }
 }
 

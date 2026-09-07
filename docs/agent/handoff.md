@@ -2,58 +2,67 @@
 
 ## State
 
-**Goal 11 stage 4 is whole — both tags now buy a check**, so the four names that stage's acceptance
-check lists pass under `cargo test -p nvs-hir`. Stages 1-3 are unchanged.
+**Goal 11 stage 5 is whole — one JSON, one more input.** The three names that stage's acceptance
+check lists pass under `cargo test -p nvs-cli`, and `python tools/reference.py --check` still
+regenerates `docs/novis.md` from the binary. Stages 1-4 are unchanged.
 
-- **The walk over a `DocTag` has one home**, `crates/nvs-hir/src/members.rs:@check_doc`, reached from
-  `check_stmts` (class, interface, enum and its cases, `type` alias) and from `check_members` (every
-  member inside a body). That is every declaration that carries a `doc`, and it closes the group's
-  third item: nothing re-derives where one hangs.
-- **`@see` is `E0323`** and resolves against the very `MemberTable` a `Class::member` reference does —
-  `self`, `static` and `parent` name a class here exactly as in code, a `Core` target is trusted the
-  same way, and a member is looked up against all four `MemberKind`s because the tag says *what* is
-  named and never which kind. A `$` sigil and a trailing `()` are allowed on the member half.
-- **`@example` is two codes**: `E0325` for a path in no directory the corpus walks, asked first and on
-  the written path alone, and `E0324` for one that is walked but holds no file. **The path is relative
-  to the file that wrote it, exactly as a `require` path is** — decided here rather than escalated,
-  because the alternative was project-root discovery and `nvs-hir` depends on `nvs-diagnostics`,
-  `nvs-syntax` and `rustc-hash` alone. A file with no path of its own (a fixture, an unsaved buffer)
-  resolves against the process's directory, which is its only base. `WALKED_DIRECTORIES` is
-  `examples`, `tests`; ADR 0137 § 2 names the first.
-- This is the only question `members.rs` asks of the filesystem, and its module doc is where that is
-  recorded.
-- **The driver's failing check, `examples/doc-comments.nvs`, is stage 6's** `exact` fixture with four
-  `want` lines — an item still open, not a regression.
-- The goal's `[context] modules` names no `nvs-hir` file, so the pack printed these anchors only
-  because the handoff item carried them; `crates/nvs-hir/src/members.rs` belongs in that manifest.
+- **`nvs meta --json [entry]` adds exactly one key.** With no argument the document is the registry
+  alone, byte for byte what it was before the argument existed; with an entry point the program's own
+  declarations sit under `program`, and nothing else moves. `crates/nvs-cli/src/meta.rs`'s module doc
+  § *The program half* is that seam's home, and
+  `meta_json_with_no_argument_is_byte_identical_to_the_registry_dump` is it asserted by removing the
+  key and comparing what is left.
+- **The program half is the program, not the file**: `crate::front_end` parses, resolves and
+  type-checks the whole `require`/`autoload` graph, and every file it reached contributes its
+  declarations in load order. A program that does not check prints nothing and exits non-zero.
+- **Its rosters are `classes`, `interfaces`, `enums` and `types`**, in the registry's own shape —
+  `members` plus `constants` on a class or interface, `cases` on an enum, the aliased type on a
+  `type`. A method's `kind` is the registry's vocabulary including `constructor`, decided by the
+  name. A signature is read off the source spans rather than re-printed from the tree.
+- **A declaration's card is the `///` run above it**: prose under `short` (the key the registry
+  already spells prose with), `@see` and `@example` as their own lists. The omission rule is the
+  registry's — no `doc` key without a run, no array emitted empty.
+- **Stage 5's three items landed as one commit**, because the test slice 1 names asserts the shape
+  slice 2 defines and slice 3 fills: they are one change to one file, and git stages files.
+- The driver's failing check, `examples/doc-comments.nvs`, is stage 6's `exact` fixture with four
+  `want` lines — an item still open, not a regression. It is item 3 below.
+- The goal's `[context] modules` names `nvs-cli/src/meta.rs` already; it does **not** name
+  `crates/nvs-hir/src/members.rs`, which item 1 below edits, so that pattern is still missing.
 - Nothing is blocked. `python tools/verify.py` is green.
 
 ## Next group
 
-**Stage 5: one JSON, one more input** — one file set: `crates/nvs-cli/src/meta.rs`,
-`crates/nvs-cli/src/main.rs`.
+**Stage 6: the renderer and the lint** — one file set: `crates/nvs-cli/src/main.rs`, a new
+`crates/nvs-cli/src/doc.rs`, `crates/nvs-hir/src/members.rs`, `examples/doc-comments.nvs`.
 
-- [ ] **`nvs meta --json` takes an optional entry** — `rule:tooling/meta-json-takes-a-program`. The
-      no-argument form stays byte-identical, which is the whole point of
-      `rule:tooling/one-json-several-renderers`: `tools/reference.py` and the website's `sync:core`
-      are renderers, not sources. `crates/nvs-cli/src/main.rs:394` is the `Meta` variant that gains
-      the argument and `crates/nvs-cli/src/main.rs:786` the dispatch that still calls `meta::run()`.
-      The tests are `meta_json_with_no_argument_is_byte_identical_to_the_registry_dump` and
-      `meta_json_with_an_entry_emits_the_programs_declarations`.
-- [ ] **The program's declarations join the registry's, in the registry's own shape** —
-      `rule:tooling/meta-json`, whose omission rule holds at every level: nothing written means no
-      `doc` key, never an empty one. `crates/nvs-cli/src/meta.rs:75` is `document()`, where the two
-      halves meet, and `crates/nvs-cli/src/meta.rs:396` is `doc_json`, the shape a card is already
-      emitted in.
-- [ ] **A user declaration's card carries prose, `@see` and `@example`** —
-      `rule:tooling/doc-comment-tags-are-see-and-example`, read off the `DocComment` the parser
-      already spanned rather than re-split from text. `crates/nvs-cli/src/meta.rs:167` is
-      `member_json`, the row a user member's card must line up with; the test is
-      `a_user_declarations_shape_carries_prose_see_and_example`.
+- [ ] **`nvs check --strict-docs` reports a public member with no `///`** —
+      `rule:tooling/strict-docs`. Silent by default and never satisfiable by an autofix. The walk is
+      already there: `crates/nvs-hir/src/members.rs:501` is `check_doc`, reached from `check_stmts`
+      (`crates/nvs-hir/src/members.rs:369`) and `check_members`
+      (`crates/nvs-hir/src/members.rs:461`), so the flag rides in beside it rather than growing a
+      second walk. The code is a fresh `E03xx` — take the next free one from `python
+      tools/brief.py`, not from this file. `crates/nvs-cli/src/main.rs:171` is the `Check` variant
+      that gains the flag and `crates/nvs-cli/src/main.rs:687` the dispatch into `run_check`
+      (`crates/nvs-cli/src/main.rs:1004`). The tests are
+      `strict_docs_reports_an_undocumented_public_member`,
+      `strict_docs_is_silent_about_a_private_member` and
+      `nvs_check_is_silent_about_documentation_without_the_flag`.
+- [ ] **`nvs doc <entry>` writes one Markdown page per class from the JSON** —
+      `rule:tooling/nvs-doc-renders-and-decides-nothing`. It has no source of truth of its own: it
+      reads the document `crates/nvs-cli/src/meta.rs:103`'s `run` builds, so the renderer takes the
+      `Value` rather than re-deriving anything, and a `@see` target renders as a link.
+      `crates/nvs-cli/src/main.rs:398` is the `Meta` variant to add the new subcommand beside and
+      `crates/nvs-cli/src/main.rs:795` its dispatch arm. The tests are
+      `nvs_doc_writes_one_page_per_class` and `nvs_doc_renders_a_see_target_as_a_link`.
+- [ ] **`examples/doc-comments.nvs` is the end-to-end fixture** — the driver's currently failing
+      `exact` check, whose four `want` lines are `docs/agent/loop-goal.toml:4864`. One runnable file
+      showing the surface, both tags and the default silence.
+      `crates/nvs-cli/tests/fixtures/meta/program.nvs` is the shape to write it from, and its
+      `@example` target has to name a path under an `examples/` or `tests/` component relative to
+      the file that wrote it.
 
 ## Backlog
 
-- `examples/doc-comments.nvs`, stage 6's `exact` fixture — docs/agent/loop-goal.toml.
-- Stage 6's renderer and lint — `rule:tooling/nvs-doc-renders-and-decides-nothing`,
-  `rule:tooling/strict-docs`; `--strict-docs` needs the next free `E03xx`.
-- `[context] modules` gains `crates/nvs-hir/src/members.rs` — docs/agent/loop-goal.toml.
+- `[context] modules` gains no `crates/nvs-hir/src/members.rs` pattern — `docs/agent/loop-goal.toml`.
+- Stage 7's website `sync:core` consumer over the program half — `website/README.md`.
+- `@param`-shaped per-parameter structure stays parked — `rule:tooling/doc-comment-is-three-slashes` § *Revisiting*.

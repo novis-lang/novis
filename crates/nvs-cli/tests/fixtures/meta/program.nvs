@@ -1,0 +1,53 @@
+<?nvs
+// The program `nvs meta --json <entry>` reads: one documented class carrying a
+// member of each kind, one documented enum and one documented `type` alias, so
+// the program half of the document has a row in every roster it can emit.
+//
+// Every `///` here is content the test asserts on. An ordinary `//` comment,
+// like this one, is not documentation and appears nowhere in the JSON.
+
+/// Greets somebody by name.
+///
+/// @see Greeter::greet
+/// @example examples/greeting.nvs
+class Greeter {
+    /// The word every greeting opens with.
+    public const string OPENING = "Hello";
+
+    /// Who the last greeting named.
+    public string $last;
+
+    public function constructor() {
+        $this->last = "";
+    }
+
+    /// Greets `$who`, and remembers the name.
+    ///
+    /// @see Core\Str::length
+    /// @example examples/greeting.nvs
+    public function greet(string $who): string {
+        $this->last = $who;
+        return self::OPENING . ", " . $who;
+    }
+
+    /// Greets nobody in particular.
+    public static function anyone(): string {
+        return self::OPENING . ", world";
+    }
+}
+
+/// How loudly to greet.
+enum Volume: int {
+    /// Barely audible.
+    Quiet = 1,
+    /// The one every greeting uses.
+    Normal = 2,
+}
+
+/// The text a greeting is.
+type Greeting = string;
+
+var $greeter = new Greeter();
+var $greeting = $greeter->greet("world") as Greeting;
+echo $greeting, "\n";
+echo "volume=" . (Volume::Normal as int) . "\n";

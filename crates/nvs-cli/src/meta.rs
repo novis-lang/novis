@@ -47,24 +47,72 @@
 //! ([`nvs_config::DIRECTIVES`]). Each is a table already, so this is one
 //! `map` per roster and no second home for any of them.
 //!
+//! ## The program half
+//!
+//! `rule:tooling/meta-json-takes-a-program` adds one optional argument, and it
+//! adds exactly one key: an entry point puts that program's own declarations
+//! under `program`, and the registry half above is untouched, so the
+//! no-argument form is byte-identical to what it printed before the argument
+//! existed. That is the whole seam — one input added to one document, never a
+//! fork — and it is what lets `tools/reference.py` and the website's
+//! `sync:core` stay renderers rather than sources
+//! (`rule:tooling/one-json-several-renderers`).
+//!
+//! The program half is the *program*, not the file: [`crate::front_end`]
+//! parses, resolves and type-checks the whole `require`/`autoload` graph, and
+//! every file it reached contributes its declarations in the order it was
+//! loaded. A program that does not check prints nothing and exits non-zero,
+//! for the reason `nvs check` does — a document over declarations the compiler
+//! refused would document a program that does not exist.
+//!
+//! Its shape mirrors the registry's rather than inventing one: `classes` and
+//! `interfaces` each carry `members` and `constants`, `enums` carry `cases`,
+//! and `types` — which the registry has no roster for, a `type` alias being a
+//! user declaration only — carries the type it stands for. A declaration's
+//! `doc` is the `///` run above it: its prose under `short`, the key the
+//! registry's card already spells prose with, and its two tags as `see` and
+//! `example` lists (`rule:tooling/doc-comment-tags-are-see-and-example`). The
+//! omission rule is the registry's, key for key: a declaration with no `///`
+//! has no `doc`, and no array is ever emitted empty.
+//!
 //! Built and written as JSON rather than as text through the `serde_json`
 //! this crate already carries for `rule:routing/api-document-is-generated-from-the-route-table`'s document; the workspace manifest
 //! owns why this crate and not another.
 
+use std::path::Path;
 use std::process::ExitCode;
 
+use nvs_diagnostics::{SourceFile, Span};
 use nvs_stdlib::registry::{
     CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc,
     ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
 };
+use nvs_syntax::ast::{
+    ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
+    InterfaceDecl, MethodMember, Modifier, Param, PropertyMember, Stmt, StmtKind, TypeAliasDecl,
+};
 use serde_json::{Map, Value, json};
 
-/// Prints the registry and returns success.
+/// Prints the registry — and, with an entry point, the program's declarations
+/// beside it — and returns success.
 ///
-/// Nothing here can fail: every value is a compile-time constant of
-/// `nvs-stdlib`, and serializing a tree of strings does not error.
-pub(crate) fn run() -> ExitCode {
-    println!("{}", document());
+/// The registry half cannot fail: every value is a compile-time constant of
+/// `nvs-stdlib`, and serializing a tree of strings does not error. The program
+/// half is the front end's exit code when the program does not check, and
+/// nothing is printed then.
+pub(crate) fn run(entry: Option<&Path>) -> ExitCode {
+    let mut document = document();
+    if let Some(entry) = entry {
+        let checked = match crate::front_end(entry) {
+            Ok(checked) => checked,
+            Err(code) => return code,
+        };
+        document
+            .as_object_mut()
+            .expect("the document is an object")
+            .insert("program".into(), program_json(&checked));
+    }
+    println!("{document}");
     ExitCode::SUCCESS
 }
 
@@ -454,6 +502,345 @@ fn enum_doc_json(doc: &EnumDoc) -> Value {
         |case| json!({ "name": case.name, "desc": case.desc }),
     );
     Value::Object(out)
+}
+
+// ============================================================================
+// The program half (`rule:tooling/meta-json-takes-a-program`)
+// ============================================================================
+
+/// The four rosters a program contributes, each in the order its declarations
+/// were loaded and then written.
+///
+/// One accumulator rather than four out-parameters, because the walk that
+/// fills them is one walk: a declaration's roster is decided by its statement
+/// kind, and the namespace it sits in is the same fact for all four.
+#[derive(Default)]
+struct Declared {
+    classes: Vec<Value>,
+    interfaces: Vec<Value>,
+    enums: Vec<Value>,
+    types: Vec<Value>,
+}
+
+/// Every declaration of the program `checked` is, in the registry's own shape.
+///
+/// The order is `nvs_hir::resolve_program`'s: the entry file first, then each
+/// file its `require`/`autoload` graph reached, and within a file the order
+/// they were written. A roster with nothing in it is left out, the same
+/// omission rule the registry half follows.
+fn program_json(checked: &crate::Checked) -> Value {
+    let mut declared = Declared::default();
+    for file in &checked.files {
+        let src = checked.map.file(file.id);
+        collect(&file.stmts, src, "", &mut declared);
+    }
+    let mut out = Map::new();
+    put_values(&mut out, "classes", declared.classes);
+    put_values(&mut out, "interfaces", declared.interfaces);
+    put_values(&mut out, "enums", declared.enums);
+    put_values(&mut out, "types", declared.types);
+    Value::Object(out)
+}
+
+/// Walks one statement list, routing each declaration to its roster.
+///
+/// `enclosing` is the namespace the list already sits in. A bracketed
+/// `namespace N { ... }` recurses with `N`; the statement form has no body and
+/// applies to the rest of *this* list, which is what the running local holds.
+/// Nothing else descends: a declaration inside a function body or a branch is
+/// not a declaration this language has.
+fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared) {
+    let mut namespace = enclosing.to_owned();
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(decl) => {
+                let name = decl
+                    .name
+                    .map(|name| text(src, name.span).to_owned())
+                    .unwrap_or_default();
+                match &decl.body {
+                    Some(block) => collect(&block.stmts, src, &name, out),
+                    None => namespace = name,
+                }
+            }
+            StmtKind::ClassDecl(decl) => out.classes.push(user_class_json(decl, src, &namespace)),
+            StmtKind::InterfaceDecl(decl) => {
+                out.interfaces
+                    .push(user_interface_json(decl, src, &namespace));
+            }
+            StmtKind::EnumDecl(decl) => out.enums.push(user_enum_json(decl, src, &namespace)),
+            StmtKind::TypeAliasDecl(decl) => out.types.push(user_alias_json(decl, src, &namespace)),
+            _ => {}
+        }
+    }
+}
+
+/// One user class: its name, its members, its constants and its own card —
+/// [`class_json`]'s shape, minus the `typeParams` and `constructor` keys a
+/// registry class carries because the compiler owns them.
+fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str) -> Value {
+    let mut out = Map::new();
+    out.insert(
+        "name".into(),
+        Value::from(qualify(namespace, text(src, decl.name.span))),
+    );
+    body_json(&decl.members, src, &mut out);
+    put_doc(&mut out, decl.doc.as_ref(), src);
+    Value::Object(out)
+}
+
+/// One user interface, in a class's shape: an interface declares members and
+/// constants exactly as a class does, and a consumer rendering either renders
+/// the same keys.
+fn user_interface_json(decl: &InterfaceDecl, src: &SourceFile, namespace: &str) -> Value {
+    let mut out = Map::new();
+    out.insert(
+        "name".into(),
+        Value::from(qualify(namespace, text(src, decl.name.span))),
+    );
+    body_json(&decl.members, src, &mut out);
+    put_doc(&mut out, decl.doc.as_ref(), src);
+    Value::Object(out)
+}
+
+/// The `members` and `constants` of a class or interface body.
+///
+/// `members` is always present, empty or not, because the registry's is; a
+/// class with no constants has no `constants` key, because the registry's does
+/// not either. A member the parser recovered over contributes nothing — it
+/// has no name to be documented under.
+fn body_json(members: &[ClassMember], src: &SourceFile, out: &mut Map<String, Value>) {
+    let mut declared = Vec::new();
+    let mut constants = Vec::new();
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Method(method) => {
+                declared.push(user_method_json(method, member.doc.as_ref(), src));
+            }
+            ClassMemberKind::Property(property) => {
+                declared.push(user_property_json(property, member.doc.as_ref(), src));
+            }
+            ClassMemberKind::Const(constant) => {
+                constants.push(user_constant_json(constant, member.doc.as_ref(), src));
+            }
+            _ => {}
+        }
+    }
+    out.insert("members".into(), Value::Array(declared));
+    put_values(out, "constants", constants);
+}
+
+/// One user method: its name, its `kind`, its signature as written, and its
+/// card.
+///
+/// `kind` is the registry's own vocabulary, `constructor` included: a class's
+/// constructor is spelled `constructor` in Novis, so the name decides it and no
+/// second rule is needed.
+fn user_method_json(method: &MethodMember, doc: Option<&DocComment>, src: &SourceFile) -> Value {
+    let kind = match text(src, method.name) {
+        "constructor" => "constructor",
+        _ if method.modifiers.contains(&Modifier::Static) => "static",
+        _ => "instance",
+    };
+    let params: Vec<String> = method
+        .params
+        .iter()
+        .map(|param| param_signature(param, src))
+        .collect();
+    let mut signature = format!("{}({})", text(src, method.name), params.join(", "));
+    if let Some(ret) = &method.return_type {
+        signature.push_str(": ");
+        signature.push_str(text(src, ret.span));
+    }
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(text(src, method.name)));
+    out.insert("kind".into(), Value::from(kind));
+    out.insert("signature".into(), Value::from(signature));
+    put_doc(&mut out, doc, src);
+    Value::Object(out)
+}
+
+/// One parameter as it was written — `inout` and `...` included, and the
+/// default as its own source text.
+///
+/// Read off the source rather than re-printed from the tree for the reason
+/// every span here is: the source is the text, so a spelling the grammar
+/// accepts can never come back out as a spelling it does not.
+fn param_signature(param: &Param, src: &SourceFile) -> String {
+    let mut out = String::new();
+    if param.inout {
+        out.push_str("inout ");
+    }
+    if let Some(ty) = &param.ty {
+        out.push_str(text(src, ty.span));
+        out.push(' ');
+    }
+    if param.variadic {
+        out.push_str("...");
+    }
+    out.push_str(text(src, param.name));
+    if let Some(default) = &param.default {
+        out.push_str(" = ");
+        out.push_str(text(src, default.span));
+    }
+    out
+}
+
+/// One user property: its name with the `$` a program writes it with, its
+/// declared type as its signature, and its card.
+fn user_property_json(
+    property: &PropertyMember,
+    doc: Option<&DocComment>,
+    src: &SourceFile,
+) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(text(src, property.name)));
+    out.insert("kind".into(), Value::from("property"));
+    out.insert(
+        "signature".into(),
+        Value::from(format!(
+            "{} {}",
+            text(src, property.ty.span),
+            text(src, property.name)
+        )),
+    );
+    put_doc(&mut out, doc, src);
+    Value::Object(out)
+}
+
+/// One user constant: [`constant_json`]'s keys, with `type` absent where the
+/// declaration left the type out — which PHP 8.3 allows and this document
+/// reports rather than guesses.
+fn user_constant_json(constant: &ConstMember, doc: Option<&DocComment>, src: &SourceFile) -> Value {
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(text(src, constant.name)));
+    if let Some(ty) = &constant.ty {
+        out.insert("type".into(), Value::from(text(src, ty.span)));
+    }
+    out.insert("value".into(), Value::from(text(src, constant.value.span)));
+    put_doc(&mut out, doc, src);
+    Value::Object(out)
+}
+
+/// One user enum: its name, its backing type when written, its cases with
+/// their own cards, and its own card.
+///
+/// A case's card sits on the case rather than in the enum's, which is where
+/// the registry's [`EnumDoc`] keeps it — a `Core` enum's cases are documented
+/// in one Rust literal, and a program's are documented each above its own
+/// line.
+fn user_enum_json(decl: &EnumDecl, src: &SourceFile, namespace: &str) -> Value {
+    let mut out = Map::new();
+    out.insert(
+        "name".into(),
+        Value::from(qualify(namespace, text(src, decl.name.span))),
+    );
+    if let Some(backing) = &decl.backing {
+        out.insert("backing".into(), Value::from(text(src, backing.span)));
+    }
+    let cases: Vec<Value> = decl
+        .cases
+        .iter()
+        .map(|case| {
+            let mut out = Map::new();
+            out.insert("name".into(), Value::from(text(src, case.name.span)));
+            if let Some(value) = &case.value {
+                out.insert("value".into(), Value::from(text(src, value.span)));
+            }
+            put_doc(&mut out, case.doc.as_ref(), src);
+            Value::Object(out)
+        })
+        .collect();
+    out.insert("cases".into(), Value::Array(cases));
+    put_doc(&mut out, decl.doc.as_ref(), src);
+    Value::Object(out)
+}
+
+/// One `type` alias: its name, the type expression it stands for, and its card.
+fn user_alias_json(decl: &TypeAliasDecl, src: &SourceFile, namespace: &str) -> Value {
+    let mut out = Map::new();
+    out.insert(
+        "name".into(),
+        Value::from(qualify(namespace, text(src, decl.name.span))),
+    );
+    out.insert("type".into(), Value::from(text(src, decl.ty.span)));
+    put_doc(&mut out, decl.doc.as_ref(), src);
+    Value::Object(out)
+}
+
+/// Inserts `doc` only where a `///` run was written above the declaration.
+///
+/// A run that says nothing still emits an empty object, exactly as an unwritten
+/// registry card does: the absent key means "not documented", and an empty one
+/// means "documented, and the author wrote nothing" — a distinction
+/// `nvs check --strict-docs` is about to depend on.
+fn put_doc(out: &mut Map<String, Value>, doc: Option<&DocComment>, src: &SourceFile) {
+    let Some(doc) = doc else {
+        return;
+    };
+    let mut card = Map::new();
+    let prose = prose(doc, src);
+    if !prose.is_empty() {
+        card.insert("short".into(), Value::from(prose));
+    }
+    for (key, kind) in [("see", DocTagKind::See), ("example", DocTagKind::Example)] {
+        let named: Vec<Value> = doc
+            .tags
+            .iter()
+            .filter(|tag| tag.kind == kind)
+            .map(|tag| Value::from(text(src, tag.argument).trim()))
+            .collect();
+        put_values(&mut card, key, named);
+    }
+    out.insert("doc".into(), Value::Object(card));
+}
+
+/// A `///` run's prose: every line that is not a tag, with its marker off.
+///
+/// One space after the marker is the separator and comes off with it; anything
+/// further in is the author's own indentation, which a fenced code block in the
+/// Markdown depends on. A tag line is one whose text begins with `@`, and that
+/// is exact rather than approximate — the parser refused every spelling but the
+/// two, so nothing else can start that way.
+fn prose(doc: &DocComment, src: &SourceFile) -> String {
+    let lines: Vec<&str> = doc
+        .lines
+        .iter()
+        .map(|line| {
+            let line = text(src, *line).trim_start();
+            let line = line.strip_prefix("///").unwrap_or(line);
+            line.strip_prefix(' ').unwrap_or(line)
+        })
+        .filter(|line| !line.trim_start().starts_with('@'))
+        .collect();
+    lines.join("\n").trim().to_owned()
+}
+
+/// `namespace` and `name` joined the way a program writes a qualified name,
+/// and `name` alone at file scope.
+fn qualify(namespace: &str, name: &str) -> String {
+    if namespace.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{namespace}\\{name}")
+    }
+}
+
+/// A span's source text, or the empty string where the file cannot answer —
+/// which a span this walk holds never is, every one of them having come from
+/// this very file's parse.
+fn text(src: &SourceFile, span: Span) -> &str {
+    src.span_text(span).unwrap_or_default()
+}
+
+/// Inserts `key` as an array only when at least one value was built.
+///
+/// [`put_list`]'s rule over values that are already [`Value`]s, so the program
+/// half omits an empty roster for the same reason the registry half does.
+fn put_values(out: &mut Map<String, Value>, key: &str, values: Vec<Value>) {
+    if !values.is_empty() {
+        out.insert(key.into(), Value::Array(values));
+    }
 }
 
 /// Inserts `key` only when `value` is written.

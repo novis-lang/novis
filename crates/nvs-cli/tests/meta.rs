@@ -235,3 +235,166 @@ fn meta_without_json_is_refused() {
     let (_, ok) = meta(&[]);
     assert!(!ok);
 }
+
+/// The fixture program `rule:tooling/meta-json-takes-a-program`'s tests read,
+/// as a path this binary can be handed from any working directory.
+///
+/// Built from `CARGO_MANIFEST_DIR` because the fixture's own `@example` paths
+/// resolve against the file that wrote them, so the entry point has to be the
+/// committed file rather than a copy somewhere else.
+fn fixture() -> String {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/program.nvs")
+        .display()
+        .to_string()
+}
+
+/// `program`, the one key an entry point adds.
+fn program(args: &[&str]) -> serde_json::Value {
+    let (doc, ok) = meta(args);
+    assert!(ok, "`nvs meta {args:?}` succeeds");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    document["program"].clone()
+}
+
+/// The declaration `roster::name` names in the program half.
+fn declared(program: &serde_json::Value, roster: &str, name: &str) -> serde_json::Value {
+    program[roster]
+        .as_array()
+        .unwrap_or_else(|| panic!("`{roster}` is an array"))
+        .iter()
+        .find(|d| d["name"] == name)
+        .unwrap_or_else(|| panic!("{name} is in `{roster}`"))
+        .clone()
+}
+
+/// The seam `rule:tooling/meta-json-takes-a-program` states: the argument adds
+/// one key and changes nothing else, so the two renderers already on this
+/// pipeline — `tools/reference.py` and the website's `sync:core` — read the
+/// same bytes they did before it existed.
+///
+/// Asserted by taking the program half back out of the entry-point document and
+/// comparing what is left, byte for byte, against the no-argument one. A
+/// document that had been reshaped anywhere — a key renamed, a roster moved
+/// under the program, a field emitted only when a program is named — fails here
+/// while both halves still look right read on their own.
+#[test]
+fn meta_json_with_no_argument_is_byte_identical_to_the_registry_dump() {
+    let (registry, ok) = meta(&["--json"]);
+    assert!(ok, "`nvs meta --json` succeeds");
+    let (with_program, ok) = meta(&["--json", &fixture()]);
+    assert!(ok, "`nvs meta --json <entry>` succeeds");
+
+    let mut document: serde_json::Value =
+        serde_json::from_str(&with_program).expect("the document is JSON");
+    let removed = document
+        .as_object_mut()
+        .expect("the document is an object")
+        .remove("program");
+    assert!(removed.is_some(), "an entry point adds a `program` key");
+    assert_eq!(format!("{document}\n"), registry);
+}
+
+/// An entry point's own declarations reach the document, in every roster the
+/// program fills and in the shape the registry half already uses: a class with
+/// `members` and `constants`, an enum with `cases`, and a `type` alias with the
+/// type it stands for.
+#[test]
+fn meta_json_with_an_entry_emits_the_programs_declarations() {
+    let program = program(&["--json", &fixture()]);
+
+    let greeter = declared(&program, "classes", "Greeter");
+    let members: Vec<(&str, &str)> = greeter["members"]
+        .as_array()
+        .expect("`members` is an array")
+        .iter()
+        .map(|m| {
+            (
+                m["name"].as_str().expect("a name"),
+                m["kind"].as_str().expect("a kind"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        members,
+        vec![
+            ("$last", "property"),
+            ("constructor", "constructor"),
+            ("greet", "instance"),
+            ("anyone", "static"),
+        ]
+    );
+    assert_eq!(
+        declared(&greeter, "constants", "OPENING"),
+        serde_json::json!({
+            "name": "OPENING",
+            "type": "string",
+            "value": "\"Hello\"",
+            "doc": { "short": "The word every greeting opens with." },
+        })
+    );
+    assert_eq!(
+        greeter["members"][2]["signature"],
+        "greet(string $who): string"
+    );
+
+    let volume = declared(&program, "enums", "Volume");
+    assert_eq!(volume["backing"], "int");
+    let cases: Vec<&str> = volume["cases"]
+        .as_array()
+        .expect("`cases` is an array")
+        .iter()
+        .map(|c| c["name"].as_str().expect("a name"))
+        .collect();
+    assert_eq!(cases, vec!["Quiet", "Normal"]);
+
+    assert_eq!(declared(&program, "types", "Greeting")["type"], "string");
+}
+
+/// A user declaration's card is the `///` run above it: its prose under
+/// `short`, its `@see` targets and its `@example` paths as their own lists, and
+/// the registry's omission rule over all three — an undocumented declaration
+/// has no `doc` key, and neither tag list is ever emitted empty.
+#[test]
+fn a_user_declarations_shape_carries_prose_see_and_example() {
+    let program = program(&["--json", &fixture()]);
+    let greeter = declared(&program, "classes", "Greeter");
+
+    assert_eq!(
+        greeter["doc"],
+        serde_json::json!({
+            "short": "Greets somebody by name.",
+            "see": ["Greeter::greet"],
+            "example": ["examples/greeting.nvs"],
+        })
+    );
+    assert_eq!(
+        greeter["members"][2]["doc"],
+        serde_json::json!({
+            "short": "Greets `$who`, and remembers the name.",
+            "see": [r"Core\Str::length"],
+            "example": ["examples/greeting.nvs"],
+        })
+    );
+
+    // The static member is documented with prose and no tag, so it carries a
+    // `short` and neither list — an empty array would read as "documented with
+    // no targets" rather than "no tag written".
+    assert_eq!(
+        greeter["members"][3]["doc"],
+        serde_json::json!({ "short": "Greets nobody in particular." })
+    );
+
+    // The constructor carries no `///` at all, so it carries no card.
+    assert!(greeter["members"][1]["doc"].is_null());
+
+    let volume = declared(&program, "enums", "Volume");
+    assert_eq!(
+        volume["doc"],
+        serde_json::json!({ "short": "How loudly to greet." })
+    );
+    assert_eq!(
+        volume["cases"][0]["doc"],
+        serde_json::json!({ "short": "Barely audible." })
+    );
+}
