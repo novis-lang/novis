@@ -3244,6 +3244,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the failure reads as the fixture being wrong. Narrow the *comparison* to the fixture's own tables,
   and ask `information_schema` which column the server means before blaming the round trip.
   [until: reviewed 2026-09-06]
+- **A count the allocator is meant to refuse has to be past the address space, not merely past the
+  RAM.** macOS backs a mapping lazily and says yes to a terabyte, so a case asking for one gets the
+  allocation and then spends its whole 60-second budget writing the pages, where linux and windows
+  refuse the same count outright and the case reads as green. Ask for a petabyte — still far under
+  the `isize::MAX` seam, past every 64-bit address space — as
+  `count-shaped-producers-refuse-alike.nvst` does.
+  [until: gone tests/conformance/core/count-shaped-producers-refuse-alike.nvst:1000000000000000]
 
 ## Splitting a file that got too big
 
@@ -4660,6 +4667,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   state and a guard has no portable spelling for an index anyway. So the command that ran the list
   has to become a convergence in the same slice, and any column the value adds has to be nullable to
   arrive as a `Safe` step on a table that already has rows. [until: reviewed 2026-09-07]
+- **A `NaN` a `float` expression produced carries the hardware's sign bit, and that bit is not the
+  same on every leg of the matrix.** `sqrt(-1.0)` is negative where the SSE default `NaN` is and
+  positive on aarch64, so anything reading it — `f64::total_cmp` above all — answers one way on
+  linux-x86_64 and the other on macos-aarch64 while each looks right on its own. Fold every `NaN` to
+  one before ordering, as `nvs_stdlib::ordering::ordered` does, and never assert on a `NaN`'s sign.
+  [until: reviewed 2026-09-07]
 
 ## Divergences and refusals already pinned
 
