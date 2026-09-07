@@ -84,11 +84,22 @@ modules = [
   "crates/nvs-diagnostics/src/lib.rs",
 ]
 
-rules = ["0098", "0124", "0063", "0034", "0134"]
+# The three pipeline rules by id, because a record number prints only its rules' titles and the
+# fragment is the rule -- the grammar, the precedence table and the three refusals are all in them.
+rules = [
+  "expressions/pipeline-substitution",
+  "expressions/pipeline-precedence",
+  "expressions/pipeline-hole-once",
+  "0098",
+  "0124",
+  "0063",
+  "0034",
+  "0134",
+]
 
-# 0098 whole: it is the operator's entire design, and its diagnostics table is what stage 0 folds.
+# 0098's *In short* and § 4, which is the diagnostics table stage 0 renumbered.
 # 0124's four refusals and the one it does not adopt.
-adrs = ["0098", "0124"]
+adrs = ["0098", "0098 § 4", "0124"]
 
 shapes = ["A diagnostic", "A `.nvst` test case", "A rule fragment", "A decision record", "A commit message"]
 

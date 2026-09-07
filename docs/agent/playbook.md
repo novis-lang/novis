@@ -3291,6 +3291,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `E0nnn` — the report named a `-p nvs-syntax` test while the edit was six `.nvst` files. Such a
   sweep has to drop a case carrying `--EXPECT-ERROR--` or `--EXPECTF-ERROR--`, which states a
   diagnostic rather than carrying one. [until: reviewed 2026-09-07]
+- **A `Diagnostic`'s help line *is* a note, so "this refusal carries no note" is an assertion that can
+  never hold.** `Diagnostic::with_help` pushes `help: …` onto the same `notes` vector `with_note` fills,
+  so `d.notes.is_empty()` is false for any diagnostic that offers a fix at all, and a test asserting a
+  *second* note is absent fails on the first one. Assert on a note's content — `n.contains("PHP 8.5")` —
+  rather than on the vector's length. [until: reviewed 2026-09-07]
 
 ## Splitting a file that got too big
 
