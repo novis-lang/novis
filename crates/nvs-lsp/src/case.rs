@@ -568,7 +568,10 @@ name    property  string
         assert_eq!(case.title, "member completion survives an unclosed brace");
         assert_eq!(case.request, Request::Completion);
         assert_eq!(case.args, RequestArgs::default());
-        assert_eq!(case.expect, "greet   method    (): string\nname    property  string\n");
+        assert_eq!(
+            case.expect,
+            "greet   method    (): string\nname    property  string\n"
+        );
 
         // The cursor is gone from the bytes the server is asked about, and what
         // is left is where it was.
@@ -582,7 +585,10 @@ name    property  string
         // contains dashes, which is not a header at all.
         let quoted = MEMBER_COMPLETION.replace("$u-><|>", "$u->x; // --EXPECT--\n$u-><|>");
         let case = parse(&quoted).expect("a body line is not a header");
-        assert_eq!(case.expect, "greet   method    (): string\nname    property  string\n");
+        assert_eq!(
+            case.expect,
+            "greet   method    (): string\nname    property  string\n"
+        );
 
         // The roster is this module's, and it is not `.nvst`'s: a section that
         // format knows is refused here rather than ignored.
@@ -618,7 +624,11 @@ lib/user.nvs:2:36
         let case = parse(across_files).expect("a multi-file case parses");
         assert_eq!(case.aux.len(), 1);
         assert_eq!(case.aux[0].path, "lib/user.nvs");
-        assert!(case.aux[0].body.starts_with("<?nvs\n"), "{}", case.aux[0].body);
+        assert!(
+            case.aux[0].body.starts_with("<?nvs\n"),
+            "{}",
+            case.aux[0].body
+        );
         assert!(!case.document.contains("class User"), "{}", case.document);
 
         // The path is contained, spelled one way, and never the name the case's
@@ -687,14 +697,20 @@ lib/user.nvs:2:36
     fn an_unknown_request_or_argument_fails_the_case() {
         let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "documentHighlight\n"))
             .expect_err("the request set is closed");
-        assert!(refused.to_string().contains("documentHighlight"), "{refused}");
+        assert!(
+            refused.to_string().contains("documentHighlight"),
+            "{refused}"
+        );
         assert!(refused.to_string().contains("completion"), "{refused}");
 
         // What each request takes is closed too, and the message says what it
         // does take rather than only that this is not it.
         let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "completion depth=2\n"))
             .expect_err("`depth=` is nobody's argument");
-        assert!(refused.to_string().contains("`prefix=` and `limit=`"), "{refused}");
+        assert!(
+            refused.to_string().contains("`prefix=` and `limit=`"),
+            "{refused}"
+        );
 
         let refused = parse(&MEMBER_COMPLETION.replace("completion\n", "completion limit=lots\n"))
             .expect_err("a limit is a number");
@@ -704,16 +720,18 @@ lib/user.nvs:2:36
             .expect_err("an argument is `key=value`");
         assert!(refused.to_string().contains("key=value"), "{refused}");
 
-        let case = parse(&MEMBER_COMPLETION.replace("completion\n", "completion prefix=gr limit=1\n"))
-            .expect("both of completion's arguments parse");
+        let case =
+            parse(&MEMBER_COMPLETION.replace("completion\n", "completion prefix=gr limit=1\n"))
+                .expect("both of completion's arguments parse");
         assert_eq!(case.args.prefix.as_deref(), Some("gr"));
         assert_eq!(case.args.limit, Some(1));
 
         // `types=` is checked against the legend the server actually declares,
         // so a case cannot restrict a rendering to a token type nothing emits.
         let whole_document = MEMBER_COMPLETION.replace("$u-><|>", "$u->");
-        let case = parse(&whole_document.replace("completion\n", "semanticTokens types=class,method\n"))
-            .expect("both names are in the legend");
+        let case =
+            parse(&whole_document.replace("completion\n", "semanticTokens types=class,method\n"))
+                .expect("both names are in the legend");
         assert_eq!(case.args.types, ["class", "method"]);
         let refused = parse(&whole_document.replace("completion\n", "semanticTokens types=goto\n"))
             .expect_err("`goto` is in no legend");
