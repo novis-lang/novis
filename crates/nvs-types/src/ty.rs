@@ -169,6 +169,32 @@ pub enum Ty {
     Iterable,
     /// `callable`
     Callable,
+    /// `callable(User, string): string` — `rule:types/callable-signature`'s
+    /// written signature: the parameter types left to right, and the return
+    /// type the grammar makes mandatory.
+    ///
+    /// A variant of its own rather than an option on [`Self::Callable`], for
+    /// the reason [`nvs_syntax::ast::TypeAtom::CallableSig`] is an atom of its
+    /// own: bare `callable` is the **top** of the callable lattice and goes on
+    /// meaning exactly what it meant — a closure whose signature is unknown,
+    /// reached by a dynamic call whose arguments `nvs_runtime::closure` checks
+    /// one tag at a time — while a written signature is checked where the call
+    /// is written and pays nothing at run time. The two never collapse.
+    ///
+    /// An empty `params` is `callable(): void`, which promises *no*
+    /// parameters; that is a different type from bare `callable`, which
+    /// promises nothing.
+    ///
+    /// This is a type in every way the two variants below are not: source text
+    /// can spell it, [`TypeInterner::describe`] renders it back as what was
+    /// written, and it survives a call site all the way to `nvs-ir`, where it
+    /// erases to the object pointer [`Self::Callable`] already erases to.
+    CallableSig {
+        /// The parameter types, left to right.
+        params: Vec<TypeId>,
+        /// The return type.
+        ret: TypeId,
+    },
     /// `callable`, plus the name of the type variable its **result** binds —
     /// `U` in `Core\Arr::map(array<T> $a, callable $fn): array<U>`.
     ///
@@ -535,6 +561,18 @@ impl TypeInterner {
             // variant's own doc comment for why the bound variable's name is
             // never quoted at a user.
             Ty::Callable | Ty::CallableTo(_) => "callable".to_owned(),
+            // Rendered as it is written, so a diagnostic about a signature
+            // quotes text the program's author can find — which is why the
+            // parameters are joined in their own order and the return type
+            // keeps its colon.
+            Ty::CallableSig { params, ret } => {
+                let inner = params
+                    .iter()
+                    .map(|param| self.describe(*param))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("callable({inner}): {}", self.describe(*ret))
+            }
             // Never actually rendered: this variant is substituted away before
             // any argument is checked, so nothing has one to describe. The
             // spelling is what a call site writes rather than a type name,
@@ -773,6 +811,13 @@ impl TypeInterner {
     #[must_use]
     pub fn callable(&mut self) -> TypeId {
         self.intern(Ty::Callable)
+    }
+
+    /// The interned `callable` carrying the signature `params` → `ret` — see
+    /// [`Ty::CallableSig`], which owns why it is a separate type from the bare
+    /// one above rather than a fuller description of it.
+    pub fn callable_sig(&mut self, params: Vec<TypeId>, ret: TypeId) -> TypeId {
+        self.intern(Ty::CallableSig { params, ret })
     }
 
     /// The interned `callable` that binds `name` from its result — see
@@ -1016,6 +1061,23 @@ mod tests {
         let int = i.int();
         let s = i.shape(vec![("x".to_owned(), int)]);
         assert_eq!(i.describe(s), "{x: int}");
+    }
+
+    /// `rule:types/callable-signature`: a signature renders as the source
+    /// spelling it came from, and the empty parameter list is a signature
+    /// promising none rather than the bare type promising nothing — so the two
+    /// intern apart and describe apart.
+    #[test]
+    fn describe_renders_a_callable_signature_as_it_is_written() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let string = i.string();
+        let sig = i.callable_sig(vec![int, string], string);
+        assert_eq!(i.describe(sig), "callable(int, string): string");
+        let void = i.void();
+        let none = i.callable_sig(Vec::new(), void);
+        assert_eq!(i.describe(none), "callable(): void");
+        assert_ne!(none, i.callable());
     }
 
     #[test]

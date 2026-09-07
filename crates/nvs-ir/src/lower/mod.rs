@@ -3052,9 +3052,17 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // erased half: the checker records the field's *name* and nothing
         // else, and `InstKind::SlotGet`/`SlotSet` find it on the concrete
         // descriptor or throw.
-        CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) | CheckedTy::Object => {
-            Ty::Object
-        }
+        //
+        // A `callable` carrying a written signature erases here too, and to the
+        // same pointer: `rule:types/callable-signature` moves the *check* to
+        // where the call is written, so what is left below this boundary is the
+        // closure object the bare type already lowered to, with nothing about
+        // its parameters left to represent.
+        CheckedTy::Class(..)
+        | CheckedTy::Callable
+        | CheckedTy::CallableSig { .. }
+        | CheckedTy::Shape(_)
+        | CheckedTy::Object => Ty::Object,
         // `rule:types/class-reference`: a class reference's value is the run-time descriptor
         // `new static` already carries, so it erases to that representation and
         // its argument goes the way `Class`'s identity goes one arm above.

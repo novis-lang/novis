@@ -550,7 +550,12 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::ClassRef(_) => EqDomain::ClassRef,
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
-        Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
+        // A written signature is a fact about how a closure may be *called*,
+        // never about which closures a position holds, so it shares the bare
+        // type's domain: two callable values compare by identity either way,
+        // and `rule:types/callable-signature` adds nothing a comparison could
+        // read.
+        Ty::Callable | Ty::CallableTo(_) | Ty::CallableSig { .. } => EqDomain::Callable,
         // Both spellings of "a value of this enum" — `rule:types/enum-case-type` keeps a case
         // type a *subtype* of its enum, so it shares its enum's domain and
         // stays disjoint from every other one, `int` included.
@@ -2048,9 +2053,12 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
         Ty::ClassRef(_) => ConvKind::ClassRef,
         Ty::PropertyKey(_) => ConvKind::PropertyKey,
         Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => ConvKind::Enum(*backing),
-        Ty::Class(..) | Ty::Object | Ty::Shape(_) | Ty::Callable | Ty::CallableTo(_) => {
-            ConvKind::Object
-        }
+        Ty::Class(..)
+        | Ty::Object
+        | Ty::Shape(_)
+        | Ty::Callable
+        | Ty::CallableTo(_)
+        | Ty::CallableSig { .. } => ConvKind::Object,
         Ty::Union(members) => {
             let mut shared: Option<ConvKind> = None;
             for member in members {

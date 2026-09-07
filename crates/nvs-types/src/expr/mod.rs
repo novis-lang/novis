@@ -115,7 +115,14 @@ pub(crate) fn check_expr(
 ) -> TypeId {
     let actual = infer(expr, expected, live, scope, ctx, env);
     if let Some(expected_id) = expected {
-        let wants_callable = matches!(env.interner.get(expected_id), Ty::Callable);
+        // A written signature is a callable position like the bare type is
+        // (`rule:types/callable-signature`), so a value that is not a closure
+        // at all gets `rule:types/callable-is-a-closure`'s own refusal at
+        // either spelling rather than a bare mismatch at one of them.
+        let wants_callable = matches!(
+            env.interner.get(expected_id),
+            Ty::Callable | Ty::CallableSig { .. }
+        );
         if wants_callable && report_non_callable_value_if_applicable(expr, env) {
             return actual;
         }

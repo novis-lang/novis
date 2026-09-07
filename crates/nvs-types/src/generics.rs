@@ -106,6 +106,12 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         // to be rewritten before the signature is used — see [`substitute`].
         Ty::TypeVar(_) | Ty::CallableTo(_) | Ty::CallableShapeTo(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
+        Ty::CallableSig { params, ret } => {
+            params
+                .iter()
+                .any(|param| mentions_type_var(*param, interner))
+                || mentions_type_var(*ret, interner)
+        }
         Ty::Class(_, args) => args.iter().any(|arg| mentions_type_var(*arg, interner)),
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
@@ -343,6 +349,18 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
         Ty::Array(elem) => {
             let elem = substitute(elem, bindings, interner);
             interner.array(elem)
+        }
+        // The one callable variant that does **not** collapse: a written
+        // signature is a type rather than a binding site, so it is rewritten
+        // field-wise like an array's element and comes back out a signature —
+        // see [`Ty::CallableSig`].
+        Ty::CallableSig { params, ret } => {
+            let params: Vec<TypeId> = params
+                .iter()
+                .map(|param| substitute(*param, bindings, interner))
+                .collect();
+            let ret = substitute(ret, bindings, interner);
+            interner.callable_sig(params, ret)
         }
         Ty::Union(members) => {
             let members: Vec<TypeId> = members

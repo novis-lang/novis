@@ -141,12 +141,19 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::False => env.interner.false_ty(),
         TypeAtom::Iterable => env.interner.iterable(),
         TypeAtom::Callable => env.interner.callable(),
-        // `rule:types/callable-signature`'s written signature answers as the
-        // top of the callable lattice: `Ty` carries no signature of its own,
-        // so the annotation admits exactly what bare `callable` admits — a
-        // closure and nothing else — and a call through it keeps the dynamic
-        // path and its per-argument tag check.
-        TypeAtom::CallableSig { .. } => env.interner.callable(),
+        // `rule:types/callable-signature`: a written signature is a type of its
+        // own, so it lowers field-wise. Each parameter and the return type go
+        // one level deeper, under the same nesting bound every other type
+        // argument is checked against — a signature nests the way `array<T>`
+        // does and gets no bound of its own.
+        TypeAtom::CallableSig { params, ret } => {
+            let mut lowered = Vec::with_capacity(params.len());
+            for param in params {
+                lowered.push(lower_type_at_depth(param, depth + 1, ctx, env));
+            }
+            let ret = lower_type_at_depth(ret, depth + 1, ctx, env);
+            env.interner.callable_sig(lowered, ret)
+        }
         TypeAtom::SelfTy => resolve_special(span, "self", ctx, env),
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
