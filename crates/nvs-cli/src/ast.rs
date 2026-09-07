@@ -16,6 +16,15 @@
 //! decision — including why a literal's text is not one of them, which is the
 //! one thing a reader of this output has to know it will not find.
 //!
+//! **A trivium is a node like any other** — its kind, its span, no children —
+//! sitting under the innermost node whose span contains it, so a comment
+//! between two methods is a child of the class rather than of the file. All
+//! four kinds are there, whitespace included: `rule:ide/one-grammar-one-tree`
+//! closes that set at four, a consumer wanting only comments filters on
+//! `kind`, and dropping a kind here would decide that for every consumer of a
+//! schema that is frozen. What it spends is one node per whitespace run and
+//! per comment, which is the larger half of the document.
+//!
 //! **Resilient is the default**, because the file a developer opens the panel
 //! for is usually the one that does not compile: the tree is printed whatever
 //! the parser reported, and `--strict` is the opt-in that prints nothing once
@@ -33,8 +42,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
-use nvs_syntax::ast::Stmt;
-use nvs_syntax::{check_declarations, parse_file, walk};
+use nvs_syntax::{Parsed, Trivia, TriviaKind, check_declarations, parse, walk};
 use serde_json::{Map, Value, json};
 
 /// Parses `path` and prints its tree, as JSON when `as_json` is set.
@@ -55,15 +63,19 @@ pub(crate) fn run(path: &Path, as_json: bool, strict: bool) -> ExitCode {
 
     let mut diags = Diagnostics::new();
     let file = map.file(id);
-    let stmts = parse_file(file, &mut diags);
-    check_declarations(&stmts, file, &mut diags);
+    // The lossless entry point for both renderings rather than only for
+    // `--json`: it is the same grammar and the same diagnostics, so a second
+    // parse path here would be one more thing to keep in step for a command
+    // that parses one file and exits.
+    let parsed = parse(file, &mut diags);
+    check_declarations(&parsed.stmts, file, &mut diags);
     let refused = diags.has_errors();
 
     if !(strict && refused) {
         if as_json {
-            println!("{}", document(&stmts, file));
+            println!("{}", document(&parsed, file));
         } else {
-            println!("{stmts:#?}");
+            println!("{:#?}", parsed.stmts);
         }
     }
 
@@ -85,16 +97,55 @@ pub(crate) fn run(path: &Path, as_json: bool, strict: bool) -> ExitCode {
 /// because a file extends past its last statement whenever it ends in a
 /// comment or a newline, and a root that stopped there would not contain the
 /// trivia the panel is about to be given.
-fn document(stmts: &[Stmt], file: &SourceFile) -> Value {
+fn document(parsed: &Parsed, file: &SourceFile) -> Value {
     json!({
         "kind": "File",
         "span": [0, file.text().len()],
-        "children": walk::of_stmts(stmts).iter().map(node_json).collect::<Vec<_>>(),
+        "children": children_json(&walk::of_stmts(&parsed.stmts), &parsed.trivia),
     })
 }
 
-/// One node of the tree.
-fn node_json(node: &walk::Node) -> Value {
+/// One parent's children: its nodes and the trivia between them, in offset
+/// order.
+///
+/// `trivia` is the run the parent's own span contains, and what is left after
+/// each child has taken the trivia inside *its* span belongs to the parent —
+/// which is the innermost-node placement the module doc promises, arrived at
+/// without asking any node whether it contains an offset. Both sequences are
+/// already sorted by start, so this is a merge rather than a search.
+fn children_json(nodes: &[walk::Node], trivia: &[Trivia]) -> Vec<Value> {
+    let mut out = Vec::new();
+    let mut rest = trivia;
+    for node in nodes {
+        let (before, from) =
+            rest.split_at(rest.partition_point(|t| t.span.start < node.span.start));
+        out.extend(before.iter().map(trivia_json));
+        let (inside, after) = from.split_at(from.partition_point(|t| t.span.start < node.span.end));
+        out.push(node_json(node, inside));
+        rest = after;
+    }
+    out.extend(rest.iter().map(trivia_json));
+    out
+}
+
+/// One trivium as a node: its kind's own spelling, its span, no children.
+fn trivia_json(trivium: &Trivia) -> Value {
+    let kind = match trivium.kind {
+        TriviaKind::Whitespace => "Whitespace",
+        TriviaKind::LineComment => "LineComment",
+        TriviaKind::BlockComment => "BlockComment",
+        TriviaKind::DocComment => "DocComment",
+    };
+    json!({
+        "kind": kind,
+        "span": [trivium.span.start, trivium.span.end],
+        "children": [],
+    })
+}
+
+/// One node of the tree, with the trivia its span contains distributed
+/// through it.
+fn node_json(node: &walk::Node, trivia: &[Trivia]) -> Value {
     let mut out = Map::new();
     out.insert("kind".into(), Value::from(node.kind));
     out.insert("span".into(), json!([node.span.start, node.span.end]));
@@ -107,7 +158,7 @@ fn node_json(node: &walk::Node) -> Value {
     }
     out.insert(
         "children".into(),
-        Value::Array(node.children.iter().map(node_json).collect()),
+        Value::Array(children_json(&node.children, trivia)),
     );
     Value::Object(out)
 }

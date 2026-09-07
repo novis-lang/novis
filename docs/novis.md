@@ -20304,6 +20304,11 @@ scalar fields — an operator, a flag, or which form a member name took — and 
 text is not one of those fields: its span names it, and this command does not type-check, so it
 cannot know which literal is `secret` and owes a placeholder rather than its bytes.
 
+The comments and the whitespace the grammar drops are in that document too, as nodes of the same
+shape — `Whitespace`, `LineComment`, `BlockComment` or `DocComment`, each with its own span and no
+children — sitting under the innermost node whose span contains them, so a comment between two
+methods is a child of the class. A consumer wanting only the grammar's own nodes filters on `kind`.
+
 `--resilient` is the default: the tree the parser recovered into is printed whatever it reported,
 which is what makes the output useful on the file that does not compile. `--strict` prints no tree
 at all once an error is reported. The two are refused together.
