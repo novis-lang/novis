@@ -204,10 +204,13 @@ rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-c
          "security/redaction-does-not-reach", "ide/one-server-two-thin-clients"]
 adrs = ["0101 §1", "0101 §2"]
 
+# Filling `Diagnostic::suggestions` for the two codes is the actual work of this stage, so it needs
+# the diagnostic shape as much as stage 5 does -- 428 B, against a stage writing the wrong shape.
 [context.stage.9]
 rules = ["ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
          "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
          "ide/narrow-an-annotation-to-its-literal"]
+shapes = ["A diagnostic"]
 
 [context.stage.10]
 rules = ["ide/a-full-reanalysis-stays-under-a-bound"]

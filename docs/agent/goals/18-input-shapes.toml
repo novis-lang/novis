@@ -64,9 +64,11 @@ rules = [
 # type-argument door, and 0071 the collected-failure shape, all three of them stage 3's converter.
 adrs = ["0036"]
 
-# Stage 3 writes the members, so the five-edit shape is its own; the rest a session may need in any
-# stage. `A rule fragment` and `A decision record` stay because this goal's standing decisions leave
-# open which stage records what, and a session that cannot find the shape writes the wrong one.
+# Stages 3 and 4 each write `Core` members -- the converter, then the two at the request boundary --
+# so the five-edit shape is named by both and is in neither base nor one stage alone. The rest a
+# session may need in any stage: `A rule fragment` and `A decision record` stay because this goal's
+# standing decisions leave open which stage records what, and a session that cannot find the shape
+# writes the wrong one.
 shapes = [
   "A diagnostic",
   "A `.nvst` test case",
@@ -130,8 +132,11 @@ rules = ["core-classes/derive-attribute", "types/arrays"]
 adrs = ["0007 §2", "0007 §5", "0071"]
 shapes = ["A `Core` member — the five edits"]
 
+# `postAs<T>` and `queryAs<T>`: the rows, the cards after them and the bodies -- two members, and
+# the same five edits stage 3 makes for the converter.
 [context.stage.4]
 rules = ["core-api/shape-rules"]
+shapes = ["A `Core` member — the five edits"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
