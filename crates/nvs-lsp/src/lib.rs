@@ -23,6 +23,8 @@
 //! negotiates the encoding and then calls them. A conversion written here would
 //! be a second implementation of the arithmetic an editor's whole cursor
 //! behaviour rests on, which is the bug that rule exists to prevent.
+//! [`offset_at`] and [`position_at`] are the whole boundary: a change of type
+//! between LSP's `Position` and a byte offset, and no arithmetic.
 //!
 //! # What is answered
 //!
@@ -31,6 +33,17 @@
 //! [`server_capabilities`] is the single place that declaration is written.
 //! A tenth request is a decision, not an addition — ADR 0099 § 3
 //! holds the test a candidate has to pass.
+//!
+//! # The open documents
+//!
+//! One open document is the unit of analysis and is its own entry point: its
+//! `require`/`autoload` graph is resolved exactly as `nvs check` resolves it,
+//! with every open buffer overlaid on the file under it, so a class edited in
+//! one tab is the class another tab resolves against
+//! (`rule:ide/an-open-document-is-its-own-entry-point`). [`Documents`] is that
+//! store and [`analyse`] is the walk. Diagnostics are published only for what
+//! is open, which is what keeps this a document server rather than M10's
+//! workspace index.
 //!
 //! # The `.lspt` case format
 //!
@@ -82,6 +95,8 @@
 
 mod capabilities;
 mod case;
+mod document;
+mod position;
 mod render;
 mod server;
 pub mod suite;
@@ -91,5 +106,7 @@ pub use capabilities::{
     negotiate_encoding, semantic_tokens_legend, server_capabilities, server_info, server_version,
 };
 pub use case::{AuxFile, CURSOR, Case, MAIN_PATH, ParseError, Request, RequestArgs};
+pub use document::{Analysed, Document, Documents, analyse, analyse_current, path_of, uri_of};
+pub use position::{encoding_of, offset_at, position_at};
 pub use render::{Link, Place, Redaction, Response};
 pub use server::{ServerError, run, serve};
