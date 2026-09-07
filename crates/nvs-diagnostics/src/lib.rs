@@ -560,6 +560,27 @@ pub mod code {
     /// otherwise have to work backwards from. A qualified name that resolves
     /// neither way is that generic error, not this one.
     pub const E_RELATIVE_QUALIFIED_NAME: Code = Code::new("E0322");
+    /// A doc comment's `@see` naming something that does not resolve — a class
+    /// nothing declares, a member no class in the chain has, or nothing at all
+    /// after the tag. `rule:tooling/doc-comment-tags-are-see-and-example`
+    /// keeps the tag set at two by making each one buy a check, and this is
+    /// `@see`'s: a cross-reference that resolves where it is written cannot
+    /// rot into a link to a member that has since been renamed. Resolution
+    /// rather than the parser, because the question is what a name means, and
+    /// the same one [`E_UNDEFINED_MEMBER`] asks of a `Class::member` in code.
+    pub const E_DOC_SEE_UNRESOLVED: Code = Code::new("E0323");
+    /// A doc comment's `@example` naming a path that is in a directory the
+    /// test corpus walks but holds no file. The other half of
+    /// `rule:tooling/doc-comment-tags-are-see-and-example`'s check on the tag
+    /// is [`E_DOC_EXAMPLE_NOT_WALKED`], split from this one because the two
+    /// carry opposite repairs: write the file, or move it.
+    pub const E_DOC_EXAMPLE_NOT_FOUND: Code = Code::new("E0324");
+    /// A doc comment's `@example` naming a path in no directory the test
+    /// corpus walks. An example nothing compiles is one that rots in a page
+    /// while the member it documents moves on, which is the whole reason
+    /// `rule:tooling/doc-comment-tags-are-see-and-example` keeps the tag: a
+    /// path outside `examples/` and `tests/` buys no check.
+    pub const E_DOC_EXAMPLE_NOT_WALKED: Code = Code::new("E0325");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

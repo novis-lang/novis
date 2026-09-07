@@ -42,6 +42,17 @@
 //! silently skipped, same as everywhere else this milestone only reports
 //! what it can be sure of.
 //!
+//! Both of a doc comment's tags are checked here too, by [`check_doc`], and
+//! for the same reason: each is a name that must resolve against something
+//! declared. `rule:tooling/doc-comment-tags-are-see-and-example` keeps the tag
+//! set at two by making each buy a check — `@see` resolves against the very
+//! [`MemberTable`] a `Class::member` reference does (`E0323`), and `@example`
+//! against a file on disk, which must exist (`E0324`) and must sit in a
+//! directory the test corpus walks (`E0325`) so an example that stops
+//! compiling fails the build. That second one is the only question this module
+//! asks of the filesystem; it resolves a written path the way `require` does,
+//! relative to the file that wrote it.
+//!
 //! **Known gaps**, narrower versions of gaps [`crate::hierarchy`] already
 //! documents:
 //! - `new Foo(...)`/`new self(...)`/etc. does not have its target checked
@@ -70,11 +81,13 @@
 //!   not a compile-time one, and is silently skipped here regardless of
 //!   receiver.
 
+use std::path::{Component, Path};
+
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, Expr, ExprKind, FnBody, MemberName, Modifier, NamespaceDecl, Stmt, StmtKind,
-    StringPart,
+    DestructureTarget, DocComment, DocTag, DocTagKind, Expr, ExprKind, FnBody, MemberName,
+    Modifier, NamespaceDecl, Stmt, StmtKind, StringPart,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -396,6 +409,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
+                check_doc(decl.doc.as_ref(), src, &ctx, env);
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -405,6 +419,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
+                check_doc(decl.doc.as_ref(), src, &ctx, env);
                 check_members(&decl.members, src, &ctx, env);
             }
             StmtKind::EnumDecl(decl) => {
@@ -414,12 +429,22 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                 };
+                check_doc(decl.doc.as_ref(), src, &ctx, env);
                 for case in &decl.cases {
+                    check_doc(case.doc.as_ref(), src, &ctx, env);
                     if let Some(v) = &case.value {
                         walk_expr(v, src, &ctx, env);
                     }
                 }
                 check_members(&decl.members, src, &ctx, env);
+            }
+            StmtKind::TypeAliasDecl(decl) => {
+                let ctx = Ctx {
+                    current_class,
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                };
+                check_doc(decl.doc.as_ref(), src, &ctx, env);
             }
             _ => {
                 let ctx = Ctx {
@@ -435,6 +460,7 @@ fn check_stmts(
 
 fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
+        check_doc(member.doc.as_ref(), src, ctx, env);
         match &member.kind {
             ClassMemberKind::Method(m) => {
                 for param in &m.params {
@@ -462,6 +488,180 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
             ClassMemberKind::Error => {}
             _ => {}
         }
+    }
+}
+
+/// Both tags of one declaration's doc comment, if it has one. This is the only
+/// walk over a `DocTag` in the compiler: the parser has already spanned every
+/// tag and refused every spelling but these two, so the checks that keep them
+/// honest share one visit rather than each re-deriving where a `doc` hangs.
+/// [`check_stmts`] reaches the file-scope declarations — a class, an interface,
+/// an enum and its cases, a `type` alias — and [`check_members`] the members
+/// inside a body, which between them is every declaration that carries one.
+fn check_doc(doc: Option<&DocComment>, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(doc) = doc else {
+        return;
+    };
+    for tag in &doc.tags {
+        match tag.kind {
+            DocTagKind::See => check_see(tag, src, ctx, env),
+            DocTagKind::Example => check_example(tag, src, env),
+        }
+    }
+}
+
+/// One `@see`'s target, which
+/// `rule:tooling/doc-comment-tags-are-see-and-example` requires to resolve.
+/// The spelling is a class name, optionally followed by `::member`, and the
+/// member half may carry a `$` sigil or a trailing `()` so a page may write a
+/// property or a call the way a reader would say it. `self`, `static` and
+/// `parent` name a class here exactly as they do in code, since a doc comment
+/// sits inside the same class the code below it does.
+///
+/// A member is looked up against all four [`MemberKind`]s, because `@see` says
+/// *what* is named and never which kind it is; `Class::name` resolving as any
+/// one of them is the cross-reference the tag promised. A `Core` target is
+/// trusted the same way [`member_declared`] trusts one anywhere else.
+fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let text = src.span_text(tag.argument).unwrap_or_default().trim();
+    if text.is_empty() {
+        env.diags.report(
+            Diagnostic::error(code::E_DOC_SEE_UNRESOLVED, "`@see` names nothing")
+                .with_primary(tag.span, "nothing to resolve")
+                .with_help(
+                    "name a class, member, enum case or constant — `@see Core\\Money::fromCents`",
+                ),
+        );
+        return;
+    }
+
+    let (class_text, member) = match text.split_once("::") {
+        Some((class_text, member)) => (class_text.trim(), Some(member.trim())),
+        None => (text, None),
+    };
+
+    let class = match class_text {
+        "self" | "static" => ctx.current_class.cloned(),
+        "parent" => ctx
+            .current_class
+            .and_then(|current| env.graph.get(current))
+            .and_then(|links| links.extends.first().cloned()),
+        _ => {
+            let resolved = resolve_ref(class_text, ctx.namespace, ctx.imports);
+            (resolved.is_core() || env.symbols.contains(&resolved)).then_some(resolved)
+        }
+    };
+    let Some(class) = class else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`@see` names `{class_text}`, which resolves to no declaration"),
+            )
+            .with_primary(tag.argument, "no such class"),
+        );
+        return;
+    };
+
+    let Some(member) = member else {
+        return;
+    };
+    let member = member.trim_end_matches("()").trim_start_matches('$');
+    if member.is_empty() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`@see` names no member of `{class}` after the `::`"),
+            )
+            .with_primary(tag.argument, "nothing to resolve"),
+        );
+        return;
+    }
+    let found = [
+        MemberKind::Method,
+        MemberKind::Const,
+        MemberKind::StaticProp,
+        MemberKind::Prop,
+    ]
+    .into_iter()
+    .any(|kind| member_declared(&class, member, kind, env.table, env.graph));
+    if !found {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`{class}` has no member named `{member}` for `@see` to resolve"),
+            )
+            .with_primary(tag.argument, "no such member"),
+        );
+    }
+}
+
+/// The directories a Novis project's test corpus walks, and so the only ones
+/// an `@example` may name a file inside. ADR 0137 § 2 names `examples/`; a
+/// project's own cases live under `tests/`, which `nvs test` walks for the
+/// same reason. The list is here rather than in configuration because the
+/// guarantee the tag buys is that *something* compiles the file, and a
+/// directory a project could name in a config file it also controls buys
+/// nothing.
+const WALKED_DIRECTORIES: [&str; 2] = ["examples", "tests"];
+
+/// One `@example`'s target, which
+/// `rule:tooling/doc-comment-tags-are-see-and-example` requires to exist and to
+/// sit where the corpus walks it — an example nothing compiles is one that rots
+/// while the member it documents moves on.
+///
+/// The path is relative to the file that wrote it, exactly as a `require`
+/// path is (`rule:statements/require-is-the-only-inclusion-construct`), so
+/// there is one answer in the language to "what is a written path relative
+/// to". A file with no path of its own — a test fixture, an editor buffer that
+/// has never been saved — resolves against the process's directory instead,
+/// which is the only base such a file has.
+///
+/// The directory question is asked first, and answers on the written path
+/// alone: a path outside every walked directory is refused for being there
+/// rather than for a file that would not have helped it.
+fn check_example(tag: &DocTag, src: &SourceFile, env: &mut Env<'_>) {
+    let text = src.span_text(tag.argument).unwrap_or_default().trim();
+    if text.is_empty() {
+        env.diags.report(
+            Diagnostic::error(code::E_DOC_EXAMPLE_NOT_FOUND, "`@example` names no file")
+                .with_primary(tag.span, "nothing to find")
+                .with_help("name a file the test corpus walks — `@example examples/charge.nvs`"),
+        );
+        return;
+    }
+
+    let written = Path::new(text);
+    let walked = written.components().any(|component| {
+        matches!(component, Component::Normal(name)
+            if WALKED_DIRECTORIES.iter().any(|dir| name == *dir))
+    });
+    if !walked {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_EXAMPLE_NOT_WALKED,
+                format!("`{text}` is in no directory the test corpus walks"),
+            )
+            .with_primary(tag.argument, "nothing compiles this file")
+            .with_help(format!(
+                "move the example under {}",
+                WALKED_DIRECTORIES
+                    .map(|dir| format!("`{dir}/`"))
+                    .join(" or ")
+            )),
+        );
+        return;
+    }
+
+    let base = src.path().and_then(Path::parent).unwrap_or(Path::new(""));
+    if !base.join(written).is_file() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_EXAMPLE_NOT_FOUND,
+                format!("`{text}` names no file"),
+            )
+            .with_primary(tag.argument, "no such file")
+            .with_help("the path is relative to the file that wrote it, as a `require` path is"),
+        );
     }
 }
 
@@ -1223,5 +1423,82 @@ mod tests {
             "<?nvs\nclass Foo { function a(): void { $other = new Foo(); $other->missing; } }\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_see_target_that_resolves_is_accepted() {
+        let diags = check(
+            "<?nvs\n\
+             class Money { const int ZERO = 0; function cents(): int { return 1; } }\n\
+             /// The price, in cents.\n\
+             ///\n\
+             /// @see Money::cents\n\
+             class Price {\n\
+             /// @see Money::ZERO\n\
+             public int $amount;\n\
+             /// @see self::amount\n\
+             function amount(): int { return $this->amount; }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The fixture has no path of its own, so an `@example` resolves against
+    /// the process's directory — which `cargo test` sets to this package's
+    /// root, two levels under the repository the examples live in.
+    #[test]
+    fn an_example_in_a_walked_directory_that_exists_is_accepted() {
+        let diags = check(
+            "<?nvs\n\
+             /// @example ../../examples/hello.nvs\n\
+             class Price {}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_example_naming_a_missing_file_is_refused() {
+        let diags = check(
+            "<?nvs\n\
+             /// @example examples/nothing-is-here.nvs\n\
+             class Price {}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DOC_EXAMPLE_NOT_FOUND)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_example_outside_every_test_directory_is_refused() {
+        let diags = check(
+            "<?nvs\n\
+             /// @example notes/charge.nvs\n\
+             class Price {}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DOC_EXAMPLE_NOT_WALKED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_see_target_that_names_no_member_is_refused() {
+        let diags = check(
+            "<?nvs\n\
+             class Money {}\n\
+             /// @see Money::cents\n\
+             class Price {}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DOC_SEE_UNRESOLVED)),
+            "{diags:?}"
+        );
     }
 }
