@@ -668,15 +668,20 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
-`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count and
-`[control] socket` itself. Everything else reloads, including the `[[extension]]` array and its pins,
-`opcache.validate` and its rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`
-and both observability blocks. A `[[schedule]]` firing already in flight runs to completion; the new
+`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count,
+`[control] socket` itself, and `[queue]`'s `connection` and `workers` — a worker is a spawned task, so
+applying a new count means starting or stopping tasks, and a connection swapped under running workers
+strands every claim in flight against a database nothing will report to. Everything else reloads,
+including the `[[extension]]` array and its pins, `opcache.validate` and its rate cap, the per-app
+blocks, `[[schedule]]`, `[deferred] max_concurrent`, `[queue]`'s `max_attempts` and `visibility` —
+both read per job, out of the snapshot, re-creating nothing — and both observability blocks. `[queue]`
+is the second block after `[deferred]` whose halves are two apply classes, which is the pairing this
+field exists to make expressible. A `[[schedule]]` firing already in flight runs to completion; the new
 set arms from the next tick. A changed `Boot` key **does not take effect**: the published snapshot
 carries the running value forward, and the reload names the key
 ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 

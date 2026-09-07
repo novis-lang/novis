@@ -468,7 +468,8 @@
       "status": "shipped",
       "because": [
         "0078",
-        "0005"
+        "0005",
+        "0154"
       ],
       "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
       "seeAlso": [

@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*11 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 61 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1033,12 +1033,49 @@ different mechanism. `[queue] workers` is a count per *instance* and running wor
 default shape; `workers = 0` makes an instance enqueue-only, which is how a deployment separates the
 machines that accept requests from the ones that drain the queue.
 
+**An instance is a process and not a core.** `nvs serve` arms the count once, on the core it arms the
+`[[schedule]]` ticker on ([`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs)), so a
+thread-per-core server does not multiply an operator's number by its core count — `workers = 4` on a
+32-core host is four workers and four connections. A deployment that wants thirty-two writes
+thirty-two.
+
 Both spellings drive the identical isolate ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) over the
 identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so moving work between them
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
 and no supervisor to keep alive.
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs). Decided in [0084](../decisions/0084.md), [0154](../decisions/0154.md).</sub>
+
+<a id="concurrency-one-process-serves-requests-schedules-and-jobs"></a>
+
+## `nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three  *(designed — not yet in the compiler)*
+
+`rule:concurrency/one-process-serves-requests-schedules-and-jobs`
+
+`nvs serve` is one process running three things — the accept loop, the `[[schedule]]` ticker and the
+queue's workers — on the scheduler it already turns, and the drain stops all three. A deployment
+installs one unit and supervises one process; there is nothing to run beside it, which is the whole of
+what [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface)'s "nothing to install beside the runtime and
+no supervisor to keep alive" is worth.
+
+The three are armed the same way and are not variants of one mechanism
+([`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work) keeps the middle two apart). A tree writing no
+`[queue]` block arms no worker and a tree writing no `[[schedule]]` spawns no ticker, so each costs a
+boot-time read and no task at all when it is not configured.
+
+**The drain is what stops a worker, and it is not merely tidy.** A drain means *stop taking new work*,
+and claiming a job is taking new work — so a claimed job runs to completion exactly as an accepted
+request and an in-flight fire do, and nothing new is claimed after it begins. It is also what lets the
+process end: the server's loop runs while anything is parked, and a worker polling for work is always
+parked, so a worker that ignored the drain would be a server that could not be stopped.
+
+**The queue needs no lease and a `fleet` schedule does.** A worker asks the database for a row and
+gets one or does not ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so a fleet of instances each
+running their own workers is the intended deployment rather than a hazard; a scheduled entry has to
+ask whether another host is already firing it. The queue is the subsystem that needed no coordinator,
+and one process is where that pays.
+
+<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0154](../decisions/0154.md).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
