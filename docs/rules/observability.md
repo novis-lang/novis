@@ -3,7 +3,7 @@
 
 # Observability
 
-*11 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*14 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -107,11 +107,11 @@ except for the export path. A program that never calls it and serves no requests
 
 <a id="observability-default-series"></a>
 
-## Nine series exist the moment an exporter is configured, with no application code written  *(designed — not yet in the compiler)*
+## Ten series exist the moment an exporter is configured, with no application code written  *(designed — not yet in the compiler)*
 
 `rule:observability/default-series`
 
-Nine series are present the moment an exporter is configured, with no application code written:
+Ten series are present the moment an exporter is configured, with no application code written:
 
 | series | kind | labels |
 |---|---|---|
@@ -123,19 +123,25 @@ Nine series are present the moment an exporter is configured, with no applicatio
 | `nvs_tasks_in_flight` | gauge | — |
 | `nvs_deferred_trees` | gauge | — |
 | `nvs_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
+| `nvs_request_memory_peak_bytes` | histogram | `route` |
 | `nvs_schedule_runs_total` | counter | `name`, `outcome` |
 
 Every one is read from instrumentation that already exists — the `query`, `gc` and `spawn` event
 kinds and the arena accounting [`programs/memory-priority`](programs.md#programs-memory-priority) already requires — which is
 [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures) applied series by series.
 
+The peak is a **histogram** where the live figure is a gauge, because the two answer different
+questions: a gauge says what is held now, and only a distribution answers what fraction of requests
+came near their ceiling. It reads the mark
+[`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for) already holds, so it adds no probe site.
+
 `route` is the one label that would otherwise be unbounded, and
-[`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name) is what keeps it closed. The nine are seeded
+[`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name) is what keeps it closed. The ten are seeded
 into a core's registry ahead of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused)'s
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.
 
-<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md).</sub>
+<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md), [0148](../decisions/0148.md).</sub>
 
 <a id="observability-a-name-is-fixed-to-one-kind"></a>
 
@@ -544,6 +550,126 @@ implementation, the same way the Clover and lcov shapes were.
 
 <sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0041](../decisions/0041.md), [0040](../decisions/0040.md), [0018](../decisions/0018.md).</sub>
 
+<a id="observability-memory-is-three-numbers-on-core-budget"></a>
+
+## A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\Budget`, and the process's resident bytes are `Core\Os`'s  *(designed — not yet in the compiler)*
+
+`rule:observability/memory-is-three-numbers-on-core-budget`
+
+A request reads its own memory as three members on `Core\Budget` — `memoryHeld()` is the bytes it
+holds right now, `memoryPeak()` the high-water mark of that figure for this request, and
+`memoryLimit()` the ceiling both are measured against.
+
+```php
+Core\Budget::memoryHeld():  int
+Core\Budget::memoryPeak():  int
+Core\Budget::memoryLimit(): int
+```
+
+**`held`, not `usage`**, because the runtime already says *held*: a breach renders as *"the request
+exceeded its memory limit — N bytes held against a ceiling of M"*, and a member whose name disagrees
+with the error text about the same quantity is a second vocabulary to learn. `usage` is also the word
+that carries PHP's ambiguity between "occupied now" and "consumed in total", and only one of those is
+ever meant.
+
+**`memoryLimit` is among them because a peak with no scale is not actionable.** The ceiling is
+otherwise reachable only as `Core\Config::get('limits.memory')` — a string with a suffix that every
+call site would parse — so the question the trio exists to answer stays one expression:
+
+```php
+if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
+```
+
+An uncapped request — `[limits.hard] memory = false`, which
+[`config/three-changeability-classes`](config.md#config-three-changeability-classes) permits — answers `0` from `memoryLimit`, the same reading
+of zero as "no ceiling" the runtime's own limit check already uses, rather than a second spelling for
+it.
+
+**The process's memory is `Core\Os`'s and is a different question.** `Core\Os::residentBytes()` is
+the resident set — what `getrusage`'s `ru_maxrss` answers — beside `pid`, `hostname`, `cpuCount` and
+`loadAverage`, which are host and process facts too. Two classes, two names, and neither readable as
+the other: a per-request figure sitting among host facts would be read as process memory by everyone
+who had not been told otherwise, which is PHP's own confusion relocated rather than removed.
+
+There is no `$real_usage`-style boolean in any spelling. Two accountings behind one member is what
+[`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings) refuses, and where two numbers are genuinely different questions they
+are two members on the two classes that own them.
+
+<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0148](../decisions/0148.md).</sub>
+
+<a id="observability-a-memory-peak-is-recorded-not-asked-for"></a>
+
+## The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it  *(designed — not yet in the compiler)*
+
+`rule:observability/a-memory-peak-is-recorded-not-asked-for`
+
+The runtime keeps a request's memory high-water mark in every build, updated where the live-byte
+balance is updated, and a nested `Ctx` restores the larger of its own mark and the one it displaced
+rather than clobbering it.
+
+The peak is **recorded, not sampled and not asked for**. It moves in the same allocator function that
+already maintains the live balance, inside the branch that already tests for a positive delta, so it
+is exact for every allocation rather than approximate between two reads. A sampled peak would miss
+precisely the short spike that deterministic release makes invisible, which is the case the mark
+exists for.
+
+**Why a current figure is not enough here, when it nearly is in PHP.** Novis releases memory when the
+last reference dies ([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)), so held bytes fall back toward the
+baseline as soon as values die. PHP's allocator keeps its chunks, so a reading taken at the end of a
+script is sticky and approximates the high-water mark by accident. A Novis request that decoded a
+90 MB payload and returned a 2 KB summary reports the 2 KB, and a request that sat at 96% of its
+ceiling for most of its life is indistinguishable at exit from one that never passed 30%. The better
+memory behaviour is what destroys the evidence, so the evidence is kept deliberately.
+
+**Nesting saves and restores.** A `Ctx` created inside another rebases the mark to the current
+balance and holds the enclosing value; on drop it publishes `max(enclosing, reached)`. Without that,
+an isolate that allocated little would erase the peak of the request that spawned it. What the mark
+is a peak *of* — one request, or an isolate tree — is
+[`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)' to settle, and this rule inherits that boundary rather
+than deciding it.
+
+**It is not resettable.** The peak is evidence an operator needs, and a member that set it back to
+the current figure would let an application hide the number the request-level notices exist to
+surface. Bounding one section of a program is what `Core\Debug`'s probes are for.
+
+What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one `isize` per thread and one per `Ctx`.
+Nothing per process, nothing that grows with requests served, and nothing that outlives a request.
+
+<sub>See also [`observability/memory-is-three-numbers-on-core-budget`](observability.md#observability-memory-is-three-numbers-on-core-budget), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0148](../decisions/0148.md).</sub>
+
+<a id="observability-memory-high-water-writes-a-warn"></a>
+
+## A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one  *(designed — not yet in the compiler)*
+
+`rule:observability/memory-high-water-writes-a-warn`
+
+A `[limits]` block may write `memory_high_water`, a fraction between `0.0` and `1.0`; a request whose
+memory peak crosses that share of its effective ceiling writes one `Warn` to `Core\Log` at the end of
+the request, naming the peak, the ceiling and the route.
+
+**Unwritten is off, and off is silent** — a deployment gets no high-water log it did not ask for. A
+written `0` is a threshold every request passes, not a second spelling of off. A request with no
+ceiling at all (`[limits.hard] memory = false`) has no threshold either, because there is nothing for
+a fraction to be a fraction of. A value outside `0.0..=1.0` is refused at boot, where it is written,
+by the same typed-value path that refuses a malformed size.
+
+**A fraction rather than a size**, so it keeps meaning the same thing under an `[app.limits]` block
+that narrows the ceiling ([`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling)). A size
+would have to be re-derived for every application block, and would silently stop being a warning at
+all for any block that narrowed past it.
+
+**One record per request, at the end of it**, from the mark
+[`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for) already holds — so this adds no probe
+site to the measured path and [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures) holds
+for it as written.
+
+This is the reading that closes the gap the other two leave. `Script\ExitReport::memoryPeak` requires
+an application to have registered a hook, and `nvs_request_memory_peak_bytes` requires an exporter
+and someone watching it; the request that matters is the one nobody instrumented and nobody was
+watching. A breach needs no equivalent: [`errors/on-limit`](errors.md#errors-on-limit)'s report already names both numbers.
+
+<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0148](../decisions/0148.md).</sub>
+
 <a id="observability-script-on-exit"></a>
 
 ## `Core\Script::onExit` registers a request-local hook that runs FIFO as the last user code, and each hook receives one readonly `ExitReport`
@@ -564,20 +690,29 @@ enum Script\ExitReason { Normal, ExitCall, UncaughtThrow }
 Script\ExitReport::reason(): Script\ExitReason
 Script\ExitReport::status(): int
 Script\ExitReport::error(): ?Throwable
+Script\ExitReport::memoryPeak(): int
 ```
 
-Three accessors and not three properties, because a `Core`-owned instance has no property a program
+Four accessors and not four properties, because a `Core`-owned instance has no property a program
 can reach ([`core-api/shape-rules`](core-api.md#core-api-shape-rules)). Readonly is then structural: nothing writes a slot and no
 program can construct one, so the only thing that builds a report is the ending itself. `status` is
 the status the process will exit with; `error` is the live `Throwable` for `UncaughtThrow` — the same
 object [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw)'s handler gets — and `null` otherwise. `ExitCall` carries the
 suffix so the case never shares a spelling with the `exit` keyword.
 
+`memoryPeak` is the request's high-water mark
+([`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for)), and it is here so that a one-line
+hook logs the number a reading taken at this same moment would not show:
+`Core\Budget::memoryHeld()` at the end of a script has already fallen back toward the baseline. It
+costs a script that registers no hook nothing, and it never reaches a `FATAL` — which needs no
+compensating mechanism, because a breach is the one case [`errors/on-limit`](errors.md#errors-on-limit)'s report already
+names both numbers for.
+
 Which endings drain the queue is [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue); the two that
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the home of
 PHP's `register_shutdown_function` for every ending that is not a fatal.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0063](../decisions/0063.md), [0148](../decisions/0148.md).</sub>
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 

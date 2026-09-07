@@ -569,15 +569,15 @@ how this runtime is built.
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports (`rule:config/check-and-dump-audit-the-tree-offline`) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
 | `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` (`rule:errors/escalation-ladder`) |
-| `memory_get_usage` | member | `Core\Os::memoryUsage` |
-| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which `rule:errors/escalation-ladder`'s limit report already carries when one is breached |
-| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it (`rule:errors/on-limit`) |
+| `memory_get_usage` | member | `Core\Budget::memoryHeld` — this request's held bytes, with no `$real_usage` boolean; the *process's* resident set is `Core\Os::residentBytes`, which is the other question PHP's one function was answering (`rule:observability/memory-is-three-numbers-on-core-budget`) |
+| `memory_get_peak_usage` | member | `Core\Budget::memoryPeak`, read against `Core\Budget::memoryLimit` where PHP compares against `ini_get('memory_limit')`. The runtime records the mark rather than deriving it, because deterministic release means the current figure has already fallen back by the time a script reads it (`rule:observability/a-memory-peak-is-recorded-not-asked-for`) |
+| `memory_reset_peak_usage` | dropped | the peak is evidence an operator needs, and a member that set it back to the current figure would let a program hide the number `rule:observability/memory-high-water-writes-a-warn` exists to surface. Bounding one section of a program is `Core\Debug`'s probes |
 | `gc_enable` | dropped | memory is refcounted and released deterministically (`rule:security/arena-is-an-ownership-root`); there is no collector to turn on |
 | `gc_disable` | dropped | same, in the other direction |
 | `gc_enabled` | dropped | same — the answer would be a constant |
 | `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound `rule:security/arena-is-an-ownership-root` states in place of a collector's schedule |
 | `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
-| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
+| `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Budget::memoryHeld` |
 | `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` (`rule:config/the-extension-set-is-in-every-unit-key`) and revalidated by `opcache.validate` (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
 | `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason `rule:config/an-edit-reaches-the-next-request-without-a-restart` gives, and a per-path reset is that directive reached sideways |
 | `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`); a program does not schedule it |
@@ -876,7 +876,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `getmygid` | dropped | same |
 | `get_current_user` | dropped | same |
 | `getmyinode` | dropped | the inode of the running script, which has no meaning here: there is no script file being interpreted at run time |
-| `getrusage` | member | `Core\Os` — `memoryUsage`, `loadAverage` and `cpuCount`, one member per fact rather than one array whose keys differ by platform (R11) |
+| `getrusage` | member | `Core\Os` — `residentBytes`, `loadAverage` and `cpuCount`, one member per fact rather than one array whose keys differ by platform (R11). The *request's* memory is `Core\Budget`'s and not a host fact |
 | `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` (`rule:tooling/terminal-output-is-a-sink`). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
 | `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable (`rule:observability/script-on-exit`) |
 | `die` | language | the same statement; `die` is PHP's second spelling of it |

@@ -15,6 +15,7 @@
 
 §16 Core\Metrics   # unowned
 §16 Core\Signature # 29
+§16 Core\Budget    # 24
 §16 Core\Net       # 24
 §16 Core\Os        # 24
 §16 Core\Signal    # 24

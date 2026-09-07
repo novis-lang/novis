@@ -79,15 +79,36 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 1. **`spec-classes-part-two-outstanding.txt` loses `§16 Core\Net`, `§16 Core\Os` and
    `§16 Core\Signal`** — registering a class and striking its line are one slice, and that file's test
-   fails on a stale line as loudly as on an unlisted one.
+   fails on a stale line as loudly as on an unlisted one. `§16 Core\Budget` is stage 6's to strike.
 2. **The migration table's rows** for `socket_*`, `stream_socket_*`, `fsockopen`, `posix_*` minus fork,
-   `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` and the surviving `pcntl_*` answer a
+   `php_uname`, `getrusage`, `sys_getloadavg` and the surviving `pcntl_*` answer a
    `Core` spelling, and `migration-members-outstanding.txt` shrinks by whatever they name.
+
+## Stage 6 — `Core\Budget`'s three numbers, and the peak that reaches an operator unasked
+
+1. **`Core\Budget::memoryHeld`, `memoryPeak` and `memoryLimit`** are registered, over the counter
+   `crates/nvs-runtime/src/budget.rs` already keeps in every build, and `Core\Os::residentBytes`
+   answers the process question beside them ([0148](../../decisions/0148.md) §§ 11-12). The four keys
+   leave `migration-members-outstanding.txt` and `§16 Core\Budget` leaves
+   `spec-classes-part-two-outstanding.txt`.
+2. **The high-water mark is recorded in `budget::add`**, inside the branch that already tests for a
+   positive delta, and a nested `Ctx` restores `max(enclosing, reached)` on drop rather than
+   clobbering the mark of the request that spawned it (0148 § 15). A conformance case allocates a
+   known-size buffer, drops it, and reads a peak above the drop against a held figure below it; a
+   second asserts a parent's peak survives a child that allocated less. The cost claim is measured in
+   `benches/abi-probe`, never asserted.
+3. **The three unasked readings land**: `Script\ExitReport::memoryPeak`, the
+   `nvs_request_memory_peak_bytes` histogram beside the other default series, and the
+   `[limits] memory_high_water` fraction whose crossing writes one `Warn` (0148 § 14). Unwritten is
+   off, off is silent, and a value outside `0.0..=1.0` is refused at boot by the typed-value path
+   `crates/nvs-config` already has.
 
 ## Standing decisions
 
-- **This goal may open one ADR number** — the `Core\Net` socket surface. `Core\Os` and `Core\Signal`
-  are `rule:core-api/tier-roster` rows with no design question between them and get none.
+- **This goal may open one ADR number** — the `Core\Net` socket surface. `Core\Os`, `Core\Signal` and
+  `Core\Budget` are `rule:core-api/tier-roster` rows with no design question left between them and
+  get none: the one that existed is settled ahead of the goal in
+  [0148](../../decisions/0148.md), which is why stage 6 builds rather than decides.
 - **A second event loop is never the answer.** Every socket parks on the runtime's reactor. If a
   shape cannot be expressed that way the shape is cut, not the rule — this is what "over the runtime's
   own reactor rather than a second event loop" already decides.

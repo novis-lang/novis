@@ -85,11 +85,12 @@
     },
     {
       "id": "observability/default-series",
-      "title": "Nine series exist the moment an exporter is configured, with no application code written",
+      "title": "Ten series exist the moment an exporter is configured, with no application code written",
       "status": "designed",
       "because": [
         "0076",
-        "0041"
+        "0041",
+        "0148"
       ],
       "divergesFromPhp": "request rate, latency, query time, GC pause and spawn overhead are on the scrape endpoint before the application emits anything, where PHP needs an APM agent or a hand-written StatsD client for the first three and cannot reach the last two at all",
       "seeAlso": [
@@ -429,12 +430,69 @@
       "guardedBy": []
     },
     {
+      "id": "observability/memory-is-three-numbers-on-core-budget",
+      "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
+      "status": "designed",
+      "because": [
+        "0148"
+      ],
+      "divergesFromPhp": "there is no `$real_usage` boolean and no second accounting behind it: `memory_get_usage`'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them",
+      "seeAlso": [
+        "observability/a-memory-peak-is-recorded-not-asked-for",
+        "observability/memory-high-water-writes-a-warn",
+        "core-api/no-mode-strings",
+        "core-api/tier-roster",
+        "config/three-changeability-classes",
+        "errors/on-limit"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/migration-members-outstanding.txt"
+      ]
+    },
+    {
+      "id": "observability/a-memory-peak-is-recorded-not-asked-for",
+      "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
+      "status": "designed",
+      "because": [
+        "0148"
+      ],
+      "divergesFromPhp": "`memory_get_peak_usage` reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike",
+      "seeAlso": [
+        "observability/memory-is-three-numbers-on-core-budget",
+        "observability/memory-high-water-writes-a-warn",
+        "security/arena-is-an-ownership-root",
+        "security/isolate-budget-is-the-trees",
+        "programs/memory-priority"
+      ],
+      "guardedBy": [
+        "crates/nvs-runtime/src/budget.rs"
+      ]
+    },
+    {
+      "id": "observability/memory-high-water-writes-a-warn",
+      "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
+      "status": "designed",
+      "because": [
+        "0148"
+      ],
+      "divergesFromPhp": "PHP has no warning short of the fatal: a request that touched 96% of `memory_limit` and returned successfully is indistinguishable from one that never passed 30%",
+      "seeAlso": [
+        "observability/a-memory-peak-is-recorded-not-asked-for",
+        "observability/a-slow-query-is-logged-past-a-threshold",
+        "observability/the-runtime-exports-what-it-already-measures",
+        "config/an-app-block-may-widen-bounded-by-the-global-ceiling",
+        "errors/on-limit"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "observability/script-on-exit",
       "title": "`Core\\Script::onExit` registers a request-local hook that runs FIFO as the last user code, and each hook receives one readonly `ExitReport`",
       "status": "shipped",
       "because": [
         "0127",
-        "0063"
+        "0063",
+        "0148"
       ],
       "divergesFromPhp": "`register_shutdown_function` is gone; the hook takes a typed `Script\\ExitReport` with the reason, the status and the live `Throwable`, where PHP reads `error_get_last()`",
       "seeAlso": [
