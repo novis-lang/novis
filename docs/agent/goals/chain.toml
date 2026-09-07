@@ -147,10 +147,9 @@ retired = true
 [[goal]]
 name = "11 doc-comments"
 md = "docs/agent/goals/11-doc-comments.md"
-toml = "docs/agent/goals/11-doc-comments.toml"
-handoff = "docs/agent/goals/11-doc-comments.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = true
 
 # M4B, as four goals. It is order 6 of the milestone table and it sits here because everything it reads
 # is now built: goal 11 landed the trivia layer, goal 10 the typed `callable`, and the request set is

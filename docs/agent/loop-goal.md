@@ -1,152 +1,107 @@
-# Loop goal 11 — `///` is a doc comment, and one JSON carries it
+# Loop goal 12 — the resilient tree, and one home for a position
 
-Give Novis source the one thing it has no way to say: the sentence a type cannot carry. `///` becomes a
-doc comment, its content is prose plus exactly `@see` and `@example`, every other `@tag` is a
-diagnostic, both tags are *checked* rather than rendered on trust, and `nvs meta --json` grows a program
-argument so the two renderers already on that pipeline get user declarations for free.
-`rule:tooling/doc-comment-is-three-slashes` is the whole design.
+Finish the half of `rule:ide/one-grammar-one-tree` that
+goal 11 did not build. That goal landed the trivia layer because a doc comment cannot be read without
+it; what is still owed is the part only an editor needs — **an index from a byte offset to the
+innermost node and its ancestors, and recovery a consumer can tell apart from what the user wrote.**
+[docs/plan/m4b.md](../plan/m4b.md) is the milestone and this file does not restate it.
 
-This goal closes a hole rather than adding a feature.
-`rule:ide/the-request-set-is-closed`'s `textDocument/hover` row
-already promises "for a declaration, the `TriviaKind::DocComment` run attached to it" — and nothing in
-the tree defines which trivium that is, because the trivia layer does not exist yet.
+This goal opens no server and writes no editor. It is the three things every later editor slice reads:
+the tree, the position arithmetic, and the section lexer the `.lspt` format will share. Goals 14 and 15
+are unwritable without it, which is why it is first and why its acceptance list is entirely properties
+rather than features.
 
-Its floor is goal 10's whole list.
-
-## What lands here that M4B was going to build
-
-**Stage 2 is M4B's tree item, landing early.** `rule:ide/one-grammar-one-tree`'s `Parsed { stmts, trivia, index }` is
-M4B's, and M4B is carried by goals 12, 14 and 15 — the end of this chain. A doc comment cannot be read
-without retaining it,
-so this goal builds the `Trivia` vector and `TriviaKind` **as `rule:ide/one-grammar-one-tree` specifies them**, plus that
-section's fourth variant. M4B then inherits it done and keeps the rest: the `SyntaxIndex`, `nvs-lsp`,
-syntax highlighting, `.lspt`. [docs/plan/m4b.md](../plan/m4b.md) records the move.
-
-**Hover is the one row this goal cannot contain.** It needs `crates/nvs-lsp`, which does not exist. It
-needs no note either: `rule:ide/the-request-set-is-closed`'s row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
-so M4B arrives knowing what hover reads and which half of its tree is already built.
-
-## The surface, in one block
-
-```php
-/// The price in cents. Money is `decimal`, never `float`.
-/// A negative amount throws; zero is allowed and is a no-op.
-///
-/// @see Core\Money::fromCents
-/// @example examples/charge.nvs
-public function charge(uint $cents): void { … }
-
-// An ordinary comment. Nothing reads it.
-//// ─────────────────────────  also ordinary: four or more slashes
-```
+**One thing every session must hold:** `parse_file` keeps its exact behaviour. `nvs check` and
+`nvs run` are the same parse followed by "refuse if anything was reported", and no call site changes.
+A resilient tree that alters what the strict path reports is a regression wearing a feature's clothes,
+and the test that says otherwise is named in the acceptance list.
 
 ## Stage 0 — the catch-up
 
-Nothing. `rule:tooling/doc-comment-is-three-slashes` landed with this goal. The seven files already carrying `///` reclassify with no edit
-and read correctly as-is — that is stage 2's own test, not a migration.
+**Nothing**, and that is a finding rather than a default. The four M4 language holes M4B was staged with
+are closed: `Class::method(...)` and `$obj->method(...)` build an ordinary `callable`
+(`tests/conformance/core/a-first-class-callable-lowers.nvst`), a closure is callable through the variable
+holding it in the same case, `do`/`while` lowers, and `bool as string` renders `""` for `false`. The
+fourth item's other half is **not** a hole and must not be reopened: `bool as int` is refused by
+`rule:types/conversion` — `E0708`, whose help line names `$b ? 1 : 0` —
+which is a decision, not a gap.
 
 ## Stage 1 — the floor
 
-Goal 10's whole acceptance list, never traded.
+Goal 11's whole acceptance list, which is the parity program plus goals 7–11. Never traded. Nothing in
+this goal touches `nvs-stdlib`, `nvs-db` or `nvs-server`, so a failure there is a real regression and
+never a scope question.
 
-## Stage 2 — the keystone: trivia, and the fourth variant
+## Stage 2 — recovery a consumer can read
 
-One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`,
-`crates/nvs-syntax/src/parser/mod.rs`.
+`MemberName::Missing(Span)` beside `MemberName::Ident` in `crates/nvs-syntax/src/ast.rs`, produced where
+the synthesized name is made today (`crates/nvs-syntax/src/parser/expr.rs` — `python tools/peek.py
+--locate` finds the site), and a span on `ExprKind::Error` naming what it stood in for. **A consumer must
+never infer "did the user write this, or did the parser invent it at the cursor" from an empty span** —
+completion's entire behaviour hangs on that one distinction, and it is cheaper to build now than to
+retrofit under a request handler.
 
-1. **`Trivia` and `TriviaKind`** — `rule:ide/one-grammar-one-tree`'s shape exactly: `Lexer` gains a flag, `skip_trivia`
-   (`crates/nvs-syntax/src/lexer.rs:357`) pushes a `Trivia { kind, span }` instead of only advancing.
-   The variants are `Whitespace`, `LineComment`, `BlockComment` and `DocComment`. `TriviaKind` lives
-   beside the token types in `crates/nvs-syntax/src/token.rs`.
-2. **The run-length rule** — exactly three `/` is `DocComment`; four or more is `LineComment`, which is
-   Rust's rule. The corpus holds no `////` comment at all: in
-   `tests/conformance/core/encoding-every-encoder-agrees-with-its-own-decoder-over-a-table.nvst` the
-   `////` at line 47 is inside the text of an ordinary `//` comment and the one at line 114 is an
-   encoder's expected output, so what that case proves is that the kind is read off the opening run
-   alone. A `#` comment is never a doc comment at any length.
-3. **`parse_file` becomes `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504` returns `stmts` and
-   `trivia`; the `SyntaxIndex` field is **M4B's** and is not built here. The strict entry point stays a
-   thin wrapper so no call site changes, exactly as `rule:ide/one-grammar-one-tree` requires.
-4. **Losslessness is the acceptance property, not an assertion** — concatenating every token's and every
-   trivium's source text in offset order equals the file byte-for-byte, over `examples/`, `tests/` and
-   the vendored `php-src` checkout `corpus_parse.rs` already walks.
+## Stage 3 — the index
 
-## Stage 3 — attachment, and the closed set
+`SyntaxIndex` joins `stmts` and `trivia` in the `Parsed` goal 11 built, filled by **one walk** and
+answering `at(offset) -> NodePath` — the innermost node plus its ancestors, in order. `parse_file` stays
+a thin wrapper over the resilient entry point, so the strict path is unchanged by construction rather
+than by care. The ancestor list is not an implementation detail: it is `selectionRange`'s whole response
+at goal 14, which is why it is a list and not a leaf.
 
-One file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast.rs`,
-`crates/nvs-diagnostics/src/lib.rs`.
+## Stage 4 — the prefix sweep, and the fuzz target
 
-1. **Attachment** — a run of consecutive `///` lines separated by nothing but whitespace is one comment,
-   attached to the declaration that follows it. A blank line breaks attachment. A run attached to
-   nothing is a diagnostic. `crates/nvs-syntax/src/parser/decl.rs` is where a declaration and its
-   attributes already meet, so it is where its doc comment joins them.
-2. **The two tags parse** — `@see <member>` and `@example <path>`, each on its own line in a trailing
-   block. `rule:tooling/doc-comment-tags-are-see-and-example` is the shape.
-3. **Every other `@tag` at the start of a line is a diagnostic** — this item *is* the closed set; without
-   it the set is a convention, and a convention is how PHPDoc came to document a signature twice.
-   `@param`, `@return` and `@throws` each get their own wording naming what to write instead, per
-   `rule:tooling/doc-comment-tags-are-see-and-example`.
+Every prefix of every `examples/*.nvs` at a token boundary: no panic, a `SyntaxIndex` answer at the final
+offset, and a diagnostic on each prefix that is genuinely incomplete. Then a `fuzz_target` over truncated
+and mid-edit inputs, **separate** from the existing whole-file `parse` target — a truncated input is a
+different shape of input, and folding it into the existing target hides which one found a crash
+(`rule:ide/one-grammar-one-tree` *Verification*).
 
-## Stage 4 — the two checks that keep a tag honest
+## Stage 5 — position arithmetic has exactly one home
 
-One file set: `crates/nvs-hir/`, plus wherever the `nvs check` path already walks declarations.
+`utf16_col` and `offset_of` beside `line_col` in `crates/nvs-diagnostics/src/source.rs`, whose column
+counts `char`s and is therefore **neither** encoding an LSP client can negotiate. This lands here rather
+than in the server goal for one reason: `nvs-diagnostics` is this goal's file set, and the rule that pays
+for it is *no other crate does its own conversion*. It is invisible on ASCII — which every fixture in this
+repository is — and wrong on the first line holding a multi-byte character, so the test is a round trip
+through both encodings on such a line, not a spot check.
 
-1. **`@see` must resolve** — against the same class and member tables `nvs-hir` builds, or it is a
-   diagnostic. The standard is the one `python tools/check-links.py` already holds 282 markdown files to.
-2. **`@example` must exist *and* be inside a directory the test corpus walks** — `examples/` is such a
-   directory today. This is the whole reason the tag survived the cut: an example that stops compiling
-   fails the build instead of rotting inside a rendered page.
+## Stage 6 — the section lexer both case formats read
 
-## Stage 5 — `nvs meta --json` grows an argument
+Extract `nvs_test`'s section lexer — its `header` and `parse` — into a module a second format can read,
+with `.nvst` behaviour byte-identical afterwards. **That is the whole of this stage.** The `.lspt` format
+itself, `nvs lsp-test`, and the canonical rendering are goal 14's: [conventions.md](conventions.md)
+§ *An `.lspt` case* puts the format's home in `crates/nvs-lsp`'s module doc and the rendering in
+`nvs_lsp::render`, and a format specified before its only consumer exists is specified twice.
 
-One file set: `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/meta.rs`.
+## Stage 7 — `nvs ast --json`, and the reference's first two headings
 
-1. **`nvs meta --json <entry>`** — `Command::Meta` (`crates/nvs-cli/src/main.rs:509`) takes an optional
-   path. With none, the output is **byte-identical to today's**, which is the check that protects both
-   renderers on this pipeline. With one, the program's own declarations are emitted beside the `Core`
-   registry.
-2. **The user-declaration shape mirrors the registry's** — name, signature, prose, `@see` list,
-   `@example` list. `rule:tooling/meta-json` owns the `Core` half and is not touched; `rule:tooling/meta-json-takes-a-program` owns this half.
+`--json` and `--resilient` on `run_ast` in `crates/nvs-cli/src/main.rs`. A node is `kind`, `span` as
+`[start, end]`, its own scalar fields and `children`; **trivia and recovery nodes are included**, because
+the panel this feeds is least useful on a file that compiles. `--resilient` is the default, and the schema
+is frozen by a snapshot over `examples/`. `rule:ide/the-ast-panel-shells-out-to-the-cli` reads this flag; it does not exist yet, and
+`{stmts:#?}` has no stability contract.
 
-## Stage 6 — the renderer and the lint
+It is documented under `docs/reference/tools/10-cli.md`'s **existing** `# nvs ast` heading — two new
+flags on a subcommand that already ships, not a new feature — so it adds no row to
+`rule:testing/four-proofs`'s derived roster. The new chapter
+`40-editor.md` and its own headings belong to goals 14 and 15, which is where `nvs lsp` first exists.
+`python tools/reference.py --check` is in the acceptance list because a chapter edit that stops
+regenerating is how `docs/novis.md` goes quietly stale.
 
-One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
+## Standing decisions — pre-authorized, do not stop the loop for these
 
-1. **`nvs doc <entry>`** — one Markdown page per class, from stage 5's JSON and from nothing else. It
-   decides nothing and is deliberately cheap to replace; `tools/reference.py` and the website already
-   cover every in-tree consumer, so this exists for a project that does not have them.
-2. **`nvs check --strict-docs`** — a **public** member with no attached doc comment is reported. Silent
-   without the flag, in every project, at every other setting. There is nothing for an autofix to
-   generate, which is the property `rule:tooling/strict-docs` relies on.
-3. **No hover code lands here.** `rule:ide/the-request-set-is-closed`'s hover row
-   already names the `TriviaKind::DocComment` run as what it reads, and
-   [docs/plan/m4b.md](../plan/m4b.md) already records which half of its tree this goal built — both
-   folded when `rule:tooling/doc-comment-is-three-slashes` landed. There is nothing left for this stage to write down.
-
-## Standing decisions
-
-- **`rule:tooling/doc-comment-is-three-slashes` is settled and is not re-derived.** Its four decisions — `///` as the marker with `////`
-  ordinary, prose plus exactly `@see` and `@example` with any other tag a diagnostic, `nvs meta --json`
-  as the one machine-readable source with `nvs doc` as a renderer over it, and enforcement silent by
-  default — were taken with the user before this goal was written. A session that finds an
-  implementation reason to differ records it in that ADR's *Revisiting* and implements the decision as
-  written.
-- **This goal may open no new ADR number.** `rule:tooling/doc-comment-is-three-slashes`'s body is the home for a rule, the touched module's
-  doc comment for a mechanism, the playbook for a trap.
-- **The tag set does not grow, in this goal or in a session's judgement.** A third tag needs a *check* it
-  makes possible, argued in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, not a rendering it would improve.
-- **No `@param`-shaped structure, even where it would be easy.** Per-parameter documentation is parked
-  against the package manager in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, and if it ever lands it lands as a
-  registry-shaped field in stage 5's JSON — never as a tag.
-- **Diagnostic codes come from `python tools/brief.py`, not from this file.** ADR 0137 §
-  *Diagnostics* names the *bands* — parser `E01xx` for an unknown tag and an unattached run, name
-  resolution `E03xx` for the two checks and for `--strict-docs` — deliberately without numbers, because
-  another agent claims a code from the same directory.
-- **The bidi check is reused, never duplicated** (`rule:security/bidi-predicate`):
-  the lexer already checks every comment span, so `nvs doc` and `nvs meta --json` emit text that has
-  already been accepted and neither grows a check of its own.
-- **`SyntaxIndex` is not built here.** It is M4B's, it has no consumer in this goal, and building it
-  early would mean maintaining it through five goals with nothing reading it.
-- **Ambiguity about where a rule lives resolves toward `nvs-syntax`** — a doc comment is a lexical
-  fact, and everything downstream reads it rather than re-deriving it. Decided-and-recorded in that
-  crate's module doc, never `BLOCKED`.
+- **One grammar, one tree. The `rowan` question is closed** by `rule:ide/one-grammar-one-tree`, which names what was given
+  up (incremental reparse) and what protects the trade (goal 14's latency guard). If the implementation
+  seems to force the opposite conclusion, keep this design, record *that* in `nvs-syntax`'s module doc
+  with the reason, and put the CST in the handoff's `## Backlog` — never start a rewrite mid-run.
+- **No ADR slots.** ADRs 0099, 0040 and 0137 decide everything here. Anything smaller is
+  decided-and-recorded in the crate's own module doc or `docs/adr/README.md` § *Decisions taken at project
+  start*, never a new number and never `BLOCKED`.
+- **`SyntaxIndex` is built by the walk that already exists**, not by a second traversal added beside it.
+  If the parse cannot fill it in one pass, fill it in one post-order walk of the finished tree and say so —
+  what is refused is two walks that both know the shape of the tree.
+- **The `.lspt` runner is not here** and a slice that reaches for it is off path: `## Backlog`, move on.
+- **`.lspt` and `.nvst` stay two suites.** They share a section lexer and nothing else. `nvs test`'s
+  `N passed` is the number the floor gates on, and making it count two unlike things breaks that gate and
+  `conformance_coverage.rs` with it.
