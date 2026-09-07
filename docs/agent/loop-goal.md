@@ -1,141 +1,150 @@
-# Loop goal 10 — a `callable` carries its signature
+# Loop goal 11 — `///` is a doc comment, and one JSON carries it
 
-Give the type system the one thing it still cannot say about a function value: what it takes and what it
-gives back. `rule:types/callable-signature` is the whole design and this
-goal is its implementation — the grammar, the assignability rule, the inference that makes it free to
-use, the retirement of the two bespoke binding-site variants that stood in for it, and the codegen that
-finally spends the proof.
+Give Novis source the one thing it has no way to say: the sentence a type cannot carry. `///` becomes a
+doc comment, its content is prose plus exactly `@see` and `@example`, every other `@tag` is a
+diagnostic, both tags are *checked* rather than rendered on trust, and `nvs meta --json` grows a program
+argument so the two renderers already on that pipeline get user declarations for free.
+`rule:tooling/doc-comment-is-three-slashes` is the whole design.
 
-The reason this is worth a goal is in `crates/nvs-runtime/src/closure.rs`'s own module doc, not in
-ergonomics. With no parameter list "**no checker can compare a call site against the body it will
-reach**, and the compiled `invoke` reads argument slot *i* at its own declared representation. Hand it a
-mismatch and the callee reinterprets the payload — an `int` read as an `NvsStr` pointer is an arbitrary
-dereference, not a fault." Today `check_param_tags` stands in that gap with a mask-and-compare per
-argument, per call, on the path `Core\Arr::map` sits on. This goal turns a **priority 1** runtime guard
-into a compile-time proof and stops paying for it where it is proven.
+This goal closes a hole rather than adding a feature.
+`rule:ide/the-request-set-is-closed`'s `textDocument/hover` row
+already promises "for a declaration, the `TriviaKind::DocComment` run attached to it" — and nothing in
+the tree defines which trivium that is, because the trivia layer does not exist yet.
 
-Its floor is goal 9's whole list, which is the parity program plus the temp sweep, the program id and
-`Core\Db\Schema`.
+Its floor is goal 10's whole list.
+
+## What lands here that M4B was going to build
+
+**Stage 2 is M4B's tree item, landing early.** `rule:ide/one-grammar-one-tree`'s `Parsed { stmts, trivia, index }` is
+M4B's, and M4B is carried by goals 12, 14 and 15 — the end of this chain. A doc comment cannot be read
+without retaining it,
+so this goal builds the `Trivia` vector and `TriviaKind` **as `rule:ide/one-grammar-one-tree` specifies them**, plus that
+section's fourth variant. M4B then inherits it done and keeps the rest: the `SyntaxIndex`, `nvs-lsp`,
+syntax highlighting, `.lspt`. [docs/plan/m4b.md](../plan/m4b.md) records the move.
+
+**Hover is the one row this goal cannot contain.** It needs `crates/nvs-lsp`, which does not exist. It
+needs no note either: `rule:ide/the-request-set-is-closed`'s row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
+so M4B arrives knowing what hover reads and which half of its tree is already built.
 
 ## The surface, in one block
 
 ```php
-callable(User, string): string   $format;     // parameters, then a mandatory return type
-callable(): void                 $onExit;
-callable                         $anything;   // still legal: the top of the lattice
+/// The price in cents. Money is `decimal`, never `float`.
+/// A negative amount throws; zero is allowed and is a no-op.
+///
+/// @see Core\Money::fromCents
+/// @example examples/charge.nvs
+public function charge(uint $cents): void { … }
 
-// arity is a prefix match — the runtime already trims, so the type says so
-Core\Arr::map($users, fn($u) => $u->name);    // $u : User, inferred; result array<string>
+// An ordinary comment. Nothing reads it.
+//// ─────────────────────────  also ordinary: four or more slashes
 ```
 
 ## Stage 0 — the catch-up
 
-Nothing. `rule:types/callable-signature` landed with this goal, and no fixture predates it.
+Nothing. `rule:tooling/doc-comment-is-three-slashes` landed with this goal. The seven files already carrying `///` reclassify with no edit
+and read correctly as-is — that is stage 2's own test, not a migration.
 
 ## Stage 1 — the floor
 
-Goal 9's whole acceptance list — the parity program, the temp sweep, `Core\Program::id()` and
-`Core\Db\Schema` — never traded.
+Goal 10's whole acceptance list, never traded.
 
-## Stage 2 — the keystone: the atom, and what it compares to
+## Stage 2 — the keystone: trivia, and the fourth variant
 
-One file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`,
-`crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/expr/assign.rs`.
+One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`,
+`crates/nvs-syntax/src/parser/mod.rs`.
 
-1. **The grammar.** `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) gains `rule:types/callable-signature`'s
-   production. A `(` after `callable` is only ever a parameter list — a type position has no call syntax
-   — so this needs none of the checkpointed trial parse `array<T>` and `new Foo<...>` require. A missing
-   `: R` and a named parameter are both diagnostics here, not parses that fail later.
-2. **The representation.** A `Ty::CallableSig { params, ret }` beside `Ty::Callable`
-   (`crates/nvs-types/src/ty.rs:170`), interned like every other type, and rendered by the display arm at
-   `:520` as it is written.
-3. **Assignability.** `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains `rule:types/callable-arity` and `rule:types/callable-variance`:
-   arity `n ≤ m` comparing the first *n*, parameters contravariant, return covariant, and every callable
-   type assignable to bare `callable`. This is the first non-invariant relation in the checker; § 4 of
-   the ADR is the one home for why `array<T>`'s invariance does not reach it.
+1. **`Trivia` and `TriviaKind`** — `rule:ide/one-grammar-one-tree`'s shape exactly: `Lexer` gains a flag, `skip_trivia`
+   (`crates/nvs-syntax/src/lexer.rs:357`) pushes a `Trivia { kind, span }` instead of only advancing.
+   The variants are `Whitespace`, `LineComment`, `BlockComment` and `DocComment`. `TriviaKind` lives
+   beside the token types in `crates/nvs-syntax/src/token.rs`.
+2. **The run-length rule** — exactly three `/` is `DocComment`; four or more is `LineComment`, which is
+   Rust's rule and is why the `//// ____` divider in
+   `tests/conformance/core/encoding-every-encoder-agrees-with-its-own-decoder-over-a-table.nvst:114`
+   stays an ordinary comment. A `#` comment is never a doc comment at any length.
+3. **`parse_file` becomes `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504` returns `stmts` and
+   `trivia`; the `SyntaxIndex` field is **M4B's** and is not built here. The strict entry point stays a
+   thin wrapper so no call site changes, exactly as `rule:ide/one-grammar-one-tree` requires.
+4. **Losslessness is the acceptance property, not an assertion** — concatenating every token's and every
+   trivium's source text in offset order equals the file byte-for-byte, over `examples/`, `tests/` and
+   the vendored `php-src` checkout `corpus_parse.rs` already walks.
 
-## Stage 3 — the inference that makes it free
+## Stage 3 — attachment, and the closed set
 
-One file set: `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/args.rs`.
+One file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast.rs`,
+`crates/nvs-diagnostics/src/lib.rs`.
 
-1. **A `fn` literal takes its parameter types from the position it is written in.** `check_fn_literal`
-   (`crates/nvs-types/src/expr/calls.rs:1513`) already checks the body in a scope of its own; it gains an
-   expected type, and each unannotated parameter takes the corresponding position's type from it. An
-   annotated parameter is checked against it under § 4 and wins where it is wider.
-2. **`E0450` is unchanged** — a block-bodied `fn` still declares its return type. `rule:types/callable-literal-inference` says so
-   explicitly; do not relax it here.
+1. **Attachment** — a run of consecutive `///` lines separated by nothing but whitespace is one comment,
+   attached to the declaration that follows it. A blank line breaks attachment. A run attached to
+   nothing is a diagnostic. `crates/nvs-syntax/src/parser/decl.rs` is where a declaration and its
+   attributes already meet, so it is where its doc comment joins them.
+2. **The two tags parse** — `@see <member>` and `@example <path>`, each on its own line in a trailing
+   block. `rule:tooling/doc-comment-tags-are-see-and-example` is the shape.
+3. **Every other `@tag` at the start of a line is a diagnostic** — this item *is* the closed set; without
+   it the set is a convention, and a convention is how PHPDoc came to document a signature twice.
+   `@param`, `@return` and `@throws` each get their own wording naming what to write instead, per
+   `rule:tooling/doc-comment-tags-are-see-and-example`.
 
-## Stage 4 — the stdlib rows, and the first variant retired
+## Stage 4 — the two checks that keep a tag honest
 
-One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db/registry.rs`,
-`crates/nvs-types/src/core_lib.rs`, `crates/nvs-cli/src/meta.rs`.
+One file set: `crates/nvs-hir/`, plus wherever the `nvs check` path already walks declarations.
 
-1. **`CoreTy::CallableTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:335`), with its `Ty`
-   counterpart (`crates/nvs-types/src/ty.rs:188`), its lowering (`crates/nvs-types/src/core_lib.rs:454`),
-   its reader `callback_result_var` (`crates/nvs-types/src/generics.rs:137`) and its `meta` rendering
-   (`crates/nvs-cli/src/meta.rs:305`).
-2. **Five rows write an ordinary type instead** — `arr.rs:118` (`map`), `cli.rs:318` and `:327`,
-   `db/registry.rs:361` and `db/transaction.rs:646`. `map` becomes
-   `map(array<T> $a, callable(T, string): U $fn): array<U>`.
-3. **`bind` descends into a callable type** (`crates/nvs-types/src/generics.rs`), which is `rule:types/callable-signature`'s
-   first extension: one more structural position, no constraint set, no occurs check. The gap this
-   closes is that module's own — a callback that is a *variable* now binds what only a written literal
-   bound before.
-4. **[docs/spec/01-core-library.md](../spec/01-core-library.md) § *Arr* is edited in the same slice**
-   as the registry rows it must agree with, never before them.
+1. **`@see` must resolve** — against the same class and member tables `nvs-hir` builds, or it is a
+   diagnostic. The standard is the one `python tools/check-links.py` already holds 282 markdown files to.
+2. **`@example` must exist *and* be inside a directory the test corpus walks** — `examples/` is such a
+   directory today. This is the whole reason the tag survived the cut: an example that stops compiling
+   fails the build instead of rotting inside a rendered page.
 
-## Stage 5 — `Task::all`, and the second variant retired
+## Stage 5 — `nvs meta --json` grows an argument
 
-One file set: `crates/nvs-types/src/generics.rs`, `crates/nvs-stdlib/src/task.rs`, the spec's *Task*
-section.
+One file set: `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/meta.rs`.
 
-1. **`CoreTy::CallableShapeTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:361`) with
-   `callable_shape_var` (`crates/nvs-types/src/generics.rs:152`), and `task.rs:137`/`:148` write
-   `{name: callable(): T, …}` instead.
-2. **A shape of callables rebuilds a shape** — `rule:types/callable-signature`'s second extension: walk each field, take its
-   callable return type, assemble a shape with the same names. One descent, one construction, in the
-   same single pass the module already makes.
-3. **`Task::all`'s written-literal restriction is removed**, in the spec and in the checker: a field
-   holding a `callable(): T` variable now carries what the field needs, so the compile error naming the
-   field goes with it.
+1. **`nvs meta --json <entry>`** — `Command::Meta` (`crates/nvs-cli/src/main.rs:509`) takes an optional
+   path. With none, the output is **byte-identical to today's**, which is the check that protects both
+   renderers on this pipeline. With one, the program's own declarations are emitted beside the `Core`
+   registry.
+2. **The user-declaration shape mirrors the registry's** — name, signature, prose, `@see` list,
+   `@example` list. `rule:tooling/meta-json` owns the `Core` half and is not touched; `rule:tooling/meta-json-takes-a-program` owns this half.
 
-## Stage 6 — spending the proof
+## Stage 6 — the renderer and the lint
 
-One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs`,
-`crates/nvs-runtime/src/closure.rs`, `crates/nvs-codegen`.
+One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
 
-1. **A proven call site emits no tag check.** Where the callee's type names its parameters, the
-   `check_param_tags` sequence (`crates/nvs-runtime/src/closure.rs:444`) is not emitted; where it is bare
-   `callable`, it is emitted exactly as today.
-2. **Both metadata slots stay on every closure object** — `CLOSURE_ARITY_SLOT` and
-   `CLOSURE_PARAM_TAGS_SLOT`, written at `lower_closure_literal`
-   (`crates/nvs-ir/src/lower/expr.rs:2378`). A closure does not know at its literal which kind of site
-   will call it, and bare `callable` still needs both. What is removed is the work, not the metadata.
-3. **The valgrind leg is not optional here.** § 7 changes what is emitted around a call whose refcount
-   protocol `call_closure` owns, which is the one place `Core`'s borrow convention and a compiled
-   method's ownership convention are reconciled.
+1. **`nvs doc <entry>`** — one Markdown page per class, from stage 5's JSON and from nothing else. It
+   decides nothing and is deliberately cheap to replace; `tools/reference.py` and the website already
+   cover every in-tree consumer, so this exists for a project that does not have them.
+2. **`nvs check --strict-docs`** — a **public** member with no attached doc comment is reported. Silent
+   without the flag, in every project, at every other setting. There is nothing for an autofix to
+   generate, which is the property `rule:tooling/strict-docs` relies on.
+3. **No hover code lands here.** `rule:ide/the-request-set-is-closed`'s hover row
+   already names the `TriviaKind::DocComment` run as what it reads, and
+   [docs/plan/m4b.md](../plan/m4b.md) already records which half of its tree this goal built — both
+   folded when `rule:tooling/doc-comment-is-three-slashes` landed. There is nothing left for this stage to write down.
 
 ## Standing decisions
 
-- **`rule:types/callable-signature` is settled and is not re-derived.** Its five decisions — the spelling with a mandatory
-  return, no parameter names, bare `callable` as the lattice top, prefix arity, contravariant
-  parameters with a covariant return, and inference from the expected type — were taken with the user
-  before this goal was written. A session that finds an implementation reason one of them is wrong
-  records it in the ADR's *Revisiting* and implements the decision as written; it does not choose
-  differently and it does not report `BLOCKED`.
-- **This goal may open no new ADR number.** Every design question inside it has a home: `rule:types/callable-signature`'s body
-  for the rule, the touched module's doc comment for a mechanism, the playbook for a trap.
-- **The new diagnostics go in `E08xx`, opening at `E0800`** — ADR 0136 § *Diagnostics* and
-  [docs/adr/README.md](../adr/README.md) § *Decisions taken at project start* both record the
-  allocation. Add the band's row to `nvs_diagnostics::code`'s legend table with the first code.
-- **`E0450` is not relaxed** and whole-body return-type inference is not attempted, however tempting it
-  looks once stage 3's expected type is in hand. It is ADR 0136 § *Revisiting*'s second entry and belongs
-  to a later decision.
-- **Optional and variadic parameters in a callable type are refused**, not deferred with a shape in
-  mind — ADR 0136 § *Revisiting*'s first entry says why the prefix rule already covers the demand.
-- **Ambiguity about where a rule lives resolves toward the checker, not the runtime.** The whole point
-  of the goal is moving a check earlier; a case that could be answered in either place is answered in
-  `nvs-types`, and the runtime keeps only what bare `callable` still needs.
-- **Stages 4 and 5 edit the spec in the same slice as the registry rows**, never as a separate tidy-up:
-  `rule:core-api/reference-card` makes the registry and the spec answer field-wise, and a slice that moves one without the
-  other is what that rule exists to prevent.
+- **`rule:tooling/doc-comment-is-three-slashes` is settled and is not re-derived.** Its four decisions — `///` as the marker with `////`
+  ordinary, prose plus exactly `@see` and `@example` with any other tag a diagnostic, `nvs meta --json`
+  as the one machine-readable source with `nvs doc` as a renderer over it, and enforcement silent by
+  default — were taken with the user before this goal was written. A session that finds an
+  implementation reason to differ records it in that ADR's *Revisiting* and implements the decision as
+  written.
+- **This goal may open no new ADR number.** `rule:tooling/doc-comment-is-three-slashes`'s body is the home for a rule, the touched module's
+  doc comment for a mechanism, the playbook for a trap.
+- **The tag set does not grow, in this goal or in a session's judgement.** A third tag needs a *check* it
+  makes possible, argued in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, not a rendering it would improve.
+- **No `@param`-shaped structure, even where it would be easy.** Per-parameter documentation is parked
+  against the package manager in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, and if it ever lands it lands as a
+  registry-shaped field in stage 5's JSON — never as a tag.
+- **Diagnostic codes come from `python tools/brief.py`, not from this file.** ADR 0137 §
+  *Diagnostics* names the *bands* — parser `E01xx` for an unknown tag and an unattached run, name
+  resolution `E03xx` for the two checks and for `--strict-docs` — deliberately without numbers, because
+  another agent claims a code from the same directory.
+- **The bidi check is reused, never duplicated** (`rule:security/bidi-predicate`):
+  the lexer already checks every comment span, so `nvs doc` and `nvs meta --json` emit text that has
+  already been accepted and neither grows a check of its own.
+- **`SyntaxIndex` is not built here.** It is M4B's, it has no consumer in this goal, and building it
+  early would mean maintaining it through five goals with nothing reading it.
+- **Ambiguity about where a rule lives resolves toward `nvs-syntax`** — a doc comment is a lexical
+  fact, and everything downstream reads it rather than re-deriving it. Decided-and-recorded in that
+  crate's module doc, never `BLOCKED`.
