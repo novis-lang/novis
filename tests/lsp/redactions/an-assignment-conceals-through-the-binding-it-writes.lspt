@@ -1,0 +1,11 @@
+--TEST--
+a later assignment is concealed through the binding it writes rather than through a type on the literal, which is the same attribution the declaration uses, `rule:security/redaction-covers-bytes-only`
+--FILE--
+<?nvs
+secret string $key = "first";
+$key = "second";
+--REQUEST--
+redactions
+--EXPECT--
+2:22-2:29 secretLiteral
+3:8-3:16 secretLiteral

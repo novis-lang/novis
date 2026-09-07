@@ -1,0 +1,10 @@
+--TEST--
+`secret` alone conceals: a plain literal and a `tainted` one are answered for nothing, because trust and confidentiality are two axes and only one of them is about what may be shown, `rule:security/redaction-covers-bytes-only`
+--FILE--
+<?nvs
+string $plain = "hello";
+tainted string $dirty = "untrusted";
+--REQUEST--
+redactions
+--EXPECT--
+none

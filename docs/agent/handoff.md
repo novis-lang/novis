@@ -2,53 +2,55 @@
 
 ## State
 
-**Goal 14, stage 7 is closed.** Semantic tokens answer every kind and every modifier the legend names,
-and what Novis refuses is frozen as colouring nothing: `===`, `(int)$x`, PHP 8.5's hole-less `|>` and
-`if (...): … endif;` each have a `.lspt` case under `tests/lsp/semantic/`, checked against `nvs check`
-so each really is refused rather than quietly accepted.
+**Goal 14, stage 8 is closed.** `nvs/redactions` answers: `crates/nvs-lsp/src/redactions.rs` is the
+walk, `server.rs` dispatches the method and `suite.rs` runs a `redactions` case. That runner's
+`answer` match now has no wildcard — every request in the closed set has an arm, so a tenth is a
+build error rather than a case that passes by being skipped.
 
-**A qualifier now reaches a property.** `crates/nvs-lsp/src/semantic.rs:444`'s `qualifiers_recorded`
-reads the declared type off the access's own `ExprInfo::Property`/`StaticProperty`/`HookedProperty`/
-`ShapeProperty` entry — the entry `crate::hover` renders a type from — so `$this->token` and
-`self::$shared` both carry `secret` where the declaration wrote it. A `foreach` binding needed no work:
-`rule:types/grammar`.2 makes it write its own type, so it is a binding in `LocalScope` like any other.
+**The walk is a projection of `nvs_syntax::walk::of_stmts`, not a second match over the AST.** It
+needs a literal's span and an interpolation slot's span and no name span, so it takes the one
+exhaustive in-crate traversal, and a production landing later cannot quietly stop being concealed —
+which is the opposite trade from `semantic.rs`, whose module doc explains why it pays the wildcard.
 
-**One qualified position still carries nothing: a property *declaration*.** The reason is in that file's
-module doc and in the playbook bullet this session added; closing it is a `nvs-types` change, not an LSP
-one. `nvs lsp-test tests/lsp/` reports `74 passed, 0 failed` against the goal's floor of 160.
+**A literal is attributed through the binding it is written into**, which is ADR 0101 § 1's fail
+direction asked everywhere rather than only on failure: a `secret` `LocalDecl`'s initializer, an
+assignment whose target carries `secret`, and an interpolation slot whose own expression does. The
+value is followed only through `()`, a ternary's branches, `.` and `??`. A parameter's default and a
+property *declaration*'s default are the two positions it does not reach, both named in that module
+doc and both pinned by `tests/lsp/redactions/`.
 
-The earliest red acceptance check is stage 8's `nvs/redactions`, which is unwritten — that is the group
-below.
+`nvs lsp-test tests/lsp/` reports `79 passed, 0 failed` against the goal's floor of 160. The earliest
+red acceptance check is now stage 9's code actions, which is the group below; stage 4's case floor is
+fed by every slice after it.
 
 ## Next group
 
-**Stage 8: `nvs/redactions`, the one request of Novis's own** — one file set: a new
-`crates/nvs-lsp/src/redactions.rs`, with `crates/nvs-lsp/src/server.rs`,
-`crates/nvs-lsp/src/render.rs` and `crates/nvs-lsp/src/case.rs` edited and
-`crates/nvs-lsp/src/semantic.rs` read for how a qualifier is asked.
+**Stage 9: two code actions, and the boundary** — one file set: a new
+`crates/nvs-lsp/src/actions.rs`, with `crates/nvs-lsp/src/case.rs`, `crates/nvs-lsp/src/render.rs`,
+`crates/nvs-lsp/src/server.rs` and `crates/nvs-lsp/src/suite.rs` edited, and
+`crates/nvs-diagnostics/src/diagnostic.rs:112`'s `Suggestion` read for what a fix already carries.
 
-- [ ] **A `secret` literal and a `secret` interpolation slot are answered** —
-      `rule:security/redaction-ranges-come-from-the-server`,
-      `rule:security/redaction-covers-bytes-only`. A `TextDocumentIdentifier` in, `{range, kind}` out
-      with `kind` the open string `secretLiteral`. The walk is `semantic.rs`'s shape narrowed to
-      literals, and `crates/nvs-lsp/src/server.rs:284`'s `semantic_tokens` is the handler to copy —
-      empty answer, not `null`, for a document nothing is open for. Register the module at
-      `crates/nvs-lsp/src/lib.rs:106`.
-- [ ] **A plain and a `tainted` literal are not answered** — same rule. `secret` alone conceals;
-      `rule:security/tainted-has-no-default-decoration` is why `tainted` is not in this answer at all.
-      The qualifier question is `crates/nvs-lsp/src/semantic.rs:414`'s `qualifiers_at` and
-      `crates/nvs-lsp/src/semantic.rs:444`'s `qualifiers_recorded`, already written.
-- [ ] **An untypable expression whose binding is `secret` is answered anyway** — the named fail
-      direction, `docs/agent/loop-goal.md:110`. A value must not flash on screen while its literal is
-      being typed, so a span the checker could not type but whose binding declares `secret` is still
-      returned. Freeze the three as `.lspt` cases: the request name goes at
-      `crates/nvs-lsp/src/case.rs:101` and its canonical rendering at `crates/nvs-lsp/src/render.rs:152`.
+- [ ] **A `codeAction` case can be written** — `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`,
+      `rule:ide/the-rendering-has-one-home`. A variant beside `crates/nvs-lsp/src/case.rs:75`, in
+      `Request::ALL` and `Request::name`, and `takes_cursor` true — the request is asked over a
+      range, so the case's `<|>` is what names it. The answer variant goes beside
+      `crates/nvs-lsp/src/render.rs:129` and its renderer beside `crates/nvs-lsp/src/render.rs:409`.
+- [ ] **A code action is a suggestion the diagnostic already carried** —
+      `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`. The new module reads the
+      analysis's diagnostics through `crates/nvs-lsp/src/diagnostics.rs:195`, which already says a
+      `nvs_diagnostics::Suggestion` is a code action, and offers nothing a checker would have to
+      compute (`rule:ide/a-code-action-writes-only-what-is-already-determined`). Register it at
+      `crates/nvs-lsp/src/lib.rs:106` and hand the server its arm beside
+      `crates/nvs-lsp/src/server.rs:163`.
+- [ ] **The four named claims are frozen** — the same rules. `a_code_action_comes_from_a_suggestion_the_diagnostic_already_carried`,
+      `the_casing_diagnostic_carries_its_replacement`, `the_legacy_cast_diagnostic_carries_its_replacement`
+      and `a_fix_the_checker_would_have_to_compute_is_offered_by_nothing`, in
+      `crates/nvs-lsp/tests/redactions.rs:20`'s shape — an open buffer over a path that need not
+      exist — plus `.lspt` cases under `tests/lsp/actions/`.
 
 ## Backlog
 
-- A property *declaration* carries no qualifier modifier; the fix is a shared `ExprTypeTable` between
-  `nvs_types`' signature pass and its check pass — `crates/nvs-types/src/check.rs:262`.
-- Stage 9's extension-host run proving the client legend equals the server's —
-  `rule:ide/semantic-tokens-carry-the-qualifiers`, goal 15.
-- `nvs lsp-test --coverage`'s matrix is not yet asserted empty-cell-free —
-  `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
+- The `.lspt` corpus is 79 of the floor of 160; every remaining request slice feeds it (`docs/agent/loop-goal.toml:5252`).
+- `nvs lsp-test --coverage` and `every_request_answers_every_construct` are unwritten, and they are the goal's real gate (`docs/agent/loop-goal.toml:5311`).
+- A property *declaration* carries no qualifier to ask, so neither `semantic` nor `redactions` reaches its default; closing it is a `nvs-types` change.
+- Stage 10's latency guard and stage 11's reference chapter are untouched.

@@ -1,0 +1,12 @@
+--TEST--
+a write through a `secret` property is concealed by the type the checker recorded against the access, and the property *declaration*'s own default is not, because a declaration is not an access and carries no entry to ask — the gap `crates/nvs-lsp/src/redactions.rs` names, `rule:security/redaction-covers-bytes-only`
+--FILE--
+<?nvs
+class Vault {
+  public secret string $token = "unset";
+  public function rotate(): void { $this->token = "sk-live-rotated"; }
+}
+--REQUEST--
+redactions
+--EXPECT--
+4:51-4:68 secretLiteral

@@ -3371,12 +3371,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Materialised` writes every section into a scratch directory and opens the buffers over those real
   paths — anything else that drives the front end from text alone owes the same.
   [until: gone crates/nvs-lsp/src/suite.rs:Materialised]
-- **`suite.rs`'s tree test names an unanswered request as its fixture, so landing that request's arm turns
-  a green test red.** `a_tree_of_cases_reports_one_summary_line` writes a case whose `--REQUEST--` nothing
-  answers yet and asserts `0 passed, 2 failed`; the moment that arm lands the case passes, the summary
-  becomes `1 passed, 1 failed`, and the failure reads as the new handler having broken the runner. Point
-  the fixture at a request still falling through to the `unanswered` arm — `hover` today — rather than at
-  the one you have just landed. [until: gone crates/nvs-lsp/src/suite.rs:is not answered yet]
 - **A free `function` at top level is refused, so nothing in its body is type-checked and a cursor
   request inside one answers about nothing.** An `.lspt` case that wrapped `new User()` in
   `function make(): void` got `none` from `definition` for a reason that had nothing to do with the
@@ -3407,6 +3401,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   asking what a bare binding carries never gets that far. A handoff item can name the construct in that
   PHP shape anyway, because nothing in an LSP file set contradicts it. Run `nvs check` over the
   `--FILE--` document before freezing anything about it. [until: reviewed 2026-09-08]
+- **A `-p nvs-lsp` test needs no file on disk to analyse a document.** `Documents::open` registers
+  the buffer as an overlay and `SourceMap::load` hands that back before it reaches the filesystem,
+  so `analyse` answers for a URI naming a path that does not exist. `tests/publish.rs`'s `TempDir`
+  is there for `require` resolution and republish-by-path, not for the analysis, so copy it only
+  when a case has a second file. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
