@@ -380,6 +380,23 @@ handoff = "docs/agent/goals/30-type-test.handoff.md"
 milestone = "M1"
 preflight = "docker"
 
+# The queue can create a job and cannot remove one, so `nvs_jobs` grows with every job the
+# deployment has ever run and the only answer is raw SQL against tables the runtime owns. ADR 0153
+# closes that with one column, two members, one capability and one diagnostic. It sits here rather
+# than beside goal 5 because the schema change is what makes it cheap and that is goal 9's
+# converge, not goal 5's hand-written DDL lists: a nullable column with no default grades `Safe`,
+# so a live deployment takes it through the `nvs queue migrate` it already runs. After goal 29 and
+# 30 because it adds surface and they are the entries that settled how surface is added; in front
+# of the dossier because that entry stops adding any. Its own checks run statements against
+# PostgreSQL and MySQL, so the daemon is its requirement as well as its floor's.
+[[goal]]
+name = "31 queue-purge"
+md = "docs/agent/goals/31-queue-purge.md"
+toml = "docs/agent/goals/31-queue-purge.toml"
+handoff = "docs/agent/goals/31-queue-purge.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and

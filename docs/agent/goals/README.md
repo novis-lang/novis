@@ -101,6 +101,19 @@ pair. Its whole argument is that it invents **no** canonical form: `$uri->sign` 
 gone wrong. It sits after goal 28 because it adds surface and 28 is the last entry that only closes,
 and because `{keys, until}` needs the options bag goal 28 stage 2 lands.
 
+**Then one the user asked for after reading the queue.** [31 queue-purge](31-queue-purge.md) is the other
+half of a class that could create a job and not remove one: `nvs_jobs` grows with every job a deployment has
+ever run, a cancelled batch of forty thousand leaves forty thousand rows, and the dead-letter table the
+runtime is right never to sweep has no spelling an operator can sweep either — so the only answer today is
+raw SQL against tables the runtime owns, which makes their column names a public contract by use.
+[ADR 0153](../../decisions/0153.md) closes it with one column, two members, one capability and one
+diagnostic, and its whole argument is that none of the four is new: `delete` is `cancel`'s twin, `purge` is
+`stats`', the grant is `db.schema`'s shape, and `E0635` is `E0618` one class over. The `tag` column is the
+only invention, and it exists because `key` means *at most one pending job* and a group means *many* — the
+two are opposites at the point they touch. It sits here rather than beside goal 5 because what makes the
+schema change cheap is goal 9's converge: a nullable column with no default grades `Safe`, so a live
+deployment takes it through the `nvs queue migrate` it already runs.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
 which puts `rule:testing/four-proofs`'s
@@ -167,7 +180,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + `rule:security/protocol-roster`/0077 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | [30 type-test](30-type-test.md) | M1, `rule:types/type-test` — the other half of goal 13's reservation | `nvs-syntax`, `nvs-types`, `nvs-ir`, `nvs-codegen` |
-| 31–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [31 queue-purge](31-queue-purge.md) | M8, `rule:concurrency/queue-deletion-is-explicit-and-bounded` + `rule:concurrency/queue-four-members`/0084 changed by a record | `nvs-stdlib`, `nvs-config`, `nvs-cli`, `nvs-db` |
+| 32–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |
 
