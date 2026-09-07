@@ -4752,4 +4752,8 @@ want = [
 kind = "nvs-suite"
 stage = "6 the codegen"
 name = "conformance (typed callables)"
-args = ["test", "tests/conformance/types/callable"]
+args = ["test", "tests/conformance/lang/"]
+cases = [
+  "tests/conformance/lang/a-call-through-a-written-signature-is-checked-where-it-is-written.nvst",
+  "tests/conformance/lang/a-call-through-a-written-signature-refuses-the-argument-the-type-names.nvst",
+]

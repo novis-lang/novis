@@ -2,65 +2,64 @@
 
 ## State
 
-**Goal 10 — stage 5 is whole: `Core\Task::all` binds from its argument's *type*, and the
-written-`fn`-literal restriction is gone.**
+**Goal 10 — stage 6 is whole, and it is the goal's last stage: a call site whose callee carries a
+written signature is checked where it is written and pays nothing at run time.**
 
-- **`CoreTy::CallableShapeTo` is re-founded as `CoreTy::ShapeOfCallables`, not deleted**, and
-  `docs/decisions/0136.md` § *Revisiting* is where that reports back. It is now an ordinary type
-  in both halves: what it accepts is `crates/nvs-types/src/expr/assign.rs:200`'s assignability arm
-  (a `Ty::Shape` whose every field is a callable) and what it binds is
-  `crates/nvs-types/src/generics.rs:214`'s own walk over the argument's fields. Neither reads an
-  expression. **Deleting it outright was tried and rejected**: it is also the parameter's *bound*,
-  and with only `CoreTy::Var("S")` there `Core\Task::all(5)` type-checks — see the playbook bullet.
-- **`bind_callable_shape`, `generics::callable_shape_var`, `E0773` and `E0774` are gone.** A field
-  holding a `callable(): T` variable, a first-class callable, or a whole shape held in a variable
-  all bind exactly as a written literal does; a field declaring bare `callable` answers `mixed` for
-  itself alone. `rule:concurrency/an-all-field-answers-what-its-callable-declares` replaced
-  `…/an-all-field-must-be-a-written-fn-literal` at the same slot, with 0072/0114/0136's `changes:`
-  blocks re-pointed.
-- **`Ty::ShapeOfCallables` is the one checker type that survives substitution** —
-  `crates/nvs-types/src/generics.rs:352` is the arm that says so — so `nvs-ir` meets it, and
-  `erase_checked_ty` (`crates/nvs-ir/src/lower/mod.rs:3067`) answers `Ty::Object` for it beside
-  `Shape`.
-- **Two acceptance names moved** in `docs/agent/loop-goal.toml` and its byte-identical goal copy:
-  `no_registry_row_names_a_callable_binding_site_variant` → `only_task_all_names_a_shape_of_callables`,
-  and the goal-6-era `a_task_all_field_holding_a_callable_variable_is_a_compile_error` →
-  `task_all_no_longer_refuses_a_field_that_is_not_a_literal`.
+- **The proof is the checker's, and it did not exist before this session.** A call through a
+  `Ty::CallableSig` callee now checks each argument against the parameter it fills and answers the
+  signature's own return type — `crates/nvs-types/src/expr/calls.rs:1428`, reached from the
+  `ExprKind::Call` arm at `crates/nvs-types/src/expr/mod.rs:415`. The count is exact where the value's
+  own arity is not (`E0809`, and `rule:types/callable-arity` gained the sentence saying why).
+- **Spending it is one helper row.** `nvs_ir::ir::Helper::CallClosureProven` →
+  `nvs_runtime::closure::nvs_call_closure_proven`, which is `call_closure` with
+  `TagCheck::Proven` and nothing else changed. The lowering reads
+  `ExprInfo::CallThroughSignature` off the call's own span
+  (`crates/nvs-ir/src/lower/call.rs:@lower_closure_call`) and coerces each argument into its
+  parameter's representation itself — that coercion is not an optimisation, it is the
+  `int`-into-`float` widening `check_param_tags` used to perform.
+- **Three shapes deliberately keep the dynamic path**: bare `callable`, a `...` argument (the count
+  is a run-time fact, so no argument has a parameter to be checked against), and a self-name
+  recursive call. Both closure metadata slots stay on every closure object, guarded by
+  `a_closure_object_still_carries_both_metadata_slots`.
+- **Valgrind is green** over a fixture that runs a proven call with `string` arguments and a
+  narrowed `string` result 5000 times — the leg the goal's stage 6 § 3 makes non-optional.
+- `examples/typed-callable.nvs` runs and prints the goal's four lines. The stage-6 `nvs-suite`
+  check named `tests/conformance/types/callable`, a two-level layout the corpus never adopted
+  (the playbook bullet owns that trap); it now runs `tests/conformance/lang/` and names its two
+  cases.
 
-Conformance is 1570: two cases retired for a restriction that no longer exists, one agreement case
-written in their place.
+Conformance is 1572. Verify: 7 of 7 green.
 
 ## Next group
 
-**Stage 6 — spending the proof: a statically proven call site stops paying the per-argument tag
-check** — file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closure.rs`,
-`crates/nvs-runtime/src/closure.rs`, `crates/nvs-codegen`, `examples/typed-callable.nvs`. Take them
-in order; the fixture is the whole goal read end to end and is the driver's oldest red check.
+**The shapes the proof does not reach yet, and the rulebook catching up** — file set:
+`crates/nvs-types/src/expr/mod.rs`, `crates/nvs-types/src/expr/calls.rs`, `docs/rules/types.json`.
+Take them in order; the first is the only one with a soundness edge in it.
 
-- [ ] **A call through a written signature emits no `check_param_tags`, and a bare `callable` still
-      does.** The sequence is `crates/nvs-runtime/src/closure.rs:543`, reached from
-      `call_closure` (`crates/nvs-runtime/src/closure.rs:161`); the emission decision is at the
-      lowering of the call in `crates/nvs-ir/src/lower/expr.rs`, which is where the callee's checked
-      type is still in hand. `rule:types/callable-signature`; `-p nvs-codegen` owes
-      `a_proven_callable_call_site_emits_no_param_tag_check` and
-      `a_bare_callable_call_site_still_emits_the_param_tag_check`
-      (`docs/agent/loop-goal.toml` stage 6 is the whole list).
-- [ ] **Both closure metadata slots stay on every closure object.** `CLOSURE_ARITY_SLOT` and
-      `CLOSURE_PARAM_TAGS_SLOT` are written at `lower_closure`
-      (`crates/nvs-ir/src/lower/closure.rs:160`); a literal does not know which kind of site will
-      call it, so what stage 6 removes is the work and never the metadata —
-      `a_closure_object_still_carries_both_metadata_slots`.
-- [ ] **`examples/typed-callable.nvs` is written and prints the four lines the goal names.**
-      The `exact` check at `docs/agent/loop-goal.toml:4740` is the specification, verbatim, down to
-      `Task::all answers a shape of its callbacks' return types`; the surface it exercises is
-      `crates/nvs-stdlib/src/task.rs:131`'s rows. This is the acceptance check that has been red
-      since session 0003.
+- [ ] **A self-name recursive call is checked against the closure's own parameters.** `fact($n - 1)`
+      inside `fn fact(int $n): int` returns `fn_self.ret` with its arguments checked against nothing
+      (`crates/nvs-types/src/expr/mod.rs:402`), so a wrong argument type reaches
+      `nvs_runtime::closure`'s tag check rather than the diagnostic every other callable position
+      now gives. The closure being written *is* the signature, so there is a parameter list in hand.
+      `rule:types/closure-self-name`, `rule:types/callable-signature`; a conformance case beside
+      `tests/conformance/lang/a-call-through-a-written-signature-is-checked-where-it-is-written.nvst`.
+- [ ] **A `...` argument through a written signature answers the declared return type.** The count
+      is a run-time fact so the *arguments* stay the runtime's business, but what the callee returns
+      does not depend on them — today the whole call falls back to `mixed`
+      (`crates/nvs-types/src/expr/calls.rs:1441` is the guard that hands it back).
+      `rule:types/callable-signature`.
+- [ ] **ADR 0136's four rules move from `designed` to `shipped`, and gain their guards.**
+      `docs/rules/types.json:413` is `types/callable-signature`, still `"status": "designed"` with an
+      empty `guardedBy`, and `callable-arity`/`callable-variance`/`callable-literal-inference` are
+      the three below it. All four now run end to end. `python tools/rules.py --render` after,
+      and `docs/novis.md` picks them up (`tools/reference.py` filters to `shipped`).
 
 ## Backlog
-- The valgrind leg is not optional for stage 6 — `docs/agent/loop-goal.md` § *Stage 6* item 3.
-- `[context] modules` for this goal has no `nvs-codegen` or `nvs-runtime/src/closure.rs` pattern,
-  so stage 6 opens without its own map — add both when you take it.
-- The handoff's file set named `docs/spec/01-core-library.md`, which no longer exists; the `Core`
-  reference is `docs/reference/core/<Class>.md` and `docs/reference/lang/`.
-- `docs/agent/loop-goal.md` § *Stage 5* still says the variant is deleted; ADR 0136 § *Revisiting*
-  is the current answer, and the goal prose is frozen input rather than a rule.
+
+- The driver's acceptance run decides whether goal 10 is met: every stage-6 check now has its
+  artefact on disk (`docs/agent/loop-goal.toml` stage 6).
+- `nvs_call_closure_array` has no proven twin on purpose — `crates/nvs-runtime/src/closure.rs`'s
+  own doc says why, and a later measurement is what would change it.
+- `NoParameterList::Callable`'s refusal text for a `name:` argument still explains itself with
+  "`callable` carries no parameter list", which is false for the signature spelling
+  (`crates/nvs-types/src/expr/calls.rs:@report_args_with_no_parameter_list`).

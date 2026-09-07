@@ -68,7 +68,7 @@
 > guarded**: `never` never `stat`s, one window is one check, a swap publishes, § 3a picks
 > `validate`, 10k cold compile once.
 > **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
-> whole.** Conformance 1570, differential 276, migration 100%; valgrind green, arrays too. Serve:
+> whole.** Conformance 1572, differential 276, migration 100%; valgrind green, arrays too. Serve:
 > 2.78x php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
