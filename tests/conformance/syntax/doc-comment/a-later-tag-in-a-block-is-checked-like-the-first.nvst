@@ -1,0 +1,39 @@
+--TEST--
+A `@see` and an `@example` past the first line of a block are checked exactly as the opening one is, so no tag rots behind a good one — `rule:tooling/doc-comment-tags-are-see-and-example`
+--FILE--
+<?nvs
+// `rule:tooling/doc-comment-tags-are-see-and-example`: every tag of a block is
+// resolved, not just the one that opens it. The first `@see` and the first
+// `@example` here are good, and the two under them are the diagnostics.
+/// A ledger, documented with one target that resolves and one that does not.
+///
+/// @see Ledger::total
+/// @see Ledger::missing
+/// @example examples/ledger.nvs
+/// @example examples/nothing-is-here.nvs
+final class Ledger {
+    public static function total(): int {
+        return 0;
+    }
+}
+echo Ledger::total(), "\n";
+--FILE examples/ledger.nvs--
+<?nvs
+// The file the first `@example` names, so the tag under it is refused for its
+// own path rather than for being the second one written.
+echo "a ledger\n";
+--EXPECTF-ERROR--
+error[E0323]: `Ledger` has no member named `missing` for `@see` to resolve
+  --> %s:8:10
+  |
+8 | /// @see Ledger::missing
+  |          ^^^^^^^^^^^^^^^ no such member
+
+error[E0324]: `examples/nothing-is-here.nvs` names no file
+   --> %s:10:14
+   |
+10 | /// @example examples/nothing-is-here.nvs
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no such file
+   = help: the path is relative to the file that wrote it, as a `require` path is
+
+error: aborting due to 2 errors

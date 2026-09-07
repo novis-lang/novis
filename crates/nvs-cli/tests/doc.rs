@@ -44,14 +44,61 @@ var $page = new Page();
 echo $page->line()->render() . "\n";
 "#;
 
+/// One class carrying two of each tag, which
+/// `rule:tooling/doc-comment-tags-are-see-and-example` allows and a card
+/// therefore carries as lists. `Core\Str::length` is the target with no page in
+/// this run, so the rendered line has one of each kind in it.
+const REPEATED_TAGS: &str = r#"<?nvs
+/// A till, and the money it has taken.
+///
+/// @see Till::charge
+/// @see Core\Str::length
+/// @example examples/charge.nvs
+/// @example examples/refund.nvs
+class Till {
+    /// Everything this till has taken, in cents.
+    public int $taken;
+
+    /// Builds a till that has taken nothing yet.
+    public function constructor() {
+        $this->taken = 0;
+    }
+
+    /// Takes `$cents`, and answers the running total.
+    public function charge(int $cents): int {
+        $this->taken = $this->taken + $cents;
+        return $this->taken;
+    }
+}
+
+var $till = new Till();
+echo $till->charge(150) . "\n";
+"#;
+
 /// A fresh directory holding `case.nvs`, and the `pages` directory `nvs doc`
 /// will be pointed at.
 fn fixture(name: &str) -> PathBuf {
+    fixture_of(name, TWO_CLASSES)
+}
+
+/// The same, over a program the caller chose.
+fn fixture_of(name: &str, program: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("nvs-doc-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
-    std::fs::write(dir.join("case.nvs"), TWO_CLASSES).expect("the program is written");
+    std::fs::write(dir.join("case.nvs"), program).expect("the program is written");
     dir
+}
+
+/// Writes the files an `@example` names, under the `examples/` the tag's own
+/// check requires them to sit in.
+fn examples(dir: &Path, names: &[&str]) {
+    let examples = dir.join("examples");
+    std::fs::create_dir_all(&examples).expect("the examples directory is created");
+    for name in names {
+        std::fs::write(examples.join(name), "<?nvs\necho \"an example\\n\";\n")
+            .expect("the example is written");
+    }
 }
 
 /// `nvs doc case.nvs --out pages`, run *in* `dir`.
@@ -115,5 +162,31 @@ fn nvs_doc_renders_a_see_target_as_a_link() {
     assert!(
         page.contains("[Line::render](Line.md#render)"),
         "the `@see` target was not rendered as a link: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_renders_every_see_and_every_example() {
+    // `rule:tooling/doc-comment-tags-are-see-and-example`: both tags repeat, so
+    // a card carries lists and the page renders each list on one line, in the
+    // order the tags were written. A renderer that read the first of each would
+    // drop the rest silently, which is the one failure a single-tag page cannot
+    // show.
+    let dir = fixture_of("repeated", REPEATED_TAGS);
+    examples(&dir, &["charge.nvs", "refund.nvs"]);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Till.md");
+    assert!(
+        page.contains(r"See also: [Till::charge](Till.md#charge), `Core\Str::length`"),
+        "both `@see` targets were not rendered on one line: {page}"
+    );
+    assert!(
+        page.contains("Example: `examples/charge.nvs`, `examples/refund.nvs`"),
+        "both `@example` paths were not rendered on one line: {page}"
     );
 }
