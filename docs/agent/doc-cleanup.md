@@ -1,11 +1,11 @@
 # Documentation cleanup
 
-How to run a cleanup pass over `docs/`. Revised 2026-08-27, after the pass that read all 102 records
-end to end, and again when the docs migration froze the records and moved the rules into the rulebook;
-the 2026-08-23 and 2026-08-21 instruction sets are superseded, and most of what they asked a reader to
-check by hand is now `python tools/records.py` and `python tools/rules.py --check`.
+How to run a cleanup pass over `docs/`. It was rewritten after the pass that read every record end to
+end, and again when the docs migration froze the records and moved the rules into the rulebook; the
+instruction sets it replaces are superseded, and most of what they asked a reader to check by hand is
+now `python tools/records.py` and `python tools/rules.py --check`.
 
-**Read this before starting, then start with the tools.** The 2026-08-27 pass spent its first third
+**Read this before starting, then start with the tools.** An earlier pass spent its first third
 answering questions the tools now answer in one call — which is exactly why they exist, and why
 this file is shorter than the one it replaces.
 
@@ -41,7 +41,7 @@ Every one of these was learned by nearly violating it. They are not preferences.
 records are cited about three thousand times from `crates/`, plus `tests/`, `docs/spec/`, `docs/plan/`
 and `docs/agent/loop-goal.toml`, and every rule's `because` names them. `grep -rhoE '\b0[01][0-9]{2}\b'
 crates/ | sort | uniq -c | sort -rn` prints the weight: 0007 alone is cited 400+ times. A merge retires
-a number and invalidates every one of those references. The 2026-08-27 pass evaluated five merge
+a number and invalidates every one of those references. An earlier pass evaluated five merge
 candidates that read as obviously mergeable — 0029+0030, and the four rejected-PHP-spelling records
 0034/0045/0049/0050 — and rejected all five on this test alone; 0032 was folded away before the freeze,
 and nothing has been since. A record's body is rationale as of its date and is not edited to say
@@ -74,7 +74,7 @@ commit promptly rather than leaving a large working tree open across loop iterat
 
 A frozen record is exempt: its body was true on its date, and a pass leaves it alone.
 
-**2. A count kept in more than one file.** Always wrong somewhere. The 2026-08-27 pass found two: the
+**2. A count kept in more than one file.** Always wrong somewhere. An earlier pass found two: the
 PHP-divergence count, which stopped at "the twelfth" while sixteen more records added rows, and the
 compiler-recognized-attribute count, which 0102 § 9 had already found wrong in seven places. The fix
 is a register with one home — [divergences.md](../divergences.md), generated from every rule carrying

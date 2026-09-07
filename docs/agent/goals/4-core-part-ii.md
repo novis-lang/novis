@@ -203,7 +203,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 ## Stage 11 — the teardown sweep
 
-Added 2026-09-01 by the user's decision, after review found that
+Added by the user's decision, after review found that
 `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s drain frees only what the
 refcounts say is dead: a cyclic object graph survived request and isolate teardown for the life of the
 process — in the server, a leak growing with requests served. The § 2 sweep closes it. The in-flight
@@ -237,7 +237,7 @@ decision and is **not** this stage.
 
 ## Stage 12 — the exit hook
 
-Added 2026-09-01 by the user's decision: `rule:observability/script-on-exit`
+Added by the user's decision: `rule:observability/script-on-exit`
 — `Core\Script::onExit`, the end-of-script queue that closes the one ending no user code could observe
 (`exit` runs no `finally`). The ADR is the whole contract: § 2's three endings fire the queue, § 3's
 `FATAL` and cancellation never do, § 4 orders it after tier 2 and before native teardown, § 5 makes it
@@ -259,7 +259,7 @@ observe-only. Nothing here reopens `rule:classes/no-magic-methods` — a flat pe
 
 ## Stage 13 — the bcrypt read-path
 
-Added 2026-09-01 by the user's decision:
+Added by the user's decision:
 `rule:security/bcrypt-read-roster` — PHP's `PASSWORD_DEFAULT` was
 never Argon2, so a migrating application's user table is a bcrypt column, and until now
 `Core\Password::verify` threw at it. The ADR is the whole contract: § 1's two-shape read roster, § 2's

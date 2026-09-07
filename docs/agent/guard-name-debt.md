@@ -17,7 +17,7 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
 ```
 
 then substring-match every `tests = [...]` entry in `loop-goal.toml` against that roster. Measured
-2026-08-28 at `e0c9f3e`, **54 of 156 named guard tests matched nothing cargo would run.** All
+at `e0c9f3e`, **54 of 156 named guard tests matched nothing cargo would run.** All
 fifty-four were reconciled, one ticked line each, and the ticked lines were then deleted in place:
 `git log -S <name> -- docs/agent/guard-name-debt.md` holds every one of them with what it became.
 What outlives them is the part below — why a name goes stale, and what each cause wants done.

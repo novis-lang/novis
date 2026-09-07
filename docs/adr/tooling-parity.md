@@ -3,7 +3,7 @@
 PHP outsources testing, static analysis, style, coverage and debugging to userland packages; Novis's
 stance is that writing clean, tested code requires none of them. This page is the register of that
 claim, indexed the way a PHP developer asks it — by the tool they would otherwise install — with the
-owner of each job. Verified against the ADRs on 2026-09-01.
+owner of each job. Verified against the ADRs.
 
 **The linked ADR is the rule; this page is only the index.** A row never states a mechanism, a
 diagnostic or a migration path — those live in the ADR. The reader-facing rendering is the *tools
@@ -72,7 +72,7 @@ throughout [divergences.md](../divergences.md) — and what is purely layout is 
 compiler. The entire configure-a-ruleset category (`.php-cs-fixer.php`, sniff selection) is designed
 out rather than replaced, which is that ADR's § 3.
 
-## The three gaps, and what was decided about each (2026-09-01)
+## The three gaps, and what was decided about each
 
 1. **No API documentation generator.** phpDocumentor's job has no owner anywhere in the tree.
    Decided: a note in [docs/future-ideas.md](../future-ideas.md), no milestone; it gets an ADR when

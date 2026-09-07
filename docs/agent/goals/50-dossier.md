@@ -4,8 +4,8 @@
 `rule:testing/four-proofs` settled that every shipped feature
 owes four proofs — a test from Novis *and* from Rust, three examples, one measured figure, one file
 written to break it — and `tools/dossier.py` derives that roster from `nvs meta --json` and the reference
-chapters rather than a list anybody maintains. On 2026-09-04 the sweep says **795 features, one of them
-complete**. This goal is where the loop stops adding surface and starts closing what is behind it.
+chapters rather than a list anybody maintains. The sweep says **795 features, one of them complete**.
+This goal is where the loop stops adding surface and starts closing what is behind it.
 
 It writes no proof itself. Its whole job is to emit the goals that do, onto the end of the chain the
 driver is already walking, and then — holding the only view of those goals anyone will ever have all at
@@ -51,7 +51,7 @@ pass is **backward**-looking: it undoes drift the last twenty-five sessions caus
 **forward**-looking, and its evidence is not a measurement of what happened but the 93 files you just
 wrote. Read menu item 8 there before you start; it is the item this stage put on the menu.
 
-**Four findings are already on the table**, measured on 2026-09-04 and 2026-09-05 against the emission
+**Four findings are already on the table**, measured against the emission
 that motivated this goal. Confirm each against your own tree — the numbers move — and then decide. They are a floor for
 this stage, not its ceiling.
 
@@ -66,7 +66,7 @@ this stage, not its ceiling.
 - [ ] **The repetitive part is file creation, not thinking.** A feature owes ~6 files at paths derived
       from its id (`docs/examples/core/Str/at/`, `tests/hostile/core/Str/at/`,
       `benches/members/core/Str/at.nvs`), and 830 features is ~6,700 files. `--bless` already writes an
-      example's `.out`. **Measured on 2026-09-05 and the answer came back no**: `loop-stats.py
+      example's `.out`. **Measured, and the answer came back no**: `loop-stats.py
       --attribute` charges 28% of a session to `writing`, and that share is the file *contents* — a
       stub still needs the Write that fills it, and a directory costs nothing to create. So a
       `--scaffold '<id>'` was not built. Confirm the share against your own run before you accept
@@ -77,7 +77,7 @@ this stage, not its ceiling.
       when two lanes would write the same path, and every generated goal's prose § *Running this goal
       wide* drives it. `FANOUT_WORKERS` is 8 and its docstring carries the derivation: a serial tail
       of 14.9 minutes per goal, against a session floor of 71,941 tokens and a subagent's 12,600, all
-      measured over the 68 sessions in `.loop/logs` on 2026-09-05. Modelled over the emitter's real
+      measured over the 68 sessions in `.loop/logs`. Modelled over the emitter's real
       goal sizes that puts the whole program at **106 hours and 416 sessions serially against 34
       hours and 98 fanned out** — 3.1x, of which 1.4x is the smaller floor and 2.2x is the
       concurrency — and **$3,349 against $891**. **One input is an estimate and everything above
@@ -109,12 +109,12 @@ change in one generated file is discarded by the next emission.
 **The perf proof stays on.** `--no-perf` drops 685 of the 3,035 owed proofs and is the obvious way to
 make this smaller, and it is not taken: a figure per feature is what lets a later change be re-measured
 against us rather than against PHP, which is `rule:testing/perf-two-mechanisms`'s
-whole point. The user decided this on 2026-09-04 knowing the size.
+whole point. The user decided this knowing the size.
 
 **`--per-goal` stays at 18** unless what you read in stage 3 says otherwise. It is a batch size, not a
 slice budget: a session takes what fits under the 200k ceiling and the next one continues, exactly as
 everywhere else. Changing it changes every file name, so decide once, in this session, and say why in
-the commit. Modelled on 2026-09-05 it is also where the ceiling puts it: at 18 the fan-out's parent
+the commit. Modelled, it is also where the ceiling puts it: at 18 the fan-out's parent
 peaks at 186k of the 200k, and 27 would save three hours of a 34-hour program while peaking at 203k.
 Nine costs eleven hours and buys nothing.
 

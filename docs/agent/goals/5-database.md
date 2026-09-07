@@ -15,7 +15,7 @@ session and stops the run naming it. A run that grinds for six hours against a c
 worse than one that stops in the first minute.
 
 **And PHP is now a real oracle for this goal, which it was not when the program was written.** The
-oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs this goal replaces
+oracle build gained `mysqli`, `pgsql` and `sqlite3`, so the three APIs this goal replaces
 can be *run* rather than only described. Two things follow. The migration table gains 227 names that are
 all this goal's — a fifth of the whole inventory, and the reason its floor is 94% where every earlier
 goal's is in the thirties or seventies. And a `--ORACLE--` case can now put `Core\Db` beside `mysqli` or

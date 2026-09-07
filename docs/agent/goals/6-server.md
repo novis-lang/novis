@@ -206,7 +206,7 @@ suite gains connections as its third parameterisation rather than a second suite
 31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
     each building object cycles, holds a flat live-byte measure across the run — the server-side proof of
     `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s teardown sweep, which goal
-    4's stage 11 lands. Added 2026-09-01, when the drain-only teardown was found to retain cycles for the
+    4's stage 11 lands. Added when the drain-only teardown was found to retain cycles for the
     life of the process; numbered out of sequence because item 30 was already written as the program's
     last gate and stays it.
 29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.

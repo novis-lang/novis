@@ -25,7 +25,7 @@ file.
 
 ## Where the suite stands
 
-Measured 2026-08-26 on the Windows development machine, release against PHP 8.5.9 with opcache and
+Measured on the Windows development machine, release against PHP 8.5.9 with opcache and
 the tracing JIT, 9 reps, `work` figures (`00-baseline` subtracted). `php/nvs` above 1.00 means Novis
 is faster. Every row is one full sweep of the *current* build, not a mix of readings.
 
@@ -70,7 +70,7 @@ change at all* yet its work figure read 87.3 ms on the base build and 93.3 ms he
 that relinks the whole runtime moves code layout, and these two rows carry about ±6% of it. The
 median above is the honest statistic; a single row's third digit is not.
 
-**The suite measures four engines as of 2026-08-26** — Novis, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
+**The suite measures four engines** — Novis, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
 because Novis's CLI claim is made against Python and this project does not publish an unmeasured one, and
 because a suite that measured only engines Novis beats would stop being evidence
 (`rule:tooling/bench-engine-list-is-data`). On the same

@@ -8,6 +8,14 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   as the token `rule:<topic>/<rule>`. Summarising a rule or a decision record into another document
   creates a second copy that will silently go stale.
 - **Never quote a measured number outside the record that owns it.** Numbers live with their guard test.
+- **No date, anywhere under `docs/`.** When something was decided, accepted, retired, measured or changed
+  is `git log`'s to answer, and it answers exactly; a date written into prose can be checked against
+  nothing and tells a reader years later only that time has passed. This binds a record's body, a plan
+  file, a goal manifest and a rule alike — it is the rule [conventions.md](conventions.md) § *A code
+  comment* has always bound `crates/` to, and the reason the frozen records carry no `date:`. A date that
+  is a **value the subject handles** — an ISO literal in a `Core\Time` example, a `#[Test(at:)]` fixture,
+  a SQL zero date — is content and stays. The one deliberate exception is a `[until: reviewed <date>]`
+  playbook trailer, which is an expiry the wrap acts on rather than a claim about the past.
 - **Edit the rule, never overlay it.** When a decision changes, edit the rule's fragment so its body is
   true now, and write the new decision record whose `changes:` block names that rule. Never add a
   paragraph to one file describing what another file changed — that is what makes a reader apply

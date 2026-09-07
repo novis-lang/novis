@@ -466,7 +466,7 @@ adding to a list when a feature lands.
 `docs/agent/goals/chain.toml`** — the one chain, always, because that is the only file `loop.py` walks
 and an emission anywhere else would be a chain nothing reads. **Deciding to run it is the user's**, like
 `doc-cleanup.md` and `dependency-update.md`, for the same reason: it decides what several hundred
-sessions will do next. The user made that decision on 2026-09-04, and [goal 50](goals/50-dossier.md) is
+sessions will do next. The user made that decision, and [goal 50](goals/50-dossier.md) is
 what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
 on the end of the chain the driver is already walking and the run continues into them without a restart.
 `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by `md` path,
@@ -521,7 +521,7 @@ python tools/disk.py --clean -n       # say what --clean would delete; delete no
 knows whether now is the time to pay one. Nothing about it touches the session path: a session runs no
 extra call, and `tools/loop.py` calls only the two cheap prunes (`.loop/logs`, `.agent-tmp`) once per
 *run*, plus one free-space check that refuses to start a run below 10 GB. That refusal is the point — a
-run that fills the disk dies inside a session with the tree half-edited, which is how 2026-08-25 went.
+run that fills the disk dies inside a session with the tree half-edited, which is how one run went.
 
 What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
 that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for

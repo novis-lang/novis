@@ -1,9 +1,9 @@
 # M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
 **Carried by goals 12, 14 and 15 — after the parity program, before everything else.** It was pulled ahead
-of M10 to get Novis into an editor early, and on 2026-08-28 it was placed behind goals 1–6 for the same
-reason it was placed
-behind M4: completion, hover and diagnostics written against a language that cannot open a file or reach a
+of M10 to get Novis into an editor early, and it was placed behind goals 1–6 for the same reason it was
+placed behind M4: completion, hover and diagnostics written against a language that cannot open a file
+or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
 about to change. It runs as **four chain goals** —
 [12 resilient-tree](../agent/goals/12-resilient-tree.md), [13 surface](../agent/goals/13-surface.md),

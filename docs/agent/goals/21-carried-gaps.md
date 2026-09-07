@@ -36,8 +36,7 @@ an item: **without it, the same orphans are made again by the next goal switch.*
 `spec-classes-part-two-outstanding.txt` already list every spec §§ 14–19 member and class the registry
 does not declare, and the list only ever shrinks — which is a *ratchet*, not a schedule. A key sits
 there green forever, and the prose above each group names the goal that will strike it in a comment no
-program reads. `§18 stream` and `§18 streamAs` are grouped under "goal 5's"; goal 5 closed on
-2026-08-31.
+program reads. `§18 stream` and `§18 streamAs` are grouped under "goal 5's"; goal 5 has closed.
 
 1. **A key carries its owner, in a column rather than in a comment** —
    `§18 stream  # 21` — and `crates/nvs-stdlib/tests/spec_registry_coverage.rs:@…` parses it.

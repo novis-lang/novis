@@ -62,7 +62,7 @@ which removes the loopback double-grant *and* the obstacle to a Unix socket, sin
 address and a socket path has none. Its stage 4 puts an `AF_UNIX` connect under three of goal 5's
 drivers. It goes in front of the dossier because that entry stops adding surface and this one adds some.
 
-**Then, before any of that, two entries the user added on 2026-09-05** — inserted directly after goal 6
+**Then, before any of that, two entries the user added** — inserted directly after goal 6
 rather than on the end, because goal 6 going green is what *makes* the problem they close.
 [21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
 this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
@@ -75,7 +75,7 @@ goal 3 built exactly as specified and which has never had a caller — a subsyst
 because the payload needs a second `nvs-codegen` `Module` and a named symbol for every host address the
 JIT bakes in, which is why it is its own entry.
 
-**Then six entries the user asked for on 2026-09-05**, from one question — what is *unowned*, and can it
+**Then six entries the user asked for**, from one question — what is *unowned*, and can it
 be made reachable? Answering it turned up two facts the repository had wrong (`Core\Metrics` was listed
 unowned and is goal 6's; spec § 17's four classes were filed under M9, which carries the extension system
 and none of them) and one it did not record at all: **50 `# Known gaps` blocks across the crates hold 152
@@ -90,7 +90,7 @@ one, so the ~110 unindexed items become a short list of scheduling questions ins
 inventory. [28 unowned-sweep](28-unowned-sweep.md) closes what is left, four fifths of which is one
 blocker — an options bag the registry could not spell, which is what goal 18 lands.
 
-**Then one entry the user asked for on 2026-09-06**, and it is the first since goal 20 that *adds* a
+**Then one entry the user asked for**, and it is the first since goal 20 that *adds* a
 surface rather than closing one. [29 signed-urls](29-signed-urls.md) is
 `rule:core-api/signing-is-over-a-payload`: Novis could
 sign a cookie and a JWT and could not sign a link, which is what a password reset, an unsubscribe, a
@@ -107,7 +107,7 @@ which puts `rule:testing/four-proofs`'s
 whole roster — one goal per group of shipped features owing their four proofs — onto the end of *this*
 chain, and then spends the rest of the session on an **optimization pass aimed forward** rather than
 back: it is the only moment anyone holds all 93 generated goals at once and none of them has been walked,
-so the shape they share is cheapest to fix there. The sweep on 2026-09-04 said 795 features with one
+so the shape they share is cheapest to fix there. The sweep said 795 features with one
 complete, which emits as 93 goals over 794 owed. That pass is why
 [optimization-prompt.md](../optimization-prompt.md) now carries menu item 8 — a defect in a generated
 goal is fixed in the emitter and re-emitted, never by hand — which is also what the *automatic* pass
@@ -244,7 +244,7 @@ TOML for a doubled floor before restarting.
   The parity program's own gate is still goal 6's final check —
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
-  inventory grew from 925 on 2026-08-29, when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
+  inventory grew from 925 when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
   the three APIs `rule:core-classes/db-one-api` replaces are now inside the audit rather than a
   named hole beside it. Goals 7 through 11 going green, in chain order, is then what ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe

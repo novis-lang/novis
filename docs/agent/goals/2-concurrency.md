@@ -49,7 +49,7 @@ hardest to find later.
 
 ## Stage 0b — the catch-up, and it is calling a `Core` member by name
 
-`rule:core-api/shape-rules` R2 was amended on 2026-08-29, after this goal opened:
+`rule:core-api/shape-rules` R2 was amended after this goal opened:
 every `Core` parameter is callable by the `$name` [01-core-library.md](../../spec/01-core-library.md)
 writes, and the trailing options bag by `options`, under exactly the rules a user-declared method already
 has (`rule:types/arrays`). It is catch-up for the same reason Stage 0 is —

@@ -1,6 +1,6 @@
 # Findings from writing the reference — every place the binary and the docs disagree
 
-Collected on 2026-08-30 while `docs/novis.md`'s chapters were written against `target/debug/nvs.exe`.
+Collected while `docs/novis.md`'s chapters were written against `target/debug/nvs.exe`.
 Every item was **observed**, not inferred: the spelling that was run is given, and the probe files
 named in italics are under `.agent-tmp/` (gitignored — rerun the spelling if they are gone). The
 reference documents what the binary *does*; this file is the list of what to decide about, one by
@@ -12,7 +12,7 @@ Categories: **P** — a panic or abort (exit 101/127) where a diagnostic or a cl
 registry card disagree on behaviour; **M** — a member, class or feature the docs name that does not
 exist in the registry (or the reverse).
 
-## Triage — 2026-08-30
+## Triage
 
 Every item was decided against the ADR that owns it; the decisions that were open were put to the user
 and are folded into their ADRs (0006, 0007, 0033, 0047, 0071, 0090, 0091, 0094, 0103, 0107,

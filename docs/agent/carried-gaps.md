@@ -62,13 +62,13 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | ~110 module-doc `# Known gaps` items name no owner and are in no index | 27 | this file's own contract, applied one level down |
 | `Core\Uri::with` replaces a component and cannot remove one | 28 | `crates/nvs-stdlib/src/uri.rs` gap 1 |
 | `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | 28 | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
-| `array<T>` is invariant — **decided 2026-09-05: widen to a covariant read** | 28 | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
+| `array<T>` is invariant — **decided: widen to a covariant read** | 28 | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
 | No custom panic hook — `rule:errors/helper-abi`; its blocker went away in M5 | 28 | `crates/nvs-runtime/src/lib.rs` gap 4 |
 | `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | 28 | `crates/nvs-stdlib/src/process.rs` gap 1 |
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Four entries, on 2026-09-06.**
+Nobody's, and each is a scheduling question rather than a session's. **Four entries.**
 The six that stood here before were made reachable as goals 23–28, and spec § 17's four classes — filed
 under an M9 that carries the extension system and none of them — are goals 25 and 26 now. The two that
 came back are the contract's second rule in plain sight: an owner that went green without closing its

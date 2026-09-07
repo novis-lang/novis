@@ -185,7 +185,7 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted 2026-09-02, after M4 reported `Core\Html` done. It is
+# Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted after M4 reported `Core\Html` done. It is
 # FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
 # plain `string` is escaped a second time by `rule:core-classes/html-auto-escape`'s sink, and every `Core\Html` case written
 # before the return type changes is written against the wrong rule. Item 1 in loop-goal.md.
@@ -325,7 +325,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0b -- `rule:core-api/shape-rules` R2, amended 2026-08-29 after this goal opened: every `Core` parameter is callable
+# Stage 0b -- `rule:core-api/shape-rules` R2, amended after this goal opened: every `Core` parameter is callable
 # by the spec's `$name`. Items 28-30 in loop-goal.md. A "0" stage runs in the catch-up class, ahead of
 # the program legs, and after Stage 0 because the run order inside the class is this file's order.
 #
@@ -373,7 +373,7 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0c -- the reference findings, added 2026-08-30 by the user's decision: docs/reference/findings.md
+# Stage 0c -- the reference findings, added by the user's decision: docs/reference/findings.md
 # § Triage, items 31-35 in loop-goal.md. It runs before everything else in this goal, stage 9 included.
 # A "0" stage is the catch-up class, ahead of the program legs, and inside the class this file's order.
 #
@@ -1702,7 +1702,7 @@ tests = [
 # Stage 7 -- the migration rows. The parity program's own measure, raised one goal at a time.
 #
 # EVERY FLOOR IN THIS PROGRAM IS MEASURED, NOT GUESSED, AND THIS COMMENT IS THE ONE HOME FOR HOW.
-# The 860 names `check-migration.py --report` listed on 2026-08-29 were attributed to the goal that
+# The 860 names `check-migration.py --report` listed were attributed to the goal that
 # owns each family, by prefix, against the 291 already classified (25% of 1151):
 #
 #     goal 1  strings, arrays, numbers, dates, regex, encoding, JSON, paths     108 names   -> 35%
@@ -1713,7 +1713,7 @@ tests = [
 #     goal 6  sessions, headers, request input                                   33 names   -> 100%
 #
 # THE DENOMINATOR IS 1151 AND NOT 925 because the oracle build gained `mysqli`, `pgsql` and `sqlite3`
-# on 2026-08-29 and the inventory was regenerated: +226 functions, +13 types, none removed. Two of this
+# and the inventory was regenerated: +226 functions, +13 types, none removed. Two of this
 # program's floors were wrong by more than ten points before that, in opposite directions -- goal 5 owns
 # a fifth of the whole table now, where against the old build it owned almost nothing.
 #
@@ -2230,7 +2230,7 @@ argv = ["python", "tools/check-migration.py", "--min", "36"]
 want = ["inventory:", "classified:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 9 -- the expression-level `catch`, `rule:expressions/catch-expression`. Added 2026-08-30; the handoff runs it ahead of
+# Stage 9 -- the expression-level `catch`, `rule:expressions/catch-expression`. Added after this goal opened; the handoff runs it ahead of
 # the rest of stage 8. Three checks, one per item: the parser, the checker, the lowered corpus.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -2266,7 +2266,7 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 10 -- the class reference, `class<T>`. Added 2026-08-30 by the user's decision; it runs last,
+# Stage 10 -- the class reference, `class<T>`. Added by the user's decision; it runs last,
 # where it sits. Four checks, one per item: the parser, the checker, the lowering, the corpus.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -2716,7 +2716,7 @@ args = ["test", "tests/differential/"]
 min_passing = 250
 
 # The largest single jump in the program, and it is the measure of the goal rather than a side effect:
-# 458 of the 860 names still open on 2026-08-29 are this goal's -- the filesystem, streams, processes,
+# 458 of the 860 names still open are this goal's -- the filesystem, streams, processes,
 # crypto, hashing, output buffering, reflection and the `get_*`/`is_*` families. Modelled at 78%; the
 # floor is 74, four points under, because a family this pass attributed to goal 4 and that turns out to
 # belong elsewhere must not fail a run. The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above
@@ -2729,7 +2729,7 @@ argv = ["python", "tools/check-migration.py", "--min", "74"]
 want = ["inventory:", "classified:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 11 -- the teardown sweep, added 2026-09-01 by the user's decision. `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s drain frees
+# Stage 11 -- the teardown sweep, added by the user's decision. `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s drain frees
 # only what the refcounts say is dead, so a cyclic object graph survived request and isolate teardown
 # for the life of the process -- in the server, a leak growing with requests served. Items 36-37 in
 # loop-goal.md. Every test and fixture named below must EXIST and pass; writing one is how the loop
@@ -2771,7 +2771,7 @@ file = "examples/cycles.nvs"
 want = ["built=1000", "crossed=ok", "done"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 12 -- the exit hook, added 2026-09-01 by the user's decision. `rule:observability/script-on-exit`: Core\Script::onExit
+# Stage 12 -- the exit hook, added by the user's decision. `rule:observability/script-on-exit`: Core\Script::onExit
 # runs a FIFO queue as the last user code at every non-fatal ending -- normal, exit, uncaught throw --
 # never on a FATAL or a cancellation, after tier 2's onUncaughtThrow and before native teardown,
 # observing the ending rather than changing it. Items 38-39 in loop-goal.md. Every test and fixture
@@ -2803,7 +2803,7 @@ file = "examples/onexit.nvs"
 want = ["work done", "onExit: Normal 0", "second hook"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 13 -- the bcrypt read-path, added 2026-09-01 by the user's decision. `rule:security/bcrypt-read-roster`: verify and
+# Stage 13 -- the bcrypt read-path, added by the user's decision. `rule:security/bcrypt-read-roster`: verify and
 # needsRehash read a PHP-stored bcrypt hash ($2y$/$2a$/$2b$, never $2x$) -- verify verifies it,
 # needsRehash answers true for every one -- while hash still writes only Argon2id; a stored cost past
 # 17 is refused before any work, and everything outside the roster keeps throwing. Item 40 in
@@ -3208,7 +3208,7 @@ want = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- the corpus and the migration floor, and this is the second-largest jump in the program.
-# The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs `rule:core-classes/db-one-api`
+# The oracle build gained `mysqli`, `pgsql` and `sqlite3`, so the three APIs `rule:core-classes/db-one-api`
 # replaces are now IN the inventory rather than a named hole beside it: 227 names, a fifth of the whole
 # table, all of them this goal's. Modelled at 98%; the floor is 94.
 # The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above derives the whole curve.
@@ -3687,7 +3687,7 @@ tests = [
   "sse_is_a_connection_isolate_with_no_receive",
 ]
 
-# Split off the check above on 2026-09-05, and what decides which half a test is in is what crosses the
+# Split off the check above, and what decides which half a test is in is what crosses the
 # boundary. § 1's hand-over is a `nvs_runtime::script::Program` and an already-crossed `Value` -- a
 # boxed Rust closure and 16 bytes -- so a `-p nvs-server` test builds one by hand with no Novis
 # compiler and no `unsafe`, which that crate forbids. §§ 2-3 are `Core` members: an entry form the
@@ -3713,7 +3713,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-# Moved off `-p nvs-server` on 2026-09-05: every name here is a claim about `Core\Topic::publish`, which
+# Moved off `-p nvs-server`: every name here is a claim about `Core\Topic::publish`, which
 # lives in `nvs-stdlib`, and `crates/nvs-server/Cargo.toml` does not name that crate -- so none of the four
 # could ever have run where they were filed. The crossing between cores is `nvs_stdlib::bus` and the two
 # threads a case spawns are what two cores are, so the server is not in the picture at all.
@@ -3755,7 +3755,7 @@ tests = [
   "reload_and_shutdown_close_every_connection_after_the_drain",
 ]
 
-# Split off the check above on 2026-09-05, and what decides the boundary is the same thing it did for
+# Split off the check above, and what decides the boundary is the same thing it did for
 # §§ 2-3 and § 4: whether a compiled unit is in the picture. § 7's second bullet is the only one that
 # needs one -- "a connection isolate holds the compiled unit it started with; an edit swaps the pointer
 # for *new* connections" -- and `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config`,
@@ -3955,9 +3955,9 @@ tests = [
   "a_client_disconnect_leaves_no_isolate_behind",
 ]
 
-# `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s teardown sweep, under load -- item 31, added 2026-09-01. The whole memory story in one
+# `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s teardown sweep, under load -- item 31, added late. The whole memory story in one
 # assertion: a request's cycles die with the request, so live bytes track in-flight work, never traffic.
-# Filed `-p nvs-host` and not `-p nvs-server`, corrected 2026-09-05: a request IS the isolate, and the
+# Filed `-p nvs-host` and not `-p nvs-server`, since corrected: a request IS the isolate, and the
 # arena whose teardown this asserts is `nvs_host::isolate`'s child -- but the cycle has to be built by
 # hand, `NvsObj::new` is `unsafe`, and `crates/nvs-server` inherits the workspace's `unsafe_code =
 # "forbid"`, which no `#[expect]` can open. The two tests' own doc comments carry this.
@@ -3986,7 +3986,7 @@ want = ["requests/sec", "recorded"]
 
 # The eight claims a request has to answer, as `.nvst` cases. Seven were drafted under a
 # `tests/conformance/http/` directory the corpus never adopted -- it is flat directories with a
-# subsystem prefix on the FILE name -- and the paths are corrected here, 2026-09-05, to the files that
+# subsystem prefix on the FILE name -- and the paths are corrected here to the files that
 # pin each claim. Three were already landed under the name the corpus took: the match a request carries
 # is `an-in-process-request-carries-the-compiled-route-tables-own-match`, and the `404`/`405` pair is
 # `methods-for-answers-nothing-for-an-unclaimed-path-and-every-verb-for-a-claimed-one`, whose own

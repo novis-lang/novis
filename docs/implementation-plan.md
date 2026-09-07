@@ -9,7 +9,7 @@
      History lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md § *Keep
      each slice small, commit every one of them*. -->
 
-> **Status:** 2026-08-28. **M4's loop goal is reached** — every check in its acceptance list passes, so
+> **Status:** **M4's loop goal is reached** — every check in its acceptance list passes, so
 > the language surface is closed and nothing a CLI program reaches for panics below the front end. The
 > next target is **the parity program**, goals 1–6 of the chain: PHP core feature parity, all
 > five SQL drivers, concurrency, governance and the server, run as the six-goal chain in
@@ -131,7 +131,7 @@ stopped being true. **So the goal is the unit of schedule and the milestone the 
 "goal 19", never "in M7".** A cell naming a goal means that milestone still has work scheduled — `done` is
 the only thing that means finished.
 
-\* **M4 reached its loop goal on 2026-08-28** — every check in that goal's acceptance list passes, which is
+\* **M4 reached its loop goal** — every check in that goal's acceptance list passes, which is
 what closes the language holes. What it has not reached is its own milestone acceptance's **1000 `.nvst`
 cases**; that count was deliberately left as a corpus figure to be met as the suite grows through goals
 1–5, and [m4.md](plan/m4.md) still carries it unchanged.
@@ -173,7 +173,7 @@ or `dropped` row, every `member` row's member registered, and every one of them 
 case. It was 25% when the program was scheduled. A count of conformance cases is a proxy for parity; a
 table that enumerates the source of truth is not.
 
-**The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29**, which is why that inventory is
+**The oracle build gained `mysqli`, `pgsql` and `sqlite3`**, which is why that inventory is
 1151 rather than the 925 the program was first sized against. It is a better program for it: 236 of the
 new names are the three APIs `rule:core-classes/db-one-api` exists to replace, so *"one API replaces
 `PDO`, `mysqli`, `pgsql` and `sqlite3`"* stops being an assertion about four APIs and becomes an audit of
