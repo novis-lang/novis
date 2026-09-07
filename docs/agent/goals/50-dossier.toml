@@ -1,8 +1,11 @@
 # Goal 50 -- queue the dossier. The acceptance test, as data.
 #
 # `50-dossier.md` is the prose. One home each.
-
-files = []
+#
+# `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
+# fixtures; this goal names none of its own -- its check is one Python command.
+files = [
+]
 
 [context]
 

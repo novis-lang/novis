@@ -5,8 +5,10 @@
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 # The floor brings its own fixtures; this goal adds none. Every property here is asserted from Rust,
-# because a lossless tree and an offset conversion have no stdout to freeze.
-files = []
+# because a lossless tree and an offset conversion have no stdout to freeze. Written across lines
+# so goal-switch.py's union has somewhere to put the floor's fixtures.
+files = [
+]
 
 [context]
 

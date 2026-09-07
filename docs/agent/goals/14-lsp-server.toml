@@ -7,8 +7,10 @@
 # What may never change is its `--EXPECT--`, or its reason for existing.
 
 # The floor brings its own fixtures. This goal's own evidence is a `.lspt` tree, which is a suite rather
-# than a frozen stdout, and the two guards below.
-files = []
+# than a frozen stdout, and the two guards below. Written across lines so goal-switch.py's union has
+# somewhere to put the floor's fixtures.
+files = [
+]
 
 [context]
 
