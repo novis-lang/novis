@@ -14,12 +14,15 @@ This is a small goal with one way to get it badly wrong, and the stage order exi
 
 1. **The drain is the stop condition, and stage 2 comes before stage 3 because of it.** `serve.rs`'s
    loop ends on `parked == 0` and a worker polling its idle turn is parked, so an unstoppable worker
-   is a process that can only be killed. **Check the premise before arguing with it**: nothing begins
-   a drain under `nvs serve` today — `Draining::begin` is called only in the accept loop's tail after
-   `keep_serving` breaks, and this command passes a seam that continues forever. The callers that
-   *do* break it are a test harness and the control socket that slice is waiting on. The first is why
-   the order matters here: arming workers before they can be stopped gives you a check that hangs
-   rather than fails, and a hanging check reports nothing. Land the predicate first.
+   is a process that can only be killed. **Check the premise before arguing with it**: when this goal
+   was written nothing began a drain under `nvs serve` at all — `Draining::begin` is called only in
+   the accept loop's tail after `keep_serving` breaks, that seam continues forever, and there was no
+   signal handler in either crate. **Goal 24's stage 4 changes that before you get here**, landing
+   `Core\Signal` as the entry into this same drain, so check whether it has: if it has, an ignored
+   drain turns a graceful `SIGTERM` back into a kill, which is a production defect and not only a
+   test one. Either way the order holds — a test breaks that seam too, so arming workers before they
+   can be stopped gives you a check that hangs rather than fails, and a hanging check reports
+   nothing. Land the predicate first.
 2. **`TaskRoot::Worker`, not `TaskRoot::Request`.** The ticker three lines above holds `Request`
    because a fire is a child of the loop that serves; a worker has no request beneath it to charge a
    panic to (`rule:http-server/containment-does-not-end-at-the-helper`). This is the one line of the

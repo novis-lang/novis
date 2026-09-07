@@ -13,8 +13,9 @@ boot-time read and no task at all when it is not configured.
 and claiming a job is taking new work — so a claimed job runs to completion exactly as an accepted
 request and an in-flight fire do, and nothing new is claimed after it begins. It is also what keeps
 the process able to end: the server's loop runs while anything is parked and a worker polling for work
-is always parked, so a worker that ignored the drain would be a server nothing but a signal could
-stop — which is what a test harness and a control socket each ask of one.
+is always parked, so a worker that ignored the drain would be a server nothing but killing the process
+could stop — which is the graceful shutdown a terminating signal, a control socket and a test harness
+each ask of one.
 
 **The queue needs no lease and a `fleet` schedule does.** A worker asks the database for a row and
 gets one or does not (`rule:concurrency/claiming-is-one-statement`), so a fleet of instances each
