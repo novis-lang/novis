@@ -2080,6 +2080,7 @@ dependencies = [
  "nvs-hir",
  "nvs-syntax",
  "nvs-test",
+ "nvs-types",
  "serde_json",
 ]
 
