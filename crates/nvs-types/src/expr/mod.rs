@@ -68,7 +68,7 @@ pub(crate) mod literals;
 pub(crate) mod members;
 pub(crate) mod operators;
 pub(crate) mod presence;
-pub(crate) mod quals;
+pub mod quals;
 
 use self::{
     args::*, assign::*, calls::*, iteration::*, literals::*, members::*, operators::*, quals::*,

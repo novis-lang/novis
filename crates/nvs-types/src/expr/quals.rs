@@ -66,7 +66,12 @@ use nvs_stdlib::registry::Qual;
 /// (`secret tainted string`/`secret tainted bytes`, `rule:security/secret-qualifier`). The one
 /// question every taint propagation/laundering rule in this module reduces
 /// to.
-pub(crate) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
+///
+/// `pub` because `nvs_lsp::semantic` colours a use site with the qualifier its
+/// value carries, and "what does this type carry" must have one answer for the
+/// checker and the editor both.
+#[must_use]
+pub fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
         Ty::TaintedString | Ty::TaintedBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
@@ -108,8 +113,9 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier — on its own or
 /// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
 /// the two are independent bits, so a caller checking one never implies
-/// anything about the other.
-pub(crate) fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+/// anything about the other. `pub` for [`is_tainted`]'s reason.
+#[must_use]
+pub fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     matches!(
         interner.get(ty),
         Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
