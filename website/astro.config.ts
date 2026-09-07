@@ -88,7 +88,9 @@ export default defineConfig({
         // with `editUrl: false` in their frontmatter.
         baseUrl: `${GITHUB_URL}/edit/${GITHUB_BRANCH}/website/`,
       },
-      lastUpdated: true,
+      // No "Last updated" stamp: it is the git commit date, and a page that is still correct
+      // reads as stale the moment something near it is edited. `git log` is the changelog.
+      lastUpdated: false,
       components: {
         Header: './src/components/Header.astro',
         Footer: './src/components/Footer.astro',
