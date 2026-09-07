@@ -3166,12 +3166,10 @@ class Chain:
         if fail:
             return fail
 
-        # Before anything on disk moves. `goal-switch.py` is not idempotent and the three copies
-        # below overwrite the live goal, so a spec refused *after* them leaves a tree that is
-        # half-switched and an index that says the switch never happened -- and the next run folds
-        # the floor in a second time. `_load` refuses this at start-up, which is where an authoring
-        # error should surface; this is the same read against what is on disk now, since a session
-        # may have edited a queued entry since the run began.
+        # The entry as it was authored, before anything on disk moves. `_load` reads the same file
+        # at start-up, which is where an authoring error should surface and cost nothing; this is
+        # that read again against what is on disk now, since a session may have edited a queued
+        # entry since the run began. What the fold then does to it is judged separately below.
         fail = spec_error(ROOT / nxt["toml"])
         if fail:
             return f"chain: {nxt['name']}'s acceptance list is not runnable -- {fail}"
@@ -3179,13 +3177,31 @@ class Chain:
         # The floor. `goal-switch.py` reads the LIVE goal, so this has to happen before the copy.
         # On the first entry there is no previous chain goal and the live one is whatever the run
         # started against -- which is exactly the floor that entry wants.
+        #
+        # The pre-fold bytes are held because the fold is the one step here that cannot be repeated:
+        # `goal-switch.py` inserts at a marker it leaves in place, so an entry left folded by a
+        # refusal below gets the same floor a second time on the next run. Putting these back is the
+        # whole of that repair, and it is only the whole of it while nothing else has moved yet.
+        goal_path = ROOT / nxt["toml"]
+        unfolded = goal_path.read_bytes()
         r = capture(sys.executable, [str(ROOT / "tools" / "goal-switch.py"), nxt["toml"]])
         if r.code != 0:
             return f"chain: goal-switch failed for {nxt['name']} -- {r.first_err_line}"
         for line in stdout_lines(r.out):
             say(f"  {line}", C.GRAY)
 
-        shutil.copyfile(ROOT / nxt["toml"], GOAL_TOML)
+        # The folded list is what a session is actually spent against, and folding is what makes a
+        # list unrunnable that read fine unfolded: the floor arrives naming fixtures, and whether
+        # the entry's own `files` came to hold them is decided by the union above. Judged here, one
+        # `write_bytes` undoes everything this method has done.
+        try:
+            Goal(tomllib.loads(goal_path.read_text(encoding="utf-8")))
+        except (tomllib.TOMLDecodeError, GoalError) as e:
+            goal_path.write_bytes(unfolded)
+            return (f"chain: {nxt['name']}'s acceptance list is not runnable once the floor is "
+                    f"folded into it -- {e}")
+
+        shutil.copyfile(goal_path, GOAL_TOML)
         # The prose and the handoff are markdown full of relative links, and installing them moves
         # them one directory up -- out of `docs/agent/goals/` and into `docs/agent/`. Copying the
         # bytes verbatim breaks every one of them, which `check-links.py` reports and nothing else
@@ -3198,13 +3214,6 @@ class Chain:
             relocate_links(read_text(ROOT / nxt["handoff"]), Path(nxt["handoff"]).parent.name),
             encoding="utf-8", newline="\n",
         )
-
-        # The spec has to be runnable before a session is spent against it. Same class of failure
-        # as a TOML typo in the live goal, caught in the same place: before anything is launched.
-        try:
-            Goal(tomllib.loads(GOAL_TOML.read_text(encoding="utf-8")))
-        except (tomllib.TOMLDecodeError, GoalError) as e:
-            return f"chain: {nxt['name']}'s acceptance list is not runnable -- {e}"
 
         self.index += 1
         self._save()
