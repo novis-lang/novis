@@ -129,17 +129,20 @@ array<string> $served = [
     Asked::arrPadEnd($one, 3),
 ];
 
-// A count the seam allows and the machine cannot serve: a terabyte of octets,
-// and sixteen of them per array entry.
+// A count the seam allows and the machine cannot serve: a petabyte of octets,
+// and sixteen of them per array entry. Past the address space of any machine
+// this runs on, which is what makes the allocator answer rather than reserve:
+// an operating system that backs pages lazily says yes to a terabyte and the
+// case then spends its life writing them.
 array<string> $allocator = [
-    Asked::strRepeat("x", 1000000000000),
-    Asked::strPadStart(1000000000000),
-    Asked::strPadEnd(1000000000000),
-    Asked::bytesFill(1000000000000),
-    Asked::bytesRepeat("x", 1000000000000),
-    Asked::arrFill(1000000000000),
-    Asked::arrPadStart($one, 1000000000000),
-    Asked::arrPadEnd($one, 1000000000000),
+    Asked::strRepeat("x", 1000000000000000),
+    Asked::strPadStart(1000000000000000),
+    Asked::strPadEnd(1000000000000000),
+    Asked::bytesFill(1000000000000000),
+    Asked::bytesRepeat("x", 1000000000000000),
+    Asked::arrFill(1000000000000000),
+    Asked::arrPadStart($one, 1000000000000000),
+    Asked::arrPadEnd($one, 1000000000000000),
 ];
 
 // A count past the seam itself. Seven members and not eight: `Core\Bytes::fill`
