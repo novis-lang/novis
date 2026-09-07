@@ -17,18 +17,39 @@
 //! nothing here runs a program at all, so a case is a parse, a question and a
 //! string comparison, and a process would buy isolation from nothing.
 //!
-//! **No request is answered yet**, so every case fails naming the request it
-//! asked — [`answer`] is where a handler lands, one arm per request slice, and
-//! the case corpus arrives with the handler that makes it answerable. A runner
-//! that scored an unanswered case as a pass would put a number in front of the
-//! loop that means nothing.
+//! **A request with no arm in [`answer`] fails the case naming itself**, and
+//! that is the whole of what an unimplemented request does here: a handler
+//! lands one arm at a time and the cases that ask it land with it, because a
+//! runner that scored an unanswered case as a pass would put a number in front
+//! of the loop that means nothing.
+//!
+//! **A case is answered out of its own sections and nothing on the machine.**
+//! The `--FILE--` sections are written into a directory of the run's own and
+//! opened as the buffers over them ([`Materialised`]), so a `require` reaches
+//! the case's aux file rather than whatever sits beside the case in
+//! `tests/lsp/`, and the analysis is the server's own
+//! (`rule:ide/an-open-document-is-its-own-entry-point`).
+//!
+//! **Columns are counted in UTF-8**, so a `--EXPECT--` line's `L:C` is the
+//! compiler's own byte column and reads against the source without counting
+//! code units. The encoding a *client* gets is negotiated at the handshake and
+//! is not this runner's business; a case is read by a person.
 
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::case::Case;
+use lsp_types::Uri;
+use nvs_diagnostics::PositionEncoding;
+
+use crate::case::{Case, MAIN_PATH, Request};
+use crate::diagnostics::{Phases, for_document};
+use crate::document::{Documents, analyse, uri_of};
 use crate::render::Response;
+
+/// The units a case's columns are counted in — see the module doc.
+const COLUMNS: PositionEncoding = PositionEncoding::Utf8;
 
 /// The extension a case file carries.
 pub const EXTENSION: &str = "lspt";
@@ -150,15 +171,122 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 
 /// Answers the question `case` asks of its document.
 ///
-/// This is the seam every request slice lands in, one arm at a time. Until one
-/// does, a case says which request it is waiting for rather than passing: the
-/// number in front of `min_passing` counts answers, and an unanswered case is
+/// This is the seam every request slice lands in, one arm at a time. A request
+/// with no arm yet says which one it is waiting for rather than passing: the
+/// count this runner prints is a count of answers, and an unanswered case is
 /// not one.
 fn answer(case: &Case) -> Result<Response, String> {
-    Err(format!(
-        "`{}` is not answered yet; the handler and this case's own slice land together",
-        case.request
-    ))
+    match case.request {
+        Request::Diagnostics => diagnostics(case),
+        unanswered => Err(format!(
+            "`{unanswered}` is not answered yet; the handler and this case's own slice land together"
+        )),
+    }
+}
+
+/// One case's `--FILE--` sections on disk, in a directory of this run's own.
+///
+/// **A case is materialised, not overlaid alone.** A `require` is resolved
+/// against the filesystem before any source map is consulted — `nvs_hir`
+/// canonicalizes the target and reports `E0311` when there is no file there —
+/// so a buffer shadows a file and there has to be a file for it to shadow. The
+/// directory is what gives `require 'lib.nvs'` something to resolve; the text
+/// every phase actually reads is still the buffer's, which is what keeps the
+/// runner on the same path as the server.
+struct Materialised {
+    /// Removed when the answer has been rendered. Numbered rather than named
+    /// after the case, so two cases answered at once cannot clear each other's
+    /// directory out from under them.
+    dir: PathBuf,
+}
+
+impl Materialised {
+    /// Writes `case`'s sections, entry first.
+    fn write(case: &Case) -> io::Result<Self> {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "nvs-lspt-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        // A directory left behind by a run that died, under a process id the
+        // host has since handed out again.
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir)?;
+
+        let materialised = Self { dir };
+        materialised.file(MAIN_PATH, &case.document)?;
+        for aux in &case.aux {
+            materialised.file(&aux.path, &aux.body)?;
+        }
+        Ok(materialised)
+    }
+
+    /// Writes one section, creating the directories its relative path names —
+    /// `--FILE lib/user.nvs--` is a directory the case did not have to declare.
+    fn file(&self, at: &str, body: &str) -> io::Result<()> {
+        let path = self.dir.join(at);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, body)
+    }
+}
+
+impl Drop for Materialised {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// The store one case is answered out of: its sections as open buffers over
+/// the files [`Materialised`] wrote, and the entry document's URI.
+///
+/// The directory is handed back with them because it has to outlive the
+/// answer: dropping it takes the files a `require` resolves against with it.
+fn store(case: &Case) -> Result<(Materialised, Documents, Uri), String> {
+    let files = Materialised::write(case)
+        .map_err(|error| format!("the case's files could not be written: {error}"))?;
+    let mut documents = Documents::new();
+    let entry = open(&mut documents, &files.dir.join(MAIN_PATH), &case.document)?;
+    for aux in &case.aux {
+        open(&mut documents, &files.dir.join(&aux.path), &aux.body)?;
+    }
+    Ok((files, documents, entry))
+}
+
+/// Opens one materialised file as the buffer over it, and hands back its URI.
+///
+/// Version 1 and never another: a case is one document at one moment, so
+/// `rule:ide/the-server-is-synchronous`'s cancellation has nothing to say here.
+fn open(documents: &mut Documents, path: &Path, text: &str) -> Result<Uri, String> {
+    let uri = uri_of(path).ok_or_else(|| format!("`{}` is not a UTF-8 path", path.display()))?;
+    documents.open(uri.clone(), 1, text.to_owned());
+    Ok(uri)
+}
+
+/// `textDocument/publishDiagnostics`, gated unless the case asked for
+/// `phase=all`.
+///
+/// The same [`for_document`] call the server makes, so a case cannot pass over
+/// a gate the client is not actually behind — and `phase=all` is the same walk
+/// read with the filter switched off, which is what pins
+/// `rule:ide/diagnostics-are-phase-gated` from the side that would otherwise be
+/// invisible: what the gate holds back.
+fn diagnostics(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer: the files a `require` resolves against go
+    // when it does.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let phases = if case.args.phase_all {
+        Phases::All
+    } else {
+        Phases::Gated
+    };
+    Ok(Response::Diagnostics(for_document(
+        &analysed, phases, COLUMNS,
+    )))
 }
 
 #[cfg(test)]
@@ -175,6 +303,66 @@ mod tests {
 
     fn write(path: &Path, text: &str) {
         fs::write(path, text).expect("a case file");
+    }
+
+    /// One case's document, asked about twice.
+    fn asked(request: &str) -> String {
+        let text = format!(
+            "--TEST--\nthe gate, from the side that is otherwise invisible\n--FILE--\n\
+             <?nvs\nvar $broken = ;\nvar $other = $nope;\n--REQUEST--\n{request}\n\
+             --EXPECT--\n"
+        );
+        let case = Case::parse(Path::new("gate.lspt"), &text).expect("the case parses");
+        answer(&case).expect("diagnostics are answered").render()
+    }
+
+    /// The codes in a rendering, which is `L:C-L:C severity CODE message`.
+    fn codes(rendered: &str) -> Vec<&str> {
+        rendered
+            .lines()
+            .filter_map(|line| line.split_whitespace().nth(2))
+            .collect()
+    }
+
+    /// `rule:ide/diagnostics-are-phase-gated` from the side no gated case can
+    /// show: `phase=all` hands back what the gate held, so the suppression is
+    /// pinned as a filter rather than as an analysis that never ran.
+    ///
+    /// The first assertion is what keeps that honest — without it this passes
+    /// just as well over a front end that reports nothing below the parser at
+    /// all, which is a state this crate has been in.
+    #[test]
+    fn phase_all_publishes_what_the_gate_suppressed() {
+        let ungated = asked("diagnostics phase=all");
+        let held = codes(&ungated);
+        assert!(
+            held.iter().any(|code| code.starts_with("E03")),
+            "the walk reported nothing for the gate to hold back: {held:?}"
+        );
+
+        let gated = asked("diagnostics");
+        let published = codes(&gated);
+        assert!(
+            published.iter().any(|code| code.starts_with("E01")),
+            "the parse error itself was held back: {published:?}"
+        );
+        assert!(
+            !published.iter().any(|code| code.starts_with("E03")
+                || code.starts_with("E04")
+                || code.starts_with("E07")
+                || code.starts_with("E08")),
+            "a diagnostic from below the broken parse reached the case: {published:?}"
+        );
+
+        // The two answers are the same walk read two ways, so everything the
+        // gate published is in what it held back beside the rest.
+        for line in gated.lines() {
+            assert!(
+                ungated.lines().any(|ungated| ungated == line),
+                "`phase=all` dropped a diagnostic the gate published, so the two \
+                 are not one walk: {line}"
+            );
+        }
     }
 
     #[test]
