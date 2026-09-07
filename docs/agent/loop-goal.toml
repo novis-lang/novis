@@ -82,6 +82,15 @@ modules = [
   "crates/nvs-syntax/src/parser/decl.rs",
   # The code registry: three reassigned numbers and three new ones, or they do not exist.
   "crates/nvs-diagnostics/src/lib.rs",
+  # The dual-mode lexer: HTML/inline-text on one side, Novis code on the other, with a small stack
+  # of nested modes for double-quoted strings, heredocs and their interpolation sites.
+  "crates/nvs-syntax/src/lexer.rs",
+  # The recursive-descent parser: the machinery every production shares, and the four modules the
+  # grammar itself lives in.
+  "crates/nvs-syntax/src/parser/mod.rs",
+  # The expression grammar's tests: precedence and associativity, the postfix chain, every
+  # primary, and the PHP spellings that parse only to be diagnosed.
+  "crates/nvs-syntax/src/parser/tests/expr.rs",
 ]
 
 # The three pipeline rules by id, because a record number prints only its rules' titles and the
