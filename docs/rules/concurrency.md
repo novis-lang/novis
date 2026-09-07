@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*9 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -747,11 +747,12 @@ gives up this property; so does pushing on a different connection than the queue
 
 <a id="concurrency-queue-four-members"></a>
 
-## `Core\Queue` is four members, and each is asked about a job or about a queue, never about a row number
+## `Core\Queue`'s four request-path members are each asked about a job or about a queue, never about a row number
 
 `rule:concurrency/queue-four-members`
 
-`Core\Queue` is `push`, `status`, `cancel` and `stats`, and nothing else. `push(string $script, {…})`
+`Core\Queue` is `push`, `status`, `cancel` and `stats` — the four members a request asks, and the four
+that take no capability. `push(string $script, {…})`
 answers a `Queue\Id` — a receipt that carries its queue with it, not the row's primary key — and
 `status` and `cancel` are asked with that receipt rather than with a number a caller would have to
 carry a queue name beside. `stats` is the odd one out on purpose: it is asked about a *queue*, because
@@ -761,10 +762,45 @@ counters are members read out of one statement, so they describe one instant rat
 The shape is [`core-api/shape-rules`](core-api.md#core-api-shape-rules) throughout: subject first, one trailing options shape,
 nothing mutates, failure throws, absence is `?T`. `push`'s options are the job's own — its queue, its
 earliest run time, its attempt ceiling, its backoff base, a dedupe `key` that admits at most one
-pending job per key, and the isolate's limits and grants
+pending job per key, a `tag` that names a group instead
+([`concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`](concurrency.md#concurrency-a-tag-groups-jobs-and-a-key-dedupes-them)), and the isolate's limits and grants
 ([`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue)).
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md).</sub>
+**Removing a row is not one of these four**, and the two members that do it —
+[`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded)'s `delete` and `purge` — sit beside them
+rather than among them. They are the operator's half of the class: the only members that take a
+capability, because they are the only ones that can destroy the record that work existed. `push` takes
+none because it names no block and so has nothing for a grant to be about, and `status`, `cancel` and
+`stats` read or release what the caller already holds a receipt for.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md), [0153](../decisions/0153.md).</sub>
+
+<a id="concurrency-a-tag-groups-jobs-and-a-key-dedupes-them"></a>
+
+## A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites  *(designed — not yet in the compiler)*
+
+`rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`
+
+`push`'s `tag` names a group of jobs and `key` admits at most one pending job, and they are two columns
+because they are opposites at the point they touch. A tag exists to name **many** rows — a batch, a
+tenant, an upload — so that something can later be said about all of them at once. A key exists to
+admit **one**, enforced by the unique index over the released-when-claimed column
+([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)). Folding the two would cap every group at one pending
+job, silently, at the enqueue that created it.
+
+A tag is inert on the request path. Nothing claims on it, nothing dedupes on it, and no statement a
+worker runs reads it; it is written by `push`, indexed with its queue, and read by
+[`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded)'s `purge` alone. That is what keeps it a
+column rather than a feature: a deployment that never purges pays one nullable column and one index
+write per enqueue for it, and nothing else.
+
+**Grouping is decided at enqueue, not at removal.** A caller that wants a batch deletable tags it when
+it creates the batch, because nothing can group rows that were never grouped. The alternative — a
+predicate over the payload — is refused: `args` is one JSON document in a text column, so selecting
+inside it is a different unindexed dialect on each of [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s backends, over
+the one table in the runtime that grows without bound.
+
+<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0153](../decisions/0153.md).</sub>
 
 <a id="concurrency-a-job-names-a-file"></a>
 
@@ -920,6 +956,51 @@ asks `status` is answered `Cancelled` instead of being refused. The receipt stil
 writes them ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)).
 
 <sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-queue-deletion-is-explicit-and-bounded"></a>
+
+## A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so  *(designed — not yet in the compiler)*
+
+`rule:concurrency/queue-deletion-is-explicit-and-bounded`
+
+A queue row is removed by `delete`, which names one job by its receipt, or by `purge`, which names a
+queue and a filter — and neither ever removes a claimed job, a dead-lettered one, or a pending one
+unless the call says so. `delete(Queue\Id): bool` is `cancel`'s twin and its `bool` means the same
+thing: this call is what removed it. `purge(string $queue, {state?, tag?, before?, limit?}): uint` is
+`stats`' twin and answers the count it removed. Neither invents a shape —
+[`core-api/shape-rules`](core-api.md#core-api-shape-rules) is satisfied by copying the two members these sit beside.
+
+**A claimed job is not removable at all.** A worker holds a lease on that row, and there is no
+protocol for interrupting work in flight — the sentence
+[`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose) already writes about `cancel`. Removing the row under
+a running worker would leave the job running to completion with nothing to report into, so `delete`
+answers `false` there and `purge` has no options that reach it.
+
+**`Dead` and `Pending` are opt-in, and the default set is what has finished.** A purge naming no state
+removes succeeded and cancelled rows and nothing else. The dead-letter table is the record that work
+was lost, and [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept) exists because an
+unwatched one loses it silently — so a sweep that took it by default would make that rule true of the
+runtime and false of every deployment. Naming `State::Dead` in the source is what keeps *nothing is
+discarded silently* a property of the system rather than of the runtime alone. `Pending` is opt-in for
+the mirror reason: a retention sweep that quietly dropped work still waiting to run is a data-loss bug
+wearing a maintenance costume.
+
+**`limit` is finite with nothing written**, per
+[`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), and the count answered is what makes a
+caller's loop the shape that drains a large table. The first `purge` a deployment runs is against the
+table that has been growing since it was deployed, and an unbounded `DELETE` there holds a lock on the
+connection the application enqueues through for as long as it takes.
+
+**Both members take the deny-by-default `queue.purge` capability, scoped on queue names**, and they
+are the only members of `Core\Queue` that take one. `push` names no block and so has nothing for a
+grant to be about ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)); these name a queue the program itself
+wrote, and they destroy the record that work existed. The grant is what keeps that out of the request
+path — a web entry enqueues with no `queue` block at all, and the retention entry is the one place in
+a deployment that holds the name. Removal is DML on the queue's own connection, so it enlists in an
+open transaction exactly as `push` does and issues no DDL: `nvs queue migrate` remains the only thing
+that changes the tables' shape.
+
+<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept), [`concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`](concurrency.md#concurrency-a-tag-groups-jobs-and-a-key-dedupes-them), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0153](../decisions/0153.md).</sub>
 
 <a id="concurrency-a-job-runs-as-a-root-isolate"></a>
 
