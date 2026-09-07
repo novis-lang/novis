@@ -698,10 +698,9 @@ fn shape_type_can_be_empty_and_composes_with_array_and_union() {
 }
 
 /// `rule:types/callable-signature`: the signature is one atom holding its
-/// parameters and its mandatory return type, and bare `callable` keeps its own
-/// atom beside it as the top of the lattice.
+/// parameters and its mandatory return type.
 #[test]
-fn a_callable_type_carries_its_parameters_and_its_return_type() {
+fn a_callable_type_parses_its_parameters_and_return() {
     let e = parse_ok("$m as callable(User, string): string");
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
@@ -713,9 +712,13 @@ fn a_callable_type_carries_its_parameters_and_its_return_type() {
     assert!(matches!(params[0].kind, TypeKind::Atom(TypeAtom::Name(..))));
     assert!(matches!(params[1].kind, TypeKind::Atom(TypeAtom::String)));
     assert!(matches!(ret.kind, TypeKind::Atom(TypeAtom::String)));
+}
 
-    // No parameters, and the `void` return the rule writes for a callable
-    // that returns nothing. An empty list is not the bare spelling.
+/// `rule:types/callable-signature` with an empty parameter list, and the `void`
+/// return the rule writes for a callable that returns nothing. An empty list is
+/// not the bare spelling.
+#[test]
+fn a_callable_type_with_no_parameters_parses() {
     let e = parse_ok("$m as callable(): void");
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
@@ -725,9 +728,13 @@ fn a_callable_type_carries_its_parameters_and_its_return_type() {
     };
     assert!(params.is_empty());
     assert!(matches!(ret.kind, TypeKind::Atom(TypeAtom::Void)));
+}
 
-    // Bare `callable` is untouched: no `(` follows, so no signature is built
-    // and nothing already written changes meaning.
+/// `rule:types/callable-signature` keeps bare `callable` its own atom beside the
+/// signature, as the top of the lattice: no `(` follows, so no signature is
+/// built and nothing already written changes meaning.
+#[test]
+fn a_bare_callable_still_parses_as_the_opaque_atom() {
     let e = parse_ok("$m as callable");
     let ExprKind::Conversion { ty, .. } = e.kind else {
         panic!("expected a conversion: {e:?}");
@@ -774,10 +781,10 @@ fn a_callable_signature_declares_a_local_and_nests_in_itself() {
     assert!(matches!(members[0].kind, TypeKind::Paren(_)));
 }
 
-/// `rule:types/callable-signature`'s two refusals, and the recovery both take:
-/// bare `callable`, which admits every callable value and so cascades nowhere.
+/// `rule:types/callable-signature` refuses a parameter name, and two names are
+/// one mistake with one fix, so one diagnostic.
 #[test]
-fn a_callable_type_refuses_a_parameter_name_and_a_missing_return() {
+fn a_callable_type_naming_a_parameter_is_refused() {
     let (_, diags) = parse_with_diags("$m as callable(int $x): string");
     assert!(
         diags
@@ -786,10 +793,15 @@ fn a_callable_type_refuses_a_parameter_name_and_a_missing_return() {
         "expected E_CALLABLE_TYPE_NAMES_A_PARAMETER, got {diags:?}"
     );
 
-    // Two names are one mistake with one fix, so one diagnostic.
     let (_, diags) = parse_with_diags("$m as callable(int $x, string $y): string");
     assert_eq!(diags.len(), 1, "expected one diagnostic, got {diags:?}");
+}
 
+/// `rule:types/callable-signature` refuses a signature without its return type,
+/// and the recovery it takes: bare `callable`, which admits every callable value
+/// and so cascades nowhere.
+#[test]
+fn a_callable_type_without_a_return_type_is_refused() {
     let (e, diags) = parse_with_diags("$m as callable(int)");
     assert!(
         diags
