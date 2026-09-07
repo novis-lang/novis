@@ -1402,6 +1402,82 @@ pub(crate) fn check_args(
     }
 }
 
+/// `$f($a, $b)` where `$f`'s type names its parameters — the call
+/// `rule:types/callable-signature` proves where it is written, answering the
+/// signature's own return type instead of `mixed`.
+///
+/// [`None`] means "not that call", and is [`super::infer`]'s existing path: the
+/// callee is bare `callable`, or is not callable at all, or the argument list
+/// has a shape no signature can be matched against. Those keep `mixed` and the
+/// per-argument tag check `nvs_runtime::closure::check_param_tags` performs.
+/// [`Some`] is the proven site, and it records
+/// [`ExprInfo::CallThroughSignature`] for `nvs-ir` to spend.
+///
+/// Three argument shapes are handed back rather than proven. A `...` makes the
+/// argument *count* the spread subject's own run-time length, so no argument
+/// has a parameter to be checked against. A `name:` and an `inout` argument are
+/// refused where they are written by [`report_args_with_no_parameter_list`] —
+/// a signature names no parameter for a name to fill and a closure declares no
+/// `inout` parameter at all — and reaching that refusal is why they are left to
+/// the caller.
+///
+/// The argument *count* is exact, which the value's own arity is deliberately
+/// not ([`code::E_CALLABLE_CALL_ARITY`] owns the asymmetry). An argument past
+/// the signature's list is still checked, with nothing to check it against, so
+/// that one wrong count does not silence every mistake inside it.
+pub(crate) fn check_call_through_signature(
+    expr: &Expr,
+    callee_ty: TypeId,
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let Ty::CallableSig { params, ret } = env.interner.get(callee_ty) else {
+        return None;
+    };
+    let (params, ret) = (params.clone(), *ret);
+    let CallArgs::List(list) = args else {
+        return None;
+    };
+    if list
+        .iter()
+        .any(|arg| arg.spread || arg.name.is_some() || arg.inout)
+    {
+        return None;
+    }
+    if list.len() != params.len() {
+        report_callable_call_arity(expr.span, params.len(), list.len(), env);
+    }
+    for (index, arg) in list.iter().enumerate() {
+        let expected = params.get(index).copied();
+        check_expr(&arg.value, expected, live, scope, ctx, env);
+    }
+    if list.len() == params.len() {
+        env.exprs
+            .record(expr.span, ExprInfo::CallThroughSignature { params, ret });
+    }
+    Some(ret)
+}
+
+/// `code::E_CALLABLE_CALL_ARITY` — a call through a written signature passing a
+/// number of arguments the signature does not name.
+fn report_callable_call_arity(span: Span, declared: usize, given: usize, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CALLABLE_CALL_ARITY,
+            format!("this `callable` names {declared} parameter(s), and this call passes {given}"),
+        )
+        .with_primary(span, format!("expected {declared}, found {given}"))
+        .with_help(
+            "a call through a written signature passes exactly the parameters the type names — \
+             the value may hold a closure declaring fewer, and the runtime hands that closure \
+             only the ones it declares",
+        ),
+    );
+}
+
 pub(crate) fn check_new_target(
     target: &NewTarget,
     live: &mut FxHashSet<String>,

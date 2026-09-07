@@ -45,6 +45,15 @@
 //! holding the hole. What it costs, and the one argument it converts rather
 //! than compares — `rule:types/conversion`'s `int`-into-`float` widening, which no checker
 //! was there to insert — are that function's own doc comment.
+//!
+//! One caller does have a checker in front of it. Where a call site's callee
+//! carries `rule:types/callable-signature`'s written signature, every argument
+//! was proven against a declared parameter type where it was written, and the
+//! widening the paragraph above names was inserted there rather than here — so
+//! that site reaches [`nvs_call_closure_proven`] and pays nothing per argument.
+//! [`TagCheck`] is which of the two a call is, and it is the only difference
+//! between them: the metadata stays on every closure object, because a closure
+//! does not know at its literal which kind of site will call it.
 
 use crate::abi::{Fault, NvsFn, OK};
 use crate::ctx::Ctx;
@@ -127,6 +136,22 @@ pub const CLOSURE_PARAM_TAG_ANY: u8 = 15;
 /// [`check_param_tags`] says why refusing is the answer.
 const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 
+/// Whether a call still owes [`check_param_tags`], which is the whole of what
+/// `rule:types/callable-signature`'s proof buys.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum TagCheck {
+    /// Nothing proved what the arguments hold: the callee is reached through
+    /// bare `callable` or from a `Core` member's own roster, where the callback
+    /// arrived as a value and its declared parameters are the closure object's
+    /// metadata alone.
+    Required,
+    /// The call site's callee carried a written signature, so `nvs_types`
+    /// checked every argument against a declared parameter type and `nvs-ir`
+    /// inserted the one conversion the tag check would otherwise have
+    /// performed. Reading the tags again could only agree.
+    Proven,
+}
+
 /// Calls the closure `closure` with as many leading `args` as it declares
 /// parameters, borrowing every one of them.
 ///
@@ -159,6 +184,19 @@ const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 /// checker only admits an `rule:types/callable-is-a-closure` closure value where a `callable` is
 /// expected, and no `Core` member offers fewer than the spec says it does.
 pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Value, Fault> {
+    call_closure_with(ctx, closure, args, TagCheck::Required)
+}
+
+/// [`call_closure`], plus which of [`TagCheck`]'s two kinds of call site this
+/// is — the one function both spellings run through, so a caller that skips the
+/// per-argument check still gets the arity trim, the retains and the error edge
+/// unchanged.
+fn call_closure_with(
+    ctx: &mut Ctx,
+    closure: Value,
+    args: &[Value],
+    tags: TagCheck,
+) -> Result<Value, Fault> {
     let target = invoke_address(closure)?;
     let arity = closure_arity(closure)?;
     let args = args.get(..arity).ok_or_else(|| {
@@ -183,11 +221,15 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     // check both refuses and *converts*: a widened `int` must reach the callee
     // as a `float` while the caller keeps owning the `int` it passed. Neither
     // tag is refcounted, so the retain below is unaffected by the substitution.
-    check_param_tags(
-        "a `callable`",
-        closure_param_tags(closure)?,
-        &mut slots[1..],
-    )?;
+    // A proven site had both done for it where the call was written, and the
+    // slots are already what the callee reads.
+    if tags == TagCheck::Required {
+        check_param_tags(
+            "a `callable`",
+            closure_param_tags(closure)?,
+            &mut slots[1..],
+        )?;
+    }
     #[expect(
         unsafe_code,
         reason = "every value here is one the caller already owns a reference \
@@ -244,21 +286,70 @@ pub unsafe extern "C" fn nvs_call_closure(
     argc: usize,
     out: *mut Value,
 ) -> i32 {
-    let body = |ctx: &mut Ctx, args: &[Value]| {
-        let Some((closure, passed)) = args.split_first() else {
-            return Err(Fault::fatal(
-                "internal error: a closure call reached the runtime with no closure at all",
-            ));
-        };
-        call_closure_from_nvs(ctx, *closure, passed)
-    };
     #[expect(
         unsafe_code,
         reason = "the caller's contract is exactly `run_helper`'s"
     )]
     unsafe {
-        crate::run_helper(ctx, args, argc, out, body)
+        crate::run_helper(ctx, args, argc, out, |ctx, args| {
+            closure_call_body(ctx, args, TagCheck::Required)
+        })
     }
+}
+
+/// `nvs_ir::Helper::CallClosureProven` — [`nvs_call_closure`] for a call site
+/// whose callee carried `rule:types/callable-signature`'s written signature.
+///
+/// Identical in every respect but one: the arguments are not compared against
+/// the closure's recorded parameter tags, because `nvs_types` compared them
+/// against the *declared* ones where the call was written and `nvs-ir` inserted
+/// the conversion [`check_param_tags`] would have performed. That is what the
+/// signature is for — the check is a `rule:programs/memory-priority` priority 1
+/// guard, and a proven site discharges it at compile time rather than per
+/// argument, per call.
+///
+/// The arity trim, the retains, the borrowed arguments and the error edge are
+/// all [`nvs_call_closure`]'s unchanged, including the catchable `LogicError`
+/// for too few arguments: the checker counts a call site's list against the
+/// *type's* parameters, and the closure the value actually holds may declare
+/// any number up to that (`rule:types/callable-arity`), so the arity read here
+/// is still the closure's own.
+///
+/// # Safety
+///
+/// [`nvs_call_closure`]'s, unchanged.
+#[expect(
+    unsafe_code,
+    reason = "the helper ABI's pointer contract, discharged exactly where \
+              `nvs_helper!` discharges it for every fixed-arity helper"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_call_closure_proven(
+    ctx: *mut Ctx,
+    args: *const Value,
+    argc: usize,
+    out: *mut Value,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, args, argc, out, |ctx, args| {
+            closure_call_body(ctx, args, TagCheck::Proven)
+        })
+    }
+}
+
+/// The body both closure-call helpers hand [`crate::run_helper`]: split the
+/// closure off the front of the slot run, and call it.
+fn closure_call_body(ctx: &mut Ctx, args: &[Value], tags: TagCheck) -> Result<Value, Fault> {
+    let Some((closure, passed)) = args.split_first() else {
+        return Err(Fault::fatal(
+            "internal error: a closure call reached the runtime with no closure at all",
+        ));
+    };
+    call_closure_from_nvs(ctx, *closure, passed, tags)
 }
 
 crate::nvs_helper! {
@@ -280,6 +371,12 @@ crate::nvs_helper! {
     /// the same catchable `LogicError`. The entries are **borrowed** from an
     /// array the caller owns for the length of this call, and `call_closure`
     /// retains each one it actually passes.
+    ///
+    /// It has no [`nvs_call_closure_proven`] twin, and needs none: what a
+    /// signature proves is each argument against the parameter it fills, and a
+    /// `...` is precisely the shape where which argument fills which parameter
+    /// is not known until this function unpacks it. So a spread keeps
+    /// [`TagCheck::Required`] whatever the callee's type says.
     fn nvs_call_closure_array(ctx, args: [2]) {
         let array = args[1].array_ptr().ok_or_else(|| {
             crate::helpers::wrong_tag("nvs_call_closure_array", Tag::Array, args[1])
@@ -302,7 +399,7 @@ crate::nvs_helper! {
             }
             entries
         };
-        call_closure_from_nvs(ctx, args[0], &entries)
+        call_closure_from_nvs(ctx, args[0], &entries, TagCheck::Required)
     }
 }
 
@@ -321,7 +418,12 @@ crate::nvs_helper! {
 ///
 /// The catchable `LogicError` above, plus everything [`call_closure`] itself
 /// answers with.
-fn call_closure_from_nvs(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Result<Value, Fault> {
+fn call_closure_from_nvs(
+    ctx: &mut Ctx,
+    closure: Value,
+    passed: &[Value],
+    tags: TagCheck,
+) -> Result<Value, Fault> {
     let arity = closure_arity(closure)?;
     if passed.len() < arity {
         return Err(Fault::thrown_as(
@@ -332,7 +434,7 @@ fn call_closure_from_nvs(ctx: &mut Ctx, closure: Value, passed: &[Value]) -> Res
             ),
         ));
     }
-    call_closure(ctx, closure, passed)
+    call_closure_with(ctx, closure, passed, tags)
 }
 
 /// How many parameters `closure` declares — [`CLOSURE_ARITY_SLOT`], read

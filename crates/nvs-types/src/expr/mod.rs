@@ -413,6 +413,17 @@ pub(crate) fn infer(
                 return ret;
             }
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
+            // `rule:types/callable-signature`: where the callee's type names
+            // its parameters, the arguments are proven here rather than a tag
+            // at a time in `nvs_runtime::closure`. Ahead of `check_args`
+            // because each argument is checked against the parameter it fills,
+            // which is also where an `fn` literal argument takes its own
+            // parameter types from (`calls::check_call_through_signature`).
+            if let Some(ret) =
+                check_call_through_signature(expr, callee_ty, args, live, scope, ctx, env)
+            {
+                return ret;
+            }
             check_args(args, live, scope, ctx, env);
             report_args_with_no_parameter_list(args, NoParameterList::Callable, env);
             if matches!(args, CallArgs::FirstClassCallable) {

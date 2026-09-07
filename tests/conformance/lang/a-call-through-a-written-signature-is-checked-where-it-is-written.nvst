@@ -1,0 +1,30 @@
+--TEST--
+A call through a `callable` that names its parameters answers the declared return type and converts each argument where it is written, while bare `callable` still answers `mixed` — `rule:types/callable-signature`, `rule:types/callable-arity`, `rule:types/conversion`
+--FILE--
+<?nvs
+// The signature names both parameters and the return type, so the call is
+// checked here: the result needs no conversion to reach a `string` binding.
+callable(int, string): string $join = fn (int $n, string $s): string => $s . $n;
+string $joined = $join(2, "x");
+echo $joined, "\n";
+
+// `rule:types/callable-arity`: what the value holds may declare fewer
+// parameters than the type names, and the runtime hands that closure only the
+// ones it declares — so the call site still passes what the *type* names.
+callable(int): int $seven = fn (): int => 7;
+echo $seven(1), "\n";
+
+// `rule:types/conversion`'s one implicit widening, at the site that stopped
+// asking the runtime for it: an `int` argument into a `float` parameter.
+callable(float): float $half = fn (float $f): float => $f / 2.0;
+echo $half(7), "\n";
+
+// Bare `callable` is the top of the lattice and names no parameter, so the
+// call answers `mixed` and the conversion is written.
+callable $bare = fn (int $n): int => $n + 1;
+echo $bare(2) as int, "\n";
+--EXPECT--
+x2
+7
+3.5
+3

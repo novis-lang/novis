@@ -441,9 +441,14 @@ impl<'a> Lowering<'a> {
             ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
             // `$fn(...)` — a closure called through the variable holding it,
             // which is one `Helper::CallClosure` and not a lowered `Call`:
-            // `rule:types/closure-literal` gives `callable` no parameter list, so there is no
-            // resolved target to name. See `Self::lower_closure_call`.
-            ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
+            // there is no resolved target to name, whether or not the callee's
+            // type named its parameters. Which of the two closure-call helpers
+            // it is — and so whether the runtime still checks a tag per
+            // argument — is the checker's record on this expression's own span,
+            // read in `Self::lower_closure_call`.
+            ExprKind::Call { callee, args } => {
+                self.lower_closure_call(expr, callee, args, env, cur)
+            }
             // `rule:types/closure-self-name`'s self-name — `fact` inside
             // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
             // the frame's own receiver, which `closure::lower_closure` bound

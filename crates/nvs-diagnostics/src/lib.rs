@@ -3111,6 +3111,21 @@ pub mod code {
     /// `mixed` afterwards so the body is still checked at all.
     pub const E_CLOSURE_PARAMETER_TYPE_NOT_INFERABLE: Code = Code::new("E0808");
 
+    /// `$f(1)` where `$f` is a `callable(int, string): R` — a call through a
+    /// written signature passing a number of arguments the signature does not
+    /// name, `rule:types/callable-signature`.
+    ///
+    /// The count is exact in this one direction only: the *value* may hold a
+    /// closure of any arity up to the signature's
+    /// (`rule:types/callable-arity`), and the runtime hands that closure only
+    /// the leading arguments it declares — so a site passing fewer than the
+    /// signature names can leave a parameter of the closure actually held
+    /// unfilled, which is a fault below the language rather than a throw. A
+    /// site passing more names a parameter the type does not have. Bare
+    /// `callable` keeps no count at all: nothing there says what to compare
+    /// against.
+    pub const E_CALLABLE_CALL_ARITY: Code = Code::new("E0809");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

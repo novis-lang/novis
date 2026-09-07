@@ -1285,11 +1285,13 @@ struct Signatures {
     /// `rule:errors/propagation`'s calling convention — `(ctx, args, out) -> status`.
     helper: Signature,
     /// `(ctx, args, argc, out) -> status` — [`Self::helper`] with the
-    /// argument **count** passed beside the slot, for the one helper whose
-    /// arity belongs to the call site rather than to its own declaration:
-    /// `nvs_runtime::nvs_call_closure`, which is `nvs_ir::Helper::CallClosure`
-    /// and `rule:types/closure-literal`'s `$fn(...)`. Every other helper's arity is a literal in
-    /// its `nvs_helper!` expansion, so no count crosses the boundary at all.
+    /// argument **count** passed beside the slot, for the two helpers whose
+    /// arity belongs to the call site rather than to their own declaration:
+    /// `nvs_runtime::nvs_call_closure` and `nvs_call_closure_proven`, which are
+    /// `nvs_ir::Helper::CallClosure` and `CallClosureProven` — the dynamic and
+    /// the checked spellings of `rule:types/closure-literal`'s `$fn(...)`.
+    /// Every other helper's arity is a literal in its `nvs_helper!` expansion,
+    /// so no count crosses the boundary at all.
     helper_variadic: Signature,
     /// `nvs_safepoint(ctx) -> status`.
     safepoint: Signature,

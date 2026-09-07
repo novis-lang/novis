@@ -774,6 +774,7 @@ impl<'a> Lowering<'a> {
     /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
     pub(crate) fn lower_closure_call(
         &mut self,
+        call: &Expr,
         callee: &Expr,
         args: &CallArgs,
         env: &mut Env,
@@ -784,6 +785,16 @@ impl<'a> Lowering<'a> {
                 "nvs-ir only lowers a plain positional argument list for a call through a \
                  `callable` — got {args:?}; see the crate docs' known gaps"
             );
+        };
+        // `rule:types/callable-signature`: the checker records this on the
+        // call's own span, and only where the callee's type named its
+        // parameters — so its *absence* is what keeps every other site on the
+        // dynamic path. Read out whole here, because the borrow of the check
+        // run's table ends where this statement does and the frame is mutated
+        // below.
+        let proven = match self.exprs.lookup(call.span) {
+            Some(ExprInfo::CallThroughSignature { params, ret }) => Some((params.clone(), *ret)),
+            _ => None,
         };
         // Before the closure, not before the argument list: a freshly built
         // one — `(fn (): int => 7)()` — is this frame's temporary too, and an
@@ -810,20 +821,47 @@ impl<'a> Lowering<'a> {
                 values.push(array);
                 Helper::CallClosureArray
             }
-            false => {
-                for arg in list {
-                    let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
-                    let aliasing = self.aliasing_read(&arg.value);
-                    self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
-                    values.push(v);
+            false => match &proven {
+                // The proof spent on the arguments. Each one reaches the callee
+                // in the representation its *declared* parameter names, because
+                // `nvs_runtime::closure`'s `check_param_tags` — the one thing
+                // this helper does not run — is also what widened an `int` into
+                // a `float` parameter, and nothing else would.
+                Some((params, _)) => {
+                    assert_eq!(
+                        list.len(),
+                        params.len(),
+                        "nvs-ir: a proven call through a `callable` signature was recorded for a \
+                         list of a different length — nvs_types::expr::calls records \
+                         `ExprInfo::CallThroughSignature` only where the counts agree"
+                    );
+                    for (arg, param) in list.iter().zip(params) {
+                        let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                        let want =
+                            erase_checked_ty(*param, self.checked_types).unwrap_or(Ty::Tagged);
+                        let v = self.coerce(*cur, v, ty, want, env);
+                        let aliasing = self.aliasing_read(&arg.value);
+                        self.account_for_arg(v, want, ArgOwnership::Borrowed, aliasing, *cur);
+                        values.push(v);
+                    }
+                    Helper::CallClosureProven
                 }
-                Helper::CallClosure
-            }
+                None => {
+                    for arg in list {
+                        let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                        let aliasing = self.aliasing_read(&arg.value);
+                        self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+                        values.push(v);
+                    }
+                    Helper::CallClosure
+                }
+            },
         };
-        // `Ty::Tagged` because `mixed` is the only answer the checker has for
-        // a call whose target it cannot name — `nvs_types::expr`'s own
-        // `ExprKind::Call` arm.
-        let called = self.emit_fallible(
+        // `Ty::Tagged` is what the callee writes into the out slot whatever it
+        // declares, and `mixed` is the only answer the checker has for a call
+        // whose target it cannot name — `nvs_types::expr`'s own `ExprKind::Call`
+        // arm.
+        let (value, ty) = self.emit_fallible(
             *cur,
             Ty::Tagged,
             InstKind::HelperCall {
@@ -832,6 +870,18 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
+        // The proof spent on the result: a proven site's callee declared what
+        // it answers, so the slot is read at that representation here rather
+        // than left for every consumer to narrow one `mixed` at a time.
+        // `Ty::Void` names no register at all and `Ty::Tagged` is already what
+        // the slot holds, so neither of those moves.
+        let narrowed = proven
+            .and_then(|(_, ret)| erase_checked_ty(ret, self.checked_types))
+            .filter(|repr| !matches!(repr, Ty::Tagged | Ty::Void));
+        let called = match narrowed {
+            Some(repr) => (self.coerce(*cur, value, ty, repr, env), repr),
+            None => (value, ty),
+        };
         self.release_temporaries_since(mark, *cur);
         called
     }

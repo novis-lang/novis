@@ -345,8 +345,10 @@ pub enum ExprInfo {
     /// Recorded on the **callee's** span, not the call's, because it is the
     /// resolution of that name and nothing else: the call around it is the
     /// ordinary call through a `callable`, and the enclosing
-    /// [`nvs_syntax::ast::ExprKind::Call`] carries no entry of its own, exactly
-    /// as `$f(...)` carries none.
+    /// [`nvs_syntax::ast::ExprKind::Call`] carries an entry of its own only
+    /// where the callee's type names its parameters
+    /// ([`Self::CallThroughSignature`]), which a self-name does not: the name
+    /// resolves to the closure being written, not to a declared `callable`.
     ///
     /// Carries nothing. The value the name resolves to is the invoke's own
     /// receiver, which the consumer already holds — `nvs_ir::lower::closure`'s
@@ -356,6 +358,28 @@ pub enum ExprInfo {
     /// did not compile: the checker binds the name for one body only
     /// ([`crate::expr::calls::check_fn_literal`]).
     ClosureSelf,
+    /// `$f(...)` where `$f`'s type is `rule:types/callable-signature`'s written
+    /// signature — the call site whose arguments are proven where they are
+    /// written, recorded on the **call's** own span.
+    ///
+    /// A call through bare `callable` carries no entry, and that absence is the
+    /// signal: nothing is proven there, so `nvs-ir` keeps the dynamic path and
+    /// its per-argument tag check. Recorded only for a plain positional list,
+    /// since a `...` makes the argument count a run-time fact and a `name:`
+    /// argument is refused outright (`E0712`).
+    ///
+    /// Both halves are what the consumer cannot recompute. `params` is the
+    /// representation each argument must reach the callee in, because
+    /// `nvs_runtime::closure`'s `check_param_tags` — which is what widened an
+    /// `int` into a `float` parameter — is exactly what this entry removes.
+    /// `ret` is what the call answers, which `nvs-ir` otherwise reads as
+    /// `mixed` for want of a resolved target to name.
+    CallThroughSignature {
+        /// The callee's declared parameter types, left to right.
+        params: Vec<TypeId>,
+        /// The callee's declared return type.
+        ret: TypeId,
+    },
     /// `new Target(...)`. `ctor` is `None` for a class with no explicit
     /// `constructor` — legal per [`crate::expr`]'s own known gaps (no arity
     /// check against zero parameters), so a consumer must handle a `New`

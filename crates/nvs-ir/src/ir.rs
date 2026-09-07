@@ -2237,6 +2237,25 @@ pub enum Helper {
     /// edge: the closure's own throw or fault travels back as
     /// `Fault::Pending`, unchanged.
     CallClosure,
+    /// `$fn(...)` where `$fn`'s type carries `rule:types/callable-signature`'s
+    /// written signature — [`CallClosure`](Self::CallClosure) with the
+    /// per-argument tag check left out.
+    ///
+    /// Everything about the emitted call is that row's: the closure at
+    /// `args[0]`, the arguments after it in written order, the count beside the
+    /// slot, borrowed arguments, a fresh [`crate::ty::Ty::Tagged`] result and
+    /// `rule:errors/propagation`'s error edge. What differs is what the runtime
+    /// does with them — `nvs_runtime::closure`'s `check_param_tags` is not run,
+    /// because `nvs_types` checked every argument against a declared parameter
+    /// type where the call was written, and `crate::lower` coerced each one
+    /// into that parameter's own representation, which is the conversion the
+    /// check would otherwise have performed.
+    ///
+    /// The closure object still carries both metadata slots. A literal does not
+    /// know which kind of site will call it, and bare `callable` — the top of
+    /// the lattice, and every callback a `Core` member reaches — still needs
+    /// them.
+    CallClosureProven,
     /// `$fn(...$args)` — [`CallClosure`](Self::CallClosure) for a call site
     /// that wrote a `...` argument, where how many arguments there are is the
     /// spread subject's own run-time length.

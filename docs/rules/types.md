@@ -1013,6 +1013,11 @@ Core\Arr::map($users, fn($u, $k) => "{$k}: {$u->name}"); // 2 ≤ 2 — $k is st
 Core\Arr::map($users, fn($u, $k, $x) => …);              // refused
 ```
 
+A **call** through such a type passes *m* arguments, not *n*: what the value holds is the type's
+business and not the call site's, and the runtime hands that closure only the leading arguments it
+declares. A site passing fewer would leave one of the closure's own parameters unfilled, which is a
+fault below the language rather than a throw, so it is refused where it is written (`E0809`).
+
 This is not tolerance invented for convenience: the runtime already hands a callee only the arguments
 it declares, which is what lets a one-parameter callback satisfy the `Core` convention that every
 callback is offered value *and* key. The type system describes that behaviour. An exact-arity rule

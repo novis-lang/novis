@@ -2819,6 +2819,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::closure::nvs_call_closure as *const ()).cast::<u8>(),
         ),
         (
+            "nvs_call_closure_proven",
+            (crate::closure::nvs_call_closure_proven as *const ()).cast::<u8>(),
+        ),
+        (
             "nvs_call_closure_array",
             (crate::closure::nvs_call_closure_array as *const ()).cast::<u8>(),
         ),
