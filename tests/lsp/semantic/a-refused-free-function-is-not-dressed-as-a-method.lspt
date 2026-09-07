@@ -1,0 +1,14 @@
+--TEST--
+`rule:classes/no-free-functions-or-constants` refuses a top-level function, so nothing colours its name as a method — and the parameter and the local inside it are still what they are, `rule:ide/rejected-syntax-gets-no-colour`
+--FILE--
+<?nvs
+function helper(int $count): int {
+    return $count;
+}
+class Real {}
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:21+6 parameter
+3:12+6 variable
+5:7+4 class

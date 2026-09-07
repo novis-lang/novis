@@ -53,6 +53,7 @@ use crate::hover;
 use crate::links;
 use crate::render::{Link, Place, Response};
 use crate::selection;
+use crate::semantic;
 use crate::symbols;
 
 /// The units a case's columns are counted in — see the module doc.
@@ -188,6 +189,7 @@ fn answer(case: &Case) -> Result<Response, String> {
         Request::Hover => hover(case),
         Request::Definition => definition(case),
         Request::Completion => completion(case),
+        Request::SemanticTokens => semantic_tokens(case),
         Request::DocumentSymbol => document_symbol(case),
         Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
@@ -338,6 +340,24 @@ fn document_symbol(case: &Case) -> Result<Response, String> {
         .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
     Ok(Response::DocumentSymbol(symbols::for_document(
         &analysed, COLUMNS,
+    )))
+}
+
+/// `textDocument/semanticTokens/full` — every name the case's document writes.
+///
+/// No cursor: the answer is the whole document, so a case that wrote one would
+/// be asking about a position nothing here reads.
+/// [`crate::semantic::for_document`] is the same call the server makes, on an
+/// analysis produced the same way.
+fn semantic_tokens(case: &Case) -> Result<Response, String> {
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    Ok(Response::SemanticTokens(semantic::for_document(
+        &analysed,
+        COLUMNS,
+        &case.args.types,
     )))
 }
 

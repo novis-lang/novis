@@ -36,14 +36,15 @@ use lsp_types::notification::{
 };
 use lsp_types::request::{
     Completion, DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
-    HoverRequest, Request as _, SelectionRangeRequest,
+    HoverRequest, Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
 };
 use lsp_types::{
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
     DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams,
     GotoDefinitionResponse, HoverParams, InitializeParams, Location, PublishDiagnosticsParams,
-    Range, SelectionRange, SelectionRangeParams, Uri,
+    Range, SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
+    SemanticTokensResult, Uri,
 };
 use nvs_diagnostics::PositionEncoding;
 
@@ -57,6 +58,7 @@ use crate::hover;
 use crate::links;
 use crate::position::{encoding_of, offset_at};
 use crate::selection;
+use crate::semantic;
 use crate::symbols;
 
 /// What a failure on the wire is reported as.
@@ -177,6 +179,15 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
             ),
             Err(error) => unreadable(id, &method, &error),
         },
+        SemanticTokensFullRequest::METHOD => {
+            match serde_json::from_value::<SemanticTokensParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    semantic_tokens(documents, encoding, &params.text_document.uri),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         GotoDefinition::METHOD => match serde_json::from_value::<GotoDefinitionParams>(params) {
             Ok(params) => Response::new_ok(id, definition(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
@@ -255,6 +266,32 @@ fn folding_range(
 ) -> Vec<FoldingRange> {
     analyse(documents, uri).map_or_else(Vec::new, |analysed| {
         folding::for_document(&analysed, encoding)
+    })
+}
+
+/// `textDocument/semanticTokens/full` — what every name in one open document
+/// is.
+///
+/// An empty answer rather than `null` for a document this server has nothing
+/// open for, on [`document_symbol`]'s terms. No `result_id` is set: that is the
+/// handle a `semanticTokens/full/delta` request would send back, and
+/// `rule:ide/the-request-set-is-closed` does not admit one — a client offered no
+/// delta capability re-reads the whole document, which is what
+/// `rule:ide/one-grammar-one-tree` already costs on every analysis.
+///
+/// The walk is [`semantic::for_document`], which the `.lspt` suite calls too, so
+/// what an editor colours and what a case freezes cannot drift apart.
+fn semantic_tokens(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    uri: &Uri,
+) -> SemanticTokensResult {
+    let data = analyse(documents, uri).map_or_else(Vec::new, |analysed| {
+        semantic::for_document(&analysed, encoding, &[])
+    });
+    SemanticTokensResult::Tokens(SemanticTokens {
+        result_id: None,
+        data,
     })
 }
 

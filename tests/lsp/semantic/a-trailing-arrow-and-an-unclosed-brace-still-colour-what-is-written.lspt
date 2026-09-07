@@ -1,0 +1,18 @@
+--TEST--
+colour survives a brace that never closes and a member access with nothing after it, which is what one resilient tree buys, `rule:ide/one-grammar-one-tree`, `rule:ide/recovery-is-explicit`
+--FILE--
+<?nvs
+class User {
+    public string $name;
+}
+if (true) {
+var $u = new User();
+$u->
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:7+4 class
+3:19+5 property
+6:5+2 variable
+6:14+4 class
+7:1+2 variable

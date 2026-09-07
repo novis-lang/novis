@@ -1,0 +1,16 @@
+--TEST--
+`types=` narrows the answer before it is encoded, so a case about one kind reads the columns the whole answer would have put there and is not rewritten by an unrelated token added later, `rule:ide/a-request-line-is-closed`
+--FILE--
+<?nvs
+class Cart {
+    public int $total;
+    public function add(int $amount): void {
+        $this->total = $this->total + $amount;
+    }
+}
+--REQUEST--
+semanticTokens types=property
+--EXPECT--
+3:16+6 property
+5:16+5 property
+5:31+5 property
