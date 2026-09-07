@@ -18,8 +18,11 @@ changes about them, and step 6.
    `python tools/orient.py` in ahead of this prompt, narrowed to the goal's `[context]` manifest in
    `docs/agent/loop-goal.toml`. Re-running it spends three calls and about 20k of context on a pack you
    already hold. If it is genuinely absent, run it once and say so in the handoff — that is a driver bug.
-   `python tools/brief.py` is the unscoped version; reach for it only for something outside the goal,
-   and name the missing `[context]` field in the handoff so the manifest gains the selector.
+   `python tools/brief.py` is the unscoped version; reach for it only for something outside the goal —
+   then **edit the `[context]` field in `docs/agent/loop-goal.toml` that was missing its selector**. It
+   is reloaded every session and widening it breaks nothing, so a gap you only describe in the handoff
+   is one the next session pays for again. `modules` is the exception you may skip: the driver sweeps it
+   from the paths your own commits touched.
 2. **Take your item, then keep taking slices from the group while both hold:** the next one touches
    files you have already loaded, and you are under 120k of context with the previous one committed.
    Past 120k, stop and say in the handoff where you stopped. The gate and its measurement are

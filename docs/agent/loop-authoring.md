@@ -88,6 +88,12 @@ Three rules make it work:
 - **Every entry is a selector, never a copy.** `orient.py` slices the live file at session start, so a
   manifest cannot silently go stale the way a frozen context pack would. It can only go *wrong*, by naming
   something that no longer exists, and that prints as a loud warning.
+- **`modules` corrects itself between sessions.** `tools/context-sync.py`, run by the driver, appends any
+  `crates/*/src/` or `editors/*/src/` module the session's own commits touched that no pattern matched,
+  with the module's own `//!` first sentence as its comment. Widening is the only thing it can do, which is
+  why it needs no supervision; past `MAX_ADDED` in one session, or `MAX_TOTAL` in the list, it refuses and
+  prints instead, because a manifest that has to grow that far was written for different work. No other
+  field sweeps: nothing on disk records that a session needed a rule section and did not get it.
 - **An absent field selects nothing, not everything.** A goal that forgets to name its modules gets a short
   pack and a warning, rather than the whole map. Failing closed is what keeps the block honest.
 - **`python tools/orient.py --audit` prints what the pack costs**, section by section. Look at it once,
@@ -160,6 +166,11 @@ Two failure modes worth naming, both of which have happened here:
 The driver reads the TOML directly, so nothing in it can drift from what actually runs. `python
 tools/loop.py --list` prints it as a summary; `--goal-only` runs it once without a session; `python
 tools/orient.py --audit` prints what its `[context]` block costs a session.
+
+**Every session ends on one line that says whether the run needs you** — `nothing for you to do`, or
+`YOUR HAND IS NEEDED` and the reason. `verdict()` in `tools/loop.py` writes it from what the driver
+decided rather than from the session's own `CONTINUE`/`DONE`/`BLOCKED` line, because those two disagree
+exactly when it matters: a session reports `CONTINUE` and the driver is stopping on a stall streak.
 
 The `[context]` block lives with the checks rather than with the prose for the same reason the checks do:
 it is read by a program, and a selector that names a section is either right or a loud warning. Prose about

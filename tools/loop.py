@@ -1118,6 +1118,21 @@ def step(text, colour=C.GRAY):
     say(f"   [{datetime.now():%H:%M:%S}] {text}", colour, driver=True)
 
 
+def verdict(hand, text):
+    """The one line of a session a person has to read: is the loop still driving itself?
+
+    Everything else printed at a session boundary is a wall -- the session's own summary, then the
+    acceptance check's, then the goal row -- and the question that actually decides whether someone
+    opens the terminal is nowhere in it. So the driver answers it last, in one line, from what it
+    has just decided rather than from what the session claimed about itself: a session that reports
+    `CONTINUE` and a driver that is stopping on a stall streak disagree, and the driver is right.
+
+    `hand=True` means the run has stopped and will not move again without a person."""
+    say("")
+    say(f"   ==> {'YOUR HAND IS NEEDED' if hand else 'nothing for you to do'} -- {text}",
+        C.RED if hand else C.GREEN)
+
+
 # --------------------------------------------------------------------- session transcript
 #
 # Renders the NDJSON from `claude --output-format stream-json` the way Claude Code's own transcript
@@ -1133,6 +1148,9 @@ class Renderer:
         self.max_input_lines = opts.max_input_lines
         self.max_line_chars = opts.max_line_chars
         self.tool_names: dict[str, str] = {}
+        #: The last assistant text printed. The `result` event repeats the session's final message
+        #: verbatim, and printing both is how a wrap-up summary reached the console twice.
+        self.said = ""
 
     def wrapped(self, text, prefix, colour, max_lines):
         if not text:
@@ -1232,6 +1250,7 @@ class Renderer:
                 btype = b.get("type")
                 if btype == "text":
                     TICKER.note("writing")
+                    self.said = str(b.get("text") or "")
                     self.wrapped(b.get("text"), "   ", C.WHITE, 0)
                 elif btype == "thinking":
                     TICKER.note("thinking")
@@ -1272,8 +1291,14 @@ class Renderer:
             if e.get("total_cost_usd") is not None:
                 bits.append(f"${float(e['total_cost_usd']):.2f}")
             say(f"   [{e.get('subtype')}] " + "  ".join(bits), C.YELLOW)
-            if e.get("result"):
-                self.wrapped(str(e["result"]), "   ", C.YELLOW, self.max_result_lines)
+            # `result` carries the session's final message, which the assistant event above has
+            # already printed in full. Reprinting it doubled every session's summary on screen and
+            # in the console log, and a summary is the longest thing a session writes. What is left
+            # is the case the repeat was there for: a subtype that ends a session with text no
+            # assistant event carried, an error most of all.
+            body = str(e.get("result") or "")
+            if body.strip() and body.strip() != self.said.strip():
+                self.wrapped(body, "   ", C.YELLOW, self.max_result_lines)
 
 
 # ------------------------------------------------------------------------------- capture
@@ -4461,6 +4486,46 @@ def doc_comment_fingerprint():
     return digest.hexdigest()
 
 
+def context_sweep(base):
+    """Let the goal's `[context] modules` learn what the session actually edited.
+
+    `tools/context-sync.py` is the whole of it and holds the reasoning; this is where it runs,
+    beside `doc_gate` for the same reason -- between sessions, over the tree the session left, in
+    the driver's seconds rather than a session's context ceiling.
+
+    A session that finds the manifest missing a file it is working in writes that into the handoff,
+    which no one acts on, and the next session pays the same search. The evidence is on disk by
+    then -- the commits the session just made -- so the driver reads it rather than asking anyone.
+    Widening the list cannot break a build or a check: at worst a session reads one map line it did
+    not need, which is why this is allowed to run unattended at all.
+
+    Returns a one-line note for the console, or "" when nothing changed."""
+    if not base:
+        return ""
+    r = capture(sys.executable, [str(ROOT / "tools" / "context-sync.py"), "--since", base])
+    note = (r.out or "").strip()
+    if r.code != 0 or not note:
+        return note or ""
+    if not git("status", "--porcelain", "--", str(GOAL_TOML)).strip():
+        return note  # it refused, and said why -- there is nothing to commit
+    body = (f"docs(loop): the goal's context manifest names what the session edited\n"
+            f"\n"
+            f"{note}\n"
+            f"\n"
+            f"Written by the driver between sessions, from the paths the session's own commits\n"
+            f"touched. `tools/context-sync.py` is the tool and its module doc is the reasoning.\n")
+    git("add", "--", str(GOAL_TOML))
+    msg = RUNDIR / "context-msg.txt"
+    try:
+        msg.write_text(body, encoding="utf-8", newline="\n")
+        git("commit", "-F", str(msg))
+    except OSError:
+        pass
+    finally:
+        msg.unlink(missing_ok=True)
+    return note
+
+
 def doc_gate(index):
     """`verify.py --doc` after a session that edited a doc comment, after `DOC_GATE_EVERY` that
     did not, and after every session while it is red.
@@ -4742,6 +4807,10 @@ def drive(opts, goal, chain):
         ledger(f"       goal cost: {goal.summary()}")
         # Beside the acceptance check because it is the same kind of thing: a gate the driver runs
         # between sessions, over the tree the session left, reported through a file a pack reads.
+        widened = context_sweep(SLICES.base)
+        if widened:
+            step(widened, C.CYAN)
+            ledger(f"       {widened}")
         doc_gate(index)
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
@@ -4780,6 +4849,7 @@ def drive(opts, goal, chain):
                 kind = "chain-error"
                 break
             TICKER.set(loop_goal=goal_title(chain))
+            verdict(False, f"goal reached -- the run carries on with {chain.current['name']}")
             continue
         ledger(f"       goal check: {fail}")
 
@@ -4801,6 +4871,8 @@ def drive(opts, goal, chain):
         else:
             stalls = 0
 
+        verdict(False, line or "the session wrote no status line, and the loop carries on")
+
         if opts.delay_seconds:
             step(f"--delay-seconds: waiting {mmss(opts.delay_seconds)} before the next session")
             TICKER.set(phase="waiting")
@@ -4808,8 +4880,10 @@ def drive(opts, goal, chain):
 
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")
     write_run_end(kind, reason, served, run_id)
-    say("")
-    say(reason, C.YELLOW)
+    # `RESTARTABLE` is the one verdict the run itself recovers from -- it waits for the window and
+    # starts another leg. Every other one is a reason a person should look, which is the whole of
+    # what this line says.
+    verdict(kind != RESTARTABLE, reason)
 
 
 # ------------------------------------------------------------------------------------ the run
@@ -5541,9 +5615,8 @@ def supervise(opts):
         since = credit(since, end)
 
         if end.get("kind") != RESTARTABLE:
-            say("")
-            say(f"the run ended for good: {end.get('reason') or f'the leg exited {code}'}",
-                C.YELLOW)
+            verdict(True, f"the run ended for good: "
+                          f"{end.get('reason') or f'the leg exited {code}'}")
             return 0 if code == 0 else code
         stop = hold_pause()
         if stop:
