@@ -2,53 +2,60 @@
 
 ## State
 
-**Goal 14 answers six of the ten requests, and a declaration is now reached by its own name and
-through a member.** `crates/nvs-lsp/src/definition.rs:135` is the one walk from a cursor to a
-declaration — `nvs_hir::SymbolTable` for the declaring class, that file's kept statements for the
-node — and the two requests read different fields off it: `definition` the name's span, `hover` the
-`///` run above it. `crates/nvs-lsp/src/hover.rs` is the new request and holds only the Markdown.
+**Goal 14: `hover` is whole, and stage 6 has `completion` left.** The three arms
+`rule:ide/the-request-set-is-closed` names all live in `crates/nvs-lsp/src/hover.rs` and are tried
+**per node, innermost first**: a `Core` member's registry row, the `///` run above the declaration the
+name reached, then the declared type of the node itself. `crates/nvs-lsp/src/definition.rs:273`'s
+`target_of` is the per-node name lookup both cursor requests share — a walk that found the nearest
+*named* node first answered a call's card for a cursor sitting on one of its arguments.
 
-**A member's span is in its class's body, never in `nvs_hir::MemberTable`.** That table records
-which names a class declares and not where they were written. `ExprInfo::Call`, `CallableRef`,
-`ClassRefCall`, `Property`, `StaticProperty` and `HookedProperty` each name the *declaring* class,
-which is where the walk starts, so an inherited member answers the ancestor that wrote it.
+**A `Core` member's signature line is spelled from the checker's types, never from `CoreTy`.**
+`nvs_types::core_lib` seeded the signature table out of the registry row, so the `ResolvedCall` under
+the cursor *is* that row interned and `nvs_types::TypeInterner::describe` is the one home for spelling
+it; `nvs-cli`'s `ty_string` stays `nvs meta --json`'s. The reference card is read straight off
+`nvs_stdlib::registry` (`rule:core-api/reference-card`), which is why `nvs-lsp` now names that crate.
 
-**`nvs lsp-test tests/lsp/` reports `40 passed, 0 failed`**, against the goal's floor of 160.
+**A plain variable read carries no type anywhere the server can reach.** The checker keeps a local's
+type in a scope it drops and records nothing on the read, so `$total` hovers to nothing — and that
+same gap is what stands in front of `completion` off `$u->`.
 
-**`nvs_syntax::DOC_MARKER` is public**, so no crate outside the parser spells `///` a second time.
+**`nvs lsp-test tests/lsp/` reports `44 passed, 0 failed`**, against the goal's floor of 160;
+`verify.py` is 7 of 7 green.
 
-**`semanticTokens/full` and hover's other two arms are what stage 6 has left.**
+**The goal's `[context.stage.6] adrs` names ADR 0088 § 5 for the signature row's rendering and that
+section decides no rendering** — 0099 § 3 is the only record, and the spelling is now decided in
+`crates/nvs-lsp/src/hover.rs`'s module doc.
 
 ## Next group
 
-**Stage 6: hover's two remaining arms** — one file set: `crates/nvs-lsp/src/hover.rs`,
-`crates/nvs-lsp/src/definition.rs`, `crates/nvs-lsp/src/suite.rs`, `crates/nvs-lsp/src/render.rs`,
-with `crates/nvs-stdlib/src/registry.rs` and `crates/nvs-types/src/ty.rs` read only.
+**Stage 6: `completion`, the last of the three** — one file set: a new
+`crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/suite.rs`, `crates/nvs-lsp/src/server.rs`,
+`crates/nvs-lsp/src/case.rs`, with `crates/nvs-lsp/src/definition.rs`,
+`crates/nvs-lsp/src/render.rs` and `crates/nvs-stdlib/src/registry.rs` read only. The rendering,
+the `Request` variant and the capability all exist already — `crates/nvs-lsp/src/render.rs:302`
+freezes `label kind detail` (`rule:ide/the-rendering-has-one-home`) and
+`crates/nvs-lsp/src/capabilities.rs:164` already declares the provider.
 
-- [ ] **`hover` over a `Core` member, out of the registry's signature row.**
-      `crates/nvs-lsp/src/hover.rs:60` is where it stops today: a `Core` class has no
-      `nvs_hir::Symbol`, so the shared walk answers nothing and this arm has to come before it.
-      The row is `crates/nvs-stdlib/src/registry.rs:967`'s `CoreMethod`, whose card is
-      `rule:core-api/reference-card`, and ADR 0088 § 5 is how it is spelled — now named in
-      `[context.stage.6] adrs`, which is where it was missing.
-- [ ] **`hover`'s declared-type arm, for a cursor that reached no declaration.**
-      `crates/nvs-lsp/src/definition.rs:254`'s `_ => return None` is where an expression that has a
-      type but names nothing falls out; `crates/nvs-types/src/ty.rs:521`'s `describe` spells a
-      `TypeId`, and `crates/nvs-lsp/src/document.rs:298` is the interner it must be read against.
-      ADR 0099 § 3's first `hover` cell, `rule:ide/the-rendering-has-one-home` for the spelling.
-- [ ] **A `.lspt` case per arm, plus one where the two meet** — a `Core` call and a plain `int`
-      expression under the same cursor rules. They land in `tests/lsp/hover/` beside the four this
-      session froze, and the runner arm they go through is `crates/nvs-lsp/src/suite.rs:398`.
-      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
+- [ ] **Members off a resolved receiver, user classes and `Core` alike** —
+      `rule:ide/the-request-set-is-closed`. Decide first where the receiver's class comes from:
+      `$u-><|>` records no `ExprInfo` and `$u` itself carries none either (`## State` above), so the
+      candidates are recording a type on a variable read in `nvs_types` — which costs a map entry per
+      read on **every** compile, not only in the server — or keeping the checker's local scopes on
+      `crates/nvs-lsp/src/document.rs:254`'s `Analysed`. Say which and why in the module doc; the
+      lookup itself is `crates/nvs-lsp/src/definition.rs:273` and `crates/nvs-stdlib/src/registry.rs:1234`.
+- [ ] **Enum cases after `Type::`, and a class's static members** — same module, same walk;
+      `crates/nvs-lsp/src/suite.rs:187` and `crates/nvs-lsp/src/server.rs:183` are the two dispatch
+      arms every one of these slices lands through.
+- [ ] **Keywords filtered by position, and the variables in scope** — no workspace symbol search,
+      which `rule:ide/five-features-are-one-reference-index` puts at M10. The roster is the lexer's
+      own, `crates/nvs-syntax/src/lexer.rs:643`, and never a second list in this crate; the position
+      that filters it is the ancestor path at `crates/nvs-lsp/src/definition.rs:256`.
 
 ## Backlog
 
-- `semanticTokens/full` — stage 7, its own file set: a new module plus `render.rs`'s token spelling.
-- `@see` rendered as a link — ADR 0099 § 3, blocked on resolving a member named in a comment;
-  `crates/nvs-lsp/src/hover.rs:33` says what it would take.
-- Hover on a declaration's **own** name answers nothing: the type table has no entry for a
-  declaration node, so this needs the name-to-symbol step neither request has yet.
-- A class constant under the cursor answers nothing — `nvs_types::ExprInfo` records `CoreConst` and
-  nothing for a user one, so `definition`'s member arms cannot reach it.
-- `documentHighlight`, inlay hints and the rest stay at M10 —
-  `rule:ide/five-features-are-one-reference-index`.
+- `semanticTokens/full` with ADR 0099 § 4's legend — stage 7's one remaining projection.
+- `nvs/redactions`, the acceptance check that is red — `docs/agent/loop-goal.md` § *Stage 8*.
+- The two code actions off `Diagnostic::suggestions` — `docs/agent/loop-goal.md` § *Stage 9*.
+- A `@see` target renders as prose, not a link — `crates/nvs-lsp/src/hover.rs`'s module doc.
+- Hover over a *user* method call answers its run or nothing, never its signature — same module doc.
+- The full-reanalysis latency bound — `rule:ide/a-full-reanalysis-stays-under-a-bound`, stage 10.
