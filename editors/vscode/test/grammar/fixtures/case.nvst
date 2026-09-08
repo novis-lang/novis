@@ -1,0 +1,29 @@
+--TEST--
+every section a case writes, and Novis inside the four that hold a program
+--SKIPIF--
+<?nvs
+echo 'skip nothing';
+--FILE--
+<?nvs
+class User { public string $name; }
+var $u = new User();
+echo $u->name;
+--FILE src/Bootstrap.nvs--
+<?nvs
+function boot(): int { return 41; }
+--ARGS--
+--first
+--INI--
+memory_limit=64M
+--EXPECT--
+41
+--EXPECTF--
+took %f ms, 100%% of it in %s
+--ORACLE--
+<?php
+echo 41;
+?>
+--CLEAN--
+<?nvs
+echo 'done';
+?>

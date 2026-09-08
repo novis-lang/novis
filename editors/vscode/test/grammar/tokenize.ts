@@ -18,6 +18,7 @@ import type { IGrammar } from "vscode-textmate";
 
 export const ROOT = resolve(__dirname, "..", "..", "..");
 export const GRAMMAR = join(ROOT, "syntaxes", "nvs.tmLanguage.json");
+export const CASE_GRAMMAR = join(ROOT, "syntaxes", "nvst.tmLanguage.json");
 export const FIXTURES = join(ROOT, "test", "grammar", "fixtures");
 
 /** One tokenized span: the bytes, and the scopes stacked on them, outermost first. */
@@ -34,6 +35,15 @@ const HTML_STUB = {
   patterns: [{ name: "string.quoted.double.html", begin: "\"", end: "\"" }],
 };
 
+// PHP is an editor's grammar too, and `source.nvst` hands it every `--ORACLE--`. This stub is not
+// optional the way the HTML one is: vscode-textmate drops a begin/end rule whose every pattern was an
+// include it could not resolve, and the drop cascades to the rule that included *it*, so a registry
+// with no `source.php` at all does not merely leave an oracle uncoloured — it loses the section.
+const PHP_STUB = {
+  scopeName: "source.php",
+  patterns: [{ name: "keyword.other.php", match: "\\becho\\b" }],
+};
+
 let wasm: Promise<void> | undefined;
 
 function oniguruma(): Promise<void> {
@@ -46,43 +56,59 @@ function oniguruma(): Promise<void> {
   return wasm;
 }
 
-async function load(html: boolean): Promise<IGrammar> {
+// Both grammars are in every registry, whichever one is asked for: `source.nvst` includes
+// `source.nvs#code`, so the case grammar cannot be loaded without it.
+async function load(scopeName: string, html: boolean): Promise<IGrammar> {
   await oniguruma();
   const registry = new Registry({
     onigLib: Promise.resolve({
       createOnigScanner: (sources: string[]) => new OnigScanner(sources),
       createOnigString: (text: string) => new OnigString(text),
     }),
-    loadGrammar: async (scopeName: string) => {
-      if (scopeName === "source.nvs") {
+    loadGrammar: async (name: string) => {
+      if (name === "source.nvs") {
         return parseRawGrammar(readFileSync(GRAMMAR, "utf8"), GRAMMAR);
       }
-      if (scopeName === "text.html.basic" && html) {
+      if (name === "source.nvst") {
+        return parseRawGrammar(readFileSync(CASE_GRAMMAR, "utf8"), CASE_GRAMMAR);
+      }
+      if (name === "source.php") {
+        return parseRawGrammar(JSON.stringify(PHP_STUB), "source.php.json");
+      }
+      if (name === "text.html.basic" && html) {
         return parseRawGrammar(JSON.stringify(HTML_STUB), "text.html.basic.json");
       }
       return null;
     },
   });
-  const grammar = await registry.loadGrammar("source.nvs");
+  const grammar = await registry.loadGrammar(scopeName);
   if (!grammar) {
-    throw new Error(`${GRAMMAR} declares no source.nvs`);
+    throw new Error(`no grammar under syntaxes/ declares ${scopeName}`);
   }
   return grammar;
 }
 
-/** Every span of `text`, in order, with the rule stack carried across line ends as an editor does. */
-export async function tokenize(text: string, html = false): Promise<Span[]> {
-  const grammar = await load(html);
-  const spans: Span[] = [];
+function spans(grammar: IGrammar, text: string): Span[] {
+  const found: Span[] = [];
   let stack = INITIAL;
   for (const line of text.split(/\r?\n/)) {
     const result = grammar.tokenizeLine(line, stack);
     stack = result.ruleStack;
     for (const token of result.tokens) {
-      spans.push({ text: line.slice(token.startIndex, token.endIndex), scopes: token.scopes });
+      found.push({ text: line.slice(token.startIndex, token.endIndex), scopes: token.scopes });
     }
   }
-  return spans;
+  return found;
+}
+
+/** Every span of `text`, in order, with the rule stack carried across line ends as an editor does. */
+export async function tokenize(text: string, html = false): Promise<Span[]> {
+  return spans(await load("source.nvs", html), text);
+}
+
+/** The same, for a `.nvst` or `.lspt` case: the section grammar, with Novis embedded in it. */
+export async function tokenizeCase(text: string): Promise<Span[]> {
+  return spans(await load("source.nvst", false), text);
 }
 
 /** The one span whose bytes are exactly `text`. Throws rather than returning undefined. */
@@ -96,8 +122,17 @@ export function span(spans: Span[], text: string): Span {
 
 /** Every fixture under `test/grammar/fixtures`, as `[name, content]`. */
 export function fixtures(): [string, string][] {
+  return named(".nvs");
+}
+
+/** The case fixtures under the same directory: what `source.nvst` is tokenized against. */
+export function caseFixtures(): [string, string][] {
+  return named(".nvst");
+}
+
+function named(extension: string): [string, string][] {
   return readdirSync(FIXTURES)
-    .filter((name) => name.endsWith(".nvs"))
+    .filter((name) => name.endsWith(extension))
     .sort()
     .map((name) => [name, readFileSync(join(FIXTURES, name), "utf8")]);
 }
