@@ -66,6 +66,20 @@ fn with_access(members: &str) -> String {
     )
 }
 
+/// A user class implementing `Parses`, in the shape
+/// `nvs_hir::interfaces::PARSES` spells the contract: one required
+/// `parse(tainted string $s): static`, and the text kept in a field declared
+/// `tainted` because a class carries no qualifier of its own
+/// (`rule:security/tainted-qualifier`).
+///
+/// Every fixture using this writes its own `#[Core\Access]` rather than going
+/// through [`with_access`], which would decorate this class's constructor too.
+const SLUG: &str = "class Slug implements Parses {\n  \
+                    public tainted string $text = \"\";\n  \
+                    public function constructor(tainted string $text) { $this->text = $text; }\n  \
+                    public static function parse(tainted string $s): static \
+                    { return new static($s); }\n}\n";
+
 #[test]
 fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // Fully qualified needs no import at all. Before the name joined
@@ -1128,4 +1142,173 @@ fn a_query_marker_outside_a_route_method_is_refused() {
          public function index(#[Query] string $sort): string { return $sort; }\n}\n",
     );
     assert!(!reported(&diags, code::E_QUERY_WITHOUT_ROUTE), "{diags:?}");
+}
+
+#[test]
+fn a_user_class_implementing_parses_may_be_a_route_capture() {
+    // The roster a capture narrows to ends in a *predicate* rather than in one
+    // more name: `Core\Uuid` is admitted because it is a class built from text,
+    // and so is any other class that says so by implementing `Parses`
+    // (`rule:security/route-capture-is-laundered-by-its-type`). Nothing about
+    // this class is registered anywhere — it is named by the parameter's own
+    // declared type and reached structurally from there.
+    let (diags, exprs) = check_src_table(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function show(Slug $slug): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // The row says which of the two kinds of class it holds, because a class
+    // and an enum render identically as their qualified name — so `parses` is
+    // what tells the type whose wire form is a bare string from the one whose
+    // case spellings are still undecided (`RouteParam::parses`).
+    let row = &exprs.routes().rows()[0];
+    let param = &row.params[0];
+    assert_eq!(param.name, "slug");
+    assert_eq!(param.source, nvs_types::ParamIn::Path);
+    assert_eq!(param.ty.as_deref(), Some("Slug"));
+    assert!(param.parses, "{param:?}");
+
+    // The other bound, at the one capture the roster does not answer for: a
+    // catch-all is every remaining segment as one unchecked value, so it
+    // arrives as a `tainted string` and at no other type — implementing
+    // `Parses` buys a class nothing there.
+    let diags = check_src(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{rest...}}\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function raw(Slug $rest): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(
+        reported(&diags, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_user_class_implementing_parses_may_be_a_query_parameter() {
+    // `rule:routing/a-query-parameter-is-declared-like-a-capture` gives a
+    // `#[Query]` parameter the same type list as a capture, so the roster's
+    // last entry reaches the query half by the same predicate and nothing is
+    // written twice. The route below declares no capture at all, which is what
+    // makes this the marker's question rather than the path's.
+    let (diags, exprs) = check_src_table(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function index(#[Core\\Query] Slug $slug): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let param = &exprs.routes().rows()[0].params[0];
+    assert_eq!(param.name, "slug");
+    assert_eq!(param.source, nvs_types::ParamIn::Query);
+    assert_eq!(param.ty.as_deref(), Some("Slug"));
+    assert!(param.parses, "{param:?}");
+    // A default is what makes a query key optional, and this parameter carries
+    // none, so the row asks the request for it.
+    assert!(param.required, "{param:?}");
+}
+
+#[test]
+fn a_class_without_the_interface_is_refused_naming_parses_as_the_fix() {
+    // The interface is the whole of what admits a class, so the same class
+    // written twice — once with the contract and once without — is the pair
+    // that says so. A class is not admitted for being a class.
+    let refused = check_src(&format!(
+        "<?nvs\nclass Plain {{\n  public tainted string $text = \"\";\n}}\n\
+         class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function show(Plain $slug): string {{ return \"\"; }}\n}}\n{SLUG}"
+    ));
+    assert!(
+        reported(&refused, code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION),
+        "{refused:?}"
+    );
+
+    // And the refusal names the fix rather than only the roster: an author who
+    // wrote a class is told which contract to implement, which is the half a
+    // roster listing `Core\Uuid` by name could not have said.
+    assert!(
+        refused.iter().any(|d| {
+            d.code == Some(code::E_ROUTE_CAPTURE_TYPE_HAS_NO_CONVERSION)
+                && d.notes
+                    .iter()
+                    .any(|note| note.contains("class implementing `Parses`"))
+        }),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn core_uuid_reaches_the_roster_through_the_interface_and_not_its_name() {
+    // The engine's own class is on the roster by the same predicate a user's is
+    // — there is no arm matching it by name — so the two rows agree in kind and
+    // a reader cannot tell which class the library shipped.
+    let (diags, exprs) = check_src_table(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get, \
+         name: \"Posts::show\")]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function show(Slug $slug): string {{ return \"\"; }}\n  \
+         #[Core\\Route(path: \"/posts/by-id/{{id}}\", method: Core\\Http\\Method::Get, \
+         name: \"Posts::byId\")]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function byId(Core\\Uuid $id): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let table = exprs.routes();
+    let mine = &table.named("Posts::show").expect("the user's route").params[0];
+    let engines = &table
+        .named("Posts::byId")
+        .expect("the engine's route")
+        .params[0];
+    assert_eq!(mine.ty.as_deref(), Some("Slug"));
+    assert_eq!(engines.ty.as_deref(), Some("Core\\Uuid"));
+    assert!(mine.parses && engines.parses, "{mine:?} {engines:?}");
+    assert_eq!(mine.allowed, engines.allowed);
+}
+
+#[test]
+fn a_parses_capture_names_no_closed_set_and_changes_no_route_rank() {
+    // A `Parses` capture is `converts_from_string`'s business and never
+    // `closed_set`'s: the contract says the text either parses or does not and
+    // never *which* texts do, so there is nothing a segment could be checked
+    // against before the class runs. The union beside it is the bound on the
+    // other side — a type that does name its set still names it.
+    let (diags, exprs) = check_src_table(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}/{{lang}}\", \
+         method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function show(Slug $slug, \"en\"|\"de\" $lang): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let params = &exprs.routes().rows()[0].params;
+    assert_eq!(params[0].allowed, None, "{params:?}");
+    assert_eq!(
+        params[1].allowed.as_deref(),
+        Some(&["en".to_owned(), "de".to_owned()][..]),
+        "{params:?}"
+    );
+
+    // And it changes no rank: two routes distinguished only by a `Parses`
+    // capture's *content* are the one route both would match, exactly as two
+    // `{id}` captures are — the trie is built from the shape, and the class is
+    // not part of it.
+    let diags = check_src(&format!(
+        "<?nvs\n{SLUG}class Posts {{\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get, \
+         name: \"a\")]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function show(Slug $slug): string {{ return \"\"; }}\n  \
+         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public function other(string $id): string {{ return \"\"; }}\n}}\n"
+    ));
+    assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
 }
