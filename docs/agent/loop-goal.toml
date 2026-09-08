@@ -96,6 +96,8 @@ modules = [
   "crates/nvs-stdlib/src/registry.rs",
   # The request a case answers, frozen into the file `nvs run --request` reads.
   "crates/nvs-test/src/request.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
