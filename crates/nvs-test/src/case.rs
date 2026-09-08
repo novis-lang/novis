@@ -36,6 +36,52 @@ pub enum Oracle {
     Diverges(String),
 }
 
+/// The body a case's request carries, and which section spelled it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Body {
+    /// `--POST--`: urlencoded pairs exactly as they go on the wire, so the
+    /// content type is `application/x-www-form-urlencoded` and a case does not
+    /// write one for itself.
+    Form(String),
+    /// `--POST_RAW--`: the body verbatim, whatever it holds. Nothing is
+    /// assumed about it, so a case that means it to be read as something in
+    /// particular says so with a `Content-Type` line in `--HEADERS--` — a
+    /// content type written twice is a content type that can disagree.
+    Raw(String),
+}
+
+/// The request a case is answering, assembled from the five sections that
+/// describe one.
+///
+/// Every part is optional and a case that wrote none of the five carries no
+/// `Request` at all rather than an empty one: answering a request and running
+/// as a program are different things, and what a case wrote is how it says
+/// which of them it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Request {
+    /// `--GET--`, the query string as it is written past the `?`, on one line
+    /// and without the `?` itself.
+    pub query: Option<String>,
+    /// `--POST--` or `--POST_RAW--`, which are two spellings of one body and
+    /// so may not both be written.
+    pub body: Option<Body>,
+    /// `--COOKIE--`, one `NAME=value` per line.
+    ///
+    /// `.phpt` writes these `;`-joined on a single line and this format takes
+    /// one per line instead, on [`Case::env`]'s rule: splitting a joined line
+    /// means deciding what a `;` inside a value meant, which is a guess. The
+    /// single pair a corpus case almost always writes reads the same either
+    /// way, so the import stays mechanical.
+    pub cookies: Vec<(String, String)>,
+    /// `--HEADERS--`, one `Name: value` per line.
+    ///
+    /// A field's value starts past the `:` and whatever spaces follow it,
+    /// which is how an HTTP field is written. A repeated name is kept rather
+    /// than merged or refused, because a message may legitimately carry one
+    /// twice and what that means belongs to whatever reads the field.
+    pub headers: Vec<(String, String)>,
+}
+
 /// Which `nvs` subcommand a case's own `--FILE--` is run through.
 ///
 /// `--RUN--` names it, and the default is [`Subcommand::Run`] — a case is a
@@ -166,6 +212,9 @@ pub struct Case {
     /// states and guessing which was meant is not the runner's to do. Empty
     /// lines are dropped, on [`Case::args`]' rule.
     pub env: Vec<(String, String)>,
+    /// The request this case answers, or `None` where it wrote none of
+    /// `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` and `--HEADERS--`.
+    pub request: Option<Request>,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
     /// `--EXPECT--` or `--EXPECTF--`, matched against standard output.
@@ -225,6 +274,11 @@ const KNOWN: &[&str] = &[
     "INI",
     "ARGS",
     "ENV",
+    "GET",
+    "POST",
+    "POST_RAW",
+    "COOKIE",
+    "HEADERS",
     "FILE",
     "EXPECT",
     "EXPECTF",
@@ -237,7 +291,7 @@ const KNOWN: &[&str] = &[
 ];
 
 /// The `.phpt` sections that parse for the M11 importer's sake but have nothing
-/// to act on yet, each with the milestone that changes that.
+/// to act on yet, each with what has to exist before it can be honoured.
 const NOT_YET: &[(&str, &str)] = &[(
     "INI",
     "`nvs.toml` is not read until M6 (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), so an --INI-- section cannot be honoured",
@@ -248,7 +302,13 @@ const TAKES_A_PATH: &str = "FILE";
 
 /// The names the runner writes into the working directory itself, which an
 /// auxiliary file therefore may not claim.
-const RESERVED_NAMES: &[&str] = &["case.nvs", "skipif.nvs", "clean.nvs", "oracle.php"];
+const RESERVED_NAMES: &[&str] = &[
+    "case.nvs",
+    "skipif.nvs",
+    "clean.nvs",
+    "oracle.php",
+    crate::request::FILE_NAME,
+];
 
 /// Checks an auxiliary file's path, returning it or the reason it is refused.
 ///
@@ -469,6 +529,58 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         }
     }
 
+    // Two spellings of one body, merged, is the silent wrong answer this
+    // format refuses everywhere else, so writing both is where it stops.
+    let body = match (take("POST"), take("POST_RAW")) {
+        (Some(_), Some((line, _))) => {
+            return Err(err(
+                "`--POST--` and `--POST_RAW--` are two spellings of one body",
+                Some(line),
+            ));
+        }
+        (Some(pairs), None) => Some(Body::Form(one_line("POST", pairs)?)),
+        (None, Some((line, raw))) => {
+            if raw.trim().is_empty() {
+                return Err(err("`--POST_RAW--` is empty", Some(line)));
+            }
+            Some(Body::Raw(raw))
+        }
+        (None, None) => None,
+    };
+    let query = take("GET")
+        .map(|section| one_line("GET", section))
+        .transpose()?;
+    let cookies = take("COOKIE")
+        .map(|section| fields("COOKIE", '=', "NAME=value", section))
+        .transpose()?
+        .unwrap_or_default();
+    let headers = take("HEADERS")
+        .map(|section| fields("HEADERS", ':', "Name: value", section))
+        .transpose()?
+        .unwrap_or_default();
+    // Not answering a request is a different state from answering an empty
+    // one, and which of the two a case means is what it wrote.
+    let request = if query.is_some() || body.is_some() || !cookies.is_empty() || !headers.is_empty()
+    {
+        Some(Request {
+            query,
+            body,
+            cookies,
+            headers,
+        })
+    } else {
+        None
+    };
+    // `nvs run` is the one subcommand that takes a request, so a case that
+    // described one and then asked for another is refused rather than run
+    // without it: the sections would otherwise be read and then dropped.
+    if request.is_some() && run != Subcommand::Run {
+        return Err(err(
+            "a case that describes a request is `--RUN--` `run`: no other subcommand takes one",
+            take("RUN").map(|(line, _)| line),
+        ));
+    }
+
     let unsupported = NOT_YET.iter().find_map(|(name, why)| {
         take(name).and_then(|(_, body)| (!body.trim().is_empty()).then(|| (*why).to_owned()))
     });
@@ -484,6 +596,7 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
                 .collect()
         }),
         env,
+        request,
         skipif: take("SKIPIF")
             .map(|(_, body)| body)
             .filter(|body| !body.trim().is_empty()),
@@ -514,6 +627,58 @@ fn pick(
     }
 }
 
+/// Reads a section written as a single line, trimmed, or the reason it cannot
+/// be read as one.
+fn one_line(name: &str, section: (usize, String)) -> Result<String, ParseError> {
+    let (line, body) = section;
+    let text = body.trim().to_owned();
+    if text.is_empty() {
+        return Err(err(format!("`--{name}--` is empty"), Some(line)));
+    }
+    if text.lines().count() > 1 {
+        return Err(err(format!("`--{name}--` is one line"), Some(line)));
+    }
+    Ok(text)
+}
+
+/// Reads a section written as one `name<sep>value` per line into its pairs.
+///
+/// Empty lines are dropped on [`Case::args`]' rule, and a line holding no
+/// separator or no name before it is refused where it is written: a case that
+/// misspelled the one field it set would otherwise run against the request it
+/// was trying to describe and pin whatever that produced.
+fn fields(
+    name: &str,
+    sep: char,
+    shape: &str,
+    section: (usize, String),
+) -> Result<Vec<(String, String)>, ParseError> {
+    let (header, body) = section;
+    let mut pairs = Vec::new();
+    for (offset, line) in body.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let at = Some(header + 1 + offset);
+        let Some((field, value)) = line.split_once(sep) else {
+            return Err(err(
+                format!("`--{name}--` is one `{shape}` per line, and this line has no `{sep}`"),
+                at,
+            ));
+        };
+        let field = field.trim();
+        if field.is_empty() {
+            return Err(err(
+                format!("`--{name}--` is one `{shape}` per line, and this line has no name"),
+                at,
+            ));
+        }
+        pairs.push((field.to_owned(), value.trim_start().to_owned()));
+    }
+    Ok(pairs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,8 +689,12 @@ mod tests {
 
     const MINIMAL: &str = "--TEST--\nthe title\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n";
 
-    /// Every section name this format knows whose partner is not in the other
-    /// document below, so the two of them together name all of `KNOWN`.
+    /// Every section name this format knows whose partner is not in one of the
+    /// two documents below it, so the three together name all of `KNOWN`.
+    ///
+    /// Three and not two because the exclusions are not all pairs: `--POST--`
+    /// rules out `--POST_RAW--`, and describing a request at all rules out
+    /// every `--RUN--` but the default.
     const EVERY_SECTION: &str = r#"--TEST--
 every section, once
 --RUN--
@@ -568,9 +737,31 @@ echo "hi";
 %s
 --EXPECTF-ERROR--
 %d
+--POST_RAW--
+{"name":"ada"}
 --ORACLE--
 <?php
 echo "hi";
+"#;
+
+    /// The four request sections a case writes together — the fifth is
+    /// `--POST_RAW--` above, which `--POST--` here rules out.
+    const A_REQUEST: &str = r#"--TEST--
+a case that answers a request
+--FILE--
+<?nvs
+echo "hi";
+--GET--
+page=2&q=novis
+--POST--
+name=ada&role=author
+--COOKIE--
+session=abc123
+--HEADERS--
+Accept: application/json
+X-Trace: 7
+--EXPECT--
+hi
 "#;
 
     #[test]
@@ -615,6 +806,13 @@ echo "hi";
         );
 
         let other = case(THE_OTHER_HALVES).expect("it parses");
+        assert_eq!(
+            other
+                .request
+                .as_ref()
+                .and_then(|request| request.body.as_ref()),
+            Some(&Body::Raw("{\"name\":\"ada\"}\n".to_owned()))
+        );
         assert_eq!(other.expect, Some(Expectation::Format("%s\n".to_owned())));
         assert_eq!(
             other.expect_error,
@@ -802,6 +1000,88 @@ echo "hi";
         let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--EXPECT--\n1\n--ORACLE--\n<?php\n--ORACLE-DIVERGES--\nwhy\n")
             .expect_err("both oracle spellings at once is rejected");
         assert!(e.message.contains("two answers"), "{e}");
+    }
+
+    #[test]
+    fn the_five_sections_describe_one_request() {
+        let parsed = case(A_REQUEST).expect("it parses");
+        let request = parsed.request.as_ref().expect("it answers a request");
+        assert_eq!(request.query.as_deref(), Some("page=2&q=novis"));
+        assert_eq!(
+            request.body,
+            Some(Body::Form("name=ada&role=author".to_owned()))
+        );
+        assert_eq!(
+            request.cookies,
+            [("session".to_owned(), "abc123".to_owned())]
+        );
+        assert_eq!(
+            request.headers,
+            [
+                ("Accept".to_owned(), "application/json".to_owned()),
+                ("X-Trace".to_owned(), "7".to_owned()),
+            ]
+        );
+        // Nothing about it is deferred: the runner writes the request beside
+        // the program and points `nvs run` at it (`crate::request`).
+        assert!(parsed.unsupported.is_none());
+
+        let refused = case(&A_REQUEST.replace("--FILE--", "--RUN--\ntest\n--FILE--"))
+            .expect_err("only `nvs run` takes a request");
+        assert_eq!(
+            refused.to_string(),
+            "line 3: a case that describes a request is `--RUN--` `run`: no other subcommand takes one"
+        );
+    }
+
+    #[test]
+    fn one_body_is_written_one_way() {
+        // `--POST--` and `--POST_RAW--` are two spellings of one body, and
+        // merging them is the silent wrong answer this format refuses
+        // everywhere else, so the second one is where the case stops.
+        let refused = case(
+            "--TEST--\nboth bodies\n--FILE--\n<?nvs\necho 1;\n--POST--\na=1\n--POST_RAW--\na=1\n--EXPECT--\n1\n",
+        )
+        .expect_err("two spellings of one body");
+        assert_eq!(
+            refused.to_string(),
+            "line 8: `--POST--` and `--POST_RAW--` are two spellings of one body"
+        );
+    }
+
+    #[test]
+    fn a_request_field_is_refused_on_the_line_that_is_wrong() {
+        // The case is refused rather than the line dropped: a field that did
+        // not arrive is a different request, and the case would go on to pin
+        // the answer to it as though that were what it asked.
+        let refused = case(
+            "--TEST--\na bad field\n--FILE--\n<?nvs\necho 1;\n--HEADERS--\nAccept: text/plain\nX-Trace 7\n--EXPECT--\n1\n",
+        )
+        .expect_err("a header line with no `:`");
+        assert_eq!(
+            refused.to_string(),
+            "line 8: `--HEADERS--` is one `Name: value` per line, and this line has no `:`"
+        );
+
+        let refused = case(
+            "--TEST--\na bad field\n--FILE--\n<?nvs\necho 1;\n--COOKIE--\nsession\n--EXPECT--\n1\n",
+        )
+        .expect_err("a cookie line with no `=`");
+        assert_eq!(
+            refused.to_string(),
+            "line 7: `--COOKIE--` is one `NAME=value` per line, and this line has no `=`"
+        );
+    }
+
+    #[test]
+    fn a_case_that_wrote_no_request_section_answers_no_request() {
+        assert_eq!(case(MINIMAL).expect("it parses").request, None);
+
+        let refused = case(
+            "--TEST--\ntwo queries\n--FILE--\n<?nvs\necho 1;\n--GET--\na=1\nb=2\n--EXPECT--\n1\n",
+        )
+        .expect_err("a query string is one line");
+        assert_eq!(refused.to_string(), "line 6: `--GET--` is one line");
     }
 
     #[test]

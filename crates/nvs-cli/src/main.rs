@@ -232,6 +232,18 @@ enum Command {
         // `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
+        /// Answer the request this file describes, rather than run as a
+        /// program that is answering none.
+        ///
+        /// A flag and never an environment variable: whether a program is
+        /// answering a request decides what every `Core\Request` member does,
+        /// and a variable would make that a semantic change nothing at the
+        /// call site shows. `nvs-test` writes one of these files per `.nvst`
+        /// case that describes a request and owns the format
+        /// (`nvs_test::request`); written by hand, it is how a request is
+        /// reproduced without standing a listener up in front of it.
+        #[arg(long, value_name = "FILE")]
+        request: Option<PathBuf>,
         /// The program's own arguments, which `Core\Command::run()` matches
         /// against the program's compiled command table.
         ///
@@ -795,12 +807,14 @@ fn main() -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
+            request,
             arguments,
         } => run_run(
             &file,
             dump_ir,
             dump_asm,
             fault_inject,
+            request.as_deref(),
             &cli.config,
             arguments,
         ),
@@ -1374,11 +1388,32 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
     }
 }
 
+/// Builds the carrier `nvs run --request <file>` describes.
+///
+/// The format is `nvs-test`'s, because that crate writes these files for a
+/// `.nvst` case and a format has one home; this is its only reader. Field
+/// names arrive lower-cased from there, which is the shape a served request
+/// carries them in — a case that pinned `Accept` here would meet `accept` in
+/// production.
+fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> {
+    let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let wire = nvs_test::request::read(&text)?;
+    let mut inbound = nvs_runtime::Inbound::new(&wire.method, &wire.path, &wire.query);
+    for (name, value) in &wire.headers {
+        inbound.push_header(name, value.as_bytes());
+    }
+    if let Some(body) = wire.body {
+        inbound.set_buffered_body(body.into_bytes());
+    }
+    Ok(inbound)
+}
+
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
     dump_asm: bool,
     fault_inject: Option<FaultSiteArg>,
+    request: Option<&std::path::Path>,
     config: &[PathBuf],
     arguments: Vec<String>,
 ) -> ExitCode {
@@ -1512,6 +1547,19 @@ fn run_run(
     // match this entry file (`rule:config/every-matching-app-block-applies-least-specific-first`) and not of any block in the file.
     if let Some(origin) = snapshot.origin.clone() {
         ctx.set_origin(&origin);
+    }
+    // `--request`: the request is read off a file rather than off a socket,
+    // and that is the whole of the difference. From here down a program
+    // answering one is in the state `nvs serve` puts it in, which is what lets
+    // a `.nvst` case pin what `Core\Request` answers at all.
+    if let Some(file) = request {
+        match inbound_from(file) {
+            Ok(inbound) => ctx.set_inbound(inbound),
+            Err(error) => {
+                eprintln!("error: --request {}: {error}", file.display());
+                return ExitCode::FAILURE;
+            }
+        }
     }
     // The workers get their own handle on the same tree, taken before it is moved onto this
     // context: a job is an isolate resolved through `rule:security/capability-check-at-the-door`'s spawn door, that door asks the

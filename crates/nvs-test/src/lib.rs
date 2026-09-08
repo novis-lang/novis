@@ -31,6 +31,11 @@
 //! | `--INI--` | configuration for the run |
 //! | `--ARGS--` | the program's own arguments, one per line |
 //! | `--ENV--` | environment variables for the run, one `NAME=value` per line |
+//! | `--GET--` | the query string the case's request carries, on one line |
+//! | `--POST--` | that request's body as urlencoded pairs, on one line |
+//! | `--POST_RAW--` | that request's body verbatim |
+//! | `--COOKIE--` | its cookies, one `NAME=value` per line |
+//! | `--HEADERS--` | its header fields, one `Name: value` per line |
 //!
 //! The rest are Novis's own, among them the differential pair
 //! `docs/agent/loop-goal.md` names:
@@ -102,7 +107,8 @@
 //!
 //! The path is relative, `/`-separated on both legs, and may not hold a `.`
 //! or `..` segment or name one of the files the runner writes itself
-//! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `oracle.php`) — so a case cannot
+//! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `oracle.php`, `request.nvsr`) — so
+//! a case cannot
 //! reach outside the temporary directory it is given, and needs no sanitiser
 //! to say so. Repeating one path is a parse error, the way repeating any
 //! other section is.
@@ -141,6 +147,20 @@
 //! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
 //!
+//! The five request sections **are** honoured, and they are the one thing in
+//! this format that changes what the program under test *is*: a case writing
+//! `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` or `--HEADERS--` is
+//! answering a request, so `Core\Request`'s members read it back rather than
+//! throwing (`rule:security/request-state-throws-in-an-isolate`). The runner
+//! freezes the description beside the program and points `nvs run --request`
+//! at it — [`request`] owns that file, and the three facts a case does not
+//! write.
+//!
+//! Two refusals come with them. `--POST--` and `--POST_RAW--` together are
+//! refused rather than merged, since two spellings of one body cannot both be
+//! it; and describing a request at all rules out every `--RUN--` but the
+//! default, `nvs run` being the only subcommand that takes one.
+//!
 //! `--ENV--` **is** honoured: `Core\Env` is how a program reads back what the
 //! section set. Its pairs are added to the environment the runner already
 //! holds rather than replacing it, and both halves of a differential case get
@@ -160,6 +180,7 @@
 
 pub mod case;
 pub mod expect;
+pub mod request;
 pub mod run;
 pub mod section;
 

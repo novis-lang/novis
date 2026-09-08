@@ -133,11 +133,17 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         match run_nvs(
             opts,
             workdir,
-            "skipif.nvs",
-            source,
-            Subcommand::Run,
-            &[],
-            &case.env,
+            &Invocation {
+                name: "skipif.nvs",
+                source,
+                sub: Subcommand::Run,
+                // Scaffolding, not the thing under test: the request is the
+                // case's, and what decides whether to run the case at all must
+                // not be answering it.
+                request: None,
+                args: &[],
+                env: &case.env,
+            },
         ) {
             Err(error) => return Outcome::Fail(vec![format!("--SKIPIF--: {error}")]),
             Ok(output) => {
@@ -164,19 +170,44 @@ pub fn run_case(case: &Case, opts: &Options, workdir: &Path, php_available: bool
         let _ = run_nvs(
             opts,
             workdir,
-            "clean.nvs",
-            source,
-            Subcommand::Run,
-            &[],
-            &case.env,
+            &Invocation {
+                name: "clean.nvs",
+                source,
+                sub: Subcommand::Run,
+                request: None,
+                args: &[],
+                env: &case.env,
+            },
         );
     }
     outcome
 }
 
 fn judge(case: &Case, opts: &Options, workdir: &Path) -> Outcome {
+    // The child is a separate process, so a request reaches it as a file it is
+    // pointed at — `crate::request` owns that format and why it is a file
+    // rather than something in the environment.
+    let request = match &case.request {
+        None => None,
+        Some(request) => {
+            let at = workdir.join(crate::request::FILE_NAME);
+            if let Err(error) = fs::write(at, crate::request::render(request)) {
+                return Outcome::Fail(vec![format!("could not write the request: {error}")]);
+            }
+            Some(crate::request::FILE_NAME)
+        }
+    };
     let output = match run_nvs(
-        opts, workdir, "case.nvs", &case.file, case.run, &case.args, &case.env,
+        opts,
+        workdir,
+        &Invocation {
+            name: "case.nvs",
+            source: &case.file,
+            sub: case.run,
+            request,
+            args: &case.args,
+            env: &case.env,
+        },
     ) {
         Ok(output) => output,
         Err(error) => return Outcome::Fail(vec![format!("could not run the case: {error}")]),
@@ -272,25 +303,45 @@ fn write_aux(workdir: &Path, relative: &str, body: &str) -> io::Result<()> {
 /// way; whether it is also *named* on that command line is
 /// [`Subcommand::takes_file`]'s, since `nvs config dump` reads the working
 /// directory rather than a file on argv.
-fn run_nvs(
-    opts: &Options,
-    workdir: &Path,
-    name: &str,
-    source: &str,
+///
+/// [`Invocation::request`] names a file already written into `workdir`, and
+/// only the case's own program is ever given one — [`crate::case::parse`] is
+/// what makes sure the subcommand asked for can take it.
+struct Invocation<'a> {
+    /// What the source is written into the working directory as, and what is
+    /// named on the command line where the subcommand takes a file.
+    name: &'a str,
+    /// The program itself.
+    source: &'a str,
+    /// Which `nvs` subcommand it goes through.
     sub: Subcommand,
-    program_args: &[String],
-    env: &[(String, String)],
-) -> io::Result<Output> {
-    fs::write(workdir.join(name), source)?;
-    let mut args: Vec<&OsStr> = sub.args().iter().map(AsRef::as_ref).collect();
-    if sub.takes_file() {
-        args.push(name.as_ref());
+    /// The request file already written beside it, for the one subcommand that
+    /// reads one.
+    request: Option<&'a str>,
+    /// The program's own arguments, which go past the file.
+    args: &'a [String],
+    /// `--ENV--`, which both halves of a differential case get.
+    env: &'a [(String, String)],
+}
+
+fn run_nvs(opts: &Options, workdir: &Path, run: &Invocation<'_>) -> io::Result<Output> {
+    fs::write(workdir.join(run.name), run.source)?;
+    let mut args: Vec<&OsStr> = run.sub.args().iter().map(AsRef::as_ref).collect();
+    // Ahead of the file, because everything past the file is the program's
+    // own: a `--request` written the other side of it would be handed to the
+    // program as one of its arguments instead of read by `nvs run`.
+    if let Some(file) = run.request {
+        args.push("--request".as_ref());
+        args.push(file.as_ref());
+    }
+    if run.sub.takes_file() {
+        args.push(run.name.as_ref());
     }
     // Past the file, so `nvs run` reads none of them as its own — the same
     // boundary `nvs run`'s trailing arguments have on a real command line, and
     // the reason a case's arguments can name a `--dryRun` of their own.
-    args.extend(program_args.iter().map(|arg| arg.as_ref() as &OsStr));
-    spawn(&opts.nvs, &args, workdir, env, opts.timeout)
+    args.extend(run.args.iter().map(|arg| arg.as_ref() as &OsStr));
+    spawn(&opts.nvs, &args, workdir, run.env, opts.timeout)
 }
 
 /// Writes `source` into `workdir` as `oracle.php` and runs PHP on it.

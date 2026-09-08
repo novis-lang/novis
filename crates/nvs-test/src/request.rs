@@ -1,0 +1,314 @@
+//! The request a case answers, frozen into the file `nvs run --request` reads.
+//!
+//! A case's `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` and
+//! `--HEADERS--` describe a request, and the program answering it is a
+//! separate process ([`crate::run`]'s module doc owns why), so the description
+//! has to cross a process boundary. It crosses as a **file named on the
+//! command line** and never as an environment variable: whether a program is
+//! answering a request changes what every `Core\Request` member does, and a
+//! variable would make that a semantic change nothing at the call site shows.
+//!
+//! The file is written in the same `--NAME--` shape a case is, so there is no
+//! second parser here — [`crate::section`] is the one that reads both:
+//!
+//! ```text
+//! --METHOD--
+//! POST
+//! --PATH--
+//! /
+//! --QUERY--
+//! page=2&q=novis
+//! --HEADERS--
+//! accept: application/json
+//! cookie: session=abc123
+//! content-type: application/x-www-form-urlencoded
+//! content-length: 20
+//! --BODY--
+//! name=ada&role=author
+//! ```
+//!
+//! `--BODY--` comes last and is read **verbatim** — everything past its header
+//! line to the end of the file, never lexed. A body is arbitrary octets and a
+//! multipart one is made of `--` lines, so a body that happened to hold a line
+//! reading as a header would otherwise cut the file in half. Taking the
+//! remainder rather than a section makes that impossible rather than unlikely.
+//!
+//! ## What a case does not write, and where it comes from
+//!
+//! Three facts a request has that no `.nvst` section spells, derived here and
+//! nowhere else: the method is `POST` where the case gave a body and `GET`
+//! where it did not, the path is `/`, and the query is `--GET--`'s line or
+//! empty. A file written by hand says whatever it likes for all three, which
+//! is what makes `nvs run --request` worth having on its own — a request is
+//! reproduced without standing a listener up in front of it.
+//!
+//! `--COOKIE--`'s pairs are joined into the one `cookie` field a peer would
+//! have sent, because the wire has no cookie of its own — only a header — and
+//! `content-type` and `content-length` are written for a body the case did not
+//! describe itself. Every name is lower-cased, which is what a served request
+//! carries (`nvs_runtime::Inbound`'s names come off `hyper`, already
+//! normalised), so a case cannot pin one shape here and meet the other in
+//! production.
+
+use crate::case::{Body, Request};
+use crate::section;
+
+/// The name a runner writes this file under, in the case's own directory.
+pub const FILE_NAME: &str = "request.nvsr";
+
+/// A request as the file describes it, ready to be built into a carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wire {
+    /// The verb as it would arrive on the wire.
+    pub method: String,
+    /// The path, already without any query string.
+    pub path: String,
+    /// Everything past the `?`, undecoded, and empty where there was none.
+    pub query: String,
+    /// One entry per field line, lower-cased, in the order written.
+    pub headers: Vec<(String, String)>,
+    /// The body, or `None` where the request carries none — which is not the
+    /// same state as an empty one (RFC 9110 § 8.6), and the two reach a
+    /// program differently.
+    pub body: Option<String>,
+}
+
+/// Renders the request `case` describes as the file `nvs run --request` reads.
+#[must_use]
+pub fn render(case: &Request) -> String {
+    let body = case.body.as_ref().map(|body| match body {
+        Body::Form(pairs) => pairs.clone(),
+        Body::Raw(raw) => raw.clone(),
+    });
+    let mut text = String::from("--METHOD--\n");
+    text.push_str(if body.is_some() { "POST\n" } else { "GET\n" });
+    text.push_str("--PATH--\n/\n--QUERY--\n");
+    text.push_str(case.query.as_deref().unwrap_or(""));
+    text.push_str("\n--HEADERS--\n");
+    for (name, value) in &case.headers {
+        field(&mut text, name, value);
+    }
+    if !case.cookies.is_empty() {
+        let pairs: Vec<String> = case
+            .cookies
+            .iter()
+            .map(|(name, value)| format!("{name}={value}"))
+            .collect();
+        field(&mut text, "cookie", &pairs.join("; "));
+    }
+    if let Some(body) = &body {
+        // Only where the case did not describe the body itself: `--POST--`
+        // says what its content type is by being urlencoded pairs, and a
+        // length is a fact about the octets rather than a choice — but a case
+        // that wrote either line meant it, and a field written twice is a
+        // field that can disagree with itself.
+        if matches!(case.body, Some(Body::Form(_))) && !carries(&case.headers, "content-type") {
+            field(
+                &mut text,
+                "content-type",
+                "application/x-www-form-urlencoded",
+            );
+        }
+        if !carries(&case.headers, "content-length") {
+            field(&mut text, "content-length", &body.len().to_string());
+        }
+        text.push_str("--BODY--\n");
+        text.push_str(body);
+    }
+    text
+}
+
+/// Reads a rendered request back.
+///
+/// # Errors
+///
+/// Returns the one-line reason, already phrased for a terminal: an unknown or
+/// repeated section, a missing `--METHOD--` or `--PATH--`, or a header line
+/// that is not a field.
+pub fn read(text: &str) -> Result<Wire, String> {
+    // The body is the rest of the file rather than a section, which is this
+    // format's one deviation from the shape and the module doc's reason for
+    // it. Split first, so nothing in a body is ever handed to the lexer.
+    let mut head = String::new();
+    let mut body = None;
+    let mut lines = text.split_inclusive('\n');
+    for line in &mut lines {
+        if line.trim_end() == "--BODY--" {
+            body = Some(lines.collect());
+            break;
+        }
+        head.push_str(line);
+    }
+
+    let sections = section::lex(&head)
+        .map_err(|stray| format!("line {}: text before `--METHOD--`", stray.line))?;
+    let (mut method, mut path, mut query) = (None, None, None);
+    let mut headers = Vec::new();
+    for seen in &sections {
+        let (name, at) = (seen.name.as_str(), seen.line);
+        if seen.arg.is_some() {
+            return Err(format!("line {at}: `--{name}--` takes no argument"));
+        }
+        let slot = match name {
+            "METHOD" => &mut method,
+            "PATH" => &mut path,
+            "QUERY" => &mut query,
+            "HEADERS" => {
+                for (offset, line) in seen.body.lines().enumerate() {
+                    let line = line.trim();
+                    if line.is_empty() {
+                        continue;
+                    }
+                    let at = at + 1 + offset;
+                    let Some((field, value)) = line.split_once(':') else {
+                        return Err(format!("line {at}: `{line}` is not a header field"));
+                    };
+                    let field = field.trim();
+                    if field.is_empty() {
+                        return Err(format!("line {at}: a header field with no name"));
+                    }
+                    headers.push((field.to_ascii_lowercase(), value.trim_start().to_owned()));
+                }
+                continue;
+            }
+            other => return Err(format!("line {at}: unknown section `--{other}--`")),
+        };
+        if slot.is_some() {
+            return Err(format!("line {at}: `--{name}--` appears twice"));
+        }
+        *slot = Some(seen.body.trim().to_owned());
+    }
+
+    let (Some(method), Some(path)) = (method, path) else {
+        return Err("a request states its `--METHOD--` and its `--PATH--`".to_owned());
+    };
+    if method.is_empty() {
+        return Err("`--METHOD--` is empty".to_owned());
+    }
+    if !path.starts_with('/') {
+        return Err(format!(
+            "`--PATH--` is a path and starts with `/`, not `{path}`"
+        ));
+    }
+    Ok(Wire {
+        method,
+        path,
+        query: query.unwrap_or_default(),
+        headers,
+        body,
+    })
+}
+
+/// Writes one header field line, with the name in the shape a served request
+/// carries it in.
+fn field(text: &mut String, name: &str, value: &str) {
+    text.push_str(&name.to_ascii_lowercase());
+    text.push_str(": ");
+    text.push_str(value);
+    text.push('\n');
+}
+
+/// Whether a field of this name is already written, compared the way RFC 9110
+/// § 5.1 compares one.
+fn carries(headers: &[(String, String)], name: &str) -> bool {
+    headers
+        .iter()
+        .any(|(field, _)| field.eq_ignore_ascii_case(name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_case_describing_a_request_renders_what_a_peer_would_have_sent() {
+        // The derivations are the point of the assertion: a body makes the
+        // verb `POST`, `--COOKIE--`'s pairs are one joined field, and the two
+        // facts about the octets are written because the case did not.
+        let rendered = render(&Request {
+            query: Some("page=2&q=novis".to_owned()),
+            body: Some(Body::Form("name=ada".to_owned())),
+            cookies: vec![
+                ("session".to_owned(), "abc123".to_owned()),
+                ("theme".to_owned(), "dark".to_owned()),
+            ],
+            headers: vec![("Accept".to_owned(), "application/json".to_owned())],
+        });
+        let wire = read(&rendered).expect("it reads back");
+        assert_eq!(wire.method, "POST");
+        assert_eq!(wire.path, "/");
+        assert_eq!(wire.query, "page=2&q=novis");
+        assert_eq!(
+            wire.headers,
+            [
+                ("accept".to_owned(), "application/json".to_owned()),
+                ("cookie".to_owned(), "session=abc123; theme=dark".to_owned()),
+                (
+                    "content-type".to_owned(),
+                    "application/x-www-form-urlencoded".to_owned()
+                ),
+                ("content-length".to_owned(), "8".to_owned()),
+            ]
+        );
+        assert_eq!(wire.body.as_deref(), Some("name=ada"));
+    }
+
+    #[test]
+    fn a_request_with_no_body_carries_none_rather_than_an_empty_one() {
+        let wire = read(&render(&Request {
+            query: None,
+            body: None,
+            cookies: Vec::new(),
+            headers: Vec::new(),
+        }))
+        .expect("it reads back");
+        assert_eq!(wire.method, "GET");
+        assert_eq!(wire.query, "");
+        assert!(wire.headers.is_empty());
+        assert_eq!(wire.body, None);
+    }
+
+    #[test]
+    fn a_body_holding_a_line_that_reads_as_a_header_survives_it() {
+        // The whole reason `--BODY--` is the rest of the file: a multipart
+        // body is made of `--` lines, and one of them reading as a section
+        // would cut the request in half and lose the rest of the body.
+        let raw = "--PATH--\nnot a section at all\n--METHOD--\n";
+        let wire = read(&render(&Request {
+            query: None,
+            body: Some(Body::Raw(raw.to_owned())),
+            cookies: Vec::new(),
+            headers: vec![("Content-Type".to_owned(), "text/plain".to_owned())],
+        }))
+        .expect("it reads back");
+        assert_eq!(wire.body.as_deref(), Some(raw));
+        assert_eq!(wire.path, "/");
+        assert_eq!(
+            wire.headers,
+            [
+                ("content-type".to_owned(), "text/plain".to_owned()),
+                ("content-length".to_owned(), raw.len().to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_request_that_does_not_describe_one_is_refused() {
+        assert_eq!(
+            read("--PATH--\n/\n").expect_err("no method"),
+            "a request states its `--METHOD--` and its `--PATH--`"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--WHAT--\n?\n").expect_err("an unknown section"),
+            "line 5: unknown section `--WHAT--`"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--HEADERS--\naccept\n").expect_err("not a field"),
+            "line 6: `accept` is not a header field"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\nusers\n").expect_err("not a path"),
+            "`--PATH--` is a path and starts with `/`, not `users`"
+        );
+    }
+}

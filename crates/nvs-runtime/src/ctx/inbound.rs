@@ -577,6 +577,23 @@ impl Inbound {
     pub fn set_body(&mut self, body: Box<dyn RequestBody>) {
         self.body = Some(body);
     }
+    /// Gives this carrier a body that is already whole in memory.
+    ///
+    /// The one supplier that is not a socket: `nvs run --request` reads a
+    /// frozen request off disk, so the octets exist before the program does
+    /// and there is no stream left to pull them from. Empty octets are a body
+    /// that is present and empty, which [`Self::set_body`] describes as the
+    /// other state from carrying none.
+    ///
+    /// **What it spends**, on `rule:programs/memory-priority`'s ledger: the
+    /// whole body resident for the request rather than one chunk of it,
+    /// bounded by the file it was read out of — an operator's own file and
+    /// never a peer's stream, which is why
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s caps
+    /// have nothing to hold back here.
+    pub fn set_buffered_body(&mut self, body: Vec<u8>) {
+        self.set_body(Box::new(Buffered { body, at: 0 }));
+    }
     /// The body, to pull chunks from — `None` where the request carried none.
     ///
     /// **A borrow rather than a take, and a mutable one**, which is the whole
@@ -1014,6 +1031,27 @@ pub trait RequestBody {
     /// ends the body**: nothing may be pulled after one, and a supplier that
     /// answered one has already given up on the connection.
     fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>>;
+}
+
+/// A [`RequestBody`] whose octets are already held, which is what
+/// [`Inbound::set_buffered_body`] hands over.
+///
+/// One chunk and then the end, because there is no wire to have split them:
+/// chunk boundaries mean nothing to a reader, so the whole body is as valid a
+/// division as any other and it is the one that copies nothing.
+struct Buffered {
+    body: Vec<u8>,
+    at: usize,
+}
+
+impl RequestBody for Buffered {
+    fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
+        if self.at == self.body.len() {
+            return Ok(None);
+        }
+        self.at = self.body.len();
+        Ok(Some(&self.body))
+    }
 }
 
 #[cfg(test)]

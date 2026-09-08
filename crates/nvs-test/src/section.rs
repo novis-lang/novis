@@ -69,8 +69,10 @@ pub fn lex(text: &str) -> Result<Vec<Section>, StrayText> {
 /// Returns a header's section name and its argument, if `line` is a header.
 ///
 /// A header is `--NAME--` or `--NAME argument--`; the name is uppercase ASCII,
-/// digits and `-` alone, so a body line that merely contains dashes is not
-/// read as one.
+/// digits, `-` and `_` alone, so a body line that merely contains dashes is
+/// not read as one. `_` is in the set because `.phpt` spells one of its own
+/// sections `--POST_RAW--`, and a name this cannot lex is a name no format
+/// built on it can accept.
 pub fn header(line: &str) -> Option<(&str, Option<&str>)> {
     let line = line.trim_end();
     let inner = line.strip_prefix("--")?.strip_suffix("--")?;
@@ -81,7 +83,7 @@ pub fn header(line: &str) -> Option<(&str, Option<&str>)> {
     if name.is_empty()
         || !name
             .chars()
-            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-')
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-' || c == '_')
     {
         return None;
     }
@@ -117,6 +119,15 @@ mod tests {
         assert_eq!(sections[1].arg.as_deref(), Some("lib/helper.nvs"));
         assert_eq!(sections[1].line, 3);
         assert_eq!(sections[1].body, "<?nvs\n");
+    }
+
+    #[test]
+    fn a_section_name_may_carry_an_underscore() {
+        // `.nvst` is a superset of `.phpt`, which spells one section
+        // `--POST_RAW--`, so the charset here is the whole of what makes that
+        // name reachable at all — a lower-case one is still not a header.
+        assert_eq!(header("--POST_RAW--"), Some(("POST_RAW", None)));
+        assert_eq!(header("--post_raw--"), None);
     }
 
     #[test]
