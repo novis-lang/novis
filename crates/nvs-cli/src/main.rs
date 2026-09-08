@@ -1393,10 +1393,10 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
 /// a union of string literals renders as a type nothing would convert, and its
 /// admitted set is the whole of what § 5 narrows with. Everything the runtime
 /// has no arm for is `Unconverted` rather than silently `Text`, so the gap is
-/// one an arm closes rather than a behaviour somebody has to notice — except a
-/// class implementing `Parses`, where whether a match may call a compiled
-/// `parse` at all is the open question
-/// `nvs_runtime::commands::ArgConv::Parses` states.
+/// one an arm closes rather than a behaviour somebody has to notice. A class
+/// implementing `Parses` is its own arm and carries its own name, so the
+/// crossing can reach the `parse` this walk may not —
+/// `nvs_runtime::routes::CaptureConv::Parses` is the home of that split.
 fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureConv {
     use nvs_runtime::routes::CaptureConv;
 
@@ -1414,6 +1414,10 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
         // A capture is always `tainted`, and both spellings render for one
         // declared `string` depending on where the qualifier was written.
         Some("string" | "tainted string") | None => CaptureConv::Text,
+        // Below the `Core\Uuid` arm on purpose: that class implements `Parses`
+        // too, so a rule reading the interface alone would take the one type
+        // the engine ships off the match and defer it to the crossing.
+        Some(class) if param.parses => CaptureConv::Parses(class.to_owned()),
         Some(_) => CaptureConv::Unconverted,
     }
 }

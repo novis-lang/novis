@@ -353,13 +353,24 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
     ret: "The verbs, once each: an empty array where no route claims the path at all — the `404` \
           — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a \
           terminal `{name?}` answer the same verbs, and a path whose capture will not convert is \
-          claimed by nobody.",
+          claimed by nobody — which is the conversions the matcher itself performs, since a capture \
+          typed at any other class built from text matches on shape and refuses later.",
     errors: &[],
 };
 
 /// `Core\Router\Match`'s fully-qualified name, written once so the registry row
 /// and every message quoting it cannot drift apart.
 pub(crate) const MATCH_NAME: &str = r"Core\Router\Match";
+
+/// The global interface every class built from text implements, as
+/// `nvs_hir::interfaces` declares it.
+///
+/// Written out rather than reached for, which is `registry.rs`'s
+/// `EXCEPTION_TREE` reasoning unchanged: this crate does not depend on
+/// `nvs-hir`, and the two rosters a `CoreTy::Instance` may name beyond
+/// [`crate::registry::CLASSES`] are both short written lists whose only way of
+/// being wrong is caught by the conformance case that calls the member.
+pub(crate) const PARSES_NAME: &str = "Parses";
 
 /// [`MATCH`]'s slots, in the order [`match_value`] fills them.
 const MATCH_ROUTE_NAME: usize = 0;
@@ -384,12 +395,21 @@ const MATCH_PARAMS: usize = 1;
 /// [`nvs_runtime::routes::CaptureConv`] currently stands. A `decimal` and a
 /// `Core\Uuid` are the two that joined it once the parses reached the crate the
 /// walk is in; a `bool` and an `enum` have not.
+///
+/// **The last member is an interface rather than a class**, and it is the one
+/// the matcher does *not* convert: a capture typed as any other class built
+/// from text is whatever that class's own `parse` answered at
+/// [`capture_value`], and no registered class names that set. Writing
+/// `Core\Uuid` beside it is not redundancy — that class implements the same
+/// interface, and the point of naming it is that the *router* reads it, so a
+/// segment it refuses never matched at all.
 const CAPTURE: &CoreTy = &CoreTy::Union(&[
     CoreTy::TaintedStr,
     CoreTy::Int,
     CoreTy::Uint,
     CoreTy::Decimal,
     CoreTy::Instance(crate::uuid::NAME),
+    CoreTy::Instance(PARSES_NAME),
 ]);
 
 /// `rule:routing/matched-once-before-the-handler`
@@ -482,7 +502,10 @@ const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     ret: "An array of the captures. A `{name}` declared `string` answers `tainted string` and is \
           still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\\Uuid` answers the \
           value the match already converted, and a segment that would not convert never matched \
-          the route at all. A route with no captures answers an empty array.",
+          the route at all. One declared at any other class implementing `Parses` answers what \
+          that class's own `parse` made of the segment, which runs when this match is read: it \
+          matched on shape, so a segment the class refuses throws here rather than sending the \
+          request to another route. A route with no captures answers an empty array.",
     errors: &[],
 };
 
@@ -821,10 +844,14 @@ nvs_runtime::nvs_helper! {
 /// [`capture_value`]'s throw, whose doc owns the decode this walk performs. The
 /// partly built array is released by its own `Drop` on the way out, so a
 /// refused capture costs the ones already converted and nothing else.
-pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Result<Value, Fault> {
+pub(crate) fn match_value(
+    ctx: &mut nvs_runtime::Ctx,
+    matched: &nvs_runtime::routes::Match,
+) -> Result<Value, Fault> {
     let mut params = NvsArray::new();
     for (name, capture) in matched.params() {
-        params.set(NvsStr::new(name.as_bytes()), capture_value(name, capture)?);
+        let value = capture_value(ctx, name, capture)?;
+        params.set(NvsStr::new(name.as_bytes()), value);
     }
     Ok(crate::instance::build(
         &MATCH,
@@ -921,8 +948,13 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        match ctx.routes().and_then(|table| table.match_request(verb, path)) {
-            Some(matched) => match_value(&matched),
+        // Bound before the crossing rather than matched inside it: the walk
+        // borrows the table the context holds, and [`match_value`] needs the
+        // context itself to reach a capture's class, so the answer has to be
+        // owned by the time it is handed over.
+        let matched = ctx.routes().and_then(|table| table.match_request(verb, path));
+        match matched {
+            Some(matched) => match_value(ctx, &matched),
             None => Ok(Value::null()),
         }
     }
@@ -973,7 +1005,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// One capture as [`CAPTURE`] spells it — the one place
-/// [`nvs_runtime::routes::Param`]'s five forms become Novis values.
+/// [`nvs_runtime::routes::Param`]'s six forms become Novis values.
 ///
 /// The `Core\Uuid` arm allocates an instance, which is why it is this crate's:
 /// the octets crossed as bytes precisely so that the class stays where it is
@@ -999,12 +1031,29 @@ nvs_runtime::nvs_helper! {
 /// capture had already lost, and answering `bytes` would widen [`CAPTURE`] to a
 /// type the route declaration cannot spell.
 ///
+/// # This is where a capture typed as a class built from text converts
+///
+/// The decode above is the first half of what that arm needs and the class's
+/// own `parse` is the second, so the two run here in that order and nowhere
+/// else. [`nvs_runtime::routes::CaptureConv::Parses`] is the home of why the
+/// matcher may not make the call: it runs at the door with no program
+/// installed, ahead of everything that rate-limits a request. By the time this
+/// runs the route has already matched, so a segment the class refuses is not a
+/// failed match — it is [`parsed`]'s throw over a route that claimed the path,
+/// which is `rule:security/route-capture-is-laundered-by-its-type`'s
+/// class-typed exception and the `400` a handler answers it with.
+///
 /// # Errors
 ///
-/// That throw, and only from the text arm: no other conversion the matcher
-/// performs has an encoded spelling to decode — a digit, a `-` and a hex digit
-/// are all unreserved bytes.
-fn capture_value(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Value, Fault> {
+/// That throw, from the text arm and from the class-typed one, which decodes
+/// the same way: no other conversion the matcher performs has an encoded
+/// spelling to decode — a digit, a `-` and a hex digit are all unreserved
+/// bytes. Plus whatever the class itself threw, unchanged, per [`parsed`].
+fn capture_value(
+    ctx: &mut nvs_runtime::Ctx,
+    name: &str,
+    capture: &nvs_runtime::routes::Param,
+) -> Result<Value, Fault> {
     Ok(match capture {
         nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(
             crate::uri::decode_capture(text, name)?.as_bytes(),
@@ -1013,7 +1062,56 @@ fn capture_value(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Val
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
         nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
+        nvs_runtime::routes::Param::Parses { class, text } => {
+            let text = Value::str(NvsStr::new(
+                crate::uri::decode_capture(text, name)?.as_bytes(),
+            ));
+            parsed(ctx, class, text)?
+        }
     })
+}
+
+/// What `class`'s own `parse` made of one decoded segment — the binding site
+/// [`nvs_runtime::routes::CaptureConv::Parses`] defers to.
+///
+/// `crate::command`'s `parse_each` is the same reach one table along, and the
+/// two answer a refusal differently on purpose: a command line is a person
+/// typing, so a word the class refused becomes the sentence a usage page leads
+/// with, while a request has already matched a route by the time this runs and
+/// the throw is what a handler answers `400` with. The throw is the class's
+/// own and travels unchanged, so what a program catches is the sentence the
+/// implementor wrote.
+///
+/// # Errors
+///
+/// The class's own throw, and a [`Fault::fatal`] for a class this program's
+/// table does not hold — unreachable from source, since a capture at a class
+/// that does not implement `Parses` is refused at the signature, and one that
+/// does owes `parse` to `nvs_types::conformance` before a route row naming it
+/// is ever built.
+fn parsed(ctx: &mut nvs_runtime::Ctx, class: &str, text: Value) -> Result<Value, Fault> {
+    let outcome = nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[text]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns the one reference `text` holds, and `call_static` \
+                  retained its own for the callee to release"
+    )]
+    unsafe {
+        text.release();
+    }
+    match outcome {
+        Ok(Some(value)) => Ok(value),
+        // Unreachable from source, on `crate::command`'s `parse_each` terms
+        // exactly: `E0746` refuses a capture at a class that does not implement
+        // `Parses`, and one that does owes `parse` to `nvs_types::conformance`
+        // before a route row naming it is ever built. A miss here is a class
+        // table that does not match the route table built beside it, which no
+        // program can write its way into.
+        Ok(None) => Err(Fault::fatal(format!(
+            "internal error: `{class}::parse` is not in this program's class table"
+        ))),
+        Err(fault) => Err(fault),
+    }
 }
 
 /// Slot `index` of a [`MATCH`] receiver, retained for the caller — the shape
@@ -1043,7 +1141,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::params(): array<tainted string|int|uint|decimal|Core\Uuid>`
+    /// `Core\Router\Match::params(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>`
     /// — every capture the path filled, keyed by the parameter it binds.
     ///
     /// The array is built once by [`match_value`] and read back here, so the
@@ -1054,7 +1152,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid)`
+    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
     /// — [`nvs_core_router_match_params`] read at one key.
     ///
     /// **`null` for a name the route does not declare**, rather than a throw,
@@ -1109,7 +1207,8 @@ mod tests {
     /// The text a capture becomes, or the message it refused with — the seam
     /// [`capture_value`] is, read back as something a case can assert.
     fn crossed(name: &str, capture: &Param) -> Result<String, String> {
-        match capture_value(name, capture) {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        match capture_value(&mut ctx, name, capture) {
             Ok(value) => Ok(String::from_utf8(
                 value
                     .as_str_bytes()
@@ -1160,13 +1259,17 @@ mod tests {
     /// all, because no digit has an encoded spelling.
     #[test]
     fn a_uint_capture_is_unchanged_by_the_decode() {
-        let crossed = capture_value("n", &Param::Uint(20)).expect("a number refuses nothing");
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let crossed =
+            capture_value(&mut ctx, "n", &Param::Uint(20)).expect("a number refuses nothing");
         assert_eq!(crossed.as_uint(), Some(20));
-        let big = capture_value("n", &Param::Uint(u64::MAX)).expect("a number refuses nothing");
+        let big =
+            capture_value(&mut ctx, "n", &Param::Uint(u64::MAX)).expect("a number refuses nothing");
         assert_eq!(big.as_uint(), Some(u64::MAX));
         // The same is true of every other converted arm — the text arm is the
         // only one with an escape to read.
-        let signed = capture_value("n", &Param::Int(-7)).expect("a number refuses nothing");
+        let signed =
+            capture_value(&mut ctx, "n", &Param::Int(-7)).expect("a number refuses nothing");
         assert_eq!(signed.as_int(), Some(-7));
     }
 

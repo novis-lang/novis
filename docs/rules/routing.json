@@ -200,7 +200,8 @@
       "status": "designed",
       "because": [
         "0102",
-        "0077"
+        "0077",
+        "0160"
       ],
       "divergesFromPhp": "a bad query value is refused with a 400 before the handler sees it, instead of arriving as a string the handler casts and checks",
       "seeAlso": [

@@ -116,9 +116,9 @@ pub enum ArgConv {
     /// already makes to a regex constraint, and a `parse` body is strictly more
     /// than a regex. So the router narrows on the conversions it reads natively
     /// and a route capture converts at its binding site, where a segment the
-    /// class refuses is a `400`;
-    /// [`crate::routes::CaptureConv::Unconverted`] carries the segment until
-    /// that site exists, converting nothing and refusing nothing.
+    /// class refuses is a `400`; [`crate::routes::CaptureConv::Parses`] is this
+    /// arm's other half, carrying the segment and the class to that site and
+    /// converting nothing on the way.
     Parses(String),
     /// § 3's closed set: the word each member of a union of literal types
     /// admits, in the order the union declares them, and a usage error for

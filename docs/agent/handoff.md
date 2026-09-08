@@ -2,56 +2,50 @@
 
 ## State
 
-**Goal 19 — a class a string names, at one contract. Stage 5 has landed on the document side; the
-binding site is what the goal still owes.** The tree is green (`verify.py`, 8 of 8).
+**Goal 19 — the binding site has landed; the runnable fixture is what the goal still owes.** A route
+capture declared at a class implementing `Parses` other than `Core\Uuid` now matches on shape, crosses
+carrying its class name, and converts where the match reaches the program: a segment the class refuses
+throws there, over a route that did match, which a handler answers `400`. ADR 0160 and the two rule
+edits it names landed in the same commit.
 
-**The generated API document answers a capture at a `Parses` class with a bare `{"type": "string"}`.**
-`crates/nvs-cli/src/openapi.rs:390`'s arm is it, and it sits *below* the `Core\Uuid` name arm on
-purpose: `Core\Uuid` implements the same contract, so a rule reading the contract alone would drop
-`format: uuid` from the one type the engine ships. The `schema` function's doc comment is the home of
-why a class may not name its own format.
+**The crossing is `crates/nvs-stdlib/src/router.rs`'s `capture_value` and `parsed`.** Both take a
+`&mut Ctx` now, so `match_value` does too, and `Core\Request::route()` takes its match off the carrier
+by clone rather than by borrow — the doc comment on that member says what it spends.
+`Core\Router\Match::params` answers `array<tainted string|int|uint|decimal|Core\Uuid|Parses>`; the last
+member is an interface, admitted by a new `GLOBAL_INTERFACES` roster beside `EXCEPTION_TREE` in
+`crates/nvs-stdlib/src/registry.rs`'s gate.
 
-**The row is what tells a class from an enum, because the rendering cannot.**
-`crates/nvs-types/src/routes.rs`'s `RouteParam::parses` is a sixth field, set at both builders — the
-capture walk and the `#[Query]` walk — from `crate::commands::is_parses_class`, which is
-`converts_from_string`'s class arm asked on its own. An enum keeps the empty schema, because its case
-spellings are `Core\Router::match`'s to decide and are not decided yet; a union of literal types keeps
-its bare `enum` with no `type` beside it, which `openapi.rs`'s existing doc owns.
-
-**What the goal still owes**, all of it in the next group: the binding site
-(`crates/nvs-runtime/src/routes.rs:76`, gap 3), the class-typed exception in
-`rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-bad-query-value-is-a-400`,
-ADR 0160 — the rules and the record being one commit, and that commit being the one that writes the
-binding site — and `examples/parses.nvs`, which is stage 5's `exact` check and the acceptance failure
-the driver has been reporting. `docs/novis.md:14048`'s "a path whose capture will not convert is
-claimed by nobody" goes stale the same day.
+**Two things the goal names are still open, and neither is the binding site.** The `#[Query]` half of
+`rule:routing/a-bad-query-value-is-a-400` binds nothing at all — the fixture's `tag is absent` and
+`tag is release-notes` lines cannot come from a bound `#[Query]` parameter today. And stage 4's own
+`cargo-named` checks name five `-p nvs-runtime` tests that do not exist, one of which
+(`a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value`) states the answer this goal's
+§ *Standing decisions* settled the other way; it is a check name to amend, not work to do.
 
 ## Next group
 
-**Stage 5: the binding site, and the fixture that proves it** — one file set:
-`crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/commands.rs`,
-`crates/nvs-stdlib/src/router.rs`, `examples/parses.nvs`.
+**Stage 5: the runnable fixture and what the acceptance check needs to run it** — one file set:
+`examples/parses.nvs`, `docs/agent/loop-goal.toml`, `crates/nvs-stdlib/src/router.rs`.
 
-- [ ] **A capture typed at a `Parses` class converts at the binding site, and a segment the class
-      refuses is a `400`** — `crates/nvs-runtime/src/routes.rs:76` is gap 3, which states what is
-      missing and what is settled; `crates/nvs-runtime/src/commands.rs:122` is `ArgConv::Parses`, the
-      one home of what reaching a compiled `parse` costs and the route this must copy; and
-      `crates/nvs-stdlib/src/router.rs:1015` is where a `Param` crosses to the program today. The rule
-      edits to `rule:security/route-capture-is-laundered-by-its-type` and
-      `rule:routing/a-bad-query-value-is-a-400`, and ADR 0160 behind them, are **this same commit** —
-      the goal's § *Standing decisions* says so, and `conventions.md` § *A decision record* is why.
-- [ ] **`examples/parses.nvs`, stage 5's `exact` check** — five `want` lines under `nvs run --request`,
-      the last two pinning that a class refuses in a different place than the router does.
-      `crates/nvs-cli/tests/fixtures/api/parses.nvs` is a compiling `implements Parses` class to copy
-      the shape from; `crates/nvs-runtime/src/routes.rs:424` is the native `Core\Uuid` arm whose
-      refusal is the `404` half.
+- [ ] **`examples/parses.nvs`, and the leg argument that gives it a request** — the check at
+      `docs/agent/loop-goal.toml:5921` carries no `args`, so `tools/loop.py`'s `program_check` runs
+      `nvs run examples/parses.nvs` with no request at all and `Core\Request::route()` refuses through
+      `crates/nvs-stdlib/src/request.rs:1690`'s `inbound_of`. Either add
+      `args = ["--request", "examples/parses.nvsr"]` beside the `want` list its comment already
+      describes, or write the fixture against `Core\Router::match` at
+      `crates/nvs-stdlib/src/router.rs:913`, which takes the same walk and needs no request. The two
+      `tag is …` lines need a decision either way: nothing binds a `#[Query]` parameter yet, so they
+      can only come from `Core\Request::query()` read by hand.
+- [ ] **The three conformance cases stage 4 names** — `a-class-that-parses-stands-where-a-uuid-stands`,
+      `a-segment-the-class-refuses-never-reaches-the-handler` and
+      `a-class-claiming-the-contract-owes-its-one-member`, under `tests/conformance/core/`. The shapes
+      are `crates/nvs-stdlib/src/router.rs:1007`'s arm read three ways; `rule:expressions/try-parse`
+      is what the third pins.
 
 ## Backlog
 
-- ADR 0160 is the one number this goal may open — `docs/decisions/`, next free re-checked at the file.
-- `docs/novis.md:14048`'s `Core\Router::methodsFor` sentence, stale the day the binding site lands.
-- The `[context] rules` manifest in `docs/agent/loop-goal.toml` is missing
-  `attributes/api-adds-and-cannot-contradict`, which stage 5's own item names as what the document
-  owes; add it before the next document slice.
-- `crates/nvs-cli/tests/fixtures/api/` is not enumerated by anything, so a new fixture there costs no
-  registration — `docs/agent/handoff.md` is the wrong home for that if it recurs.
+- Stage 4's five `-p nvs-runtime` check names have no tests and one contradicts the goal's standing
+  decision — `docs/agent/loop-goal.toml:5893`.
+- `#[Query]` binding converts nothing — `rule:routing/a-bad-query-value-is-a-400`.
+- The `Parses` roster entries in `docs/novis.md`'s two prose lists — `docs/agent/loop-goal.md` stage 5.
+- The diagnostic corpus stage 5 names — `docs/agent/loop-goal.md` stage 5 item 3.

@@ -922,7 +922,8 @@
       "because": [
         "0077",
         "0024",
-        "0102"
+        "0102",
+        "0160"
       ],
       "seeAlso": [
         "security/taint-propagation",

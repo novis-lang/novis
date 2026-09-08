@@ -34,6 +34,17 @@
 //! match, which is why the walk continues to the next row rather than answering
 //! with a row whose capture it could not fill.
 //!
+//! **A capture typed as a class built from text is the one exception, and it is
+//! not a conversion this walk performs.** [`CaptureConv::Parses`] matches on
+//! shape and carries the segment with the class that claims it, because this
+//! walk runs at the door with no program installed and reaching a compiled
+//! `parse` here would put an implementor's body over every request URL ahead of
+//! anything that rate-limits it. Such a capture converts where the match
+//! crosses into the program, and a segment the class refuses throws there — a
+//! `400` over a route that did match, rather than the `404` a failed conversion
+//! leads to. `rule:security/route-capture-is-laundered-by-its-type` is the home
+//! of the split and of what it costs.
+//!
 //! Where two rows both match, the one that is *more literal earlier* wins:
 //! every row carries a rank — one byte per segment, literal below capture below
 //! optional below catch-all — and the smallest rank in load order is the answer.
@@ -44,8 +55,9 @@
 //! one `String` per row's verb, path, name, handler and access decision — tens
 //! of them for an application, and nothing at all for a program that declares no
 //! route. A *matched* request holds one `Arc` bump on the row plus one `String`
-//! per capture, which is the segment text it converted. O(in-flight requests),
-//! per `rule:programs/memory-priority`.
+//! per capture, which is the segment text it converted, and a second `String`
+//! for a capture typed as a class built from text, which is that class's own
+//! name. O(in-flight requests), per `rule:programs/memory-priority`.
 //!
 //! **A capture leaves this crate as the segment arrived, still
 //! percent-encoded**, and is decoded once on the far side of the crossing.
@@ -73,19 +85,6 @@
 //!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
-//! 3. **A capture typed as a `Parses` class crosses as its segment text, and
-//!    the binding site that converts it does not exist yet.** Where it converts
-//!    is settled and is not here: this walk runs at the door with no program
-//!    installed, so reaching a compiled `parse` from it —
-//!    [`crate::commands::ArgConv::Parses`] is the one home of what that reach
-//!    costs — would put program code over every request URL ahead of anything
-//!    that rate-limits it. The router narrows on the conversions it reads
-//!    natively, [`CaptureConv::Uuid`] among them, and a class's `parse` runs
-//!    where the program dispatches, so a segment that class refuses is a `400`
-//!    rather than a failed match. What is missing is that binding site, not a
-//!    variant here; `rule:security/route-capture-is-laundered-by-its-type` and
-//!    `rule:routing/a-bad-query-value-is-a-400` gain the class-typed exception
-//!    in the commit that writes it.
 
 use std::sync::Arc;
 
@@ -123,19 +122,30 @@ pub enum CaptureConv {
     /// what makes the narrowing a property of the *table* rather than a check
     /// the handler was trusted to write.
     OneOf(Vec<String>),
-    /// A type § 5 admits and no arm above turns text into: a `bool`, an `enum`
-    /// whose segment spelling is `Core\Router::match`'s to decide, and every
-    /// class implementing `Parses` but `Core\Uuid`. The segment matches and its
-    /// text is handed over — never silently `Text`, so what is missing stays an
-    /// arm rather than a behaviour somebody has to notice.
+    /// A class a segment reaches through its own `parse` —
+    /// `rule:expressions/try-parse`'s pair read as the `Parses` interface —
+    /// named here so the crossing can reach that member. Every such class but
+    /// `Core\Uuid`, which the arm above reads natively and which therefore
+    /// still narrows the match.
     ///
-    /// **The `Parses` entry is not an unwritten arm**: a match runs at the door,
-    /// with no armed class table to reach a compiled `parse` through and before
-    /// anything rate-limits the request that reached it, so such a capture
-    /// matches on shape and converts at the binding site instead — where a
-    /// segment the class refuses is a `400`. Gap 3 in this module's doc is what
-    /// that leaves owing, and [`crate::commands::ArgConv::Parses`] is the one
-    /// home of why only the command side may make the reach.
+    /// **The segment matches on shape and this walk converts nothing**, which
+    /// is the whole of why the class name travels beside it. A match runs at
+    /// the door with no armed class table and before anything rate-limits the
+    /// request that reached it, so reaching a compiled `parse` from here would
+    /// put a body that can loop, allocate and throw over every request URL
+    /// including the ones that match no route at all;
+    /// [`crate::commands::ArgConv::Parses`] is the one home of what that reach
+    /// costs. `nvs_stdlib::router`'s `capture_value` is the binding site that
+    /// makes it instead, and a segment the class refuses throws there rather
+    /// than falling through to the next route — the class-typed exception
+    /// `rule:security/route-capture-is-laundered-by-its-type` carves out of its
+    /// own "a failed conversion is not a match".
+    Parses(String),
+    /// A type § 5 admits and no arm above turns text into: a `bool`, and an
+    /// `enum` whose segment spelling is `Core\Router::match`'s to decide. The
+    /// segment matches and its text is handed over — never silently `Text`, so
+    /// what is missing stays an arm rather than a behaviour somebody has to
+    /// notice.
     Unconverted,
 }
 
@@ -172,6 +182,23 @@ pub enum Param {
     /// already takes, which is the same seam `rule:core-classes/db-column-types`'s `UUID` column
     /// crosses on.
     Uuid([u8; 16]),
+    /// A capture typed as a class built from text, as the two facts the
+    /// crossing needs to finish it: the class that claims the segment, and the
+    /// segment itself, still exactly as the peer wrote it.
+    ///
+    /// The one form that is not yet the value it will become, and it is not a
+    /// [`Self::Text`] either — [`CaptureConv::Parses`] owns why this walk may
+    /// not run a program's `parse`. The class name rides here rather than being
+    /// looked back up, because a [`Match`] hands over the captures and never
+    /// the row (this module's § 2).
+    Parses {
+        /// The class whose `parse` the crossing calls, fully qualified.
+        class: String,
+        /// The segment, still percent-encoded, exactly as [`Self::Text`]
+        /// carries one: the decode is `nvs_stdlib::uri`'s and happens once, on
+        /// the far side.
+        text: String,
+    },
 }
 
 /// § 2's three capture forms and the literal that is none of them, as the
@@ -418,6 +445,12 @@ impl Route {
             .map_or(&CaptureConv::Text, |capture| &capture.conv);
         match conv {
             CaptureConv::Text | CaptureConv::Unconverted => Some(Param::Text(text.to_owned())),
+            // The segment and the class that claims it, neither of which this
+            // walk may act on and both of which the crossing needs.
+            CaptureConv::Parses(class) => Some(Param::Parses {
+                class: class.clone(),
+                text: text.to_owned(),
+            }),
             CaptureConv::Int => text.parse::<i64>().ok().map(Param::Int),
             CaptureConv::Uint => text.parse::<u64>().ok().map(Param::Uint),
             CaptureConv::Decimal => Decimal::parse(text).map(Param::Decimal),

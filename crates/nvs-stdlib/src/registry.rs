@@ -4350,6 +4350,18 @@ mod tests {
     /// `Core\Script\ExitReport::error` is the row that wanted it first.
     const EXCEPTION_TREE: &[&str] = &["Throwable"];
 
+    /// The names a [`CoreTy::Instance`] may hold that are **interfaces** rather
+    /// than classes — the compiler-declared global roster `nvs_hir::interfaces`
+    /// holds, seeded into the same class table an instance type is interned
+    /// against.
+    ///
+    /// A written list for [`EXCEPTION_TREE`]'s reason exactly, and a rare thing
+    /// for the same reason: a member answers an interface only where the set of
+    /// classes it means is open. `Core\Router\Match::params` is the row that
+    /// wanted it first — a capture typed as a class built from text is any
+    /// implementor of `Parses`, and no registered class names that set.
+    const GLOBAL_INTERFACES: &[&str] = &[crate::router::PARSES_NAME];
+
     /// A [`CoreTy::Instance`] names a class this crate registers, in every
     /// position a type can appear — the same check
     /// `every_enum_typed_option_names_a_registered_enum` performs for an enum,
@@ -4360,7 +4372,9 @@ mod tests {
         fn check(ty: &CoreTy, what: &str) {
             match ty {
                 CoreTy::Instance(name) => assert!(
-                    class(name).is_some() || EXCEPTION_TREE.contains(name),
+                    class(name).is_some()
+                        || EXCEPTION_TREE.contains(name)
+                        || GLOBAL_INTERFACES.contains(name),
                     "{what} names the unregistered class `{name}`"
                 ),
                 // The same question, plus the one only this variant can get

@@ -1916,9 +1916,14 @@ nvs_runtime::nvs_helper! {
     /// refuses through [`inbound_of`], on the terms every other reader of this
     /// class refuses.
     fn nvs_core_request_route(ctx, _args: [0]) {
-        let inbound = inbound_of(ctx, "route")?;
-        Ok(match inbound.route() {
-            Some(matched) => crate::router::match_value(matched)?,
+        // Taken off the carrier before the crossing rather than read through
+        // it, which is one `Arc` bump on the row and one `String` per capture:
+        // [`crate::router::match_value`] reaches this program's own classes for
+        // a capture typed as one, and the borrow the carrier is read through
+        // cannot be alive while it does.
+        let matched = inbound_of(ctx, "route")?.route().cloned();
+        Ok(match matched {
+            Some(matched) => crate::router::match_value(ctx, &matched)?,
             None => Value::null(),
         })
     }

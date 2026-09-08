@@ -14045,7 +14045,7 @@ Every verb the route table claims `$path` under, in the order the routes were de
 |---|---|---|
 | `$path` | `string` (neutral) | The path to ask about, as a URL path and with no query string; a mount's prefix is already stripped from the one the request arrived with. |
 
-**Returns** `array<Core\Http\Method>` — The verbs, once each: an empty array where no route claims the path at all — the `404` — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a terminal `{name?}` answer the same verbs, and a path whose capture will not convert is claimed by nobody.
+**Returns** `array<Core\Http\Method>` — The verbs, once each: an empty array where no route claims the path at all — the `404` — and otherwise the list an `Allow:` header spells for the `405`. Both forms of a terminal `{name?}` answer the same verbs, and a path whose capture will not convert is claimed by nobody — which is the conversions the matcher itself performs, since a capture typed at any other class built from text matches on shape and refuses later.
 
 <a id="core-core-router-match"></a>
 ### `Core\Router\Match`
@@ -14087,8 +14087,8 @@ no request here
 | Member | Signature |
 |---|---|
 | [`Core\Router\Match->name`](#core-core-router-match-name) | `name(): ?string` |
-| [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint\|decimal\|Core\Uuid>` |
-| [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid` |
+| [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses>` |
+| [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid\|Parses` |
 
 <a id="core-core-router-match-name"></a>
 #### `Core\Router\Match->name`
@@ -14105,18 +14105,18 @@ The declared name of the route this request matched, as its `#[Route(name: …)]
 #### `Core\Router\Match->params`
 
 ```nvs skip
-$match->params(): array<tainted string|int|uint|decimal|Core\Uuid>
+$match->params(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>
 ```
 
 Every capture the matched path filled, keyed by the parameter name it binds, in path order.
 
-**Returns** `array<tainted string|int|uint|decimal|Core\Uuid>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\Uuid` answers the value the match already converted, and a segment that would not convert never matched the route at all. A route with no captures answers an empty array.
+**Returns** `array<tainted string|int|uint|decimal|Core\Uuid|Parses>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\Uuid` answers the value the match already converted, and a segment that would not convert never matched the route at all. One declared at any other class implementing `Parses` answers what that class's own `parse` made of the segment, which runs when this match is read: it matched on shape, so a segment the class refuses throws here rather than sending the request to another route. A route with no captures answers an empty array.
 
 <a id="core-core-router-match-param"></a>
 #### `Core\Router\Match->param`
 
 ```nvs skip
-$match->param(string $name): ?tainted string|int|uint|decimal|Core\Uuid
+$match->param(string $name): ?tainted string|int|uint|decimal|Core\Uuid|Parses
 ```
 
 One capture by the parameter name it binds — `params()` read at one key, and the spelling a handler reaching for a single segment writes.
@@ -14125,7 +14125,7 @@ One capture by the parameter name it binds — `params()` read at one key, and t
 |---|---|---|
 | `$name` | `string` (neutral) | The capture's name as the route's path declared it, without the braces. |
 
-**Returns** `?tainted string|int|uint|decimal|Core\Uuid` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
+**Returns** `?tainted string|int|uint|decimal|Core\Uuid|Parses` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`
