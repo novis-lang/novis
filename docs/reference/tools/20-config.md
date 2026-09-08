@@ -2,7 +2,7 @@
 id: config
 title: "Configuration: nvs.toml, limits and capabilities"
 summary: the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config`
-keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 ---
 
 # The file and where it is read from
@@ -182,6 +182,7 @@ deny. The roster is closed:
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 | `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
+| `cache.shared` | reaching the store `[cache.shared] url` names — `Core\Cache::shared()` and `Core\RateLimit::consume` | unscoped: a deployment has one shared store |
 
 A capability whose member has not landed yet is still accepted here rather than refused, so a grant
 written today keeps meaning the same thing on the build that starts asking for it.
@@ -200,6 +201,11 @@ internal = ["10.4.0.9"]          # the denied addresses this deployment reaches 
 An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
 spelling it has. It grants nothing on its own: an address named there is still only reached under a
 host `connect` grants.
+
+Both questions are about an endpoint a *program* names. A store an operator wrote into
+`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
+nor the address is asked about — which is why a shared store on the loopback needs no `internal`
+exception and no `connect` entry.
 
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 

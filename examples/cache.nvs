@@ -10,7 +10,8 @@
 // below are the only order in which that tier can be asserted at all, and a
 // program that would be wrong if a `get` returned nothing is using the
 // wrong one. `shared()` is a real store over the network, coherent across
-// cores and machines, and gated by `net.connect`.
+// cores and machines, and gated by `cache.shared` — the grant names the store
+// an operator configured, not the address it happens to be at.
 //
 // Values cross by the recursive graph copy the isolate boundary already
 // uses (ADR 0023), not by a third mechanism: `put` copies out of the

@@ -173,7 +173,7 @@ Conventions the whole file uses:
 ### Part C — The toolchain
 
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
-- C.2 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
+- C.2 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.3 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, instanceof, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
 - C.4 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 
@@ -18682,7 +18682,7 @@ The coherent tier: a real store over the network, shared by every core and every
 
 **Returns** `Core\Cache\Store` — A `Core\Cache\Store` over the configured shared store, whose entries every core sees.
 
-**Throws** `RuntimeError` — No `[cache.shared] url` is configured; or the capability `net.connect` is not granted for that host, or the address it resolves to is one the outbound policy denies. Each is a deployment that was not configured rather than a store that failed.; `IOError` — The configured store cannot be reached — it throws rather than answering as though the entry were absent, since the two mean opposite things to whatever asked.
+**Throws** `RuntimeError` — The capability `cache.shared` is not granted; or no `[cache.shared] url` is configured, or it is not a URL this client reads. Each is a deployment that was not configured rather than a store that failed.; `IOError` — The configured store cannot be reached — it throws rather than answering as though the entry were absent, since the two mean opposite things to whatever asked.
 
 <a id="core-core-cache-store"></a>
 ### `Core\Cache\Store`
@@ -18758,7 +18758,7 @@ Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the s
 
 **Returns** `Core\RateLimit\Decision` — A `Core\RateLimit\Decision`. Its `retryAfter` is `null` exactly when it is allowed, and is the exact wait until the arrival would be admitted otherwise — never an estimate, and never rounded up to the next window.
 
-**Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `net.connect` is not granted for its host — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units.
+**Throws** `IOError` — The shared store cannot be reached or refused the command. It is never answered as `allowed`: whether this limiter fails open or closed is knowledge only the call site has, so the decision is thrown to it.; `RuntimeError` — No `[cache.shared] url` is configured, or `cache.shared` is not granted — a deployment mistake rather than the world saying no, and deliberately not the class the fail-open `catch` around this member holds. Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide into `$limit` units.
 
 <a id="core-core-ratelimit-shed"></a>
 #### `Core\RateLimit::shed`
@@ -20971,7 +20971,7 @@ accepted, reported by `nvs config dump`, and read by nothing else.
 <a id="tools-config"></a>
 ## C.2 Configuration: nvs.toml, limits and capabilities
 
-Keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+Keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 
 ### The file and where it is read from
 
@@ -21150,6 +21150,7 @@ deny. The roster is closed:
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
 | `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
+| `cache.shared` | reaching the store `[cache.shared] url` names — `Core\Cache::shared()` and `Core\RateLimit::consume` | unscoped: a deployment has one shared store |
 
 A capability whose member has not landed yet is still accepted here rather than refused, so a grant
 written today keeps meaning the same thing on the build that starts asking for it.
@@ -21168,6 +21169,11 @@ internal = ["10.4.0.9"]          # the denied addresses this deployment reaches 
 An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
 spelling it has. It grants nothing on its own: an address named there is still only reached under a
 host `connect` grants.
+
+Both questions are about an endpoint a *program* names. A store an operator wrote into
+`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
+nor the address is asked about — which is why a shared store on the loopback needs no `internal`
+exception and no `connect` entry.
 
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 

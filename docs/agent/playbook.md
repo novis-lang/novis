@@ -5305,6 +5305,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `catch` where you wanted the pair, and never put `tryParse` on a user class in a `docs/reference/`
   example, because `tools/reference.py` compiles every one of them.
   [until: reviewed 2026-09-08]
+- **A capability check added at the *top* of a door that already refuses on a missing directive
+  re-orders refusals the `.nvst` corpus pins exactly.** Two cases assert `open_configured`'s
+  "no shared store is configured" over a tree that grants nothing, so a `require` above the
+  directive read turns both into a capability denial. Ask the grant after the directive, which is
+  `rule:security/capability-costs-nothing-unasked`'s shape, and grep the corpus for the refusal's
+  own words first. [until: reviewed 2026-12-01]
 
 ## Divergences and refusals already pinned
 

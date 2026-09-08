@@ -3,7 +3,7 @@
 
 # Configuration
 
-*14 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -1612,7 +1612,7 @@ make "runs once a day" true, which is what the operator wrote down.
 
 <a id="config-cache-shared-is-the-grant-over-the-configured-store"></a>
 
-## A store an operator configured is authorized by the configuring — `cache.shared` is the grant, unscoped, and asks no address  *(designed — not yet in the compiler)*
+## A store an operator configured is authorized by the configuring — `cache.shared` is the grant, unscoped, and asks no address
 
 `rule:config/cache-shared-is-the-grant-over-the-configured-store`
 
@@ -1634,10 +1634,11 @@ the coherent tier", and *where* that tier is stays the operator's answer — so 
 container, a loopback daemon and a socket changes one block and no app's grant list.
 
 A `[cache.shared] url` set with no `cache.shared` grant is reported at boot as a `Warn` naming both
-keys, not discovered on a request.
+keys (`W1008`), not discovered on a request. It is an advisory rather than a refusal: one `nvs.toml`
+may serve an application that reaches the tier and one that does not.
 
-**Not shipped.** `cache.shared` is a directive, not a capability: `Cap` in `nvs-config` has no
-`CacheShared` row, and `open_configured` still asks `net.connect` at the URL's host and pins it.
+The grant is asked at the door and after the directive is read — a deployment that configured no
+store hears that first, because there is no tier for a grant to be about yet.
 
 <sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it). Decided in [0142](../decisions/0142.md), [0058](../decisions/0058.md), [0059](../decisions/0059.md).</sub>
 

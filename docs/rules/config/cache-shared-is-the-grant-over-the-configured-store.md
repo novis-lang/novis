@@ -16,7 +16,8 @@ the coherent tier", and *where* that tier is stays the operator's answer — so 
 container, a loopback daemon and a socket changes one block and no app's grant list.
 
 A `[cache.shared] url` set with no `cache.shared` grant is reported at boot as a `Warn` naming both
-keys, not discovered on a request.
+keys (`W1008`), not discovered on a request. It is an advisory rather than a refusal: one `nvs.toml`
+may serve an application that reaches the tier and one that does not.
 
-**Not shipped.** `cache.shared` is a directive, not a capability: `Cap` in `nvs-config` has no
-`CacheShared` row, and `open_configured` still asks `net.connect` at the URL's host and pins it.
+The grant is asked at the door and after the directive is read — a deployment that configured no
+store hears that first, because there is no tier for a grant to be about yet.

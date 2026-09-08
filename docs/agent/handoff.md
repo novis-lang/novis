@@ -2,50 +2,60 @@
 
 ## State
 
-**Goal 20 — a configured store is authorized by its configuring — has just started; nothing of it has
-landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the parity program entire.
+**Goal 20's Stage 2 — the keystone — is landed whole, with Stage 0's catch-up in the same pass.**
+`Cap::CacheShared` is on the roster (`cache.shared`, `Scope::Unscoped`), `open_configured` asks it
+after reading the directive and dials the store with `nvs_runtime::capability::resolve_host` instead
+of `pin_host`, and neither `Core\Cache::shared()` nor `Core\RateLimit::consume` walks
+`rule:security/net-address-policy`'s table any more.
+`rule:config/cache-shared-is-the-grant-over-the-configured-store` is `shipped` and its "Not
+shipped" paragraph is gone.
 
-The design is settled and written:
-`rule:config/cache-shared-is-the-grant-over-the-configured-store`, six sections, with
-its cross-links already folded into `rule:security/net-address-policy`'s carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
-goal opens no ADR number** — a gap in 0142 is an edit to the rule that states it, with a record naming the change.
+The migration is reported at boot: `crates/nvs-config/src/store.rs` is a new module holding
+`W1008` — a `[cache.shared] url` with no `cache.shared` grant — hung off `resolve` beside
+`session::validate`. It is the home for the `AF_UNIX` boot refusal Stage 3 owes as well.
 
-The short of it: `Core\Cache::shared()` and `Core\RateLimit::consume` stop asking `net.connect` at a
-host and start asking `cache.shared`, unscoped, because the endpoint is one an operator wrote into
-root-owned configuration and that writing is the authorization. Once the grant names the store instead
-of an address, a store with no address is reachable — `unix:/run/redis.sock` in `[cache.shared] url`, a
-bare path in `[db.<name>] host` — admitted only where an operator wrote it.
+`nvs.toml`'s `examples/cache.nvs` block now grants `cache.shared` alone; its `net.connect` /
+`net.internal` pair is gone, which is the whole point of the rule.
+
+Nothing is blocked. The five Stage 2 acceptance tests exist and pass:
+`a_configured_store_needs_no_address_grant`,
+`a_configured_store_is_refused_without_its_own_grant`,
+`a_loopback_store_needs_no_net_internal_exception`,
+`the_limiter_and_the_tier_ask_one_grant_at_one_door` (all in `crates/nvs-stdlib/src/cache.rs`) and
+`a_configured_url_without_its_grant_is_a_boot_warning` (`crates/nvs-config/src/store.rs`).
 
 ## Next group
 
-**Stage 2: the grant** — one file set: `crates/nvs-config/src/capability.rs`,
-`crates/nvs-stdlib/src/cache.rs`, `crates/nvs-stdlib/src/ratelimit.rs`,
-`crates/nvs-stdlib/src/registry.rs`.
+**Stage 3: the transport for the cache tier** — one file set: `crates/nvs-stdlib/src/cache.rs`,
+`crates/nvs-stdlib/src/cache/redis.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] **`Cap::CacheShared` on the roster** — `crates/nvs-config/src/capability.rs:34`, spelled
-      `cache.shared`, asked at `Scope::Unscoped`. Its doc comment points at `Cap::MailSend`'s reasoning
-      (`:54`) rather than restating it: the endpoint an operator wrote carries the authority that
-      granted the capability, so it is pre-approved and is not asked about `rule:security/net-address-policy`'s ranges.
-- [ ] **The door stops asking about an address** — `open_configured`
-      (`crates/nvs-stdlib/src/cache.rs:@open_configured`) asks the new grant and drops `pin_host`, so
-      neither caller walks the denied-range table. Both keep their own `remedy` clause.
-- [ ] **The boot `Warn`** — a `[cache.shared] url` set with no `cache.shared` grant, named where both
-      keys are visible. This is the migration path for a deployment that had granted `net.connect` for
-      its store's host, and it is the only place that migration is reported.
-- [ ] **Stage 0 in the same pass, because it is the same lines** — `SHARED_DOC`'s card and the
-      `RuntimeError` description in `cache.rs`, the matching text in `ratelimit.rs`, the capability row
-      in `registry.rs`, and any `nvs.toml` fixture under `tests/` still granting `net.connect` for a
-      store's host. `docs/novis.md` is generated from those cards and is never edited by hand.
+- [ ] **`unix:` in `[cache.shared] url`** — `crates/nvs-stdlib/src/cache.rs:614`, one arm beside the
+      `redis://` one, per `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`. The
+      `rediss://`, path-as-database-index and bad-port refusals are untouched, and a program-supplied
+      path is still refused at every other door
+      (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`).
+- [ ] **The per-core key widens from a `SocketAddr` to an address-or-path** —
+      `crates/nvs-stdlib/src/cache.rs:663` (`open_shared`) and `:571` (`SHARED`). That key is what
+      decides reuse-or-replace, which is how a reloaded configuration looks from there.
+      `NvsUnix` already exists at `crates/nvs-host/src/net.rs:486` and needs nothing.
+- [ ] **`E0627` beside `E0626`** — `crates/nvs-diagnostics/src/lib.rs:1637`, a Unix spelling on a
+      build with no `AF_UNIX` transport refused at boot with a note naming the platform,
+      `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`. The refusal is a
+      refusal and never a fallback to loopback TCP; the check belongs in
+      `crates/nvs-config/src/store.rs`, which this goal created for exactly that neighbourhood.
+- [ ] **The proofs** — a record written through the socket and read back through it against a
+      `UnixListener` the way `crates/nvs-stdlib/src/cache/redis.rs:573` drives a `TcpListener`, and
+      the boot refusal asserted by the diagnostic rather than by a failed connect.
 
 ## Backlog
 
-- **Stage 3 (the cache transport)** shares `cache.rs` with stage 2, so a session that lands stage 2 with
-  headroom takes it: the `unix:` arm in `endpoint`, `E0627` beside `E0626` in
-  `crates/nvs-diagnostics/src/lib.rs`, and widening `open_shared`'s per-core key from a `SocketAddr` to
-  an address-or-path — that key is what decides reuse-or-replace, which is how a reloaded configuration
-  looks from there. `NvsUnix` already exists (`crates/nvs-host/src/net.rs:446`) and needs nothing.
-- **Stage 4 (the driver transport)** shares no files with either and is its own group:
+- **Stage 4 (the driver transport)** shares no files with Stage 3 and is its own group:
   `crates/nvs-db/src/{conn,mysql,maria,pg,tds}.rs` plus the matrix's socket leg. Postgres derives
   `<host>/.s.PGSQL.<port>`; MySQL and MariaDB open the path as written; TDS refuses one.
+  `crates/nvs-config/src/db.rs`'s `is_relative_file` is the neighbourhood for reading a path in
+  `[db.<name>] host`.
+- `docs/agent/goals/4-core-part-ii.md:135` still says the shared tier is "gated by `net.connect`" —
+  closed-goal prose, left alone on purpose; `docs/agent/goals/README.md` owns whether those are
+  edited.
 - When this goal's last check goes green the driver takes goal 50 — the dossier.
   `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
