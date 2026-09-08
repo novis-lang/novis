@@ -13369,7 +13369,7 @@ Reads `$s` as a UUID in RFC 9562's canonical hyphenated `8-4-4-4-12` form, in ei
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The text to read, exactly 36 characters. |
+| `$s` | `string` (neutral) | The text to read, exactly 36 characters. |
 
 **Returns** `Core\Uuid` — The `Uuid` those 128 bits spell; the nil and max UUIDs parse, and the version nibble is not checked.
 
@@ -13386,7 +13386,7 @@ Core\Uuid::tryParse(string $s): ?Core\Uuid
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$s` | `string` | The text to read. |
+| `$s` | `string` (neutral) | The text to read. |
 
 **Returns** `?Core\Uuid` — The `Uuid` for the canonical hyphenated form in either case; `null` for anything else.
 

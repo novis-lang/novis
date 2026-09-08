@@ -130,6 +130,8 @@ rules = [
   "programs/no-runtime-autoload",
   "security/route-capture-is-laundered-by-its-type",
   "routing/a-query-parameter-is-declared-like-a-capture",
+  "security/unclassified-parameter-refuses-tainted",
+  "security/taint-propagation",
   "0013",
   "0066",
   "0024",

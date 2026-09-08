@@ -2,53 +2,62 @@
 
 ## State
 
-**Goal 19 — a class a string names, at one contract. Stage 2 is closed: both halves are on disk and
-its four `nvs-types` checks pass.**
+**Goal 19 — a class a string names, at one contract. Stage 2 is closed; stage 3's item 2 is on
+disk, and its items 1, 3 and 4 are the next group.**
 
-`Parses` carries `parse(tainted string $s): static` as its one required member and
-`tryParse(tainted string $s): ?static` as a `rule:classes/interface-default-methods` default, seeded in
-`crates/nvs-types/src/iter_lib.rs`. `?static` is not `returns_static` on purpose
-(`crates/nvs-types/src/signatures.rs:1560`), so that member interns a nullable over the interface's own
-class. `E0404` reports for the first time: an interface member declared `: static` answered by a
-declaration that writes a class of its own is refused
-(`crates/nvs-types/src/conformance.rs:@reject_dropped_static_return`).
+`nvs_stdlib::registry::implements_parses` is the structural predicate beside `implements_comparable`
+(`crates/nvs-stdlib/src/registry.rs:2566`): a static `parse(Text(Qual::Neutral)) -> Instance(self)`
+and a static `tryParse(Text(Qual::Neutral)) -> Nullable(Instance(self))`, no defaults, which is
+`rule:expressions/try-parse`'s three conditions written once. `crates/nvs-types/src/core_lib.rs:86`
+seeds the edge from it, two lines below the `Comparable` seed.
 
-**A named gap, and refusing is the safe half.** An inherited `tryParse` cannot be called from source —
-the playbook bullet has the mechanism. There is no compiled body behind that default yet, so the
-refusal is correct today and the repair is body-first, not visibility-first.
+**`Core\Uuid` did change, and stage 3 item 2's "not one line" sentence is wrong about the tree.**
+Its two rows were `CoreTy::Str`, which refuses a `tainted` argument — and `Qual::Contagious` refuses
+one too wherever the answer is an object, which is the playbook bullet this session added. So the
+predicate demands `Qual::Neutral` and `Core\Uuid` now carries it, out of `registry.rs`'s
+`UNCLASSIFIED` ratchet in the same edit. The roster is `Core\Uuid` alone: `Core\Uri` keeps
+`Contagious`, because its components come back out as plain `string`s and a `Neutral` parse there
+would launder attacker text through `scheme()` and `path()` — a decision, not an oversight, and
+asserted as one in `the_parses_roster_is_the_classes_carrying_the_whole_pair`.
 
-The goal's one record is still unwritten; `docs/agent/loop-goal.md`'s stage 5 schedules its prose half,
-and it now owes `rule:core-api/reserved-namespace` and this `E0404` refusal in its `changes` block.
-The narrowing in *Standing decisions* — this goal gives `as` no class-building meaning — is unchanged.
+The goal's one record is still unwritten; stage 5 schedules its prose half, and it now owes this
+`Core\Uuid` reclassification and the `Core\Uri` exclusion in its `changes` block alongside
+`rule:core-api/reserved-namespace` and stage 2's `E0404`.
+
+**Pack gap, now closed:** `[context] rules` named neither
+`security/unclassified-parameter-refuses-tainted` nor `security/taint-propagation`, and both decide
+what this stage's predicate may require; this session derived them from
+`crates/nvs-types/src/expr/quals.rs` instead. Both are added to the base manifest.
 
 ## Next group
 
-**Stage 3: the predicate, the `nvs-stdlib` half** — one file set: `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/uuid.rs`, `crates/nvs-types/src/core_lib.rs`.
+**Stage 3: the four surfaces read the predicate instead of the name** — one file set:
+`crates/nvs-types/src/commands.rs`, `crates/nvs-types/src/routes.rs`.
 
-- [ ] **`implements_parses` beside `implements_comparable`** — `crates/nvs-stdlib/src/registry.rs:2553`
-      is the precedent, and the structural question is the same shape: a `static` row named `parse`
-      taking one `Text` and answering `CoreTy::Instance(self)`, and a `static` `tryParse` answering the
-      nullable of it. `rule:expressions/try-parse` is the contract, and its three conditions are what
-      the predicate encodes.
-- [ ] **`Core\Uuid` satisfies it with not one line changed** — its rows are already exactly that shape
-      at `crates/nvs-stdlib/src/uuid.rs:142` and `:151`. The two checks that pin it are named at
-      `docs/agent/loop-goal.toml:5867`: `implements_parses_is_true_for_core_uuid_and_false_for_a_class_without_both_members`
-      and `implements_parses_requires_try_parse_to_answer_the_nullable_self`.
-- [ ] **The conformance edge is seeded from the predicate** — `crates/nvs-types/src/core_lib.rs:83` is
-      the `implements_comparable` seed, two lines above where the `Parses` one goes, so a `Core` class
-      that carries the members claims the interface the way a user class claims it with `implements`.
+- [ ] **`converts_from_string`'s class arm becomes the predicate** —
+      `crates/nvs-types/src/commands.rs:789` is the `QName::parse(r"Core\Uuid")` comparison inside
+      `converts_from_string` (`:771`), and `crates/nvs-types/src/commands.rs:241` is the same
+      comparison choosing `ArgConv::Uuid`. Both ask "does this class implement `Parses`" of the
+      signature table `crate::expr::operators` asks `Comparable` of.
+      `rule:expressions/try-parse` is the contract; `rule:classes/comparable` is the precedent for
+      reaching the table from here.
+- [ ] **The three diagnostics stop reciting the roster** — `crates/nvs-types/src/commands.rs:755`,
+      `crates/nvs-types/src/routes.rs:1745` and `crates/nvs-types/src/routes.rs:1831` each name the
+      closed set and then `Core\Uuid`; they name the closed set and then "a class implementing
+      `Parses`". `rule:routing/a-capture-narrows-to-a-closed-set` owns what the set is.
+- [ ] **The two doc comments generalize past the one class** —
+      `crates/nvs-types/src/routes.rs:497` and `crates/nvs-types/src/routes.rs:1758` use `Core\Uuid`
+      as the worked example of "converts, but narrows nothing", which stays true of every `Parses`
+      class. `rule:routing/a-query-parameter-is-declared-like-a-capture` is the surface it is
+      written about.
 
 ## Backlog
 
-- Stage 3's `nvs-types` half: `converts_from_string` at `crates/nvs-types/src/commands.rs:771` asks the
-  predicate instead of naming `Core\Uuid`, and the three diagnostics plus two doc comments in
-  `crates/nvs-types/src/routes.rs` stop reciting the roster. Goal prose stage 3, items 1, 3 and 4.
-- The default body has no code: nothing lowers `tryParse`, so `crates/nvs-types/src/layout.rs:213`'s
-  comment is true only because there is nothing to enter in a method table. Goal prose stage 4 is where
-  the runtime arm lands.
-- `class Core {}` is still accepted: `crates/nvs-syntax/src/parser/decl.rs:194` guards the `Core\…`
-  spelling and nothing guards the bare one. `rule:core-api/reserved-namespace` owns it.
-- The goal's one new record is unwritten; `docs/agent/loop-goal.md`'s stage 5 is where its prose half
-  is scheduled.
-- Stages 4 and 5 as `docs/agent/loop-goal.md` lists them.
+- Stage 4's two runtime arms — `crates/nvs-runtime/src/routes.rs:89` and
+  `crates/nvs-runtime/src/commands.rs:57`; `docs/agent/loop-goal.md` § *Stage 4*.
+- Stage 5's `examples/parses.nvs`, which is the acceptance check failing today;
+  `docs/agent/loop-goal.md` § *Stage 5*.
+- The goal's one record, next free 0160 — `docs/agent/loop-goal.md` § *Stage 5*.
+- Stage 3 item 2's "not one line of `Core\Uuid` changes" is stale — `docs/agent/loop-goal.md:97`.
+- An inherited `Parses::tryParse` still cannot be called from source; the refusal is the safe half
+  and the repair is body-first — `docs/agent/playbook.md`.
