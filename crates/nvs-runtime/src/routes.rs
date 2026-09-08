@@ -851,6 +851,59 @@ mod tests {
         assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);
     }
 
+    /// The class-typed capture's half of § 5, on the side that runs at the
+    /// door: the segment matches on **shape**, and the class name travels
+    /// beside its text rather than this walk reaching a `parse`.
+    ///
+    /// Both halves named together, because a matcher that converted here would
+    /// pass the first assertion and fail the second — and converting here is
+    /// what `rule:security/route-capture-is-laundered-by-its-type` forbids,
+    /// since a match runs at the door ahead of everything that rate-limits the
+    /// request that reached it. `nvs_stdlib::router`'s `capture_value` is the
+    /// binding site that converts instead.
+    #[test]
+    fn a_parses_capture_matches_on_shape_and_crosses_as_the_class_and_its_text() {
+        let routes = Routes::new(vec![super::Route::new(
+            "Get",
+            "/deploy/{target}",
+            None,
+            "App\\Deploys::show",
+            None,
+            vec![Capture {
+                name: "target".to_owned(),
+                conv: CaptureConv::Parses("App\\Slug".to_owned()),
+            }],
+        )]);
+        let matched = |path: &str| routes.match_request("GET", path);
+        let crossed = |text: &str| {
+            Some(Param::Parses {
+                class: "App\\Slug".to_owned(),
+                text: text.to_owned(),
+            })
+        };
+
+        assert_eq!(
+            matched("/deploy/prod").expect("a match").param("target"),
+            crossed("prod").as_ref()
+        );
+
+        // A segment no slug could be matches too: this walk holds no class
+        // table to ask, so shape is the whole of what it decides. The segment
+        // also crosses undecoded, which is the second thing the binding site
+        // owns — a converted capture is read out of the raw segment here.
+        assert_eq!(
+            matched("/deploy/%20!!").expect("a match").param("target"),
+            crossed("%20!!").as_ref(),
+            "the segment crosses as it arrived, converted by nothing"
+        );
+
+        // Shape is what it narrows on, and it still narrows: one capture is
+        // one segment, and a path with another segment on it is a different
+        // route rather than a longer value.
+        assert!(matched("/deploy/prod/eu").is_none());
+        assert!(matched("/deploy").is_none());
+    }
+
     /// § 5's narrowing, for the type whose reader this crate owns: a `decimal`
     /// capture converts, and a segment that is not one is **no match** rather
     /// than text handed to a handler that declared a number.
