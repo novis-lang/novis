@@ -9,12 +9,12 @@
      History lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md § *Keep
      each slice small, commit every one of them*. -->
 
-> **Status:** **M4's loop goal is reached** — every check in its acceptance list passes, so
-> the language surface is closed and nothing a CLI program reaches for panics below the front end. The
-> next target is **the parity program**, goals 1–6 of the chain: PHP core feature parity, all
-> five SQL drivers, concurrency, governance and the server, run as the six-goal chain in
-> [docs/agent/goals/](agent/goals/README.md). Dependencies: `regex` + `fancy-regex` and `jiff` are named
-> by the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
+> **Status:** **M4's loop goal is reached** — every check in its acceptance list passes, so the
+> language surface is closed and nothing a CLI program reaches for panics below the front end. **The
+> parity program is closed too**: goals 1–6 landed PHP core feature parity, all five SQL drivers,
+> concurrency, governance and the server, and the loop has walked past them — *Open now* below says
+> what it is walking through instead. Dependencies: `regex` + `fancy-regex` and `jiff` are named by
+> the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
@@ -43,37 +43,19 @@
 > the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 9 stages 5-7 whole**: `nvs schema` and `nvs queue migrate` converge.
-> **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**: `queryAs<T>`, § 6's convert,
-> §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows; `Core\Uri` answers `bytes`; `nvs
-> check` reads grants. **`nvs-server` runs h1 as goal 2's `Isolate`**, whole: mounts, statics,
-> admission ceiling, proxy walk, the two `Core` request types, routing, captures and a class mount.
-> **`rule:http-server/a-session-store-answers-four-operations`'s session is whole**: shared or db,
-> `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's ticker fires**: a root
-> isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§ 6-7 land**: `afterResponse`
-> drains detached; § 7's cap counts trees;
-> `rule:observability/the-runtime-exports-what-it-already-measures`'s trace reaches a log record,
-> both blocks boot, a core meters § 1's nine; `rule:security/isolate-shares-nothing`'s method entry
-> binds `args:` at a `Core` row too; `rule:concurrency/a-connection-is-a-root-isolate` is whole — §
-> 1's `101` opens a root isolate, § 4's bus crosses cores, § 7's bounds are finite; `Core\Sse` fills
-> § 5's cell. **`rule:config/the-config-is-an-immutable-snapshot`'s endpoint lands**: `E0629`
-> refuses a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key
-> named. **`rule:packaging/a-service-is-one-stored-argv` refuses**: `E0630`-`E0634`; `nvs service
-> unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is
-> guarded**: `never` never `stat`s, one window one check, a swap publishes, § 3a picks `validate`,
-> 10k cold compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
-> lands.** **`Core\Cldr` is whole.** Conformance 1603, differential 276, migration 100%; valgrind
-> green, arrays too. Serve: 2.78x php-cgi.  **The store publishes** gated diagnostics; nine,
-> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed.
+> **Open now:** **[chain.toml](agent/goals/chain.toml) is the list of what is open**, in the order
+> the loop walks it, and `python tools/brief.py` prints where it currently stands — this field
+> restates neither. A goal switch carries a closed goal's `[[check]]` blocks forward as the live
+> goal's floor, so what is closed is what passes today: the parity program's six goals and every
+> entry after them the chain has already walked. What a crate still owes is its own module doc's `#
+> Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
-> in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
-> others. One external dependency, two goals wide: **goals 4 and 5 need a reachable Docker daemon**,
-> and on this machine it is up — `examples/transaction.nvs` got an answer from
-> `tests/db/compose.yaml`'s PostgreSQL. That wall is down: a `[db.<name>] tls_ca_file` names a PEM
-> bundle, `nvs_config::db` resolves and trust-checks it at boot, and the handshake verifies against
-> it alone. `examples/transaction.nvs` now runs end to end against it. Picking every dependency but
-> the two the user named is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
+> **Blocking:** Nothing waiting on a decision — every design call a goal reaches is pre-authorized
+> in its own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
+> others. One standing precondition, and not a block: the goals whose floor carries container-backed
+> checks need a reachable Docker daemon, and [chain.toml](agent/goals/chain.toml) preflights it per
+> entry rather than letting a session discover it mid-run. Picking every dependency but the two the
+> user named is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
