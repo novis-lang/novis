@@ -116,9 +116,9 @@ Conventions the whole file uses:
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Request`](#core-core-request) | the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted` |
 | [`Core\Request\Mount`](#core-core-request-mount) |  |
-| [`Core\Request\BodyStream`](#core-core-request-bodystream) |  |
-| [`Core\Request\Files`](#core-core-request-files) |  |
-| [`Core\Request\Part`](#core-core-request-part) |  |
+| [`Core\Request\BodyStream`](#core-core-request-bodystream) | the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time |
+| [`Core\Request\Files`](#core-core-request-files) | the uploads a request carries, as a walk over its parts — `$_FILES` and `move_uploaded_file` replaced by a stream that touches no temporary directory |
+| [`Core\Request\Part`](#core-core-request-part) | one uploaded part — what it declared about itself, and the three ways to spend its bytes |
 | [`Core\Request\PartContent`](#core-core-request-partcontent) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Session`](#core-core-session) |  |
@@ -16448,7 +16448,67 @@ The glob captures of the mount serving this request, in order — `{1}` is `capt
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
 
-Keywords: 
+Keywords: php://input, fopen php://input, fread, stream_get_contents, streaming request body, large upload, chunked body, chunk, Iterable bytes, memory_limit, 
+
+`Core\Request\BodyStream` is what `Core\Request::bodyStream()` answers with: an `Iterable<tainted bytes>`
+that a `foreach` walks once. It has no members — the walk is everything it does — and it holds nothing
+but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through
+a program that never has more than one chunk of it resident. That is the whole difference from `body()`,
+which fills the request's hold under `[limits] request_body` and can be read back any number of times.
+This walk is under no such cap, because what a program keeps out of it is the program's own decision and
+its own bill.
+
+**A chunk boundary is the wire's, and carries no meaning.** It is where the octets happened to arrive, so
+a program that needs lines, records or frames finds them itself, across chunks; nothing here aligns a
+chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid
+after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the
+request carried no body at all.
+
+**Naming the walk is the reading.** `bodyStream()` claims the body when the walk is built, long before a
+single byte moves, so `body()`, `post()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
+`LogicError` whether or not the loop ever ran — and refused the same way in the other direction. That
+refusal is a defect in the program, never something a peer can provoke; the split between the readers
+that share the body and the ones that consume it is
+`rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, and `Core\Request`
+is where all five readers are named together.
+
+Every chunk is `tainted bytes`, like everything else a peer chose, so it reaches a sink only through a
+launderer named for that sink. The common destination is disk, and `Core\IO::writeStream` takes this walk
+directly — it is where every stream reaches a file, under a byte bound of its own, and it removes the
+partial file if a write fails, so there is no half-written upload to clean up after.
+
+```nvs skip
+<?nvs
+int $total = 0;
+foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+    $total = $total + Core\Bytes::length($chunk);
+}
+echo "read ", $total, " bytes\n";
+```
+
+Or spent on a file instead, where the bytes never become a value the program holds. One request carries
+one body, so this is the *other* program, not the next few lines of that one:
+
+```nvs skip
+<?nvs
+Core\IO::writeStream("incoming.bin", Core\Request::bodyStream(), {max: 64 * 1024 * 1024});
+```
+
+Both of those need a request in front of them. Without one, naming the walk is what every other member of
+`Core\Request` does:
+
+```nvs
+<?nvs
+try {
+    Core\Request::bodyStream();
+    echo "not reached\n";
+} catch (LogicError $none) {
+    echo "no request here\n";
+}
+```
+```output
+no request here
+```
 
 | Member | Signature |
 |---|---|
@@ -16456,7 +16516,67 @@ Keywords:
 <a id="core-core-request-files"></a>
 ### `Core\Request\Files`
 
-Keywords: 
+Keywords: $_FILES, move_uploaded_file, is_uploaded_file, upload_tmp_dir, file upload, multipart/form-data, UPLOAD_ERR_OK, tmp_name, large upload, streaming upload, 
+
+`Core\Request\Files` is what `Core\Request::files()` answers with: an `Iterable<Core\Request\Part>` that a
+`foreach` walks once, yielding each uploaded part as it comes off the wire. It has no members — the walk
+is everything it does — and it is the only way a program receives an upload. There is no temporary file
+and no directory the host chose: nothing lands on disk until the program names a path it holds the
+`fs.write` capability for, so an upload nobody saves has cost the machine nothing but the bytes that
+crossed the socket. `$_FILES`, `tmp_name`, `is_uploaded_file` and `move_uploaded_file` all have no
+replacement here because none of them has anything left to describe.
+
+**The parse runs as the loop does.** The next part does not exist when the walk is named, so `files()`
+holds one part at a time and nothing accumulates. A part is valid only while it is the walk's current one:
+keeping one past the iteration that opened the next is holding a name for bytes the parse has already
+drained, and it is refused rather than answered with the wrong part's content. Advancing past a part the
+loop body never read simply drains it — skipping an upload the application does not recognise costs a walk
+over bytes the door already charged for, and no memory at all.
+
+**A part is a file part iff its `Content-Disposition` carries a `filename`**, which is RFC 7578's own
+distinction and not a second one invented here. Every other part is an ordinary form field: the walk
+buffers those as it passes them, and `Core\Request::post()` reads them back afterwards. That is why
+`post()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
+are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.
+
+The walk is empty where the request declared no `multipart/form-data` body, which is what a request
+carrying no upload is. It throws `LogicError` where the program is not answering a request, or where
+`body()`, `bodyStream()` or `post()` already read this body; `ParseError` where the request declared a
+multipart body and then did not say how to read one — no `boundary`, two of them, or one outside the
+grammar — since an ambiguous body is refused rather than guessed at; and `IOError` where the connection
+failed under the body or the peer stopped short of the length it declared.
+
+**What bounds it is the server, not this walk.** `[limits] request_body` bounds what is parsed into
+memory and has nothing to say about a streamed body; the server carries at most 256M of one request body,
+declared or chunked, refusing an oversize before the program runs and stopping a chunked one at the part
+being read. That number is a constant today — the directive that makes it settable per deployment is not
+on disk yet.
+
+```nvs skip
+<?nvs
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    string $path = Core\IO::within("uploads", $part->filename());
+    $part->saveTo($path);
+    echo $part->name(), " saved\n";
+}
+```
+
+`filename()` is `tainted`, so `Core\IO::within` above is not decoration: it is the one way a name the
+client chose reaches a path. Without a request in front of it, naming the walk does what every member of
+`Core\Request` does:
+
+```nvs
+<?nvs
+try {
+    Core\Request::files();
+    echo "not reached\n";
+} catch (LogicError $none) {
+    echo "no request here\n";
+}
+```
+```output
+no request here
+```
 
 | Member | Signature |
 |---|---|
@@ -16464,7 +16584,68 @@ Keywords:
 <a id="core-core-request-part"></a>
 ### `Core\Request\Part`
 
-Keywords: name, filename, contentType, content, readAll, saveTo
+Keywords: $_FILES, tmp_name, move_uploaded_file, UPLOAD_ERR_OK, upload name, client filename, Content-Disposition, Content-Type, multipart part, file_get_contents upload, name, filename, contentType, content, readAll, saveTo
+
+A `Core\Request\Part` is one file part of a `multipart/form-data` body, handed to the loop body by the
+`Core\Request::files()` walk. Three members say what it declared about itself — `name()`, the form field
+it arrived under; `filename()`, the name the client claimed; and `contentType()`, which answers
+`text/plain` where the part declared none, RFC 7578's own default rather than a repair of a missing value.
+All three are `tainted string`: they are what a peer wrote back, and a client is free to send a field name
+the form never declared.
+
+**`filename()` is a claim about a file on someone else's machine, and never a path on this one.** As a
+`tainted string` it reaches a path only through `Core\IO::within`, which is the same refusal every other
+untrusted string meets — and it is the refusal that matters most here, since the one place an upload could
+choose where it lands is the one place the qualifier stands in the way.
+
+**There is no `size`.** Nothing honest can be said about a part's length before it has been consumed, and
+inventing a number is the kind of repair this language refuses everywhere. A program that needs the count
+gets it from the bytes it read.
+
+**Three ways to spend a part, and each of them spends it.** `readAll({max?})` pulls the whole part into
+one `tainted bytes` — the reading for an upload small enough to hold — bounded by `[limits] request_body`
+(8M) when `max` is omitted, by that number when it is named, and refusing outright a `max` larger than the
+request's own `[limits] memory` rather than quietly clamping it. `content()` walks the part a chunk at a
+time, holding none of it, for an upload that must never be resident whole. `saveTo($path, {max?,
+overwrite?})` writes it straight to disk one chunk at a time — the path almost every upload takes — under
+the `fs.write` capability for that path; it is `Core\IO::writeStream` underneath, so the path must not
+already exist unless `overwrite` says so, and a write that fails leaves no partial file behind.
+
+**All of them are valid only while this part is the walk's current one.** A part kept past the iteration
+that opened the next names bytes the parse has already drained, so it is refused rather than answered with
+the current part's content.
+
+```nvs skip
+<?nvs
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    int $bytes = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $bytes = $bytes + Core\Bytes::length($chunk);
+    }
+    echo $part->name(), " (", $part->filename(), ", ", $part->contentType(), "): ", $bytes, "\n";
+}
+```
+
+The same part, held whole or sent to disk instead — one part is spent once, so these are two programs and
+not two halves of one:
+
+```nvs skip
+<?nvs
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    tainted bytes $whole = $part->readAll({max: 1 * 1024 * 1024});
+    echo Core\Bytes::length($whole), "\n";
+}
+```
+
+```nvs skip
+<?nvs
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    $part->saveTo(Core\IO::within("uploads", $part->filename()), {overwrite: true});
+}
+```
+
+Every one of those needs a request in front of it; `Core\Request\Files` is where the walk that produces a
+part is described, and what it does in a program answering no request.
 
 | Member | Signature |
 |---|---|
