@@ -5781,20 +5781,24 @@ tests = [
   # Goal 16's body-read rule, unchanged: this is a buffering reader, and it takes the claim as one.
   "post_as_may_follow_another_buffering_reader",
   "post_as_refuses_after_a_streaming_reader_has_consumed_the_body",
-  # `rule:security/tainted-qualifier`'s return, at the site that pays for it.
-  "an_unqualified_shape_at_a_request_call_site_is_diagnosed_naming_the_shape",
 ]
 
+# `rule:security/tainted-qualifier`'s return, at the site that pays for it. Filed here and not in the
+# `cargo-named` check above, which drafted it as a `-p nvs-stdlib` `#[test]`: the diagnosis is a
+# refusal the checker writes, and `crates/nvs-stdlib/Cargo.toml` names neither `nvs-types` nor
+# `nvs-hir`, so that crate can carry the value but has nothing to write the diagnosis with.
 [[check]]
 kind = "nvs-suite"
 stage = "4 the boundary"
-name = "conformance (three cases each, over a built request)"
+name = "conformance (the boundary's four claims, over a built request)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/a-request-hydrates-its-form-into-a-declared-shape.nvst",
-  "tests/conformance/core/a-request-shape-names-every-field-the-peer-got-wrong.nvst",
-  "tests/conformance/core/a-request-shape-ignores-a-field-it-did-not-name.nvst",
-  "tests/conformance/core/a-query-string-hydrates-into-a-declared-shape.nvst",
+  # The whole parameter set, both members and the unnamed key left behind — three of the four claims
+  # this check was drafted with, which the corpus pins in one case rather than in three.
+  "tests/conformance/core/a-request-parameter-set-becomes-the-shape-it-was-asked-for.nvst",
+  "tests/conformance/core/a-named-request-subtree-is-read-as-a-shape.nvst",
+  "tests/conformance/core/a-request-shape-names-every-field-that-did-not-fit.nvst",
+  "tests/conformance/reject/an-unqualified-shape-at-a-request-decode-site-is-refused.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
