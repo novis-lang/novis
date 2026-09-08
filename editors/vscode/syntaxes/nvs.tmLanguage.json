@@ -46,16 +46,19 @@
       "patterns": [{ "include": "text.html.basic" }]
     },
     "code": {
-      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below the first three: a rule that colours a keyword or a type has no way to know it is inside a comment or a string literal, so whatever consumes those has to be offered the position first. The contextual spellings go above the reserved table for the same reason in miniature — `spawn script` has to be read before `spawn` can be read as anything — and the names go above it on the same one, because a declaration's pattern consumes the keyword that introduces the name and would otherwise be offered the position after the reserved table has already taken it.",
+      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below the first three: a rule that colours a keyword or a type has no way to know it is inside a comment or a string literal, so whatever consumes those has to be offered the position first. The contextual spellings go above the reserved table for the same reason in miniature — `spawn script` has to be read before `spawn` can be read as anything — and the names go above it on the same one, because a declaration's pattern consumes the keyword that introduces the name and would otherwise be offered the position after the reserved table has already taken it. `#types` is the one family below the table rather than above it, and that is what makes it safe: each of its patterns reads a bare name by the token beside it, and a reserved word standing in the same place — `return $x`, `int $count` — has to be offered to the table first or it would be coloured as the type name it looks like.",
       "patterns": [
         { "include": "#attribute" },
         { "include": "#comments" },
         { "include": "#strings" },
         { "include": "#contextual-keywords" },
         { "include": "#legacy-cast" },
+        { "include": "#type-alias" },
+        { "include": "#signature" },
         { "include": "#names" },
         { "include": "#keywords" },
-        { "include": "#numbers" }
+        { "include": "#numbers" },
+        { "include": "#types" }
       ]
     },
     "attribute": {
@@ -106,14 +109,6 @@
           "captures": {
             "1": { "name": "storage.type.class.nvs" },
             "2": { "name": "entity.name.type.enum.nvs" }
-          }
-        },
-        {
-          "comment": "`fn` and an anonymous `function (` introduce no name, so the pattern needs one and the reserved table colours the keyword alone where there is none.",
-          "match": "(?<![$\\w])(function|fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
-          "captures": {
-            "1": { "name": "storage.type.function.nvs" },
-            "2": { "name": "entity.name.function.nvs" }
           }
         },
         {
@@ -183,6 +178,84 @@
         }
       ]
     },
+    "type-alias": {
+      "comment": "`type Id = …` (rule:types/type-alias). `type` is a contextual spelling — a method may already be called `type` — so the pattern carries the name and the `=` that make this one a declaration, which is the neighbour test `#contextual-keywords` applies to the rest of them. The right-hand side is a type region, so an alias for a shape or a generic colours the way the same spelling does in a return position, and the `;` closing the declaration is what closes it.",
+      "begin": "(?<![$\\w])(type)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?==)",
+      "beginCaptures": {
+        "1": { "name": "storage.type.nvs" },
+        "2": { "name": "entity.name.type.nvs" }
+      },
+      "end": "(?=;)|(?=\\?>)",
+      "patterns": [{ "include": "#type" }]
+    },
+    "signature": {
+      "comment": "A `function` or `fn`, the name it introduces where there is one, and the parameter list that has to follow it — held open until the body starts. The region exists for the return type: `):` introduces one inside a signature and closes a ternary's condition everywhere else (`$n is uint ? $sum as float : parent::total($n)`), and no lookbehind reaches back far enough to tell the two colons apart from the colon itself. It carries the declaration's own name for the reason the declarations in `#names` do — the pattern consumes the keyword that introduces it, so `fn` and an anonymous `function (` colour the keyword alone. Its body is `#code`, so a default value is ordinary code, and both ends are lookaheads: the `{` it stops at is still the body's to open, and it steps over one that opens a shape type instead.",
+      "begin": "(?<![$\\w])(function|fn)\\s*([A-Za-z_][A-Za-z0-9_]*)?\\s*(?=\\()",
+      "beginCaptures": {
+        "1": { "name": "storage.type.function.nvs" },
+        "2": { "name": "entity.name.function.nvs" }
+      },
+      "end": "(?==>)|(?=;)|(?=\\{(?![ \\t]*[A-Za-z_][A-Za-z0-9_]*[ \\t]*:))",
+      "patterns": [{ "include": "#return-type" }, { "include": "#code" }]
+    },
+    "return-type": {
+      "comment": "The `)` that closes a parameter list, the `:` after it, and every spelling of the type that follows — the body is `#type` rather than one atom, so a union, a generic and an inline shape all reach it. It gives up at a `$`: a return type holds no variable, so one standing there says the `)` closed something else — the `callable(int): bool $keep` of a parameter, whose own type is a signature — and the binding it opens is better read as code than swallowed.",
+      "begin": "(\\))\\s*(:)",
+      "end": "(?==>)|(?=[;,)$])|(?=\\{(?![ \\t]*[A-Za-z_][A-Za-z0-9_]*[ \\t]*:))",
+      "patterns": [{ "include": "#type" }]
+    },
+    "types": {
+      "comment": "The annotations rule:types/declaration makes mandatory, in the positions where the token beside a name is what says the name is a type. Each pattern consumes the name alone and looks at its neighbour rather than taking it, so nothing it reads past loses the colour it already had. Two slots are not here. The return type needs the whole signature to be told from a ternary's colon, and lives in `#signature`. The inline shape is recognised only inside a type region, because `{n: int}` and the object literal `{n: $n * 10}` are one spelling as far as a regex reaches, and colouring the second as the first would confirm a shape where there is a value.",
+      "patterns": [
+        {
+          "comment": "Every slot that binds a `$` name is one shape — parameter, property, typed local, `foreach` binding, `catch` clause, promoted constructor parameter: the type, then the variable. A `...` between them is a variadic and belongs to the shape; an `&` is not, because rule:statements/ampersand-is-not-a-by-reference-marker retires that marker, so `Row &$r` is left uncoloured rather than confirming a spelling the parser reports.",
+          "name": "entity.name.type.nvs",
+          "match": "(?<![$\\w\\\\])[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*(?:\\.\\.\\.)?\\s*\\$)"
+        },
+        {
+          "comment": "A class constant, the one binding site whose name is not a `$`: `public const Currency DEFAULT = …`. Two names and an `=` are what say the first is the type — where the type is a scalar the reserved table has already answered `const int MAX`, and the second name is the constant's own, which nothing here declares.",
+          "name": "entity.name.type.nvs",
+          "match": "(?<![$\\w\\\\])[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*(?=\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=)"
+        },
+        {
+          "comment": "A type argument: `array<Line>`, `Iterator<Row>`. rule:types/grammar parses a `<` after a name as an argument list in type position and nowhere else, so a name written between one and its `,` or `>` is a type wherever it stands.",
+          "name": "entity.name.type.nvs",
+          "match": "(?<=<)[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*[,>])"
+        }
+      ]
+    },
+    "type": {
+      "comment": "One type expression, wherever a region has already established that a type is what stands here — rule:types/grammar, in the order it resolves. The reserved table is offered before the name, so a scalar atom, `array`, a qualifier and `self` keep the colour they carry everywhere else; the literals are offered before it too, because rule:types/literal-types makes `'ok'|'err'` a type and the `ok` inside those quotes is not a name. What is left is a name, which in a type position is the one thing a regex can be sure of.",
+      "patterns": [
+        { "include": "#shape-type" },
+        { "include": "#type-parens" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#keywords" },
+        {
+          "name": "entity.name.type.nvs",
+          "match": "(?<![$\\w\\\\])[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "shape-type": {
+      "comment": "ADR 0036 § 3's inline `{name: T}` (rule:types/object-top). A field name carries the scope a member carries everywhere else, because that is what it is, and the type after it recurses — so a shape nested in a shape needs nothing of its own.",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:)",
+          "captures": { "1": { "name": "variable.other.property.nvs" } }
+        },
+        { "include": "#type" }
+      ]
+    },
+    "type-parens": {
+      "comment": "A parenthesized type: rule:types/grammar's DNF `(A&B)|C`, and the argument list of a `callable(int, string): int`. Holding it open as a region is what keeps a `,` or a `:` inside it from ending the slot that opened it.",
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [{ "include": "#type" }]
+    },
     "numbers": {
       "comment": "A duration is offered before the number it opens with, because rule:types/duration-literal makes `1h30m` one token rather than three and a grammar that colours `1h` alone says the opposite. The chain of optional groups is that rule's whole grammar: the units are lower case, strictly descending and each at most once, so `30m1h`, `1h1h` and `30S` are refused by the pattern itself and colour as the plain integer they start with — rule:ide/rejected-syntax-gets-no-colour, applied to a literal the lexer will report. The trailing guard is what forces the run to be consumed whole, and the leading one keeps `0x1d`'s `1d` and `1.5s`'s `5s` from being read as durations inside a literal that is not one.",
       "patterns": [
@@ -201,7 +274,7 @@
       ]
     },
     "contextual-keywords": {
-      "comment": "The spellings crates/nvs-syntax/src/parser/mod.rs:609 recognises by text, one position at a time. Each of them lexes as an ordinary identifier, so a method may already be called `type` or `get`, and every pattern here carries the neighbouring token that makes the spelling a construct: `spawn` on its own is a name expression (crates/nvs-syntax/src/parser/expr.rs:1451) and only `spawn script` is not. Where the neighbour is too far away for a regex to see it, the word is left uncoloured rather than guessed at — `with`, whose `spawn script` path stands between it and anything anchoring, is the one that is.",
+      "comment": "The spellings crates/nvs-syntax/src/parser/mod.rs:609 recognises by text, one position at a time. Each of them lexes as an ordinary identifier, so a method may already be called `type` or `get`, and every pattern here carries the neighbouring token that makes the spelling a construct: `spawn` on its own is a name expression (crates/nvs-syntax/src/parser/expr.rs:1451) and only `spawn script` is not. Where the neighbour is too far away for a regex to see it, the word is left uncoloured rather than guessed at — `with`, whose `spawn script` path stands between it and anything anchoring, is the one that is. `type` is not here for the opposite reason: its neighbours are a name and an `=`, which make the line a declaration rather than a spelling, so `#type-alias` carries the whole of it.",
       "patterns": [
         {
           "match": "(?<![$\\w])(spawn)\\s+(script)\\b",
@@ -219,10 +292,6 @@
           }
         },
         { "name": "keyword.control.nvs", "match": "(?<![$\\w])await\\b(?=\\s+[$\\\\A-Za-z_])" },
-        {
-          "name": "storage.type.nvs",
-          "match": "(?<![$\\w])type\\b(?=\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=)"
-        },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])by\\b(?=\\s+\\$)" },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:from|discover)\\b(?=\\s*['\"$])" },
         { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:get|set)\\b(?=\\s*(?:\\{|=>))" }

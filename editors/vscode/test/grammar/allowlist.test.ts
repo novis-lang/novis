@@ -61,6 +61,7 @@ const ALLOWED = [
   "variable.other.property.nvs",
   "punctuation.accessor.nvs",
   "constant.other.nvs",
+  "entity.name.type.nvs",
   "entity.name.type.class.nvs",
   "entity.name.type.interface.nvs",
   "entity.name.type.enum.nvs",
