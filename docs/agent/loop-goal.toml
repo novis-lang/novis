@@ -5809,8 +5809,12 @@ cases = [
 kind = "exact"
 stage = "5 the proofs"
 file = "examples/input-shapes.nvs"
-# Run under `nvs run --request` (goal 16 stage 2, goal 17's builder), so the whole path is exercised:
-# a real form, a declared shape, one collected error, and a field the shape never named.
+# The request fixture is this check's own argument, not a note about how to run the program by hand:
+# goal 16 stage 2's flag over goal 17's builder, so the whole path is exercised — a real form, a
+# declared shape, one collected error, and a field the shape never named. Run without it the program
+# answers `postAs(): there is no request here`, which is the correct refusal for a CLI run and not a
+# missing feature.
+args = ["--request", "examples/input-shapes.nvsr"]
 want = [
   "email is ada@example.test",
   "age is 36",

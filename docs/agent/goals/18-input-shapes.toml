@@ -103,6 +103,27 @@ modules = [
   "crates/nvs-stdlib/src/uri.rs",
   # The registry cards for the three members.
   "crates/nvs-stdlib/src/registry.rs",
+  # Lowers one already-checked method body to a `crate::ir::Function` — see the crate's own module
+  # docs for which statement and expression shapes are covered, and why this trusts its input
+  # rather than re-checking it.
+  "crates/nvs-ir/src/lower/mod.rs",
+  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
+  # inline behind it — plus the `ClassDesc` every instance points back at.
+  "crates/nvs-runtime/src/object.rs",
+  # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
+  # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
+  "crates/nvs-stdlib/src/db/row.rs",
+  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
+  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
+  "crates/nvs-types/src/derive.rs",
+  # The written-class lowering: the descriptor constant and the list flag, ahead of the receiver.
+  # This is where a `WRITTEN_CLASS_MEMBERS` call site is built, and `lower/call.rs` is not.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The argument slot a descriptor and a shape's wire contract both ride in.
+  "crates/nvs-runtime/src/value.rs",
+  # The second pass that resolves a codec's nested descriptors, and the one place a constant's
+  # address is baked into compiled code.
+  "crates/nvs-codegen/src/lib.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
@@ -194,7 +215,14 @@ adrs = ["0024 §1"]
 # The converter, and the three sections that argue it: the coercion table, the type-argument door
 # its third member joins, and the collected-failure shape it reuses.
 [context.stage.3]
-rules = ["core-classes/derive-attribute", "types/arrays"]
+rules = [
+  "core-classes/derive-attribute",
+  "types/arrays",
+  # The hydration walk decides an absent optional key and a `?T` field by these two, and stage 2's
+  # overlay is where the first was — a session doing the walk pays for it again without this.
+  "types/shape-type",
+  "expressions/nullable-conversion",
+]
 adrs = ["0007 §2", "0007 §5", "0071"]
 shapes = ["A `Core` member — the five edits"]
 
@@ -5753,20 +5781,24 @@ tests = [
   # Goal 16's body-read rule, unchanged: this is a buffering reader, and it takes the claim as one.
   "post_as_may_follow_another_buffering_reader",
   "post_as_refuses_after_a_streaming_reader_has_consumed_the_body",
-  # `rule:security/tainted-qualifier`'s return, at the site that pays for it.
-  "an_unqualified_shape_at_a_request_call_site_is_diagnosed_naming_the_shape",
 ]
 
+# `rule:security/tainted-qualifier`'s return, at the site that pays for it. Filed here and not in the
+# `cargo-named` check above, which drafted it as a `-p nvs-stdlib` `#[test]`: the diagnosis is a
+# refusal the checker writes, and `crates/nvs-stdlib/Cargo.toml` names neither `nvs-types` nor
+# `nvs-hir`, so that crate can carry the value but has nothing to write the diagnosis with.
 [[check]]
 kind = "nvs-suite"
 stage = "4 the boundary"
-name = "conformance (three cases each, over a built request)"
+name = "conformance (the boundary's four claims, over a built request)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/a-request-hydrates-its-form-into-a-declared-shape.nvst",
-  "tests/conformance/core/a-request-shape-names-every-field-the-peer-got-wrong.nvst",
-  "tests/conformance/core/a-request-shape-ignores-a-field-it-did-not-name.nvst",
-  "tests/conformance/core/a-query-string-hydrates-into-a-declared-shape.nvst",
+  # The whole parameter set, both members and the unnamed key left behind — three of the four claims
+  # this check was drafted with, which the corpus pins in one case rather than in three.
+  "tests/conformance/core/a-request-parameter-set-becomes-the-shape-it-was-asked-for.nvst",
+  "tests/conformance/core/a-named-request-subtree-is-read-as-a-shape.nvst",
+  "tests/conformance/core/a-request-shape-names-every-field-that-did-not-fit.nvst",
+  "tests/conformance/reject/an-unqualified-shape-at-a-request-decode-site-is-refused.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -5777,8 +5809,12 @@ cases = [
 kind = "exact"
 stage = "5 the proofs"
 file = "examples/input-shapes.nvs"
-# Run under `nvs run --request` (goal 16 stage 2, goal 17's builder), so the whole path is exercised:
-# a real form, a declared shape, one collected error, and a field the shape never named.
+# The request fixture is this check's own argument, not a note about how to run the program by hand:
+# goal 16 stage 2's flag over goal 17's builder, so the whole path is exercised — a real form, a
+# declared shape, one collected error, and a field the shape never named. Run without it the program
+# answers `postAs(): there is no request here`, which is the correct refusal for a CLI run and not a
+# missing feature.
+args = ["--request", "examples/input-shapes.nvsr"]
 want = [
   "email is ada@example.test",
   "age is 36",
