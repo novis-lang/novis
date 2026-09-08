@@ -235,6 +235,12 @@ settles it under AGENTS.md's priority ordering and records it in the home AGENTS
 Two things every standing decision should carry: the safe fallback if the implementation forces the
 opposite conclusion, and where the answer gets written down. A decision with no home gets re-derived.
 
+**A goal that will open a record says so, and does not name the number.** A number is claimed by the
+file that lands, one above the highest in `docs/decisions/` — so a number written into a goal near the
+end of the chain is a number an earlier goal claims first, and the session that arrives finds it taken
+and frozen. Say *one new record and no other number*; the goal 33 form — naming the record because it
+has already landed and this goal only implements it — is the other legitimate one.
+
 `python tools/chain.py --check` notes a queued goal with no § *Standing decisions* at all, which is
 the cheap half of this and the only half a tool can see. It cannot tell whether the section answers
 the questions the stages actually reach — that is this section's judgement, and the goal whose design
