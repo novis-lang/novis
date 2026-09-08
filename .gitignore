@@ -85,4 +85,13 @@ __pycache__/
 # happen to sit in the tree for the length of one build.
 /docker/bin/
 
+# The editor clients' package caches and build output. The lockfile IS committed -- `npm ci` needs
+# one, and an unpinned tree makes the grammar snapshots reproducible only by luck -- but a session
+# that commits `node_modules` is a session whose commit nobody can review. Anchored under
+# `editors/` because an unanchored `out/` also swallows website/src/content/docs/docs/core/out/.
+/editors/*/node_modules/
+/editors/*/out/
+/editors/*/.vscode-test/
+/editors/*/*.vsix
+
 a.out

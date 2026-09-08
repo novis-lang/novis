@@ -1,0 +1,146 @@
+{
+  "name": "nvs",
+  "displayName": "Novis",
+  "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
+  "version": "0.1.0",
+  "publisher": "nvs-lang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nvs-lang/nvs.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://github.com/nvs-lang/nvs",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onLanguage:nvs"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "nvs",
+        "aliases": [
+          "Novis",
+          "nvs"
+        ],
+        "extensions": [
+          ".nvs"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "Novis",
+      "properties": {
+        "nvs.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Absolute path to the nvs binary. Empty means look it up on PATH."
+        },
+        "nvs.lsp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the Novis language server for .nvs files."
+        },
+        "nvs.lsp.debounce": {
+          "type": "integer",
+          "default": 150,
+          "minimum": 0,
+          "description": "Milliseconds a keystroke waits before analysis starts. The next keystroke cancels the analysis in flight."
+        },
+        "nvs.lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the messages exchanged with the Novis language server."
+        },
+        "nvs.secrets.redact": {
+          "type": "boolean",
+          "default": true,
+          "description": "Conceal the ranges the server reports as secret. Reveal one with the Novis: Reveal Secret command."
+        },
+        "nvs.taint.mark": {
+          "type": "string",
+          "enum": [
+            "off",
+            "declaration",
+            "sink"
+          ],
+          "enumDescriptions": [
+            "Nothing is marked; the semantic token modifier alone, styled by your theme.",
+            "A glyph after each declaration whose type carries tainted.",
+            "Declarations, plus each argument position where a tainted value reaches a sink."
+          ],
+          "default": "off",
+          "description": "Whether tainted values carry a marker glyph in addition to their token modifier."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "nvs.run",
+        "title": "Run File",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.test",
+        "title": "Run Tests",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.showAst",
+        "title": "Show AST",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.restartServer",
+        "title": "Restart Language Server",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.revealSecret",
+        "title": "Reveal Secret",
+        "category": "Novis"
+      },
+      {
+        "command": "nvs.hideSecrets",
+        "title": "Hide Secrets",
+        "category": "Novis"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -p ./ --watch",
+    "lint": "eslint .",
+    "test:headless": "tsc -p ./ && node scripts/headless.mjs",
+    "package": "vsce package --out nvs.vsix"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/mocha": "^10.0.9",
+    "@types/node": "^20.16.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.2.0",
+    "eslint": "^9.13.0",
+    "mocha": "^10.8.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.11.0"
+  }
+}
