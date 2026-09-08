@@ -103,6 +103,8 @@ modules = [
   "crates/nvs-test/src/run.rs",
   # The section lexer: cutting a case file into its `--NAME--` sections.
   "crates/nvs-test/src/section.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
