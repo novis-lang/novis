@@ -80,6 +80,13 @@ pub type ServerError = Box<dyn Error + Sync + Send>;
 /// anywhere in the graph desynchronises the framing rather than printing
 /// something a user sees.
 ///
+/// The connection is dropped before the threads are joined, and that order is
+/// the whole of why this process ever exits. The reader thread stops at the
+/// `exit` notification, but the writer thread runs until the last sender on
+/// its channel is gone — and the connection holds one. Joining while it is
+/// still alive blocks forever, which an editor sees as an `nvs lsp` that
+/// survives every session it started and has to be killed.
+///
 /// # Errors
 ///
 /// Returns the first protocol or io failure. Both are terminal: a framing
@@ -87,8 +94,7 @@ pub type ServerError = Box<dyn Error + Sync + Send>;
 pub fn run() -> Result<(), ServerError> {
     let (connection, io_threads) = Connection::stdio();
     serve(&connection)?;
-    // After `exit`, and only after: joining before the loop returns would
-    // block on a reader that is still holding stdin open.
+    drop(connection);
     io_threads.join()?;
     Ok(())
 }
