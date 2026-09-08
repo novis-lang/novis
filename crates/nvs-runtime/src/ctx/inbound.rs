@@ -2117,7 +2117,7 @@ mod tests {
     /// `&` that would otherwise open a pair of its own is `%26`, so a value
     /// carrying the byte that structures the payload cannot restructure it.
     #[test]
-    fn a_form_body_encodes_its_pairs_and_declares_its_own_type() {
+    fn a_form_field_encodes_urlencoded_and_sets_its_content_type() {
         let mut spec = InboundSpec::new("POST", "/users");
         spec.set_body(SpecBody::Form(vec![
             ("name".to_owned(), "ada lovelace".to_owned()),
@@ -2142,6 +2142,27 @@ mod tests {
         );
     }
 
+    /// A `json` body is carried verbatim under `application/json`, which is the
+    /// whole of what the `json` spelling buys over `body`. Nothing here reads
+    /// the document, so a case that means to post a malformed one gets exactly
+    /// the octets it wrote, under the type a client would have declared.
+    #[test]
+    fn a_json_field_encodes_the_value_and_sets_its_content_type() {
+        let mut spec = InboundSpec::new("POST", "/users");
+        spec.set_body(SpecBody::Json(br#"{"name":"ada"}"#.to_vec()))
+            .expect("one spelling");
+
+        let mut inbound = spec.build();
+        assert_eq!(body_of(&mut inbound).as_deref(), Some(r#"{"name":"ada"}"#));
+        assert_eq!(
+            head(&inbound),
+            vec![
+                ("content-type".to_owned(), "application/json".to_owned()),
+                ("content-length".to_owned(), "14".to_owned()),
+            ]
+        );
+    }
+
     /// A `files` body is framed part by part, a part with no file name is a
     /// form field rather than a file
     /// (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`), and the
@@ -2151,7 +2172,7 @@ mod tests {
     /// makes a built body assertable at all, and a part that happened to carry
     /// it would otherwise frame parts nobody wrote.
     #[test]
-    fn a_files_body_frames_its_parts_and_lengthens_a_boundary_a_part_holds() {
+    fn a_files_field_builds_a_multipart_body_with_a_boundary() {
         let mut spec = InboundSpec::new("POST", "/avatars");
         spec.set_body(SpecBody::Files(vec![
             SpecPart {
@@ -2241,23 +2262,59 @@ mod tests {
         );
     }
 
-    /// Everything a spec says that is not a body reaches the carrier: the
-    /// query verbatim, the cookies as the one field a peer would have sent,
-    /// the host as its field line, and the peer as
+    /// Every cookie a spec names travels as the one `cookie` field line a peer
+    /// would have sent — the pairs joined with `"; "` in the order they were
+    /// pushed, which is the spelling RFC 6265 § 5.4 gives a client, and never a
+    /// field line each.
+    ///
+    /// A spec that wrote a `cookie` line itself carries that one and no second:
+    /// the pairs are dropped rather than merged into it, since a merge would
+    /// send a request neither the line nor the pairs describe.
+    #[test]
+    fn a_cookies_field_becomes_one_cookie_header() {
+        let mut spec = InboundSpec::new("GET", "/users");
+        spec.push_cookie("session", "abc123");
+        spec.push_cookie("theme", "dark");
+
+        assert_eq!(
+            head(&spec.build()),
+            vec![("cookie".to_owned(), "session=abc123; theme=dark".to_owned())]
+        );
+
+        let mut written = InboundSpec::new("GET", "/users");
+        written.push_header("cookie", b"session=written");
+        written.push_cookie("session", "bag");
+
+        assert_eq!(
+            head(&written.build()),
+            vec![("cookie".to_owned(), "session=written".to_owned())]
+        );
+    }
+
+    /// Every field a spec names reaches the carrier: the verb and the path it
+    /// was opened with, the query verbatim, the field line it wrote itself, the
+    /// host and the cookies as the fields a peer would have sent, the body with
+    /// the two fields its spelling declares, and the peer as
     /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
     /// walk would have decided it.
+    ///
+    /// One spec naming all of them, because what this asks is that
+    /// [`InboundSpec::build`] writes every field — what a given spelling
+    /// encodes is that spelling's own test.
     #[test]
-    fn a_spec_carries_its_query_its_cookies_its_host_and_its_peer() {
-        let mut spec = InboundSpec::new("GET", "/users");
+    fn a_spec_becomes_an_inbound_with_every_field_it_named() {
+        let mut spec = InboundSpec::new("POST", "/users");
         spec.set_query("page=2&q=novis");
         spec.push_header("accept", b"application/json");
         spec.push_cookie("session", "abc123");
         spec.push_cookie("theme", "dark");
         spec.set_host("app.example");
         spec.set_peer(Some(IpAddr::from([203, 0, 113, 9])), Scheme::Https);
+        spec.set_body(SpecBody::Form(vec![("name".to_owned(), "ada".to_owned())]))
+            .expect("one spelling");
 
         let mut inbound = spec.build();
-        assert_eq!(inbound.method(), "GET");
+        assert_eq!(inbound.method(), "POST");
         assert_eq!(inbound.path(), "/users");
         assert_eq!(inbound.query(), "page=2&q=novis");
         assert_eq!(
@@ -2266,12 +2323,15 @@ mod tests {
                 ("accept".to_owned(), "application/json".to_owned()),
                 ("host".to_owned(), "app.example".to_owned()),
                 ("cookie".to_owned(), "session=abc123; theme=dark".to_owned()),
+                (
+                    "content-type".to_owned(),
+                    "application/x-www-form-urlencoded".to_owned()
+                ),
+                ("content-length".to_owned(), "8".to_owned()),
             ]
         );
         assert_eq!(inbound.client(), Some(IpAddr::from([203, 0, 113, 9])));
         assert_eq!(inbound.scheme(), Scheme::Https);
-        // A request with no body is not a request whose body is empty, and a
-        // spec that named none says the first of those.
-        assert!(body_of(&mut inbound).is_none());
+        assert_eq!(body_of(&mut inbound).as_deref(), Some("name=ada"));
     }
 }
