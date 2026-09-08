@@ -3450,6 +3450,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Before adding a construct family, grep the other `*.test.ts` under `editors/vscode/test/grammar/` for a
   `span(` whose text holds a word the new pattern claims, and split that assertion into the pieces the
   new rule leaves. [until: reviewed 2026-09-08]
+- **A new name pattern splits spans the other grammar suites assert on, and the failure names the
+  test helper rather than the grammar.** `tokenize.ts`'s `span()` throws `0 spans read exactly
+  "$total = "` the moment a variable rule lands, because every suite that asserted on a run of
+  uncoloured code now sees that run in pieces — one pattern moved assertions in four files. Before
+  adding a pattern to `#code`, grep the other `*.test.ts` for a span text holding a `$`, a `->` or a
+  name the new rule will claim. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
