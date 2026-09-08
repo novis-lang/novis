@@ -64,8 +64,7 @@
 > 10k cold compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
 > lands.** **`Core\Cldr` is whole.** Conformance 1592, differential 276, migration 100%; valgrind
 > green, arrays too. Serve: 2.78x php-cgi.  **The store publishes** gated diagnostics; nine,
-> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed, editor
-> chapter proved.
+> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

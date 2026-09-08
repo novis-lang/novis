@@ -2,54 +2,52 @@
 
 ## State
 
-**Goal 15 stage 6 is done.** `nvs/redactions` answers two kinds on one list —
-`secretLiteral`, bytes to conceal, and `taintedDeclaration`, the name of a local whose type carries
-`tainted` — and the client conceals the first, marks the second only where `nvs.taint.mark` asks,
-and conceals any spelling it has not been taught. The one-list decision and the walk are
-`crates/nvs-lsp/src/redactions.rs`'s module doc; the client's partition is
-`editors/vscode/src/concealment.ts`'s `MARKERS`. Headless is 158 passing over four suites, the
-`tests/lsp/redactions/` tree is 6 cases, `npm run lint` is clean.
+**Goal 15 stage 9 is done, and it was the last stage red.** `docs/reference/tools/40-editor.md`
+carries a third `#` heading — *The VS Code extension* — beside `# nvs lsp` and `# nvs lsp-test`, and
+`python tools/dossier.py --group tools:editor` shows all three features complete. Both stage-9
+checks are green (`dossier.py --only tools:editor/the-vs-code-extension --gate`, `reference.py
+--check`), and `verify.py` is 8 of 8: 3574 Rust, 1592 conformance, 276 differential, 102 headless.
 
-**ADR 0101 § 4 asks for a codicon and the API does not offer one.** An inline decoration attachment
-takes `contentText` or an image path and never both, and only the text takes a `ThemeColor`, so the
-glyph is a themed BMP character. That trade is recorded in `editors/vscode/README.md` §
-*Decided here*, which is where the goal's *Standing decisions* put a decision too small for a
-record.
+**Two contributions are documented as not answered, because they are not.** `nvs.run`, `nvs.test`
+and `nvs.showAst` are declared in `editors/vscode/package.json:119` and registered by nothing
+(`editors/vscode/src/extension.ts:62` registers three others), and `nvs.lsp.debounce` is read by no
+client and no server. The chapter's § *What it does not do* says so rather than describing them as
+working; `playbook.md` § *Tooling* has the trap.
 
-**`nvs.taint.mark = sink` marks what `declaration` marks.** No kind answers a sink's argument
-positions, because `rule:security/sink-predicate`'s classification is not on the member rows yet and
-ADR 0101 § *Open questions* leaves whether that value is built at all open. The gap is stated in
-`crates/nvs-lsp/src/redactions.rs` § *What it does not reach*, beside the parameter and property
-declarations the marker also cannot see.
+**The chapter and the manifest are now pinned to each other.**
+`crates/nvs-lsp/tests/extension_reference.rs` reads both and fails when the settings table, the
+commands table or the `.nvs`-only claim drifts from what the editor actually reads. The extension's
+own headless suite freezes the manifest against a TypeScript roster and never opens the chapter,
+which is the half that was unchecked.
 
 ## Next group
 
-**Stage 9: the reference chapter's last heading** — one file set:
-`docs/reference/tools/40-editor.md`, `docs/examples/`, `tests/hostile/` and the generated
-`docs/novis.md`. The dossier roster is derived from `#` headings, so the feature the acceptance
-check names does not exist until the heading is written; then it owes what `POLICY["tool"]` owes.
+**The extension's unanswered contributions** — one file set: `editors/vscode/package.json`,
+`editors/vscode/src/extension.ts`, `docs/reference/tools/40-editor.md`. Each item closes one of the
+"contributed and not yet answered" rows the chapter now names, and the last line of that section is
+what each one deletes.
 
-- [ ] **The chapter gains `# The VS Code extension`** — a third `#` heading beside
-      `docs/reference/tools/40-editor.md:8`'s `# nvs lsp` and `docs/reference/tools/40-editor.md:119`'s
-      `# nvs lsp-test`, written for a reader who has never seen this repository: what the extension
-      is, what it does not do, and the settings and commands it contributes.
-      `rule:ide/vscode-is-the-reference-client`. Then `python tools/reference.py --no-examples`,
-      because `docs/novis.md` is generated and its check is the stage's second one.
-- [ ] **The three proofs that heading then owes** — one test, one example, one hostile program and
-      no perf figure, which is `tools/dossier.py:250`'s `POLICY["tool"]` row and
-      `rule:testing/four-proofs`. `python tools/dossier.py --id
-      'tools:editor/the-vs-code-extension'` prints where each goes once the heading exists, and
-      `tools:editor`'s other two features are the shape to copy.
-- [ ] **The gate, once** — `python tools/dossier.py --only tools:editor/the-vs-code-extension
-      --gate` at `docs/agent/loop-goal.toml:5364`, which today refuses with *not on the roster*
-      rather than with a missing proof.
+- [ ] **`nvs.run` and `nvs.test` become Tasks and a command** — `rule:ide/vscode-is-the-reference-client`
+      names both as VS Code Tasks plus a "Run File" command. The registration goes beside the three
+      at `editors/vscode/src/extension.ts:62`; the identifiers are already frozen at
+      `editors/vscode/package.json:119`. A task's failures must populate the Problems panel, which
+      is `docs/plan/m4b.md`'s acceptance sentence.
+- [ ] **`nvs.showAst` renders the panel** — `rule:ide/the-extension-builds-no-ui-the-editor-already-has`
+      is the bound on what may be built for it, and `docs/plan/m4b.md`'s acceptance asks for a file
+      that does not compile to still render. Registration at `editors/vscode/src/extension.ts:62`,
+      identifier at `editors/vscode/package.json:131`.
+- [ ] **`nvs.lsp.debounce` reaches something** — the client builds `LanguageClientOptions` with no
+      `initializationOptions` at `editors/vscode/src/extension.ts:103`, and the server has no
+      debounce at all (`crates/nvs-lsp/src/server.rs`). Either it is wired end to end or the setting
+      is withdrawn; `rule:ide/one-server-two-thin-clients` decides which side holds the timer.
 
 ## Backlog
 
-- The `sink` value of `nvs.taint.mark` needs a third kind and `rule:security/sink-predicate`'s
-  classification first — ADR 0101 § *Open questions* owns whether it is built.
-- A parameter's and a property's declaration carry no marker; the gap is
-  `crates/nvs-lsp/src/redactions.rs` § *What it does not reach* and it is a `nvs-types` change.
-- Stage 7 is untouched: Tasks with a `problemMatcher`, and the AST panel's redaction obligation
-  (`docs/agent/loop-goal.md` § *Stage 7*).
-- Stage 8's extension-host suite is CI's alone and never run here (goal § *Standing decisions*).
+- No `semanticTokenScopes` contribution, so the two Novis modifiers fall back to the underlying
+  token type — `rule:ide/novis-ships-names-not-colours` asks for the mapping.
+- Formatting is in `rule:ide/vscode-is-the-reference-client` and in no capability the server
+  declares; `nvs-fmt` is not wired to the client.
+- `nvs.taint.mark = sink` marks what `declaration` marks —
+  `crates/nvs-lsp/src/redactions.rs` § *What it does not reach*.
+- The extension-host tier stays CI's, on Linux under `xvfb-run`
+  (`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`).

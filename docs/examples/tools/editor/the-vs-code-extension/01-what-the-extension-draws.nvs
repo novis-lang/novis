@@ -1,0 +1,42 @@
+<?nvs
+// This file, opened in VS Code with the Novis extension installed. Every comment
+// points at something the editor is doing to the line under it — colour, a bar
+// over a value, a glyph after a name — and none of it is decided here: the
+// extension asks `nvs lsp` and draws the answer it gets back.
+
+// A `secret` binding. The literal's bytes are behind a bar the moment the file
+// opens, because the extension asked which ranges to conceal and was told this
+// one. Hover the bar and "Reveal Secret" uncovers this range and no other, in
+// this window, until you close the editor. Turn the whole behaviour off with
+// `nvs.secrets.redact` if you are alone and it is in your way.
+secret string $apiKey = "sk-live-not-a-real-key";
+
+// A `tainted` binding: a value from outside that nothing has checked yet. It is
+// never concealed — reading it over someone's shoulder is not an incident — and
+// by default it carries only the token modifier your theme already styles. Set
+// `nvs.taint.mark` to `declaration` and a glyph appears after the name.
+tainted string $query = "shoes";
+
+// Colour arrives twice on this class. The TextMate grammar in the extension had
+// already coloured `final`, `class` and the string below before any process
+// started; the server then said that `Receipt` is a class and `$cents` is a
+// property, which is the half a regular expression cannot answer.
+final class Receipt
+{
+    public int $cents = 0;
+
+    // Hover `Core\Str::format` and the editor shows what it does, read out of
+    // the compiler itself. There is no stub file to install.
+    public function line(): string
+    {
+        return Core\Str::format("%d cents", $this->cents);
+    }
+}
+
+var $receipt = new Receipt();
+$receipt->cents = 1250;
+
+// Nothing above ever reads `$apiKey`, and that is the point of the example: the
+// concealment is about what is on screen, and the value is still the plain bytes
+// in the file that the cursor, the selection and every edit address.
+echo $receipt->line(), "\n";

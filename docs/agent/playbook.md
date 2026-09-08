@@ -1258,6 +1258,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   real editor holds. Stub the missing scope in `editors/vscode/test/grammar/tokenize.ts` as
   `text.html.basic` already is, rather than hunting a regex that looks wrong.
   [until: gone editors/vscode/test/grammar/tokenize.ts:PHP_STUB]
+- **`editors/vscode/package.json`'s `contributes` block is a frozen roster, not a list of what
+  works.** Three of the six commands it declares (`nvs.run`, `nvs.test`, `nvs.showAst`) are
+  registered by nothing, and `nvs.lsp.debounce` is read by nothing — the identifiers are frozen
+  early so a keybinding survives the surface landing later, and `contributions.test.ts` asserts the
+  roster rather than the behaviour. Write a reference chapter from `src/extension.ts`'s
+  `registerCommand` calls and `getConfiguration` reads, and use the manifest only for the spellings
+  and defaults. [until: exists editors/vscode/src/extension.ts:nvs.showAst]
 
 ## Running things
 
