@@ -3081,10 +3081,10 @@ def repo_path(text):
 class SessionFiles:
     """Which dirty paths the SESSION wrote, so the sweep can leave the rest of the tree alone.
 
-    `mark_interrupted` commits what a session left behind, and it used to stage the whole tree.
-    That is right for a tree only the loop touches and wrong for the one this repository has: a
-    person edits `docs/` while the loop runs, and every session ending without a wrap swept their
-    work into a `wip(loop)` commit naming a session that never opened those files.
+    `mark_interrupted` commits what a session left behind, and this decides what it may stage.
+    Staging the whole dirty tree is right for a tree only the loop touches and wrong for the one
+    this repository has: a person edits `docs/` while the loop runs, and their open files then go
+    into a `wip(loop)` commit naming a session that never opened them.
 
     **A path is the session's only if something watched it being written.** Not "it is dirty and
     nobody else claimed it" -- the sweep takes what it can name and leaves everything else, so the
@@ -3987,8 +3987,8 @@ def mark_interrupted(index, why=None):
 
     **It sweeps the session's own paths and nothing else.** `TOUCH` splits the dirty tree into what
     something watched this session write and what it did not, and the second half is left exactly
-    where it is: the loop shares this working tree with a person, and staging everything meant a
-    session that had finished all of its slices still committed whatever that person had open. A
+    where it is: the loop shares this working tree with a person, and staging everything dirty
+    commits whatever that person has open, however little of it the session is responsible for. A
     sweep with nothing of its own to take is the same as a clean exit -- no commit at all, and the
     interruption cleared.
 

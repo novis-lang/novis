@@ -230,8 +230,8 @@ records the uncommitted paths and why, and `orient.py` puts them in front of the
 letting them read as the tree it was supposed to start from.
 
 **The sweep takes the session's paths and nothing else.** This working tree is shared with whoever is
-using the machine, and a sweep that staged everything dirty committed their open files under a
-`wip(loop)` subject naming a session that never opened them. So a path is swept only when something
+using the machine, so a sweep that staged everything dirty would commit their open files under a
+`wip(loop)` subject naming a session that never opened them. A path is swept only when something
 watched the session write it — the event stream for `Write` and `Edit`, `.loop/written.txt` for the
 tools that write behind a `Bash` call — and a sweep with nothing of its own to take makes no commit at
 all. The failure mode is deliberately the visible one: a stray file left dirty and named in `left`,
