@@ -3282,6 +3282,102 @@ mod tests {
         );
     }
 
+    /// The two field lines the carrier cases below arrive with, so that what
+    /// differs between them is the trust directive and never the request.
+    fn a_forwarded_request() -> hyper::HeaderMap {
+        let mut headers = hyper::HeaderMap::new();
+        headers.append(
+            HeaderName::from_static("x-forwarded-for"),
+            HeaderValue::from_static("203.0.113.9"),
+        );
+        headers.append(
+            HeaderName::from_static("x-forwarded-proto"),
+            HeaderValue::from_static("https"),
+        );
+        headers
+    }
+
+    /// What `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` decided is what the carrier holds: with the
+    /// loopback written into `trusted_proxies`, both facts the proxy stated
+    /// reach `nvs_runtime::Inbound`, which is where `Core\Request::clientIp()`
+    /// and `::scheme()` read them.
+    ///
+    /// Asserted at the seam itself — the two lines [`echo_the_peer`] and
+    /// `nvs-cli`'s door both write — rather than through a socket, so a carrier
+    /// that stored the peer or the connection's own scheme fails here with no
+    /// listener, thread or program standing between the walk and the answer.
+    #[test]
+    fn the_forwarded_walks_answer_is_set_on_the_inbound() {
+        let (trusted, rejected) = Trusted::of(&["127.0.0.1/32".to_owned()]);
+        assert!(
+            rejected.is_empty(),
+            "the fixture named no network: {rejected:?}"
+        );
+        let origin = crate::forwarded::walk(
+            Arrival::Tcp("127.0.0.1".parse().expect("a literal address")),
+            &trusted,
+            &a_forwarded_request(),
+        )
+        .expect("a chain of one readable address");
+
+        let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
+        inbound.set_peer(origin.client(), origin.scheme());
+
+        assert_eq!(
+            inbound.client(),
+            Some("203.0.113.9".parse().expect("a literal address")),
+            "a trusted proxy states the client address, and the carrier holds it"
+        );
+        assert_eq!(
+            inbound.scheme(),
+            Scheme::Https,
+            "the same proxy states the scheme, and one walk answered both"
+        );
+    }
+
+    /// The other side of that decision, in the two spellings that reach it: a
+    /// `trusted_proxies` that is empty, and one that names a network this peer
+    /// is not in. Both leave the carrier holding the socket's own peer over
+    /// plaintext, with the forwarded lines present and unread.
+    ///
+    /// They are asserted together because the walk answers them on one branch
+    /// while the rule keeps them apart — empty means the headers are never
+    /// parsed, an untrusted peer means they are ignored silently — so a change
+    /// that turned either into a refusal, or that read one of them, has to fail
+    /// something. Nothing here is a `400`: the value was never about to be used.
+    #[test]
+    fn an_untrusted_peers_forwarded_header_does_not_reach_the_carrier() {
+        let peer: std::net::IpAddr = "127.0.0.1".parse().expect("a literal address");
+        let (elsewhere, rejected) = Trusted::of(&["10.0.0.0/8".to_owned()]);
+        assert!(
+            rejected.is_empty(),
+            "the fixture named no network: {rejected:?}"
+        );
+
+        for (directive, trusted) in [
+            ("empty", Trusted::none()),
+            ("naming a network this peer is not in", elsewhere),
+        ] {
+            let origin =
+                crate::forwarded::walk(Arrival::Tcp(peer), &trusted, &a_forwarded_request())
+                    .expect("a chain that is never read cannot refuse");
+
+            let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
+            inbound.set_peer(origin.client(), origin.scheme());
+
+            assert_eq!(
+                inbound.client(),
+                Some(peer),
+                "with trusted_proxies {directive}, the client is the socket peer"
+            );
+            assert_eq!(
+                inbound.scheme(),
+                Scheme::Http,
+                "with trusted_proxies {directive}, X-Forwarded-Proto states nothing"
+            );
+        }
+    }
+
     /// The isolate the two body cases answer with: a handler that splits the
     /// arrived body the way `nvs-cli`'s door does, and a program that pulls it
     /// to its end off its own context.
