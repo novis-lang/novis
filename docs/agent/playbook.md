@@ -3571,6 +3571,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-stdlib/tests/allocation_policy.rs:288`, the nearest shape, declares none. Budget the
   fixture as its own slice, and leak the table, because a descriptor's address is its identity.
   [until: reviewed 2026-09-08]
+- **`nvs-test` has no dependencies on purpose, so a runtime type is unreachable from it.** Its
+  `Cargo.toml` carries the reason, which is that a failing runner must not look like the thing it
+  tests failing. A slice asked to route the `.nvst` sections through a runtime type routes them
+  through the `.nvsr` *file* instead, whose one reader is `inbound_from` in
+  `crates/nvs-cli/src/main.rs`, and names the other writer where the derivation is duplicated.
+  [until: gone crates/nvs-test/Cargo.toml:No dependencies on purpose]
 
 ## Splitting a file that got too big
 
