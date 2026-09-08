@@ -2,57 +2,47 @@
 
 ## State
 
-**Goal 14, stage 12 is closed: the workspace-wide async-runtime guard exists under the name the
-acceptance check uses.** `the_workspace_has_no_async_runtime` at
-`crates/nvs-runtime/tests/manifest_policy.rs:295` asserts the family rather than the one crate — no
-manifest of ours asks for a scheduler crate in any of the four spellings (`smol = "2"`,
-`smol.workspace = true`, `[dependencies.smol]`, a rename's `package = "smol"`), no crate of ours
-resolves to one in the lock file, and the lock file's only scheduler crate is `hyper`'s `tokio`. The
-family list is `ASYNC_RUNTIMES` at `crates/nvs-runtime/tests/manifest_policy.rs:252` and it is the
-*scheduler* half of that ecosystem only: `futures-core`, `futures-util` and `async-trait` schedule
-nothing and are already in the graph under `wasmtime`. `rule:concurrency/one-scheduler` is what it
-pins.
+**Goal 15 — `editors/vscode` — has just started; nothing of it has landed yet.** Goal 14's whole list is
+this goal's Stage 1 floor, so the server, its ten requests and its two code actions are all on disk and
+answering. `editors/` does not exist.
 
-**The landed `tokio_appears_in_neither_the_manifest_nor_the_lockfile` is untouched**, so the stage-1
-check that names it stays green; the two tests overlap on `tokio` on purpose, the older one in depth
-and this one in breadth.
+**This is the first non-Rust source in the repository, and the tooling for it is already there.**
+`tools/orient.py` globs `editors/*/src/**/*.ts` for its module map and `tools/verify.py` carries the
+extension step and its `npm` plumbing, dormant until the directory exists. If a session finds either
+missing, that is stage 2's blocker and belongs here — not a tooling slice invented mid-goal.
 
-**M4B no longer asserts something false.** Both the lead paragraph and *Verify* now say what those two
-tests check instead of "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`", so the playbook
-bullet whose `[until: gone docs/plan/m4b.md:appears in neither]` waited on that is dropped by this
-wrap.
-
-**Every goal-14 stage the ledger has named is green.** Whether the acceptance list is whole is the
-driver's own check; this session ran `verify.py`, not that list.
+**Stage 0 is empty.** Goal 13 landed `|>` and `let`/`is`, so `rule:ide/highlighting-is-two-layers`'s *must not colour as valid*
+list is now checkable against real diagnostics; goals 10 and 11 landed `callable<…>` and `///`, which are
+colour surface that list predates.
 
 ## Next group
 
-**The tool chapters that owe every proof, starting with the CLI's** — one file set:
-`docs/reference/tools/10-cli.md`, `crates/nvs-cli/tests/`, `docs/examples/tools/cli/` and
-`tests/hostile/tools/cli/`. `python tools/dossier.py --group tools:cli` is 13 features at zero, and
-`rule:testing/one-slice-is-one-feature` is why a feature's three proofs land together rather than a
-row at a time.
+**Stage 2: the package, and the identifiers that are public API** — one file set: a new
+`editors/vscode/` (`package.json`, `package-lock.json`, `tsconfig.json`, `language-configuration.json`,
+its lint config and npm scripts), plus the four `.gitignore` lines.
 
-- [ ] **`tools:cli/nvs-ast` carries a test, an example and an attack** — the `covers:` marker goes on
-      a case that already exercises the subcommand in `crates/nvs-cli/tests/ast.rs:1`, per
-      `rule:testing/proof-attribution`; the example goes under `docs/examples/tools/cli/` and the
-      attack under `tests/hostile/tools/cli/`. `crates/nvs-lsp/tests/handshake.rs:97` is the marker's
-      shape as stage 11 landed it, and `rule:testing/four-proofs` is what a feature owes before
-      `POLICY["tool"]` narrows it to three.
-- [ ] **`tools:cli/nvs-meta-json` carries the same three** — `crates/nvs-cli/tests/meta.rs:1` is the
-      binary that already covers it, so this is one marker plus the two files; the `--json` output is
-      the registry, which makes the attack a malformed or oversized registry rather than a bad flag.
-- [ ] **`tools:cli/nvs-check` carries the same three** — no test file is named for it, so this one
-      also decides where the case lives: `crates/nvs-cli/tests/strict_docs.rs:1` is the closest
-      existing home and `crates/nvs-cli/tests/fixtures` is the fixture tree it would use.
+- [ ] **The package**, `.nvs` only and never `.php`, extension id `nvs-lang.nvs`, with a committed
+      `package-lock.json` because `npm ci` needs one.
+- [ ] **`language-configuration.json`** — comments, brackets, auto-closing and surrounding pairs,
+      indentation and on-enter rules, folding markers, and a **`wordPattern` that includes `$`**.
+- [ ] **The contributions test**: `package.json` declares what the extension claims, depends only on the
+      allowlist, contributes no colour-customization defaults, and carries the twelve frozen setting and
+      command ids listed in the goal prose. Added to later, never renamed.
 
 ## Backlog
 
-- The other two tool chapters owe every proof too — `docs/reference/tools/20-config.md` and
-  `30-php-differences.md`, and no goal gates on them yet.
-- The latency ceilings come from one machine; a second platform's figure is what a tightening pass
-  would need — `crates/nvs-lsp/tests/latency.rs`'s module doc.
-- `Foo::class` colours neither half; the `class` keyword is the TextMate layer's —
-  `crates/nvs-lsp/src/semantic.rs`'s module doc.
-- The matrix is a ratchet now: a case at a construct nobody reached obliges six more rows —
-  `crates/nvs-lsp/src/coverage.rs:46`.
+- Stages 3 and 4 (the two TextMate grammars) are one group — same directory, same headless harness — and
+  stage 3 alone is **expected to take more than one session: split it by construct family, never by file.**
+  `rule:ide/highlighting-is-two-layers` is the list; do not re-derive or shorten it.
+- Stage 5 (the client) and stage 7 (Tasks, the problem matcher, the AST panel) share `src/`. Stage 6
+  (`secret` concealment) needs the client, so it follows stage 5.
+- Stage 8's extension-host suite is **not on the acceptance list and must not be added** — it needs a
+  display, and this machine's display has the developer's own VS Code open on this repository. CI owns it,
+  on Linux under `xvfb-run`. `.vsix` packaging is headless and does gate. The goal's *Standing decisions*
+  carry the whole rule, including the profile isolation the suite owes wherever it runs.
+- **Off path:** `nvs fmt`, rename, extract, workspace symbol search, inlay hints, signature help,
+  `documentHighlight`, the Test Explorer, PhpStorm, and publishing to the Marketplace.
+- **When this goal's last check goes green M4B is finished**, and the driver takes goal 16 — the body
+  rule and `Core\Request::json()`/`jsonAs<T>()` — then goal 17, `Core\Test::request`'s shape, which ends
+  the chain. Both were added after this file was written and neither touches this tree. What remains of
+  the milestone table after them is M9 onward.

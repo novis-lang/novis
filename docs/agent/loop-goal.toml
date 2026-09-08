@@ -1,14 +1,16 @@
-# Goal 14 -- `nvs lsp`. The acceptance test, as data.
+# Goal 15 -- `editors/vscode`. The acceptance test, as data.
 #
-# `14-lsp-server.md` is the prose. One home each.
+# `15-editor.md` is the prose. One home each.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A CASE'S *SOURCE* IS NOT. A `.lspt` case's document, cursor or
-# request may be corrected freely -- whoever wrote it was writing against a server that did not exist.
-# What may never change is its `--EXPECT--`, or its reason for existing.
-
-# The floor brings its own fixtures. This goal's own evidence is a `.lspt` tree, which is a suite rather
-# than a frozen stdout, and the two guards below. Written across lines so goal-switch.py's union has
-# somewhere to put the floor's fixtures.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A grammar snapshot is re-frozen
+# deliberately, with the reason in the commit message, and never to make a run go green.
+#
+# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg --
+# which is right: a TextMate grammar has no calling convention, and the WSL leg exists for the one
+# thing that does. The distro therefore needs no Node.
+#
+# `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
+# fixtures; this goal names none of its own.
 files = [
   # carried from the previous goal by tools/goal-switch.py
   "examples/pipeline.nvs",
@@ -79,94 +81,45 @@ files = [
 [context]
 
 modules = [
-  # The crate itself: every stage writes here. Until the first slice creates it, `orient.py` warns
-  # that this pattern matched no module -- that is expected on this goal's first session and on no
-  # other, and it is not a tooling bug to chase.
+  # The extension's own source. `orient.py` reads `editors/*/src/**/*.ts` for its first `//`/JSDoc
+  # line the same way it reads a crate's `//!`. Until stage 2 creates the directory it warns that the
+  # pattern matched no module: expected on this goal's first session, and not a tooling bug to chase.
+  "editors/vscode/src/**",
+  # The section set the second grammar colours -- read this, never the corpus.
+  "crates/nvs-test/src/lib.rs",
+  # The diagnostic renderer's format, which the problemMatcher's two regexes must match exactly.
+  "crates/nvs-diagnostics/src/render.rs",
+  # The legend the server declares; the client registers the same one or nothing lines up.
   "crates/nvs-lsp/src/**",
-  # `Command::Lsp` and `Command::LspTest` are wired here.
-  "crates/nvs-cli/src/main.rs",
-  # The type answer under a cursor -- hover's and completion's source.
-  "crates/nvs-types/src/expr_table.rs",
-  # `Core` signature rows and reference cards -- hover's other half.
-  "crates/nvs-stdlib/src/registry.rs",
-  # `line_col`, `utf16_col`, `offset_of`. READ ONLY: no conversion is written in nvs-lsp.
-  "crates/nvs-diagnostics/src/source.rs",
-  # The section lexer goal 12 extracted, which `.lspt` reads.
-  "crates/nvs-test/src/case.rs",
-
-  # -- Stages 4-7 (uncomment when the document store opens; drop what a stage no longer reads) --
-  # `parse` answers `Parsed { stmts, trivia, index }`; the store still calls the strict `parse_file`.
-  "crates/nvs-syntax/src/parser/mod.rs",
-  # `SyntaxIndex::at` -- the ancestor path every cursor request is a different depth of.
-  "crates/nvs-syntax/src/index.rs",
-  # `Loaded::requires` is the only place a `require` edge exists, which `documentLink` reads.
-  "crates/nvs-hir/src/requires.rs",
-  # `nvs info` — one call that answers "what is this binary, and what is in it?", the way `php -i`
-  # does for PHP.
-  "crates/nvs-cli/src/info.rs",
-  # `nvs meta --json` — the `Core` registry as JSON, for a consumer outside the build.
-  "crates/nvs-cli/src/meta.rs",
-  # Entry point: walks a resolved `Module`'s classes and methods, type- checking each method body
-  # against `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and
-  # `rule:types/arithmetic` (see the crate docs for the exact scope of this slice), plus the
-  # file's own top-level statements as one synthesized frame (`ScriptFrame`) —
-  # `rule:statements/storage-that-outlives-a-call`'s "the script body is a function, so its
-  # variables are locals". That frame is threaded across `namespace { ... }` blocks, since a
-  # namespace scopes names rather than storage, and it is entirely separate from every method's
-  # own frame: a file-scope local is unreachable from a function, exactly as that ADR's
-  # storage-class table says.
-  "crates/nvs-types/src/check.rs",
-  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
-  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
-  "crates/nvs-types/src/expr/calls.rs",
-  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
-  "crates/nvs-types/src/expr/mod.rs",
-  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
-  # one representation, two independent axes, and the sinks that refuse them.
-  "crates/nvs-types/src/expr/quals.rs",
-  # The expression grammar: every operator at its PHP precedence, the postfix chain, and every
-  # primary.
-  "crates/nvs-syntax/src/parser/expr.rs",
 ]
 
-# THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON. Everything a single stage needs is in
-# that stage's own table at the bottom of this block, and an overlay only ever ADDS to what is
-# here -- so the way this list gets smaller is by moving an entry down, never by deleting one.
+# THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON; a stage's own entries are in its
+# `[context.stage.N]` table below, and an overlay only ever ADDS. The way this list gets shorter is
+# by moving an entry down into a stage, never by deleting one.
 #
-# Rule ids and no record number, because the fragment is the rule and a title is only a pointer to
-# it. These three hold in every stage: one tree with a trivia layer, every slice writes cases, and
-# every answer renders through one module.
+# These three hold in every stage: the extension holds no language logic, it ships names and never
+# colours, and what it may not become is the boundary every stage is measured against.
 #
-# ADR 0099 came out even though it is this goal's own record: it created 31 rules, so naming it
-# here printed the whole `ide/` chapter as titles -- the extension, the TextMate grammar, PhpStorm,
-# the debug adapter -- to every session of every stage. The rules that bind a stage are named by id
-# in that stage's table, and `brief.py --where ide` reaches the rest in one call.
+# ADR 0099 came out even though it is this goal's other half: it created 31 rules, so naming it
+# here printed the whole `ide/` chapter as titles to every session of every stage. The rules that
+# bind a stage are named by id in that stage's table, and `brief.py --where ide` reaches the rest
+# in one call.
 rules = [
-  "ide/every-feature-is-staged-behind-its-dependency",
-  "ide/five-features-are-one-reference-index",
-  "ide/one-grammar-one-tree",
-  "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
-  "ide/the-rendering-has-one-home",
-  # The list itself. Every request slice's first question is whether what it is about to answer is on
-  # it, and a session that had to reconstruct the roster from `capabilities.rs` was reading the
-  # promise rather than the rule.
-  "ide/the-request-set-is-closed",
+  "ide/one-server-two-thin-clients",
+  "ide/novis-ships-names-not-colours",
+  "ide/the-extension-builds-no-ui-the-editor-already-has",
 ]
 
-# Base names no ADR section at all: every one of them argued a particular stage's design, and
-# printing stage 8's redaction sections to the session writing stage 4 was 13,120 B of a 17,746 B
-# section. The colour lists (0099 §4) are goal 15's for the extension half and stage 7's here.
+# Base names no ADR section: each argued one stage's design, and § 4's colour lists say nothing to
+# the session writing the client or the CI jobs.
 adrs = []
 
-shapes = ["An `.lspt` case", "A commit message"]
+shapes = ["A commit message"]
 
 playbook = [
-  'Writing Novis itself > core is',
   'Running things > adding a',
   'Running things > target/release/nvs.exe is',
   'Writing a test case > a rule',
-  'Writing a test case > a -p',
-  'Writing a test case > a test binary',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -184,71 +137,54 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone; the request set and its rules are this goal's own prose and
-# `rule:ide/the-request-set-is-closed` and `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`, both already in this manifest.
+# The acceptance paragraph alone; the colour lists are `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added`, already named above.
 milestones = ["M4B:verify"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `loop-goal.md`, holding what only that stage needs.
-#
-# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names, and appends its
-# entries to the base above -- an overlay adds and never replaces, so the worst a wrong number can
-# do is print the base pack. A stage with nothing of its own needs no table (0, 1 and 12 have none).
-#
-# These numbers are the PROSE stages, `loop-goal.md`'s `## Stage N`. They are deliberately not the
-# `[[check]]` blocks' `stage = "4 the requests"` labels, which group several prose stages under one
-# acceptance line on purpose -- "Goal prose stages 4 to 9" is written above the suite check itself.
+# THE STAGES. One table per prose stage in `15-editor.md`, holding what only that stage needs.
+# `orient.py` applies the one `handoff.md`'s `## Next group` names and appends it to the base above;
+# an overlay adds and never replaces. Stages 0 and 1 have nothing of their own and need no table.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["ide/the-server-is-synchronous", "ide/stdout-belongs-to-the-protocol",
-         "ide/positions-have-one-home"]
-adrs = ["0099 §2"]
+rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
+         "ide/language-configuration-is-content", "ide/contributions-are-frozen-and-only-ever-added",
+         "ide/the-extension-runs-where-the-binary-is",
+         "ide/the-lockfile-is-committed-and-build-output-is-not"]
 
 [context.stage.3]
-rules = ["ide/a-request-line-is-closed", "ide/lspt-coverage-is-inferred",
-         "ide/case-files-have-their-own-grammar"]
-adrs = ["0099 §5"]
-
-[context.stage.4]
-rules = ["ide/an-open-document-is-its-own-entry-point", "ide/positions-have-one-home",
-         "ide/the-index-answers-the-cursor"]
-adrs = ["0099 §1"]
-
-[context.stage.5]
-rules = ["ide/diagnostics-are-phase-gated", "0092"]
-shapes = ["A diagnostic"]
-
-[context.stage.6]
-rules = ["ide/the-index-answers-the-cursor", "core-api/reference-card",
-         "tooling/doc-comment-is-three-slashes", "0117", "0137"]
-adrs = ["0099 §3", "0088 §5"]
-
-[context.stage.7]
-rules = ["ide/semantic-tokens-carry-the-qualifiers", "ide/rejected-syntax-gets-no-colour",
-         "ide/novis-ships-names-not-colours"]
+rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",
+         "types/duration-literal", "types/object-top"]
 adrs = ["0099 §4"]
 
-[context.stage.8]
+[context.stage.4]
+rules = ["ide/case-files-have-their-own-grammar"]
+shapes = ["An `.lspt` case"]
+
+[context.stage.5]
+rules = ["ide/vscode-is-the-reference-client",
+         "ide/the-extension-refuses-a-binary-it-does-not-understand",
+         "ide/dependencies-are-allowlisted"]
+adrs = ["0016 §5"]
+
+[context.stage.6]
 rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-covers-bytes-only",
-         "security/redaction-does-not-reach", "ide/one-server-two-thin-clients"]
-adrs = ["0101 §1", "0101 §2"]
+         "security/reveal-is-explicit-and-window-local",
+         "security/tainted-has-no-default-decoration"]
+adrs = ["0101 §3"]
 
-# Filling `Diagnostic::suggestions` for the two codes is the actual work of this stage, so it needs
-# the diagnostic shape as much as stage 5 does -- 428 B, against a stage writing the wrong shape.
+[context.stage.7]
+rules = ["ide/tasks-carry-a-problem-matcher", "ide/the-ast-panel-shells-out-to-the-cli",
+         "security/redaction-reaches-the-tools-own-renderings"]
+
+[context.stage.8]
+rules = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+         "ide/semantic-tokens-carry-the-qualifiers"]
+adrs = ["0099 §6", "0099 §8"]
+
 [context.stage.9]
-rules = ["ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
-         "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
-         "ide/narrow-an-annotation-to-its-literal"]
-shapes = ["A diagnostic"]
-
-[context.stage.10]
-rules = ["ide/a-full-reanalysis-stays-under-a-bound"]
-
-[context.stage.11]
-rules = ["testing/four-proofs", "testing/proof-attribution", "0134"]
-shapes = ["A `.nvst` test case"]
+rules = ["testing/four-proofs", "0134"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -256,12 +192,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-13's container-backed checks.
+# The floor carries goals 4-14's container-backed checks.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 339 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5203,15 +5145,12 @@ stage = "1 floor"
 name = "the pipeline operator owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "lang:expressions/the-pipeline-operator", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the crate, the handshake, and the wire. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the handshake"
+stage = "1 floor"
 name = "nvs-lsp (the handshake and the wire)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5227,10 +5166,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the case format and its runner, before any handler. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the case format"
+stage = "1 floor"
 name = "nvs-lsp (the .lspt format, and one home for a rendering)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5244,10 +5182,9 @@ tests = [
 # Stage 4-9 -- the requests. Every request slice ships its own cases; this is the suite that runs them
 # and the guard that decides when there are enough. Goal prose stages 4 to 9.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the requests"
+stage = "1 floor"
 name = "lsp cases"
 args = ["lsp-test", "tests/lsp/"]
 # A floor, not the gate. The gate is `every_request_answers_every_construct` below: a count can be
@@ -5256,7 +5193,7 @@ min_passing = 160
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the requests"
+stage = "1 floor"
 name = "nvs-lsp (the document store)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5269,7 +5206,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 diagnostics"
+stage = "1 floor"
 name = "nvs-lsp (the phase gate, in both directions)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5281,7 +5218,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "8 redactions"
+stage = "1 floor"
 name = "nvs-lsp (nvs/redactions, and its fail direction)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5293,7 +5230,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "9 code actions"
+stage = "1 floor"
 name = "nvs-lsp (two code actions, and the boundary)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5307,7 +5244,7 @@ tests = [
 # was an earlier goal's: it reads the grammar and fails naming the cells nobody covered.
 [[check]]
 kind = "cargo-named"
-stage = "9 code actions"
+stage = "1 floor"
 name = "nvs-lsp (the coverage matrix has no empty cell)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5317,10 +5254,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- the measurement that says giving up incremental reparse still pays. Goal prose stage 10.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "10 the latency guard"
+stage = "1 floor"
 name = "nvs-lsp (a full re-analysis stays under the bound)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -5330,16 +5266,15 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 11 -- the reference chapter. Goal prose stage 11.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "11 the reference"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "11 the reference"
+stage = "1 floor"
 name = "the two editor tool headings owe no proof"
 argv = ["python", "tools/dossier.py", "--only", "tools:editor/nvs-lsp",
         "tools:editor/nvs-lsp-test", "--gate"]
@@ -5348,12 +5283,70 @@ argv = ["python", "tools/dossier.py", "--only", "tools:editor/nvs-lsp",
 # Stage 12 -- the standing guard. Not this goal's work, but this goal is where it would break: a
 # language server is the classic reason somebody reaches for an async runtime.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "12 guards"
+stage = "1 floor"
 name = "nvs-runtime (manifest policy)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
   "the_workspace_has_no_async_runtime",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stages 2-7 -- the headless tier, which runs every iteration. Three suites behind one script: the
+# TextMate grammar snapshots, the contributions/allowlist test, and the protocol round-trip against
+# the real `nvs lsp` binary. Each names itself so a ledger line says which one broke.
+# Goal prose stages 2, 3, 4, 5, 6 and 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 headless"
+name = "vscode (headless)"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "test:headless"]
+want = ["grammar:", "contributions:", "protocol:", "0 failing"]
+# `contributions:` covers more than it sounds like -- the dependency allowlist, the absence of any
+# colour-customization default, `wordPattern` matching `$total` whole, the extension id, and the
+# twelve frozen setting and command ids. All of them break a user's config silently rather than
+# loudly, which is why they are asserted over `package.json` rather than reviewed.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the artifact. The extension-host suite is NOT here and must not be added. A `command` check
+# is not a PROGRAM_KIND, so it runs once on the NATIVE leg (`loop.py` orders legs native-first), which on
+# this machine is Windows: no `xvfb`, and a desktop with the developer's own VS Code open on this
+# repository. An unisolated second instance attaches to that one and exits without running anything, so
+# the suite would report no results and the iteration would go red over a window manager. Nor can it be
+# skipped: there is no platform key on a `command` check, and `memoize` only short-circuits a check that
+# has already PASSED. Leaving it out is the only way to keep it off that desktop. CI owns it, on Linux
+# under `xvfb-run`, which is where `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` puts the milestone gate. Goal prose stage 8.
+#
+# Packaging stays: `vsce` is headless, and a `.vsix` that does not build is a broken artifact.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "8 the artifact"
+name = "vsix packages"
+cwd = "editors/vscode"
+argv = ["npm", "run", "--silent", "package"]
+memoize = true
+want = [".vsix"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the reference chapter's last heading. Goal prose stage 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "9 the reference"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "9 the reference"
+name = "the extension heading owes no proof"
+argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]

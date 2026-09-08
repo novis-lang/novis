@@ -184,10 +184,9 @@ retired = true
 [[goal]]
 name = "14 lsp-server"
 md = "docs/agent/goals/14-lsp-server.md"
-toml = "docs/agent/goals/14-lsp-server.toml"
-handoff = "docs/agent/goals/14-lsp-server.handoff.md"
 milestone = "M4B"
 preflight = "docker"
+retired = true
 
 # `editors/vscode` -- the first non-Rust source in the repository, and the last entry of M4B's four. Two
 # TextMate grammars, the client, the Tasks and their problem matcher, the AST panel, `secret`

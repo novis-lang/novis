@@ -1,162 +1,171 @@
-# Loop goal 14 — `nvs lsp`, and the format that can prove it
+# Loop goal 15 — `editors/vscode`, and colour
 
-Build `crates/nvs-lsp`: `lsp-server` and `lsp-types`, **synchronous, no async runtime**, speaking LSP over
-stdio behind `nvs lsp`. [docs/plan/m4b.md](../plan/m4b.md) is the scope and this file does not restate
-it; `rule:ide/one-grammar-one-tree` is the current rule wherever it
-and `rule:ide/every-feature-is-staged-behind-its-dependency` seem to differ.
+Build the extension: TypeScript, outside the Cargo workspace, exactly where
+[ADR 0016 § 5](../decisions/0016.md) puts it.
+[docs/plan/m4b.md](../plan/m4b.md) is the scope; `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added` are the colour lists and the frozen
+contribution roster, and **neither is a starting point to improve on during the run**.
 
-**What is different about this goal, and what every session must hold: for the first time the loop is
-verifying something that is not a program's stdout.** An LSP answer is not printed by anything, and the
-driver's stop path is exit codes and exact output only. The mechanism that closes that gap is a `.lspt`
-case and `nvs lsp-test`, and it lands in **stage 3, before any request handler does**, because a request
-built before its case format exists is a request nobody can prove.
-
-Goal 12 already built what this goal reads: the `SyntaxIndex`, explicit recovery, and `utf16_col` /
-`offset_of` in `nvs-diagnostics`. **Position arithmetic has one home and this crate is not it** — no
-conversion of any kind is written here.
+This is M4B's last entry and the only one on the chain whose source is not Rust — goals 16 and 17 follow
+it, and neither touches this tree. Two things follow from that
+and every session should hold them. **The extension holds no language logic** — enforced by a
+dependency-allowlist test rather than by review, because "we'll keep it thin" is not a check. And
+**Novis ships no colours**: every scope name comes from the standard TextMate vocabulary and every token
+type from LSP's standard legend, because a theme styles only names it recognises and an invented scope
+renders as unstyled body text — a grammar that is technically correct and visibly broken.
 
 ## Stage 0 — the catch-up
 
-Nothing. Every half this goal stands on was built by name in goal 12.
+Nothing, and two things worth knowing rather than rediscovering: `tools/orient.py` already globs
+`editors/*/src/**/*.ts` for its module map, and `tools/verify.py` already carries the extension step and
+its `npm` plumbing, dormant until `editors/vscode` exists. If a session finds either missing, that is a
+blocker for stage 2 and belongs in the handoff — not a tooling slice invented mid-goal.
 
 ## Stage 1 — the floor
 
-Goal 13's whole acceptance list. Nothing in this goal touches `nvs-stdlib`, `nvs-db` or `nvs-server`, so a
-failure there is a real regression and never a scope question.
+Goal 14's whole acceptance list, which is everything: the parity program, goals 7–13, and the server.
 
-## Stage 2 — the crate, the subcommand, the handshake, and the wire
+## Stage 2 — the package, and the identifiers that are public API
 
-The crate with its two dependencies — each owes its `[workspace.dependencies]` line saying why that crate,
-a `cargo deny check`, and `python tools/gen-attribution.py`. Synchronous, stdio, behind `nvs lsp`.
-`initialize` declares **exactly** the capabilities of this goal's items and no others, and reports the
-binary's version so a client can refuse a mismatch. Position encoding is negotiated per LSP 3.17: offer
-`utf-8` and `utf-16`, take `utf-8` when the client offers it, using goal 12's conversions.
+`.nvs` registration (**and not `.php`**), `tsconfig`, lint, npm scripts, a committed `package-lock.json`
+(`npm ci` needs one, and an unpinned tree makes the grammar snapshots reproducible only by luck), the four
+`.gitignore` lines (`node_modules/`, `out/`, `.vscode-test/`, `*.vsix` — a session that commits
+`node_modules` is a session whose commit nobody can review), and extension id `nvs-lang.nvs`.
 
-This stage also lands the rule that costs nothing now and a day later: **nothing but the protocol writes to
-stdout.** `nvs-lsp` does not take `nvs-cli`'s `clippy::print_stdout` allowance, and a test asserts that no
-crate the server links calls `println!`. It holds today only by accident, and its failure mode is the
-server dying for no visible reason.
+`language-configuration.json` is content rather than a checkbox: comments, brackets, auto-closing and
+surrounding pairs, indentation and on-enter rules, folding markers — and **`wordPattern` must include
+`$`**, which is the one a borrowed PHP config gets wrong and which makes double-clicking `$total` select
+`total`.
 
-## Stage 3 — the case format, its runner, and the gate
+**The identifiers are frozen here** — a setting lives in someone's `settings.json` and a command id in
+their keybindings, so they are added later and never renamed:
 
-The `.lspt` case exactly as [conventions.md](conventions.md) § *An `.lspt` case* already specifies it —
-`--TEST--`, `--FILE--`, `--FILE <path>--`, one `<|>` cursor, `--REQUEST--`, a frozen `--EXPECT--` — over
-the section lexer goal 12 extracted. **The format's home is this crate's module doc** and the canonical
-rendering of every response kind is `nvs_lsp::render` and nowhere else, so no case invents a spelling.
+- settings — `nvs.path`, `nvs.lsp.enable`, `nvs.lsp.debounce`, `nvs.lsp.trace.server`,
+  `nvs.secrets.redact`, `nvs.taint.mark`
+- commands — `nvs.run`, `nvs.test`, `nvs.showAst`, `nvs.restartServer`, `nvs.revealSecret`,
+  `nvs.hideSecrets`
 
-`nvs lsp-test <paths>` walks directories for `*.lspt` and prints `N passed, M failed` — the exact line
-`tools/loop.py`'s `nvs-suite` kind parses, which is why the driver needs no change to gate editor
-behaviour. `--coverage` prints the request × construct matrix, **inferred from the node each cursor
-resolved to and never declared by the case**, and `every_request_answers_every_construct` fails naming
-each empty cell.
+The stage's own test asserts `package.json` declares what the extension claims, **depends only on the
+allowlist**, and contributes **no colour-customization defaults**. That test is how "the extension holds no
+language logic" stops being a promise.
 
-**That guard is this goal's real definition of done.** A count of cases is a proxy that six hundred cases
-about one construct can satisfy; a test that enumerates the grammar is not. The `min_passing` in the TOML
-is a floor, not the gate.
+## Stage 3 — the TextMate grammar
 
-## Stage 4 — the document store
+Colour the instant a file opens, before the server exists. Everything it must colour — the dual-mode
+`<?nvs`/`<?php`/`<?=`/`?>` openers with inline HTML outside them, heredoc and nowdoc with interpolation
+only in the former, type annotations in every slot including `rule:types/object-top`'s inline shapes, the
+`tainted`/`secret` qualifiers and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`,
+`type`, `by`, property hooks), `rule:types/duration-literal`'s duration literals, `#[...]` attributes told apart from `#`
+comments — and the constructs it must **not** colour as valid, is
+[ADR 0099 § 4](../decisions/0099.md)'s list. **Do not re-derive it
+and do not shorten it.** Goal 13 landed `|>` and `let`/`is`, so that list's refusals are now real
+diagnostics the grammar can be checked against; goals 10 and 11 landed `callable<…>` signatures and `///`
+doc comments, which are colour surface `rule:ide/highlighting-is-two-layers` predates and which this stage adds.
 
-`Full` sync, open buffers overlaid on the `require`/`autoload` graph the document is the entry point of, a
-debounce (150 ms, `nvs.lsp.debounce`), `$/cancelRequest`, and cancellation of an analysis whose document
-version nobody is looking at any more. Two things here are invisible when they work and baffling when they
-do not: editing `B.nvs` must re-analyse an open `A.nvs` that requires it, and a BOM or CRLF document must
-answer the same offsets an LF one does — spans are byte offsets, so normalizing line endings here shifts
-every column in the editor.
+The harness is a headless snapshot test through `vscode-textmate` + `vscode-oniguruma` — plain Node, no
+editor, no display — asserting every emitted scope against a standard-name allowlist. **This is the largest
+single item in the goal and is expected to take more than one session: split it by construct family, never
+by file.**
 
-## Stage 5 — `publishDiagnostics`, phase-gated
+## Stage 4 — the `.nvst`/`.lspt` grammar
 
-The existing `nvs check` pipeline, at the negotiated encoding, with `code` from `Code` and **no
-`codeDescription`** — it needs a URL, the website's own are still placeholders, and a link to a Rust
-constant is worse than none. Published for **open documents only**.
+A `begin`/`end` rule per section, anchored on `^--NAME--$` and ending at `(?=^--[A-Z])`, with stage 3's
+grammar `include`d inside the four sections that hold a program — `--FILE--`, `--FILE <path>--` (its own
+rule: the header carries an argument), `--SKIPIF--` and `--CLEAN--` — PHP's inside `--ORACLE--`, and
+`constant.character.escape` on the `%` escapes in `--EXPECTF--`/`--EXPECTF-ERROR--`. Every other section is
+literal text with only its delimiter coloured.
 
-The gate is the content of this stage, not a detail of it:
-`rule:ide/diagnostics-are-phase-gated` has the worked example where
-one typo yields a spurious `E0301` *above* the `E0102` that caused it. A file that produced an `E00xx` or
-`E01xx` diagnostic suppresses `E03xx` and `E04xx` **for that file only**. Both directions are cases:
-gated, and `phase=all`.
+**The section list is [`crates/nvs-test`](../../crates/nvs-test/src/lib.rs)'s module doc** — read it
+rather than inferring the set from the corpus, and treat a section it names but this stage does not as
+literal text. The one real risk is the PHP leg: VS Code splits PHP across `source.php` and `text.html.php`,
+and only the latter handles the `<?php` opener every `--ORACLE--` body starts with, so settle which one in
+the snapshot test rather than by reading documentation.
 
-## Stage 6 — `hover`, `definition`, `completion`
+Nearly free, **group it with stage 3** — same directory, same harness — and it is the cheapest possible
+check that stage 3's grammar is embeddable at all. It is also the one grammar whose audience is this
+repository's own loop, which writes hundreds of those files and reads them as flat grey text today.
 
-One group of three: they share the `SyntaxIndex`-plus-type-table path, and never fewer than one per
-session.
+## Stage 5 — the client
 
-- **`hover`** — the declared type under the cursor from `nvs_types::ExprTypeTable`; for a `Core` member its
-  `nvs_stdlib::registry` signature row and reference card
-  (`rule:core-api/reference-card`); for a
-  declaration, its own **doc comment**, which goal 11 made a checked structure rather than raw trivia
-  (`rule:tooling/doc-comment-is-three-slashes`).
-- **`definition`** — within the document or anywhere in its resolved graph.
-- **`completion`** — keywords filtered by position; members off a resolved receiver, instance and static,
-  user classes and `Core` registry classes alike; enum cases after `Type::`; in-scope variables.
-  **No workspace symbol search** — that needs M10's index, and `rule:ide/five-features-are-one-reference-index` puts it there by name.
+`nvs lsp` spawned via `vscode-languageclient` with a configurable path falling back to `PATH`, the
+`LanguageStatusItem` for server health and version, and the settings block. The extension **refuses a
+binary whose version it does not understand** rather than answering confusingly. Plus the headless
+**protocol round-trip** that drives the real binary from Node — the one test that proves the two halves
+speak the same protocol without an editor in the room.
 
-## Stage 7 — the five projections
+## Stage 6 — `secret` concealment, and `tainted` left alone
 
-`semanticTokens/full` with [ADR 0099 § 4](../decisions/0099.md)'s
-legend — `defaultLibrary` on a `Core` class, and the `tainted` / `secret` modifiers included, which is the
-point of the item and not a detail of it. Then `documentSymbol`, `foldingRange`, `selectionRange` and
-`documentLink`: namespace, class, interface, enum, method, property, class constant and type alias for the
-first; the same walk plus trivia's comment blocks for the second; the `SyntaxIndex` ancestor list
-*unchanged* for the third; and the path literal in a `require`/`autoload` for the fourth. Four requests,
-one walk each, **no new analysis in any of them.**
+`rule:security/redaction-ranges-come-from-the-server`: the
+ranges come from goal 14's `nvs/redactions` and the client draws them and knows nothing. **A `secret`
+literal is concealed by default** — blurred in place, the character cells kept, so every edit still
+addresses the real text — and a reveal is **per range** and dies when the editor closes, because the threat
+is an unattended screen and no API reports one. Revealing one secret leaves a second in the same file
+hidden; that is a case, not a nicety.
 
-## Stage 8 — `nvs/redactions`, the one request of Novis's own
+`tainted` is decorated **only if the user asks** (`nvs.taint.mark`, default `off`): a glyph is added
+content, and how a construct looks stays the theme's call.
 
-`rule:security/redaction-ranges-come-from-the-server` and `rule:security/redaction-covers-bytes-only`:
-a `TextDocumentIdentifier` in, a list of `{range, kind}` out, `kind` being `secretLiteral` today and an
-open string for whatever a later qualifier needs. The server computes the ranges because the alternative is
-the client deciding what a secret is, which `rule:ide/one-server-two-thin-clients` forbids.
+## Stage 7 — Tasks, the problem matcher, and the AST panel
 
-**Its fail direction is named and is not a preference:** a range whose expression cannot be typed but whose
-binding declares `secret` is answered **anyway**, so a value does not flash on screen on every keystroke
-while its literal is being typed. A security default may not have becoming-visible as its failure mode.
-The client half — concealment, reveal, the two commands — is goal 15's.
+`nvs run` and `nvs test` as Tasks **with a `problemMatcher`** — two regexes over the renderer's existing
+format (`error[E0301]: message`, then `  --> file:line:col`). The matcher is the difference between the
+Tasks being useful and being decorative: without it a failure is terminal text nobody can click.
 
-## Stage 9 — the two code actions, and the boundary
+The AST panel over `nvs ast --json --resilient`, which goal 12 built. It **inherits the redaction
+obligation**: the panel prints the placeholder rather than the literal, or it renders in a webview the
+credential the buffer behind it is concealing.
 
-Casing ([0029](../decisions/0029.md)/[0030](../decisions/0030.md))
-and `(int)$x` → `$x as int` ([0034](../decisions/0034.md)), both translations of a
-`Suggestion` the `Diagnostic` already carries, registered under `source.fixAll.nvs`. **A code action whose
-fix the checker would have to compute is off path** — that boundary is the whole content of this stage, and
-`rule:ide/narrow-an-annotation-to-its-literal` is the worked
-example of one that sits on the far side of it, at M10.
+## Stage 8 — the extension host, the artifact, and CI
 
-Expect `Diagnostic::suggestions` to be sparsely populated: it has been carried since M0 and read by
-nothing, and there are three producers in the whole workspace. **Filling it for the two codes above is the
-actual work of this stage**, not the code-action plumbing.
+The `@vscode/test-electron` suite: activation on `.nvs` and not `.php`, Tasks present, status item
+rendering, the panel populating, and **the semantic-token legend the client registers equal to the one the
+server declares** — which no unit test on either side alone can see. It runs **in CI and nowhere else**
+(see *Standing decisions*) and it isolates its profile. Then `.vsix` packaging, which is headless and does
+gate an iteration. Two CI jobs are added beside the ones already there —
+[ci.yml](../../.github/workflows/ci.yml) is the count of those and this file does not restate it: the
+headless suites on all three platforms, since a `.vsix` is cross-platform and a path bug is not, and the
+extension-host run on Linux under `xvfb-run`.
 
-## Stage 10 — the latency guard
+## Stage 9 — the reference chapter's last heading
 
-A full re-analysis of a ~1,000-line document under a named bound, in the shape
-`benches/abi-probe/tests/perf_guards.rs` already uses. Goal 12 traded incremental reparse away; this is the
-measurement that says the trade still holds, and it is not optional.
-
-## Stage 11 — the reference chapter
-
-`docs/reference/tools/40-editor.md` is created here with two headings — `# nvs lsp` and `# nvs lsp-test` —
-each owing what a tool feature owes
-(`rule:testing/four-proofs`, `POLICY["tool"]`): one test, one
-example under `docs/examples/`, one program under `tests/hostile/`. Goal 15 adds the extension's heading to
-the same chapter. `python tools/reference.py --check` is in the acceptance list.
+`# The VS Code extension` joins goal 14's two in `docs/reference/tools/40-editor.md`, owing what a tool
+feature owes (`rule:testing/four-proofs`, `POLICY["tool"]`): one
+test, one example, one hostile program.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **`lsp-server` and `lsp-types`, and no async runtime.** `tokio` does not enter this workspace. Goal 6
-  brought `hyper` and its five dependencies in and that claim survived, because it is about a *runtime* and
-  never about the `Future` trait. If a needed capability appears to require one, that is a real `BLOCKED`
-  naming the capability — not a judgement call.
-- **Nine standard requests, one of Novis's own, two code actions, and that list is closed.** The test to
-  apply to a tenth standard request is the one that admitted `selectionRange`, `foldingRange` and
-  `documentLink`: the data structure this goal already builds **is** the answer, so the request is a
-  projection rather than a feature. `documentHighlight` is the worked example of one that fails it —
-  `rule:ide/five-features-are-one-reference-index` owns it, at M10. A session that finds another one "would be easy" applies the test honestly and
-  puts it in `## Backlog` when it fails.
-- **No ADR slots.** ADRs 0099, 0101, 0040, 0117 and 0137 decide everything here. Anything smaller is
-  decided-and-recorded in this crate's module doc, never a new number and never `BLOCKED`.
-- **The expected output of a `.lspt` case is frozen; its *source* is not.** Correcting a case's document,
-  cursor or request is a bug fix needing no permission. Editing its `--EXPECT--` to make it pass is the
-  thing that must never happen — re-freeze deliberately, say why in the commit message, move on.
-- **`.lspt` and `.nvst` stay two suites.** They share a section lexer and nothing else.
-- **Every request slice ships its own `.lspt` cases.** A handler landing without them is not a finished
-  slice, and a case corpus made largely of deliberately broken files is the point rather than a smell.
-- **No colour work here.** The grammar, the legend's client half and the extension are goal 15's.
+- **The extension is `.nvs` only.** It does not claim `.php` even though `nvs-syntax` parses it — that
+  fight is with every PHP extension a user already has, and losing it silently looks like Novis being
+  broken.
+- **Nothing is published.** `.vsix` as a CI artifact; no Marketplace publisher, no listing, no icon or
+  branding work. `rule:ide/one-server-two-thin-clients` *Revisiting* keeps that open and this goal does not close it.
+- **Colour is specified, not designed.** `rule:ide/highlighting-is-two-layers` lists what the grammar must colour, what it must
+  refuse to colour, and the semantic token types and modifiers. A gap in it is a handoff note, never an
+  improvement made during the run.
+- **Dependencies: one is named, the rest are yours.** `vscode-languageclient` for the client; the Node
+  test stack and the grammar test libraries you pick against
+  [ADR 0051 § 4](../decisions/0051.md)'s two questions. An npm dependency owes the
+  allowlist entry stage 2 builds and nothing else, and lives in `devDependencies` wherever it can — a
+  runtime dependency ships to users and a test library does not.
+- **The extension-host tier is CI's, and is not on the acceptance list.** It needs a display, and the
+  display on the machine the loop runs on belongs to a person who has this repository open in VS Code.
+  Launching a second one there is worse than rude: without an isolated profile it attaches to the running
+  instance and exits, so the suite reports no results and the iteration goes red over a window manager.
+  It cannot be expressed as a skip either — a `command` check has no platform key, and `memoize` only
+  short-circuits a check that has already *passed* — so the only way to keep it off that desktop is to
+  leave it out. **Do not add it**; CI runs it on Linux under `xvfb-run`, which is where `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` puts
+  the milestone gate. A session never runs it by hand.
+- **The host suite isolates its profile, wherever it runs.** `--user-data-dir` and `--extensions-dir` to a
+  throwaway directory, and it opens a fixture folder, never this repository. Unisolated it loads the
+  developer's own extensions, and a test touching `ConfigurationTarget.Global` writes the six frozen
+  `nvs.*` settings into their real `settings.json`. Prefer `@vscode/test-cli`, which sets an isolated
+  profile up per run, over driving `@vscode/test-electron` directly.
+- **No ADR slots.** ADRs 0099, 0101 and 0016 decide everything here; anything smaller is
+  decided-and-recorded in the extension's own README, never a new number.
+- **No language logic in TypeScript.** If the client seems to need to know what a construct means, the
+  answer is a server request that already exists or a `## Backlog` entry — never a regex in the client.
+- **No pixel tier.** Driving the real editor with Playwright to assert a decoration was *drawn* is
+  rejected, and not on cost grounds: anything needing a display is outside the tier the loop gates on, so
+  it cannot buy the loop a check at all. What is left after the range test (the server's), the position
+  conversion (a unit test) and the reveal state machine (logic) is a CSS constant that never varies — the
+  test that never fires. Record it in the extension's own README as decided-and-rejected, so the next
+  session does not re-derive it.
