@@ -3321,14 +3321,36 @@ mod tests {
             .collect()
     }
 
+    /// The pipeline's three sit one past the highest code that predates them,
+    /// rather than in the holes at `E0124`–`E0126` that ADR 0098 named before
+    /// those numbers were taken. That is what an allocation owes
+    /// `conventions.md` § *A diagnostic*: the band's highest plus one, never
+    /// its lowest hole. The claim is about where the three were allocated, so
+    /// it holds whatever is allocated above them afterwards — which is the
+    /// separate invariant the test below carries.
     #[test]
-    fn the_newest_parser_code_is_the_bands_highest_number() {
+    fn the_pipeline_codes_are_the_next_free_parser_band_numbers() {
         let pipeline = [
             code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE,
             code::E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE,
             code::E_HOLE_OUTSIDE_A_PIPELINE,
         ];
         assert_eq!(pipeline.map(Code::as_str), ["E0129", "E0130", "E0131"]);
+
+        assert_eq!(
+            parser_band().into_iter().filter(|n| *n < 29).max(),
+            Some(28),
+            "the pipeline's three no longer follow on from the band's highest, \
+             so they read as filling a hole rather than as the next free numbers",
+        );
+    }
+
+    /// The band's highest number is the newest code in it, which is what makes
+    /// "the next free one is the highest plus one" answerable by reading the
+    /// registry. A code allocated into a hole would leave this failing rather
+    /// than leave `brief.py`'s next-free line quietly wrong.
+    #[test]
+    fn the_newest_parser_code_is_the_bands_highest_number() {
         assert_eq!(code::E_TAINTED_SHAPE_HAS_NO_TEXT.as_str(), "E0132");
 
         let mut band = parser_band();
