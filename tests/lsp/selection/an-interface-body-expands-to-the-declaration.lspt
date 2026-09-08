@@ -1,0 +1,13 @@
+--TEST--
+an interface's body is the declaration's own node the way a class's is, so a cursor between its members expands to the whole thing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Greets
+{
+    <|>
+    public function greet(): string;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+2:1-6:2

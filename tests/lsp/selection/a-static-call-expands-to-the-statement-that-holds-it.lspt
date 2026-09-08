@@ -1,0 +1,11 @@
+--TEST--
+a static call is one node the way an instance call is, the class name it is written off being part of it rather than a step of its own, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter { public static function of(): int { return 1; } }
+echo Counter::o<|>f();
+--REQUEST--
+selectionRange
+--EXPECT--
+3:6-3:19
+3:1-3:20

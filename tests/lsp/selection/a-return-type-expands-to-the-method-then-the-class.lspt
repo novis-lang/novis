@@ -1,0 +1,16 @@
+--TEST--
+a return type is written inside the method's own node and inside no statement, so the chain out of it is the method and then the class that declares it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public function greet(): st<|>ring
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-7:6
+2:1-8:2

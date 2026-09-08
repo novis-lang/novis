@@ -1,0 +1,11 @@
+--TEST--
+a `new` is an expression inside the declaration it initializes, so the chain is the construction and then the whole line, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User { public string $name = ""; }
+var $u = ne<|>w User();
+--REQUEST--
+selectionRange
+--EXPECT--
+3:10-3:20
+3:1-3:21

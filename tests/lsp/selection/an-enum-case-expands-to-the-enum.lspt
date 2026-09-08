@@ -1,0 +1,13 @@
+--TEST--
+a case is a node of its own inside the enum, ending at its value rather than at the semicolon after it, and the chain from its name is that node and then the declaration, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-4:19
+2:1-5:2

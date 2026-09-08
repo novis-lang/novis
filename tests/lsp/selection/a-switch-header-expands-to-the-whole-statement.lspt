@@ -1,0 +1,16 @@
+--TEST--
+a cursor on the `switch` keyword is in the statement and in neither its subject nor an arm, so the whole statement is the one step there is, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+int $code = 1;
+switc<|>h ($code) {
+    case 1:
+        echo "one";
+        break;
+    default:
+        break;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+3:1-9:2

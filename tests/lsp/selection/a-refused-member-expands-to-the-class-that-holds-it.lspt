@@ -1,0 +1,13 @@
+--TEST--
+a member the grammar refused is a node covering what it could not parse, so the chain out of it is that node and then the class, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User
+{
+    va<|>r $total = 1;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-4:20
+2:1-5:2

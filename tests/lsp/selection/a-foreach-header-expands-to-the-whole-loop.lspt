@@ -1,0 +1,12 @@
+--TEST--
+a cursor on the `foreach` keyword is in the loop and in neither the subject nor the body, so the first step selects the whole statement, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+array<int> $rows = [1, 2, 3];
+forea<|>ch ($rows as int $row) {
+    echo $row;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+3:1-5:2

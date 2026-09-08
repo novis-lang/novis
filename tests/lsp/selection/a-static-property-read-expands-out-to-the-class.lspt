@@ -1,0 +1,20 @@
+--TEST--
+a read inside a method walks out through every node between it and the file, which is the access, the statement, the method and the class, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+8:16-8:28
+8:9-8:29
+6:5-9:6
+2:1-10:2

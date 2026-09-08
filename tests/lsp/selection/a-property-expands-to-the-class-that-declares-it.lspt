@@ -1,0 +1,13 @@
+--TEST--
+a property is a member node of its own, ending at the initializer rather than at the semicolon after it, and the chain from its name is that node and then the class, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public string $na<|>me = "";
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-4:29
+2:1-5:2

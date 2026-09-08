@@ -1,0 +1,13 @@
+--TEST--
+a class constant is a member node like a property, and the chain out of its name is the declaration and then the class, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+4:5-4:33
+2:1-5:2
