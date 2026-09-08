@@ -1035,7 +1035,7 @@ hi
     }
 
     #[test]
-    fn one_body_is_written_one_way() {
+    fn a_post_and_a_post_raw_section_together_are_a_parse_error() {
         // `--POST--` and `--POST_RAW--` are two spellings of one body, and
         // merging them is the silent wrong answer this format refuses
         // everywhere else, so the second one is where the case stops.
