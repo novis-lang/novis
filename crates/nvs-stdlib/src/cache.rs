@@ -1437,4 +1437,72 @@ mod tests {
             );
         }
     }
+
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`:
+    /// one path is a store where an operator wrote it into `[cache.shared] url`
+    /// and is never a target where a program supplied it, so what separates the
+    /// two is the authority that wrote the endpoint and nothing about the path
+    /// itself. That asymmetry is this tier's rather than
+    /// `nvs_runtime::capability`'s, which is why the pair is asserted here and
+    /// not beside the members that happen to call the door.
+    ///
+    /// The refusal is asked twice, of a path that exists and of one that does
+    /// not, because reaching a socket is only half of what the rule prevents: a
+    /// refusal that opened the path before deciding would answer the two
+    /// differently, and that difference is a directory listing a program was
+    /// never granted. `nvs_runtime::capability::open_read` orders its two
+    /// questions for the same reason.
+    #[test]
+    fn a_program_supplied_socket_path_is_never_a_target() {
+        // The other authority, standing in here for all of it: `Core\Net::connect`,
+        // `Core\Http\Client` and `Core\Db::open`'s settings reach one door with a
+        // program's endpoint, and differ in nothing this case reads.
+        const SUPPLIED: &str = "Core\\Db::open()";
+
+        let ctx = deployed("[capabilities]\ncache.shared = true\n");
+        let present =
+            std::env::temp_dir().join(format!("nvs-supplied-{}.sock", std::process::id()));
+        let absent =
+            std::env::temp_dir().join(format!("nvs-supplied-{}-gone.sock", std::process::id()));
+        std::fs::write(&present, b"").expect("a writable temporary directory");
+        let _ = std::fs::remove_file(&absent);
+
+        let refused = |path: &std::path::Path| {
+            let host = path.to_str().expect("a temporary path is UTF-8");
+            let Fault::Thrown(class, message) =
+                nvs_runtime::capability::pinned_address(&ctx, host, SUPPLIED)
+                    .expect_err("a program-supplied socket path is not a target")
+            else {
+                panic!("a target this deployment cannot authorize is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains("net.local"),
+                "the refusal names the grant that would answer it: {message}"
+            );
+            message.replace(host, "<the path>")
+        };
+
+        assert_eq!(
+            refused(&present),
+            refused(&absent),
+            "a socket that is there and one that is not are refused in the same words, because \
+             the difference between them is what a probe would read"
+        );
+
+        // And the same path down the other door, where an operator wrote it: a
+        // store. The refusal above is therefore about who supplied the endpoint,
+        // which is the only thing the two calls do not share.
+        #[cfg(unix)]
+        {
+            let written = format!("unix:{}", present.display());
+            assert_eq!(
+                endpoint(&written, MEMBER)
+                    .expect("a socket an operator configured is an ordinary store"),
+                super::Target::Socket(present.clone()),
+            );
+        }
+
+        let _ = std::fs::remove_file(&present);
+    }
 }

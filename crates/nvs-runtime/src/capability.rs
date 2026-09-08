@@ -212,10 +212,26 @@ pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault>
 ///
 /// # Errors
 ///
-/// A `RuntimeError` when the name resolves to no address at all, and a `RuntimeError` naming the
-/// range when the address it resolves to is one § 3 denies and this deployment's `net.internal`
-/// does not except.
+/// A `RuntimeError` when `host` is a socket path, which is a target nothing on the roster can
+/// authorize; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
+/// naming the range when the address it resolves to is one § 3 denies and this deployment's
+/// `net.internal` does not except.
 pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    // `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`: a socket path is a
+    // way onto the local machine that § 3's table cannot see, because there is no address for it to
+    // match. It is refused here, in front of the resolution and of every caller's socket, so the
+    // answer is the same whether or not anything is bound at the path -- a refusal that had to open
+    // the path first would report the difference, and the difference is what a probe reads. A
+    // separator is the whole test: no name and no address literal carries one, where a list of the
+    // sockets a host keeps would be wrong on the machine nobody tested.
+    if host.contains('/') || host.contains('\\') {
+        return Err(Fault::thrown(format!(
+            "{member} refuses `{host}`: a socket path is a target this deployment has no way to \
+             authorize, since the address policy `net.connect` carries has no address to read — \
+             the grant that would answer it is `net.local`, which is named and not on the roster"
+        )));
+    }
+
     let address = resolve_host(host, member)?;
 
     // § 3's table, less whatever this deployment excepted from it with `net.internal`. A context
