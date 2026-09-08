@@ -27,6 +27,10 @@ const ANSWER: Redaction[] = [
   { range: SPARE, kind: "secretLiteral" },
 ];
 
+// A `tainted` declaration's name, which the server answers on the same list under the other kind.
+const DIRTY: Range = { start: { line: 3, character: 15 }, end: { line: 3, character: 21 } };
+const IN_DIRTY: Position = { line: 3, character: 17 };
+
 const IN_KEY: Position = { line: 1, character: 25 };
 const IN_SPARE: Position = { line: 2, character: 30 };
 const IN_NEITHER: Position = { line: 1, character: 4 };
@@ -64,6 +68,39 @@ describe("what the client conceals", () => {
     const concealment = opened();
     assert.deepEqual(concealment.concealed(URI), [KEY, SPARE]);
     assert.deepEqual(concealment.concealed(URI), [KEY, SPARE]);
+  });
+});
+
+describe("what the client marks rather than conceals", () => {
+  // `taintedDeclaration` is a name, and concealing a name is what
+  // `rule:security/redaction-covers-bytes-only` refuses: a black bar over `$dirty` would hide no
+  // bytes of any secret and make the file unreadable for the developer whose editor it is.
+  function mixed(): Concealment {
+    const concealment = new Concealment();
+    concealment.hold(URI, [...ANSWER, { range: DIRTY, kind: "taintedDeclaration" }]);
+    return concealment;
+  }
+
+  it("conceals the secret ranges and marks the tainted one", () => {
+    assert.deepEqual(mixed().concealed(URI), [KEY, SPARE]);
+    assert.deepEqual(mixed().marked(URI), [DIRTY]);
+  });
+
+  it("reveals nothing at a marked range, because nothing there is covered", () => {
+    const concealment = mixed();
+    assert.equal(concealment.reveal(URI, IN_DIRTY), false);
+    assert.deepEqual(concealment.revealed(URI), []);
+    assert.deepEqual(concealment.marked(URI), [DIRTY]);
+  });
+
+  it("conceals a kind it has never heard of", () => {
+    // The safe direction, and the one this client is behind its server in: a spelling added to
+    // `crates/nvs-lsp/src/redactions.rs` before it is added here covers bytes that needed no
+    // covering, rather than leaving bytes uncovered that did.
+    const concealment = new Concealment();
+    concealment.hold(URI, [{ range: KEY, kind: "somethingLaterThanThis" }]);
+    assert.deepEqual(concealment.concealed(URI), [KEY]);
+    assert.deepEqual(concealment.marked(URI), []);
   });
 });
 

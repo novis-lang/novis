@@ -1,5 +1,12 @@
-// The concealment this client draws: `nvs/redactions` asked of the server, and one decoration over
-// every range it answers.
+// What this client draws over the ranges `nvs/redactions` answers: a bar over the bytes of a
+// `secret`, and a glyph after the name of a `tainted` declaration where the user asked for one.
+//
+// Two decorations because the two kinds are two instructions, not two colours of one. The bar is on
+// by default and unconditional (`rule:security/redaction-ranges-come-from-the-server`); the glyph is
+// drawn only where `nvs.taint.mark` is not `off`, because a marker is added content and shipping one
+// by default would write into someone else's editor
+// (`rule:security/tainted-has-no-default-decoration`). Which range is which is the server's answer
+// and `concealment.ts`'s partition of it — nothing here reads the source text.
 //
 // The request is Novis's own and the only one that is (`rule:ide/the-request-set-is-closed`); its
 // spelling and its answer's shape live in `crates/nvs-lsp/src/redactions.rs`, and this file is the
@@ -31,7 +38,7 @@ import {
 } from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
-import { Concealment, Position as Where, Redaction } from "./concealment";
+import { Concealment, Position as Where, Range as Wire, Redaction } from "./concealment";
 
 // The server's own request, spelled where `crates/nvs-lsp/src/redactions.rs` spells it. Its params
 // are an LSP `TextDocumentIdentifier` and its answer a list of `{range, kind}`.
@@ -42,12 +49,18 @@ const METHOD = "nvs/redactions";
 // `extension.ts`'s `RESPAWNING_SETTINGS`.
 const SETTING = "nvs.secrets.redact";
 
+// The setting that asks for the marker, default `off`. Its three values are ADR 0101 § 4's, and
+// `sink` draws what `declaration` draws until the server answers a sink's argument positions —
+// `crates/nvs-lsp/src/redactions.rs` § *What it does not reach* is where that gap is stated.
+const MARK = "nvs.taint.mark";
+
 // The command the decoration's own hover offers, which ADR 0101 § 3 makes the discoverable path to
 // a reveal — the palette and a keybinding are the other two, and all three are the same command.
 const REVEAL = "nvs.revealSecret";
 
 const held = new Concealment();
 let concealing: TextEditorDecorationType | undefined;
+let marking: TextEditorDecorationType | undefined;
 let serving: LanguageClient | undefined;
 
 /**
@@ -59,14 +72,16 @@ let serving: LanguageClient | undefined;
  */
 export function install(context: ExtensionContext): void {
   concealing = bar();
+  marking = glyph();
   context.subscriptions.push(
     concealing,
+    marking,
     workspace.onDidOpenTextDocument((document) => void ask(document)),
     workspace.onDidChangeTextDocument((event) => void ask(event.document)),
     workspace.onDidCloseTextDocument((document) => held.forget(document.uri.toString())),
     window.onDidChangeVisibleTextEditors((editors) => shown(editors)),
     workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(SETTING)) {
+      if (event.affectsConfiguration(SETTING) || event.affectsConfiguration(MARK)) {
         draw();
       }
     }),
@@ -109,6 +124,28 @@ function bar(): TextEditorDecorationType {
   });
 }
 
+/**
+ * The marker drawn after a `tainted` declaration's name, where the setting asks for one.
+ *
+ * A text glyph and not a codicon: an inline attachment takes `contentText` or an image path and
+ * never both, and only the text takes a `ThemeColor` — an image would ship a colour of Novis's own
+ * into the user's theme, which is the thing `rule:ide/novis-ships-names-not-colours` refuses. The
+ * character is a BMP geometric shape rather than an emoji, so it has no colour font to be at the
+ * mercy of and renders from the editor's own monospace face. The README records that trade.
+ */
+function glyph(): TextEditorDecorationType {
+  return window.createTextEditorDecorationType({
+    after: {
+      contentText: "◆",
+      color: new ThemeColor("editorWarning.foreground"),
+      margin: "0 0 0 0.25em",
+    },
+    // The glyph belongs to the name it follows, so typing at either edge must not stretch what it
+    // is attached to; the next answer is what moves it.
+    rangeBehavior: DecorationRangeBehavior.ClosedClosed,
+  });
+}
+
 /** Draw on the editors that just became visible, and ask for any document nothing is held for. */
 function shown(editors: readonly TextEditor[]): void {
   draw();
@@ -142,32 +179,51 @@ async function ask(document: TextDocument): Promise<void> {
   draw();
 }
 
-/** Put the current concealment on every visible editor. */
+/** Put both decorations on every visible editor, each as far as its own setting asks. */
 function draw(): void {
-  const decoration = concealing;
-  if (decoration === undefined) {
+  const bar = concealing;
+  const mark = marking;
+  if (bar === undefined || mark === undefined) {
     return;
   }
   for (const editor of window.visibleTextEditors) {
     if (!novis(editor.document)) {
       continue;
     }
-    const redacting = workspace
-      .getConfiguration("nvs", editor.document.uri)
-      .get<boolean>("secrets.redact", true);
-    editor.setDecorations(decoration, redacting ? options(editor.document.uri.toString()) : []);
+    const settings = workspace.getConfiguration("nvs", editor.document.uri);
+    const uri = editor.document.uri.toString();
+    editor.setDecorations(bar, settings.get<boolean>("secrets.redact", true) ? options(uri) : []);
+    editor.setDecorations(
+      mark,
+      settings.get<string>("taint.mark", "off") === "off" ? [] : marks(uri),
+    );
   }
 }
 
 /** The concealment held for `uri`, as the editor takes it. */
 function options(uri: string): DecorationOptions[] {
   return held.concealed(uri).map((range) => ({
-    range: new Range(
-      new Position(range.start.line, range.start.character),
-      new Position(range.end.line, range.end.character),
-    ),
+    range: span(range),
     hoverMessage: hover(uri, range.start),
   }));
+}
+
+/**
+ * The marked ranges held for `uri`, as the editor takes them.
+ *
+ * No hover: the glyph says the declaration beside it carries `tainted`, and the declaration itself
+ * already spells the qualifier. There is nothing concealed here to offer a link to uncover.
+ */
+function marks(uri: string): Range[] {
+  return held.marked(uri).map(span);
+}
+
+/** One range off the wire as the editor's own, which is the whole conversion this file does. */
+function span(range: Wire): Range {
+  return new Range(
+    new Position(range.start.line, range.start.character),
+    new Position(range.end.line, range.end.character),
+  );
 }
 
 /**

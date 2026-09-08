@@ -32,6 +32,15 @@ gates on, so it buys no check where checks are read. What is left once the serve
 position conversion's unit test and the reveal state machine's logic test have run is a CSS constant that
 never varies — the test that never fires.
 
+**The `tainted` marker is a themed text glyph, not a codicon.** [ADR 0101](../../docs/decisions/0101.md)
+§ 4 asks for a themed codicon after each `tainted` declaration, and the API it would be drawn with does
+not offer one: an inline decoration attachment takes `contentText` **or** an image path and never both,
+and only the text half takes a `ThemeColor`. An image would therefore ship a colour of Novis's own into
+the user's theme, which `rule:ide/novis-ships-names-not-colours` refuses more strongly than § 4 asks for
+the icon. So the glyph is one BMP geometric character — no emoji presentation, no colour font to be at
+the mercy of, drawn in the editor's own face and coloured by a theme reference. The record's reasoning
+is met; its noun is not.
+
 **Nothing is published.** CI builds an installable `.vsix` as an artifact. There is no Marketplace
 publisher, no listing and no branding; `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps that
 question open.

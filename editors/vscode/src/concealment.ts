@@ -15,6 +15,12 @@
 // visible. And an answer of no ranges is an answer: `hold(uri, [])` conceals nothing, while never
 // calling `hold` at all conceals whatever was concealed before.
 //
+// One answer carries two kinds and this module is where they part. A `secretLiteral` is bytes to
+// conceal and a `taintedDeclaration` is a name to mark, so only the first is ever concealed, only
+// the first can be revealed, and a spelling this client has not been taught is treated as the
+// first — the direction where a client that is behind its server covers too much rather than too
+// little (`rule:security/tainted-has-no-default-decoration`).
+//
 // A reveal is a fact about this window and this range, held nowhere else
 // (`rule:security/reveal-is-explicit-and-window-local`): there is no workspace state here and no
 // file written, so closing the editor is the end of it. Revealing one range reveals one range —
@@ -36,14 +42,26 @@ export interface Range {
 /**
  * One range the server answered, and why it answered it.
  *
- * `kind` is an open string (ADR 0101 § 1) and today is always `secretLiteral`. It is carried rather
- * than matched on: a later qualifier gives the server a second spelling, and a client that switched
- * on the one it knows would silently draw nothing for the new one.
+ * `kind` is an open string (ADR 0101 § 1), and the two spellings on it are two different
+ * instructions: `secretLiteral` is bytes to conceal and `taintedDeclaration` is a name to mark
+ * where the user asked for a marker (`rule:security/tainted-has-no-default-decoration`). Concealing
+ * the second would black out an identifier, which `rule:security/redaction-covers-bytes-only`
+ * refuses outright.
  */
 export interface Redaction {
   range: Range;
   kind: string;
 }
+
+/**
+ * The kinds that are markers rather than concealments — the list this client has been taught.
+ *
+ * Matched this way round on purpose. A spelling nobody here recognises is concealed, so a later
+ * qualifier the server learns before this client does covers bytes that needed no covering rather
+ * than leaving bytes uncovered that did, and that is the only direction the failure may point in
+ * (`rule:security/redaction-ranges-come-from-the-server`).
+ */
+const MARKERS: ReadonlySet<string> = new Set(["taintedDeclaration"]);
 
 /** Where one range is, as a string, so a reveal can name a range across two answers. */
 function identity(range: Range): string {
@@ -103,7 +121,7 @@ export class Concealment {
    * one the user pointed at, and revealing the wider one would uncover bytes they did not ask for.
    */
   reveal(uri: string, at: Position): boolean {
-    const under = this.held(uri).filter((redaction) => covers(redaction.range, at));
+    const under = this.concealing(uri).filter((redaction) => covers(redaction.range, at));
     if (under.length === 0) {
       return false;
     }
@@ -125,7 +143,9 @@ export class Concealment {
     const revealed = this.reveals.get(uri);
     return revealed === undefined
       ? []
-      : this.held(uri).map((redaction) => redaction.range).filter((range) => revealed.has(identity(range)));
+      : this.concealing(uri).map((redaction) => redaction.range).filter((range) =>
+        revealed.has(identity(range))
+      );
   }
 
   /** Whether the server has answered for `uri` at all, which an empty answer still counts as. */
@@ -138,12 +158,31 @@ export class Concealment {
     return this.answers.get(uri) ?? [];
   }
 
-  /** The ranges drawn concealed in `uri` right now: everything held, less what is revealed. */
+  /** Every range of `uri` that is bytes to conceal: everything answered, less the markers. */
+  private concealing(uri: string): Redaction[] {
+    return this.held(uri).filter((redaction) => !MARKERS.has(redaction.kind));
+  }
+
+  /**
+   * The ranges drawn concealed in `uri` right now: everything concealable, less what is revealed.
+   */
   concealed(uri: string): Range[] {
     const revealed = this.reveals.get(uri);
-    return this.held(uri)
+    return this.concealing(uri)
       .map((redaction) => redaction.range)
       .filter((range) => revealed === undefined || !revealed.has(identity(range)));
+  }
+
+  /**
+   * The ranges of `uri` the server answered as markers, whatever the setting says.
+   *
+   * A reveal has nothing to do with these: a marker covers no bytes, so there is nothing to
+   * uncover, and `nvs.taint.mark` is the only thing that decides whether one is drawn.
+   */
+  marked(uri: string): Range[] {
+    return this.held(uri)
+      .filter((redaction) => MARKERS.has(redaction.kind))
+      .map((redaction) => redaction.range);
   }
 
   /**
