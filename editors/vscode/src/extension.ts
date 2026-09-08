@@ -30,15 +30,22 @@ import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
-  TransportKind,
 } from "vscode-languageclient/node";
 
 import * as redactions from "./redactions";
 import { refusal } from "./version";
 
-// The subcommand that is the server. `nvs lsp` speaks the protocol on its own stdin and stdout and
-// writes nothing else there (`rule:ide/stdout-belongs-to-the-protocol`), which is why the transport
-// needs no port, pipe or handshake of its own.
+// The subcommand that is the server, and the whole of the command line. `nvs lsp` speaks the
+// protocol on its own stdin and stdout and writes nothing else there
+// (`rule:ide/stdout-belongs-to-the-protocol`), which is why the transport needs no port, pipe or
+// handshake of its own.
+//
+// **`Executable.transport` is left unset on purpose, and it is not the same field it looks like.**
+// For an `Executable`, `vscode-languageclient` reads `TransportKind.stdio` as a claim about the
+// server's *argv* and appends `--stdio` to this list before spawning; `nvs lsp` takes no such flag,
+// so clap rejects it and the process exits before the first byte of protocol. Unset takes the
+// identical stdio-pipe path in that client — same spawn, same reader and writer — and adds nothing
+// to argv. Anything appended here has to be a flag the CLI actually accepts.
 const SUBCOMMAND = ["lsp"];
 
 // What the client claims: files the editor calls Novis, and nothing else. The case grammar's `nvst`
@@ -98,7 +105,7 @@ async function start(context: ExtensionContext): Promise<void> {
   // An empty `nvs.path` is a lookup on `PATH`: the command is the bare name, and the platform's
   // own resolution finds it or does not.
   const command = settings.get<string>("path", "").trim() || "nvs";
-  const executable: Executable = { command, args: SUBCOMMAND, transport: TransportKind.stdio };
+  const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
   const options: LanguageClientOptions = { documentSelector: SELECTOR, outputChannel: channel };
 
