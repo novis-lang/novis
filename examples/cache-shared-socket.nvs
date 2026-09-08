@@ -1,0 +1,54 @@
+<?nvs
+// The coherent tier over a Unix domain socket: the same two members as
+// `examples/cache.nvs`, against a store `examples/cache-shared-socket.toml`
+// reaches at a path instead of at an address.
+//
+// [ADR 0142](/docs/decisions/0142.md) is why this is
+// a spelling in the operator's file and nothing in the program: the grant is
+// `cache.shared`, which names the *store* and asks no address, so a store that
+// has no address at all is not a special case of it. Nothing below mentions the
+// transport, and that is the claim — a program written against the shared tier
+// is already written against both.
+//
+// A build with no `AF_UNIX` transport refuses that URL at boot rather than
+// reading it as loopback TCP, so this fixture is run only where there is one
+// (`docs/agent/loop-goal.toml`'s check carries `needs = "af-unix"`). Printing
+// "across the socket" over TCP is exactly what
+// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`
+// exists to prevent.
+//
+// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 3); the source is not.
+
+var $shared = Core\Cache::shared();
+
+// Out of the request heap and back into it, across a socket rather than a
+// port. The value is compared rather than the absence, because "the store
+// answered" is the weaker half of what a round trip proves.
+$shared->put("socket-greeting", "hello");
+var $seen = $shared->get("socket-greeting");
+if ($seen == "hello") {
+    echo "put and get agree across the socket", "\n";
+} else {
+    echo "the store did not answer with what it was given", "\n";
+}
+
+// The limiter, which opens no store of its own: `Core\RateLimit::consume` takes
+// no address and asks the same `cache.shared` grant, so on this core it is the
+// connection above that carries it — one socket per core, which is
+// `nvs_stdlib::cache::redis`'s module doc. What a program can see from here is
+// that both members reached the store this file configured and neither asked
+// for anywhere else; that they share the *connection* is
+// `the_limiter_and_the_tier_ask_one_grant_at_one_door` in
+// `crates/nvs-stdlib/src/cache.rs`, which can see the door itself.
+//
+// The key is drawn rather than written down for `examples/cache.nvs`'s reason:
+// the shared store does not forget when this process exits, and the sweep runs
+// this program more than once.
+var $account = "socket-account:" . Core\Random::token(6);
+var $first = Core\RateLimit::consume($account, 1, 2s);
+if ($first->allowed()) {
+    echo "the limiter and the tier share one connection", "\n";
+} else {
+    echo "the limiter refused a first arrival", "\n";
+}

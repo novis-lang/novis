@@ -1424,6 +1424,10 @@ class NativeLeg:
     """
 
     name = "native"
+    # Whether a CLI built here carries `nvs_host::net`'s Unix-domain half, which is `#[cfg(unix)]`
+    # and so a fact about the build rather than about the kernel: Windows 10 has `AF_UNIX` sockets
+    # and this binary still has no transport for one. `LEG_NEEDS` is what asks.
+    af_unix = os.name != "nt"
 
     def __init__(self):
         self.binary = None
@@ -1459,6 +1463,8 @@ class WslLeg(NativeLeg):
     """
 
     name = "wsl"
+    # A Linux build, whatever the machine hosting it is.
+    af_unix = True
 
     def __init__(self, target_dir):
         super().__init__()
@@ -1550,6 +1556,11 @@ def wsl_available():
 
 
 PROGRAM_KINDS = {"exact", "ordered", "contains", "min-bytes"}
+# What a `[[check]] needs` may ask of the leg it is about to run on, as the question each one is.
+# One entry, and the shape is here for the second: a name rather than a `cfg`-style expression,
+# because a driver that grew a language for this would be answering questions the platform can
+# answer itself.
+LEG_NEEDS = {"af-unix": lambda leg: leg.af_unix}
 
 
 def is_floor(check):
@@ -1683,13 +1694,20 @@ class GoalError(ValueError):
 # hours into a run, after the build and every check before it has been paid for, and as a traceback
 # rather than a sentence. An unrecognized one is the quieter failure: `min_passsing` on a suite is a
 # stopping condition that silently is not there, and the check stays green while it guards nothing.
+#
+# `needs` is the one key only a program kind carries, because it is the only kind that runs more
+# than once: a fixture whose claim a platform cannot make -- a store over a Unix socket is the case
+# that asked for it -- names what it needs and is skipped where that is absent, rather than weakened
+# into something every platform can print. It is a written key where `measures_release_cli` below is
+# a derivation, and the difference is that a release binary is visible in a check's own `argv` while
+# the transport a store was configured with is a fact about a file the check only names.
 CHECK_KEYS = {
     #  kind           required                    optional
-    "exact":       (("file", "want"),             ("args", "exit")),
-    "ordered":     (("file", "want"),             ("args", "exit", "stream")),
+    "exact":       (("file", "want"),             ("args", "exit", "needs")),
+    "ordered":     (("file", "want"),             ("args", "exit", "stream", "needs")),
     "contains":    (("file",),                    ("args", "exit", "stderr_contains",
-                                                   "stdout_contains")),
-    "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream")),
+                                                   "stdout_contains", "needs")),
+    "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream", "needs")),
     "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit")),
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
@@ -1742,6 +1760,10 @@ def validate_spec(spec):
         for key in sorted(set(c) & set(COUNTS)):
             if not isinstance(c[key], int) or isinstance(c[key], bool) or c[key] < 0:
                 raise GoalError(f"{where}: `{key}` must be a count, not {c[key]!r}")
+        if "needs" in c and c["needs"] not in LEG_NEEDS:
+            known = ", ".join(sorted(LEG_NEEDS))
+            raise GoalError(f"{where}: `needs` is {c['needs']!r}, which no leg is asked -- one of: "
+                            f"{known}")
         if c.get("exit", "nonzero") != "nonzero":
             raise GoalError(f'{where}: `exit` is absent or "nonzero", not {c["exit"]!r}')
         if kind == "contains" and not (c.get("stderr_contains") or c.get("stdout_contains")):
@@ -2227,6 +2249,20 @@ class Goal:
     # -- one program check on one leg -------------------------------------------------
 
     def program_check(self, leg, c):
+        # `needs`, per `CHECK_KEYS`: a fixture whose claim one platform cannot make runs on the legs
+        # that can. Here rather than at the three sweeps that call this, so none of them can forget
+        # it and the legs cannot come to disagree about what they skip.
+        #
+        # What it costs is that such a claim is guarded only where a leg answering the question
+        # actually runs, and the WSL leg is conditional on `wsl_available` -- so on a Windows
+        # machine with no WSL an `af-unix` check passes the sweep without having asked anything.
+        # That is the same trade the valgrind sweep already makes, and the reason `needs` is for a
+        # claim a platform cannot make rather than for one that is merely slow or awkward there.
+        need = c.get("needs")
+        if need and not LEG_NEEDS[need](leg):
+            trace(f"{leg.name} {c['file']} -- skipped: this leg has no {need}")
+            return ""
+
         label = f"{leg.name} {c['file']} [{c.get('stage', '?')}]"
         r = self.timed(label, lambda: leg.run([*c.get("args", []), c["file"]]))
         wants_nonzero = c.get("exit") == "nonzero"

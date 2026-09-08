@@ -34,6 +34,7 @@ files = [
   "examples/crypto.nvs",
   "examples/http.nvs",
   "examples/cache.nvs",
+  "examples/cache-shared-socket.nvs",
   "examples/logging.nvs",
   "examples/reflect.nvs",
   "examples/onexit.nvs",
@@ -191,7 +192,11 @@ shapes = ["A diagnostic"]
 rules = ["core-classes/db-drivers-are-an-enum"]
 
 [valgrind]
-skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+# `cache-shared-socket.nvs` is here because the sweep runs a fixture by path and passes no `args`,
+# so it would run this one under the repository's own `nvs.toml` -- against the loopback store,
+# printing "across the socket" at a TCP connection. What it would then leak-check is the path
+# `examples/cache.nvs` already sweeps.
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
@@ -6011,6 +6016,13 @@ tests = [
 kind = "exact"
 stage = "3 the cache transport"
 file = "examples/cache-shared-socket.nvs"
+# Its own tree, because `[cache.shared]` is unscoped and a second store cannot be spelled beside the
+# first in the repository's `nvs.toml`; `--config` disables the search for that file entirely, which
+# is why the one this names carries the `[[app]]` grant too. `needs` is what keeps the fixture
+# honest on the leg that has no `AF_UNIX` transport: there it is skipped, not run over TCP printing
+# a line about a socket.
+args = ["--config", "examples/cache-shared-socket.toml"]
+needs = "af-unix"
 want = [
   "put and get agree across the socket",
   "the limiter and the tier share one connection",

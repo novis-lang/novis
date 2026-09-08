@@ -1867,6 +1867,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   call `Inbound::set_route`. A fixture that needs the match spells the door's walk itself, over
   `Core\Request::method()` and `Core\Request::path()`, which is what `examples/parses.nvs` does.
   [until: gone crates/nvs-cli/src/main.rs:matched against nothing]
+- **A socket a container publishes reaches the WSL leg only under `/mnt/wsl`, and the `redis` image
+  binds it as uid 999 whatever `user:` says.** Docker Desktop's daemon is its own distro, so a bind
+  mount resolves there and `/mnt/wsl` is the tmpfs they share; a source Docker created is root-owned
+  755, which the image's `gosu` drop cannot write into. Chown it in the `certs` service, and probe
+  without `--rm` — a dead container leaves an empty directory that reads as an unshared mount.
+  [until: gone tests/db/compose.yaml:/mnt/wsl/novis-redis]
 
 ## Writing a test case
 

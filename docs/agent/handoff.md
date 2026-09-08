@@ -2,61 +2,58 @@
 
 ## State
 
-**Goal 20's Stage 3 is landed as code; three of its proofs are not.** `[cache.shared] url` takes
-`unix:/path/to.sock` beside `redis://host[:port]`: `endpoint` in `crates/nvs-stdlib/src/cache.rs`
-answers a `Target` — `Tcp(SocketAddr)` or, `#[cfg(unix)]`, `Socket(PathBuf)` — which is the per-core
-key `open_shared` compares to decide reuse-or-replace, so a build with no `AF_UNIX` transport cannot
-hold a path to dial rather than refusing one at dial time. `cache/redis.rs` is transport-agnostic
-through one `Transport` enum carrying the deadline, the write and the read; every line above it is
-written once.
+**Goal 20's Stage 3 is landed with all three of its proofs.** A store spelled `unix:` in
+`[cache.shared] url` is dialled over a socket and answers the same RESP, byte for byte, as one
+spelled `redis://` — `a_record_written_through_a_socket_is_read_back_through_it` in
+`crates/nvs-stdlib/src/cache/redis.rs` drives the exchange against a `UnixListener` where there is a
+transport and asserts the door's refusal where there is not.
 
-`E0635` (`E_NO_UNIX_TRANSPORT`) is declared at the end of its band and raised by
-`nvs_config::store::validate`, hung off `resolve` immediately before `store::advise`. **The goal's
-prose asked for `E0627`, which was already `E_UNSPELLED_EXPORTER`** — the prose now says `E0635`, and
-the playbook holds the trap. The scheme string has one home, `nvs_config::store::UNIX_SCHEME`, which
-`cache.rs`'s `UNIX` is an alias of.
+`nvs_runtime::capability::pinned_address` now refuses a **path** in front of the resolution, so a
+program-supplied socket path is refused as a target this deployment cannot authorize and never as a
+file that would not open; the refusal names `net.local`
+(`rule:config/net-local-is-named-and-not-on-the-roster`) and reads the same whether or not anything
+is bound at the path. `a_program_supplied_socket_path_is_never_a_target` in
+`crates/nvs-stdlib/src/cache.rs` asserts that pair against the other authority: the same path an
+operator wrote into the store's own `url` is an ordinary store.
 
-Passing on both platforms, each asserting the side its build is on:
-`a_unix_url_is_refused_where_the_platform_has_no_transport` (`nvs-stdlib`, the door) and
-`a_unix_url_is_refused_at_boot_only_where_there_is_no_transport` (`nvs-config`, the boot). Nothing is
-blocked. The `unix:` and `[db.<name>] host` rules stay `designed` until Stage 4 lands the driver half.
+`examples/cache-shared-socket.nvs` runs under `examples/cache-shared-socket.toml` — its own tree,
+because `[cache.shared]` is unscoped — against the socket `tests/db/compose.yaml`'s `redis` service
+now publishes at `/mnt/wsl/novis-redis/redis.sock`. Its `[[check]]` carries **`needs = "af-unix"`**,
+a new optional key on the four program kinds: `tools/loop.py`'s `LEG_NEEDS` asks the leg rather than
+naming it, so a Linux-native host runs the fixture on its own leg instead of being skipped for not
+being called `wsl`. Nothing is blocked. The `unix:` and `[db.<name>] host` rules stay `designed`
+until Stage 4 lands the driver half.
 
 ## Next group
 
-**Stage 3: the three proofs, one of which the acceptance list cannot pass as written** — one file
-set: `crates/nvs-stdlib/src/cache/redis.rs`, `crates/nvs-stdlib/src/cache.rs`, `examples/`,
-`nvs.toml`.
+**Stage 4: the driver transport, the same target-or-path one layer down** — one file set:
+`crates/nvs-db/src/pg.rs`, `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/tds/mod.rs`,
+`crates/nvs-config/src/db.rs`.
 
-- [ ] **`a_record_written_through_a_socket_is_read_back_through_it`** —
-      `crates/nvs-stdlib/src/cache/redis.rs:642`, a `UnixListener` sibling of `listening()` driving
-      one `SET`/`GET` exchange over `Target::Socket`, per
-      `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`. The `#[test]` must **exist** on
-      Windows or the `cargo-named` check reads it as unwritten on that leg, so gate the body and not
-      the item — `a_unix_url_is_refused_where_the_platform_has_no_transport` in
-      `crates/nvs-stdlib/src/cache.rs` is the shape.
-- [ ] **`a_program_supplied_socket_path_is_never_a_target`** —
-      `crates/nvs-runtime/src/capability.rs:218`, `pinned_address`, which is the door every
-      program-supplied endpoint passes: a path is refused **as a target this deployment cannot
-      authorize** and never as a file that would not open, per
-      `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`. The acceptance list
-      files the name under `-p nvs-stdlib`, so it is asserted through a `Core` door and not on
-      `nvs-runtime`'s own function.
-- [ ] **`examples/cache-shared-socket.nvs` and the config that points it at a socket** —
-      `docs/agent/loop-goal.toml:6006`. The check is `kind = "exact"` and program checks run on
-      **every** leg, so as written it can never pass on Windows, which has no `AF_UNIX` transport;
-      a fixture printing "across the socket" over loopback TCP instead is exactly the dishonesty
-      `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` refuses. Prefer giving
-      a `[[check]]` a leg scope — `tools/loop.py:1688` is the per-kind field table and
-      `tools/loop.py:2229` the runner — over weakening the fixture. A second store cannot be spelled
-      in the repo's own `nvs.toml`, so the example needs its own directory and config;
-      `examples/capability/` is that shape.
+- [ ] **`a_mysql_socket_path_is_opened_as_written`** — `crates/nvs-db/src/mysql.rs:1426`, the dial
+      that takes a `SocketAddr` today, widened to the address-or-path `cache/redis.rs`'s `Transport`
+      already is, per `rule:core-classes/db-unix-socket-path`. A bare absolute path in
+      `[db.<name>] host` is the spelling; `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`
+      is why it is not `unix:` here.
+- [ ] **`a_postgres_socket_directory_becomes_the_engines_own_name`** —
+      `crates/nvs-db/src/pg.rs:486`. PostgreSQL names a *directory* and appends `.s.PGSQL.<port>`
+      itself, which is the one place the two drivers do not agree; `rule:core-classes/db-unix-socket-path`
+      states it and `crates/nvs-config/src/db.rs` is where the block's paths are already resolved.
+- [ ] **`a_tds_target_refuses_a_socket_path`** — `crates/nvs-db/src/tds/mod.rs:218`. MSSQL has no
+      socket transport, so the refusal is the feature; `rule:core-classes/db-unix-socket-path` names
+      it, and the shape is `a_unix_url_is_refused_where_the_platform_has_no_transport`.
+- [ ] **`a_driver_answers_the_same_over_either_transport`** — `crates/nvs-db/src/pg.rs:486`. The
+      agreement case: one question asked over both transports, asserting they answer the same rather
+      than what either answered. `tests/db/compose.yaml`'s `postgres` service needs the socket mount
+      its `redis` sibling now has, and `[valgrind] skip` is where a fixture that cannot carry its own
+      `--config` goes.
 
 ## Backlog
 
-- Stage 4, the drivers' socket transport — `docs/agent/goals/20-unix-sockets.md` § *Stage 4*.
-- `docs/agent/loop-goal.toml:140`'s comment still names `E0627`; left alone deliberately, because
-  editing that file invalidates the driver's whole green cache (`tools/loop.py:2151`).
-- `nvs.toml`'s `[cache.shared]` block documents only the `redis://` spelling —
-  `crates/nvs-config/src/tree.rs:949` now documents both.
-- The pack has no field naming the *current stage's own* acceptance checks; the failing one it prints
-  was enough to find the rest in `docs/agent/loop-goal.toml`.
+- `nvs_config::store::advise` reads only the **root** `[capabilities]`, so any deployment granting
+  `cache.shared` in an `[[app]]` block gets W1008 at boot — `nvs.toml` and `examples/cache.nvs` do
+  today. Its home is `crates/nvs-config/src/store.rs`.
+- `[docker] services` does not name the socket mount as a dependency of anything; a machine that
+  brings `redis` up by hand gets the socket for free and one that does not is skipped by `needs`.
+- The `[cache.shared]`-over-TLS question is still open — `rediss://` is refused rather than
+  half-served, per `crates/nvs-stdlib/src/cache.rs`'s module doc.

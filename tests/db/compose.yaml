@@ -97,8 +97,16 @@ services:
         && cp -f /certs/server.key /certs/mssql.key
         && chown 10001:10001 /certs/mssql.key
         && chmod 600 /certs/mssql.key
+        && chown 999:999 /sock
     volumes:
       - certs:/certs
+      # Not a certificate, and here anyway: the directory `redis` below publishes its Unix socket
+      # into is a bind mount, so Docker creates it owned by root when it is missing and the redis
+      # image drops to uid 999 before it binds. This service is already the root-owned thing that
+      # runs to completion first, and the `chown` above is the whole of what it takes -- where a
+      # second service, or a `user:` override the image's own entrypoint would undo, is two moving
+      # parts for one directory.
+      - /mnt/wsl/novis-redis:/sock
 
   # ---------------------------------------------------------------------------------------------------
   # MySQL. `executeMany`'s bulk path and `INSERT … ON DUPLICATE KEY UPDATE` reporting 2 for an updated
@@ -271,11 +279,28 @@ services:
       - /certs/ca.crt
       - --tls-auth-clients
       - "no"
+      # ADR 0142's second door onto the same store, which `examples/cache-shared-socket.nvs` is the
+      # fixture for. It is a third listener and not a second service: the claim that fixture makes
+      # is about the transport, so a socket onto a *different* store would be asserting the
+      # transport and the store at once. `unixsocketperm` is world-writable because the process
+      # that connects is a developer's own and the store holds nothing -- the same reading the
+      # loopback bindings above are written under.
+      - --unixsocket
+      - /sock/redis.sock
+      - --unixsocketperm
+      - "777"
     ports:
       - "127.0.0.1:16379:6379"
       - "127.0.0.1:16380:6380"
     volumes:
       - certs:/certs:ro
+      # `/mnt/wsl` and not `/tmp`, because on Docker Desktop the daemon runs in its own WSL2 distro
+      # and a bind mount resolves inside *that* one: `/mnt/wsl` is the tmpfs every distro in the VM
+      # shares, so it is the one host path where a socket the container creates is a socket the WSL
+      # leg can connect to. On a Linux host it is an ordinary directory and the mount is the
+      # ordinary thing. `examples/cache-shared-socket.toml` is where the same path is written for
+      # the client half, and the check that reads it carries `needs = "af-unix"`.
+      - /mnt/wsl/novis-redis:/sock
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -p 6379 ping | grep -q PONG"]
       interval: 5s

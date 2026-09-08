@@ -1,0 +1,26 @@
+# The configuration `examples/cache-shared-socket.nvs` runs under, and the only thing in it that
+# the repository's own `nvs.toml` does not already say: the coherent tier is reached over a Unix
+# domain socket rather than over loopback TCP.
+#
+# It is a file of its own because `[cache.shared]` is unscoped — ADR 0142 § 1, and
+# `rule:config/cache-shared-is-the-grant-over-the-configured-store` — so a deployment has one shared
+# store and a second one cannot be spelled beside the first. `nvs run --config` names this tree and
+# disables the search for `./nvs.toml` entirely, which is why every block the fixture needs is here
+# rather than inherited.
+#
+# The path is `tests/db/compose.yaml`'s `redis` service, whose comments own why a socket published
+# by a container lives under `/mnt/wsl`. A build with no `AF_UNIX` transport refuses this URL at
+# boot rather than reading it as loopback TCP
+# (`rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`), which is why the check
+# that runs this fixture carries `needs = "af-unix"`.
+
+[[app]]
+entry = "cache-shared-socket.nvs"
+
+# The grant names the store an operator configured and asks nothing about where it is — so it is the
+# same one line here as beside the loopback store, and a socket costs it nothing.
+[app.capabilities.cache]
+shared = true
+
+[cache.shared]
+url = "unix:/mnt/wsl/novis-redis/redis.sock"
