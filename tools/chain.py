@@ -1108,6 +1108,17 @@ def cmd_check(text, head, entries):
                 if not h1.startswith(f"# Loop goal {e.num} "):
                     notes.append(f"{rel(path)}: its H1 is {h1[:60]!r}, which `plan.py`'s "
                                  f"`live_goal()` matches the live copy against")
+                # loop-authoring.md § 5: anything a session could reasonably stop and ask about
+                # eventually holds the run on `BLOCKED`, and this section is the only place a goal
+                # says a call is already made. A goal without one is not unwalkable -- goals whose
+                # whole design is an accepted ADR read tightly without it -- but it leaves a session
+                # nothing to check its question against, which is how goal 19 spent a session
+                # deriving a decision at the point of implementing it.
+                if i > live and "\n## Standing decisions" not in body:
+                    notes.append(f"{rel(path)}: no `## Standing decisions` section -- "
+                                 f"loop-authoring.md § 5 is where a goal pre-authorizes the calls "
+                                 f"its stages reach, and a session that meets one with no answer "
+                                 f"holds the run")
             if key == "handoff" and not body.startswith("# Handoff"):
                 notes.append(f"{rel(path)}: does not start with `# Handoff`")
             if "TODO" in body:

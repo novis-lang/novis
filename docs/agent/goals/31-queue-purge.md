@@ -127,3 +127,29 @@ which is the same reason `examples/queue.nvs` has none.
 
 `nvs.toml` gains the grant for the new fixture's entry, which is also what makes the capability
 evidence rather than assumption: every other fixture in the tree runs with no `queue` grant at all.
+
+## Standing decisions
+
+- **This goal opens no new ADR number.** [ADR 0153](../../decisions/0153.md) is accepted and is the
+  whole design: one column, two members, one capability, one diagnostic. The three rules the lead
+  paragraph names are not this goal's to re-open, and a gap found in one is an edit to that fragment
+  through a record whose `changes:` block names it.
+- **The bound on `purge` is the rule, and the dialect spelling is not.**
+  `rule:concurrency/queue-deletion-is-explicit-and-bounded` is what the member owes; how each of the
+  two dialects expresses a bounded delete is an implementation choice a session makes and records in
+  `queue.rs`'s statement comments. A dialect that will not take one spelling takes another — dropping
+  the bound is the one answer that is not available.
+- **The converge is the check written first, and one `Safe` step is the whole of it.** If the planner
+  answers two steps or grades up, the column was declared wrong and the fix is the declaration, not the
+  expectation: everything after stage 2 assumes a live deployment takes this through the `nvs queue
+  migrate` it already runs.
+- **`State::Claimed` throws at the call, and the default set is terminal rows.** Both are 0153's and
+  stage 3's, restated here because they are what a caller gets wrong and therefore what a session is
+  most likely to "fix" in the other direction. `Dead` and `Pending` are named or untouched.
+- **`delete` has no static half**, so there is no second diagnostic to design. Its queue name arrives in
+  a `Queue\Id` at run time and it is refused at the door like any other ungranted act; `E0635` is
+  `E0618` one class over and is asked under `E0618`'s conditions and no others.
+- **What this spends**, per `rule:programs/memory-priority`: one nullable column and one index on
+  `(queue, tag)` per jobs table, written once per `push` and read by nothing on the request path — the
+  claim, retry and dead-letter statements are unchanged. No allocation per job that the queue did not
+  already make.

@@ -127,3 +127,31 @@ failure mode of stage 2 being missed is a hang, and a check that hangs when the 
 worse than one that fails — it has nothing to report.
 
 **No differential case**: PHP has no queue, which is the same reason `examples/queue.nvs` has none.
+
+## Standing decisions
+
+- **This goal opens no new ADR number.** [ADR 0154](../../decisions/0154.md) is accepted and is the
+  whole design: one `Option` and one call in `serve.rs`, one predicate in `worker.rs`, four rows in the
+  directive table, one sentence of help. The two rules the lead paragraph names are not this goal's to
+  re-open.
+- **The command keeps its name.** § 6 of the record settles it, and it is the question this goal is
+  most likely to be asked on the way past: `nvs service` is the platform-service-manager namespace,
+  `daemon` is a noun in a list of verbs, and `rule:packaging/a-service-is-one-stored-argv` makes the
+  argv a thing already written into units on disk. Not a stage's to revisit.
+- **The drain comes from goal 24, which is ahead of this entry on the chain.** `Core\Signal` is what
+  makes a `SIGTERM` a drain rather than a kill, and stage 2 is written so that workers answer that
+  drain when it arrives. If this goal is somehow reached with that path absent, stage 2 is still the
+  first slice and the acceptance case is still deadline-bounded — the order exists so a check that
+  regresses fails instead of hanging, and that property does not depend on which goal landed first.
+- **No lease, and that is not the lease blocker one file over.**
+  `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` waits on a set-if-absent `Core\Cache`
+  has not got; the queue does not need it, because `rule:concurrency/claiming-is-one-statement` puts
+  the mutual exclusion in the database. A fleet of instances each running workers is the intended
+  deployment, so `arm` takes `None` deliberately.
+- **`TaskRoot::Worker`, and the ticker three lines above holds the other one.** This is the one line of
+  the change that looks right when it is wrong; `rule:http-server/containment-does-not-end-at-the-helper`
+  is why a worker has no request beneath it to charge a panic to.
+- **What this spends**, per `rule:programs/memory-priority`: nothing at all in a tree with no `[queue]`
+  block — an `Option` read at boot and no task spawned, which is the ticker's shape. Where the block is
+  present it is `workers` tasks per instance, armed on the core the ticker is armed on, and the tail a
+  shutdown pays is the one `worker.rs`'s module doc already prices.

@@ -45,6 +45,7 @@ rules = [
   "concurrency/queue-deletion-is-explicit-and-bounded",
   "concurrency/a-tag-groups-jobs-and-a-key-dedupes-them",
   "concurrency/queue-four-members",
+  "0004",
 ]
 
 adrs = []

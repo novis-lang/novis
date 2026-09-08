@@ -40,6 +40,7 @@ rules = [
   "concurrency/one-process-serves-requests-schedules-and-jobs",
   "concurrency/who-runs-a-job-is-configuration",
   "core-classes/queue-storage-is-a-table",
+  "0004",
 ]
 
 adrs = []

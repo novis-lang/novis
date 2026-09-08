@@ -235,6 +235,12 @@ settles it under AGENTS.md's priority ordering and records it in the home AGENTS
 Two things every standing decision should carry: the safe fallback if the implementation forces the
 opposite conclusion, and where the answer gets written down. A decision with no home gets re-derived.
 
+`python tools/chain.py --check` notes a queued goal with no § *Standing decisions* at all, which is
+the cheap half of this and the only half a tool can see. It cannot tell whether the section answers
+the questions the stages actually reach — that is this section's judgement, and the goal whose design
+record is not yet written is where it is hardest: implementing an accepted ADR asks a session to look
+a decision up, while writing one asks it to make the decision at the moment it is least equipped to.
+
 ## 6. The stages that have always worked
 
 Stages run in order and short-circuit, so the ledger line names exactly how far the loop got. The shape

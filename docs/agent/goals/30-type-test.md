@@ -110,3 +110,28 @@ The conformance cases ADR 0150 § *Verification* requires, under `tests/conforma
 `tests/conformance/reject/`. **No differential case**: PHP cannot run `is`, which is exactly why the
 two divergence rows — a `uint` answering `is uint` and not `is int`, and `bytes` answering `is bytes`
 — need conformance cases of their own rather than an oracle.
+
+## Standing decisions
+
+- **This goal opens no new ADR number.** [ADR 0150](../../decisions/0150.md) is accepted and is the
+  whole design, so every call these stages reach has a section of it to read. A gap found in it is an
+  edit to `rule:types/type-test`'s fragment through a record whose `changes:` block names it, never an
+  overlay here. `rule:php-migration/is-takes-pattern-matchings-type-patterns` is the contract with PHP
+  and is not this goal's to widen — the lead paragraph says so and it is repeated here because a
+  widening looks like a convenience at the moment a case fails.
+- **The result is `bool` for every subject, and the `instanceof` analogy is the trap.** 0150 § 6 is the
+  argument, stage 3 is the shape, and the acceptance list asserts both directions. A session that finds
+  itself refusing a subject has reasoned from `infer_instanceof` and should stop.
+- **False-edge narrowing stays out of scope**, for the four spellings already landed as much as for
+  this one. 0150 § 9 is why, and taking it here is the tempting local improvement that leaves four
+  spellings behind.
+- **Where stage 5 cannot reuse a walk, it emits the one that exists and never a second.** The class
+  path is `instanceof`'s descriptor walk and the `array<T>` path is `as array<T>`'s element walk; two
+  element walks in the tree means one of them is wrong, which is a bug that reads as a performance
+  choice. If reuse turns out to need a refactor to be reachable, the refactor is the slice — not a
+  second emitter, and not `BLOCKED`.
+- **What this spends**, per `rule:programs/memory-priority`: for a scalar, `object`, `null`, a literal
+  or an enum case, one tag comparison and at most a payload compare. For a class, the walk `instanceof`
+  already pays. For `array<T>` and a shape, the O(n) walk `as array<T>` already pays, and
+  `rule:types/type-test` states that cost because a reader has to see it before writing the test in a
+  loop. A folded test spends nothing at all.
