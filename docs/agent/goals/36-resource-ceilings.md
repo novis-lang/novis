@@ -155,7 +155,8 @@ second request's ceiling is `[limits] memory` plus what it evicted.
 
 16. **`crates/nvs-runtime/src/string.rs`'s block comment above the primitives** argues they cannot
     fail *because* allocation aborts rather than unwinds. Stage 5 makes that false; rewrite it whole.
-17. **ADR 0157** holds stage 5's degenerate-return invariant and stage 6's accounting boundary.
+17. **This goal's own record** holds stage 5's degenerate-return invariant and stage 6's accounting
+    boundary.
 18. **A rule fragment under `docs/rules/core-classes/` that bounds expansion at the input.** A member
     whose output scales with its input either allocates through the value allocator stage 5 guards,
     or bounds the *input* the way `rule:core-classes/regex-two-tiers` already does for patterns. It
@@ -183,7 +184,7 @@ second request's ceiling is `[limits] memory` plus what it evicted.
   mechanism, and it is sound because the request is already dead: between the refusal and the next
   poll a program can build wrong values and compare them, and it can write no output, reach no `Core`
   member and touch nothing durable — all of those pass `run_helper`, which asks ahead of the body.
-  That invariant is ADR 0157's load-bearing claim; write it as such.
+  That invariant is this goal's record's load-bearing claim; write it as such.
 - **A refusal is a complete no-op, including not separating a shared array.** `foreach` walks the
   snapshot it started on and a write inside the body separates
   (`crates/nvs-runtime/src/array.rs:@nvs_array_next_slot`'s doc comment); a refused write that
@@ -194,8 +195,8 @@ second request's ceiling is `[limits] memory` plus what it evicted.
   it hands out a per-thread singleton.
 - **Stage 6 brackets the known stores; it does not solve provenance.** Charging a free to whoever
   allocated the block needs per-request provenance, which is what M6's arena gives and what this goal
-  does not build. Bracket the cache and every store like it, and record in ADR 0157 that the general
-  property waits for the arena. A session that finds a store this goal did not name brackets it and
+  does not build. Bracket the cache and every store like it, and record in this goal's own record that
+  the general property waits for the arena. A session that finds a store this goal did not name brackets it and
   says so in the handoff.
 - **The fallback, if stage 5's array half cannot be proven.** Ship strings alone: pre-check
   `nvs_str_concat`/`nvs_str_concat_n`/`nvs_str_append` and leave `nvs_array_set` on the flag path.
@@ -205,10 +206,13 @@ second request's ceiling is `[limits] memory` plus what it evicted.
   discovered and stays that way until M6 sizes the request's own stack. The tier-1 handler's
   `fatal_reserve` is above the cap by design. Whether compilation on the compile pool is charged to
   anybody is **unverified** and belongs to whoever opens the arena, not here.
-- **This goal opens ADR 0157**, whose `changes:` block names the rules it adds — the refusal and its
-  degenerate return, the accounting boundary, and stage 7's expansion rule — and cites
-  `rule:errors/on-limit` and `rule:programs/memory-priority` as the rules it works inside. No
-  existing record is amended.
+- **This goal opens one new record and no other number**, whose `changes:` block names the rules it
+  adds — the refusal and its degenerate return, the accounting boundary, and stage 7's expansion
+  rule — and cites `rule:errors/on-limit` and `rule:programs/memory-priority` as the rules it works
+  inside. No existing record is amended. **Take the next free number when the slice is written**, one
+  above the highest file in `docs/decisions/`: this goal is second from the end of the chain, so any
+  number named here is a number some earlier goal has since claimed. 0157 was named while it was free
+  and is now an accepted record about shape types.
 - **What it spends, per `rule:programs/memory-priority`'s *say what you spend*:** one thread-local
   load and one compare per growing allocation, in front of a platform-heap round trip
   `docs/perf/userland-gap.md` measures at 28.7 ns; one word per request tree; one clock read per core
