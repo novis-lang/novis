@@ -108,6 +108,10 @@ modules = [
   # A call's arguments: arity, each argument against its parameter, `rule:core-api/shape-rules`
   # R2's trailing options bag, an `inout $x` argument, and the type arguments a call site binds.
   "crates/nvs-types/src/expr/args.rs",
+  # The per-request context: the first argument of every compiled function and every helper.
+  "crates/nvs-runtime/src/ctx/mod.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/extension.ts",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
