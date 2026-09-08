@@ -370,6 +370,13 @@ impl Analysed {
 /// The walk is `nvs check`'s, called the way `nvs-cli`'s `front_end` calls it,
 /// because a graph an editor resolves differently from the compiler is a server
 /// that disagrees with the build.
+///
+/// Every call re-reads and re-parses the whole graph, which is the price
+/// `rule:ide/one-grammar-one-tree` paid for having one tree instead of a
+/// `rowan`-shaped second one. What says that price is still worth paying is a
+/// measurement rather than an assumption: `tests/latency.rs` names the bound a
+/// ~1,000-line document's analysis stays under, what it was measured on, and
+/// what to do first if it ever goes red.
 #[must_use]
 pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let document = documents.get(uri)?;
