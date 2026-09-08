@@ -1994,15 +1994,20 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "allowUrl",
         Some(nvs_config::Cap::NetConnect),
     ),
-    // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, gated by
-    // `net.connect` under `rule:http-server/allow-url-pins-the-address`'s policy, and `shared()` is the door — it
-    // resolves the configured host and connects, while `Core\Cache\Store`'s two
-    // operations run on what it approved and so declare nothing, exactly as
-    // `Core\Http\Client` declares nothing behind `Core\Http::allowUrl`.
+    // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, and
+    // `shared()` is the door — it dials the store the deployment configured, while
+    // `Core\Cache\Store`'s two operations run on what it opened and so declare
+    // nothing, exactly as `Core\Http\Client` declares nothing behind
+    // `Core\Http::allowUrl`. The grant is `cache.shared` and not `net.connect`
+    // for `mail.send`'s reason two classes over and by the same authority
+    // (`rule:config/cache-shared-is-the-grant-over-the-configured-store`): the
+    // endpoint is one an operator wrote into root-owned configuration, so it is
+    // pre-approved, and a grant naming the *store* stays true when a deployment
+    // moves it.
     (
         crate::cache::NAME,
         "shared",
-        Some(nvs_config::Cap::NetConnect),
+        Some(nvs_config::Cap::CacheShared),
     ),
     // And its sibling declares `None`, which is the asymmetry the two rows
     // exist to state: a tier that leaves the process has a door, and one that
@@ -2017,18 +2022,18 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` write `Core\RateLimit::consume` standing alone, so it
     // is its own door onto the same store rather than something that has to
     // follow a `Core\Cache::shared()`: it reads the same directive, asks for the
-    // same grant at the same host and reuses the same per-core socket.
+    // same `cache.shared` grant and reuses the same per-core socket.
     // `Core\RateLimit\Decision`'s four readers need no row — the store has
     // answered by the time one exists, and a slot read performs no effect,
     // exactly as `Core\Process\Result`'s three members do.
     (
         crate::ratelimit::NAME,
         "consume",
-        Some(nvs_config::Cap::NetConnect),
+        Some(nvs_config::Cap::CacheShared),
     ),
     // `rule:core-classes/ratelimit-two-members`'s other member, and the same asymmetry one class over:
     // `shed`'s state is the calling core's own memory, so it is `Core\Cache`'s
-    // local tier by construction — the row above it is `net.connect` because a
+    // local tier by construction — the row above it is `cache.shared` because a
     // coherent limiter is a store on the network, and this one is `None`
     // because an approximate one is a map in this thread. It is bounded by the
     // same cap for the same reason, since it is the same store.

@@ -25,9 +25,9 @@
 //! near either call site. So [`nvs_core_ratelimit_consume`] opens the
 //! configured store itself, through the same door
 //! [`crate::cache::open_configured`] is for `Core\Cache::shared()`: the grant
-//! is asked for here, the host is pinned here, and the address the connection
-//! is made to is the one the grant approved. That is why this member carries a
-//! `net.connect` row in [`crate::registry::CAPABILITIES`] and the `Decision`'s
+//! is asked for here, and the store the deployment configured is dialled here.
+//! That is why this member carries a
+//! `cache.shared` row in [`crate::registry::CAPABILITIES`] and the `Decision`'s
 //! four readers carry none — they read slots, and a slot read performs no
 //! effect.
 //!
@@ -238,8 +238,8 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "No `[cache.shared] url` is configured, or `net.connect` is not granted for \
-                   its host — a deployment mistake rather than the world saying no, and \
+            desc: "No `[cache.shared] url` is configured, or `cache.shared` is not granted — a \
+                   deployment mistake rather than the world saying no, and \
                    deliberately not the class the fail-open `catch` around this member holds. \
                    Also `$limit`, `$per` or `$burst` at zero, and a period too short to divide \
                    into `$limit` units.",
@@ -684,15 +684,15 @@ nvs_runtime::nvs_helper! {
     /// coherent member.
     ///
     /// The door, the window and the step, in that order: the configured store
-    /// is opened under `net.connect` at the host the URL names, [`window`]
+    /// is opened under `cache.shared`, unscoped, [`window`]
     /// turns the limit into GCRA's two parameters, and [`SCRIPT`] does the one
     /// thing that has to be atomic. Nothing here decides anything — the store
     /// does, and this reads its answer back.
     ///
     /// # Errors
     ///
-    /// A thrown `RuntimeError` for a store that is not configured or whose host
-    /// is not granted, and for a limit that cannot be enforced; a thrown
+    /// A thrown `RuntimeError` for a store that is not configured or not
+    /// granted, and for a limit that cannot be enforced; a thrown
     /// `IOError` for a store that cannot be reached or that refused the script.
     /// Never an answer: `rule:core-classes/ratelimit-unreachable-store-throws` is that the failure mode belongs to the
     /// call site, which is the only place that knows whether this limiter is a

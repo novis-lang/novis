@@ -9,7 +9,7 @@
 //! # It declares no capability, and that is the design rather than an omission
 //!
 //! Every other class in this stage's half of the framework brought a `Cap` with it:
-//! [`crate::mail`] brought `mail.send`, [`crate::cache`]'s shared tier shows `net.connect`. This
+//! [`crate::mail`] brought `mail.send`, [`crate::cache`]'s shared tier brought `cache.shared`. This
 //! one brings nothing. A `storage.read` would be a *second* answer to a question `fs.read`
 //! already answers about the same byte on the same disk — an operator who granted
 //! `fs.write = ["./var/objects"]` has said everything there is to say about what a program may

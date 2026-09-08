@@ -152,7 +152,49 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
     pinned_address(ctx, host, member)
 }
 
-/// [`pin_host`]'s second half on its own: resolve `host` once and refuse the address if § 3's
+/// The address `host` resolves to, and nothing asked about it — [`pinned_address`]'s first half,
+/// for the doors whose endpoint an operator wrote into root-owned configuration.
+///
+/// `rule:config/cache-shared-is-the-grant-over-the-configured-store` is why one exists: a store the
+/// operator named is authorized by that naming, so the grant over it is asked at the door and § 3's
+/// denied-range table is not asked at all — the table exists to keep a *program-supplied* endpoint
+/// away from the local machine, which is precisely where such a store usually lives. Splitting it
+/// out rather than resolving in `nvs-stdlib` keeps `rule:security/capability-check-at-the-door`'s
+/// shape: name resolution is an operating-system effect, and every `Core` member reaches one
+/// through this module.
+///
+/// It answers no policy question, so a caller that has not already shown its own grant is calling
+/// the wrong function — [`pin_host`] is the one for an endpoint a program named.
+///
+/// # Errors
+///
+/// A `RuntimeError` when the name resolves to no address at all. There is no second failure here:
+/// every refusal [`pinned_address`] can add is one this door's callers do not ask.
+pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
+    use std::net::{IpAddr, ToSocketAddrs};
+
+    // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
+    // so the brackets come off before the address is read and stay off afterwards.
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|held| held.strip_suffix(']'))
+        .unwrap_or(host);
+    match bare.parse::<IpAddr>() {
+        Ok(literal) => Ok(literal),
+        Err(_) => (host, 0_u16)
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut found| found.next())
+            .map(|socket| socket.ip())
+            .ok_or_else(|| {
+                Fault::thrown(format!(
+                    "{member} could not resolve {host}, so there is no address to pin"
+                ))
+            }),
+    }
+}
+
+/// [`pin_host`]'s second half on its own: [`resolve_host`] once, and the address refused if § 3's
 /// table denies it.
 ///
 /// **Split out because one member asks the capability question differently and the address
@@ -174,27 +216,7 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 /// range when the address it resolves to is one § 3 denies and this deployment's `net.internal`
 /// does not except.
 pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
-    use std::net::{IpAddr, ToSocketAddrs};
-
-    // A bracketed IPv6 literal is written `[::1]` inside an authority and is not one anywhere else,
-    // so the brackets come off before the address is read and stay off afterwards.
-    let bare = host
-        .strip_prefix('[')
-        .and_then(|held| held.strip_suffix(']'))
-        .unwrap_or(host);
-    let address = match bare.parse::<IpAddr>() {
-        Ok(literal) => literal,
-        Err(_) => (host, 0_u16)
-            .to_socket_addrs()
-            .ok()
-            .and_then(|mut found| found.next())
-            .map(|socket| socket.ip())
-            .ok_or_else(|| {
-                Fault::thrown(format!(
-                    "{member} could not resolve {host}, so there is no address to pin"
-                ))
-            })?,
-    };
+    let address = resolve_host(host, member)?;
 
     // § 3's table, less whatever this deployment excepted from it with `net.internal`. A context
     // with no snapshot, and one whose snapshot grants no capability at all, both get the table

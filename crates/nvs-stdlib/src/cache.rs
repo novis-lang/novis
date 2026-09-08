@@ -46,28 +46,32 @@
 //! door: nothing leaves the process, no name is resolved and no file is opened.
 //! What is left to bound is footprint, and § 3's `nvs.toml` cap is the
 //! instrument for a bound — a boolean grant would not be one. The shared tier
-//! has the `net.connect` row instead, in [`crate::registry::CAPABILITIES`]
+//! has the `cache.shared` row instead, in [`crate::registry::CAPABILITIES`]
 //! beside it, and that asymmetry is the whole of what the two rows say.
 //!
 //! # Decision: `shared()` is the door, and the two operations are behind it
 //!
 //! [`nvs_core_cache_shared`] is where the grant is asked for and where the
-//! address is pinned; `put` and `get` on the store it answers ask nothing. That
-//! is `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s own
-//! shape — `Core\Http::allowUrl` is the launderer and `Core\Http\Client` the
-//! thing that talks — and it is what makes the address a *pin*: a check at the
-//! operation instead would leave a window in which a second resolution answers
-//! differently, and re-resolving per command would be that window per command.
-//! So [`STORE`] carries no capability row of its own, exactly as
-//! `Core\Http\Client` carries none.
+//! store is dialled; `put` and `get` on the store it answers ask nothing, and
+//! so [`STORE`] carries no capability row of its own — exactly as
+//! `Core\Http\Client` carries none behind `Core\Http::allowUrl`. A check at the
+//! operation instead would ask the same unscoped question once per command and
+//! answer it the same way every time, which is a cost with no boundary in it.
+//!
+//! The grant is `cache.shared` and it is asked at `Scope::Unscoped`, which is
+//! `rule:config/cache-shared-is-the-grant-over-the-configured-store`: the store
+//! is the one an operator wrote into root-owned configuration, and that writing
+//! is the authorization, so nothing here asks `net.connect` about the host or
+//! `rule:security/net-address-policy`'s table about the address. The name is
+//! resolved once and the connection is made to what it answered.
 //!
 //! The door is [`open_configured`] rather than the member, because it has a
 //! second caller: `Core\RateLimit::consume` limits over the same store — a
 //! deployment has one — and `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-unreachable-store-throws` both write that member standing
 //! alone, so it opens the store itself instead of requiring `shared()` to have
-//! been called first. Both callers ask for the same grant at the same host and
-//! reuse the same per-core socket; what differs is the sentence each appends to
-//! the refusal, since what to do instead is the caller's own contract.
+//! been called first. Both callers ask for the same grant and reuse the same
+//! per-core socket; what differs is the sentence each appends to the refusal,
+//! since what to do instead is the caller's own contract.
 //!
 //! Which store, and how long a command may take, are `[cache.shared] url` and
 //! `[cache.shared] timeout`; what the tier behind `local()` may hold is
@@ -124,6 +128,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::time::Duration;
 
+use nvs_config::capability::{Cap, Scope};
 use nvs_config::{Quantity, Setting, Unit};
 use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
@@ -186,10 +191,9 @@ const SHARED_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "No `[cache.shared] url` is configured; or the capability `net.connect` is not \
-                   granted for that host, or the address it resolves to is one the outbound \
-                   policy denies. Each is a deployment that was not configured rather than a \
-                   store that failed.",
+            desc: "The capability `cache.shared` is not granted; or no `[cache.shared] url` is \
+                   configured, or it is not a URL this client reads. Each is a deployment that \
+                   was not configured rather than a store that failed.",
         },
         ErrorDoc {
             error: "IOError",
@@ -679,8 +683,8 @@ fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` when no `[cache.shared] url` is set, when the URL is
-/// not one this client reads, or when `net.connect` does not cover its host —
+/// A thrown `RuntimeError` when `cache.shared` is not granted, when no
+/// `[cache.shared] url` is set, or when the URL is not one this client reads —
 /// each a deployment that has not been configured rather than the world saying
 /// no. A thrown `IOError` for a store that is configured and cannot be reached,
 /// which is the class `rule:core-classes/ratelimit-unreachable-store-throws`'s fail-open `catch` holds.
@@ -692,10 +696,18 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
         )));
     };
 
+    // After the directive and before anything is dialled. A deployment that configured no store
+    // hears that first, because there is no tier for a grant to be about yet — and asking here
+    // rather than at the top is `rule:security/capability-costs-nothing-unasked`'s shape: the
+    // question is put beside the effect it authorizes.
+    nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
+
     let (host, port) = endpoint(&url, member)?;
-    // `rule:http-server/allow-url-pins-the-address`: the door answers with the address, and the connection is
-    // made to *that* — the whole of why a name is not resolved again below.
-    let address = nvs_runtime::capability::pin_host(ctx, &host, member)?;
+    // Resolved and not pinned: `rule:config/cache-shared-is-the-grant-over-the-configured-store` is
+    // that the endpoint an operator wrote carries the authority that granted the capability, so
+    // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
+    // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
+    let address = nvs_runtime::capability::resolve_host(&host, member)?;
     open_shared(SocketAddr::new(address, port), timeout_of(ctx), member)
 }
 
@@ -764,10 +776,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// A thrown `RuntimeError` when no `[cache.shared] url` is set, when the URL
-    /// is not one this client reads, or when `net.connect` does not cover its
-    /// host or the outbound policy denies its address; a thrown `IOError` when
-    /// the store cannot be reached.
+    /// A thrown `RuntimeError` when `cache.shared` is not granted, when no
+    /// `[cache.shared] url` is set, or when the URL is not one this client
+    /// reads; a thrown `IOError` when the store cannot be reached.
     fn nvs_core_cache_shared(ctx, _args: [0]) {
         let member = format!("{NAME}::shared()");
         open_configured(
@@ -861,14 +872,42 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
+    use std::net::TcpListener;
+
     use nvs_runtime::budget;
+    use nvs_runtime::{Fault, ThrownClass};
 
     use crate::tests::granting;
 
     use super::{
         CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, MAX_SIZE,
-        SHARED_DOC, Value, local_cap, store_get, store_put,
+        SHARED_DOC, Value, local_cap, open_configured, store_get, store_put,
     };
+
+    /// The member a store's door names in a refusal, and what a case here is
+    /// standing in for.
+    const MEMBER: &str = "Core\\Cache::shared()";
+
+    /// A store that is listening and nothing more: a socket on loopback that
+    /// accepts the connection the door dials and never answers a command.
+    ///
+    /// Enough for every case below, because [`open_configured`] finishes at
+    /// `ensure` — what a store *says* is [`super::redis`]'s subject, and the
+    /// question here is only which questions were asked on the way to dialling
+    /// it. The listener is returned with the URL so it outlives the call.
+    fn listening() -> (TcpListener, String) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+        let port = listener.local_addr().expect("the bound port").port();
+        (listener, format!("redis://127.0.0.1:{port}"))
+    }
+
+    /// A context configured with `written`, which is a `[capabilities]` block
+    /// and a `[cache.shared]` one.
+    fn deployed(written: &str) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(written));
+        ctx
+    }
 
     /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the copy across this boundary is the graph copy `rule:classes/two-copy-depths`
     /// already defines and the isolate boundary already shares — not a third
@@ -1136,5 +1175,117 @@ mod tests {
             elsewhere >= LARGE.cast_signed(),
             "eight cores hold eight copies, and each one is charged for its own"
         );
+    }
+
+    /// `rule:config/cache-shared-is-the-grant-over-the-configured-store`: the
+    /// grant over a store an operator configured names the store, so the door
+    /// opens one for a deployment that grants `cache.shared` and **nothing
+    /// else** — no `net.connect` for the URL's host, and no host in any grant
+    /// list at all.
+    ///
+    /// The absence is what the case is for. A door that had kept the address
+    /// question would refuse this configuration, and it would refuse it with
+    /// the same class of error the unconfigured case produces, so a case that
+    /// only asserted "it throws for the wrong deployment" would pass against
+    /// the rule this one replaces.
+    #[test]
+    fn a_configured_store_needs_no_address_grant() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        open_configured(&ctx, MEMBER, "").expect("a granted store, configured, is dialled");
+    }
+
+    /// The same rule from the other side: `cache.shared` is a **grant**, so a
+    /// deployment carrying the old one is refused rather than quietly
+    /// migrated.
+    ///
+    /// `net.connect = true` is written here — the widest the old question had
+    /// a spelling for — because that is exactly the tree this change turns from
+    /// working into refused, and the refusal names the key an operator has to
+    /// write. Catchable, per
+    /// `rule:security/denial-is-a-runtime-error`, and not the `IOError` an
+    /// unreachable store answers with: nothing was dialled.
+    #[test]
+    fn a_configured_store_is_refused_without_its_own_grant() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\nnet.connect = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        let refused = open_configured(&ctx, MEMBER, ", or use `Core\\Cache::local()`")
+            .expect_err("`net.connect` is not the grant over a configured store");
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a denied capability is catchable");
+        };
+        assert_eq!(class, ThrownClass::Runtime);
+        assert!(
+            message.contains("cache.shared") && message.contains(MEMBER),
+            "the refusal names the capability in the spelling `nvs.toml` grants it under, and the \
+             member that wanted it: {message}"
+        );
+    }
+
+    /// The cost the old question had: a store on loopback — where an ordinary
+    /// single-machine deployment puts one — sat inside
+    /// `rule:security/net-address-policy`'s denied ranges, so reaching it took
+    /// a `net.internal` exception beside the grant.
+    ///
+    /// Both halves are asserted, because the door skipping the table and the
+    /// table no longer denying loopback would look identical from the first
+    /// half alone: the address the case connects to is still one
+    /// `denied_by_default` refuses, and the connection is still made. What
+    /// changed is which doors ask.
+    #[test]
+    fn a_loopback_store_needs_no_net_internal_exception() {
+        let (_listener, url) = listening();
+        let ctx = deployed(&format!(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\nurl = \"{url}\"\n"
+        ));
+
+        open_configured(&ctx, MEMBER, "").expect("a loopback store is reached with no exception");
+        assert!(
+            nvs_config::capability::denied_by_default("127.0.0.1".parse().expect("a literal"))
+                .is_some(),
+            "the table still denies loopback for every door that asks it — one fewer does"
+        );
+    }
+
+    /// `rule:core-classes/ratelimit-two-members`' coherent half and
+    /// `rule:core-api/two-cache-tiers`' coherent tier reach the same store
+    /// through [`open_configured`], so they declare one grant between them and
+    /// their per-core siblings declare none.
+    ///
+    /// Asserted as agreement rather than as two values: a limiter that grew a
+    /// grant of its own would still read plausibly on its own row, and what
+    /// makes the pair correct is that a deployment granting the tier has
+    /// granted the limiter and cannot do one without the other.
+    #[test]
+    fn the_limiter_and_the_tier_ask_one_grant_at_one_door() {
+        let asked = |class: &str, member: &str| {
+            crate::registry::CAPABILITIES
+                .iter()
+                .find(|(owner, name, _)| *owner == class && *name == member)
+                .map(|(_, _, cap)| *cap)
+                .expect("every capability-bearing member declares a row")
+        };
+
+        assert_eq!(
+            asked(super::NAME, "shared"),
+            asked(crate::ratelimit::NAME, "consume"),
+            "one door, one grant"
+        );
+        assert_eq!(
+            asked(super::NAME, "shared"),
+            Some(nvs_config::Cap::CacheShared)
+        );
+        assert_eq!(
+            asked(super::NAME, "local"),
+            asked(crate::ratelimit::NAME, "shed"),
+            "and the two per-core halves ask nothing, for the reason the rows state"
+        );
+        assert_eq!(asked(super::NAME, "local"), None);
     }
 }
