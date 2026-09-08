@@ -116,6 +116,14 @@ modules = [
   # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
   # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
   "crates/nvs-types/src/derive.rs",
+  # The written-class lowering: the descriptor constant and the list flag, ahead of the receiver.
+  # This is where a `WRITTEN_CLASS_MEMBERS` call site is built, and `lower/call.rs` is not.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The argument slot a descriptor and a shape's wire contract both ride in.
+  "crates/nvs-runtime/src/value.rs",
+  # The second pass that resolves a codec's nested descriptors, and the one place a constant's
+  # address is baked into compiled code.
+  "crates/nvs-codegen/src/lib.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
