@@ -26,9 +26,12 @@ interface ConfigProperty {
 
 interface Manifest {
   name: string;
+  displayName: string;
   publisher: string;
   license: string;
   icon: string;
+  homepage: string;
+  repository: { url: string; directory: string };
   engines: Record<string, string>;
   extensionKind: string[];
   activationEvents: string[];
@@ -89,10 +92,36 @@ const COMMANDS = [
 const ALLOWED_DEPENDENCIES = ["vscode-languageclient"];
 
 describe("the extension's identity", () => {
-  it("is nvs-lang.nvs, a workspace extension", () => {
-    assert.equal(manifest.publisher, "nvs-lang");
+  it("is novis-lang.nvs, a workspace extension", () => {
+    // The publisher is the GitHub organisation, which is the only spelling of the project's
+    // owner anywhere in the tree; the package name is the binary's. The two together are what
+    // the editor shows under the title and what a Marketplace URL would be built from.
+    //
+    // It is an identifier and not a name: `vsce` checks it against `/^[a-z0-9][a-z0-9-]*$/i`,
+    // so the website's `novis-lang.org` cannot go here — a dot would also make `publisher.name`
+    // ambiguous. The domain is the `homepage` instead.
+    assert.equal(manifest.publisher, "novis-lang");
     assert.equal(manifest.name, "nvs");
+    assert.ok(/^[a-z0-9][a-z0-9-]*$/i.test(manifest.publisher),
+              "the publisher is not a Marketplace identifier");
     assert.deepEqual(manifest.extensionKind, ["workspace"]);
+  });
+
+  it("points at the repository and the website, not at a name either has outgrown", () => {
+    // Both URLs said `nvs-lang/nvs` until the move to `novis-lang/novis`, and neither is fetched
+    // by anything that would have failed — a Marketplace listing would simply have carried two
+    // dead links. `docs/release.md` § 1 records the same staleness in `Cargo.toml`.
+    assert.equal(manifest.repository.url, "https://github.com/novis-lang/novis.git");
+    assert.equal(manifest.repository.directory, "editors/vscode");
+    assert.equal(manifest.homepage, "https://novis-lang.org");
+  });
+
+  it("takes its title from the README's H1", () => {
+    // `docs/decisions/0151.md` § 3 gave the project's title one home and had `nvs --help` read
+    // from it; the editor's title for the extension is the same fact reaching a third surface,
+    // so it is asserted against that home rather than agreed with it by hand.
+    const readme = readFileSync(join(ROOT, "..", "..", "README.md"), "utf8");
+    assert.equal(manifest.displayName, /^# (.+)$/m.exec(readme)?.[1]);
   });
 
   it("is versioned with the binary it speaks to", () => {

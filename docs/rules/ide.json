@@ -866,7 +866,7 @@
     },
     {
       "id": "ide/the-extension-runs-where-the-binary-is",
-      "title": "The extension is `nvs-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
+      "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
       "status": "designed",
       "because": [
         "0099",

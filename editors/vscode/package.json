@@ -1,17 +1,17 @@
 {
   "name": "nvs",
-  "displayName": "Novis",
+  "displayName": "Novis — The Web-Native Programming Language",
   "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
   "version": "0.0.1",
-  "publisher": "nvs-lang",
+  "publisher": "novis-lang",
   "license": "MIT",
   "icon": "media/novis-logo.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nvs-lang/nvs.git",
+    "url": "https://github.com/novis-lang/novis.git",
     "directory": "editors/vscode"
   },
-  "homepage": "https://github.com/nvs-lang/nvs",
+  "homepage": "https://novis-lang.org",
   "engines": {
     "vscode": "^1.90.0"
   },
