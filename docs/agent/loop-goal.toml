@@ -131,6 +131,11 @@ modules = [
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
+  # The precedent a stage writing prose about the roster is told to follow — why a contract an
+  # ordinary class implements is global rather than under `Core` — and the `tryParse` shape this
+  # goal's interface encodes. 0013's expansion names both by title only, which is not the rule.
+  "classes/comparable",
+  "expressions/try-parse",
   "programs/no-runtime-autoload",
   "security/route-capture-is-laundered-by-its-type",
   "routing/a-query-parameter-is-declared-like-a-capture",

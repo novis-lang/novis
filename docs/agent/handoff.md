@@ -2,49 +2,52 @@
 
 ## State
 
-**Goal 19 — the binding site and the runnable fixture have both landed; what is left is prose and two
-open design questions.** `examples/parses.nvs` runs under `nvs run --request examples/parses.nvsr` and
-prints the stage-5 check's five lines, and the three conformance cases stage 4 names are on disk and
-green. Full verify: 8 of 8, conformance 1623.
+**Goal 19 — stage 5's reference pages are done.** `docs/reference/lang/50-classes.md` counts six
+global interfaces, says what `Parses` is for and carries a `Parses` section beside `Comparable`'s;
+`docs/reference/lang/90-attributes.md`'s two prose rosters end at "a class implementing `Parses`"
+rather than at `Core\Uuid`; `docs/novis.md` is regenerated. Every example in both chapters runs —
+`reference.py --examples-only` reports 46 of 46 for the classes chapter and 11 of 11 for attributes.
 
-**Two things the goal names are still open, and neither is code the fixture needed.** Nothing binds a
-`#[Query]` parameter, and a class-typed `#[Query]` cannot carry a default at all — `E0451` wants a
-literal of the declared type — so goal prose stage 5's "a `#[Query]` with a default" is not writable
-today and the fixture spells both `tag` readings by hand over the same `parse`. Stage 4's `cargo-named`
-checks still name five `-p nvs-runtime` tests that do not exist, one of which
-(`a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value`) states the answer this goal's
-§ *Standing decisions* settled the other way; it is a check name to amend, not work to do.
+**The earliest failing acceptance check is stage 3's, and it is six tests that do not exist rather
+than a feature that does not work.** The behaviour they name is on disk: a class capture reaches the
+`Parses` predicate at `crates/nvs-types/src/routes.rs:1750`'s diagnostic and a command argument at
+`crates/nvs-types/src/commands.rs:249`, both verified by hand this session against
+`target/debug/nvs.exe`.
+
+**Still open and not code this stage needed:** `tryParse` is unreachable on a user implementor (the
+playbook bullet has the shape), nothing binds a `#[Query]` parameter, and a class-typed `#[Query]`
+cannot carry a default (`E0451` wants a literal of the declared type). Stage 4's `cargo-named` checks
+still name five `-p nvs-runtime` tests that do not exist, one of which states the answer this goal's
+§ *Standing decisions* settled the other way — check names to amend, not work to do.
 
 ## Next group
 
-**Stage 5: the reference pages — one file set: `docs/reference/lang/50-classes.md`,
-`docs/reference/lang/90-attributes.md`, then `python tools/reference.py`.** `docs/novis.md` is
-generated from those two and is never edited by hand.
+**Stage 3: the predicate's own tests — one file set: `crates/nvs-types/tests/routes.rs`,
+`crates/nvs-types/tests/commands.rs`, `crates/nvs-stdlib/src/registry.rs`.** All six names are
+`docs/agent/loop-goal.toml`'s stage-3 `cargo-named` lists, verbatim.
 
-- [ ] **The global interface roster counts five and lists six** — `docs/reference/lang/50-classes.md:659`
-      opens "Five interfaces are declared by the compiler" over a table that now carries `Parses` as its
-      third row. Fix the count, and say in that paragraph's own terms what `Parses` is for, on the
-      precedent `rule:classes/comparable` set when the roster last grew.
-- [ ] **A `Parses` section beside `Comparable`'s** — `docs/reference/lang/50-classes.md:1005` is
-      `# Comparable`, and `Parses` owes the same shape: the one required member
-      `parse(tainted string $s): static`, `tryParse` as a default body on the interface rather than a
-      second member, and the binding sites that ask a class for it. `rule:expressions/try-parse`.
-- [ ] **The two prose rosters still end at `Core\Uuid`** — `docs/reference/lang/90-attributes.md:307`
-      (a route capture and a `#[Query]`) and `:509` (a command argument and an `#[Option]`) list the
-      admitted types by name, and the last entry is now "a class implementing `Parses`" rather than one
-      class written out. `rule:routing/a-query-parameter-is-declared-like-a-capture` and
-      `rule:security/route-capture-is-laundered-by-its-type`.
+- [ ] **The three binding sites** — `a_user_class_implementing_parses_may_be_a_route_capture` and
+      `a_user_class_implementing_parses_may_be_a_query_parameter` go at
+      `crates/nvs-types/tests/routes.rs:1088`, after the `#[Query]` marker test;
+      `a_user_class_implementing_parses_may_be_a_command_argument` at
+      `crates/nvs-types/tests/commands.rs:423`. `rule:security/route-capture-is-laundered-by-its-type`
+      and `rule:routing/a-query-parameter-is-declared-like-a-capture` are what they pin.
+- [ ] **The refusal and the two streamlining assertions** —
+      `a_class_without_the_interface_is_refused_naming_parses_as_the_fix`,
+      `core_uuid_reaches_the_roster_through_the_interface_and_not_its_name` and
+      `a_parses_capture_names_no_closed_set_and_changes_no_route_rank`, all at
+      `crates/nvs-types/tests/routes.rs:1088`. The diagnostic the first reads is
+      `crates/nvs-types/src/routes.rs:1750` and prints `or a class implementing \`Parses\``; the
+      closed set the third asserts nothing about is `crates/nvs-types/src/routes.rs:1768`.
+- [ ] **The stdlib half** — `implements_parses_is_true_for_core_uuid_and_false_for_a_class_without_both_members`
+      and `implements_parses_requires_try_parse_to_answer_the_nullable_self`, in the test module at
+      `crates/nvs-stdlib/src/registry.rs:3388`, over the predicate at
+      `crates/nvs-stdlib/src/registry.rs:2591`.
 
 ## Backlog
 
-- Stage 4's five `-p nvs-runtime` `cargo-named` checks name tests no crate hosts, and one contradicts
-  the goal's own standing decision — amend `docs/agent/loop-goal.toml` and the goal source together.
-- Nothing binds a `#[Query]` parameter to a declared one; `rule:routing/a-bad-query-value-is-a-400`'s
-  query half has no implementation at all.
-- A class-typed `#[Query]` can carry no default (`E0451` wants a literal of the declared type), which
-  goal prose stage 5 assumes it can — a design question, not a slice.
-- Stage 5's diagnostic corpus: a class standing in a capture without the interface, naming the
-  interface as the fix.
-- `nvs run --request` matching the inbound against the table would make `Core\Request::route()` answer
-  in a leg — `crates/nvs-cli/src/main.rs:1651`, and the playbook bullet under *Running things*.
-- Goal prose stage 5 also names a command argument at a `Parses` class; the fixture has none.
+- `Parses` has no rule fragment of its own; it is described in `crates/nvs-hir/src/interfaces.rs:61`
+  and inside `rule:security/route-capture-is-laundered-by-its-type` — `docs/rules/classes/`.
+- `tryParse` unreachable on a user implementor — the playbook bullet, `crates/nvs-types/src/iter_lib.rs:123`.
+- Stage 4's five `-p nvs-runtime` check names to amend — `docs/agent/loop-goal.toml`.
+- A `#[Query]` parameter binds nothing yet, and a class-typed one cannot carry a default.
