@@ -2,62 +2,61 @@
 
 ## State
 
-**Goal 19 — a class a string names, at one contract. Stage 2 is closed; stage 3's item 2 is on
-disk, and its items 1, 3 and 4 are the next group.**
+**Goal 19 — a class a string names, at one contract. Stage 3 is closed; stage 4 is the next group.**
 
-`nvs_stdlib::registry::implements_parses` is the structural predicate beside `implements_comparable`
-(`crates/nvs-stdlib/src/registry.rs:2566`): a static `parse(Text(Qual::Neutral)) -> Instance(self)`
-and a static `tryParse(Text(Qual::Neutral)) -> Nullable(Instance(self))`, no defaults, which is
-`rule:expressions/try-parse`'s three conditions written once. `crates/nvs-types/src/core_lib.rs:86`
-seeds the edge from it, two lines below the `Comparable` seed.
+The name comparison is gone from the checker. `crates/nvs-types/src/commands.rs`'s `reaches_parses`
+(`:817`) is the two-table question `crate::expr::operators`'s `reaches_comparable` already asks of
+`Comparable` — `nvs_hir::implements_interface` for a written `implements Parses`, and
+`crate::signatures::resolve_interface_args` for `Core\Uuid`, whose edge `crate::core_lib:92` seeds off
+`nvs_stdlib::registry::implements_parses`. Both of `commands.rs`'s readings go through it, and
+`converts_from_string` is the roster `routes.rs:1724` and `:1818` read, so all four surfaces widened at
+once. The three diagnostics and the two doc comments now say "a class implementing `Parses`".
 
-**`Core\Uuid` did change, and stage 3 item 2's "not one line" sentence is wrong about the tree.**
-Its two rows were `CoreTy::Str`, which refuses a `tainted` argument — and `Qual::Contagious` refuses
-one too wherever the answer is an object, which is the playbook bullet this session added. So the
-predicate demands `Qual::Neutral` and `Core\Uuid` now carries it, out of `registry.rs`'s
-`UNCLASSIFIED` ratchet in the same edit. The roster is `Core\Uuid` alone: `Core\Uri` keeps
-`Contagious`, because its components come back out as plain `string`s and a `Neutral` parse there
-would launder attacker text through `scheme()` and `path()` — a decision, not an oversight, and
-asserted as one in `the_parses_roster_is_the_classes_carrying_the_whole_pair`.
+**`ArgConv::Uuid` became `ArgConv::Parses(String)`** — the row carries the class the checker resolved,
+which is what stage 4's arm needs. `nvs-cli/src/main.rs:1270` is the bridge: `Core\Uuid` reaches
+`nvs_runtime::commands::ArgConv::Uuid`, and every other implementor is `Unconverted`, under the policy
+`capture_conv`'s doc (`crates/nvs-cli/src/main.rs:1384`) already states — what the runtime has no arm
+for says so rather than converting as something else. Written down as gap 2 of
+`crates/nvs-runtime/src/commands.rs`.
 
-The goal's one record is still unwritten; stage 5 schedules its prose half, and it now owes this
-`Core\Uuid` reclassification and the `Core\Uri` exclusion in its `changes` block alongside
-`rule:core-api/reserved-namespace` and stage 2's `E0404`.
+**The goal doc's stage 4 quotes two gaps the tree no longer has.** `crates/nvs-runtime/src/routes.rs`'s
+gaps 1 and 2 are the linear scan and the reader; `CaptureConv::Decimal` and `CaptureConv::Uuid` both
+have arms (`:101`, `:107`, matched at `:403`), and so does `ArgConv::Uuid`
+(`crates/nvs-stdlib/src/command.rs:535`). So stage 4's items 1 and 3 are already on disk and what is
+actually left is one arm per enum for a `Parses` class that is **not** `Core\Uuid` — and the open
+design question is how the runtime reaches a user class's static `parse` from a conversion path that
+today calls Rust readers only.
 
-**Pack gap, now closed:** `[context] rules` named neither
-`security/unclassified-parameter-refuses-tainted` nor `security/taint-propagation`, and both decide
-what this stage's predicate may require; this session derived them from
-`crates/nvs-types/src/expr/quals.rs` instead. Both are added to the base manifest.
+The goal's one record is still unwritten; stage 5 schedules its prose half, and it owes stage 3's
+`ArgConv::Uuid` → `ArgConv::Parses` widening in its `changes` block alongside the `Core\Uuid`
+reclassification, the `Core\Uri` exclusion, `rule:core-api/reserved-namespace` and stage 2's `E0404`.
 
 ## Next group
 
-**Stage 3: the four surfaces read the predicate instead of the name** — one file set:
-`crates/nvs-types/src/commands.rs`, `crates/nvs-types/src/routes.rs`.
+**Stage 4: the runtime arm, in the two enums that cross** — one file set:
+`crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/commands.rs`,
+`crates/nvs-cli/src/main.rs`, `crates/nvs-stdlib/src/command.rs`.
 
-- [ ] **`converts_from_string`'s class arm becomes the predicate** —
-      `crates/nvs-types/src/commands.rs:789` is the `QName::parse(r"Core\Uuid")` comparison inside
-      `converts_from_string` (`:771`), and `crates/nvs-types/src/commands.rs:241` is the same
-      comparison choosing `ArgConv::Uuid`. Both ask "does this class implement `Parses`" of the
-      signature table `crate::expr::operators` asks `Comparable` of.
-      `rule:expressions/try-parse` is the contract; `rule:classes/comparable` is the precedent for
-      reaching the table from here.
-- [ ] **The three diagnostics stop reciting the roster** — `crates/nvs-types/src/commands.rs:755`,
-      `crates/nvs-types/src/routes.rs:1745` and `crates/nvs-types/src/routes.rs:1831` each name the
-      closed set and then `Core\Uuid`; they name the closed set and then "a class implementing
-      `Parses`". `rule:routing/a-capture-narrows-to-a-closed-set` owns what the set is.
-- [ ] **The two doc comments generalize past the one class** —
-      `crates/nvs-types/src/routes.rs:497` and `crates/nvs-types/src/routes.rs:1758` use `Core\Uuid`
-      as the worked example of "converts, but narrows nothing", which stays true of every `Parses`
-      class. `rule:routing/a-query-parameter-is-declared-like-a-capture` is the surface it is
-      written about.
+- [ ] **Settle how a conversion path reaches a class's `parse`, then write it once** —
+      `crates/nvs-stdlib/src/command.rs:535` is where a command argument converts and
+      `crates/nvs-runtime/src/routes.rs:403` is where a segment does; both call Rust readers and
+      neither can call a compiled static today. `rule:expressions/try-parse` is the contract the arm
+      honours. Prefer the safe answer if the reach is not cheap: leave the arm `Unconverted` and say so
+      in the gap rather than converting at the wrong type.
+- [ ] **`CaptureConv` gains the parsing arm** — `crates/nvs-runtime/src/routes.rs:107` is the
+      `Core\Uuid` variant it generalizes and `crates/nvs-runtime/src/routes.rs:403` its match arm; a
+      segment `parse` refuses is **no match**, per
+      `rule:security/route-capture-is-laundered-by-its-type`.
+- [ ] **The two `nvs-cli` bridges stop naming the class** — `crates/nvs-cli/src/main.rs:1385` is
+      `capture_conv`'s `Some(r"Core\Uuid")` arm and `crates/nvs-cli/src/main.rs:1270` is the
+      `ArgConv::Parses` arm this session wrote as a two-way `if`; both become the widened variant once
+      the runtime has somewhere to send it.
 
 ## Backlog
 
-- Stage 4's two runtime arms — `crates/nvs-runtime/src/routes.rs:89` and
-  `crates/nvs-runtime/src/commands.rs:57`; `docs/agent/loop-goal.md` § *Stage 4*.
-- Stage 5's `examples/parses.nvs`, which is the acceptance check failing today;
-  `docs/agent/loop-goal.md` § *Stage 5*.
-- The goal's one record, next free 0160 — `docs/agent/loop-goal.md` § *Stage 5*.
-- Stage 3 item 2's "not one line of `Core\Uuid` changes" is stale — `docs/agent/loop-goal.md:97`.
-- An inherited `Parses::tryParse` still cannot be called from source; the refusal is the safe half
-  and the repair is body-first — `docs/agent/playbook.md`.
+- Stage 5's record and its `.nvst` proofs, including `examples/parses.nvs` — the acceptance check the
+  driver reports as failing (`docs/agent/loop-goal.md` § Stage 5).
+- `crates/nvs-types/src/commands.rs:189`'s `OneOf` doc still uses `Core\Uuid` as its worked example; it
+  is true, not stale, and is the record's business if anything's.
+- `crates/nvs-cli/src/openapi.rs`'s `format: uuid` stays a name test on purpose — `docs/agent/loop-goal.md`
+  § Standing decisions.

@@ -494,7 +494,8 @@ pub struct RouteParam {
     /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set, as the segment text each admitted value is
     /// written with, in the order the union declares them — or `None` where the
     /// declared type is not a closed set at all, which is every `string`,
-    /// `int`, `uint`, `decimal` and `Core\Uuid` capture.
+    /// `int`, `uint`, `decimal` capture and every capture at a class
+    /// implementing `Parses`.
     ///
     /// Computed here, where the interner is still alive, for [`Self::ty`]'s
     /// reason exactly. An enum-case member contributes nothing and takes the
@@ -1742,7 +1743,8 @@ fn check_captures(
                 _ => {
                     "a segment is converted to the parameter's declared type, so a capture \
                      binds `string`, `int`, `uint`, `decimal`, an enum, a union of literal \
-                     types, or `Core\\Uuid` — and never a regex (`rule:routing/a-capture-narrows-to-a-closed-set`)"
+                     types, or a class implementing `Parses` — and never a regex \
+                       (`rule:routing/a-capture-narrows-to-a-closed-set`)"
                 }
             }),
         );
@@ -1755,8 +1757,10 @@ fn check_captures(
 /// query value that arrives at it — or `None` where `ty` is not a closed set.
 ///
 /// The narrower question than [`crate::commands::converts_from_string`], which
-/// asks whether a segment converts *at all*: `string`, `int` and `Core\Uuid`
-/// all convert and none of them names a set anything could be checked against.
+/// asks whether a segment converts *at all*: `string`, `int` and every class
+/// implementing `Parses` all convert, and none of them names a set anything
+/// could be checked against — a `Parses` class narrows nothing, because the
+/// contract says the text either parses or does not and never which texts do.
 /// What is left is § 5's two additions, minus the half no caller can use yet:
 ///
 /// - a **union of `string` or `int` literal types**, and a lone literal type,
@@ -1828,7 +1832,7 @@ fn query_params(
                     "a query value arrives as text and its type comes from the parameter, so a \
                      `#[Query]` declares the same list a capture does (`rule:routing/a-query-parameter-is-declared-like-a-capture`): `string`, \
                      `int`, `uint`, `decimal`, an enum, a union of literal types, or \
-                     `Core\\Uuid`",
+                     a class implementing `Parses`",
                 ),
             );
         }
