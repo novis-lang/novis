@@ -3193,15 +3193,19 @@ mod tests {
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
         nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_json,
-        nvs_core_request_method, nvs_core_request_mount, nvs_core_request_mount_captures,
-        nvs_core_request_mount_prefix, nvs_core_request_part_content,
-        nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
-        nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
-        nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
-        nvs_core_request_part_save_to, nvs_core_request_post,
+        nvs_core_request_json_as, nvs_core_request_method, nvs_core_request_mount,
+        nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
+        nvs_core_request_part_content, nvs_core_request_part_content_advance,
+        nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
+        nvs_core_request_part_content_type, nvs_core_request_part_filename,
+        nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
+        nvs_core_request_post,
     };
     use crate::router::METHOD;
-    use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
+    use nvs_runtime::{
+        CONSTRUCTOR, ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Inbound, MethodRow, NvsFn,
+        NvsObj, OK, RequestBody, Value,
+    };
 
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
@@ -5204,6 +5208,125 @@ mod tests {
         )
     }
 
+    /// `Reading`'s constructor, in the ABI a compiled one has: the receiver in
+    /// slot 0, each parameter after it, and every reference transferred in.
+    ///
+    /// It writes its one parameter into the one field — which takes that
+    /// reference over — and releases the receiver, which is what a compiled
+    /// constructor's exit does and what leaves the object at the single
+    /// reference [`nvs_runtime::construct`] hands back.
+    #[expect(
+        unsafe_code,
+        reason = "`construct` passes the instance and one argument as live values \
+                  this callee owes a release for, and the address of a live slot \
+                  for the result — neither is expressible in the signature \
+                  compiled code is called through"
+    )]
+    unsafe extern "C" fn fill_reading(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let receiver = unsafe { *args };
+        let instance = std::mem::ManuallyDrop::new(unsafe {
+            NvsObj::from_raw(
+                receiver
+                    .obj_ptr()
+                    .expect("a constructor's slot 0 is the instance it is filling"),
+            )
+        });
+        instance.set_field(0, unsafe { *args.add(1) });
+        unsafe {
+            receiver.release();
+            *out = Value::null();
+        }
+        OK
+    }
+
+    /// The class `jsonAs<T>()` hydrates into here: one `int` field named `n`,
+    /// carrying the derived JSON codec `nvs-codegen` writes in its second pass
+    /// over a unit's classes.
+    ///
+    /// Built by hand because this crate compiles nothing: `define` gives the
+    /// slot, [`nvs_runtime::ClassTable::set_codec`] the wire contract, and
+    /// `set_methods` the one row [`nvs_runtime::construct`] insists on — a
+    /// class with no `CONSTRUCTOR` faults there rather than decoding, so a
+    /// fixture owes a native constructor of the ABI a compiled one has.
+    ///
+    /// The table is leaked because a descriptor's *address* is its identity and
+    /// it must outlive every instance made from it, which is `NvsObj::new`'s
+    /// obligation and `crate::fatal`'s `closure_of`'s reason for doing the
+    /// same.
+    fn reading_class() -> *const ClassDesc {
+        let mut table = ClassTable::new();
+        let id = table.define("Reading", &["n"], &[]);
+        let constructor: NvsFn = fill_reading;
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: CONSTRUCTOR.to_owned(),
+                code: constructor as *const u8,
+                arity: 1,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        table.set_codec(
+            id,
+            vec![CodecField {
+                key: "n".to_owned(),
+                slot: 0,
+                param: 0,
+                ty: CodecTy::Int,
+                element: None,
+                class: None,
+                cases: None,
+                nullable: false,
+            }],
+            1,
+            vec![std::ptr::null()],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// `Core\Request::jsonAs<T>()` on `ctx` at the default depth, for the one
+    /// `T` these tests declare.
+    ///
+    /// Arguments 0 and 1 are filled by hand for the reason
+    /// [`nvs_core_request_json_as`] gives: `nvs_ir::lower` writes the resolved
+    /// descriptor and the list flag out of the type argument, and there is no
+    /// call site here.
+    fn read_json_as(ctx: &mut Ctx, class: *const ClassDesc) -> Result<Value, i32> {
+        nvs_runtime::call(
+            nvs_core_request_json_as,
+            ctx,
+            &[
+                Value::class_desc(class),
+                Value::bool(false),
+                Value::uint(crate::json::DEFAULT_MAX_DEPTH),
+            ],
+        )
+    }
+
+    /// The `n` field of an instance [`reading_class`] describes, borrowed
+    /// rather than taken: the caller still owns the reference it passed in.
+    #[expect(
+        unsafe_code,
+        reason = "the value is an instance this frame holds a reference to, so \
+                  the handle borrowed from it cannot outlive the allocation"
+    )]
+    fn field_n(instance: Value) -> i64 {
+        let object = std::mem::ManuallyDrop::new(unsafe {
+            NvsObj::from_raw(
+                instance
+                    .obj_ptr()
+                    .expect("`jsonAs()` answers an instance of the class it was given"),
+            )
+        });
+        object
+            .field(0)
+            .as_int()
+            .expect("`n` is declared `int`, so the decode produced one")
+    }
+
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
     /// buffering half: a reader that keeps what it read leaves a hold, and the
     /// next reader answers out of that hold rather than off a wire that is
@@ -5403,6 +5526,85 @@ mod tests {
             read_json(&mut labelled).is_err(),
             "and the header makes no document out of bytes that are not one"
         );
+    }
+
+    /// `jsonAs<T>()` answers an instance of the type the call site named, and a
+    /// second call answers a **different** one.
+    ///
+    /// The identity assertion is the whole of what separates the pair. `json()`
+    /// keeps what it decoded because a document is arrays and scalars and an
+    /// array is copy-on-write, so a second holder can see no writes the first
+    /// one made; `decodeAs` builds objects, which are not, so two callers handed
+    /// one instance would each read the other's mutations. So `jsonAs<T>()`
+    /// keeps nothing and hydrates the held octets again, and what a second call
+    /// answers is equal and a different allocation — which is the one thing an
+    /// equality assertion could not see.
+    #[test]
+    fn json_as_hydrates_a_declared_type_and_never_shares_an_object() {
+        let class = reading_class();
+        let mut ctx = answering(Some(Chunks::of(&[&b"{\"n\":7}"[..]])));
+
+        let first = read_json_as(&mut ctx, class).expect("the body is one JSON document");
+        assert_eq!(
+            field_n(first),
+            7,
+            "the field is filled out of the document's key of the same name"
+        );
+
+        let second = read_json_as(&mut ctx, class)
+            .expect("the octets are held, so a second call reads them again");
+        assert_eq!(field_n(second), 7, "answering the same document");
+        assert_ne!(
+            second.obj_ptr(),
+            first.obj_ptr(),
+            "and answering it as a second object, because an instance is never shared"
+        );
+
+        dropped(first);
+        dropped(second);
+    }
+
+    /// One reading of one body answers both members, in either order.
+    ///
+    /// Both are buffering readers under
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`,
+    /// so either may follow the other over a wire the first one drained. Asked
+    /// both ways round because the two leave different holds — `json()` keeps
+    /// its decoded document as well as the octets, `jsonAs<T>()` keeps only the
+    /// octets — and a member answering out of its own hold alone would pass the
+    /// direction it was written for and fail the other.
+    #[test]
+    fn json_and_json_as_share_one_reading_of_one_body() {
+        let class = reading_class();
+
+        let mut document_first = answering(Some(Chunks::of(&[&b"{\"n\":7}"[..]])));
+        let document = read_json(&mut document_first).expect("the body is one JSON document");
+        assert!(
+            document.array_ptr().is_some(),
+            "a JSON object decodes to the one array type"
+        );
+        let hydrated = read_json_as(&mut document_first, class)
+            .expect("the octets the first reader held are what the second one hydrates");
+        assert_eq!(
+            field_n(hydrated),
+            7,
+            "out of the body `json()` had already read"
+        );
+        dropped(document);
+        dropped(hydrated);
+
+        let mut instance_first = answering(Some(Chunks::of(&[&b"{\"n\":7}"[..]])));
+        let instance =
+            read_json_as(&mut instance_first, class).expect("the body is one JSON document");
+        assert_eq!(field_n(instance), 7, "hydrated off the wire this time");
+        let decoded = read_json(&mut instance_first)
+            .expect("and the octets that hydration read are still held for the document reader");
+        assert!(
+            decoded.array_ptr().is_some(),
+            "which answers the same body as the array `decode` builds"
+        );
+        dropped(instance);
+        dropped(decoded);
     }
 
     /// The streaming half: a reader that hands the octets over as they arrive
