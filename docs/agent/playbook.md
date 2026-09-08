@@ -1306,6 +1306,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   with the house `LogicError` refusal, that is the one it reaches. Put the configuration in a comment
   inside the `skip` fence, or place the `file=` block directly before the runnable program it belongs to.
   [until: reviewed 2026-09-08]
+- **The driver's end-of-session sweep commits every dirty path in the tree, not the ones its session
+  touched.** A session that exits without wrapping has its leftovers swept into a `wip(loop)` commit,
+  so a goal file the user is authoring alongside the run lands in a commit named for a session
+  number, and `orient.py` then opens the next pack presenting it as the predecessor's unfinished
+  slice. Read `git reflog` before continuing such a commit: a reset and a re-land by the user leaves
+  the same paths dirty as work that is genuinely still owed, and the reflog is the only thing that
+  tells the two apart. [until: reviewed 2026-09-08]
 
 ## Running things
 

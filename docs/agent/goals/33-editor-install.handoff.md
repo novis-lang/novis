@@ -4,7 +4,7 @@
 
 **Goal 33 — The extension guides an install instead of shipping a binary — has just started; nothing of it has landed yet.** Goal 32's whole list is this goal's Stage 1 floor.
 
-**The design is settled and is not a session's to reopen.** [ADR 0155](../decisions/0155.md) landed
+**The design is settled and is not a session's to reopen.** [ADR 0155](../../decisions/0155.md) landed
 with `rule:ide/the-extension-guides-an-install-and-never-bundles-one`, and the goal prose's
 *Standing decisions* carry its four load-bearing calls: no bundled binary on any platform, the
 managed copy is tried **last** and never written to `nvs.path`, the hash check lands in the same
