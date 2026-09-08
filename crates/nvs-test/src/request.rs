@@ -2,11 +2,12 @@
 //!
 //! A case's `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` and
 //! `--HEADERS--` describe a request, and the program answering it is a
-//! separate process ([`crate::run`]'s module doc owns why), so the description
-//! has to cross a process boundary. It crosses as a **file named on the
-//! command line** and never as an environment variable: whether a program is
-//! answering a request changes what every `Core\Request` member does, and a
-//! variable would make that a semantic change nothing at the call site shows.
+//! separate process ([the `run` module](mod@crate::run)'s doc owns why), so
+//! the description has to cross a process boundary. It crosses as a **file
+//! named on the command line** and never as an environment variable: whether
+//! a program is answering a request changes what every `Core\Request` member
+//! does, and a variable would make that a semantic change nothing at the call
+//! site shows.
 //!
 //! The file is written in the same `--NAME--` shape a case is, so there is no
 //! second parser here — [`crate::section`] is the one that reads both:
