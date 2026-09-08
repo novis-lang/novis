@@ -20,6 +20,35 @@ pub struct Program {
     /// Every `static` property the unit declares, in slot order — see
     /// [`StaticProp`], and [`InstKind::StaticGet`] for what a slot number is.
     pub statics: Vec<StaticProp>,
+    /// One wire contract per **distinct inline shape** written as a type
+    /// argument anywhere in the unit, sorted by [`ShapeCodec::key`] — see
+    /// [`ShapeCodec`], and the crate docs' *A shape's wire contract* for why a
+    /// shape's contract is a table of its own rather than a field of the class
+    /// its descriptor names.
+    pub shape_codecs: Vec<ShapeCodec>,
+}
+
+/// The wire contract of one inline shape a call site wrote as a type argument —
+/// `Core\Json::decodeAs<{n: int}>`'s `{n: int}`, read as the per-field list
+/// `nvs_runtime::ShapeCodec` holds.
+///
+/// One of these per distinct **contract**, not per call site: two calls writing
+/// the same field names at the same types share one table, because
+/// [`Self::key`] is that contract's own rendering. The class they also share is
+/// a different sharing on different terms — `crate::lower::shape_class_label`
+/// keys it on the field *names* alone, which is exactly why the contract cannot
+/// ride on the descriptor and is carried beside it instead.
+#[derive(Clone, Debug)]
+pub struct ShapeCodec {
+    /// What [`InstKind::ShapeCodecConst`] names this table by, and what
+    /// `nvs-codegen` mints the relocation symbol from —
+    /// `crate::lower::shape_codec_key`'s rendering of [`Self::fields`], which
+    /// is the whole of what makes two contracts different.
+    pub key: String,
+    /// Every field of the shape, in the sorted field-name order the shape
+    /// class lays its slots out in — so a field's index is its slot and its
+    /// `nvs_types::CodecField::param` alike, and a decoder joins nothing.
+    pub fields: Vec<nvs_types::CodecField>,
 }
 
 /// One `static` property's storage: the identity a
@@ -507,6 +536,24 @@ pub enum InstKind {
     ClassDescConst {
         /// The class, rendered the same way [`InstKind::New::class`] is.
         class: String,
+    },
+    /// The `nvs_runtime::ShapeCodec` address a call on
+    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`' roster carries beside the
+    /// descriptor it was handed: the wire contract of the **inline shape** its
+    /// type argument wrote. One `iconst` of that table's address, reached the
+    /// way [`InstKind::ClassDescConst`] reaches a descriptor's, and produced at
+    /// [`crate::ty::Ty::ClassDesc`] because that is the same engine-owned
+    /// address in the same slot spelling — a `Tag::Null` byte over a pointer,
+    /// not refcounted, zero meaning "none".
+    ///
+    /// `None` is a call whose type argument named a **class**, whose contract
+    /// is on its own `nvs_runtime::ClassDesc` and needs no second constant, and
+    /// it emits that zero. The slot is there either way, so one member reads
+    /// one ABI rather than branching on what its call site happened to write.
+    ShapeCodecConst {
+        /// The [`Program::shape_codecs`] entry this names, by its
+        /// [`ShapeCodec::key`].
+        shape: Option<String>,
     },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
     /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a

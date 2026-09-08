@@ -1262,6 +1262,18 @@ impl ExprTypeTable {
         self.shape_codecs.insert(span, codec);
     }
 
+    /// Every inline shape written on that roster this run, in no particular
+    /// order — what [`Self::shape_codec`] answers one call site of.
+    ///
+    /// `nvs_ir::lower` builds the unit's table of wire contracts off this
+    /// rather than off the call sites it lowered: a contract is program-global
+    /// and a lowering is per function, so collecting here is what makes two
+    /// call sites writing one shape share one table without a merge step. The
+    /// order is a hash map's, so the caller that needs a stable one sorts.
+    pub fn shape_codecs(&self) -> impl Iterator<Item = &crate::derive::DerivedCodec> {
+        self.shape_codecs.values()
+    }
+
     /// The wire contract of the inline shape written at `span`, or `None` where
     /// no call site on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` wrote one
     /// there — [`ResolvedCall::written_shape`] carries the span to ask with.

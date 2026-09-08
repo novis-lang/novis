@@ -171,7 +171,13 @@
 //!   type argument names a shape registers that shape's class itself.**
 //!   `lower::Lowering::lower_object_literal` synthesizes one only where a
 //!   literal is *written*, so a unit that hydrates a `{n: int}` it never
-//!   spells has no `$shape{n}` for the descriptor constant to resolve to.
+//!   spells would otherwise have no `$shape{n}` for the descriptor constant to
+//!   resolve to — `lower::Lowering::written_type_constants` is where it does
+//!   both, and the third constant it emits is
+//!   [`ir::InstKind::ShapeCodecConst`] naming an entry of
+//!   [`ir::Program::shape_codecs`]. The table is keyed on the contract rather
+//!   than on the class (`lower::shape_codec_key`), so two sites writing
+//!   `{n: int}` share one and a third writing `{n: string}` gets its own.
 //!   What this spends, per `rule:programs/memory-priority`: one table per
 //!   distinct written shape in the program, O(distinct types) like every other
 //!   interned descriptor and never O(requests served).

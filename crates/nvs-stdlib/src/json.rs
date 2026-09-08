@@ -924,14 +924,14 @@ nvs_runtime::nvs_helper! {
     /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
     /// hand-written hydration.
     ///
-    /// **Arguments 0 and 1 are the class written at the call site and whether
-    /// it was written as `array<...>` of one**, not values:
-    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this member on the
-    /// roster whose helper is handed a `nvs_runtime::ClassDesc` and that flag
-    /// ahead of its declared parameters, and that roster's docs own why. So the
-    /// arity here is two more than the registry row's.
-    fn nvs_core_json_decode_as(ctx, args: [4]) {
-        // Unreachable from source, because arguments 0 and 1 are not a
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this
+    /// member on the roster whose helper is handed a `nvs_runtime::ClassDesc`,
+    /// the `array<...>` flag and an inline shape's wire contract ahead of its
+    /// declared parameters, and that roster's docs own why. So the arity here
+    /// is three more than the registry row's.
+    fn nvs_core_json_decode_as(ctx, args: [5]) {
+        // Unreachable from source, because arguments 0 to 2 are not a
         // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what
         // puts the resolved `ClassDesc` in slot 0 and the list flag in slot 1,
         // and `nvs_ir::lower` writes both out of the type argument at the call
@@ -946,8 +946,8 @@ nvs_runtime::nvs_helper! {
         let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Json::decodeAs` was called with no list flag in argument 1",
         ))?;
-        let text = text_of(&args[2], "decodeAs")?;
-        let max = max_depth(&args[3], "Core\\Json::decodeAs")?;
+        let text = text_of(&args[3], "decodeAs")?;
+        let max = max_depth(&args[4], "Core\\Json::decodeAs")?;
         #[expect(
             unsafe_code,
             reason = "the descriptor came out of a `ClassDescConst` the compiled \

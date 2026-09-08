@@ -213,6 +213,7 @@ pub(crate) fn emit_function(
         frefs: FxHashMap::default(),
         callee_refs: FxHashMap::default(),
         desc_globals: FxHashMap::default(),
+        codec_globals: FxHashMap::default(),
         ctx_p,
         args_p,
         out_p,
@@ -388,6 +389,11 @@ struct Emitter<'a, 'f> {
     /// a declaration rather than a definition, so unlike the `Value` a
     /// `symbol_value` produces it is valid in every block and can be cached.
     desc_globals: FxHashMap<String, codegen::ir::GlobalValue>,
+    /// And the same again for the inline-shape wire contracts it relocates
+    /// against — see [`Self::shape_codec_value`]. A separate map because the
+    /// two families are keyed differently: a class by its label, a contract by
+    /// the key `nvs_ir::ir::ShapeCodec` carries.
+    codec_globals: FxHashMap<String, codegen::ir::GlobalValue>,
     ctx_p: Value,
     args_p: Value,
     out_p: Value,
@@ -597,6 +603,10 @@ impl Emitter<'_, '_> {
             InstKind::ClassDescConst { class } => {
                 let desc = self.class_desc_const(class)?;
                 self.define(inst, desc)?;
+            }
+            InstKind::ShapeCodecConst { shape } => {
+                let codec = self.shape_codec_const(shape.as_deref())?;
+                self.define(inst, codec)?;
             }
             InstKind::ClassDescOf { object } => {
                 let (object, _) = self.value(*object)?;
@@ -2219,6 +2229,41 @@ impl Emitter<'_, '_> {
         let global = self.module.declare_data_in_func(data, self.b.func);
         self.clear_colocated(global);
         self.desc_globals.insert(class.to_owned(), global);
+        Ok(self.b.ins().symbol_value(types::I64, global))
+    }
+
+    /// The `nvs_runtime::ShapeCodec` address a call site's written shape
+    /// carries, as a relocation — [`Self::class_desc_const`]'s twin, and a
+    /// relocation for that method's reason exactly.
+    ///
+    /// `None` is a call whose type argument named a class rather than a shape,
+    /// and it is the zero word: `nvs_runtime::Value::as_shape_codec` reads that
+    /// as "no contract here", which is what a class's own descriptor already
+    /// answers for.
+    fn shape_codec_const(&mut self, shape: Option<&str>) -> Result<Value, CodegenError> {
+        let Some(key) = shape else {
+            return Ok(self.b.ins().iconst(types::I64, 0));
+        };
+        if !self.classes.defines_shape_codec(key) {
+            return Err(CodegenError::Unsupported(format!(
+                "a reference to the wire contract `{key}`, which this unit defines no shape \
+                 codec for"
+            )));
+        }
+        if let Some(global) = self.codec_globals.get(key) {
+            return Ok(self.b.ins().symbol_value(types::I64, *global));
+        }
+        let name = crate::shape_codec_symbol(key);
+        let data = self
+            .module
+            .declare_data(&name, Linkage::Import, false, false)
+            .map_err(|source| CodegenError::Cranelift {
+                function: self.f.name.clone(),
+                source: Box::new(source),
+            })?;
+        let global = self.module.declare_data_in_func(data, self.b.func);
+        self.clear_colocated(global);
+        self.codec_globals.insert(key.to_owned(), global);
         Ok(self.b.ins().symbol_value(types::I64, global))
     }
 

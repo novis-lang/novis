@@ -2351,19 +2351,19 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 ///
 /// A roster rather than a field on [`CoreMethod`] because it is four entries
 /// today against two hundred member rows, and a field would be `false` on
-/// every one of them. `nvs-ir` reads this to decide whether to emit an
-/// `InstKind::ClassDescConst` ahead of the call's own arguments; the helper's
-/// `args: [N]` therefore counts **two** more than [`CoreMethod::params`] does.
+/// every one of them. `nvs-ir` reads this to decide whether to emit the block
+/// of constants ahead of the call's own arguments; the helper's `args: [N]`
+/// therefore counts **three** more than [`CoreMethod::params`] does.
 ///
 /// **The descriptor is always argument 0, and on an instance member the
-/// receiver moves to argument 2.** The pair goes ahead of *everything*,
-/// receiver included, rather than after it: a call site's written class is a
-/// constant of the call and not a value of the receiver, and putting it first
-/// means one rule for both kinds of member instead of two positions to
-/// remember. So `Core\Db\Connection::queryAs<T>(string, array)` is
-/// `args: [5]` — descriptor, list flag, receiver, `$sql`, `$params`.
-/// `nvs_ir::lower`'s two call paths and `lower_callable_ref` all write it in
-/// that order.
+/// receiver moves to argument 3.** The block goes ahead of *everything*,
+/// receiver included, rather than after it: what a call site wrote as its type
+/// argument is a constant of the call and not a value of the receiver, and
+/// putting it first means one rule for both kinds of member instead of two
+/// positions to remember. So `Core\Db\Connection::queryAs<T>(string, array)` is
+/// `args: [6]` — descriptor, list flag, wire contract, receiver, `$sql`,
+/// `$params`. `nvs_ir::lower::Lowering::written_type_constants` is the one
+/// place all three call paths emit it.
 ///
 /// **Argument 1 is a `bool`: whether the class was written inside an
 /// `array<...>`.** `decodeAs<array<User>>` hands over `User`'s descriptor and
@@ -2372,6 +2372,13 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// descriptor rather than being recovered from the document's own shape: the
 /// checker has already given the call site the type `array<User>` or `User`,
 /// and a helper guessing from the JSON would hand back the other one.
+///
+/// **Argument 2 is the wire contract of an inline shape**, where the type
+/// argument named one instead of a class — `nvs_runtime::ShapeCodec`, and the
+/// zero word where it named a class, whose own contract is on the descriptor in
+/// argument 0. The slot is there either way, so a member reads one ABI rather
+/// than branching on what its call site wrote; `nvs-ir`'s module docs, *A
+/// shape's wire contract*, own why a shape's cannot ride on its descriptor.
 ///
 /// **`Core\Db\Queryable`'s `queryAs` is on it twice**, because `rule:classes/no-traits`'s
 /// delegation is two registry rows and this roster is keyed by the *declaring*

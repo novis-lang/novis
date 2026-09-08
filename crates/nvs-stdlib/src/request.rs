@@ -2381,16 +2381,17 @@ nvs_runtime::nvs_helper! {
     /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
     /// [`REQUEST_BODY`], plus the instances this call hands back. Both are
     /// O(in-flight).
-    fn nvs_core_request_json_as(ctx, args: [3]) {
+    fn nvs_core_request_json_as(ctx, args: [4]) {
         // In `json`'s order, and for `body`'s reasons: the request first, so
         // "no request arrived" stays a different fact from what the body says.
         inbound_of(ctx, "jsonAs")?;
-        // Unreachable from source, because arguments 0 and 1 are not a
+        // Unreachable from source, because arguments 0 to 2 are not a
         // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what
-        // puts the resolved `ClassDesc` in slot 0 and the list flag in slot 1,
-        // and `nvs_ir::lower` writes both out of the type argument at the call
-        // site. A call naming none is `E0442` — `takes 1 type argument(s)` —
-        // before any of this runs.
+        // puts the resolved `ClassDesc` in slot 0, the list flag in slot 1 and
+        // an inline shape's wire contract in slot 2, and `nvs_ir::lower` writes
+        // all three out of the type argument at the call site. A call naming
+        // none is `E0442` — `takes 1 type argument(s)` — before any of this
+        // runs.
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Request::jsonAs` was called with no class in argument 0",
         ))?;
@@ -2403,7 +2404,7 @@ nvs_runtime::nvs_helper! {
         // Both questions before the claim, on `json`'s reasoning: a `maxDepth`
         // this member will refuse and a `T` that carries no codec are defects
         // in the program, and saying so must not spend a reading of the body.
-        let max = crate::json::max_depth(&args[2], "Core\\Request::jsonAs")?;
+        let max = crate::json::max_depth(&args[3], "Core\\Request::jsonAs")?;
         #[expect(
             unsafe_code,
             reason = "the descriptor came out of a `ClassDescConst` the compiled \
@@ -5597,6 +5598,10 @@ mod tests {
             &[
                 Value::class_desc(class),
                 Value::bool(false),
+                // The third of `crate::registry::WRITTEN_CLASS_MEMBERS`'
+                // leading constants: this call site wrote a class, whose
+                // contract is on the descriptor above.
+                Value::shape_codec(std::ptr::null()),
                 Value::uint(crate::json::DEFAULT_MAX_DEPTH),
             ],
         )

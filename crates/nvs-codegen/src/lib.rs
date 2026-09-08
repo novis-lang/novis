@@ -790,10 +790,17 @@ impl Descriptors {
     /// Builds every descriptor `program` declares, parents first.
     #[must_use]
     pub fn of(program: &Program) -> Self {
-        let classes = Classes::build(&program.classes);
+        let classes = Classes::build(&program.classes, &program.shape_codecs);
         let by_symbol = classes
             .descriptors()
             .map(|(label, desc)| (class_desc_symbol(label), desc.cast::<u8>()))
+            // The unit's wire contracts are relocated against exactly as its
+            // descriptors are, so a loader resolves both out of one table.
+            .chain(
+                classes
+                    .shape_codecs()
+                    .map(|(key, codec)| (shape_codec_symbol(key), codec.cast::<u8>())),
+            )
             .collect();
         let functions = program
             .functions
@@ -1015,6 +1022,14 @@ struct Classes {
     /// needs for a parent. Separate because a descriptor address is what
     /// *compiled code* wants and an id is what the table wants.
     ids: FxHashMap<String, nvs_runtime::ClassId>,
+    /// One `nvs_runtime::ShapeCodec` per `nvs_ir::ir::Program::shape_codecs`
+    /// entry, under the key that entry carries — what
+    /// `nvs_ir::ir::InstKind::ShapeCodecConst` names and
+    /// [`shape_codec_symbol`] mints a relocation for. A shape's contract is a
+    /// table of its own rather than a field of `by_label`'s entry because one
+    /// shape class answers for every field *type*; `nvs-ir`'s module docs own
+    /// that choice.
+    shape_codecs: FxHashMap<String, *const nvs_runtime::ShapeCodec>,
 }
 
 /// One compiled function's declared shape, as
@@ -1082,7 +1097,7 @@ impl Classes {
     /// an error: an `extends` the front end already diagnosed leaves one
     /// behind, and a second unexplained failure here would only bury the
     /// first.
-    fn build(classes: &[nvs_ir::ir::Class]) -> Self {
+    fn build(classes: &[nvs_ir::ir::Class], shapes: &[nvs_ir::ir::ShapeCodec]) -> Self {
         let mut out = Self::default();
         let by_label: FxHashMap<&str, &nvs_ir::ir::Class> = classes
             .iter()
@@ -1096,6 +1111,10 @@ impl Classes {
         // recursion the data's problem rather than the table's — so the codec
         // is joined only once every descriptor above exists.
         out.link_codecs(classes);
+        // In the same pass and for the same reason: a shape field naming a
+        // class needs that class's descriptor, and the shape itself is not one
+        // of them — a written shape has no declaration to define it from.
+        out.define_shape_codecs(shapes);
         out
     }
 
@@ -1128,6 +1147,33 @@ impl Classes {
                     .set_db_codec(id, class.db_codec.clone(), class.ctor_arity, nested);
             }
         }
+    }
+
+    /// Hands the class table every inline shape's wire contract, keyed the way
+    /// the call site that wrote it names one — the shape half of
+    /// [`Self::link_codecs`], run in the same second pass because a shape field
+    /// naming a class resolves through [`Self::nested_descs`] exactly as a
+    /// class's field does.
+    ///
+    /// **What it spends**, per `rule:programs/memory-priority`: one table per
+    /// distinct shape written in the program, owned by the unit's class table
+    /// for that unit's life — O(distinct types), never O(requests served).
+    fn define_shape_codecs(&mut self, shapes: &[nvs_ir::ir::ShapeCodec]) {
+        for shape in shapes {
+            let nested = self.nested_descs(&shape.fields);
+            let codec = self.table.define_shape_codec(shape.fields.clone(), nested);
+            self.shape_codecs.insert(shape.key.clone(), codec);
+        }
+    }
+
+    /// Every wire contract this unit defines, as `(key, address)` — what
+    /// [`UnitBuilder::compile_all`] publishes under [`shape_codec_symbol`]'s
+    /// names so a relocation against one of them resolves, on
+    /// [`Self::descriptors`]' terms exactly.
+    fn shape_codecs(&self) -> impl Iterator<Item = (&str, *const nvs_runtime::ShapeCodec)> {
+        self.shape_codecs
+            .iter()
+            .map(|(key, codec)| (key.as_str(), *codec))
     }
 
     /// One descriptor per field of `codec`, null except where the field names
@@ -1260,6 +1306,13 @@ impl Classes {
     /// such class.
     fn desc(&self, label: &str) -> Option<*const nvs_runtime::ClassDesc> {
         self.by_label.get(label).map(|entry| entry.desc)
+    }
+
+    /// Whether this unit defines the wire contract `key` names — [`Self::desc`]
+    /// for the table beside the descriptor, and asked for the same reason: a
+    /// body may not relocate against a symbol nothing will publish.
+    fn defines_shape_codec(&self, key: &str) -> bool {
+        self.shape_codecs.contains_key(key)
     }
 
     /// The slot `class::field` occupies, or `None` if either is unknown.
@@ -1605,7 +1658,7 @@ impl<M: Module> UnitBuilder<M> {
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
-        self.classes = Classes::build(&program.classes);
+        self.classes = Classes::build(&program.classes, &program.shape_codecs);
         // Publish every descriptor before any body is emitted, for the same
         // reason the function declarations below come first: a lowering may
         // name a class declared further down, and by relocation time every
@@ -1619,6 +1672,12 @@ impl<M: Module> UnitBuilder<M> {
                 .unwrap_or_else(PoisonError::into_inner);
             for (label, desc) in self.classes.descriptors() {
                 symbols.insert(class_desc_symbol(label), desc.expose_provenance());
+            }
+            // And every wire contract beside them, for the same reason and on
+            // the same terms: a body naming one has to find it at relocation
+            // time or the JIT panics.
+            for (key, codec) in self.classes.shape_codecs() {
+                symbols.insert(shape_codec_symbol(key), codec.expose_provenance());
             }
         }
         // The slot number *is* the position in `Program::statics`, which
@@ -2065,7 +2124,28 @@ pub fn is_function_symbol(symbol: &str, label: &str) -> bool {
 /// implementation of this loop is a mangling scheme that agrees with this one
 /// only until someone edits one of them.
 pub fn class_desc_symbol(label: &str) -> String {
-    let mut out = String::from("nvs_class_desc_");
+    mangled("nvs_class_desc_", label)
+}
+
+/// The symbol name an inline shape's `nvs_runtime::ShapeCodec` address is
+/// relocated against — [`class_desc_symbol`]'s twin for the contract a call
+/// site carries beside the descriptor, and mangled by the same scheme for the
+/// same reason: both ends of the relocation derive the name from the key alone.
+///
+/// The key is `nvs_ir::ir::ShapeCodec::key`, which renders the contract itself,
+/// so two units that wrote the same shape mint the same symbol and one that
+/// wrote `{n: string}` where another wrote `{n: int}` cannot collide with it.
+#[must_use]
+pub fn shape_codec_symbol(key: &str) -> String {
+    mangled("nvs_shape_codec_", key)
+}
+
+/// `prefix` followed by `label` with every non-alphanumeric byte escaped as
+/// `_xx` — the one mangling scheme, shared by the two symbol families that need
+/// a name both ends of a relocation can derive. [`class_desc_symbol`]'s docs
+/// own why an escape rather than [`sanitize`].
+fn mangled(prefix: &str, label: &str) -> String {
+    let mut out = String::from(prefix);
     for byte in label.bytes() {
         if byte.is_ascii_alphanumeric() {
             out.push(char::from(byte));

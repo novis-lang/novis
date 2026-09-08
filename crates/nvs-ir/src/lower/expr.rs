@@ -3202,27 +3202,15 @@ impl<'a> Lowering<'a> {
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
-            // handed the class its call site wrote and whether it was written
-            // as a list of that class — and those two go *ahead of the
-            // receiver*, which is the order that roster's docs state and the
-            // one `Lowering::lower_callable_ref` already emits. Neither a
-            // descriptor nor a bool is refcounted, so neither is retained or
-            // released here. Emitted before the receiver is opened so that a
-            // `?->` guard's branch cannot come between a constant and its use.
-            let written_class = nvs_types::core_takes_written_class(
-                &call.class.to_string(),
-                &call.method,
-            )
-            .then(|| {
-                let class = super::written_class_label(call);
-                let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
-                let (list, _) = self.emit(
-                    *cur,
-                    Ty::Bool,
-                    InstKind::ConstBool(call.written_class_is_list),
-                );
-                [desc, list]
-            });
+            // handed what its call site wrote as a type argument — and that
+            // block of three goes *ahead of the receiver*, which is the order
+            // that roster's docs state and the one
+            // `Lowering::lower_callable_ref` already emits.
+            // `Lowering::written_type_constants` owns the block, including why
+            // it is emitted before the receiver is opened.
+            let written_class =
+                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
+                    .then(|| self.written_type_constants(*cur, call));
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3421,25 +3409,13 @@ impl<'a> Lowering<'a> {
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
-            // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`
-            // is handed the class its call site wrote, as argument 0, and
-            // whether it was written as a list of that class as argument 1 —
-            // that roster owns the ABI. Neither a descriptor nor a bool is
-            // refcounted, so neither is retained or released here.
-            let written_class = nvs_types::core_takes_written_class(
-                &call.class.to_string(),
-                &call.method,
-            )
-            .then(|| {
-                let class = super::written_class_label(call);
-                let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
-                let (list, _) = self.emit(
-                    *cur,
-                    Ty::Bool,
-                    InstKind::ConstBool(call.written_class_is_list),
-                );
-                [desc, list]
-            });
+            // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
+            // handed what its call site wrote as a type argument, as arguments
+            // 0 to 2 — that roster owns the ABI and
+            // `Lowering::written_type_constants` emits it.
+            let written_class =
+                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
+                    .then(|| self.written_type_constants(*cur, call));
             let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);

@@ -4017,3 +4017,70 @@ fn an_await_suspends_until_its_task_completes() {
         "an await does not cut its frame the way a `yield` does: {dump}"
     );
 }
+
+/// A call site writing an inline shape as its type argument carries **two**
+/// constants for it, because one class answers for every field type: the
+/// descriptor of the class its field names synthesize, and the wire contract
+/// that class cannot hold. `rule:types/shape-type` is the type, and the crate
+/// docs' *A shape's wire contract* is the carrier.
+///
+/// Asserted over two sites at once, since what would look right on either line
+/// alone is one class *and* one contract: `{n: int}` and `{n: string}` are the
+/// pair that shares a label and shares no contract at all.
+#[test]
+fn two_shapes_of_one_field_name_share_a_class_and_carry_a_contract_each() {
+    let (program, map, file) = lower_whole_file_with_src(concat!(
+        "<?nvs\n",
+        "var $ints = Core\\Json::decodeAs<{n: int}>(\"{\\\"n\\\":1}\");\n",
+        "var $text = Core\\Json::decodeAs<{n: string}>(\"{\\\"n\\\":\\\"a\\\"}\");\n",
+    ));
+    // The class is registered by the call site alone — this file writes no
+    // `{n: 1}` literal, and without it the descriptor constant below would name
+    // a class the unit never declares.
+    let shapes: Vec<&str> = program
+        .classes
+        .iter()
+        .map(|class| class.label.as_str())
+        .filter(|label| label.starts_with("$shape"))
+        .collect();
+    assert_eq!(shapes, ["$shape{n}"]);
+    let keys: Vec<&str> = program
+        .shape_codecs
+        .iter()
+        .map(|codec| codec.key.as_str())
+        .collect();
+    assert_eq!(keys, ["$codec{n:Int}", "$codec{n:Str}"]);
+    let script = program
+        .functions
+        .iter()
+        .find(|f| f.name == "<script>")
+        .expect("the script frame should have been lowered");
+    let text = print_function(script, map.file(file));
+    assert!(text.contains("class.desc $shape{n}"), "{text}");
+    assert!(text.contains("shape.codec $codec{n:Int}"), "{text}");
+    assert!(text.contains("shape.codec $codec{n:Str}"), "{text}");
+}
+
+/// The same slot on a call whose type argument named a **class**: the contract
+/// is the class's own, so what the call carries is
+/// `crate::ir::InstKind::ShapeCodecConst`'s `None` rather than a second ABI.
+#[test]
+fn a_written_class_carries_no_contract_beside_its_descriptor() {
+    let (program, map, file) = lower_whole_file_with_src(concat!(
+        "<?nvs\n",
+        "class Note {\n",
+        "  public string $name;\n",
+        "  function constructor(string $name) { $this->name = $name; }\n",
+        "}\n",
+        "var $note = Core\\Json::decodeAs<Note>(\"{\\\"name\\\":\\\"ada\\\"}\");\n",
+    ));
+    assert!(program.shape_codecs.is_empty());
+    let script = program
+        .functions
+        .iter()
+        .find(|f| f.name == "<script>")
+        .expect("the script frame should have been lowered");
+    let text = print_function(script, map.file(file));
+    assert!(text.contains("class.desc Note"), "{text}");
+    assert!(text.contains("shape.codec none"), "{text}");
+}

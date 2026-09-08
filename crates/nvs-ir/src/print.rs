@@ -176,6 +176,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             }
         }
         InstKind::ClassDescConst { class } => format!("class.desc {class}"),
+        InstKind::ShapeCodecConst { shape } => match shape {
+            Some(key) => format!("shape.codec {key}"),
+            None => "shape.codec none".to_owned(),
+        },
         InstKind::ClassDescOf { object } => format!("class.of v{}", object.index()),
         InstKind::ClassDescIn { subject, base } => {
             format!("class.in v{} {base}", subject.index())

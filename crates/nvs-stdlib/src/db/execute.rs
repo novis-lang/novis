@@ -20,7 +20,7 @@ use super::*;
 /// One constant for all five, because the bag flattens to one trailing argument
 /// and all five have the same three in front of it — the receiver, the statement
 /// and its values. `queryAs` reads it here too: `crate::registry::WRITTEN_CLASS_MEMBERS`'
-/// two leading constants are sliced off before [`queried_rows`] sees the
+/// three leading constants are sliced off before [`queried_rows`] sees the
 /// arguments at all, so the slot is the same number on both sides of that slice.
 pub(super) const STATEMENT_TIMEOUT_ARG: usize = 3;
 
@@ -280,7 +280,7 @@ pub(super) struct Answered {
 /// everything except which class the result carries.
 ///
 /// **`args` starts at the receiver**, so `queryAs` hands over the slice past
-/// [`crate::registry::WRITTEN_CLASS_MEMBERS`]' two leading constants and both
+/// [`crate::registry::WRITTEN_CLASS_MEMBERS`]' three leading constants and both
 /// members read one shape here. Nothing about the statement differs between
 /// them: § 4 gives them one signature and one binding rule, and hydration is a
 /// property of the result rather than of the wire.
@@ -1141,11 +1141,12 @@ nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::queryAs<T>(string $sql, array<mixed> $params):
     /// Db\Rows<T>` — `rule:core-classes/db-statement-members`'s statement over § 18's hydrating result.
     ///
-    /// **Arguments 0 and 1 are the class written at the call site and whether
-    /// it was written as `array<...>` of one**, not values, and the receiver is
-    /// argument 2: `crate::registry::WRITTEN_CLASS_MEMBERS` owns that ABI and
-    /// this is its first *instance* member. So the arity here is two more than
-    /// `query`'s, which is otherwise the same call.
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument** —
+    /// the class, whether it was written as `array<...>` of one, and an inline
+    /// shape's wire contract — not values, and the receiver is argument 3:
+    /// `crate::registry::WRITTEN_CLASS_MEMBERS` owns that ABI and this is its
+    /// first *instance* member. So the arity here is three more than `query`'s,
+    /// which is otherwise the same call.
     ///
     /// **The statement is [`queried_rows`], unchanged**: § 4 gives `query` and
     /// this member one signature and one binding rule, so what differs is the
@@ -1157,7 +1158,7 @@ nvs_runtime::nvs_helper! {
     /// when `all`, `first` or a `foreach` asks for a row — so this body's own
     /// refusals are the two that are about the *call site* rather than about a
     /// row, and they are raised before the statement goes out.
-    fn nvs_core_db_connection_query_as(ctx, args: [6]) {
+    fn nvs_core_db_connection_query_as(ctx, args: [7]) {
         // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
         // reading of these two slots is: `nvs_ir::lower` writes the descriptor
         // and the flag out of the type argument at the call site, and a call
@@ -1187,9 +1188,9 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        // The receiver and the two value parameters, past the pair
+        // The receiver and the two value parameters, past the block of three
         // `WRITTEN_CLASS_MEMBERS` puts ahead of everything.
-        let answered = queried_rows(ctx, &args[2..], "queryAs", QUERY_AS)?;
+        let answered = queried_rows(ctx, &args[3..], "queryAs", QUERY_AS)?;
         // `args[0]` carries no reference — a descriptor rides in the payload
         // half of an otherwise-`null` value — so the slot takes it as it is.
         Ok(crate::instance::build(

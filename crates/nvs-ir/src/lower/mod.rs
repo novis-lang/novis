@@ -825,7 +825,37 @@ pub fn lower_program(
         functions,
         classes,
         statics: static_props(layouts, exprs, checked_types),
+        shape_codecs: shape_codecs(exprs),
     }
+}
+
+/// Every inline shape the unit wrote as a type argument, as the table
+/// `nvs-codegen` materializes and [`crate::ir::InstKind::ShapeCodecConst`]
+/// names an entry of.
+///
+/// Read off the checker's own record of what each call site wrote, rather than
+/// collected out of the functions that lowered: a contract is a fact about the
+/// program and a lowering walks one function at a time, so two sites writing
+/// one shape would otherwise each carry a list and be merged here anyway.
+/// Sorted by key, because the table is walked to publish one relocation symbol
+/// per entry and a hash map's order would make an unchanged file compile
+/// differently twice.
+fn shape_codecs(exprs: &ExprTypeTable) -> Vec<crate::ir::ShapeCodec> {
+    let mut out: Vec<crate::ir::ShapeCodec> = exprs
+        .shape_codecs()
+        .map(|codec| {
+            let fields = shape_codec_fields(codec);
+            crate::ir::ShapeCodec {
+                key: shape_codec_key(&fields),
+                fields,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.key.cmp(&b.key));
+    // Two call sites writing the same contract are one table, which is the
+    // sharing `shape_codec_key` exists to decide — see its docs.
+    out.dedup_by(|a, b| a.key == b.key);
+    out
 }
 
 /// [`lower_program`] over a program of exactly one file — the shape a
@@ -1897,6 +1927,72 @@ impl<'a> Lowering<'a> {
         );
         *slot = Some(term);
     }
+    /// The three constants a call on
+    /// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`' roster carries ahead of
+    /// its receiver: the descriptor of what its type argument named, whether
+    /// that was written as an `array<...>` of one, and — where it named an
+    /// inline shape — the wire contract that shape's descriptor cannot hold.
+    /// A written class emits the third slot as
+    /// [`InstKind::ShapeCodecConst`]'s `None`, whose own docs say why the slot
+    /// is there either way.
+    ///
+    /// Emitted from one place for [`written_class_label`]'s reason: three call
+    /// paths reach this ABI and none of them may spell it differently. They
+    /// emit it *before* the receiver is opened, so a `?->` guard's branch
+    /// cannot come between a constant and its use; none of the three is
+    /// refcounted, so none is retained or released.
+    ///
+    /// A shape also **registers its class here**, because a unit that hydrates
+    /// a `{n: int}` it never spells has no shape literal to synthesize one and
+    /// the descriptor constant above would resolve to nothing. Every slot it
+    /// claims is [`Ty::Tagged`]: what fills them is a native decoder rather
+    /// than a lowered write, so this registration has no tag to promise, and
+    /// where a literal of the same field names also runs in this unit
+    /// [`Self::record_shape_class`]'s merge lands on that same answer.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the member when the checker recorded a written shape but
+    /// filed no contract under its span, which is one run's two halves
+    /// disagreeing rather than anything a program wrote.
+    pub(crate) fn written_type_constants(
+        &mut self,
+        b: BlockId,
+        call: &nvs_types::expr_table::ResolvedCall,
+    ) -> [ValueId; 3] {
+        let class = written_class_label(call);
+        // Copied out of the field so the table's borrow is the checker run's
+        // and not this frame's: `record_shape_class` below needs `self` back.
+        let exprs = self.exprs;
+        let contract = call.written_shape.as_ref().map(|shape| {
+            let codec = exprs.shape_codec(shape.codec).unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: `{}::{}` was written with the inline shape `{}`, and nvs_types \
+                     filed no wire contract under its type argument's span — did this program \
+                     pass nvs_types::check_program with the same table?",
+                    call.class, call.method, shape.label
+                )
+            });
+            let fields = shape_codec_fields(codec);
+            let names: Vec<String> = codec
+                .fields
+                .iter()
+                .map(|field| field.property.clone())
+                .collect();
+            let reprs = vec![Ty::Tagged; names.len()];
+            self.record_shape_class(shape.label.clone(), names, reprs);
+            shape_codec_key(&fields)
+        });
+        let (desc, _) = self.emit(b, Ty::ClassDesc, InstKind::ClassDescConst { class });
+        let (list, _) = self.emit(b, Ty::Bool, InstKind::ConstBool(call.written_class_is_list));
+        let (codec, _) = self.emit(
+            b,
+            Ty::ClassDesc,
+            InstKind::ShapeCodecConst { shape: contract },
+        );
+        [desc, list, codec]
+    }
+
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
         self.block_insts[b.index() as usize].push(Inst {
@@ -2967,27 +3063,103 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
     nvs_types::derive::shape_class_label(sorted_fields)
 }
 
+/// The key one inline shape's wire contract is filed and named by — the
+/// counterpart of [`shape_class_label`] for the half a class label cannot
+/// carry, and what [`crate::ir::InstKind::ShapeCodecConst`] holds.
+///
+/// It renders **every column that makes two contracts different**, so two call
+/// sites writing the same fields at the same wire types share one
+/// `nvs_runtime::ShapeCodec` and two writing `{n: int}` and `{n: string}` — one
+/// class, by that label's own rule — get one table each. Nothing outside this
+/// compile reads the spelling: `nvs-codegen` mangles it into a relocation
+/// symbol, and both ends of that relocation derive the name from a key built
+/// here, so what it looks like is this function's business alone.
+pub(crate) fn shape_codec_key(fields: &[nvs_types::CodecField]) -> String {
+    let mut out = String::from("$codec{");
+    for (index, field) in fields.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&field.key);
+        // `rule:types/shape-type`'s own marker for the field that may be
+        // absent, which is `rule:core-api/required-optional-and-nullable`'s
+        // first column and independent of the second one below.
+        if !field.required {
+            out.push('?');
+        }
+        out.push(':');
+        out.push_str(&format!("{:?}", field.ty));
+        if let Some(element) = field.element {
+            out.push_str(&format!("<{element:?}>"));
+        }
+        if let Some(class) = &field.class {
+            out.push('@');
+            out.push_str(class);
+        }
+        // Two enums erase to one `CodecTy::Enum` and are told apart by the
+        // roster alone, so a key that dropped it would decode one enum's
+        // document against another's accepted values.
+        if let Some(cases) = &field.cases {
+            out.push_str(&format!("({cases:?})"));
+        }
+        if field.nullable {
+            out.push_str("|null");
+        }
+    }
+    out.push('}');
+    out
+}
+
+/// One inline shape's [`nvs_types::derive::DerivedCodec`], as the field list
+/// `nvs_runtime::ShapeCodec` holds.
+///
+/// [`codec_fields`]'s counterpart, and shorter than it for one reason: a class's
+/// field list is joined against `nvs_types::layout`'s slot order, and a shape
+/// has no layout to join against — the class synthesized for it lays its slots
+/// out in the sorted field-name order this list is already in, so a field's
+/// index **is** its slot and its constructor parameter alike.
+fn shape_codec_fields(codec: &nvs_types::derive::DerivedCodec) -> Vec<nvs_types::CodecField> {
+    codec
+        .fields
+        .iter()
+        .enumerate()
+        .map(|(slot, field)| nvs_types::CodecField {
+            key: field.key.clone(),
+            slot,
+            param: slot,
+            ty: field.ty,
+            element: field.element,
+            // The label and the roster ride down untouched, for
+            // [`codec_fields`]'s reasons: `nvs-codegen` is the first place a
+            // descriptor exists, and a case list is already the values
+            // themselves.
+            class: field.class.clone(),
+            cases: field.cases.clone(),
+            nullable: field.nullable,
+            required: field.required,
+        })
+        .collect()
+}
+
 /// The class label a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
 /// handed as its first argument, from what the checker recorded at the call
 /// site — the one place all three call paths read it, so they cannot disagree
 /// about what a missing one means.
 ///
+/// A written **shape** answers the class synthesized for it, which is the same
+/// descriptor a `{n: 1}` literal of those field names builds; what that label
+/// cannot carry is the field *types*, and
+/// [`Lowering::written_type_constants`] is where the contract holding them is
+/// emitted beside it.
+///
 /// # Panics
 ///
-/// Panics naming the member when the checker recorded **no** written class,
-/// which is one run's two halves disagreeing rather than anything a program
-/// wrote, and when what it recorded is an **inline shape**: that label would
-/// resolve, but a shape's wire contract does not ride on the descriptor it
-/// names, and nothing emits the constant it rides on instead. The crate docs'
-/// *A shape's wire contract* section is the carrier this waits on.
+/// Panics naming the member when the checker recorded neither a written class
+/// nor a written shape, which is one run's two halves disagreeing rather than
+/// anything a program wrote.
 pub(crate) fn written_class_label(call: &nvs_types::expr_table::ResolvedCall) -> String {
     if let Some(shape) = &call.written_shape {
-        panic!(
-            "nvs-ir: `{}::{}` was written with the inline shape `{}`, whose wire contract \
-             has no constant to ride in yet — see this crate's docs, \"A shape's wire \
-             contract is a constant of the call site\"",
-            call.class, call.method, shape.label
-        );
+        return shape.label.clone();
     }
     call.written_class
         .as_ref()

@@ -619,16 +619,7 @@ pub(crate) fn lower_callable(
         // A Tier 0 `Core` member borrows every argument, receiver included,
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
         let written = nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
-            .then(|| {
-                let class = super::written_class_label(call);
-                let (desc, _) = low.emit(cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
-                let (list, _) = low.emit(
-                    cur,
-                    Ty::Bool,
-                    InstKind::ConstBool(call.written_class_is_list),
-                );
-                [desc, list]
-            });
+            .then(|| low.written_type_constants(cur, call));
         let args = written
             .into_iter()
             .flatten()
