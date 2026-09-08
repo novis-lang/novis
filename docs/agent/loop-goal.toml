@@ -1,15 +1,14 @@
-# Goal 19 -- a class a string names, at one contract. The acceptance test, as data.
+# Goal 20 -- a configured store is authorized by its configuring, and may be a Unix socket.
+# The acceptance test, as data.
 #
-# `19-parses.md` is the prose. One home each.
+# `20-unix-sockets.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
-#
-# When this list goes green the driver switches to goal 20 -- `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s Unix sockets -- and then to
-# goal 50, the dossier, whose emitter writes everything after it.
 
 files = [
-  "examples/parses.nvs",
+  "examples/cache-shared-socket.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/parses.nvs",
   "examples/input-shapes.nvs",
   "examples/request-fields.nvs",
   "examples/json-body.nvs",
@@ -81,103 +80,63 @@ files = [
 [context]
 
 modules = [
-  # The reserved roster: `Comparable`, `Stringable`, and the third name this goal adds.
-  "crates/nvs-hir/src/interfaces.rs",
-  # What a class claiming a roster interface owes, and the diagnostic when it owes it still.
-  "crates/nvs-types/src/conformance.rs",
-  # Where a roster interface's members become signatures -- the `Parses` seed is written here,
-  # beside `Comparable`'s, and `bodiless` is the helper it cannot quite use.
-  "crates/nvs-types/src/iter_lib.rs",
-  # `MethodSig`'s flags, and `writes_static_return`, which deliberately answers `false` for
-  # `?static` -- the wrinkle in seeding `tryParse`.
-  "crates/nvs-types/src/signatures.rs",
-  # `converts_from_string` -- the one predicate all four binding surfaces read, and the `Core\Uuid`
-  # arm that becomes the contract. Also two of the three roster diagnostics.
-  "crates/nvs-types/src/commands.rs",
-  # The route half: `#[Query]`'s walk, `closed_set`, and the other roster diagnostic.
-  "crates/nvs-types/src/routes.rs",
-  # How a `Core` class satisfies a global interface without naming it -- the `Comparable` seed the
-  # `Parses` seed sits two lines below.
-  "crates/nvs-types/src/core_lib.rs",
-  # `implements_comparable`, which `implements_parses` is written beside and modelled on.
-  "crates/nvs-stdlib/src/registry.rs",
-  # `Core\Uuid`'s rows -- read to confirm they already satisfy the contract, not to change them.
-  "crates/nvs-stdlib/src/uuid.rs",
-  # `CaptureConv` and gap 2: the capture arm that stops handing a segment's text over unconverted.
-  "crates/nvs-runtime/src/routes.rs",
-  # `ArgConv` and gap 1: the same arm for a command argument.
-  "crates/nvs-runtime/src/commands.rs",
-  # The `Core\Uuid` schema arm, and where a `Parses` class answers `{"type": "string"}`.
-  "crates/nvs-cli/src/openapi.rs",
-  # Fully-qualified names: `Foo`, `App\Models\User`, `Core\Str`.
-  "crates/nvs-hir/src/qname.rs",
-  # Name resolution: namespaces, `use` imports, and a file's declared symbols.
-  "crates/nvs-hir/src/resolve.rs",
-  # Lowering's own tests, one module deep so that `mod.rs` is the lowering and not the evidence
-  # for it.
-  "crates/nvs-ir/src/lower/tests.rs",
-  # Every declared class's **field slot order** and its flattened set of supertypes — the second
-  # thing this crate publishes for `nvs-ir` to read back, alongside `crate::expr_table`.
-  "crates/nvs-types/src/layout.rs",
-  # The `nvs` binary.
-  "crates/nvs-cli/src/main.rs",
-  # `Core\Command` — the compiled command table, as the members that read it.
-  "crates/nvs-stdlib/src/command.rs",
+  # The roster `cache.shared` joins, and `Scope`/`denied_by_default` beside it.
+  "crates/nvs-config/src/capability.rs",
+  # `[cache.shared]` and `[db.<name>]`'s typed blocks -- where the two spellings are accepted.
+  "crates/nvs-config/src/tree.rs",
+  # The door: `open_configured`, `endpoint`, `open_shared`, and the tier the local half holds.
+  "crates/nvs-stdlib/src/cache.rs",
+  # The wire -- three commands over the parking stream, handed a transport rather than choosing one.
+  "crates/nvs-stdlib/src/cache/redis.rs",
+  # The door's second caller; its refusal sentence is its own.
+  "crates/nvs-stdlib/src/ratelimit.rs",
+  # `pin_host`/`pinned_address` -- what stage 2 stops calling, and why it could not answer a path.
+  "crates/nvs-runtime/src/capability.rs",
+  # `NvsUnix`, already carried: connect, connect_timeout, and why there is no Windows fallback.
+  "crates/nvs-host/src/net.rs",
+  # Where the two transports meet for a driver.
+  "crates/nvs-db/src/conn.rs",
+  # The three drivers that gain an AF_UNIX connect, and the one that refuses a path.
+  "crates/nvs-db/src/pg.rs",
+  "crates/nvs-db/src/mysql.rs",
+  "crates/nvs-db/src/tds/mod.rs",
+  # `is_relative_file` -- the neighbouring predicate, and deliberately not the answer.
+  "crates/nvs-config/src/db.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADRs 0077, 0102, 0007, 0063 came out: each created more than eight rules, so naming
+# decision. ADRs 0067, 0097 came out: each created more than eight rules, so naming
 # them here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  # The precedent a stage writing prose about the roster is told to follow — why a contract an
-  # ordinary class implements is global rather than under `Core` — and the `tryParse` shape this
-  # goal's interface encodes. 0013's expansion names both by title only, which is not the rule.
-  "classes/comparable",
-  "expressions/try-parse",
-  "programs/no-runtime-autoload",
-  "security/route-capture-is-laundered-by-its-type",
-  "routing/a-query-parameter-is-declared-like-a-capture",
-  "security/unclassified-parameter-refuses-tainted",
-  "security/taint-propagation",
-  "0013",
-  "0066",
-  "0024",
-  "0088",
+  "http-server/the-server-block-is-boot-class",
+  "0142",
+  "0058",
+  "0059",
+  "0075",
+  "0132",
+  "0118",
+  "0005",
   "0004",
 ]
 
-# 0013 whole: it is the precedent for a global interface gating a language operation, the only ADR a
-# session should need in full, and it holds in every stage. 0024 § 1 is the taint axis every stage
-# marks against. The other five each argue one stage and moved into it -- 0066 § 3a is the
-# `tryParse` contract stage 2 encodes and § 3 the class row it must NOT widen; 0077 § 3 and
-# 0102 §§ 3 and 5 are the roster stage 4's predicate replaces.
-adrs = ["0013", "0024 §1"]
+# 0142 whole: it is this goal's design, already written, and every question the goal meets is in it.
+adrs = ["0142", "0058", "0059"]
 
-shapes = [
-  "A `Core` member — the five edits",
-  "A diagnostic",
-  "A `.nvst` test case",
-  "A rule fragment",
-  "A decision record",
-  "A commit message",
-]
+# The diagnostic shape sits with stage 3, the only stage that adds a code (E0627).
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
-  'Writing Novis itself > a new core member owes',
   'Tooling > a core class',
-  'Tooling > a docs/reference/core/<class>.md',
-  "Tooling > nvs-stdlib's gates",
-  'Writing a test case > a new core member owes three conformance cases, not one, and the',
-  'Writing a test case > registering a core member',
-  'Writing a test case > the coverage gate matches',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
   'Writing a test case > a test binary',
-  'Running things > adding a',
-  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a multi-file',
+  'Running things > a leak whose',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -197,7 +156,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `19-parses.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `20-unix-sockets.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -208,19 +167,11 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
-# The contract this stage encodes, the class row it must not widen, and the rule that already
-# refuses a program its own copy of a compiler-owned name.
-[context.stage.2]
-rules = ["expressions/try-parse", "core-api/reserved-namespace"]
-adrs = ["0066 §3a", "0066 §3"]
+[context.stage.3]
+shapes = ["A diagnostic"]
 
-# The roster the predicate replaces, and the two rules the route side's settlement moves.
 [context.stage.4]
-rules = [
-  "routing/a-capture-narrows-to-a-closed-set",
-  "routing/a-bad-query-value-is-a-400",
-]
-adrs = ["0077 §3", "0102 §3", "0102 §5"]
+rules = ["core-classes/db-drivers-are-an-enum"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -228,12 +179,19 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-18's container-backed checks. Same compose file, same memoization.
+# The floor carries the whole parity program, so every container it needs is already here. The socket
+# legs of stage 4 run against the same services over a mounted socket rather than a published port.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["postgres", "redis"]
-memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+services = ["postgres", "mysql", "mariadb", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 383 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5833,15 +5791,12 @@ stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: `Parses` on the reserved roster. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the contract"
+stage = "1 floor"
 name = "nvs-hir (the roster gains a third global interface)"
 args = ["test", "-p", "nvs-hir"]
 tests = [
@@ -5851,7 +5806,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the contract"
+stage = "1 floor"
 name = "nvs-types (what a class claiming Parses owes)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -5864,10 +5819,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the predicate learns the contract, and `Core\Uuid` stops being a name. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the predicate"
+stage = "1 floor"
 name = "nvs-types (converts_from_string reads the interface, not a name)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -5883,7 +5837,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the predicate"
+stage = "1 floor"
 name = "nvs-stdlib (a Core class satisfies Parses by carrying the members)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5899,10 +5853,9 @@ tests = [
 # the armed class table a compiled `parse` is reached through. A `-p nvs-runtime` check cannot host
 # either binding-site name -- `capture_value` and `parse_each` are both one crate above the tables.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the runtime arm"
+stage = "1 floor"
 name = "nvs-runtime (the table carries the class and converts what it reads natively)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -5916,7 +5869,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the runtime arm"
+stage = "1 floor"
 name = "nvs-stdlib (a capture and an argument are converted at the binding site)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5933,7 +5886,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "4 the runtime arm"
+stage = "1 floor"
 name = "conformance (three cases, over a user class at the door)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5945,10 +5898,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the proofs. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "5 the proofs"
+stage = "1 floor"
 file = "examples/parses.nvs"
 # Run under `nvs run --request` (goal 16 stage 2, goal 17's builder) so the whole path is exercised:
 # a user class in a capture, in a `#[Query]`, and one segment each class refuses -- which the two
@@ -5969,7 +5921,7 @@ want = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the proofs"
+stage = "1 floor"
 name = "nvs-cli (the OpenAPI schema for a class built from text)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -5979,7 +5931,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the proofs"
+stage = "1 floor"
 name = "nvs-stdlib (the spec, the cards and the three-case floor)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5992,6 +5944,73 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "5 the proofs"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the grant names the store, not a host. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grant"
+name = "nvs-stdlib (the configured store's grant)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_configured_store_needs_no_address_grant",
+  "a_configured_store_is_refused_without_its_own_grant",
+  "a_loopback_store_needs_no_net_internal_exception",
+  "the_limiter_and_the_tier_ask_one_grant_at_one_door",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grant"
+name = "nvs-config (the roster)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_configured_url_without_its_grant_is_a_boot_warning",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the transport for the cache tier. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the cache transport"
+name = "nvs-stdlib (a store over a socket)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_record_written_through_a_socket_is_read_back_through_it",
+  "a_unix_url_is_refused_where_the_platform_has_no_transport",
+  "a_program_supplied_socket_path_is_never_a_target",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 the cache transport"
+file = "examples/cache-shared-socket.nvs"
+want = [
+  "put and get agree across the socket",
+  "the limiter and the tier share one connection",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the transport for the drivers. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the driver transport"
+name = "nvs-db (a driver over a socket)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_postgres_socket_directory_becomes_the_engines_own_name",
+  "a_mysql_socket_path_is_opened_as_written",
+  "a_tds_target_refuses_a_socket_path",
+  "a_driver_answers_the_same_over_either_transport",
+]

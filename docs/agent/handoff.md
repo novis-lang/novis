@@ -2,53 +2,50 @@
 
 ## State
 
-**Goal 19 — stage 4's `cargo-named` check is green, in the two crates it is actually split across.**
-Nothing about the arm needed writing: `crates/nvs-runtime/src/routes.rs:450` already crossed a
-`Parses` capture as its class and text, `crates/nvs-stdlib/src/router.rs:1065` already converted one
-at the binding site, and `crates/nvs-stdlib/src/command.rs:539` already converted a `decimal`
-argument. What was missing was the tests, and **two of the five names could not live in
-`nvs-runtime` at all** — `capture_value` and `parse_each` are one crate above the tables, because
-only a binding site holds the armed class table a compiled `parse` is reached through. The check is
-now two blocks: `-p nvs-runtime` for the match, `-p nvs-stdlib` for the binding site, with the stage
-comment saying why the split is the decision rather than a filing accident.
+**Goal 20 — a configured store is authorized by its configuring — has just started; nothing of it has
+landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the parity program entire.
 
-**Stage 4's other check and every stage 5 artefact are already on disk** — the three `.nvst` cases
-under `tests/conformance/core/`, `examples/parses.nvs` with its `.nvsr` request, and both OpenAPI
-tests at `crates/nvs-cli/tests/openapi.rs:518`. `python tools/verify.py` is 8 of 8 green. So the
-next acceptance run is what says whether anything is left, and the group below is written to be
-checked rather than built.
+The design is settled and written:
+`rule:config/cache-shared-is-the-grant-over-the-configured-store`, six sections, with
+its cross-links already folded into `rule:security/net-address-policy`'s carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
+goal opens no ADR number** — a gap in 0142 is an edit to the rule that states it, with a record naming the change.
 
-**Still open and not this stage's:** `tryParse` is unreachable on a user implementor, nothing binds
-a `#[Query]` parameter, and a class-typed `#[Query]` cannot carry a default (`E0451` wants a literal
-of the declared type) — which is why stage 5's fixture reads its two `tag` lines by hand.
+The short of it: `Core\Cache::shared()` and `Core\RateLimit::consume` stop asking `net.connect` at a
+host and start asking `cache.shared`, unscoped, because the endpoint is one an operator wrote into
+root-owned configuration and that writing is the authorization. Once the grant names the store instead
+of an address, a store with no address is reachable — `unix:/run/redis.sock` in `[cache.shared] url`, a
+bare path in `[db.<name>] host` — admitted only where an operator wrote it.
 
 ## Next group
 
-**Stage 5: the proofs — one file set: `docs/agent/loop-goal.toml`, `examples/parses.nvsr`,
-`crates/nvs-cli/tests/openapi.rs`.** Every artefact exists, so each item below is a run-and-read
-first and a repair only if it is red.
+**Stage 2: the grant** — one file set: `crates/nvs-config/src/capability.rs`,
+`crates/nvs-stdlib/src/cache.rs`, `crates/nvs-stdlib/src/ratelimit.rs`,
+`crates/nvs-stdlib/src/registry.rs`.
 
-- [ ] **The program leg, run rather than assumed** — `docs/agent/loop-goal.toml:5951` is the
-      `stage = "5 the proofs"` fixture, and its `want` list is five lines the leg must print.
-      `target/debug/nvs.exe run --request examples/parses.nvsr` is the whole check; the comment
-      above it says `nvs run` installs the route table and matches nothing against it, so the
-      fixture takes the door's walk itself. `rule:security/route-capture-is-laundered-by-its-type`
-      is what its last two lines pin — a class's refusal is a `400`, a `Core\Uuid` the router
-      refuses is no match.
-- [ ] **The OpenAPI pair** — `crates/nvs-cli/tests/openapi.rs:518`'s
-      `a_parses_capture_is_a_string_schema` and `core_uuid_keeps_its_named_format_over_that_schema`,
-      against the arm at `crates/nvs-cli/src/openapi.rs:386`. The goal's § *Standing decisions*
-      settles the shape and is not to be re-derived: a `Parses` class answers `{"type": "string"}`
-      and `Core\Uuid` keeps its `format: uuid`, because a named format is a documentation hint over
-      a conversion rather than a conversion rule.
-- [ ] **The stage's four remaining blocks** — `docs/agent/loop-goal.toml:5972`, `:5982` and `:5995`
-      are the `nvs-stdlib` gates, the reference regeneration and the rest of stage 5. They are
-      whole-suite gates rather than new work, so read the driver's report before opening anything.
+- [ ] **`Cap::CacheShared` on the roster** — `crates/nvs-config/src/capability.rs:34`, spelled
+      `cache.shared`, asked at `Scope::Unscoped`. Its doc comment points at `Cap::MailSend`'s reasoning
+      (`:54`) rather than restating it: the endpoint an operator wrote carries the authority that
+      granted the capability, so it is pre-approved and is not asked about `rule:security/net-address-policy`'s ranges.
+- [ ] **The door stops asking about an address** — `open_configured`
+      (`crates/nvs-stdlib/src/cache.rs:@open_configured`) asks the new grant and drops `pin_host`, so
+      neither caller walks the denied-range table. Both keep their own `remedy` clause.
+- [ ] **The boot `Warn`** — a `[cache.shared] url` set with no `cache.shared` grant, named where both
+      keys are visible. This is the migration path for a deployment that had granted `net.connect` for
+      its store's host, and it is the only place that migration is reported.
+- [ ] **Stage 0 in the same pass, because it is the same lines** — `SHARED_DOC`'s card and the
+      `RuntimeError` description in `cache.rs`, the matching text in `ratelimit.rs`, the capability row
+      in `registry.rs`, and any `nvs.toml` fixture under `tests/` still granting `net.connect` for a
+      store's host. `docs/novis.md` is generated from those cards and is never edited by hand.
 
 ## Backlog
 
-- `#[Query]` binds nothing yet; a class-typed one cannot carry a default (`E0451`) — `rule:routing/a-bad-query-value-is-a-400` says the query half is not shipped.
-- `tryParse` is unreachable on a user implementor — `rule:expressions/try-parse`, and `nvs_types::layout` enters no method for an interface default.
-- An enum *subset* is still `ArgConv::Unconverted` — `crates/nvs-runtime/src/commands.rs`'s known gap 1, and not this goal's.
-- A capture at an enum still hands its segment text over — `rule:routing/a-capture-narrows-to-a-closed-set`'s last paragraph.
-- This clone has no `core.hooksPath` set; `verify.py` says so every run — `docs/setup.md`.
+- **Stage 3 (the cache transport)** shares `cache.rs` with stage 2, so a session that lands stage 2 with
+  headroom takes it: the `unix:` arm in `endpoint`, `E0627` beside `E0626` in
+  `crates/nvs-diagnostics/src/lib.rs`, and widening `open_shared`'s per-core key from a `SocketAddr` to
+  an address-or-path — that key is what decides reuse-or-replace, which is how a reloaded configuration
+  looks from there. `NvsUnix` already exists (`crates/nvs-host/src/net.rs:446`) and needs nothing.
+- **Stage 4 (the driver transport)** shares no files with either and is its own group:
+  `crates/nvs-db/src/{conn,mysql,maria,pg,tds}.rs` plus the matrix's socket leg. Postgres derives
+  `<host>/.s.PGSQL.<port>`; MySQL and MariaDB open the path as written; TDS refuses one.
+- When this goal's last check goes green the driver takes goal 50 — the dossier.
+  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.

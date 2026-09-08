@@ -244,10 +244,9 @@ retired = true
 [[goal]]
 name = "19 parses"
 md = "docs/agent/goals/19-parses.md"
-toml = "docs/agent/goals/19-parses.toml"
-handoff = "docs/agent/goals/19-parses.handoff.md"
 milestone = "M7"
 preflight = "docker"
+retired = true
 
 # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s two halves: the grant over a store an operator configured stops naming a host, and once it
 # does, a store with no address -- a Unix socket -- is reachable. Before the dossier because that entry
