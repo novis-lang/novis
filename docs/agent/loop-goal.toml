@@ -151,7 +151,11 @@ milestones = ["M4B:verify"]
 rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
          "ide/language-configuration-is-content", "ide/contributions-are-frozen-and-only-ever-added",
          "ide/the-extension-runs-where-the-binary-is",
-         "ide/the-lockfile-is-committed-and-build-output-is-not"]
+         "ide/the-lockfile-is-committed-and-build-output-is-not",
+         # The contributions suite asserts both of these, so stage 2 writes them down: the
+         # allowlist is over `dependencies` alone, and `onEnterRules` continues `///` and not
+         # the `/** */` block a borrowed PHP configuration continues.
+         "ide/dependencies-are-allowlisted", "ide/doc-comment-authoring-is-the-editors-own"]
 
 [context.stage.3]
 rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",

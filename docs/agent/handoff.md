@@ -2,47 +2,53 @@
 
 ## State
 
-**Goal 15 — `editors/vscode` — has just started; nothing of it has landed yet.** Goal 14's whole list is
-this goal's Stage 1 floor, so the server, its ten requests and its two code actions are all on disk and
-answering. `editors/` does not exist.
+**Goal 15 stage 2 has landed whole.** `editors/vscode` exists: the manifest, a committed
+`package-lock.json`, `tsconfig.json`, the flat ESLint config, `language-configuration.json`, the
+headless runner and a 15-case contributions suite. `npm run lint` and `npm run test:headless` are
+both green, and `tools/verify.py` picks the extension step up on its own now that `package.json` is
+there.
 
-**This is the first non-Rust source in the repository, and the tooling for it is already there.**
-`tools/orient.py` globs `editors/*/src/**/*.ts` for its module map and `tools/verify.py` carries the
-extension step and its `npm` plumbing, dormant until the directory exists. If a session finds either
-missing, that is stage 2's blocker and belongs here — not a tooling slice invented mid-goal.
+**The stage 2–7 acceptance check `vscode (headless)` stays red on purpose.** Its `want` needs
+`grammar:` and `protocol:` lines and neither suite exists; `contributions:` and `0 failing` are
+already printed. It goes green when stage 5 lands the protocol suite, not before.
 
-**Stage 0 is empty.** Goal 13 landed `|>` and `let`/`is`, so `rule:ide/highlighting-is-two-layers`'s *must not colour as valid*
-list is now checkable against real diagnostics; goals 10 and 11 landed `callable<…>` and `///`, which are
-colour surface that list predates.
+**There is no `src/` yet, so the manifest declares no `main`.** Stage 5 adds both, and stage 8's
+`.vsix` needs `main` before `npm run package` is worth running; `@vscode/vsce` is already a
+devDependency. Node 24 and npm 11 are on this machine and the registry is reachable.
 
 ## Next group
 
-**Stage 2: the package, and the identifiers that are public API** — one file set: a new
-`editors/vscode/` (`package.json`, `package-lock.json`, `tsconfig.json`, `language-configuration.json`,
-its lint config and npm scripts), plus the four `.gitignore` lines.
+**Stage 3: the TextMate grammar** — one file set: a new `editors/vscode/syntaxes/nvs.tmLanguage.json`,
+the `grammars` contribution beside the language at `editors/vscode/package.json:26`, and a new
+`editors/vscode/test/grammar/` the runner already looks for at
+`editors/vscode/scripts/headless.mjs:21`. Split by construct family, never by file
+(`rule:ide/highlighting-is-two-layers` is the list; do not re-derive or shorten it).
 
-- [ ] **The package**, `.nvs` only and never `.php`, extension id `nvs-lang.nvs`, with a committed
-      `package-lock.json` because `npm ci` needs one.
-- [ ] **`language-configuration.json`** — comments, brackets, auto-closing and surrounding pairs,
-      indentation and on-enter rules, folding markers, and a **`wordPattern` that includes `$`**.
-- [ ] **The contributions test**: `package.json` declares what the extension claims, depends only on the
-      allowlist, contributes no colour-customization defaults, and carries the twelve frozen setting and
-      command ids listed in the goal prose. Added to later, never renamed.
+- [ ] **The grammar's skeleton and the dual-mode openers** — `<?nvs`, `<?php`, `<?=` and `?>` with
+      inline HTML outside them, contributed at `editors/vscode/package.json:26` and scoped
+      `source.nvs`. `rule:ide/highlighting-is-two-layers`; the construct list is
+      `docs/decisions/0099.md:298` § 4.
+- [ ] **The scope allowlist suite**, first, so every family after it is checked as it is written:
+      `editors/vscode/test/grammar/` tokenizes a fixture with `vscode-textmate` and
+      `vscode-oniguruma` (two new devDependencies, so the lockfile moves) and asserts every scope it
+      emits is a standard name suffixed `.nvs`. `rule:ide/novis-ships-names-not-colours`; the runner
+      picks the directory up at `editors/vscode/scripts/headless.mjs:21`.
+- [ ] **Keywords, types and qualifiers** — Novis's own keywords, `tainted`/`secret`, `decimal`, type
+      annotations in every slot, and `#[...]` attributes told apart from `#` comments, in the same
+      `syntaxes/nvs.tmLanguage.json` under the contribution at `editors/vscode/package.json:26`.
+      `rule:ide/rejected-syntax-gets-no-colour` is the other half — what must *not* colour as valid —
+      and `docs/decisions/0099.md:298` § 4 lists both halves.
 
 ## Backlog
 
-- Stages 3 and 4 (the two TextMate grammars) are one group — same directory, same headless harness — and
-  stage 3 alone is **expected to take more than one session: split it by construct family, never by file.**
-  `rule:ide/highlighting-is-two-layers` is the list; do not re-derive or shorten it.
-- Stage 5 (the client) and stage 7 (Tasks, the problem matcher, the AST panel) share `src/`. Stage 6
-  (`secret` concealment) needs the client, so it follows stage 5.
+- Strings, heredoc and nowdoc (interpolation in the former only) are the rest of stage 3, then stage
+  4's `.lspt` case grammar — same directory, same harness, so they are one group with the above.
+- Stage 5 (the client, and the `main` the manifest still lacks) and stage 7 (Tasks, the problem
+  matcher, the AST panel) share `src/`. Stage 6 (`secret` concealment) needs the client.
 - Stage 8's extension-host suite is **not on the acceptance list and must not be added** — it needs a
-  display, and this machine's display has the developer's own VS Code open on this repository. CI owns it,
-  on Linux under `xvfb-run`. `.vsix` packaging is headless and does gate. The goal's *Standing decisions*
-  carry the whole rule, including the profile isolation the suite owes wherever it runs.
+  display, and this machine's has the developer's own VS Code open on this repository. CI owns it.
+- `.vsix` packaging does gate, at stage 8, and wants `main` first.
 - **Off path:** `nvs fmt`, rename, extract, workspace symbol search, inlay hints, signature help,
   `documentHighlight`, the Test Explorer, PhpStorm, and publishing to the Marketplace.
 - **When this goal's last check goes green M4B is finished**, and the driver takes goal 16 — the body
-  rule and `Core\Request::json()`/`jsonAs<T>()` — then goal 17, `Core\Test::request`'s shape, which ends
-  the chain. Both were added after this file was written and neither touches this tree. What remains of
-  the milestone table after them is M9 onward.
+  rule and `Core\Request::json()`/`jsonAs<T>()` — then goal 17, `Core\Test::request`'s shape.

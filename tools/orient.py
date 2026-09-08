@@ -144,9 +144,11 @@ PROMOTED_WHOLE = 20
 #: a reference page, an ADR section, a table that still says a feature has no spelling -- names the
 #: paragraph it rewrites, and inlining that paragraph is exactly as useful as inlining a function
 #: body. Without it `session.py`'s per-item anchor gate cannot be satisfied by a documentation
-#: item at all, which is how it stood when stage 10's own reference half came up.
+#: item at all, which is how it stood when stage 10's own reference half came up. `editors` is a
+#: root for the plainer reason that the editor clients are source too: a goal working there has no
+#: other path to anchor, so every item it wrote was refused.
 ANCHOR_RE = re.compile(
-    r"\b((?:crates|tools|tests|benches|examples|fuzz|docs)/[\w./-]+\.\w+):(\d+)\b"
+    r"\b((?:crates|tools|tests|benches|examples|fuzz|docs|editors)/[\w./-]+\.\w+):(\d+)\b"
 )
 
 #: Lines of a file printed either side of an anchor. Wide enough to hold a signature and the top

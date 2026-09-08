@@ -28,9 +28,10 @@
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
 > `nvs-stdlib`, `nvs-codegen`, `nvs-cli` — plus `nvs-test`, `nvs-lsp`, `fuzz/`, `tools/`,
-> `benches/abi-probe`, and the two case trees `tests/conformance` and `tests/differential`. **Each
-> crate's own module doc is the authority on what it holds and what it still owes**; `python
-> tools/brief.py` prints one map line each, and `python tools/disk.py` the live counts.
+> `benches/abi-probe`, `editors/vscode`, and the two case trees `tests/conformance` and
+> `tests/differential`. **Each crate's own module doc is the authority on what it holds and what it
+> still owes**; `python tools/brief.py` prints one map line each, and `python tools/disk.py` the
+> live counts.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
