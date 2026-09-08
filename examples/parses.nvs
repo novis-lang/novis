@@ -1,0 +1,124 @@
+<?nvs
+// A class built from text, standing where `Core\Uuid` stands: in a route
+// capture, in a `#[Query]`, and refusing a segment the router itself would
+// have handed on.
+//
+// This leg runs under `nvs run --request examples/parses.nvsr`, so the method,
+// the path and the query read below are one real request's — that file
+// describes it in the format `crates/nvs-test/src/request.rs` owns. `nvs run`
+// installs the route table but matches nothing against it, because a program
+// run off the command line is answering no request, so the walk the door takes
+// is spelled here over that request's own method and path. A served request
+// takes the same walk once, before any handler exists
+// (`rule:routing/matched-once-before-the-handler`).
+
+// `Parses` is one of the interfaces the compiler declares for every program:
+// there is no `use` to write and no file to reach, and the class owes one
+// member. Its `tryParse` twin is a default body on the interface rather than a
+// second required member, so there is exactly one answer to "is this text a
+// `Slug`" (`rule:expressions/try-parse`).
+//
+// The text arrives `tainted` because the text at every binding site came from
+// outside the process, and the object built out of it carries no qualifier at
+// all — `tainted` is a property of `string` and `bytes` and never of a class
+// (`rule:security/tainted-qualifier`). That is why the field below says
+// `tainted string`: a class cannot launder by declaring the field `string`,
+// because the assignability rule that already stands refuses it.
+class Slug implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    // What counts as a slug is this class's business and nothing the router
+    // knows. The matcher narrows on the conversions it reads natively — `int`,
+    // `uint`, `decimal`, `Core\Uuid` and a closed set — and a capture at any
+    // other `Parses` class matches on *shape*, because matching runs at the
+    // door with no program installed and an implementor's body may not run
+    // over every request URL that reaches it
+    // (`rule:security/route-capture-is-laundered-by-its-type`).
+    public static function parse(tainted string $s): static
+    {
+        if ($s != Core\Str::lower($s)) {
+            throw new ParseError("a slug is written in lower case");
+        }
+        return new static($s);
+    }
+}
+
+class Posts
+{
+    // The text a handler is handed for a `tag` the request did not send. It is
+    // written here rather than as the parameter's own default because a
+    // parameter default must be a literal of the declared type, so a
+    // class-typed `#[Query]` cannot carry one; the *text* is defaulted and the
+    // class builds the value out of it, which is what the two `tag` lines
+    // below spell.
+    public const string TAG_DEFAULT = "absent";
+
+    // `Slug` stands in the capture and in the `#[Query]` alike: a query
+    // parameter is declared with a capture's type list
+    // (`rule:routing/a-query-parameter-is-declared-like-a-capture`), and that
+    // list's last entry is now "a class implementing `Parses`" rather than
+    // `Core\Uuid` written out by name.
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Slug $slug, #[Core\Query] Slug $tag): string
+    {
+        return "one post";
+    }
+
+    // The engine's own class built from text, at the same site, for the
+    // contrast this program's last line pins: `Core\Uuid` is one of the
+    // conversions the matcher performs itself.
+    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
+    {
+        return "one post";
+    }
+}
+
+// The capture, converted where the match crosses into the program rather than
+// at the door. `Core\Router\Match::param` answers the union every capture
+// converts to, whose last arm is `Parses`, so the value is narrowed to the
+// class the route declared before anything reads it.
+?Core\Router\Match $matched = Core\Router::match(Core\Request::method(), Core\Request::path());
+if ($matched != null) {
+    var $capture = $matched->param("slug");
+    if ($capture != null) {
+        Slug $slug = $capture as Slug;
+        echo "slug is ", $slug->text, "\n";
+    }
+}
+
+// The `#[Query]`, spelled by hand: nothing binds a query parameter to a
+// declared one yet, so both readings go through the same `parse` the binding
+// will call — the fallback text for a key the request did not send, then the
+// text this request did send.
+echo "tag is ", Slug::parse(Posts::TAG_DEFAULT)->text, "\n";
+echo "tag is ", Slug::parse(Core\Request::query("tag") as string)->text, "\n";
+
+// A segment the class refuses fails over a route that *did* match, so it is a
+// `400` and never a `404`: the shape claimed the row, and the refusal happened
+// one layer above the walk, where a served request is already past everything
+// that rate-limits it.
+try {
+    ?Core\Router\Match $shouty = Core\Router::match(Core\Http\Method::Get, "/posts/Hello-World");
+    echo "unreachable: the class refused nothing", "\n";
+} catch (ParseError $refusal) {
+    echo "a segment the class refuses is a 400", "\n";
+}
+
+// And the other half of that sentence. A `Core\Uuid` capture is converted by
+// the matcher itself, so a segment it cannot read is simply not a match, the
+// walk carries on, and nothing else claiming this path means a `404`. Two
+// captures spelled the same way therefore fail two ways, and what decides
+// which is who runs at the door.
+?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, "/posts/by-id/not-a-uuid");
+if ($refused == null) {
+    echo "and a Core\\Uuid segment the router refuses is no match", "\n";
+}

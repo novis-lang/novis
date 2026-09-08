@@ -5923,8 +5923,14 @@ kind = "exact"
 stage = "5 the proofs"
 file = "examples/parses.nvs"
 # Run under `nvs run --request` (goal 16 stage 2, goal 17's builder) so the whole path is exercised:
-# a user class in a capture, in a `#[Query]` with a default, and one segment each class refuses --
-# which the two refuse in different places, and the last two lines are what pin that.
+# a user class in a capture, in a `#[Query]`, and one segment each class refuses -- which the two
+# refuse in different places, and the last two lines are what pin that. `nvs run` installs the route
+# table but matches no request against it (crates/nvs-cli/src/main.rs:1651), so the fixture takes the
+# door's walk itself over the request's own method and path. The two `tag` lines are read by hand:
+# nothing binds a `#[Query]` parameter yet, and a class-typed one cannot carry a default at all --
+# E0451 wants a literal of the declared type -- so the fallback text is defaulted and the class
+# builds the value out of it.
+args = ["--request", "examples/parses.nvsr"]
 want = [
   "slug is hello-world",
   "tag is absent",
