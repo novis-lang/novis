@@ -631,7 +631,7 @@ fn wire_command(parts: &[&[u8]]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
-    use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+    use std::net::{Ipv4Addr, SocketAddr, TcpListener};
     use std::time::Duration;
 
     use super::{Connection, Target};
@@ -647,10 +647,32 @@ mod tests {
 
     /// Reads until `wanted` bytes have arrived, which is how a fake server knows
     /// a whole command is in hand without parsing one.
-    fn read_exactly(stream: &mut TcpStream, wanted: usize) -> Vec<u8> {
+    ///
+    /// Over whichever socket the fake store took: a command is the same bytes
+    /// on both, which is the half of `Transport` these cases are here to show.
+    fn read_exactly<S: Read>(stream: &mut S, wanted: usize) -> Vec<u8> {
         let mut got = vec![0_u8; wanted];
         stream.read_exact(&mut got).expect("the client's command");
         got
+    }
+
+    /// A bound Unix-domain listener and the path it took — [`listening`]'s
+    /// sibling, and the only line a socket case writes that its TCP twin does
+    /// not.
+    ///
+    /// The name is short on purpose: `sun_path` is 108 bytes, and a bind past
+    /// it fails with `InvalidInput`, which reads like a bug in the stream
+    /// rather than in the name it was handed. A run that was killed leaves the
+    /// node behind and `bind` refuses an existing one with `AddrInUse`, so the
+    /// path is cleared first.
+    #[cfg(unix)]
+    fn socket_listening(name: &str) -> (std::os::unix::net::UnixListener, std::path::PathBuf) {
+        let mut path = std::env::temp_dir();
+        path.push(format!("nvs-redis-{}-{name}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let listener =
+            std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
+        (listener, path)
     }
 
     /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the shared tier's two operations are one `SET` and one
@@ -713,5 +735,74 @@ mod tests {
             "the store's own text is what an operator acts on: {refused}"
         );
         server.join().expect("the fake store runs to completion");
+    }
+
+    /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` on the
+    /// wire: a store an operator spelled `unix:` is reached over a socket and
+    /// answers the same two commands, byte for byte, as the store one line
+    /// above spelled `redis://`.
+    ///
+    /// What this pins is that [`Transport`] is the *whole* of what the second
+    /// spelling costs. The bytes asserted here are the bytes
+    /// [`a_put_and_a_get_are_one_set_and_one_get_on_one_connection`] asserts,
+    /// deliberately: a socket that framed a command differently would mean a
+    /// second RESP writer had grown above the transport, and that is the only
+    /// failure the split exists to prevent.
+    ///
+    /// The case is unconditional and its **body** is gated, not the other way
+    /// round, so a build with no `AF_UNIX` transport still has a test of this
+    /// name rather than one that reads as never written. On that side there is
+    /// no `Target::Socket` to dial, so what stands in its place is the fact
+    /// that makes the exchange unreachable: the door refuses the spelling, and
+    /// the wire is never handed a target it could not have dialled.
+    #[test]
+    fn a_record_written_through_a_socket_is_read_back_through_it() {
+        #[cfg(unix)]
+        {
+            let (listener, path) = socket_listening("record");
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().expect("the client dials once");
+                let set = read_exactly(
+                    &mut stream,
+                    b"*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$2\r\nhi\r\n".len(),
+                );
+                stream.write_all(b"+OK\r\n").expect("the reply");
+                let get = read_exactly(&mut stream, b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n".len());
+                stream.write_all(b"$2\r\nhi\r\n").expect("the reply");
+                (set, get)
+            });
+
+            let mut connection =
+                Connection::new(Target::Socket(path.clone()), Duration::from_secs(5));
+            connection.ensure().expect("the fake store is listening");
+            connection
+                .set(b"k", b"hi")
+                .expect("a `SET` answering `+OK`");
+            let got = connection.get(b"k").expect("a `GET` answering its bulk");
+
+            let (set, get) = server.join().expect("the fake store runs to completion");
+            assert_eq!(
+                set, b"*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$2\r\nhi\r\n",
+                "the socket framed a `SET` differently from the TCP twin"
+            );
+            assert_eq!(
+                get, b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n",
+                "the socket framed a `GET` differently from the TCP twin"
+            );
+            assert_eq!(
+                got,
+                Some(b"hi".to_vec()),
+                "the record went through the socket and did not come back"
+            );
+            let _ = std::fs::remove_file(&path);
+        }
+
+        #[cfg(not(unix))]
+        {
+            assert!(
+                super::super::endpoint("unix:/run/redis.sock", "Core\\Cache::shared()").is_err(),
+                "a spelling this build cannot dial must be refused before the wire sees it"
+            );
+        }
     }
 }
