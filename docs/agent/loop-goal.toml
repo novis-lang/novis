@@ -102,6 +102,19 @@ modules = [
   "crates/nvs-db/src/tds/mod.rs",
   # `is_relative_file` -- the neighbouring predicate, and deliberately not the answer.
   "crates/nvs-config/src/db.rs",
+  # The configuration tree, resolved: which file is the root, which files it pulls in, and the one
+  # ordered stream they flatten to.
+  "crates/nvs-config/src/resolve.rs",
+  # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
+  # configuration already says about the coherent tier before any request asks for it.
+  "crates/nvs-config/src/store.rs",
+  # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
+  # against.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `Core\Storage` — `rule:programs/framework-core-half`'s object storage: four members that put,
+  # get, delete and enumerate **named objects on a disk an operator configured**, over the `fs.*`
+  # capabilities `rule:core-api/tier-roster` already grants and no capability of its own.
+  "crates/nvs-stdlib/src/storage.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
