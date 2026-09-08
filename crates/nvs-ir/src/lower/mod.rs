@@ -2958,8 +2958,48 @@ fn shape_fills(
 /// So a wire contract, which is per-field types and nothing else, is not this
 /// class's to carry — the crate's module docs own where it rides instead, and
 /// why widening this label to name the types was refused.
+///
+/// The string itself is [`nvs_types::derive::shape_class_label`]: a call site
+/// writing a shape as its type argument names this same class one crate
+/// earlier, when the checker records what that site wrote, so the two spellings
+/// of one label are one function.
 pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
-    format!("$shape{{{}}}", sorted_fields.join(","))
+    nvs_types::derive::shape_class_label(sorted_fields)
+}
+
+/// The class label a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
+/// handed as its first argument, from what the checker recorded at the call
+/// site — the one place all three call paths read it, so they cannot disagree
+/// about what a missing one means.
+///
+/// # Panics
+///
+/// Panics naming the member when the checker recorded **no** written class,
+/// which is one run's two halves disagreeing rather than anything a program
+/// wrote, and when what it recorded is an **inline shape**: that label would
+/// resolve, but a shape's wire contract does not ride on the descriptor it
+/// names, and nothing emits the constant it rides on instead. The crate docs'
+/// *A shape's wire contract* section is the carrier this waits on.
+pub(crate) fn written_class_label(call: &nvs_types::expr_table::ResolvedCall) -> String {
+    if let Some(shape) = &call.written_shape {
+        panic!(
+            "nvs-ir: `{}::{}` was written with the inline shape `{}`, whose wire contract \
+             has no constant to ride in yet — see this crate's docs, \"A shape's wire \
+             contract is a constant of the call site\"",
+            call.class, call.method, shape.label
+        );
+    }
+    call.written_class
+        .as_ref()
+        .unwrap_or_else(|| {
+            panic!(
+                "nvs-ir: `{}::{}` needs the class written at its call site, and nvs_types \
+                 recorded none — did this program pass nvs_types::check_program with the \
+                 same table?",
+                call.class, call.method
+            )
+        })
+        .to_string()
 }
 
 /// Translates an already-*checked* type — a [`TypeId`] recorded in an

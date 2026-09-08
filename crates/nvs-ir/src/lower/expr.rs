@@ -3209,32 +3209,20 @@ impl<'a> Lowering<'a> {
             // descriptor nor a bool is refcounted, so neither is retained or
             // released here. Emitted before the receiver is opened so that a
             // `?->` guard's branch cannot come between a constant and its use.
-            let written_class =
-                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
-                    || {
-                        let label = call.written_class.as_ref().unwrap_or_else(|| {
-                            panic!(
-                                "nvs-ir: `{}::{}` needs the class written at its call site, \
-                                 and nvs_types recorded none — did this program pass \
-                                 nvs_types::check_program with the same table?",
-                                call.class, call.method
-                            )
-                        });
-                        let (desc, _) = self.emit(
-                            *cur,
-                            Ty::ClassDesc,
-                            InstKind::ClassDescConst {
-                                class: label.to_string(),
-                            },
-                        );
-                        let (list, _) = self.emit(
-                            *cur,
-                            Ty::Bool,
-                            InstKind::ConstBool(call.written_class_is_list),
-                        );
-                        [desc, list]
-                    },
+            let written_class = nvs_types::core_takes_written_class(
+                &call.class.to_string(),
+                &call.method,
+            )
+            .then(|| {
+                let class = super::written_class_label(call);
+                let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
+                let (list, _) = self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::ConstBool(call.written_class_is_list),
                 );
+                [desc, list]
+            });
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3438,32 +3426,20 @@ impl<'a> Lowering<'a> {
             // whether it was written as a list of that class as argument 1 —
             // that roster owns the ABI. Neither a descriptor nor a bool is
             // refcounted, so neither is retained or released here.
-            let written_class =
-                nvs_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
-                    || {
-                        let label = call.written_class.as_ref().unwrap_or_else(|| {
-                            panic!(
-                                "nvs-ir: `{}::{}` needs the class written at its call site, \
-                         and nvs_types recorded none — did this program pass \
-                         nvs_types::check_program with the same table?",
-                                call.class, call.method
-                            )
-                        });
-                        let (desc, _) = self.emit(
-                            *cur,
-                            Ty::ClassDesc,
-                            InstKind::ClassDescConst {
-                                class: label.to_string(),
-                            },
-                        );
-                        let (list, _) = self.emit(
-                            *cur,
-                            Ty::Bool,
-                            InstKind::ConstBool(call.written_class_is_list),
-                        );
-                        [desc, list]
-                    },
+            let written_class = nvs_types::core_takes_written_class(
+                &call.class.to_string(),
+                &call.method,
+            )
+            .then(|| {
+                let class = super::written_class_label(call);
+                let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class });
+                let (list, _) = self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::ConstBool(call.written_class_is_list),
                 );
+                [desc, list]
+            });
             let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
