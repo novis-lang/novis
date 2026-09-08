@@ -1358,8 +1358,9 @@ mod tests {
     /// names, so a new class under the request — a trailer bag, a second body
     /// shape — joins it without anyone remembering to add it.
     ///
-    /// **`query`, `post` and `json` are the plain rows that really do answer
-    /// outside data**, and they are the hole this repository has already
+    /// **`query`, `post` and `json` are the plain rows that answer outside
+    /// data with nowhere to put the mark**, and they are the hole this
+    /// repository has already
     /// written down rather than an oversight: spec § 9's bracket convention
     /// makes a value a `string` or a nested `array`, a decoded JSON document is
     /// that same array, `nvs_types` has no tainted array to hold either, so all
@@ -1368,7 +1369,7 @@ mod tests {
     /// three: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` gives a submitted form the parse a query string gets,
     /// so a tainted array would close all of them in the same edit. Naming them
     /// here is what makes closing it an edit to this assertion instead of a
-    /// test that stays green across the fix. The other six plain rows are not
+    /// test that stays green across the fix. The other seven plain rows are not
     /// outside data at all: `method` has narrowed to a closed enum before
     /// anything can hold a payload, `isHead` is one bit derived from it,
     /// `saveTo` answers `void` because its bytes went to a file rather than to
@@ -1384,6 +1385,15 @@ mod tests {
     /// the disk at boot rather than derived from the URL
     /// (`rule:http-server/a-path-is-never-derived-from-a-url`
     /// ).
+    ///
+    /// **`jsonAs` is the fourth shape, and the only one whose class is not
+    /// `Core`'s at all.** Its `T` is written at the call site, so there is no
+    /// return type for the mark to sit on and no row in any sweep to check:
+    /// `rule:security/derived-codec-qualifiers` puts the question on that
+    /// class's own declared fields, at the call site that decodes. A hydrated
+    /// body is outside data like `json()`'s document, and it is plain here for
+    /// a different reason — not that the mark has nowhere to go, but that
+    /// where it goes is a declaration this compiler never wrote.
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {
         use nvs_stdlib::registry::iterable_element;
@@ -1431,6 +1441,7 @@ mod tests {
                 (r"Core\Request", "isHead", "bool".to_owned()),
                 (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
                 (r"Core\Request", "json", "mixed".to_owned()),
+                (r"Core\Request", "jsonAs", "T".to_owned()),
                 (r"Core\Request", "post", "mixed".to_owned()),
                 (r"Core\Request", "query", "mixed".to_owned()),
                 (
@@ -1442,13 +1453,15 @@ mod tests {
                 (r"Core\Request\Mount", "prefix", "string".to_owned()),
                 (r"Core\Request\Part", "saveTo", "void".to_owned()),
             ]),
-            "the request tree's rows that answer an unqualified value are closed at nine, and \
-             six of them answer nothing a peer chose: a closed method enum, the bit derived \
-             from it, the `void` of bytes that went to a file, the matched route, whose \
-             own class carries the mark on the captures it hands back, the mount serving the \
-             request, whose class does the same, and that class's own `prefix()` — a mount row \
-             is expanded against the disk at boot (`rule:http-server/a-path-is-never-derived-from-a-url`), so a prefix is the \
-             operator's text and not the peer's. `query`, `post` and `json` are the \
+            "the request tree's rows that answer an unqualified value are closed at ten, and \
+             seven of them have the mark somewhere other than the return type: a closed method \
+             enum, the bit derived from it, the `void` of bytes that went to a file, the matched \
+             route, whose own class carries the mark on the captures it hands back, the mount \
+             serving the request, whose class does the same, and that class's own `prefix()` — a \
+             mount row is expanded against the disk at boot (`rule:http-server/a-path-is-never-derived-from-a-url`), so a prefix is the \
+             operator's text and not the peer's — and `jsonAs`, whose `T` is a class the call site \
+             wrote, so `rule:security/derived-codec-qualifiers` asks for the mark on that class's \
+             own declared fields. `query`, `post` and `json` are the \
              other three and are one known hole — § 9's brackets make a value a `string` or a \
              nested array, a decoded document is the same array, and there is no tainted array, so \
              a member added here answering a bare `string` off the wire joins this set and is the \

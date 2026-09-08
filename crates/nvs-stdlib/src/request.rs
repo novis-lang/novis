@@ -297,6 +297,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&JSON_DOC),
         },
         CoreMethod {
+            name: "jsonAs",
+            names: &[],
+            params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_request_json_as",
+            doc: Some(&JSON_AS_DOC),
+        },
+        CoreMethod {
             name: "bodyStream",
             names: &[],
             params: &[],
@@ -525,6 +534,48 @@ const JSON_DOC: MethodDoc = MethodDoc {
                    the peer never sent and an empty one, because `mixed` cannot tell \"no body\" \
                    from the document `null`. What the request declared as its `Content-Type` is \
                    not consulted either way.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
+                   are never held: the refusal happens at the chunk that would cross it.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the length \
+                   it declared.",
+        },
+    ],
+};
+
+/// `Core\Request::jsonAs`'s reference card — `rule:core-api/reference-card`.
+const JSON_AS_DOC: MethodDoc = MethodDoc {
+    short: "The request body hydrated into an instance of `T` — `Core\\Json::decodeAs` over the \
+            octets `body` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read a \
+            JSON array as one instance per element.",
+    params: &[ParamDoc {
+        name: "maxDepth",
+        desc: "How deep the document may nest before it is refused, counted PHP's way: a scalar \
+               document is depth 1.",
+        shape: &[],
+    }],
+    ret: "A new `T` built from the document's fields, or one `T` per element for an `array<T>`. \
+          Nothing of it is kept: every call hydrates the held octets again, so two callers are \
+          never handed the same object.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `bodyStream` or `files`, or `T` carries no `#[Json\\Derive]` \
+                   codec to decode into. A `maxDepth` outside 1..=1024 is the other one.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not one whole JSON document at that depth — which includes a body \
+                   the peer never sent and an empty one — or it is not the object `T` decodes \
+                   from, or its fields are missing or of the wrong type. Every failed field is one \
+                   issue on the error, at its own path. What the request declared as its \
+                   `Content-Type` is not consulted either way.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1229,6 +1280,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
         "nvs_core_request_json" => (nvs_core_request_json as *const ()).cast(),
+        "nvs_core_request_json_as" => (nvs_core_request_json_as as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
         "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
@@ -2070,6 +2122,88 @@ nvs_runtime::nvs_helper! {
         claim_body(ctx, "json", BodyNeed::Octets)?;
         let octets = held_octets(ctx, "json")?;
         decoded_body(octets, max, "json")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::jsonAs<T>({maxDepth?: uint}): T` — the request body
+    /// hydrated into `T`, which is `Core\Json::decodeAs` over the octets
+    /// [`nvs_core_request_body`] answers, carrying that member's `{maxDepth?}`
+    /// bag and its default.
+    ///
+    /// **Arguments 0 and 1 are the class written at the call site and whether
+    /// it was written as `array<...>` of one**, not values:
+    /// `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on the roster
+    /// whose helper is handed a `nvs_runtime::ClassDesc` and that flag ahead of
+    /// its declared parameters, and that roster's docs own why. So the arity
+    /// here is two more than the registry row's.
+    ///
+    /// **It holds nothing of what it built**, which is the whole of what
+    /// separates it from [`nvs_core_request_json`]: `decodeAs` builds objects,
+    /// and two callers handed one object would share a mutable value neither
+    /// asked to share. So every call hydrates the hold again, and
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
+    /// table says so on this member's row.
+    ///
+    /// **The reading and the hydration are two calls** because the octets are
+    /// borrowed from the request and the hydration needs a `&mut Ctx` on the
+    /// carrier they are borrowed from. [`decoded_body`] answers the document
+    /// while that borrow is live, and [`crate::json::hydrate`] takes the
+    /// context once it is not.
+    ///
+    /// **What it spends:** the body's own bytes for the rest of the request,
+    /// which is [`nvs_core_request_body`]'s hold and shared with it, bounded by
+    /// [`REQUEST_BODY`], plus the instances this call hands back. Both are
+    /// O(in-flight).
+    fn nvs_core_request_json_as(ctx, args: [3]) {
+        // In `json`'s order, and for `body`'s reasons: the request first, so
+        // "no request arrived" stays a different fact from what the body says.
+        inbound_of(ctx, "jsonAs")?;
+        // Unreachable from source, because arguments 0 and 1 are not a
+        // program's values: `crate::registry::WRITTEN_CLASS_MEMBERS` is what
+        // puts the resolved `ClassDesc` in slot 0 and the list flag in slot 1,
+        // and `nvs_ir::lower` writes both out of the type argument at the call
+        // site. A call naming none is `E0442` — `takes 1 type argument(s)` —
+        // before any of this runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::jsonAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::jsonAs` was called with no list flag in argument 1",
+        ))?;
+        // Both questions before the claim, on `json`'s reasoning: a `maxDepth`
+        // this member will refuse and a `T` that carries no codec are defects
+        // in the program, and saying so must not spend a reading of the body.
+        let max = crate::json::max_depth(&args[2], "Core\\Request::jsonAs")?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call and every object made \
+                      from it"
+        )]
+        unsafe {
+            crate::json::check_codec(class, "Core\\Request::jsonAs")?;
+        }
+        // What this member needs is the octets, exactly as `body` needs them:
+        // it holds them, so another buffering reader may follow it, and a
+        // streaming reader ahead of it is refused.
+        claim_body(ctx, "jsonAs", BodyNeed::Octets)?;
+        // The document is read while the octets are borrowed, and the borrow is
+        // over before the hydration takes the carrier they came off.
+        let document = {
+            let octets = held_octets(ctx, "jsonAs")?;
+            decoded_body(octets, max, "jsonAs")?
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the same descriptor, still owned by the compiled unit"
+        )]
+        unsafe {
+            crate::json::hydrate(ctx, class, document, list, "Core\\Request::jsonAs")
+        }
     }
 }
 

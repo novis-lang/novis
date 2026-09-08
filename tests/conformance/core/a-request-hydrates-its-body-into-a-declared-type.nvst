@@ -1,0 +1,43 @@
+--TEST--
+`Core\Request::jsonAs<T>()` hydrates the request body into a declared type, keeps nothing of what it built, and leaves the octets to the readers after it `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, `rule:core-classes/derive-field-list`
+--HEADERS--
+Content-Type: application/json
+--POST_RAW--
+{"name":"ada","tags":2}
+--FILE--
+<?nvs
+// A body is a peer's bytes, so the fields that receive them declare the
+// qualifier they carry: `rule:security/derived-codec-qualifiers` puts that
+// question at the call site that decodes, and this is the declaration it is
+// asked of.
+#[Core\Json\Derive]
+class Author {
+    public tainted string $name;
+    public int $tags;
+
+    public function constructor(tainted string $name, int $tags) {
+        $this->name = $name;
+        $this->tags = $tags;
+    }
+}
+
+// The member is `Core\Json::decodeAs` over the body's octets and nothing else:
+// one `new` per document, with every declared field read out of it.
+Author $author = Core\Request::jsonAs<Author>();
+echo $author->name, " has ", $author->tags, "\n";
+
+// It keeps nothing of what it built, which is the one row of the rule's table
+// where it differs from `json()`: a second call hydrates the octets again, so
+// writing to what the second answered leaves the first alone. Two callers
+// handed one object would share a mutable value neither asked to share.
+Author $again = Core\Request::jsonAs<Author>();
+$again->name = "bob";
+echo $author->name, " and ", $again->name, "\n";
+
+// The octets are still the request's: a buffering reader may follow another,
+// in either order, and each answers the same body.
+echo Core\Request::body(), "\n";
+--EXPECT--
+ada has 2
+ada and bob
+{"name":"ada","tags":2}

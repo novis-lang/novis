@@ -1,0 +1,55 @@
+--TEST--
+A JSON body missing a declared field refuses the whole hydration, with one issue per field and the request member's own name on the refusal `rule:core-classes/derive-reports-every-field`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--POST_RAW--
+{"tags":"two"}
+--FILE--
+<?nvs
+#[Core\Json\Derive]
+class Author {
+    public tainted string $name;
+    public int $tags;
+
+    public function constructor(tainted string $name, int $tags) {
+        $this->name = $name;
+        $this->tags = $tags;
+    }
+}
+
+#[Core\Json\Derive]
+class Tally {
+    public tainted string $tags;
+
+    public function constructor(tainted string $tags) {
+        $this->tags = $tags;
+    }
+}
+
+// Every field is reported rather than the first: the object is refused once,
+// with an issue per field that did not match, so a program can show a user all
+// of them. The constructor never runs.
+try {
+    Core\Request::jsonAs<Author>();
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  bad=", $issue->path, "\n";
+    }
+    // The refusal names the member the program called, not the decoder it
+    // reached: `Core\Json::decodeAs` is how this is built and is not what was
+    // written at the call site.
+    echo $bad->message, "\n";
+}
+
+// A refusal consumes nothing. The body is still the request's, so the same
+// octets read against a type they do match still answer -- what a document is
+// depends on the `T` it is being read as, and never on a `Content-Type` the
+// peer did not even send here.
+Tally $tally = Core\Request::jsonAs<Tally>();
+echo "tags=", $tally->tags, "\n";
+--EXPECT--
+issues=2
+  bad=name
+  bad=tags
+Core\Request::jsonAs(): 2 field(s) of `Author` did not match
+tags=two

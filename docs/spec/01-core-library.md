@@ -1075,7 +1075,7 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
 originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
-- `Core\Request`: `method`, `path`, `query`, `post`, `body`, `json`, `bodyStream`, `header`, `headers`, `cookie`,
+- `Core\Request`: `method`, `path`, `query`, `post`, `body`, `json`, `jsonAs`, `bodyStream`, `header`, `headers`, `cookie`,
   `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
   **removed** and `mount(): Request\Mount` answers what was removed — a `prefix(): string` and that mount's
@@ -1100,8 +1100,10 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   `json({maxDepth?: uint}): mixed` is `Core\Json::decode` over those same octets, carrying that
   member's bag and its default of 512; it consults no `Content-Type`, on `post`'s reasoning, and a
   body that is absent or empty is a `ParseError` like a malformed one, because `mixed` cannot tell
-  "no body" from the document `null`. `body`, `post`
-  and `json` are **buffering** readers, which keep what they read and so may follow one another;
+  "no body" from the document `null`. `jsonAs<T>({maxDepth?: uint}): T` is `Core\Json::decodeAs` over
+  those same octets, refusing the same bodies for the same reasons; it keeps nothing of what it
+  built, so every call hydrates a fresh `T` and two callers are never handed one object. `body`,
+  `post`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow one another;
   `bodyStream` and `files` are **streaming** readers, each of which consumes the body and may only be the
   first reader of it, which is why a `post()` reading the fields a walk buffered is ordinary rather than
   an exception

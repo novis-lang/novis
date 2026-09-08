@@ -16112,7 +16112,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body, json, bodyStream, files, post, route, mount
+Keywords: method, isHead, path, query, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, route, mount
 
 | Member | Signature |
 |---|---|
@@ -16125,6 +16125,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body, json, body
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
 | [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
 | [`Core\Request::json`](#core-core-request-json) | `json({maxDepth?: uint}): mixed` |
+| [`Core\Request::jsonAs`](#core-core-request-jsonas) | `jsonAs<T>({maxDepth?: uint}): T` |
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 | [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
@@ -16263,6 +16264,23 @@ The request body read as one JSON document — `Core\Json::decode` over the octe
 **Returns** `mixed` — The decoded document — arrays and scalars, in the shape the peer sent, exactly as `Core\Json::decode` builds it. The strings in it are a peer's bytes, so they carry `body`'s qualifier the way `post`'s fields do.
 
 **Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — those two hand the octets over as they arrive and keep none of them. A `maxDepth` outside 1..=1024 is the other one.; `ParseError` — The body is not one whole JSON document at that depth — which includes a body the peer never sent and an empty one, because `mixed` cannot tell "no body" from the document `null`. What the request declared as its `Content-Type` is not consulted either way.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-jsonas"></a>
+#### `Core\Request::jsonAs`
+
+```nvs skip
+Core\Request::jsonAs<T>({maxDepth?: uint}): T
+```
+
+The request body hydrated into an instance of `T` — `Core\Json::decodeAs` over the octets `body` answers, carrying the same `{maxDepth?}` bag; write `array<T>` to read a JSON array as one instance per element.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{maxDepth: …}` | `uint` (default `512`) | How deep the document may nest before it is refused, counted PHP's way: a scalar document is depth 1. |
+
+**Returns** `T` — A new `T` built from the document's fields, or one `T` per element for an `array<T>`. Nothing of it is kept: every call hydrates the held octets again, so two callers are never handed the same object.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files`, or `T` carries no `#[Json\Derive]` codec to decode into. A `maxDepth` outside 1..=1024 is the other one.; `ParseError` — The body is not one whole JSON document at that depth — which includes a body the peer never sent and an empty one — or it is not the object `T` decodes from, or its fields are missing or of the wrong type. Every failed field is one issue on the error, at its own path. What the request declared as its `Content-Type` is not consulted either way.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
 
 <a id="core-core-request-bodystream"></a>
 #### `Core\Request::bodyStream`

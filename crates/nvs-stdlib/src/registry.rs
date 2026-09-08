@@ -2349,7 +2349,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// to build a `User`, which means reaching that class's
 /// `nvs_runtime::ClassDesc` from native Rust.
 ///
-/// A roster rather than a field on [`CoreMethod`] because it is three entries
+/// A roster rather than a field on [`CoreMethod`] because it is four entries
 /// today against two hundred member rows, and a field would be `false` on
 /// every one of them. `nvs-ir` reads this to decide whether to emit an
 /// `InstKind::ClassDescConst` ahead of the call's own arguments; the helper's
@@ -2381,6 +2381,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// a `$tx` would lose its class.
 pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Json", "decodeAs"),
+    (r"Core\Request", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),
     (r"Core\Db\Transaction", "queryAs"),
 ];

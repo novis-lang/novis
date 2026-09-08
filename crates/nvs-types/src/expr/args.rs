@@ -1473,11 +1473,12 @@ pub(crate) fn written_class_of(
         let qname = qname.clone();
         // `rule:core-classes/db-column-types`'s own question about the class, which is a question
         // about the whole program and so is only *recorded* here — see
-        // [`crate::derive::check_row_sites`]. `Core\Json::decodeAs` is the
-        // other row on this roster and deliberately gets no site: its list form
-        // is legitimate (a JSON array document) and `rule:core-classes/derive-attribute`'s own decoders
-        // report what they cannot read, so the two members do not share a rule
-        // even though they share this lookup.
+        // [`crate::derive::check_row_sites`]. `Core\Json::decodeAs` and
+        // `Core\Request::jsonAs` are the other rows on this roster and
+        // deliberately get no site: their list form is legitimate (a JSON array
+        // document) and `rule:core-classes/derive-attribute`'s own decoders
+        // report what they cannot read, so a JSON decode and a row decode do
+        // not share a rule even though they share this lookup.
         if method == "queryAs" {
             let span = type_args.first().map_or(call_span, |ty| ty.span);
             env.row_sites.push(crate::derive::RowSite::new(

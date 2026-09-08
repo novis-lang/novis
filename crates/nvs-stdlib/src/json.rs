@@ -134,9 +134,11 @@ use crate::registry::{
 /// `Core\Json`'s registry rows, in the spec's own order — all four of § 6's
 /// members.
 ///
-/// `decodeAs` is the one row in the whole registry whose helper takes an
-/// argument its `params` does not declare: `registry::WRITTEN_CLASS_MEMBERS`
-/// puts the class its call site wrote in slot 0, and that roster owns why.
+/// `decodeAs` is one of the rows whose helper takes arguments its `params` does
+/// not declare: `registry::WRITTEN_CLASS_MEMBERS` puts the class its call site
+/// wrote in slot 0, and that roster owns why. `Core\Request::jsonAs` is the
+/// same decode over a request body and reaches it through [`check_codec`] and
+/// [`hydrate`] rather than through [`decode_as`].
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
     methods: &[
@@ -950,7 +952,7 @@ nvs_runtime::nvs_helper! {
                       from it"
         )]
         unsafe {
-            decode_as(ctx, class, text, max, list)
+            decode_as(ctx, class, text, max, list, "Core\\Json::decodeAs")
         }
     }
 }
@@ -977,7 +979,50 @@ unsafe fn decode_as(
     text: &str,
     max: u32,
     list: bool,
+    member: &str,
 ) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    unsafe {
+        check_codec(class, member)?;
+    }
+    let document = read(text, max).map_err(|why| {
+        let message = format!("{member}(): {why}");
+        let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor the caller vouched for"
+    )]
+    unsafe {
+        hydrate(ctx, class, document, list, member)
+    }
+}
+
+/// The questions `class` answers about itself before a document is read, for
+/// `member`.
+///
+/// Split out of [`decode_as`] because a caller that reads the document itself
+/// still owes them, and owes them in this order: `Core\Request::jsonAs` asks
+/// here before it claims the request body, so a class that could never have
+/// been built refuses without spending a reading on it.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+///
+/// # Errors
+///
+/// `LogicError` where `class` carries no derived codec at all, which is a
+/// defect in the program.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn check_codec(
+    class: *const nvs_runtime::ClassDesc,
+    member: &str,
+) -> Result<(), Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     let desc = unsafe { &*class };
     let fields = desc.codec();
@@ -985,7 +1030,7 @@ unsafe fn decode_as(
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "Core\\Json::decodeAs(): `{}` has no JSON codec — a class participates by \
+                "{member}(): `{}` has no JSON codec — a class participates by \
                  carrying `#[Json\\Derive]`",
                 desc.name()
             ),
@@ -997,28 +1042,58 @@ unsafe fn decode_as(
     // user.
     if let Some(field) = fields.iter().find(|field| field.ty == CodecTy::Opaque) {
         return Err(Fault::fatal(format!(
-            "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
+            "{member}(): `{}`'s `{}` field has a declared type this decoder \
              has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
              `nvs_stdlib::json`'s own known gap",
             desc.name(),
             field.key
         )));
     }
+    Ok(())
+}
 
-    let document = read(text, max).map_err(|why| {
-        let message = format!("Core\\Json::decodeAs(): {why}");
-        let issues = crate::issue::list([("", message.as_str())]);
-        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
-    })?;
+/// One instance of `class` out of a document already read — or, for `list`, one
+/// per element of it.
+///
+/// Split out of [`decode_as`] for a borrow: `Core\Request::jsonAs` reads its
+/// document out of the octets the request holds, and the `&mut Ctx` this half
+/// needs cannot be taken while that borrow is live. Reading is the half that
+/// needs no context, so the two halves are two calls. The caller owes
+/// [`check_codec`] first.
+///
+/// `document` is transferred: this releases it whichever branch ran and whether
+/// or not it failed.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s.
+///
+/// # Errors
+///
+/// `ParseError` where the document is not the shape `class` decodes from, or
+/// its fields are not what the class declared.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn hydrate(
+    ctx: &mut nvs_runtime::Ctx,
+    class: *const nvs_runtime::ClassDesc,
+    document: Value,
+    list: bool,
+    member: &str,
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for"
     )]
     let decoded = unsafe {
         if list {
-            decode_each(ctx, class, desc, document)
+            decode_each(ctx, class, desc, document, member)
         } else {
-            decode_object(ctx, class, desc, document, None)
+            decode_object(ctx, class, desc, document, None, member)
         }
     };
     // Released here whichever branch ran and whether or not it failed: every
@@ -1026,7 +1101,7 @@ unsafe fn decode_as(
     // so this frees exactly what nothing else holds.
     #[expect(
         unsafe_code,
-        reason = "this frame holds the only reference `read` handed back"
+        reason = "this frame holds the only reference the caller handed over"
     )]
     unsafe {
         document.release();
@@ -1061,10 +1136,11 @@ unsafe fn decode_each(
     class: *const nvs_runtime::ClassDesc,
     desc: &nvs_runtime::ClassDesc,
     document: Value,
+    member: &str,
 ) -> Result<Value, Fault> {
     let refusal = || {
         let message = format!(
-            "Core\\Json::decodeAs(): an `array<{}>` decodes from a JSON array",
+            "{member}(): an `array<{}>` decodes from a JSON array",
             desc.name()
         );
         let issues = crate::issue::list([("", message.as_str())]);
@@ -1090,7 +1166,7 @@ unsafe fn decode_each(
             unsafe_code,
             reason = "the same live descriptor, and the document's own element"
         )]
-        let value = unsafe { decode_object(ctx, class, desc, element, Some(index))? };
+        let value = unsafe { decode_object(ctx, class, desc, element, Some(index), member)? };
         decoded.append(value);
     }
     Ok(Value::array(decoded))
@@ -1118,6 +1194,7 @@ unsafe fn decode_object(
     desc: &nvs_runtime::ClassDesc,
     document: Value,
     at: Option<usize>,
+    member: &str,
 ) -> Result<Value, Fault> {
     let prefix = match at {
         None => String::new(),
@@ -1125,12 +1202,9 @@ unsafe fn decode_object(
     };
     let Some(ptr) = document.array_ptr() else {
         let message = match at {
-            None => format!(
-                "Core\\Json::decodeAs(): a `{}` decodes from a JSON object",
-                desc.name()
-            ),
+            None => format!("{member}(): a `{}` decodes from a JSON object", desc.name()),
             Some(index) => format!(
-                "Core\\Json::decodeAs(): element {index} is not a JSON object, and a `{}` \
+                "{member}(): element {index} is not a JSON object, and a `{}` \
                  decodes from one",
                 desc.name()
             ),
@@ -1154,7 +1228,7 @@ unsafe fn decode_object(
         Err(DecodeFailure::Issues(issues)) => Err(Fault::thrown_with_issues(
             ThrownClass::Parse,
             format!(
-                "Core\\Json::decodeAs(): {} field(s) of `{}` did not match",
+                "{member}(): {} field(s) of `{}` did not match",
                 issues.len(),
                 desc.name()
             ),
