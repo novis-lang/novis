@@ -124,6 +124,9 @@ modules = [
   # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
   # one representation, two independent axes, and the sinks that refuse them.
   "crates/nvs-types/src/expr/quals.rs",
+  # The expression grammar: every operator at its PHP precedence, the postfix chain, and every
+  # primary.
+  "crates/nvs-syntax/src/parser/expr.rs",
 ]
 
 # THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON. Everything a single stage needs is in
