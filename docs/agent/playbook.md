@@ -1271,6 +1271,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   pathspec-limited, so no spelling of the section carries a `git mv` — and `git add -- <old>` would exit
   128 anyway once the index has the rename. Commit a renaming slice yourself, `git add -A -- <dir>` then
   `git commit -F`, after `verify.py` is green, and leave the wrap the docs. [until: reviewed 2026-09-08]
+- **A `rule:` citation wrapped across two comment lines fails `rules.py --check` from a file you never
+  touched.** `docs/agent/goals/chain.toml` had split
+  `rule:ide/the-extension-refuses-a-binary-it-does-not-understand` over two `#` lines, so the checker
+  read the first half as a rule id that does not exist and `rules.py --render` has exited 1 ever since —
+  which lands on whoever next edits `docs/rules/`, because `session.py --wrap` runs both for them.
+  Reword the sentence so the token sits on one line rather than breaking one across a wrap.
+  [until: reviewed 2026-09-08]
 
 ## Running things
 

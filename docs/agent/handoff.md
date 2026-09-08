@@ -2,55 +2,63 @@
 
 ## State
 
-**Goal 16 — a body is read once, and JSON is one of the ways to read it. Stages 0 and 2 have landed;
-stages 3, 4 and 5 are open.** Stage 1 is goal 15's whole list, untouched. The design is settled in the
+**Goal 16 — a body is read once, and JSON is one of the ways to read it. Stages 0, 2, 3a and 3b have
+landed; 3c, 4 and 5 are open.** Stage 1 is goal 15's whole list, untouched. The design is settled in the
 goal prose's standing decisions, which the pack prints in full.
 
-**Stage 2 is closed and proven end to end.** A `.nvst` case describes a request in five `.phpt`-spelled
-sections, `nvs run --request <file>` answers it, and two cases under `tests/conformance/core/` pin both
-halves against the real binary — `Core\Request::query`, `::post`, `::header` and `::cookie` all answer
-from a case today. The file the two ends agree on is `crates/nvs-test/src/request.rs`'s module doc,
-which owns the format, the three facts a case does not write (method, path, query) and why `--BODY--`
-is the rest of the file rather than a section.
+**Stage 3a is closed.** The rule is
+`rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, reasoned in
+[ADR 0156](../decisions/0156.md) — this goal's one new number, now spent. A buffering reader (`body`,
+`post`, `json`, `jsonAs`) fills the request's hold under `[limits] request_body` and answers out of it,
+so any of them may follow any other; a streaming reader (`bodyStream`, `files`) keeps nothing and may
+only be the first. `post()` after a `files()` walk is that rule rather than an exception to it. The three
+amended rules and spec § 15 point at it.
 
-`::body()` after `::post()` still refuses — that is spec § 15's three-way exclusivity, the sentence
-stage 3 replaces. The old rule is still stated in `crates/nvs-stdlib/src/request.rs`: `claim_body`'s
-message at `:1219`, the member comments at `:1985` and `:2067`, a test doc at `:4846`. Sweeping it is
-stage 3c's, beside the rule that replaces it.
+**Stage 3b landed as the pure generalization, with no observable change.** `Inbound::hold_form`/`form()`
+are `hold_body`/`held_body()` over a field named `held`, and `urlencoded_form` asks the hold whether to
+pull rather than asking `Reading`. `post()` is still the only member that fills it.
+
+**Stage 3c is bigger than the item said, and the unsolved half is multipart.** `body()` then `post()` on
+a multipart body would take `multipart_form`'s `Reading::First` branch and install a `Multipart` parse
+over a wire `body()` had already drained, answering no fields. `Multipart` reads through
+`Inbound::parts_mut`'s `&mut dyn RequestBody`, so parsing the hold needs a `RequestBody` over a slice.
+Decide that before writing the claim kinds, or `json()` lands on a `post()` that silently answers empty.
+
+The rustdoc gate is green again: `crates/nvs-test/src/request.rs` linked `crate::run`, which is both a
+module and a function.
 
 ## Next group
 
-**Stage 3: the rule — buffering readers share, streaming readers consume** — one file set:
-`crates/nvs-runtime/src/ctx/inbound.rs`, `crates/nvs-stdlib/src/request.rs`, and the new fragment under
-`docs/rules/http-server/` with its record. Take them in order; 3b and 3c are written against 3a.
+**Stage 3c: the rule becomes true to a program** — one file set:
+`crates/nvs-runtime/src/ctx/inbound.rs`, `crates/nvs-stdlib/src/request.rs`, and cases under
+`tests/conformance/core/`. Take them in order; the second and third are written against the first.
 
-- [ ] **Stage 3a: the body-read rule**, this goal's one new number — a new `http-server/` fragment and
-      the decision record for it (re-derive the next free ADR number before claiming it; it was 0155 at
-      the start of this session). A *streaming* reader — `bodyStream`, `files` — consumes the body and
-      refuses every later reader; a *buffering* reader — `body`, `post`, `json`, `jsonAs` — keeps what
-      it read, so any buffering reader may follow another, and `post()` joining `files` stops being an
-      exception. Amend `rule:http-server/a-part-is-consumed-in-one-of-three-ways` and
-      `rule:http-server/the-body-is-read-on-demand-under-two-caps` where they state the old rule,
-      which is the rule `crates/nvs-stdlib/src/request.rs:1219` states to a program today.
-- [ ] **Stage 3b: `hold_body`**, generalizing `Inbound::hold_form`
-      (`crates/nvs-runtime/src/ctx/inbound.rs:685`), with `claim_body`
-      (`crates/nvs-runtime/src/ctx/inbound.rs:634`) rewritten to answer the *class* of the holder
-      rather than its name. `nvs_stdlib::request`'s `claim_body`/`claim_form` pair
-      (`crates/nvs-stdlib/src/request.rs:1032`, `:1081`) collapses into one call against it.
-      `rule:http-server/a-part-is-consumed-in-one-of-three-ways`.
-- [ ] **Stage 3c: `body()` becomes idempotent** (`crates/nvs-stdlib/src/request.rs:1696`) — the same
-      octets on every call, which is what makes middleware-then-handler work whether or not a JSON
-      member is the one reading, plus the old rule's wording swept from `:1219`, `:1985`, `:2067` and
-      `:4846`.
+- [ ] **Decide how a buffering reader follows another over a *multipart* body**, and record it in the
+      `held` field's doc at `crates/nvs-runtime/src/ctx/inbound.rs:256`. Either `Multipart` parses the
+      hold behind a `RequestBody` over a slice, or a multipart `body()` holds the octets and `post()`
+      re-parses them from scratch — the second is the shape the goal's standing decisions pre-authorize
+      as the fallback, and costs latency rather than an invariant.
+      `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` says both
+      readers must answer; ADR 0156 § 2 is why, and neither says which machinery.
+- [ ] **`claim_body` takes a kind** — `crates/nvs-runtime/src/ctx/inbound.rs:634`. `Ok` iff nothing has
+      claimed, or the first claim was buffering and this one is too; otherwise the first claimant's name,
+      as today. Its `claimed_by` field doc at `crates/nvs-runtime/src/ctx/inbound.rs:277` and its
+      `body()` doc at `crates/nvs-runtime/src/ctx/inbound.rs:598` both still state spec § 15's three-way
+      exclusivity, and are rewritten whole in the same slice.
+      `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`.
+- [ ] **`body()` becomes idempotent and the two refusals are rewritten** —
+      `crates/nvs-stdlib/src/request.rs:1978` claims as buffering, fills the hold and answers out of it;
+      the messages at `crates/nvs-stdlib/src/request.rs:1206` and
+      `crates/nvs-stdlib/src/request.rs:1255` state the new rule instead of spec § 15's; the `#[test]`s
+      at `crates/nvs-stdlib/src/request.rs:3634` and `crates/nvs-stdlib/src/request.rs:4449` assert them.
+      Sweep the member comments at `crates/nvs-stdlib/src/request.rs:1983` and
+      `crates/nvs-stdlib/src/request.rs:2065` in the same slice, and flip the new rule to `shipped` with
+      its `guardedBy` cases.
 
 ## Backlog
 
-- Stage 4: `json()` and `jsonAs<T>()`, the five edits each — `docs/agent/loop-goal.md` § Stage 4.
-- Stage 5: `examples/json-body.nvs` is the acceptance check the driver reports as failing, and it is
-  the last stage, not an alarm.
-- Stage 1 is goal 15's whole list, still untouched.
-- No `.nvst` section spells a method or a path, so a case answering anything but a `POST` or `GET` at
-  `/` cannot be written; `crates/nvs-test/src/request.rs` owns that derivation and the file format
-  already carries both.
-- `nvs run --request` is proven only through the runner. A hand-written request file — the other half
-  of why it is a flag — has no case of its own.
+- Stage 4: `json()` and `jsonAs<T>()` register and land — `docs/agent/loop-goal.md` § stages.
+- Stage 5: three conformance cases per member for the pair — `crates/nvs-stdlib/tests/conformance_coverage.rs`.
+- Spec § 15's roster gains `json` and `jsonAs` when they land — `docs/spec/01-core-library.md:1078`.
+- `rule:testing/nvst-is-separate`'s "`.nvst` is unchanged" sentence still owes goal 16's amendment.
+- The new rule is `designed` until 3c lands — `docs/rules/http-server.json`.
