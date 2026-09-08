@@ -420,14 +420,80 @@ pub struct DerivedField {
     pub param: Option<usize>,
 }
 
+/// The inline shape `declared` names, read as a codec — the door
+/// `rule:core-api/required-optional-and-nullable`'s three columns arrive
+/// through when no class was written to carry them, which is what a
+/// `shapeAs<{...}>` type argument is.
+///
+/// `None` for anything that is not a `rule:types/shape-type` shape. A shape has
+/// no property to hang a `#[Json\Field]` on and no constructor to check a field
+/// against, so all three columns are read off the type itself: `required` is
+/// the written `?` that [`crate::ty::ShapeField::required`] carries, `nullable`
+/// is the field type's own `null` arm, and the wire key is the field's name,
+/// since there is nowhere to write an override.
+///
+/// [`DerivedField::param`] is the field's index in the **sorted** order
+/// [`crate::ty::TypeInterner::shape`] interns fields in, which is the order
+/// `nvs_ir::lower::shape_class_label` keys a shape class's slots on — so
+/// filling parameter `n` fills slot `n`, and the two sides need no second
+/// table to agree. [`DerivedCodec::ctor_arity`] is the field count for the
+/// same reason: a shape class declares no constructor, so what a decode has to
+/// fill is every slot it has.
+pub fn shape_codec(
+    declared: TypeId,
+    interner: &mut crate::ty::TypeInterner,
+    enums: &crate::enums::EnumTable,
+) -> Option<DerivedCodec> {
+    let Ty::Shape(shape) = interner.get(declared) else {
+        return None;
+    };
+    // Cloned because stripping a field's `null` arm interns, and the borrow
+    // above is what the interner would have to hand back out to do it.
+    let shape = shape.clone();
+    let fields: Vec<DerivedField> = shape
+        .iter()
+        .enumerate()
+        .map(|(param, field)| {
+            let nullable = interner.is_nullable(field.ty);
+            // The `null` arm is what nullability *is*, so the decode target is
+            // the rest of the union — the same strip [`codec_field`] makes on a
+            // declared property.
+            let carried = if nullable {
+                interner.without_null(field.ty)
+            } else {
+                field.ty
+            };
+            let (ty, element, class, cases) = codec_ty(carried, interner, enums);
+            DerivedField {
+                property: field.name.clone(),
+                key: field.name.clone(),
+                ty,
+                element,
+                class,
+                cases,
+                nullable,
+                required: field.required,
+                param: Some(param),
+            }
+        })
+        .collect();
+    Some(DerivedCodec {
+        ctor_arity: fields.len(),
+        fields,
+    })
+}
+
 /// `declared`, erased to what a native decoder branches on, with the class
 /// label and the enum roster beside it where the erasure loses one.
 ///
-/// `rule:core-classes/derive-field-list`'s codec-reachable set is wider than this: a `decimal`, an
-/// `Instant` and an inline shape are all reachable and all land
-/// on [`CodecTy::Opaque`] today — `nvs_stdlib::json`'s own gap owns the
-/// decoders they still need, and § 2's compile-time refusal of a genuinely
-/// unreachable type is this module's gap 3. Nothing here narrows what
+/// `rule:core-classes/derive-field-list`'s codec-reachable set is wider than this: a `decimal` and
+/// an `Instant` are both reachable and both land on [`CodecTy::Opaque`] today —
+/// `nvs_stdlib::json`'s own gap owns the decoders they still need, and § 2's
+/// compile-time refusal of a genuinely unreachable type is this module's gap 3.
+/// An inline shape is `Opaque` here too, because a shape reached as a derived
+/// class's *field* is a nested decode this row has no room to describe; a shape
+/// written as the whole type argument goes through [`shape_codec`] instead,
+/// which reads its fields rather than erasing them. Nothing here narrows what
 /// *encodes*, which walks the value rather than the declared type.
 ///
 /// A class is [`CodecTy::Class`] whether or not it turns out to carry a
@@ -436,8 +502,12 @@ pub struct DerivedField {
 /// [`resolve_field_types`] that refuses a class with no codec at all, and
 /// `nvs_stdlib::json` that reports `rule:core-classes/derive-generates-what-is-missing`'s hand-written half, which no
 /// derived decoder calls yet.
-fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
-    match env.interner.get(declared) {
+fn codec_ty(
+    declared: TypeId,
+    interner: &crate::ty::TypeInterner,
+    enums: &crate::enums::EnumTable,
+) -> Erased {
+    match interner.get(declared) {
         Ty::Bool => (CodecTy::Bool, None, None, None),
         Ty::Int => (CodecTy::Int, None, None, None),
         Ty::Uint => (CodecTy::Uint, None, None, None),
@@ -454,13 +524,13 @@ fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole
         // of the decode — see `nvs_stdlib::EnumCases`.
-        Ty::Enum(name, backing) => (CodecTy::Enum, None, None, enum_cases(name, *backing, env)),
+        Ty::Enum(name, backing) => (CodecTy::Enum, None, None, enum_cases(name, *backing, enums)),
         // § 2's list field. The element goes through this same erasure once,
         // and a second `List` coming back out is `array<array<T>>` — which
         // [`nvs_stdlib::CodecField::element`] has no room to describe, so the
         // whole field stays `Opaque` and refuses at the `decodeAs<T>` rather
         // than half-decoding. An `Opaque` element is refused the same way.
-        Ty::Array(elem) => match codec_ty(*elem, env) {
+        Ty::Array(elem) => match codec_ty(*elem, interner, enums) {
             (CodecTy::List | CodecTy::Opaque, _, _, _) => (CodecTy::Opaque, None, None, None),
             // The element's class label and its case roster both ride up onto
             // the *field*, which is the one row a decoder has in hand when it
@@ -484,9 +554,9 @@ type Erased = (CodecTy, Option<CodecTy>, Option<String>, Option<EnumCases>);
 fn enum_cases(
     qname: &QName,
     backing: crate::enums::EnumBacking,
-    env: &Env<'_>,
+    enums: &crate::enums::EnumTable,
 ) -> Option<EnumCases> {
-    let info = env.enums.get(qname)?;
+    let info = enums.get(qname)?;
     let mut values: Vec<i128> = info
         .cases
         .values()
@@ -1276,7 +1346,7 @@ fn codec_field(
         declared: carried,
         format,
     });
-    let (ty, element, class, cases) = codec_ty(carried, env);
+    let (ty, element, class, cases) = codec_ty(carried, env.interner, env.enums);
     FieldOutcome::Kept(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,

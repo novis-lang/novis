@@ -14,7 +14,10 @@ mod common;
 
 use common::{check_src, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
+use nvs_stdlib::CodecTy;
 use nvs_types::derive;
+use nvs_types::enums::EnumTable;
+use nvs_types::ty::{ShapeField, TypeInterner};
 
 /// Whether `diags` reported `want`. By code rather than by `has_errors`, for
 /// `routes.rs`'s reason: a fixture written to trip one rule routinely trips a
@@ -634,4 +637,73 @@ class Handle {
 ",
     );
     assert!(!declaration_alone.has_errors(), "{declaration_alone:?}");
+}
+
+/// `rule:core-api/required-optional-and-nullable`'s three columns, read off an
+/// inline shape rather than off a declared class — the door a `shapeAs<{...}>`
+/// type argument arrives through, where there is no property and no constructor
+/// to carry any of them.
+///
+/// `{b?: ?int}` and `{a: string}` are written in that order deliberately: the
+/// parameter positions are the **sorted** order `TypeInterner::shape` interns
+/// fields in, which is the order `nvs_ir::lower::shape_class_label` keys a
+/// shape class's slots on, so a codec that preserved the written order would
+/// fill the wrong slot.
+#[test]
+fn an_inline_shape_reads_as_a_codec_in_the_interners_sorted_order() {
+    let mut interner = TypeInterner::new();
+    let int = interner.int();
+    let null = interner.null();
+    let nullable_int = interner.make_union([int, null]);
+    let string = interner.string();
+    let shape = interner.shape(vec![
+        ShapeField {
+            name: "b".to_owned(),
+            ty: nullable_int,
+            required: false,
+        },
+        ShapeField::required("a".to_owned(), string),
+    ]);
+
+    let codec = derive::shape_codec(shape, &mut interner, &EnumTable::default())
+        .expect("an inline shape is a codec");
+
+    // A shape class has no constructor, so what a decode fills is every slot.
+    assert_eq!(codec.ctor_arity, 2);
+    let keys: Vec<&str> = codec.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, ["a", "b"]);
+
+    let a = &codec.fields[0];
+    assert_eq!(a.property, "a");
+    assert_eq!(a.ty, CodecTy::Str);
+    assert_eq!(a.param, Some(0));
+    assert!(a.required, "no `?` was written on `a`");
+    assert!(!a.nullable, "`string` admits no null");
+
+    // The two spellings are independent: `b` may be absent, and if it is there
+    // it may hold `null`. The decode target is the union's other arm.
+    let b = &codec.fields[1];
+    assert_eq!(b.property, "b");
+    assert_eq!(b.ty, CodecTy::Int);
+    assert_eq!(b.param, Some(1));
+    assert!(!b.required, "`b?` may be absent");
+    assert!(b.nullable, "`?int` admits null");
+}
+
+/// The same door, asked about a type that is not a shape at all: it answers
+/// `None` rather than an empty codec, so a caller cannot mistake "nothing to
+/// decode" for "a shape with no fields".
+#[test]
+fn a_type_that_is_not_a_shape_reads_as_no_codec_at_all() {
+    let mut interner = TypeInterner::new();
+    let int = interner.int();
+    let enums = EnumTable::default();
+
+    assert!(derive::shape_codec(int, &mut interner, &enums).is_none());
+
+    let empty = interner.shape(vec![]);
+    let codec =
+        derive::shape_codec(empty, &mut interner, &enums).expect("an empty shape is still a shape");
+    assert!(codec.fields.is_empty());
+    assert_eq!(codec.ctor_arity, 0);
 }
