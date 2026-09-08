@@ -1,0 +1,14 @@
+--TEST--
+a namespace declaration carries no diagnostic, so the cursor in it is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+namespac<|>e App;
+
+class User
+{
+    public string $name = "";
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

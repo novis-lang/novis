@@ -1,0 +1,12 @@
+--TEST--
+an interface declared in the casing the rule asks for carries no violation, so its name is offered nothing, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

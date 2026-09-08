@@ -1,0 +1,12 @@
+--TEST--
+a class constant's declaration carries no diagnostic and so no suggestion, and this server computes none of its own, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

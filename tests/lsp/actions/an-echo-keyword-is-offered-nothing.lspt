@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `echo` keyword meets no diagnostic's range, so it is offered nothing, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+var $total = 3;
+ech<|>o $total;
+--REQUEST--
+codeAction
+--EXPECT--
+none

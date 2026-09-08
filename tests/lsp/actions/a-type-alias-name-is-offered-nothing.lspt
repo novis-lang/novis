@@ -1,0 +1,9 @@
+--TEST--
+a type alias declared in the casing the rule asks for carries no violation, so its name is offered nothing, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+type I<|>d = uint;
+--REQUEST--
+codeAction
+--EXPECT--
+none

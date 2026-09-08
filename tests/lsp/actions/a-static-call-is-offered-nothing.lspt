@@ -1,0 +1,14 @@
+--TEST--
+a static call that resolved carries no diagnostic, so nothing is offered on it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function reset(): void {}
+}
+
+Counter::re<|>set();
+--REQUEST--
+codeAction
+--EXPECT--
+none

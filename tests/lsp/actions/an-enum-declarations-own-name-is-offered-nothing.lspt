@@ -1,0 +1,13 @@
+--TEST--
+an enum declared in the casing the rule asks for carries no violation, so its name is offered nothing, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

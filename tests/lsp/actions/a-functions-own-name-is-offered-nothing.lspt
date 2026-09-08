@@ -1,0 +1,12 @@
+--TEST--
+a free function is refused and the refusal carries no replacement text, which is the boundary: a fix ships where a suggestion already exists and nowhere else, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+function hel<|>per(): int
+{
+    return 1;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

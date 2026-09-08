@@ -1,0 +1,15 @@
+--TEST--
+a `new` naming a class written in the casing the rule asks for carries no violation, so nothing is offered on it, `rule:core-api/identifier-casing`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new Us<|>er();
+echo $u->name;
+--REQUEST--
+codeAction
+--EXPECT--
+none
