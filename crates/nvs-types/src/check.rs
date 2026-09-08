@@ -228,6 +228,12 @@ pub fn check_program_granted(
     // dispatch, its usage text and its completions are all generated from it.
     exprs.record_commands(commands);
     record_property_types(&signatures, exprs);
+    // Declaration-side property types, for the one consumer that asks at a
+    // declaration rather than at an access — see
+    // `ExprTypeTable::property_default_ty`.
+    for (span, ty) in signatures.property_default_types() {
+        exprs.record_property_default_ty(*span, *ty);
+    }
     enums
 }
 

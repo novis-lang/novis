@@ -5104,7 +5104,22 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   signature pass lowers a property's type into a table of its own, and `nvs_types::check` copies types
   out of it and not spans. So a modifier read off `declared_ty` at a property declaration is always zero
   and fails no build. Read it off the access's own `ExprInfo::Property` entry instead, the way
-  `nvs_lsp::semantic`'s `qualifiers_recorded` does. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
+  `nvs_lsp::semantic`'s `qualifiers_recorded` does — or, at a declaration where there is no access to
+  ask, off `ExprTypeTable::property_default_ty`. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
+- **`build_signatures` points `env.exprs` at a table it throws away, so nothing the signature pass
+  lowers is readable afterwards.** `lower_type` records every annotation it resolves under
+  `ExprTypeTable::record_type`, which reads as though a property's declared type were available
+  later — it is not, because that pass runs against `placeholder_exprs`. Handing it the real table
+  is not the fix either: `nvs_ir::lower::lower_decl_type` consults `declared_ty` *first*, so every
+  property annotation would silently change lowering path. Carry what a later pass needs across on
+  its own, the way `SignatureTable::property_default_types` does.
+  [until: gone crates/nvs-types/src/signatures.rs:let mut placeholder_exprs]
+- **A `TextEditorDecorationType` has no field for a CSS filter, and `textDecoration` is the one that
+  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx)"`
+  — the declaration is closed with `none` and the filter follows it. Anything put there is CSS the
+  extension chooses on the user's behalf, so it stays geometric: a colour belongs in a `ThemeColor`
+  field, which `rule:ide/novis-ships-names-not-colours` is about.
+  [until: gone editors/vscode/src/redactions.ts:filter: blur]
 - **A second `kind` on `nvs/redactions` is a change in three files, and the two that are not the
   server fail quietly.** The client conceals every kind it is handed, so a marker spelling added to
   `crates/nvs-lsp/src/redactions.rs` alone bars an identifier until

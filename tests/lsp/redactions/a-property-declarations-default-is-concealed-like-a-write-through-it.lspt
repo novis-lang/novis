@@ -1,0 +1,13 @@
+--TEST--
+a `secret` property's declared default is concealed, and so is a write through the property later — the declaration has no access entry to read a type off, so it is answered from the declared type the signature pass recorded, `rule:security/redaction-covers-bytes-only`
+--FILE--
+<?nvs
+class Vault {
+  public secret string $token = "unset";
+  public function rotate(): void { $this->token = "sk-live-rotated"; }
+}
+--REQUEST--
+redactions
+--EXPECT--
+3:33-3:40 secretLiteral
+4:51-4:68 secretLiteral

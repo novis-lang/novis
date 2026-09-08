@@ -95,12 +95,13 @@
 //! there is anything to answer, and the record leaves whether it is built at
 //! all open. Until then `nvs.taint.mark = sink` marks what `declaration` does.
 //!
-//! **A parameter's default and a property declaration's default.** Neither
-//! declaration is a binding the checker records a span for, and
-//! [`nvs_syntax::walk`] gives a function's default the same shape as its body's
-//! statements, so there is nothing here to attribute the literal through. The
-//! property half is the same gap [`crate::semantic`]'s module doc names, and
-//! closing it is a `nvs-types` change rather than one here.
+//! **A parameter's default.** A parameter declaration is not a binding the
+//! checker records a span for, and [`nvs_syntax::walk`] gives a function's
+//! default the same shape as its body's statements, so there is nothing here
+//! to attribute the literal through. The property half of this gap is closed:
+//! [`nvs_types::ExprTypeTable::property_default_ty`] carries a property
+//! initializer's declared type across from the signature pass, which is where
+//! the type was always known and where it used to be discarded.
 //!
 //! **Everything past the editor's own decorations.**
 //! `rule:security/redaction-does-not-reach` is the list, and it is part of the
@@ -289,6 +290,7 @@ impl Concealing<'_> {
                 let secret = self.declares_secret(node.span);
                 self.children(node, secret, 0);
             }
+            "Property" => self.property(node),
             "Assign" => {
                 let secret = node
                     .children
@@ -303,6 +305,37 @@ impl Concealing<'_> {
                 let (carries, skip) = carrier(node);
                 self.children(node, carrying && carries, skip);
             }
+        }
+    }
+
+    /// Walks a property declaration: its initializer carries `secret` when the
+    /// property does, and its hooks never do.
+    ///
+    /// The one declaration site with no binding and no access behind it, so
+    /// the type comes from neither of [`Self::carries_secret`]'s two sources
+    /// but from [`ExprTypeTable::property_default_ty`], which the checker fills
+    /// from the signature pass for exactly this.
+    ///
+    /// `nvs_syntax::walk` gives this production its initializer as the first
+    /// child and its hooks after it, and a property that declared no
+    /// initializer has hooks in that position instead. Asking the initializer's
+    /// own span is what tells those apart without counting: a hook body's span
+    /// was never recorded, so it answers `None` and carries nothing. A hook is
+    /// a body rather than a value written into the property, so a literal
+    /// inside one is a byte of the program — concealing it would be the
+    /// over-redaction ADR 0101 § 1 refuses.
+    fn property(&mut self, node: &Node) {
+        let mut children = node.children.iter();
+        if let Some(first) = children.next() {
+            let secret = self
+                .analysed
+                .exprs
+                .property_default_ty(first.span)
+                .is_some_and(|ty| is_secret(ty, &self.analysed.interner));
+            self.node(first, secret);
+        }
+        for hook in children {
+            self.node(hook, false);
         }
     }
 

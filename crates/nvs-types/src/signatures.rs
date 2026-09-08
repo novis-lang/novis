@@ -574,6 +574,7 @@ pub struct ConstSig {
 #[derive(Debug, Default)]
 pub struct SignatureTable {
     by_class: FxHashMap<QName, ClassSignature>,
+    property_default_types: Vec<(Span, TypeId)>,
 }
 
 impl SignatureTable {
@@ -596,6 +597,31 @@ impl SignatureTable {
     /// entry can answer.
     pub fn iter(&self) -> impl Iterator<Item = (&QName, &ClassSignature)> {
         self.by_class.iter()
+    }
+
+    /// Every property initializer written in the program, paired with the
+    /// declared type it is written into.
+    ///
+    /// Keyed by the *initializer's* span rather than the annotation's, because
+    /// the one consumer asks at the expression: a `secret` property's default
+    /// is bytes an editor conceals
+    /// (`rule:security/redaction-covers-bytes-only`), and the walk that
+    /// answers that reaches the default as a node and never sees the
+    /// annotation at all.
+    ///
+    /// **Kept here rather than recorded straight into the expression table,
+    /// and that is the whole point of it.** Signature collection lowers its
+    /// annotations against a throwaway [`crate::expr_table::ExprTypeTable`]
+    /// (see [`build_signatures`]) so that nothing it interns reaches
+    /// `nvs-ir`. Handing it the real table instead would be the one-line
+    /// version of this, and it would also put every property annotation's span
+    /// under [`crate::expr_table::ExprTypeTable::declared_ty`] — which
+    /// `nvs_ir::lower::lower_decl_type` consults *first*, so a property
+    /// annotation would silently start taking a different lowering path than
+    /// it takes today. This vector crosses the seam carrying only what the
+    /// editor asked for.
+    pub fn property_default_types(&self) -> &[(Span, TypeId)] {
+        &self.property_default_types
     }
 
     /// Whether `owner`'s own declaration of `method` can be reached by a
@@ -938,6 +964,13 @@ fn collect_members(
                 // `nvs_runtime::Ctx` arms once per request rather than once
                 // per `new`. See `ClassSignature::static_property_defaults`.
                 let is_static_property = p.modifiers.contains(&Modifier::Static);
+                // The initializer paired with the type it is written into —
+                // see `SignatureTable::property_default_types` for why it is
+                // collected here and not recorded into `env.exprs`, which this
+                // pass deliberately points at a table that is thrown away.
+                if let Some(default) = p.default.as_ref() {
+                    table.property_default_types.push((default.span, ty));
+                }
                 let sig = table.entry(qname.clone());
                 sig.properties.insert(name.clone(), ty);
                 if let Some(level) = visibility {

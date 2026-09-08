@@ -1,0 +1,12 @@
+--TEST--
+a property whose declared type carries no qualifier keeps its default on screen — the declaration-side answer is the property's own type and not the fact that it is a property, so concealing one here would be the over-redaction ADR 0101 § 1 refuses
+--FILE--
+<?nvs
+class Config {
+  public string $name = "novis";
+  public secret string $key = "sk-live-0";
+}
+--REQUEST--
+redactions
+--EXPECT--
+4:31-4:42 secretLiteral

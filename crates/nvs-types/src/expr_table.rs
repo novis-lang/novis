@@ -961,6 +961,7 @@ pub struct ExprTypeTable {
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
+    property_default_types: FxHashMap<Span, TypeId>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
@@ -1517,6 +1518,33 @@ impl ExprTypeTable {
     #[must_use]
     pub fn property_types(&self, label: &str) -> &[(String, TypeId)] {
         self.property_types.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records that the property initializer at `span` is written into a
+    /// binding declared `ty`. See [`Self::property_default_ty`].
+    pub(crate) fn record_property_default_ty(&mut self, span: Span, ty: TypeId) {
+        self.property_default_types.insert(span, ty);
+    }
+
+    /// The declared type the property initializer at `span` is written into.
+    ///
+    /// The declaration-side answer to the question [`Self::lookup`] answers at
+    /// an *access*: a property declaration is not an access, so it records no
+    /// [`ExprInfo`] and there is no entry there to read a qualifier off. An
+    /// editor needs one anyway — a `secret` property's default is bytes to
+    /// conceal (`rule:security/redaction-covers-bytes-only`), and it is
+    /// written at the one place in a class body that has no expression entry.
+    ///
+    /// Keyed by the initializer and **not** by the annotation, which is what
+    /// keeps it separate from [`Self::declared_ty`]. That map is
+    /// `nvs_ir::lower::lower_decl_type`'s first choice, so putting property
+    /// annotations into it would change which lowering path a property's type
+    /// takes; see [`crate::signatures::SignatureTable::property_default_types`],
+    /// which is where these are collected and why they cross the seam on their
+    /// own.
+    #[must_use]
+    pub fn property_default_ty(&self, span: Span) -> Option<TypeId> {
+        self.property_default_types.get(&span).copied()
     }
 
     /// Records how the `foreach` whose subject sits at `span` reaches its
