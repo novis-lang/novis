@@ -1473,14 +1473,20 @@ pub(crate) fn written_class_of(
         let qname = qname.clone();
         // `rule:core-classes/db-column-types`'s own question about the class, which is a question
         // about the whole program and so is only *recorded* here — see
-        // [`crate::derive::check_row_sites`]. `Core\Json::decodeAs` and
-        // `Core\Request::jsonAs` are the other rows on this roster and
-        // deliberately get no site: their list form is legitimate (a JSON array
-        // document) and `rule:core-classes/derive-attribute`'s own decoders
-        // report what they cannot read, so a JSON decode and a row decode do
-        // not share a rule even though they share this lookup.
+        // [`crate::derive::check_row_sites`]. `Core\Request::jsonAs` records a
+        // site of its own beside it, for `rule:security/derived-codec-qualifiers`'s
+        // qualifier rather than for a type map — see
+        // [`crate::derive::check_decode_sites`]. `Core\Json::decodeAs` is the
+        // third row on this roster and gets neither: its list form is a
+        // legitimate JSON array document, and it takes its own document through
+        // a plain `string` parameter, so a tainted argument is already refused
+        // where it is passed rather than at the class it writes.
+        let span = type_args.first().map_or(call_span, |ty| ty.span);
+        if method == "jsonAs" {
+            env.decode_sites
+                .push(crate::derive::DecodeSite::new(qname.clone(), span));
+        }
         if method == "queryAs" {
-            let span = type_args.first().map_or(call_span, |ty| ty.span);
             env.row_sites.push(crate::derive::RowSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),

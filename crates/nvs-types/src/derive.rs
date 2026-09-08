@@ -669,6 +669,129 @@ fn report_row_site(site: &RowSite, message: String, help: &str, diags: &mut Diag
     );
 }
 
+/// One `Core\Request::jsonAs<T>` call site, held until every deriving class in
+/// the program has recorded its fields.
+///
+/// [`RowSite`]'s reason for the other member on
+/// [`crate::expr::args::written_class_of`]'s roster: the class a call names is
+/// routinely declared in a file the walk has not reached, so answering where
+/// the call is written would make the refusal depend on file order.
+#[derive(Debug)]
+pub struct DecodeSite {
+    /// The class the type argument named, resolved. `array<C>` records `C`: a
+    /// list decode is the same decode run once per element, so the fields
+    /// receiving the body are the same fields.
+    class: QName,
+    /// Where the type argument is written — the only part of the *call* the
+    /// report keeps, and it keeps it as the secondary label.
+    span: Span,
+}
+
+impl DecodeSite {
+    /// Records a site, from [`crate::expr::args::written_class_of`] — the one
+    /// place a written class and the member that asked for it are both in hand.
+    pub(crate) fn new(class: QName, span: Span) -> Self {
+        Self { class, span }
+    }
+}
+
+/// `rule:security/derived-codec-qualifiers`'s qualifier, asked of the class a
+/// `Core\Request::jsonAs<T>` wrote, once every deriving class in the program
+/// has recorded its fields.
+///
+/// Run after the walk, from [`crate::check::check_program`], beside
+/// [`check_row_sites`] and for the same reason.
+///
+/// **The call site, not the declaration.** A derived codec says nothing about
+/// where its documents come from, and the same class is legitimate over one the
+/// program built itself; it is the request *body* that is a peer's octets. So
+/// the site that decodes one is where the question has an answer, and the
+/// message still points at the property, which is where the fix is written.
+///
+/// **The reachable set, not the written class's own fields.** A field typed as
+/// another deriving class is filled from the same document, so its text fields
+/// receive the same octets; `seen` is what stops the walk on a class holding a
+/// field of its own type, which § 2 admits.
+///
+/// One report per property however many sites decode into it: the fix is one
+/// `tainted` on one declaration, and repeating it once per call would report
+/// the same edit as several.
+pub(crate) fn check_decode_sites(
+    sites: &[DecodeSite],
+    fields: &[CodecFieldSite],
+    interner: &crate::ty::TypeInterner,
+    diags: &mut Diagnostics,
+) {
+    let mut reported = std::collections::BTreeSet::<(String, String)>::new();
+    for site in sites {
+        let mut seen = std::collections::BTreeSet::<String>::new();
+        let mut pending = vec![site.class.to_string()];
+        while let Some(class) = pending.pop() {
+            if !seen.insert(class.clone()) {
+                continue;
+            }
+            for field in fields
+                .iter()
+                .filter(|field| field.format == Format::Json && field.class == class)
+            {
+                if let Some(nested) = codec_class_label(field.declared, interner) {
+                    pending.push(nested);
+                }
+                if !unqualified_text(field.declared, interner)
+                    || !reported.insert((class.clone(), field.property.clone()))
+                {
+                    continue;
+                }
+                let property = &field.property;
+                let spelling = interner.describe(field.declared);
+                diags.report(
+                    Diagnostic::error(
+                        code::E_DECODED_FIELD_NOT_TAINTED,
+                        format!(
+                            "`{class}::${property}` is declared `{spelling}`, and a decoded \
+                             request body is tainted"
+                        ),
+                    )
+                    .with_primary(field.span, "declared without a qualifier")
+                    .with_secondary(site.span, "hydrated from a request body here")
+                    .with_help(
+                        "`rule:security/derived-codec-qualifiers`: a decoder assigns into the \
+                         declared property types, so a field that receives a peer's octets is \
+                         the one that has to declare them — write `tainted` on it",
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// Whether a peer's octets can land in `declared` without the qualifier: a
+/// `string` or a `bytes`, or an array of either, which decodes element by
+/// element into the same declared text.
+///
+/// `secret` never reaches here — [`codec_field`] refuses a `secret` property at
+/// its declaration — and nothing else carries a qualifier at all
+/// (`rule:security/tainted-qualifier`), so an `int`, a `decimal`, an enum or a
+/// nested class answers `false` and is walked instead.
+fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
+    match interner.get(declared) {
+        Ty::String | Ty::Bytes => true,
+        Ty::Array(element) => unqualified_text(*element, interner),
+        _ => false,
+    }
+}
+
+/// The class label [`check_decode_sites`] walks into next, for a field typed as
+/// a class or as an array of one — [`DerivedField::class`]'s question asked of
+/// the declared type rather than of the erasure, which drops the element's.
+fn codec_class_label(declared: TypeId, interner: &crate::ty::TypeInterner) -> Option<String> {
+    match interner.get(declared) {
+        Ty::Class(name, _) => Some(name.to_string()),
+        Ty::Array(element) => codec_class_label(*element, interner),
+        _ => None,
+    }
+}
+
 /// The format's type map, over the interned type rather than over [`CodecTy`]'s
 /// erasure — see [`resolve_field_types`] for why the two are not the same
 /// question.

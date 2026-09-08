@@ -456,6 +456,13 @@ pub(crate) struct Env<'a> {
     /// is routinely declared in a later file than the call. See
     /// [`crate::derive::check_row_sites`].
     pub row_sites: &'a mut Vec<crate::derive::RowSite>,
+    /// Every `Core\Request::jsonAs<T>` this run has walked past, for
+    /// [`Self::row_sites`]' reason and one of its own:
+    /// `rule:security/derived-codec-qualifiers` asks its question of the whole
+    /// codec — the written class's text fields and those of every deriving
+    /// class they name — so it can only be answered once all of them have
+    /// recorded their fields. See [`crate::derive::check_decode_sites`].
+    pub decode_sites: &'a mut Vec<crate::derive::DecodeSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many `rule:types/closure-literal` `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

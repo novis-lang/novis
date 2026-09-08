@@ -150,6 +150,10 @@ pub fn check_program_granted(
     // same reason and resolved in the same place — see
     // `crate::derive::check_row_sites`.
     let mut row_sites = Vec::new();
+    // `rule:security/derived-codec-qualifiers`'s question about the class a
+    // `jsonAs<T>` wrote, accumulated for the same reason — see
+    // `crate::derive::check_decode_sites`.
+    let mut decode_sites = Vec::new();
     for file in files {
         let mut env = Env {
             symbols: &module.symbols,
@@ -168,6 +172,7 @@ pub fn check_program_granted(
             links: &mut links,
             codec_sites: &mut codec_sites,
             row_sites: &mut row_sites,
+            decode_sites: &mut decode_sites,
             diags: &mut *diags,
             closure_seq,
             fn_self: None,
@@ -211,6 +216,10 @@ pub fn check_program_granted(
     // The call-site half of the same deferral: § 9's map asked of the class a
     // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
     crate::derive::check_row_sites(&row_sites, exprs, diags);
+    // The same deferral for the other member that writes a class: the body a
+    // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
+    // asks the fields receiving it to declare the qualifier they receive.
+    crate::derive::check_decode_sites(&decode_sites, &codec_sites, interner, diags);
     // § 5's table crosses to `nvs-ir` here rather than being dropped: `rule:routing/api-document-is-generated-from-the-route-table`
     // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
     // handler's declared path back out of.
