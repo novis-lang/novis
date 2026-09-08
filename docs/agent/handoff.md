@@ -2,58 +2,69 @@
 
 ## State
 
-**Goal 18. Stage 5's group is closed — all three items landed and verified.**
+**Goal 18. Stage 2's group is closed — all three items landed and verified, and both of the stage's
+acceptance checks now name tests that exist.** Nothing in stage 2 needed designing: the optional marker
+and the shape qualifier were already implemented, and every item was a test over landed behaviour.
 
-A value that does not fit a shape now names the key at fault. `crates/nvs-types/src/expr/assign.rs`'s
-`mismatch` computes it, so **every** position that assigns into a shape gets it — a `return`, an
-attribute payload, an argument, a `foreach` binding — rather than the one arm a caller-side help would
-have reached. It stays `E0401`: the mistake is unchanged, only the explanation was missing, and a code
-of its own would have fired on one arm and said nothing the help line does not. **`E0811` is still
-free.** The naming test is `shape_satisfied`'s own, not a weaker one written for the message, so a
-source field that is itself optional is named as unsupplied exactly where the relation refuses it.
+`crates/nvs-syntax/src/parser/tests/ty.rs` gained the four names the grammar check lists. `{a?: int}`
+and `{a: ?int}` are asserted to differ in *both* halves of the parse — `ShapeField::required` and the
+field's `TypeKind` — with `{a?: ?int}` saying both at once, so neither half is derivable from the other.
+`tainted {…}` is pinned on both sides of its bound: accepted over a shape carrying text, refused
+(`E_TAINTED_SHAPE_HAS_NO_TEXT`) over one carrying none, and its distribution asserted through a nested
+shape, a nullable and an `array<T>` element with a non-text field left exactly as written.
 
-**A parenthesised group reported one mismatch twice, a column apart, and now reports it once.**
-`infer`'s `Paren` arm at `crates/nvs-types/src/expr/mod.rs:885` re-enters `check_expr` with the same
-`expected`, so the inner expression already had the whole of that function applied at its own narrower
-span; the enclosing `check_expr` was repeating it. The surviving report is the inner one. Asked of a
-scalar as well as a shape, because the fix is `check_expr`'s and not the shape arm's.
+**Three `nvs-types` tests were renamed rather than duplicated**, having existed under other spellings:
+`a_source_with_extra_fields_still_satisfies_the_shape`, `a_source_missing_a_required_field_does_not`
+and `a_source_missing_an_optional_field_satisfies_the_shape` in `objects_and_shapes.rs`, plus
+`a_tainted_shape_naming_no_text_field_is_refused` in `tainted.rs`. No other `[[check]]` in
+`loop-goal.toml` named an old spelling — checked before renaming.
 
-**Stage 2's acceptance check is red for missing tests, not missing behaviour — this is the finding the
-next group turns on.** The optional marker and the shape qualifier are both landed and exercised:
-`{x?: int}` parses, interns apart from `{x: ?int}` and relaxes presence only, and `tainted {…}`
-distributes over every text field and is refused over a shape carrying none. What no crate holds is a
-test under any of the nine names the check lists. Nothing needs designing there.
+**The one name with no test was `a_tainted_shape_is_not_assignable_to_the_same_shape_unqualified`, and
+the relation already refused it** — no code changed for it. The distribution makes it fall out of two
+rules that already stand: the qualified shape's fields are `tainted string`, shape assignability is
+field-by-field ordinary assignability, and that axis only widens one way. A shape is not a laundering
+route, and no rule of its own says so.
+
+**Stage 3 appears already green and stage 4 is where the next work is.** All seven `nvs-stdlib` names
+stage 3 lists exist (`crates/nvs-stdlib/src/arr.rs:7306`–`7488`) and its three conformance cases are on
+disk. Stage 4's members are implemented — `postAs` at `crates/nvs-stdlib/src/request.rs:342`, `queryAs`
+at `:252` — but **none** of its six test names exists and **none** of its four conformance cases is on
+disk.
 
 ## Next group
 
-**Stage 2: the grammar — the nine names its two checks list, over landed behaviour** — one file set:
-`crates/nvs-syntax/src/parser/tests/ty.rs`, `crates/nvs-types/tests/objects_and_shapes.rs`,
-`crates/nvs-types/tests/tainted.rs`. `rule:types/shape-type` and `rule:security/tainted-qualifier` are
-the specification; both are already implemented, so every item here is a test and none is a design call.
+**Stage 4: the boundary — the six names and four cases over landed `postAs`/`queryAs`** — one file set:
+`crates/nvs-stdlib/src/request.rs` (its inline `mod tests`, `:3685`) and `tests/conformance/core/`.
+`rule:security/tainted-qualifier` and `rule:types/shape-type` are the specification, and the goal's
+stage 4 prose is `docs/agent/loop-goal.md:"## Stage 4"`. As in stage 2, verify what is landed before
+writing a name: the members are implemented, so most items are tests.
 
-- [ ] **The four `nvs-syntax` names** — `crates/nvs-syntax/src/parser/tests/ty.rs:417`, beside
-      `tainted_qualifies_string_and_bytes`, which is the shape these copy. Nothing in that crate names
-      a shape test today. The grammar they ask about is `parse_shape_type` at
-      `crates/nvs-syntax/src/parser/ty.rs:712` (the `name?:` marker) and
-      `crates/nvs-syntax/src/parser/ty.rs:334` (`tainted` distributing over a shape's text fields, and
-      refusing a shape that carries none). `rule:types/shape-type`, `rule:security/tainted-qualifier`.
-- [ ] **The five `nvs-types` names, three of which are existing tests under other spellings** —
-      `crates/nvs-types/tests/objects_and_shapes.rs:92` is
-      `a_source_with_extra_fields_still_satisfies_the_shape`, `:100` is
-      `a_source_missing_a_required_field_does_not`, and `:132` is
-      `a_source_missing_an_optional_field_satisfies_the_shape`. **Rename rather than duplicate, and
-      check no other `[[check]]` in `docs/agent/loop-goal.toml` names the old spelling first** — that
-      is exactly how `the_pipeline_codes_…` broke stage 0's check two sessions ago.
-- [ ] **The tainted pair** — `crates/nvs-types/tests/tainted.rs:420` is
-      `tainted_over_a_shape_carrying_no_text_is_refused`, which is
-      `a_tainted_shape_naming_no_text_field_is_refused` under another name. Its sibling
-      `a_tainted_shape_is_not_assignable_to_the_same_shape_unqualified` has no test at all; the
-      relation that should already refuse it is the qualifier axis in `crates/nvs-types/src/expr/quals.rs`,
-      reached from `crates/nvs-types/src/expr/assign.rs:114` — verify it refuses before writing the name.
+- [ ] **The four hydration names** — `crates/nvs-stdlib/src/request.rs:5676`, beside
+      `post_reads_the_fields_a_files_walk_buffered`, which is the fixture shape these copy:
+      `post_as_hydrates_the_whole_form_into_the_shape_it_was_given`,
+      `post_as_with_a_name_hydrates_one_bracket_subtree`, `query_as_reads_the_query_string_the_same_way`
+      and `post_as_may_follow_another_buffering_reader`. The code they ask about is
+      `crates/nvs-stdlib/src/request.rs:2235` (`postAs`, over `form_of`) and
+      `crates/nvs-stdlib/src/request.rs:2096` (`queryAs`, over `Core\Arr::shapeAs`'s one walk).
+- [ ] **The body-claim pair** — `post_as_refuses_after_a_streaming_reader_has_consumed_the_body`, at
+      `crates/nvs-stdlib/src/request.rs:2235`, where the content-type claim is read. Goal 16's
+      body-read rule is unchanged and `postAs` takes the claim as one buffering reader; the playbook's
+      `-p nvs-stdlib` bullets say what a fixture can and cannot build.
+- [ ] **`an_unqualified_shape_at_a_request_call_site_is_diagnosed_naming_the_shape`** — the check files
+      it under `-p nvs-stdlib`, but it is a *checker* diagnostic; the site that would raise it is
+      `crates/nvs-types/src/expr/args.rs:1554`, where the written type argument's owner is decided.
+      **Verify it is landed before writing the name**, and if it is not, that is the group's one piece
+      of real work rather than a test.
+- [ ] **The four stage-4 conformance cases** — the shape to copy is the neighbour already on disk,
+      `tests/conformance/core/a-request-hydrates-its-body-into-a-declared-type.nvst:1`, and none of
+      these four is written yet:
+      `a-request-hydrates-its-form-into-a-declared-shape.nvst`,
+      `a-request-shape-names-every-field-the-peer-got-wrong.nvst`,
+      `a-request-shape-ignores-a-field-it-did-not-name.nvst` and
+      `a-query-string-hydrates-into-a-declared-shape.nvst`. Never `--ORACLE--` in this suite.
 
 ## Backlog
 
-- Stage 5's remaining clauses, once stage 2 is green — `docs/agent/loop-goal.md` § *Stage 5*.
-- `E0811` is unspent and the `E08xx` band's next free number; `crates/nvs-diagnostics/src/lib.rs`.
-- Per-file known gaps stay in each crate's module doc, never the plan — `AGENTS.md` § *Keep each slice small*.
-- Carried across a goal switch: `docs/agent/carried-gaps.md`.
+- Stage 5's remaining checks, once stage 4 is green — `docs/agent/loop-goal.toml`.
+- `docs/agent/handoff.md`'s stage-2 line numbers had drifted by one test; anchors age, names do not.
+- `E0811` is still the next free type-band diagnostic code — `crates/nvs-diagnostics/src/lib.rs`.

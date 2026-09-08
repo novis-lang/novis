@@ -384,6 +384,24 @@ fn tainted_over_a_shape_taints_every_text_field() {
 }
 
 #[test]
+fn a_tainted_shape_is_not_assignable_to_the_same_shape_unqualified() {
+    // The distribution is what makes this fall out of rules that already stand:
+    // the qualified shape's fields are `tainted string`, the unqualified one's
+    // are `string`, and shape assignability is field-by-field ordinary
+    // assignability (`rule:types/shape-type`) over an axis that only widens one
+    // way (`a_tainted_value_is_not_assignable_into_a_plain_typed_target`). So a
+    // shape is no laundering route, and no rule of its own says so.
+    let diags = check_in_method(
+        "tainted {a: string} $t = {a: \"literal\" as tainted string};\n\
+         ({a: string}) $plain = $t;\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn a_field_read_off_a_tainted_shape_is_tainted() {
     let diags = check_in_method(
         "tainted {a: string} $s = {a: \"literal\" as tainted string};\n\
@@ -417,7 +435,7 @@ class T {
 }
 
 #[test]
-fn tainted_over_a_shape_carrying_no_text_is_refused() {
+fn a_tainted_shape_naming_no_text_field_is_refused() {
     // A qualifier that promises nothing still reads as a promise, so the empty
     // distribution is a diagnostic rather than a no-op. Written in a parameter,
     // because a local's type is trial-parsed and any diagnostic raised inside
