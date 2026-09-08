@@ -54,6 +54,15 @@
 //!    `Core\Router::match`'s to decide and is out of this goal's scope. So
 //!    closing this means reading the union's members here, where § 6 owns the
 //!    spelling, rather than widening that function underneath a second caller.
+//!
+//! 2. **A `Parses` class other than `Core\Uuid` is [`ArgConv::Unconverted`].**
+//!    § 6 admits a class for the pair it declares
+//!    (`rule:expressions/try-parse`), so `nvs_types::commands::ArgConv::Parses`
+//!    carries the class's own name; what is missing is the arm that calls that
+//!    class's `parse` on the argument's text. [`ArgConv::Uuid`] is the one
+//!    implementor with a reader written, so it is the one that converts, and
+//!    the bridge in `nvs-cli` says so on the row rather than converting an
+//!    argument as something the parameter did not declare.
 
 /// What an argument's text becomes before the handler is called.
 ///

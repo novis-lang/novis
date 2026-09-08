@@ -170,8 +170,16 @@ pub enum ArgConv {
     Uint,
     /// `decimal` — `rule:types/decimal`'s exact number.
     Decimal,
-    /// `Core\Uuid` — RFC 9562 § 4's canonical form, the one class § 6 admits.
-    Uuid,
+    /// A class implementing `Parses`, named as § 6's usage line writes it: the
+    /// text is what its `parse` reads, and `rule:expressions/try-parse` is the
+    /// contract that makes the pair a conversion rather than a convention.
+    ///
+    /// **The name crosses rather than a key**, for [`Self::Enum`]'s reason two
+    /// arms down: the compiler resolved the class once, and nothing downstream
+    /// has a type table to ask instead. `Core\Uuid` is the one implementor the
+    /// library carries, and it is on this arm by the same predicate a user
+    /// class reaches it by rather than by being named.
+    Parses(String),
     /// § 3's union of literal types: the word each member admits, in the order
     /// the union declares them, and a usage error for anything else.
     ///
@@ -235,10 +243,10 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         Ty::Int | Ty::IntLiteral(_) => ArgConv::Int,
         Ty::Uint => ArgConv::Uint,
         Ty::Decimal => ArgConv::Decimal,
-        // Matched nominally, against the same written name
-        // [`converts_from_string`] admits — two readings of one class, so they
-        // cannot come to disagree about which one § 6 means.
-        Ty::Class(name, _) if *name == QName::parse(r"Core\Uuid") => ArgConv::Uuid,
+        // Matched structurally, by the same predicate [`converts_from_string`]
+        // admits a class with — two readings of one contract, so they cannot
+        // come to disagree about which classes § 6 means.
+        Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
         // § 3's union, narrowed to the words its members admit by the same
         // computation the route table's captures use. `None` is a union of
         // *enum cases*, which that function refuses for a reason it owns: a
@@ -666,11 +674,12 @@ fn check_options(
 /// argument this answers `None` for stays required, which is what an argument
 /// with no spellable default has to be.
 ///
-/// [`ArgConv::Decimal`] and [`ArgConv::Uuid`] convert a *written* argument and
-/// still have no constant to answer with here, which is [`crate::defaults`]'
-/// own known gap rather than this function's: `decimal $vat = 0.19` is refused
-/// as a non-literal default before it ever folds, and there is no `Core\Uuid`
-/// literal in any spelling. So an argument at either type stays required, and
+/// [`ArgConv::Decimal`] and [`ArgConv::Parses`] convert a *written* argument
+/// and still have no constant to answer with here, which is
+/// [`crate::defaults`]' own known gap rather than this function's: `decimal
+/// $vat = 0.19` is refused as a non-literal default before it ever folds, and
+/// a class has no literal in any spelling — an object comes from a call, and
+/// `parse` is a call. So an argument at either type stays required, and
 /// nothing here has to decide what a defaulted one would have meant.
 fn default_text(constant: &ConstArg) -> Option<String> {
     match constant {
@@ -752,7 +761,7 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>)
         .with_help(
             "an argument arrives as text and its type comes from the parameter, so an option \
              declares `string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of literal \
-             types, or `Core\\Uuid`",
+             types, or a class implementing `Parses`",
         ),
     );
 }
@@ -786,7 +795,12 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // already been reported for the omission; naming it again here would
         // charge one mistake twice.
         Ty::Mixed => true,
-        Ty::Class(name, _) => *name == QName::parse(r"Core\Uuid"),
+        // A class is admitted by the contract it carries, never by its name:
+        // `rule:expressions/try-parse`'s pair, read as `Parses` off the same
+        // signature table `crate::expr::operators` asks `Comparable` of. So
+        // `Core\Uuid` is admitted for what it declares, and so is any class
+        // that declares the same thing.
+        Ty::Class(name, _) => reaches_parses(name, env),
         // § 3 admits a union of `string` or `int` literal types and a subset of
         // an enum's cases, and nothing wider: a `string|int` would make the
         // conversion itself ambiguous, which is the question `rule:errors/ambiguous-input-refused` refuses
@@ -799,4 +813,21 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         }),
         _ => false,
     }
+}
+
+/// Whether `qname` implements `Parses` — **two tables, because a `Core` class
+/// declares nothing**, which is the arrangement
+/// `crate::expr::operators`'s own `Comparable` question is already read
+/// through. [`nvs_hir::implements_interface`] answers for a written
+/// `implements Parses` and for the reflexive case;
+/// [`crate::signatures::resolve_interface_args`] answers for a class whose
+/// conformance was *seeded* rather than written, which is `Core\Uuid` — a
+/// `Core` class has no [`nvs_hir::ClassGraph`] entry at all, so the first
+/// table cannot see it, and `crate::core_lib` writes the edge off
+/// `nvs_stdlib::registry::implements_parses`.
+fn reaches_parses(qname: &QName, env: &Env<'_>) -> bool {
+    let parses = QName::parse(nvs_hir::interfaces::PARSES);
+    nvs_hir::implements_interface(qname, &parses, env.graph)
+        || crate::signatures::resolve_interface_args(qname, &parses, env.signatures, env.graph)
+            .is_some()
 }

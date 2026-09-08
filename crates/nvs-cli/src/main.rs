@@ -1267,8 +1267,21 @@ fn runtime_commands(
                             nvs_types::commands::ArgConv::Decimal => {
                                 nvs_runtime::commands::ArgConv::Decimal
                             }
-                            nvs_types::commands::ArgConv::Uuid => {
-                                nvs_runtime::commands::ArgConv::Uuid
+                            // A `Parses` class crosses as the name the checker
+                            // resolved. `Core\Uuid` reaches the runtime's own
+                            // reader; every other implementor is
+                            // `Unconverted`, because the arm that calls a
+                            // class's `parse` is `nvs_runtime::commands`'s gap
+                            // 2 and is not written yet. Same policy as
+                            // [`capture_conv`]: what the runtime has no arm for
+                            // says so, rather than converting as something
+                            // else.
+                            nvs_types::commands::ArgConv::Parses(class) => {
+                                if class.as_str() == r"Core\Uuid" {
+                                    nvs_runtime::commands::ArgConv::Uuid
+                                } else {
+                                    nvs_runtime::commands::ArgConv::Unconverted
+                                }
                             }
                             // The set itself crosses, because it is the answer
                             // and not a key: the compiler resolved the union
