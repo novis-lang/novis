@@ -3453,11 +3453,22 @@ fn read_erased_property_hinted(
     // `rule:classes/an-unwritten-property-read-throws`: a slot that was never written reads as a throw, never as a
     // value standing in for one. This is the reader that holds the whole slot
     // rather than its payload, so the *tag* is what answers — which is why
-    // `Tag::Unset` is a tag at all. Only a `lateinit` property (`rule:classes/lateinit`) can
-    // be in the state; the compiled read makes the same refusal from the
-    // payload alone, `nvs_ir::lower`'s `emit_never_written_guard` owning that
-    // half.
+    // `Tag::Unset` is a tag at all. A `lateinit` property (`rule:classes/lateinit`) and an
+    // absent optional field of a shape are the two declarations that reach the
+    // state; the compiled read makes the same refusal from the payload alone,
+    // `nvs_ir::lower`'s `emit_never_written_guard` owning that half.
+    //
+    // On a shape class the state means something the `lateinit` one does not:
+    // the key was absent from the subject a hydration read, which is exactly
+    // the presence question `??`, `isset` and `empty` ask
+    // (`rule:types/shape-type`). So a guarded read of one answers `null` where
+    // the same read of a `lateinit` slot still throws — the two are told apart
+    // by [`ClassDesc::is_shape`], since no `lateinit` property can be declared
+    // on a class only a shape hydration mints.
     if held.tag() == Some(Tag::Unset) {
+        if matches!(absent, AbsentField::Null) && desc.is_shape() {
+            return Ok(Value::null());
+        }
         return Err(Fault::thrown(format!(
             "`{}`'s property `${name}` is read before it is written",
             desc.name()

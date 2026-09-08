@@ -27,9 +27,30 @@ try {
     echo "issues=", Core\Arr::count($missing->issues) as string, "\n";
     echo "  ", $missing->issues["0"]->path, ": ", $missing->issues["0"]->message, "\n";
 }
+
+// The absence is readable as absence and not only as an omitted key on the way
+// back out: `rule:types/shape-type` names `??` and `isset` as the spellings
+// that ask whether an optional field is there, and a hydrated shape answers
+// them the same way a shape literal that never wrote the key does. A
+// `lateinit` property's unwritten slot still throws under the same guard
+// (`rule:classes/an-unwritten-property-read-throws`) — one runtime state, two
+// declarations, and only the shape's means "the subject did not carry it".
+({n: int, s?: string}) $absent = Core\Arr::shapeAs<{n: int, s?: string}>(["n" => 4]);
+echo $absent->s ?? "absent", "\n";
+echo isset($absent->s) ? "set" : "unset", "\n";
+
+// The same reads where the key did arrive, so the guard is answering presence
+// rather than always taking its own arm.
+({n: int, s?: string}) $carried = Core\Arr::shapeAs<{n: int, s?: string}>(["n" => 5, "s" => "here"]);
+echo $carried->s ?? "absent", "\n";
+echo isset($carried->s) ? "set" : "unset", "\n";
 --EXPECT--
 {"n":3}
 {"n":null}
 {"n":7}
 issues=1
   s: required field missing
+absent
+unset
+here
+set
