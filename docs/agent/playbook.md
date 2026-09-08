@@ -3417,6 +3417,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   while a top-level annotated declaration parses cleanly and only the checker objects to it. Write
   the case, run `nvs lsp-test <dir> --coverage`, and read which cell moved; nothing else says where
   the cursor landed. [until: reviewed 2026-09-08]
+- **A document-wide answer credits `C::CONST`'s receiver, never the access.** The receiver is a
+  `ConstFetch` node of its own, so a diagnostic about the constant — reported at the class expression,
+  `crates/nvs-hir/src/members.rs:1058` — fills that cell and leaves `ClassConstAccess` empty. Only a
+  position past the receiver's end is inside the access, and a class constant has no token there.
+  [until: reviewed 2026-12-01]
 
 ## Splitting a file that got too big
 
