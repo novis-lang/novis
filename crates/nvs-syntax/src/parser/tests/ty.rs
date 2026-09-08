@@ -428,6 +428,134 @@ fn tainted_qualifies_string_and_bytes() {
     assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::TaintedBytes)));
 }
 
+/// `rule:types/shape-type`: the `?` sits before the `:` and marks the *key*
+/// optional, so one shape carries both kinds of field and the parser records
+/// which is which in `ShapeField::required`.
+#[test]
+fn a_shape_field_can_be_marked_optional() {
+    let e = parse_ok("$m as {a?: int, b: string}");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape: {ty:?}");
+    };
+    assert_eq!(fields.len(), 2);
+    assert!(!fields[0].required, "`a?:` marks the key optional");
+    assert!(fields[1].required, "`b:` with no `?` stays required");
+    assert!(matches!(fields[0].ty.kind, TypeKind::Atom(TypeAtom::Int)));
+    assert!(matches!(
+        fields[1].ty.kind,
+        TypeKind::Atom(TypeAtom::String)
+    ));
+}
+
+/// `rule:types/shape-type`: `{a?: int}` and `{a: ?int}` say different things —
+/// a key that may be absent against a key that must be present holding `null` —
+/// so the two questions are answered by two separate fields of the parse, and
+/// `{a?: ?int}` says both at once.
+#[test]
+fn an_optional_field_and_a_nullable_field_parse_to_different_types() {
+    fn one_field(src: &str) -> ShapeField {
+        let e = parse_ok(src);
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let TypeKind::Atom(TypeAtom::Shape(mut fields)) = ty.kind else {
+            panic!("expected a shape: {ty:?}");
+        };
+        assert_eq!(fields.len(), 1);
+        fields.remove(0)
+    }
+
+    let optional = one_field("$m as {a?: int}");
+    assert!(!optional.required);
+    assert!(matches!(optional.ty.kind, TypeKind::Atom(TypeAtom::Int)));
+
+    let nullable = one_field("$m as {a: ?int}");
+    assert!(nullable.required);
+    assert!(matches!(nullable.ty.kind, TypeKind::Nullable(_)));
+
+    // Neither half of the parse is derivable from the other.
+    assert_ne!(optional.required, nullable.required);
+    assert_ne!(optional.ty.kind, nullable.ty.kind);
+
+    let both = one_field("$m as {a?: ?int}");
+    assert!(!both.required);
+    assert!(matches!(both.ty.kind, TypeKind::Nullable(_)));
+}
+
+/// `rule:security/tainted-qualifier`: `tainted {…}` is grammar, and it is
+/// refused over a shape carrying no text at all — a qualifier that promises
+/// nothing still reads as a promise. Both sides of that bound, named together.
+#[test]
+fn a_shape_type_can_carry_the_tainted_qualifier() {
+    let e = parse_ok("$m as tainted {a: string, b: int}");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape: {ty:?}");
+    };
+    assert!(matches!(
+        fields[0].ty.kind,
+        TypeKind::Atom(TypeAtom::TaintedString)
+    ));
+    assert!(matches!(fields[1].ty.kind, TypeKind::Atom(TypeAtom::Int)));
+
+    let (_, diags) = parse_with_diags("$m as tainted {a: int}");
+    assert!(
+        diags.has_errors(),
+        "expected `tainted` over a text-free shape to be refused"
+    );
+}
+
+/// `rule:security/tainted-qualifier`: over a shape the qualifier distributes to
+/// every text-carrying field and is then gone, transitively — through a nested
+/// shape, a nullable and an `array<T>` element — so what the checker sees is the
+/// field-by-field spelling the qualifier saves writing.
+#[test]
+fn a_tainted_shape_rewrites_every_text_field_including_nested_ones() {
+    let e =
+        parse_ok("$m as tainted {a: string, b: {c: bytes}, d: int, e: ?string, f: array<bytes>}");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape: {ty:?}");
+    };
+    assert_eq!(fields.len(), 5);
+
+    assert!(matches!(
+        fields[0].ty.kind,
+        TypeKind::Atom(TypeAtom::TaintedString)
+    ));
+
+    let TypeKind::Atom(TypeAtom::Shape(nested)) = &fields[1].ty.kind else {
+        panic!("expected a nested shape: {:?}", fields[1].ty);
+    };
+    assert!(matches!(
+        nested[0].ty.kind,
+        TypeKind::Atom(TypeAtom::TaintedBytes)
+    ));
+
+    // A field carrying no text is left exactly as written.
+    assert!(matches!(fields[2].ty.kind, TypeKind::Atom(TypeAtom::Int)));
+
+    let TypeKind::Nullable(inner) = &fields[3].ty.kind else {
+        panic!("expected a nullable: {:?}", fields[3].ty);
+    };
+    assert!(matches!(
+        inner.kind,
+        TypeKind::Atom(TypeAtom::TaintedString)
+    ));
+
+    let TypeKind::Atom(TypeAtom::Array(Some(elem))) = &fields[4].ty.kind else {
+        panic!("expected an `array<...>`: {:?}", fields[4].ty);
+    };
+    assert!(matches!(elem.kind, TypeKind::Atom(TypeAtom::TaintedBytes)));
+}
+
 #[test]
 fn tainted_qualifier_parses_in_every_declaration_slot() {
     // Parameter and return type (`rule:security/tainted-qualifier`).
