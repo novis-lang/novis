@@ -2,44 +2,41 @@
 
 ## State
 
-**Goal 17, stage 3 is landed except its `nvs-server` half.** `Core\Request::clientIp()`, `scheme()`
-and `host()` are registered, carded and answered (`crates/nvs-stdlib/src/request.rs:@CLASS` and the
-three `nvs_helper!` blocks around `crates/nvs-stdlib/src/request.rs:1700`), all three `tainted`, and
-four conformance cases ask each of them a different question. `examples/request-fields.nvs` and its
-`.nvsr` twin print the nine `want` lines of the acceptance fixture that had been red since the goal
-opened — the check needed an `args = ["--request", …]` line as well as the file, written into
-`docs/agent/loop-goal.toml` and `docs/agent/goals/17-test-request.toml` alike.
+**Goal 17, stage 3 is landed whole.** `Core\Request::clientIp()`, `scheme()` and `host()` are
+registered, carded, answered and `tainted`; the `.nvst` → `.nvsr` → carrier path carries
+`--CLIENT_IP--` and `--SCHEME--`; and the two `nvs-server` tests the stage's acceptance list names
+now assert the seam directly — `crates/nvs-server/src/serve.rs:3285` builds the walk's `Origin` and
+puts it on an `Inbound`, without a listener, a thread or a program in between.
 
-**The peer crosses the `.nvst` → `.nvsr` → carrier path as two sections**, `--CLIENT_IP--` and
-`--SCHEME--`, read as an address and as one of two schemes at both ends
-(`crates/nvs-test/src/case.rs:54`, `crates/nvs-test/src/request.rs:78`). They are sections rather
-than header lines because nothing a peer sends states either one — with `trusted_proxies` empty the
-forwarded headers are never read. `host()` needed no carrier field: it folds the `Host` line by the
-three equivalences the server compares a host mount by (`host_named`), and `header("host")` still
-answers the line verbatim, which is what keeps the two members apart.
+**Stage 2's filing is fixed.** `the_request_sections_build_an_inbound_spec` was filed under
+`-p nvs-test`, which has no dependencies on purpose and can never name `InboundSpec`. It is now a
+`-p nvs-cli` check and a unit test in the binary, over a new `inbound_of`
+(`crates/nvs-cli/src/main.rs:1422`) that `inbound_from` delegates to — `nvs-cli` has no library
+target, so the seam is reachable only from inside it.
 
-**Not landed:** the two `nvs-server` tests stage 3's acceptance list names. The wiring they would
-assert is already there — `crates/nvs-server/src/serve.rs:3183` and `crates/nvs-cli/src/serve.rs:402`
-both hand `Origin`'s answer to `Inbound::set_peer` — so this is a test-writing slice, not a feature.
+**Stage 2's remaining red is five names, not five features.** Every behaviour its check asks about is
+already asserted in `crates/nvs-runtime/src/ctx/inbound.rs`'s test module except the JSON body, and
+no other check pins the names those tests currently carry.
 
 ## Next group
 
-**Stage 3's server half, then the check that cannot run where it is filed** — one file set:
-`crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/forwarded.rs`, `docs/agent/loop-goal.toml`.
+**Stage 2: the builder's acceptance names** — one file set:
+`crates/nvs-runtime/src/ctx/inbound.rs`.
 
-- [ ] **`the_forwarded_walks_answer_is_set_on_the_inbound`** — the walk's verdict reaches the carrier,
-      asserted over `crates/nvs-server/src/serve.rs:3183`, where `origin.client()` and
-      `origin.scheme()` become `Inbound::set_peer`. `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`
-      is the rule; `crates/nvs-server/src/forwarded.rs` is where `Origin` is decided and already
-      tested on its own terms.
-- [ ] **`an_untrusted_peers_forwarded_header_does_not_reach_the_carrier`** — the same seam with
-      `trusted_proxies` empty: the header is present, `Inbound::client()` is the socket peer and
-      `scheme()` is the connection's. Same anchor, `crates/nvs-server/src/serve.rs:3183`.
-- [ ] **Stage 2's `the_request_sections_build_an_inbound_spec` is filed in a crate that cannot host
-      it** — `nvs-test` has no dependencies on purpose, so it can never name `InboundSpec`. The seam
-      that proves it is `crates/nvs-cli/src/main.rs:1422` (`inbound_from`), which names both sides;
-      move the name onto a `-p nvs-cli` check in `docs/agent/loop-goal.toml:5540` and its twin under
-      `docs/agent/goals/`, and write the test there.
+- [ ] **`a_spec_becomes_an_inbound_with_every_field_it_named`** — rename and widen
+      `a_spec_carries_its_query_its_cookies_its_host_and_its_peer` at
+      `crates/nvs-runtime/src/ctx/inbound.rs:2250` so it asks every field `InboundSpec::build`
+      writes (`crates/nvs-runtime/src/ctx/inbound.rs:1245`), the method and path included.
+      `rule:testing/in-process-request` is the rule.
+- [ ] **`a_form_field_encodes_urlencoded_and_sets_its_content_type`** and
+      **`a_files_field_builds_a_multipart_body_with_a_boundary`** — the same two assertions under the
+      names the check gives, at `crates/nvs-runtime/src/ctx/inbound.rs:2120` and
+      `crates/nvs-runtime/src/ctx/inbound.rs:2154`.
+- [ ] **`a_json_field_encodes_the_value_and_sets_its_content_type`** — the one with no test at all;
+      `SpecBody`'s JSON spelling is at `crates/nvs-runtime/src/ctx/inbound.rs:1060` and its encode is
+      what `build` calls at `crates/nvs-runtime/src/ctx/inbound.rs:1274`.
+- [ ] **`a_cookies_field_becomes_one_cookie_header`** — the join and the field a written `cookie`
+      line suppresses, at `crates/nvs-runtime/src/ctx/inbound.rs:1266`.
 
 ## Backlog
 
