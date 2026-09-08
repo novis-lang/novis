@@ -1,0 +1,27 @@
+--TEST--
+a case describes a request and the program it runs reads that request back `rule:testing/nvst-is-separate`
+--GET--
+page=2&q=novis
+--POST--
+name=ada&role=author
+--COOKIE--
+session=abc123
+--HEADERS--
+X-Trace: 7
+--FILE--
+<?nvs
+// The five request sections are the only way a case can observe a member
+// that answers a request at all: `Core\Request` throws where there is none
+// (`rule:security/request-state-throws-in-an-isolate`), so a program run with
+// no `--request` cannot reach a single line of this.
+echo Core\Request::query("page") as string, "\n";
+echo Core\Request::post("name") as string, "\n";
+// The field is asked for by a name spelled differently from the one the case
+// wrote, which RFC 9110 § 5.1 makes the same field.
+echo Core\Request::header("x-trace") as string, "\n";
+echo Core\Request::cookie("session") as string, "\n";
+--EXPECT--
+2
+ada
+7
+abc123
