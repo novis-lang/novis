@@ -85,6 +85,12 @@ modules = [
   "crates/nvs-hir/src/interfaces.rs",
   # What a class claiming a roster interface owes, and the diagnostic when it owes it still.
   "crates/nvs-types/src/conformance.rs",
+  # Where a roster interface's members become signatures -- the `Parses` seed is written here,
+  # beside `Comparable`'s, and `bodiless` is the helper it cannot quite use.
+  "crates/nvs-types/src/iter_lib.rs",
+  # `MethodSig`'s flags, and `writes_static_return`, which deliberately answers `false` for
+  # `?static` -- the wrinkle in seeding `tryParse`.
+  "crates/nvs-types/src/signatures.rs",
   # `converts_from_string` -- the one predicate all four binding surfaces read, and the `Core\Uuid`
   # arm that becomes the contract. Also two of the three roster diagnostics.
   "crates/nvs-types/src/commands.rs",
@@ -181,9 +187,10 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
-# The contract this stage encodes, and the class row it must not widen.
+# The contract this stage encodes, the class row it must not widen, and the rule that already
+# refuses a program its own copy of a compiler-owned name.
 [context.stage.2]
-rules = ["expressions/try-parse"]
+rules = ["expressions/try-parse", "core-api/reserved-namespace"]
 adrs = ["0066 §3a", "0066 §3"]
 
 # The roster the predicate replaces.
