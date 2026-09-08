@@ -89,7 +89,7 @@ fn an_object_literal_with_exactly_the_shapes_fields_is_fine() {
 }
 
 #[test]
-fn an_object_literal_with_extra_fields_still_satisfies_a_narrower_shape() {
+fn a_source_with_extra_fields_still_satisfies_the_shape() {
     // Width subtyping: a source with extra fields beyond the shape still
     // satisfies it.
     let diags = check_in_method("({x: int}) $p = {x: 1, y: 2};");
@@ -97,7 +97,7 @@ fn an_object_literal_with_extra_fields_still_satisfies_a_narrower_shape() {
 }
 
 #[test]
-fn an_object_literal_missing_a_shapes_field_is_diagnosed() {
+fn a_source_missing_a_required_field_does_not() {
     let diags = check_in_method("({x: int, y: int}) $p = {x: 1};");
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
@@ -226,7 +226,7 @@ fn a_class_missing_a_shapes_field_is_diagnosed() {
 // nullable.
 
 #[test]
-fn an_object_literal_missing_an_optional_field_satisfies_the_shape() {
+fn a_source_missing_an_optional_field_satisfies_the_shape() {
     let diags = check_in_method("({x: int, y?: int}) $p = {x: 1};");
     assert!(!diags.has_errors(), "{diags:?}");
 }
