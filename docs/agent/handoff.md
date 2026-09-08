@@ -2,60 +2,56 @@
 
 ## State
 
-**Goal 18, stages 1 and 2 are complete; stage 3 has started at its foundation rather than at its
-row.** Optional shape fields, `tainted {…}`, guarded reads and `InstKind::SlotGet`'s absence answer
-all landed in earlier sessions — `rule:types/shape-type`'s optional-field paragraph and
-[ADR 0157](../decisions/0157.md) § 2 own that half.
+**Goal 18, stages 1 and 2 are complete; stage 3 has landed its first half.** Optional shape fields,
+`tainted {…}`, guarded reads, `InstKind::SlotGet`'s absence answer and the codec tables' `required`
+column all stand — `rule:types/shape-type`'s optional-field paragraph, `rule:core-api/required-optional-and-nullable`
+and [ADR 0157](../decisions/0157.md) § 2 own that half.
 
-**What landed this session:** `rule:core-api/required-optional-and-nullable`'s *first* column now
-exists in the codec tables. `nvs_runtime::CodecField::required` and
-`nvs_types::derive::DerivedField::required` carry it, `check_constructor_parameter` reads it off the
-parameter's own default, `nvs_ir::lower::codec_fields` joins it down, and
-`nvs_stdlib::json::decode_field` no longer reports an absent *optional* key as "required field
-missing" — it names the unfilled default, which is json.rs's own gap 3, now diagnosable instead of
-merely unimplemented. Behaviour is otherwise unchanged: an absent key still fails either way.
+**What landed this session:** `nvs_types::derive::shape_codec` — an inline shape read as a
+`DerivedCodec` without a declaration to read it off. `required` comes from the written `?`,
+`nullable` from the field type's own `null` arm, and `param` from the interner's *sorted* field
+order, which is the order `nvs_ir::lower::shape_class_label` keys a shape class's slots on.
+`codec_ty` and `enum_cases` now take `(&TypeInterner, &EnumTable)` rather than the crate-private
+`Env`, which is what lets the new door be `pub`.
 
-**Stage 3's member itself is not one slice, and the handoff item that said so was wrong about the
-cost.** `Core\Arr::shapeAs<T>` returns a *shape*, and nothing in the tree can hand a native helper a
-shape's descriptor: `registry::WRITTEN_CLASS_MEMBERS` passes a declared class's `ClassDesc`, and
-`json::decode_fields` builds through a constructor that a `$shape{…}` class does not have. The
-playbook bullet is the trap; the next two groups are the decomposition. Stages 4 and 5 have not
-started, and the failing acceptance check (`examples/input-shapes.nvs`) is stage 5's fixture — an
-unwritten artefact, not a regression.
+**Stage 3's remaining half has a fork in it that the old handoff item did not see.** A shape class is
+keyed on field *names* alone, so `{n: int}` and `{n: string}` are one class and one `ClassDesc`, and
+the descriptor a `WRITTEN_CLASS_MEMBERS` call site passes in slot 0 therefore cannot carry a shape's
+per-field wire types. The playbook bullet is the trap; the group below is the fork. Stages 4 and 5
+have not started, and the failing acceptance check (`examples/input-shapes.nvs`) is stage 5's
+fixture — an unwritten artefact, not a regression.
+
+**The pack's `[context.stage.3] modules` is missing `nvs-ir/src/lower/call.rs`**, which is where
+`WRITTEN_CLASS_MEMBERS` lowering lives and where the group below spends its first read.
 
 ## Next group
 
-**Stage 3: the shape descriptor reaches the runtime** — one file set:
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/expr/args.rs`,
-`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/expr.rs`.
+**Stage 3: a shape's wire types reach the helper** — one file set:
+`crates/nvs-ir/src/lower/call.rs`, `crates/nvs-ir/src/lower/mod.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/object.rs`.
 
-- [ ] **An inline shape written as a type argument reads as a `DerivedCodec`** — a `pub fn` beside
-      `codec_ty` at `crates/nvs-types/src/derive.rs:439` turning a `Ty::Shape` into
-      `DerivedField`s: `required` from `ShapeField::required` (`crates/nvs-types/src/ty.rs:400`),
-      `nullable` from the field type, `param` the field's index in the interner's *sorted* order,
-      which is the order `nvs_ir::lower::shape_class_label` (`crates/nvs-ir/src/lower/mod.rs:2958`)
-      keys slots on. `codec_ty`'s own doc names the inline shape as the erasure it drops to
-      `CodecTy::Opaque` today; that sentence is what this rewrites.
-      `rule:types/shape-type` and `rule:core-api/required-optional-and-nullable` are what it cites.
-- [ ] **The shape a `shapeAs<T>` call site wrote reaches lowering** —
-      `crates/nvs-types/src/expr/args.rs:1456` (`written_class_of`) is the roster lookup a *class*
-      goes through, and a shape needs the twin beside it rather than a widening of it: a shape has
-      no `QName` to record on `ResolvedCall` (`crates/nvs-types/src/expr_table.rs:169`). Prefer
-      reading the call's own checked return type in `nvs-ir` over adding a field —
-      `crates/nvs-ir/src/lower/expr.rs:3212` is where the `ClassDescConst`/`ConstBool` pair is
-      emitted, and `record_shape_class` at `crates/nvs-ir/src/lower/mod.rs:1793` is what must also
-      record the codec. `rule:types/arrays`'s type-argument-door list is amended to name three in
-      the same commit.
+- [ ] **Pick the carrier for a shape's `CodecField` list, and write it down where the reader looks
+      first** — the `WRITTEN_CLASS_MEMBERS` path puts a `ClassDescConst` in slot 0
+      (`crates/nvs-ir/src/lower/call.rs:713`, `crates/nvs-stdlib/src/json.rs:141`), and a shape's
+      descriptor is shared across every shape with those field names
+      (`crates/nvs-ir/src/lower/mod.rs:2957`). Either the list rides beside the descriptor as its
+      own call-site constant, or a shape reaching this door mints a class keyed on names *and*
+      types — and the second breaks the one-class-per-field-set guarantee
+      `crates/nvs-stdlib/src/json.rs:583` and `crates/nvs-stdlib/src/task.rs:52` both rest on, so
+      prefer the first. `rule:types/shape-type` and `rule:core-api/required-optional-and-nullable`
+      are what it cites; the reasoning belongs in `nvs-ir`'s own module doc unless it turns into a
+      rule change, in which case ADR 0159 is the one number this goal may open.
+- [ ] **Emit that carrier at a call site that wrote an inline shape as its type argument** —
+      `nvs_types::derive::shape_codec` (`crates/nvs-types/src/derive.rs:423`) is the producer and is
+      tested; what is missing is the recording, beside where a declared class's codec is recorded
+      (`crates/nvs-types/src/expr_table.rs:1181`), keyed so two shapes with one label do not
+      collide, and the read back out at `crates/nvs-ir/src/lower/mod.rs:748`.
+      `rule:core-classes/derive-field-list` is what it cites.
 
 ## Backlog
 
-- The registry row, card, body, `address()` arm and three `.nvst` cases for `Core\Arr::shapeAs<T>`,
-  `crates/nvs-stdlib/src/arr.rs:694` — blocked on the group above (goal stage 3 § 1).
-- `json::decode_fields` needs a ctor-less path for a `$shape{…}` class,
-  `crates/nvs-stdlib/src/json.rs:1301`; `ClassDesc::is_shape()` is the discriminator that exists.
-- json.rs gap 3 is now half closed: the `required` column exists, materializing the default does
-  not — it needs the constant carried onto `CodecField` (`crates/nvs-stdlib/src/json.rs:91`).
-- Stage 3 § 3's collected `ParseError` is already what `decode_fields` does; the wrapper members and
-  stages 4–5 are untouched (`docs/agent/loop-goal.md`).
-- The pack still does not print the *next* stage's paragraph from `docs/agent/loop-goal.md`, which
-  is what choosing a next group reads — a `[context]` gap in `docs/agent/loop-goal.toml`.
+- `Core\Arr::shapeAs<T>`'s registry row and its three conformance cases — stage 3's member itself,
+  once the carrier above exists; `docs/agent/loop-goal.md` § stage 3.
+- `codec_ty` still erases a nested inline shape to `CodecTy::Opaque`; `crates/nvs-types/src/derive.rs:423`'s
+  own doc says so, and `nvs_stdlib::json`'s gap owns the decoder.
+- Stage 4's diagnostics and stage 5's `examples/input-shapes.nvs` fixture — `docs/agent/loop-goal.md`.

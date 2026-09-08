@@ -5177,6 +5177,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs_ir::lower::record_shape_class` synthesizes has neither codec nor constructor. Price the
   checker, IR and runtime plumbing as slices before the registry row, which cannot land alone.
   [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
+- **A shape's synthesized class cannot carry a codec, because two different shapes share it.**
+  `nvs_ir::lower::shape_class_label` keys on the sorted field *names* alone
+  (`crates/nvs-ir/src/lower/mod.rs:2957`), so `{n: int}` and `{n: string}` are one class and one
+  `ClassDesc` — which is why `nvs_stdlib::json`'s encoder walks a shape's slots by tag instead of
+  reading `desc.codec()` (`crates/nvs-stdlib/src/json.rs:583`). Anything handing a shape's per-field
+  wire types to a native helper has to carry them at the *call site*, next to the
+  `WRITTEN_CLASS_MEMBERS` descriptor rather than inside it. [until: reviewed 2026-09-08]
 
 ## Divergences and refusals already pinned
 
