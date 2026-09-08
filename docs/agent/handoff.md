@@ -2,60 +2,61 @@
 
 ## State
 
-**Goal 20's Stage 2 — the keystone — is landed whole, with Stage 0's catch-up in the same pass.**
-`Cap::CacheShared` is on the roster (`cache.shared`, `Scope::Unscoped`), `open_configured` asks it
-after reading the directive and dials the store with `nvs_runtime::capability::resolve_host` instead
-of `pin_host`, and neither `Core\Cache::shared()` nor `Core\RateLimit::consume` walks
-`rule:security/net-address-policy`'s table any more.
-`rule:config/cache-shared-is-the-grant-over-the-configured-store` is `shipped` and its "Not
-shipped" paragraph is gone.
+**Goal 20's Stage 3 is landed as code; three of its proofs are not.** `[cache.shared] url` takes
+`unix:/path/to.sock` beside `redis://host[:port]`: `endpoint` in `crates/nvs-stdlib/src/cache.rs`
+answers a `Target` — `Tcp(SocketAddr)` or, `#[cfg(unix)]`, `Socket(PathBuf)` — which is the per-core
+key `open_shared` compares to decide reuse-or-replace, so a build with no `AF_UNIX` transport cannot
+hold a path to dial rather than refusing one at dial time. `cache/redis.rs` is transport-agnostic
+through one `Transport` enum carrying the deadline, the write and the read; every line above it is
+written once.
 
-The migration is reported at boot: `crates/nvs-config/src/store.rs` is a new module holding
-`W1008` — a `[cache.shared] url` with no `cache.shared` grant — hung off `resolve` beside
-`session::validate`. It is the home for the `AF_UNIX` boot refusal Stage 3 owes as well.
+`E0635` (`E_NO_UNIX_TRANSPORT`) is declared at the end of its band and raised by
+`nvs_config::store::validate`, hung off `resolve` immediately before `store::advise`. **The goal's
+prose asked for `E0627`, which was already `E_UNSPELLED_EXPORTER`** — the prose now says `E0635`, and
+the playbook holds the trap. The scheme string has one home, `nvs_config::store::UNIX_SCHEME`, which
+`cache.rs`'s `UNIX` is an alias of.
 
-`nvs.toml`'s `examples/cache.nvs` block now grants `cache.shared` alone; its `net.connect` /
-`net.internal` pair is gone, which is the whole point of the rule.
-
-Nothing is blocked. The five Stage 2 acceptance tests exist and pass:
-`a_configured_store_needs_no_address_grant`,
-`a_configured_store_is_refused_without_its_own_grant`,
-`a_loopback_store_needs_no_net_internal_exception`,
-`the_limiter_and_the_tier_ask_one_grant_at_one_door` (all in `crates/nvs-stdlib/src/cache.rs`) and
-`a_configured_url_without_its_grant_is_a_boot_warning` (`crates/nvs-config/src/store.rs`).
+Passing on both platforms, each asserting the side its build is on:
+`a_unix_url_is_refused_where_the_platform_has_no_transport` (`nvs-stdlib`, the door) and
+`a_unix_url_is_refused_at_boot_only_where_there_is_no_transport` (`nvs-config`, the boot). Nothing is
+blocked. The `unix:` and `[db.<name>] host` rules stay `designed` until Stage 4 lands the driver half.
 
 ## Next group
 
-**Stage 3: the transport for the cache tier** — one file set: `crates/nvs-stdlib/src/cache.rs`,
-`crates/nvs-stdlib/src/cache/redis.rs`, `crates/nvs-diagnostics/src/lib.rs`.
+**Stage 3: the three proofs, one of which the acceptance list cannot pass as written** — one file
+set: `crates/nvs-stdlib/src/cache/redis.rs`, `crates/nvs-stdlib/src/cache.rs`, `examples/`,
+`nvs.toml`.
 
-- [ ] **`unix:` in `[cache.shared] url`** — `crates/nvs-stdlib/src/cache.rs:614`, one arm beside the
-      `redis://` one, per `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`. The
-      `rediss://`, path-as-database-index and bad-port refusals are untouched, and a program-supplied
-      path is still refused at every other door
-      (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`).
-- [ ] **The per-core key widens from a `SocketAddr` to an address-or-path** —
-      `crates/nvs-stdlib/src/cache.rs:663` (`open_shared`) and `:571` (`SHARED`). That key is what
-      decides reuse-or-replace, which is how a reloaded configuration looks from there.
-      `NvsUnix` already exists at `crates/nvs-host/src/net.rs:486` and needs nothing.
-- [ ] **`E0627` beside `E0626`** — `crates/nvs-diagnostics/src/lib.rs:1637`, a Unix spelling on a
-      build with no `AF_UNIX` transport refused at boot with a note naming the platform,
-      `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`. The refusal is a
-      refusal and never a fallback to loopback TCP; the check belongs in
-      `crates/nvs-config/src/store.rs`, which this goal created for exactly that neighbourhood.
-- [ ] **The proofs** — a record written through the socket and read back through it against a
-      `UnixListener` the way `crates/nvs-stdlib/src/cache/redis.rs:573` drives a `TcpListener`, and
-      the boot refusal asserted by the diagnostic rather than by a failed connect.
+- [ ] **`a_record_written_through_a_socket_is_read_back_through_it`** —
+      `crates/nvs-stdlib/src/cache/redis.rs:642`, a `UnixListener` sibling of `listening()` driving
+      one `SET`/`GET` exchange over `Target::Socket`, per
+      `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`. The `#[test]` must **exist** on
+      Windows or the `cargo-named` check reads it as unwritten on that leg, so gate the body and not
+      the item — `a_unix_url_is_refused_where_the_platform_has_no_transport` in
+      `crates/nvs-stdlib/src/cache.rs` is the shape.
+- [ ] **`a_program_supplied_socket_path_is_never_a_target`** —
+      `crates/nvs-runtime/src/capability.rs:218`, `pinned_address`, which is the door every
+      program-supplied endpoint passes: a path is refused **as a target this deployment cannot
+      authorize** and never as a file that would not open, per
+      `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`. The acceptance list
+      files the name under `-p nvs-stdlib`, so it is asserted through a `Core` door and not on
+      `nvs-runtime`'s own function.
+- [ ] **`examples/cache-shared-socket.nvs` and the config that points it at a socket** —
+      `docs/agent/loop-goal.toml:6006`. The check is `kind = "exact"` and program checks run on
+      **every** leg, so as written it can never pass on Windows, which has no `AF_UNIX` transport;
+      a fixture printing "across the socket" over loopback TCP instead is exactly the dishonesty
+      `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` refuses. Prefer giving
+      a `[[check]]` a leg scope — `tools/loop.py:1688` is the per-kind field table and
+      `tools/loop.py:2229` the runner — over weakening the fixture. A second store cannot be spelled
+      in the repo's own `nvs.toml`, so the example needs its own directory and config;
+      `examples/capability/` is that shape.
 
 ## Backlog
 
-- **Stage 4 (the driver transport)** shares no files with Stage 3 and is its own group:
-  `crates/nvs-db/src/{conn,mysql,maria,pg,tds}.rs` plus the matrix's socket leg. Postgres derives
-  `<host>/.s.PGSQL.<port>`; MySQL and MariaDB open the path as written; TDS refuses one.
-  `crates/nvs-config/src/db.rs`'s `is_relative_file` is the neighbourhood for reading a path in
-  `[db.<name>] host`.
-- `docs/agent/goals/4-core-part-ii.md:135` still says the shared tier is "gated by `net.connect`" —
-  closed-goal prose, left alone on purpose; `docs/agent/goals/README.md` owns whether those are
-  edited.
-- When this goal's last check goes green the driver takes goal 50 — the dossier.
-  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
+- Stage 4, the drivers' socket transport — `docs/agent/goals/20-unix-sockets.md` § *Stage 4*.
+- `docs/agent/loop-goal.toml:140`'s comment still names `E0627`; left alone deliberately, because
+  editing that file invalidates the driver's whole green cache (`tools/loop.py:2151`).
+- `nvs.toml`'s `[cache.shared]` block documents only the `redis://` spelling —
+  `crates/nvs-config/src/tree.rs:949` now documents both.
+- The pack has no field naming the *current stage's own* acceptance checks; the failing one it prints
+  was enough to find the rest in `docs/agent/loop-goal.toml`.

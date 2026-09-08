@@ -60,9 +60,10 @@ Goal 19's whole acceptance list — the parity program, never traded.
    beside the `redis://` one; the `rediss://`, path-as-database-index and bad-port refusals are
    untouched. The connection type behind `open_shared` widens from a `SocketAddr` to an address-or-path
    — that key is what decides reuse-or-replace, which is how a reloaded configuration looks from there.
-2. **`E0627`** — a Unix spelling on a build with no `AF_UNIX` transport, refused at boot with a note
+2. **`E0635`** — a Unix spelling on a build with no `AF_UNIX` transport, refused at boot with a note
    naming the platform and pointing at loopback TCP. Declared in `crates/nvs-diagnostics/src/lib.rs`
-   beside `E0626`, which is the neighbouring refusal in every sense.
+   at the end of its band, whose next free number this is; `E0626` is the neighbouring refusal in
+   every sense but numerically, and `E0635`'s own doc comment is where the two are told apart.
 3. **`crates/nvs-stdlib/src/cache/redis.rs` is transport-agnostic**, which it nearly is already: it
    takes a `SocketAddr` rather than a `Ctx` so a test can drive a whole exchange against a listener on
    loopback. The same split holds for a socket; what changes is what it is handed, not what it speaks.
