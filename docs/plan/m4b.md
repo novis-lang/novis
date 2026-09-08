@@ -11,10 +11,11 @@ about to change. It runs as **four chain goals** —
 the item list's one home; goal 13 is M1's two unfinished front-end items, pulled in because the grammar
 must colour their surface.
 
-**One assertion in *Verify* re-anchors.** "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is
-still exactly true and still checked by `crates/nvs-runtime/tests/manifest_policy.rs` — but by the time
-this milestone runs, `hyper` and its five dependencies are in the tree from goal 6. The claim is about a
-*runtime*, never about the `Future` trait; `rule:ide/one-grammar-one-tree`'s own bullet now says so.
+**One assertion in *Verify* re-anchors.** `hyper` and its five dependencies came in at goal 6 and one of
+them is `tokio`, so what `crates/nvs-runtime/tests/manifest_policy.rs` checks is the property that
+assertion was reaching for: no manifest of ours names an async runtime, no crate of ours depends on one,
+and the graph's single route to a scheduler crate compiles `sync` alone. The claim is about a *runtime*,
+never about the `Future` trait; `rule:ide/one-grammar-one-tree`'s own bullet now says so.
 
 Pulled ahead of M10 by `rule:ide/every-feature-is-staged-behind-its-dependency` so real-world
 testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
@@ -156,4 +157,5 @@ language logic in its own source, conceals a `secret` literal on open and reveal
 `nvs.revealSecret` is fired on while a second secret in the same file stays hidden, decorates nothing for
 `tainted` at the default setting, prints the placeholder rather than the literal in `nvs ast --json`, exposes `nvs run`/`nvs test` as Tasks whose failures populate the Problems panel,
 selects `$total` whole on a double-click, opens a `.nvst` case coloured, and renders the AST panel for a
-file that does not compile. `tokio` appears in neither `Cargo.toml` nor `Cargo.lock`.
+file that does not compile. No manifest of ours names an async runtime and no crate of ours depends on
+one, the lock file's only scheduler crate being `hyper`'s `tokio` compiled as `sync` alone.
