@@ -17,6 +17,18 @@ mod common;
 
 use common::{check_src, check_src_table};
 use nvs_diagnostics::code;
+use nvs_types::commands::ArgConv;
+
+/// A user class implementing `Parses`, in the shape
+/// `nvs_hir::interfaces::PARSES` spells the contract: one required
+/// `parse(tainted string $s): static`, and the text kept in a field declared
+/// `tainted` because a class carries no qualifier of its own
+/// (`rule:security/tainted-qualifier`).
+const SLUG: &str = "class Slug implements Parses {\n  \
+                    public tainted string $text = \"\";\n  \
+                    public function constructor(tainted string $text) { $this->text = $text; }\n  \
+                    public static function parse(tainted string $s): static \
+                    { return new static($s); }\n}\n";
 
 /// § 6's own example, reduced to the two attributes and the one class member
 /// they attach to. The placing import is per *name* — `use Core\Command;`
@@ -417,6 +429,41 @@ fn a_duplicate_command_name_is_a_diagnostic() {
          public static function ship(#[Option] string $target): void {}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_user_class_implementing_parses_may_be_a_command_argument() {
+    // § 6's conversion roster is `converts_from_string` unchanged, so a class
+    // reaches a command line the way it reaches a route capture — by
+    // implementing `Parses` rather than by being named
+    // (`rule:security/route-capture-is-laundered-by-its-type`). Both kinds of
+    // argument take it: a positional argument and an `#[Option]` are one type
+    // list read at two spellings, and § 6's third compile error is the same
+    // predicate answered the other way.
+    let (diags, exprs) = check_src_table(&format!(
+        "<?nvs\n{SLUG}class Deploy {{\n  \
+         #[Core\\Command(name: \"deploy\")]\n  \
+         public static function deploy(Slug $target, #[Core\\Option] Slug $from): void {{}}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    // The class travels *on the row*, because the conversion is the answer
+    // itself rather than a lookup key: what the matcher needs is the name of
+    // the `parse` it will call, and a rendered type cannot tell a class built
+    // from text from an enum whose case spellings are undecided.
+    let deploy = exprs.commands().named("deploy").expect("the named command");
+    assert_eq!(deploy.args[0].conv, ArgConv::Parses("Slug".to_owned()));
+    assert_eq!(deploy.args[1].conv, ArgConv::Parses("Slug".to_owned()));
+
+    // The refusal is the same predicate read the other way: a class that does
+    // not implement the interface has no conversion from text, so § 6's third
+    // compile error is where an argument declared at one is reported.
+    let diags = check_src(&format!(
+        "<?nvs\n{SLUG}class Plain {{}}\nclass Deploy {{\n  \
+         #[Core\\Command(name: \"deploy\")]\n  \
+         public static function deploy(#[Core\\Option] Plain $from): void {{}}\n}}\n"
+    ));
+    assert!(diags.has_errors(), "{diags:?}");
 }
 
 #[test]
