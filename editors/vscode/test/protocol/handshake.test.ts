@@ -87,6 +87,44 @@ describe("the handshake with nvs lsp", function () {
   });
 });
 
+describe("the command line a language client spawns", function () {
+  this.timeout(60_000);
+
+  const started: Session[] = [];
+
+  after(() => {
+    for (const session of started) {
+      session.kill();
+    }
+  });
+
+  async function handshake(args: string[]): Promise<InitializeResult> {
+    const { session, declared } = await Session.start(args);
+    started.push(session);
+    return declared;
+  }
+
+  // The flag no editor asks for and every client may send. `vscode-languageclient` reads an
+  // `Executable`'s `transport` field as a claim about the *server's* argv and appends `--stdio`
+  // from it, so the flag arrives from a setting that reads like transport configuration and is
+  // written down nowhere in this repository's own launch. A server that refused it would exit
+  // before the first frame, and every request the client routes would go with it while the syntax
+  // grammar kept working — an editor that looks installed and answers nothing.
+  it("is accepted with the transport flag a client appends unasked", async () => {
+    const declared = await handshake(["--stdio"]);
+    assert.equal(declared.serverInfo?.name, "nvs lsp");
+  });
+
+  // Accepted and *ignored*: it names the only transport there is, so it selects nothing. A future
+  // flag that did select something would show up here as a different set of capabilities.
+  it("declares the same server either way, because the flag chooses nothing", async () => {
+    const plain = await handshake([]);
+    const named = await handshake(["--stdio"]);
+    assert.deepEqual(named.capabilities, plain.capabilities);
+    assert.deepEqual(named.serverInfo, plain.serverInfo);
+  });
+});
+
 describe("the version this client refuses", () => {
   it("refuses a server from another series, and says which one it wanted", () => {
     const refused = refusal("0.0.1", "9.9.9");

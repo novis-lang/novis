@@ -107,9 +107,17 @@ export class Session {
     });
   }
 
-  /** Spawn the server and complete the handshake, returning what `initialize` declared. */
-  static async start(): Promise<{ session: Session; declared: InitializeResult }> {
-    const child = spawn(binary(), ["lsp"], { stdio: ["pipe", "pipe", "pipe"] });
+  /**
+   * Spawn the server and complete the handshake, returning what `initialize` declared.
+   *
+   * `args` is what a client appends after `lsp`, and defaults to what the extension sends, which
+   * is nothing. It is a parameter because the argv is the half of the launch no other tier sees: a
+   * client library may add a flag of its own from a field that reads like transport configuration,
+   * and a suite that always spawned the ideal command line would stay green while the pair that
+   * ships could not start.
+   */
+  static async start(args: string[] = []): Promise<{ session: Session; declared: InitializeResult }> {
+    const child = spawn(binary(), ["lsp", ...args], { stdio: ["pipe", "pipe", "pipe"] });
     const session = new Session(child);
     const declared = await session.request<InitializeResult>("initialize", {
       processId: process.pid,

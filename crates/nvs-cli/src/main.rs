@@ -444,11 +444,24 @@ enum Command {
     /// nothing and appears to hang. It is the one implementation of Novis's
     /// language smarts, and every editor client is a shell around it.
     ///
-    /// Takes no arguments. Everything configurable arrives in `initialize`
+    /// Configures nothing. Everything configurable arrives in `initialize`
     /// and in `workspace/didChangeConfiguration`, because the editor is what
     /// owns the settings and a flag here would be a second, staler copy.
+    ///
+    /// `--stdio` is the one exception, and it configures nothing either: it is
+    /// the convention a language client appends to say which transport it
+    /// chose, and stdio is the only transport this server has. Clients append
+    /// it without being asked — `vscode-languageclient` does so for any
+    /// `Executable` whose `transport` is set — and a server that rejected it
+    /// would exit before reading a frame, which reaches the user as an editor
+    /// with no language features rather than as an argument error.
     // `rule:ide/one-server-two-thin-clients`.
-    Lsp,
+    Lsp {
+        /// Accepted and ignored, so a client that names its transport is not
+        /// refused for it.
+        #[arg(long)]
+        stdio: bool,
+    },
     /// Run a tree of `.lspt` cases against the language server.
     ///
     /// The editor-behaviour suite: each case is a document, a cursor, a request
@@ -910,7 +923,9 @@ fn main() -> ExitCode {
             account.as_deref(),
             password.as_deref(),
         ),
-        Command::Lsp => match nvs_lsp::run() {
+        // `stdio` names the transport the client chose and there is no other
+        // one to choose, so it selects nothing here.
+        Command::Lsp { stdio: _ } => match nvs_lsp::run() {
             Ok(()) => ExitCode::SUCCESS,
             // stderr, and never stdout: the writer thread owns stdout and a
             // line printed there would be read as a protocol frame
