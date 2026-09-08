@@ -5323,6 +5323,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   directive read turns both into a capability denial. Ask the grant after the directive, which is
   `rule:security/capability-costs-nothing-unasked`'s shape, and grep the corpus for the refusal's
   own words first. [until: reviewed 2026-12-01]
+- **A `pub(crate)` stream type in a `Wire<S>` default fails 48 times in `nvs-stdlib` and never names
+  the cause.** `MySqlRows<'a, S = MyStream>` is public, so the default is part of its signature and
+  every stdlib line holding rows becomes a `private type` error pointing at the caller. Make the
+  stream `pub` and re-export it beside the rows type in the same edit — `PgRows` and `TdsRows` carry
+  the same default. [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

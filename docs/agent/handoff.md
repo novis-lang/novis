@@ -2,58 +2,66 @@
 
 ## State
 
-**Goal 20's Stage 3 is landed with all three of its proofs.** A store spelled `unix:` in
-`[cache.shared] url` is dialled over a socket and answers the same RESP, byte for byte, as one
-spelled `redis://` — `a_record_written_through_a_socket_is_read_back_through_it` in
-`crates/nvs-stdlib/src/cache/redis.rs` drives the exchange against a `UnixListener` where there is a
-transport and asserts the door's refusal where there is not.
+**Goal 20's Stage 4 is one item in: MySQL dials an address *or* a path.**
+`nvs_db::Endpoint` is the shared vocabulary — `Tcp(SocketAddr)` and a `#[cfg(unix)]`
+`Socket(PathBuf)`, in `crates/nvs-db/src/conn.rs` where the goal prose puts the meeting point — with
+`is_socket_host` (a `host` beginning with a path separator, per
+`rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`) and `socket_endpoint`, whose
+`#[cfg(not(unix))]` twin is the `Unsupported` refusal and never a loopback fallback.
+`MySqlConn::connect` takes `impl Into<Endpoint>`, so the three remaining drivers widen the same way
+without any TCP caller changing. That is the only shape that works: `crates/nvs-cli/src/schema.rs:378`
+and `crates/nvs-cli/src/worker.rs:840` dial all five drivers through one macro body that binds
+`address` itself, and `macro_rules` hygiene leaves no way for a per-driver argument to name it.
 
-`nvs_runtime::capability::pinned_address` now refuses a **path** in front of the resolution, so a
-program-supplied socket path is refused as a target this deployment cannot authorize and never as a
-file that would not open; the refusal names `net.local`
-(`rule:config/net-local-is-named-and-not-on-the-roster`) and reads the same whether or not anything
-is bound at the path. `a_program_supplied_socket_path_is_never_a_target` in
-`crates/nvs-stdlib/src/cache.rs` asserts that pair against the other authority: the same path an
-operator wrote into the store's own `url` is an ordinary store.
+**`MyStream` is the transport enum, and the local arm carries no TLS.** That is a decision, recorded
+in its doc comment in `crates/nvs-db/src/mysql.rs`: a path reaches the driver only where an operator
+wrote one, it names no host for a certificate, and the bytes never leave the machine, so
+`REQUIRED_OVER_A_SOCKET` drops `CLIENT_SSL` and the greeting's own `CLIENT_SSL` bit is masked off
+before `authenticate` offers it back. The in-band upgrade stays mandatory on the TCP arm.
+`read_greeting` takes the required set from its caller because it is the transport's requirement, not
+the driver's.
 
-`examples/cache-shared-socket.nvs` runs under `examples/cache-shared-socket.toml` — its own tree,
-because `[cache.shared]` is unscoped — against the socket `tests/db/compose.yaml`'s `redis` service
-now publishes at `/mnt/wsl/novis-redis/redis.sock`. Its `[[check]]` carries **`needs = "af-unix"`**,
-a new optional key on the four program kinds: `tools/loop.py`'s `LEG_NEEDS` asks the leg rather than
-naming it, so a Linux-native host runs the fixture on its own leg instead of being skipped for not
-being called `wsl`. Nothing is blocked. The `unix:` and `[db.<name>] host` rules stay `designed`
-until Stage 4 lands the driver half.
+`crates/nvs-stdlib/src/db/open.rs`'s `endpoint_of` closure is the one door a configured socket comes
+through; the settings path beside it still resolves a pinned address only.
+`a_mysql_socket_path_is_opened_as_written` drives a real dial against a bound `UnixListener` and
+asserts the accept happened — run under WSL as well as on Windows, where the `#[cfg(not(unix))]` half
+asserts `socket_endpoint`'s refusal instead. `rule:core-classes/db-unix-socket-path` now says
+*shipped for MySQL only*. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the driver transport, the same target-or-path one layer down** — one file set:
-`crates/nvs-db/src/pg.rs`, `crates/nvs-db/src/mysql.rs`, `crates/nvs-db/src/tds/mod.rs`,
-`crates/nvs-config/src/db.rs`.
+**Stage 4: the remaining three drivers, over the `Endpoint` that is now landed** — one file set:
+`crates/nvs-db/src/tds/mod.rs`, `crates/nvs-db/src/pg.rs`, `crates/nvs-db/src/maria.rs`.
 
-- [ ] **`a_mysql_socket_path_is_opened_as_written`** — `crates/nvs-db/src/mysql.rs:1426`, the dial
-      that takes a `SocketAddr` today, widened to the address-or-path `cache/redis.rs`'s `Transport`
-      already is, per `rule:core-classes/db-unix-socket-path`. A bare absolute path in
-      `[db.<name>] host` is the spelling; `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`
-      is why it is not `unix:` here.
+- [ ] **`a_tds_target_refuses_a_socket_path`** — `crates/nvs-db/src/tds/mod.rs:381`, though the
+      refusal is `TdsTarget`'s (`crates/nvs-db/src/tds/mod.rs:221`) rather than the dial's:
+      `rule:core-classes/db-unix-socket-path` says MSSQL reports a path as **a target it does not
+      speak**, not as a file it could not open, so it is a `BlockError` arm in
+      `crates/nvs-db/src/conn.rs:258` beside the others. Cheapest of the three, and it needs no
+      transport at all.
 - [ ] **`a_postgres_socket_directory_becomes_the_engines_own_name`** —
-      `crates/nvs-db/src/pg.rs:486`. PostgreSQL names a *directory* and appends `.s.PGSQL.<port>`
-      itself, which is the one place the two drivers do not agree; `rule:core-classes/db-unix-socket-path`
-      states it and `crates/nvs-config/src/db.rs` is where the block's paths are already resolved.
-- [ ] **`a_tds_target_refuses_a_socket_path`** — `crates/nvs-db/src/tds/mod.rs:218`. MSSQL has no
-      socket transport, so the refusal is the feature; `rule:core-classes/db-unix-socket-path` names
-      it, and the shape is `a_unix_url_is_refused_where_the_platform_has_no_transport`.
-- [ ] **`a_driver_answers_the_same_over_either_transport`** — `crates/nvs-db/src/pg.rs:486`. The
-      agreement case: one question asked over both transports, asserting they answer the same rather
-      than what either answered. `tests/db/compose.yaml`'s `postgres` service needs the socket mount
-      its `redis` sibling now has, and `[valgrind] skip` is where a fixture that cannot carry its own
-      `--config` goes.
+      `crates/nvs-db/src/pg.rs:485`, widened to `impl Into<Endpoint>` exactly as
+      `crates/nvs-db/src/mysql.rs:1545` now is. **The open design question, so it is not re-derived:**
+      the derivation `<host>/.s.PGSQL.<port>` needs the port and `PgTarget` carries none — its doc
+      says the address is not here. `Endpoint::Socket` holds a directory, so either `connect` takes
+      the port beside the endpoint or `pg` grows a `socket_path(dir, port)` the test asserts on its
+      own; the goal prose (`docs/agent/loop-goal.md:83`) wants the derivation asserted against the
+      path the driver connects to, which the second spelling gives directly.
+- [ ] **`a_driver_answers_the_same_over_either_transport`** — `crates/nvs-db/src/pg.rs:485` again,
+      after the one above: one question asked over both arms, asserting that they **agree**.
+- [ ] **MariaDB's own socket arm** — `crates/nvs-db/src/maria.rs:352`, still `SocketAddr`. It already
+      shares MySQL's `MyStream` and `read_greeting`, so this is the same edit a second time with no
+      new decision in it; `rule:core-classes/db-unix-socket-path` puts MariaDB with MySQL, on the
+      socket file rather than a directory.
 
 ## Backlog
 
-- `nvs_config::store::advise` reads only the **root** `[capabilities]`, so any deployment granting
-  `cache.shared` in an `[[app]]` block gets W1008 at boot — `nvs.toml` and `examples/cache.nvs` do
-  today. Its home is `crates/nvs-config/src/store.rs`.
-- `[docker] services` does not name the socket mount as a dependency of anything; a machine that
-  brings `redis` up by hand gets the socket for free and one that does not is skipped by `needs`.
-- The `[cache.shared]`-over-TLS question is still open — `rediss://` is refused rather than
-  half-served, per `crates/nvs-stdlib/src/cache.rs`'s module doc.
+- `nvs-cli`'s two openers — `crates/nvs-cli/src/schema.rs:371` and `crates/nvs-cli/src/worker.rs:832`
+  — still resolve `host` as a name, so a socket-configured `[db.<name>]` is unreachable from
+  `nvs schema` and the queue worker.
+- `nvs-config`'s boot-time refusal of a Unix `host` where there is no `AF_UNIX` transport — stage 4
+  item 1 of `docs/agent/loop-goal.md:75`, caught at open time by `socket_endpoint` for now.
+- The matrix's socket leg for the three drivers — `docs/agent/loop-goal.md:86`;
+  `tests/db/compose.yaml` is where a published socket goes.
+- `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` and its two neighbours stay
+  `designed` until the driver half is complete.
