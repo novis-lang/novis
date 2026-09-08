@@ -32,6 +32,7 @@
 //! [`State::Idle`], or is [`State::Poisoned`].
 
 use std::cell::Cell;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use mysql_common::constants::CapabilityFlags;
@@ -40,6 +41,108 @@ use crate::mysql::Wire as MyWire;
 use crate::pg::{CancelKey, Wire};
 use crate::sql::StatementCache;
 use crate::tds::Wire as TdsWire;
+
+/// Where one server is: the address a host resolved to, or the path an operator
+/// wrote in place of one.
+///
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` is the spelling
+/// — a `[db.<name>] host` beginning with a path separator is a socket, on the
+/// overload `[server] listen` already established — and
+/// `rule:core-classes/db-unix-socket-path` is what each driver then does with the
+/// path, which is not the same thing on all of them. This type is where the two
+/// transports meet: a driver's `connect` takes it rather than a [`SocketAddr`]
+/// only one of them can be said in.
+///
+/// The socket arm is `#[cfg(unix)]` rather than a variant that refuses when it
+/// is dialled, so a build with no `AF_UNIX` transport cannot hold a path to dial
+/// at all — the platform half of
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`, made
+/// impossible by the type instead of caught by a check. `nvs-stdlib`'s
+/// `cache::Target` is this same shape over the shared store.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Endpoint {
+    /// A `host[:port]`, resolved to the one address the connection is made to by
+    /// whoever checked the `db.connect` capability. A driver that re-resolved
+    /// the name would be connecting somewhere nobody approved.
+    Tcp(SocketAddr),
+    /// A path an operator wrote, exactly as they wrote it: there is nothing to
+    /// resolve, and
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
+    /// is why no program can name one.
+    #[cfg(unix)]
+    Socket(std::path::PathBuf),
+}
+
+impl From<SocketAddr> for Endpoint {
+    /// An address is an endpoint, so a caller that has resolved one hands it
+    /// over as it stands.
+    ///
+    /// This is what lets a driver widen to [`Endpoint`] without every TCP caller
+    /// in the tree being rewritten to say so — `nvs-cli`'s two openers dial one
+    /// driver per macro arm and have no place to name a transport, and a socket
+    /// is admitted by the *configuration* reader
+    /// (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`)
+    /// rather than by anything downstream of it.
+    fn from(address: SocketAddr) -> Self {
+        Self::Tcp(address)
+    }
+}
+
+impl std::fmt::Display for Endpoint {
+    /// What a failure names the server as, which is the spelling an operator
+    /// wrote rather than a description of it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tcp(address) => write!(f, "{address}"),
+            #[cfg(unix)]
+            Self::Socket(path) => write!(f, "{}", path.display()),
+        }
+    }
+}
+
+/// Whether `host` is a socket rather than a name to resolve.
+///
+/// One predicate, here rather than once per driver: a value beginning with a
+/// path separator is a socket and no `host:port` can be spelled that way, which
+/// is `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s overload
+/// and `nvs_config`'s `[server] listen` reader is where it was first written.
+#[must_use]
+pub fn is_socket_host(host: &str) -> bool {
+    host.starts_with(std::path::is_separator)
+}
+
+/// The endpoint a socket `host` names.
+///
+/// # Errors
+///
+/// Nothing on this platform; the signature is the one the refusal below needs.
+#[cfg(unix)]
+pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
+    Ok(Endpoint::Socket(std::path::PathBuf::from(host)))
+}
+
+/// The refusal a build with no `AF_UNIX` transport answers a socket `host` with.
+///
+/// A refusal and never a fallback: a Unix spelling on a platform without the
+/// transport does not quietly become loopback TCP, because the two are not the
+/// same server and an operator who wrote a path did not ask for a port.
+/// [ADR 0142 § 4](/docs/decisions/0142.md) is the argument, and
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` the
+/// rule it left.
+///
+/// # Errors
+///
+/// `Unsupported`, always.
+#[cfg(not(unix))]
+pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        format!(
+            "`{host}` is a Unix-domain socket and this build has no `AF_UNIX` transport: \
+             a Unix spelling is refused rather than read as loopback TCP"
+        ),
+    ))
+}
 
 /// The backends [ADR 0067 § 12](/docs/decisions/0067.md) closes
 /// the set at.

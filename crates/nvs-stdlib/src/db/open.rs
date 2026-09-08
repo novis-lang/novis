@@ -313,11 +313,28 @@ pub(crate) fn open_named(
     // One wording for both handshakes: which driver could not reach its server
     // is the block's business, and what a program can do about either is the
     // same thing.
-    let opening = |address: SocketAddr, err: &std::io::Error| {
+    let opening = |at: &dyn std::fmt::Display, err: &std::io::Error| {
         Fault::thrown_as(
             ThrownClass::Io,
-            format!("{named}: `[db.{name}]` at {address} did not open: {err}"),
+            format!("{named}: `[db.{name}]` at {at} did not open: {err}"),
         )
+    };
+    // `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s overload,
+    // admitted here and nowhere else: a `host` beginning with a path separator
+    // is a socket, asked of `nvs_db::is_socket_host` so the predicate has one
+    // home. `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
+    // is why the settings path further down takes a pinned address and never a
+    // path — this is the door an operator's own configuration comes through.
+    let endpoint_of = |host: &str, port: Option<u16>, default_port: u16| {
+        if nvs_db::is_socket_host(host) {
+            return nvs_db::socket_endpoint(host).map_err(|why| {
+                Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!("{named}: `[db.{name}]` names a socket that cannot be opened: {why}"),
+                )
+            });
+        }
+        address_of(host, port, default_port, name).map(nvs_db::Endpoint::Tcp)
     };
     let written = block.driver.as_deref().unwrap_or("");
     let driver = nvs_db::Driver::from_config_name(written);
@@ -359,10 +376,9 @@ pub(crate) fn open_named(
                 let target = nvs_db::MySqlTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                let address =
-                    address_of(target.host, block.port, nvs_db::mysql::DEFAULT_PORT, name)?;
-                let conn = nvs_db::MySqlConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
+                let endpoint = endpoint_of(target.host, block.port, nvs_db::mysql::DEFAULT_PORT)?;
+                let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, deadline)
+                    .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MySql(conn)
             }
             Some(nvs_db::Driver::MariaDb) => {
@@ -372,7 +388,7 @@ pub(crate) fn open_named(
                 let address =
                     address_of(target.host, block.port, nvs_db::maria::DEFAULT_PORT, name)?;
                 let conn = nvs_db::MariaConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
+                    .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::MariaDb(conn)
             }
             Some(nvs_db::Driver::SqlServer) => {
@@ -381,7 +397,7 @@ pub(crate) fn open_named(
                 })?;
                 let address = address_of(target.host, block.port, nvs_db::tds::DEFAULT_PORT, name)?;
                 let conn = nvs_db::TdsConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
+                    .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::SqlServer(conn)
             }
             _ => {
@@ -390,7 +406,7 @@ pub(crate) fn open_named(
                 })?;
                 let address = address_of(target.host, block.port, nvs_db::pg::DEFAULT_PORT, name)?;
                 let conn = nvs_db::PgConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(address, &err))?;
+                    .map_err(|err| opening(&address, &err))?;
                 nvs_db::Connection::Postgres(conn)
             }
         },

@@ -69,7 +69,9 @@
 //!    than answered. [ADR 0067 § 3](/docs/decisions/0067.md) makes
 //!    `VerifyFull` the default with no spelling for turning it off, and a
 //!    handshake that continued in the clear here is exactly PHP's
-//!    `sslmode=prefer` under another name.
+//!    `sslmode=prefer` under another name. This step belongs to the TCP
+//!    transport: a connection over a Unix-domain socket has no network to
+//!    upgrade and skips it, for the reason [`MyStream`] states.
 //! 3. **The handshake response and its auth loop**, over TLS.
 //!    [`authenticate`] sends the user, the database, the collation and the
 //!    first challenge response together, then answers whatever the server asks
@@ -135,7 +137,6 @@
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::io::{self, Read, Write};
-use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
@@ -160,12 +161,14 @@ use mysql_common::proto::{MyDeserialize, MySerialize};
 use mysql_common::value::{BinValue, ServerSide, Value as MyValue, ValueDeserializer};
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
+#[cfg(unix)]
+use nvs_host::net::NvsUnix;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
 use crate::conn::{
-    BlockError, ColumnType, DbErrorKind, Driver, Isolation, MySqlConn, ServerError, State,
-    written_value,
+    BlockError, ColumnType, DbErrorKind, Driver, Endpoint, Isolation, MySqlConn, ServerError,
+    State, written_value,
 };
 use crate::span::QuerySpan;
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
@@ -263,10 +266,111 @@ const CLIENT_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIENT_PROTOCOL_41
 /// `CLIENT_SSL` is in here rather than checked separately because it is the
 /// same kind of fact as the other three: without it there is no connection this
 /// driver is willing to have, and the refusal should read as one sentence.
-const REQUIRED_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIENT_PROTOCOL_41
+pub(crate) const REQUIRED_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIENT_PROTOCOL_41
     .union(CapabilityFlags::CLIENT_SECURE_CONNECTION)
     .union(CapabilityFlags::CLIENT_PLUGIN_AUTH)
     .union(CapabilityFlags::CLIENT_SSL);
+
+/// [`REQUIRED_CAPABILITIES`] over a transport that never leaves the machine.
+///
+/// TLS is out of it, and only TLS. A Unix-domain socket has no network for a
+/// certificate to stand between, and demanding one there would refuse every
+/// server built without TLS for a threat that transport does not have —
+/// [`MyStream`] owns that argument in full.
+#[cfg(unix)]
+const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
+    REQUIRED_CAPABILITIES.difference(CapabilityFlags::CLIENT_SSL);
+
+/// The socket underneath a MySQL or MariaDB connection: TLS over TCP, or a
+/// Unix-domain socket carrying the protocol in the clear.
+///
+/// [`crate::conn::Endpoint`]'s two transports, arriving here as the two things a
+/// [`Wire`] can be framed over. The framing has no opinion about which it is,
+/// which is why this is a stream and not a second codec.
+///
+/// **There is no TLS over the local arm, and that is not a downgrade a server
+/// can ask for.** A path reaches this driver only where an operator wrote one
+/// into root-owned configuration
+/// (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`), it
+/// names no host for a certificate to be valid for, and the bytes never leave
+/// the machine — the socket's own file permissions are the boundary TLS would
+/// otherwise be standing in for. The in-band upgrade is still mandatory on the
+/// TCP arm, which is the one with a network in it, and a server chooses neither:
+/// the transport is decided before the greeting is read.
+///
+/// The local arm is `#[cfg(unix)]`, as [`crate::conn::Endpoint::Socket`] is, so
+/// this match is exhaustive on both platforms with no arm that exists only to
+/// refuse.
+pub enum MyStream {
+    /// A server that named a host, reached over TCP and upgraded in band.
+    Tls(NvsTls<NvsTcp>),
+    /// A server that named a path, reached over a Unix-domain socket.
+    #[cfg(unix)]
+    Local(NvsUnix),
+}
+
+impl Read for MyStream {
+    /// Whatever has arrived, from whichever socket this is.
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Tls(stream) => stream.read(buf),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for MyStream {
+    /// As much of `buf` as the socket took.
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Tls(stream) => stream.write(buf),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.write(buf),
+        }
+    }
+
+    /// Pushes what is held, which on the TLS arm is a record not yet sealed.
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Tls(stream) => stream.flush(),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.flush(),
+        }
+    }
+}
+
+impl std::fmt::Debug for MyStream {
+    /// Which transport this is, and nothing about the socket: a `rustls` session
+    /// holds key material and a buffered packet is one request's data, which is
+    /// [`Wire`]'s own `Debug` and its reason.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tls(_) => f.write_str("MyStream::Tls"),
+            #[cfg(unix)]
+            Self::Local(_) => f.write_str("MyStream::Local"),
+        }
+    }
+}
+
+impl nvs_host::net::Deadline for MyStream {
+    /// Bounds every wait on this connection, whichever socket carries it.
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tls(stream) => stream.set_deadline(at),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.set_deadline(at),
+        }
+    }
+
+    fn deadline(&self) -> Option<Instant> {
+        match self {
+            Self::Tls(stream) => stream.deadline(),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.deadline(),
+        }
+    }
+}
 
 /// Where one MySQL server is, and who to be there.
 ///
@@ -475,12 +579,12 @@ pub(crate) const MYSQL: Backend = Backend {
 /// server that answers rather than against a socket — the playbook's rule for
 /// this crate, and the reason every routine here takes a `&mut Wire<S>` instead
 /// of being an inherent method on [`MySqlConn`]. A real connection's wire is
-/// the `NvsTls<NvsTcp>` the default names.
+/// the [`MyStream`] the default names.
 ///
 /// [`crate::maria`] frames its packets with this too, through [`Wire::on`]: one
 /// protocol is framed one way, and a second copy of the sequence-id discipline
 /// would be a second place for it to go wrong.
-pub(crate) struct Wire<S: Read + Write = NvsTls<NvsTcp>> {
+pub(crate) struct Wire<S: Read + Write = MyStream> {
     stream: S,
     inbox: BytesMut,
     /// Which server is on the other end — see [`Backend`].
@@ -684,15 +788,23 @@ pub(crate) struct Greeting {
     server_version: (u16, u16, u16),
 }
 
-/// Reads the server's greeting off a plaintext socket.
+/// Reads the server's greeting off a plaintext socket, requiring `required` of
+/// it.
+///
+/// The set is the caller's because it is the *transport's*:
+/// [`REQUIRED_CAPABILITIES`] over TCP, where the in-band upgrade is what stands
+/// between this handshake and a network, and [`REQUIRED_OVER_A_SOCKET`] over a
+/// Unix-domain socket, where there is no network for it to stand in.
 ///
 /// # Errors
 ///
-/// `ConnectionRefused` for a server that offers none of
-/// [`REQUIRED_CAPABILITIES`] — including TLS — `InvalidData` for a packet that
-/// is not a greeting, and the server's own refusal where it declined the
-/// connection before greeting at all.
-pub(crate) fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<Greeting> {
+/// `ConnectionRefused` for a server that offers none of `required`,
+/// `InvalidData` for a packet that is not a greeting, and the server's own
+/// refusal where it declined the connection before greeting at all.
+pub(crate) fn read_greeting<S: Read + Write>(
+    wire: &mut Wire<S>,
+    required: CapabilityFlags,
+) -> io::Result<Greeting> {
     let packet = wire.read_packet()?;
     if packet.first() == Some(&0xFF) {
         return Err(server_refusal(
@@ -704,14 +816,15 @@ pub(crate) fn read_greeting<S: Read + Write>(wire: &mut Wire<S>) -> io::Result<G
 
     let handshake = HandshakePacket::deserialize((), &mut ParseBuf(&packet))?;
     let capabilities = handshake.capabilities();
-    let missing = REQUIRED_CAPABILITIES.difference(capabilities);
+    let missing = required.difference(capabilities);
     if !missing.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::ConnectionRefused,
             format!(
                 "the server offers no {missing:?}, and this driver needs \
-                 {REQUIRED_CAPABILITIES:?}: `rule:core-classes/db-capabilities` has no spelling for a \
-                 connection without TLS or without plugin authentication"
+                 {required:?}: `rule:core-classes/db-capabilities` has no spelling for a \
+                 connection without plugin authentication, or without TLS where the \
+                 transport is a network"
             ),
         ));
     }
@@ -1401,8 +1514,15 @@ fn offset_literal(seconds_east: i32) -> String {
 }
 
 impl MySqlConn {
-    /// Opens a connection: TCP, the greeting, § 3's in-band upgrade, TLS, the
-    /// authentication exchange, and the declared zone.
+    /// Opens a connection: the transport [`Endpoint`] names, the greeting, § 3's
+    /// in-band upgrade where there is a network to upgrade, the authentication
+    /// exchange, and the declared zone.
+    ///
+    /// A socket endpoint is **opened as written**.
+    /// `rule:core-classes/db-unix-socket-path` leaves MySQL's socket in the
+    /// operator's hands because MySQL's socket has no naming convention to
+    /// derive one from, which is the whole of the difference from
+    /// [`crate::pg`]'s directory: nothing here rewrites the path.
     ///
     /// `deadline` bounds the whole of that and not one leg of it — the connect,
     /// the handshake and every authentication round trip share one clock, filed
@@ -1415,37 +1535,67 @@ impl MySqlConn {
     /// # Errors
     ///
     /// `ConnectionRefused` when the server will not upgrade to TLS, offers none
-    /// of [`REQUIRED_CAPABILITIES`], or names an authentication plugin this
-    /// driver does not answer; an `Other` carrying a [`ServerError`] for the
-    /// server's own refusal;
+    /// of the capabilities its transport requires, or names an authentication
+    /// plugin this driver does not answer; an `Other` carrying a
+    /// [`ServerError`] for the server's own refusal;
     /// `InvalidData` for a packet the protocol does not allow at that point —
     /// or for a `tls_ca_file` that holds no certificate — `TimedOut` when the
     /// deadline passes, and whatever the socket or the TLS handshake itself
     /// reported.
     pub fn connect(
-        addr: SocketAddr,
+        endpoint: impl Into<Endpoint>,
         target: &MySqlTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<MySqlConn> {
-        let mut tcp = match deadline {
-            Some(at) => {
-                NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
+        let (mut wire, greeting) = match endpoint.into() {
+            Endpoint::Tcp(address) => {
+                let mut tcp = match deadline {
+                    Some(at) => NvsTcp::connect_timeout(
+                        address,
+                        at.saturating_duration_since(Instant::now()),
+                    )?,
+                    None => NvsTcp::connect(address)?,
+                };
+                tcp.set_deadline(deadline);
+
+                let mut plain = Wire::new(tcp);
+                let greeting = read_greeting(&mut plain, REQUIRED_CAPABILITIES)?;
+                request_tls(&mut plain, &greeting)?;
+
+                // Whatever is still buffered arrived in the clear and is carried
+                // across with the codec: the greeting is the only thing a server
+                // may say before the upgrade, and `read_greeting` took it.
+                let wire = plain.upgrade(|tcp| match target.tls_ca_file {
+                    Some(bundle) => {
+                        NvsTls::over_bundle(tcp, target.host, bundle).map(MyStream::Tls)
+                    }
+                    None => NvsTls::over(tcp, target.host).map(MyStream::Tls),
+                })?;
+                (wire, greeting)
             }
-            None => NvsTcp::connect(addr)?,
+            #[cfg(unix)]
+            Endpoint::Socket(path) => {
+                let mut local = match deadline {
+                    Some(at) => NvsUnix::connect_timeout(
+                        path,
+                        at.saturating_duration_since(Instant::now()),
+                    )?,
+                    None => NvsUnix::connect(path)?,
+                };
+                local.set_deadline(deadline);
+
+                let mut plain = Wire::new(local);
+                let mut greeting = read_greeting(&mut plain, REQUIRED_OVER_A_SOCKET)?;
+                // Nothing is upgraded on this arm, so the handshake response
+                // must not claim `CLIENT_SSL`: `authenticate` offers back
+                // whatever the greeting said the server has, and a client that
+                // claims TLS and then does not send it is a wire the server
+                // stops reading.
+                greeting.capabilities.remove(CapabilityFlags::CLIENT_SSL);
+                let wire = plain.upgrade(|local| Ok(MyStream::Local(local)))?;
+                (wire, greeting)
+            }
         };
-        tcp.set_deadline(deadline);
-
-        let mut plain = Wire::new(tcp);
-        let greeting = read_greeting(&mut plain)?;
-        request_tls(&mut plain, &greeting)?;
-
-        // Whatever is still buffered arrived in the clear and is carried across
-        // with the codec: the greeting is the only thing a server may say
-        // before the upgrade, and `read_greeting` took it.
-        let mut wire = plain.upgrade(|tcp| match target.tls_ca_file {
-            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle),
-            None => NvsTls::over(tcp, target.host),
-        })?;
 
         let login = Login {
             user: target.user,
@@ -1502,7 +1652,7 @@ impl MySqlConn {
         &mut self,
         sql: &str,
         params: &[Option<&[u8]>],
-    ) -> io::Result<MySqlRows<'_, NvsTls<NvsTcp>>> {
+    ) -> io::Result<MySqlRows<'_, MyStream>> {
         start_statement(
             &mut self.wire,
             &self.state,
@@ -1634,8 +1784,7 @@ impl Drop for MySqlConn {
 /// asymmetry with PostgreSQL, and it is the protocol's rather than a choice.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
-/// `Wire<NvsTls<NvsTcp>>` needs a socket and a certificate that no unit test
-/// has.
+/// `Wire<MyStream>` needs a socket and a certificate that no unit test has.
 ///
 /// # Errors
 ///
@@ -1692,8 +1841,8 @@ pub struct Prepared {
 /// which arrive again and are the ones that are true.
 ///
 /// Free and generic in the stream for this crate's usual reason, which
-/// `crate::pg`'s `start_statement` states: a `Wire<NvsTls<NvsTcp>>` needs a
-/// socket and a certificate that no unit test has.
+/// `crate::pg`'s `start_statement` states: a `Wire<MyStream>` needs a socket
+/// and a certificate that no unit test has.
 ///
 /// # Errors
 ///
@@ -2909,7 +3058,7 @@ fn malformed(column: &Column, wanted: &str) -> io::Error {
 /// A statement with no result set answers one of these too, already ended: its
 /// [`Self::next_row`] is `None` on the first call and [`Self::affected`] is the
 /// number the server's status packet carried.
-pub struct MySqlRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
+pub struct MySqlRows<'a, S: Read + Write = MyStream> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
     capabilities: CapabilityFlags,
@@ -3160,10 +3309,10 @@ mod tests {
 
     use super::{
         AuthContext, Backend, CLIENT_CAPABILITIES, COLLATION, COM_QUERY, DbErrorKind, Greeting,
-        Login, MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, ServerError, State, Value, Wire,
-        authenticate, begin, column_type, commit, encode, execute, execute_many, kind_of,
-        offset_literal, plugin_or_refuse, read_greeting, read_ok, request_tls, roll_back, scalar,
-        server_refusal, start_statement,
+        Login, MYSQL, MySqlTarget, MyValue, NvsStr, Prepared, REQUIRED_CAPABILITIES, ServerError,
+        State, Value, Wire, authenticate, begin, column_type, commit, encode, execute,
+        execute_many, kind_of, offset_literal, plugin_or_refuse, read_greeting, read_ok,
+        request_tls, roll_back, scalar, server_refusal, start_statement,
     };
     use crate::conn::ColumnType as NovisType;
     use crate::conn::{BlockError, Driver, Isolation};
@@ -3381,7 +3530,8 @@ mod tests {
             server_capabilities(),
         ));
 
-        let greeting = read_greeting(&mut wire).expect("the greeting decodes");
+        let greeting =
+            read_greeting(&mut wire, REQUIRED_CAPABILITIES).expect("the greeting decodes");
         request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
         let agreed = authenticate(&mut wire, &login(), &greeting).expect("the server says OK");
 
@@ -3456,7 +3606,8 @@ mod tests {
         wire.inbox
             .extend_from_slice(&greeting_offering(plugin, server_capabilities(), offered));
 
-        let greeting = read_greeting(&mut wire).expect("the greeting decodes");
+        let greeting =
+            read_greeting(&mut wire, REQUIRED_CAPABILITIES).expect("the greeting decodes");
         request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
         authenticate(&mut wire, login, &greeting).expect("the server says OK");
 
@@ -3529,7 +3680,8 @@ mod tests {
             server_capabilities().difference(CapabilityFlags::CLIENT_SSL),
         ));
 
-        let refused = read_greeting(&mut wire).expect_err("a plaintext server is not a connection");
+        let refused = read_greeting(&mut wire, REQUIRED_CAPABILITIES)
+            .expect_err("a plaintext server is not a connection");
         assert_eq!(refused.kind(), io::ErrorKind::ConnectionRefused);
         assert!(
             wire.peer().sent.is_empty(),
@@ -3566,7 +3718,8 @@ mod tests {
             server_capabilities(),
         ));
 
-        let greeting = read_greeting(&mut wire).expect("the greeting decodes");
+        let greeting =
+            read_greeting(&mut wire, REQUIRED_CAPABILITIES).expect("the greeting decodes");
         request_tls(&mut wire, &greeting).expect("the upgrade request goes out");
         let refused = authenticate(&mut wire, &login(), &greeting)
             .expect_err("`mysql_clear_password` is not a plugin this driver answers");
@@ -4663,6 +4816,52 @@ mod tests {
             .unwrap_err()
             .refusal("main");
         assert!(theirs.contains("a PostgreSQL connection"), "{theirs}");
+    }
+
+    /// `rule:core-classes/db-unix-socket-path`: MySQL takes the socket **file**,
+    /// so the path an operator wrote in `[db.<name>] host` is the path this
+    /// driver opens, with nothing derived from it — which is the whole of the
+    /// difference from `crate::pg`'s directory.
+    ///
+    /// Asserted against **where the dial landed** rather than against a
+    /// completed handshake: a unit test has no MySQL server, and what is under
+    /// test is the path, so a listener that accepts once and hangs up answers
+    /// that question and nothing else. A driver that derived a name would find
+    /// nothing bound at it and the accept would never happen.
+    #[test]
+    fn a_mysql_socket_path_is_opened_as_written() {
+        #[cfg(unix)]
+        {
+            let mut path = std::env::temp_dir();
+            path.push(format!("nvs-mysql-{}-as-written.sock", std::process::id()));
+            let _ = std::fs::remove_file(&path);
+            let listener =
+                std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
+            let server = std::thread::spawn(move || listener.accept().is_ok());
+
+            let opened = crate::conn::MySqlConn::connect(
+                crate::conn::Endpoint::Socket(path.clone()),
+                &target(),
+                None,
+            );
+
+            assert!(
+                server.join().expect("the fake server runs to completion"),
+                "the driver did not dial the path an operator wrote"
+            );
+            assert!(
+                opened.is_err(),
+                "a server that hung up before greeting is not a connection"
+            );
+            let _ = std::fs::remove_file(&path);
+        }
+
+        #[cfg(not(unix))]
+        {
+            let refused = crate::conn::socket_endpoint("/run/mysqld/mysqld.sock")
+                .expect_err("a build with no `AF_UNIX` transport has no socket to open");
+            assert_eq!(refused.kind(), io::ErrorKind::Unsupported);
+        }
     }
 
     /// A `Column` as the driver reads one, out of the definition packet

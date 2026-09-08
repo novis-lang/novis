@@ -62,7 +62,7 @@ use nvs_host::net::NvsTcp;
 use nvs_host::tls::NvsTls;
 
 use crate::conn::{BlockError, DbErrorKind, Driver, MariaConn, State, written_value};
-use crate::mysql::{Backend, Login, Wire};
+use crate::mysql::{Backend, Login, MyStream, REQUIRED_CAPABILITIES, Wire};
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
 /// MariaDB's port, which an absent `port` in a `[db.<name>]` block means.
@@ -363,15 +363,15 @@ impl MariaConn {
         tcp.set_deadline(deadline);
 
         let mut plain = Wire::on(&MARIADB, tcp);
-        let greeting = crate::mysql::read_greeting(&mut plain)?;
+        let greeting = crate::mysql::read_greeting(&mut plain, REQUIRED_CAPABILITIES)?;
         crate::mysql::request_tls(&mut plain, &greeting)?;
 
         // Whatever is still buffered arrived in the clear and is carried across
         // with the codec: the greeting is the only thing a server may say
         // before the upgrade, and `read_greeting` took it.
         let mut wire = plain.upgrade(|tcp| match target.tls_ca_file {
-            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle),
-            None => NvsTls::over(tcp, target.host),
+            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle).map(MyStream::Tls),
+            None => NvsTls::over(tcp, target.host).map(MyStream::Tls),
         })?;
 
         let login = Login {
@@ -423,7 +423,7 @@ impl MariaConn {
         &mut self,
         sql: &str,
         params: &[Option<&[u8]>],
-    ) -> io::Result<crate::MySqlRows<'_, NvsTls<NvsTcp>>> {
+    ) -> io::Result<crate::MySqlRows<'_, MyStream>> {
         crate::mysql::start_statement(
             &mut self.wire,
             &self.state,

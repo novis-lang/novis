@@ -175,11 +175,11 @@ pub mod sqlite;
 pub mod tds;
 
 pub use conn::{
-    BlockError, ColumnType, Connection, DbErrorKind, Driver, Isolation, MariaConn, MySqlConn,
-    PgConn, ServerError, SqliteConn, State, TdsConn,
+    BlockError, ColumnType, Connection, DbErrorKind, Driver, Endpoint, Isolation, MariaConn,
+    MySqlConn, PgConn, ServerError, SqliteConn, State, TdsConn, is_socket_host, socket_endpoint,
 };
 pub use maria::MariaTarget;
-pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime};
+pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime, MyStream};
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
 // `catalog::Read` is deliberately not re-exported here either, and for the
 // neighbouring reason: a bare `Read` at the crate root reads as `std::io`'s

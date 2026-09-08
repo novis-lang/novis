@@ -11,6 +11,7 @@ database.
 
 The cost is one piece of protocol trivia per driver, encoded where that driver's trivia belongs.
 
-**Not shipped.** No driver in `crates/nvs-db/` opens a Unix socket yet — `crates/nvs-db/src/pg.rs`
-holds neither the derivation nor the transport, and `crates/nvs-db/src/tds/mod.rs` has no refusal to
-report.
+**Shipped for MySQL only.** `crates/nvs-db/src/mysql.rs` opens the socket file as written, over the
+second arm of `crate::conn::Endpoint` — the address-or-path every driver's `connect` will take.
+`crates/nvs-db/src/pg.rs` holds neither the derivation nor the transport, `crates/nvs-db/src/maria.rs`
+still takes an address, and `crates/nvs-db/src/tds/mod.rs` has no refusal to report.
