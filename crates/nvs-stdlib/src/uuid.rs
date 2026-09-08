@@ -103,7 +103,7 @@ use uuid::{Builder, Uuid};
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -141,7 +141,13 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "parse",
             names: &["s"],
-            params: &[CoreTy::Str],
+            // `Qual::Neutral` rather than unclassified, and it is
+            // `rule:expressions/try-parse`'s pair being readable as `Parses`
+            // that turns on it: the text a program parses arrived from outside
+            // the process, so the parameter admits a `tainted` one, and the
+            // 128 bits that come back carry none of it — a canonical UUID is
+            // what the parse checked, not what it was handed.
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uuid_parse",
@@ -150,7 +156,7 @@ pub const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "tryParse",
             names: &["s"],
-            params: &[CoreTy::Str],
+            params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
             symbol: "nvs_core_uuid_try_parse",

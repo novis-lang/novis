@@ -2563,6 +2563,57 @@ pub fn implements_comparable(class: &str) -> bool {
         })
 }
 
+/// Whether `class` implements `Parses` — `rule:expressions/try-parse`'s pair,
+/// asked of the member roster for [`implements_comparable`]'s reason and no
+/// other: a `Core` class writes no `implements` clause, so the two rows *are*
+/// the declaration, and a roster beside them would be a second copy of the same
+/// fact.
+///
+/// **The rule's three conditions are exactly what this encodes.** `parse` takes
+/// one `string` and nothing else, so a row carrying a format or an options bag
+/// beside the text answers a different question and is not this member.
+/// `tryParse` is `parse` with the throw caught, so it takes that same one
+/// parameter and answers the nullable of the same class — a nullable over
+/// anything else is a different pair. And the spelling is `parse`/`tryParse`,
+/// which is what the two name comparisons are.
+///
+/// **The classification is load-bearing rather than decoration.**
+/// `Parses::parse` declares `tainted string $s`, and
+/// `nvs_types::expr::quals`' `admits_tainted_argument` lets a tainted argument
+/// through a [`Qual::Contagious`] parameter only where the *result* can carry
+/// the qualifier back out — which an object never can, since `tainted` is a
+/// property of `string` and `bytes` and not of a class. A `Contagious` row
+/// would therefore refuse the interface's own argument type, and
+/// [`Qual::Neutral`] is the one mark that both admits the text and says what is
+/// true of what comes back: the parse checked it, and the object carries none
+/// of it.
+#[must_use]
+pub fn implements_parses(class: &str) -> bool {
+    fn reads_one_text(member: &CoreMethod) -> bool {
+        matches!(member.params, [CoreTy::Text(Qual::Neutral)]) && member.defaults.is_empty()
+    }
+
+    CLASSES
+        .iter()
+        .find(|found| found.name == class)
+        .is_some_and(|found| {
+            let parses = found.methods.iter().any(|member| {
+                member.name == "parse"
+                    && reads_one_text(member)
+                    && matches!(member.return_ty, CoreTy::Instance(answered) if answered == class)
+            });
+            let tries = found.methods.iter().any(|member| {
+                member.name == "tryParse"
+                    && reads_one_text(member)
+                    && matches!(
+                        member.return_ty,
+                        CoreTy::Nullable(CoreTy::Instance(answered)) if *answered == class
+                    )
+            });
+            parses && tries
+        })
+}
+
 /// The type parameters `class` declares, in order — `None` when it is not one
 /// of [`GENERIC_CLASSES`], which is every other name in the program.
 #[must_use]
@@ -3252,8 +3303,6 @@ mod tests {
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
     const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Uuid", "parse"),
-        ("Core\\Uuid", "tryParse"),
         ("Core\\Hash", "of"),
         ("Core\\Hash", "hmac"),
         ("Core\\Hash", "equals"),
@@ -3334,6 +3383,39 @@ mod tests {
                  UNCLASSIFIED; delete that line, because the list only shrinks"
             );
         }
+    }
+
+    /// [`implements_parses`]' answer over the whole roster rather than at the
+    /// one class that satisfies it. A member grown beside the pair, a `parse`
+    /// reclassified, or a `tryParse` whose nullable stops naming its own class
+    /// changes this list before it changes a binding site — which is the only
+    /// place the interface is asked for.
+    #[test]
+    fn the_parses_roster_is_the_classes_carrying_the_whole_pair() {
+        let implementors = CLASSES
+            .iter()
+            .map(|class| class.name)
+            .filter(|name| implements_parses(name))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            implementors,
+            vec![crate::uuid::NAME],
+            "`Core\\Uuid` is the whole roster today"
+        );
+
+        assert!(
+            !implements_parses(crate::uri::NAME),
+            "`Core\\Uri::parse` is `Qual::Contagious` over an object result, so it refuses the \
+             `tainted string` the interface declares. Widening it is a decision and not a typo: a \
+             URI's components come back out as plain `string`s, so a `Neutral` parse there would \
+             launder attacker text through `scheme()` and `path()`, which is not what a checked \
+             conversion buys"
+        );
+        assert!(
+            !implements_parses(crate::time::DURATION_NAME),
+            "`Core\\Time\\Duration::parse` reads one `Qual::Neutral` text and answers its own \
+             class, and carries no `tryParse` — half the pair is not the interface"
+        );
     }
 
     /// A [`CoreTy::Nullable`] wraps something a `null` can actually widen a
