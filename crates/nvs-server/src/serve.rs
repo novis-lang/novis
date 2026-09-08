@@ -4370,13 +4370,35 @@ mod tests {
 
     /// Reads until `needle` has arrived, so a test can stop in the middle of a
     /// keep-alive connection without parsing the framing itself.
+    ///
+    /// **It stops on the needle's last byte and takes nothing past it**, which
+    /// is why it reads one byte at a time rather than in chunks. What follows a
+    /// handshake on these sockets is the server's own framing, and a chunked
+    /// read is free to return it in the same buffer as the head — bytes this
+    /// helper would then hold, out of reach of the `tungstenite::WebSocket` the
+    /// caller builds over the socket next, which starts with an empty buffer of
+    /// its own. The peer reads EOF where a close frame was, and calls that a
+    /// reset. A loaded machine is what makes it happen: the server writes both
+    /// before the client thread is scheduled for its first read, so the two
+    /// arrive coalesced. The server side of the same seam answers it by handing
+    /// `Framed::new` the bytes it over-read (`crate::socket`'s `Prefixed`);
+    /// here there is nowhere to hand them, so none are taken.
     fn read_until(socket: &mut TcpStream, needle: &str, seen: &mut String) {
-        while !seen.contains(needle) {
-            let mut chunk = [0_u8; 256];
-            let read = socket.read(&mut chunk).expect("the read failed");
-            assert!(read > 0, "the connection closed before {needle:?}: {seen}");
-            seen.push_str(&String::from_utf8_lossy(&chunk[..read]));
+        let mut buffer = seen.as_bytes().to_vec();
+        while !buffer
+            .windows(needle.len())
+            .any(|at| at == needle.as_bytes())
+        {
+            let mut byte = [0_u8; 1];
+            let read = socket.read(&mut byte).expect("the read failed");
+            assert!(
+                read > 0,
+                "the connection closed before {needle:?}: {}",
+                String::from_utf8_lossy(&buffer)
+            );
+            buffer.push(byte[0]);
         }
+        *seen = String::from_utf8_lossy(&buffer).into_owned();
     }
 
     /// The whole seam end to end: a socket in, `hyper`'s framing over the
