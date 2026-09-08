@@ -134,17 +134,20 @@ export function serve(client: LanguageClient | undefined): void {
 }
 
 /**
- * The decoration one concealed range is drawn with: the glyphs smeared past reading, in place.
+ * The decoration one concealed range is drawn with: the glyphs smeared past reading and drained of
+ * colour, in place.
  *
  * The blur takes the characters where they are, so every cell stays exactly the width it was and a
  * click still lands on the column the buffer has there. A `before`/`after` content or a
- * `display: none` would move them, and then it would not.
+ * `display: none` would move them, and then it would not. The grayscale beside it takes the
+ * syntax colouring off the smear, so a concealed range reads as one grey shape rather than as a
+ * blurred string that is still recognisably a string.
  *
  * **`textDecoration` is the field a filter reaches through, and that is not what its name says.**
  * This API has no property for a CSS filter, and the string given here is written into the rendered
  * rule verbatim — so the `text-decoration` declaration is closed with `none` and the filter follows
- * it. Anything put here is CSS this extension is choosing on the user's behalf, which is why it is
- * only ever the one geometric property: no colour is set at all, and
+ * it. Anything put here is CSS this extension is choosing on the user's behalf, which is why it
+ * only ever subtracts: no colour is named, the grayscale removes the ones the theme chose, and
  * `rule:ide/novis-ships-names-not-colours` is met by having nothing to ship rather than by naming a
  * theme key.
  *
@@ -162,7 +165,7 @@ export function serve(client: LanguageClient | undefined): void {
  */
 function bar(): TextEditorDecorationType {
   return window.createTextEditorDecorationType({
-    textDecoration: `none; filter: blur(${BLUR}); clip-path: inset(0)`,
+    textDecoration: `none; filter: blur(${BLUR}) grayscale(1); clip-path: inset(0)`,
     // A character typed against either edge is outside the concealed range until the server says
     // otherwise, which is the direction that cannot draw over bytes nobody answered for.
     rangeBehavior: DecorationRangeBehavior.ClosedClosed,
