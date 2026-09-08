@@ -220,6 +220,99 @@ fn carries(headers: &[(String, String)], name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+
+    /// The `Wire` a case writing exactly `sections` is answered with, taken
+    /// the way the runner takes it: parsed as a case, rendered as the file,
+    /// and read back out of it.
+    ///
+    /// Every assertion below goes through this rather than building a
+    /// [`Request`] by hand, because what a section is worth is what survives
+    /// the file — a section the parser reads and the render drops describes a
+    /// request the program never answers.
+    fn wire(sections: &str) -> Wire {
+        let text =
+            format!("--TEST--\nthe title\n--FILE--\n<?nvs\necho 1;\n{sections}--EXPECT--\n1\n");
+        let case = crate::case::parse(Path::new("t.nvst"), &text).expect("the case parses");
+        let request = case.request.expect("the sections describe a request");
+        read(&render(&request)).expect("the rendered request reads back")
+    }
+
+    /// The first field of this name on the wire, or `None` where the request
+    /// carries none.
+    fn value_of<'wire>(wire: &'wire Wire, name: &str) -> Option<&'wire str> {
+        wire.headers
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value.as_str())
+    }
+
+    #[test]
+    fn a_get_section_becomes_the_requests_query_string() {
+        let wire = wire("--GET--\npage=2&q=novis\n");
+        assert_eq!(wire.query, "page=2&q=novis");
+        // The three facts no section spells: a case with no body is a `GET`,
+        // its path is `/`, and its query is `--GET--`'s line undecoded.
+        assert_eq!(wire.method, "GET");
+        assert_eq!(wire.path, "/");
+        assert_eq!(wire.body, None);
+    }
+
+    #[test]
+    fn a_post_section_becomes_a_urlencoded_body() {
+        let wire = wire("--POST--\nname=ada&role=author\n");
+        assert_eq!(wire.method, "POST");
+        assert_eq!(wire.body.as_deref(), Some("name=ada&role=author"));
+        // `--POST--` says what its content type is by being urlencoded pairs,
+        // so the case does not write one and the render does.
+        assert_eq!(
+            value_of(&wire, "content-type"),
+            Some("application/x-www-form-urlencoded")
+        );
+        assert_eq!(value_of(&wire, "content-length"), Some("20"));
+    }
+
+    #[test]
+    fn a_post_raw_section_is_the_body_verbatim() {
+        let wire = wire("--POST_RAW--\n{\"name\":\"ada\"}\n");
+        // Verbatim to the last octet, the trailing newline included: a case
+        // pinning what a program read out of a body is pinning the octets.
+        assert_eq!(wire.body.as_deref(), Some("{\"name\":\"ada\"}\n"));
+        assert_eq!(wire.method, "POST");
+        // Nothing is assumed about a raw body, so it arrives unlabelled
+        // unless the case wrote the label itself.
+        assert_eq!(value_of(&wire, "content-type"), None);
+        assert_eq!(value_of(&wire, "content-length"), Some("15"));
+    }
+
+    #[test]
+    fn a_headers_section_pushes_one_line_per_field() {
+        let wire = wire("--HEADERS--\nAccept: application/json\nX-Trace: 7\nAccept: text/html\n");
+        // One entry per line, in the order written, lower-cased the way a
+        // served request carries them — and a repeated name is kept rather
+        // than merged, because a message may legitimately carry one twice.
+        assert_eq!(
+            wire.headers,
+            [
+                ("accept".to_owned(), "application/json".to_owned()),
+                ("x-trace".to_owned(), "7".to_owned()),
+                ("accept".to_owned(), "text/html".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_cookie_section_becomes_one_cookie_header() {
+        let wire = wire("--COOKIE--\nsession=abc123\ntheme=dark\n");
+        // The wire has no cookie of its own, only the one field a peer would
+        // have sent, so the pairs a case wrote a line each arrive joined.
+        assert_eq!(
+            wire.headers,
+            [("cookie".to_owned(), "session=abc123; theme=dark".to_owned())]
+        );
+        assert_eq!(wire.method, "GET");
+        assert_eq!(wire.body, None);
+    }
 
     #[test]
     fn a_case_describing_a_request_renders_what_a_peer_would_have_sent() {
