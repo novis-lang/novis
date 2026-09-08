@@ -5,6 +5,13 @@
 //! address and the [`Scheme`] a trusted proxy asserted
 //! (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`).
 //!
+//! [`InboundSpec`] is the other half: a request as a *description* — the bag
+//! `rule:testing/in-process-request`'s `Core\Test::request` takes — and the one
+//! place a described request becomes a carrier. A door reads its fields off a
+//! socket and fills an [`Inbound`] in; everything else says what it wants and
+//! builds one, which is why the four crates that build requests share this
+//! type rather than each holding a builder of its own.
+//!
 //! The body is a [`RequestBody`] rather than bytes, and that is this file's one
 //! real decision:
 //! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s finite
@@ -964,6 +971,433 @@ impl Inbound {
     }
 }
 
+/// A request as a description rather than as a carrier: everything a test may
+/// say about one, in `rule:testing/in-process-request`'s
+/// `Core\Test::request` bag exactly, and the one place a described request
+/// becomes an [`Inbound`].
+///
+/// **It lives beside the carrier it builds** because four crates need to build
+/// one and none of them is under the other three: `nvs-test` renders a case's
+/// sections, `nvs-cli` reads a frozen request off disk, `nvs-stdlib` answers
+/// the member a test calls, and `nvs-server` accepts one off a socket. All four
+/// already depend on this crate, so a builder written in any of them is a
+/// builder the others copy — and two builders are two answers to what a request
+/// nobody sent carries, which is exactly the question a test is asking.
+///
+/// **It interprets nothing, with three named exceptions.** The query is the raw
+/// string past the `?`, a header is the field line as it was given, and a
+/// cookie pair is written into the one `cookie` field a peer would have sent —
+/// none of it checked, because a test's own reason for building a request by
+/// hand is often that the request is a bad one, and a builder that repaired a
+/// cookie name would hide the case the test exists for
+/// (`rule:errors/cookie-name-bytes` is the reader's rule, not this writer's).
+/// The exceptions are the three body spellings that encode: [`SpecBody::Form`],
+/// [`SpecBody::Json`] and [`SpecBody::Files`] each produce their octets and
+/// their own `Content-Type`, which is the whole point of writing one of them
+/// rather than [`SpecBody::Raw`].
+///
+/// **A field the spec derives is never written twice.** `host`, `cookie`,
+/// `content-type` and `content-length` are each written only where
+/// [`Self::push_header`] did not already carry that name: a spec that spelled
+/// one meant it, and a field standing twice is a field that can disagree with
+/// itself.
+///
+/// **What it spends:** the request's own bytes, once, in a process that is
+/// building a request — a test runner or `nvs run --request`, never a served
+/// request's path. [`Self::build`] holds the body twice for the length of the
+/// encode where the spelling is one that encodes, since the parts and the
+/// payload they are written into are both resident until the spec is dropped at
+/// the end of that call.
+#[derive(Debug, Clone)]
+pub struct InboundSpec {
+    /// The verb, as the two positional arguments of `Core\Test::request` name
+    /// it, and un-uppercased for [`Inbound::method`]'s reason.
+    method: String,
+    /// The path, already without any query string.
+    path: String,
+    /// Everything past the `?`, undecoded, and `""` for a request carrying
+    /// none — the two states [`Inbound::query`] does not distinguish either.
+    query: String,
+    /// One entry per field line, in the order given, name first and the value
+    /// as bytes: [`Inbound::headers`]'s shape, because that is what these
+    /// become.
+    headers: Vec<(String, Vec<u8>)>,
+    /// The cookie pairs, joined into one `cookie` field line at [`Self::build`].
+    ///
+    /// A bag key of their own rather than a header a test writes, because a
+    /// cookie is what a test is describing and the field is only how it
+    /// travels — and because a joiner that lives here is one every caller
+    /// shares.
+    cookies: Vec<(String, String)>,
+    /// The body in whichever of its four spellings was written, and `None` for
+    /// a request carrying none — which is the other state from an empty one,
+    /// as [`Inbound::set_body`] describes.
+    ///
+    /// One field for the four keys, so that two of them cannot both be held:
+    /// [`Self::set_body`] refuses the second naming both, and the refusal is
+    /// therefore impossible to reach from anything reading this.
+    body: Option<SpecBody>,
+    /// What the request's peer resolves to, as
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// walk would have decided it — `None` for a peer with no address at all.
+    client: Option<IpAddr>,
+    /// The scheme the request effectively arrived over, `Http` until a spec
+    /// says otherwise for [`Inbound::new`]'s fail-closed reason.
+    scheme: Scheme,
+    /// The authority the request names, written as the `host` field line every
+    /// HTTP/1.1 request carries it in, and `None` for a spec that named none.
+    host: Option<String>,
+}
+
+/// One of the four spellings a spec's body is written in, three of which encode
+/// themselves and say what they encoded to.
+///
+/// They are four keys of one bag and one field of one spec, so the enum is what
+/// makes `rule:errors/ambiguous-input-refused`'s refusal
+/// structural: a body is written under exactly one of these names, and two
+/// names in one bag are refused whole rather than merged.
+#[derive(Debug, Clone)]
+pub enum SpecBody {
+    /// The octets verbatim, framed by nothing and typed by nothing.
+    ///
+    /// The spelling a test reaches for when the request it describes is a
+    /// malformed one — a truncated multipart body, a form with an `=` where no
+    /// pair may have one — since nothing here writes a `Content-Type` for it
+    /// and nothing checks what it holds.
+    Raw(Vec<u8>),
+    /// Pairs, encoded as an `application/x-www-form-urlencoded` payload under
+    /// that `Content-Type`.
+    ///
+    /// The escape set is `Core\Uri::encodeFormValue`'s and is written twice
+    /// rather than shared, because that member is `nvs_stdlib`'s and this crate
+    /// is below it: ASCII alphanumerics and `-_.` stand, a space is `+`, and
+    /// every other octet is `%` and two upper-case hex digits.
+    Form(Vec<(String, String)>),
+    /// A JSON document, already encoded, under `application/json`.
+    ///
+    /// The octets rather than a [`Value`], because encoding one is
+    /// `Core\Json`'s reading of a program's value and lives a crate above this
+    /// one. What this spelling buys over [`Self::Raw`] is the header, which is
+    /// what a test would otherwise have to remember to write beside every
+    /// document it posts.
+    Json(Vec<u8>),
+    /// Parts, encoded as a `multipart/form-data` body under that `Content-Type`
+    /// and the boundary the encode chose.
+    ///
+    /// **The encoder is this module's and `nvs_stdlib::multipart` stays a
+    /// parser** — one direction each, and not twins under
+    /// `rule:core-api/shape-rules` R17, since neither is
+    /// reachable through the other.
+    ///
+    /// A part with no file name is a form field rather than a file
+    /// (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`), which
+    /// is how one spelling describes the mixed body a `form` and a `files` key
+    /// together would otherwise have to be merged into.
+    Files(Vec<SpecPart>),
+}
+
+/// One part of a [`SpecBody::Files`] body: what it is called, what it holds,
+/// and whether it is a file at all.
+#[derive(Debug, Clone)]
+pub struct SpecPart {
+    /// The form field name, written into the part's `Content-Disposition`.
+    pub name: String,
+    /// The file name, and `None` for a part that is a form field rather than a
+    /// file — which is the whole of the distinction
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` draws.
+    pub filename: Option<String>,
+    /// The part's own `Content-Type`, written only where one is given: a part
+    /// that declares none is one the parser reads as `text/plain`, and writing
+    /// that here would put a claim in the body the spec was not asked for.
+    pub content_type: Option<String>,
+    /// The part's octets, verbatim.
+    pub bytes: Vec<u8>,
+}
+
+impl SpecBody {
+    /// The bag key this body was written under, which is what a refusal names.
+    #[must_use]
+    pub fn spelling(&self) -> &'static str {
+        match self {
+            Self::Raw(_) => "body",
+            Self::Form(_) => "form",
+            Self::Json(_) => "json",
+            Self::Files(_) => "files",
+        }
+    }
+
+    /// The octets this body is, and the `Content-Type` the spelling declares —
+    /// `None` for the raw one, which declares nothing.
+    fn encode(self) -> (Vec<u8>, Option<String>) {
+        match self {
+            Self::Raw(octets) => (octets, None),
+            Self::Form(pairs) => (
+                form_encoded(&pairs),
+                Some("application/x-www-form-urlencoded".to_owned()),
+            ),
+            Self::Json(document) => (document, Some("application/json".to_owned())),
+            Self::Files(parts) => {
+                let boundary = boundary_for(&parts);
+                let body = multipart(&parts, &boundary);
+                (
+                    body,
+                    Some(format!("multipart/form-data; boundary={boundary}")),
+                )
+            }
+        }
+    }
+}
+
+impl InboundSpec {
+    /// The two facts `Core\Test::request` takes before its bag: the verb and
+    /// the path, with no query, no header and no body yet.
+    #[must_use]
+    pub fn new(method: &str, path: &str) -> Self {
+        Self {
+            method: method.to_owned(),
+            path: path.to_owned(),
+            query: String::new(),
+            headers: Vec::new(),
+            cookies: Vec::new(),
+            body: None,
+            // [`Inbound::new`]'s fail-closed pair, said again here for the same
+            // reason: a spec that names no peer describes a request from
+            // nobody in particular over plaintext, and `Https` is a claim only
+            // [`Self::set_peer`] can make.
+            client: None,
+            scheme: Scheme::Http,
+            host: None,
+        }
+    }
+
+    /// The query string, as it would stand past the `?`.
+    pub fn set_query(&mut self, query: &str) {
+        self.query = query.to_owned();
+    }
+
+    /// Adds one header field line, which is written in the order the calls
+    /// came, as [`Inbound::push_header`] keeps them.
+    pub fn push_header(&mut self, name: &str, value: &[u8]) {
+        self.headers.push((name.to_owned(), value.to_vec()));
+    }
+
+    /// Adds one cookie pair to the `cookie` field [`Self::build`] joins.
+    pub fn push_cookie(&mut self, name: &str, value: &str) {
+        self.cookies.push((name.to_owned(), value.to_owned()));
+    }
+
+    /// Gives the spec its body, in one of the four spellings.
+    ///
+    /// # Errors
+    ///
+    /// A second spelling is refused naming both, never merged with the first
+    /// (`rule:errors/ambiguous-input-refused`): `body`,
+    /// `form`, `json` and `files` describe one body four ways, so a bag holding
+    /// two of them has said two things and a builder picking either would be
+    /// answering a question it was not asked.
+    ///
+    /// A [`SpecBody::Files`] part whose name or file name holds a `"`, a `\r`
+    /// or a `\n` is refused for the same reason one step down: those bytes are
+    /// what frames a part header, so a part carrying one would describe parts
+    /// the spec was never given. A test that means to build a malformed body
+    /// writes [`SpecBody::Raw`], which frames nothing and checks nothing.
+    pub fn set_body(&mut self, body: SpecBody) -> Result<(), String> {
+        if let Some(held) = &self.body {
+            return Err(format!(
+                "`{}` and `{}` are two spellings of one body",
+                held.spelling(),
+                body.spelling()
+            ));
+        }
+        if let SpecBody::Files(parts) = &body {
+            for part in parts {
+                writable("name", &part.name)?;
+                if let Some(filename) = &part.filename {
+                    writable("file name", filename)?;
+                }
+            }
+        }
+        self.body = Some(body);
+        Ok(())
+    }
+
+    /// Records who the request is to have come from, on
+    /// [`Inbound::set_peer`]'s terms: one walk answers both, so a spec states
+    /// both or neither.
+    pub fn set_peer(&mut self, client: Option<IpAddr>, scheme: Scheme) {
+        self.client = client;
+        self.scheme = scheme;
+    }
+
+    /// Records the authority the request names, which travels as its `host`
+    /// field line.
+    pub fn set_host(&mut self, host: &str) {
+        self.host = Some(host.to_owned());
+    }
+
+    /// Builds the carrier this spec describes.
+    ///
+    /// The order is the one a peer would have written: the spec's own field
+    /// lines first, then the fields it derived — `host`, `cookie`,
+    /// `content-type`, `content-length` — each only where no line of that name
+    /// was written by hand.
+    #[must_use]
+    pub fn build(self) -> Inbound {
+        let Self {
+            method,
+            path,
+            query,
+            headers,
+            cookies,
+            body,
+            client,
+            scheme,
+            host,
+        } = self;
+        let mut inbound = Inbound::new(&method, &path, &query);
+        for (name, value) in &headers {
+            inbound.push_header(name, value);
+        }
+        if let Some(host) = &host
+            && !carries(&headers, "host")
+        {
+            inbound.push_header("host", host.as_bytes());
+        }
+        if !cookies.is_empty() && !carries(&headers, "cookie") {
+            let pairs: Vec<String> = cookies
+                .iter()
+                .map(|(name, value)| format!("{name}={value}"))
+                .collect();
+            inbound.push_header("cookie", pairs.join("; ").as_bytes());
+        }
+        if let Some(body) = body {
+            let (octets, content_type) = body.encode();
+            if let Some(content_type) = content_type
+                && !carries(&headers, "content-type")
+            {
+                inbound.push_header("content-type", content_type.as_bytes());
+            }
+            if !carries(&headers, "content-length") {
+                inbound.push_header("content-length", octets.len().to_string().as_bytes());
+            }
+            inbound.set_buffered_body(octets);
+        }
+        inbound.set_peer(client, scheme);
+        inbound
+    }
+}
+
+/// Whether a field of this name is already written, compared the way RFC 9110
+/// § 5.1 compares one.
+fn carries(headers: &[(String, Vec<u8>)], name: &str) -> bool {
+    headers
+        .iter()
+        .any(|(field, _)| field.eq_ignore_ascii_case(name))
+}
+
+/// Refuses a part header's `text` where it holds a byte that frames one.
+fn writable(label: &str, text: &str) -> Result<(), String> {
+    if text.contains(['"', '\r', '\n']) {
+        return Err(format!(
+            "a part's {label} is written into a part header, so it carries no quote and no line break: `{text}`"
+        ));
+    }
+    Ok(())
+}
+
+/// The upper-case hex digits a percent-escape is written with — RFC 3986
+/// § 2.1's recommendation, and the case `Core\Uri::encodeFormValue` writes.
+const HEX: [u8; 16] = *b"0123456789ABCDEF";
+
+/// `pairs` as an `application/x-www-form-urlencoded` payload.
+fn form_encoded(pairs: &[(String, String)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (name, value) in pairs {
+        if !out.is_empty() {
+            out.push(b'&');
+        }
+        percent(&mut out, name.as_bytes());
+        out.push(b'=');
+        percent(&mut out, value.as_bytes());
+    }
+    out
+}
+
+/// Appends `text` to `out`, percent-encoded as one form value.
+fn percent(out: &mut Vec<u8>, text: &[u8]) {
+    for &byte in text {
+        match byte {
+            b' ' => out.push(b'+'),
+            _ if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.') => {
+                out.push(byte);
+            }
+            _ => out.extend_from_slice(&[
+                b'%',
+                HEX[usize::from(byte >> 4)],
+                HEX[usize::from(byte & 0x0f)],
+            ]),
+        }
+    }
+}
+
+/// The boundary a `multipart/form-data` body of these parts is framed with.
+///
+/// A fixed word rather than a random one, so that a test asserting on the
+/// octets it built asserts on the same octets every run — and lengthened until
+/// no part holds it, which is what keeps the framing honest for the one input
+/// that could break it. Only the parts' own bytes are searched: a delimiter is
+/// a line, and a name that could stand on one is already refused
+/// ([`InboundSpec::set_body`]).
+fn boundary_for(parts: &[SpecPart]) -> String {
+    let mut boundary = String::from("novisFormBoundary");
+    while parts
+        .iter()
+        .any(|part| holds(&part.bytes, boundary.as_bytes()))
+    {
+        boundary.push('-');
+    }
+    boundary
+}
+
+/// Whether `haystack` holds `needle` anywhere in it.
+fn holds(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+/// `parts` as a `multipart/form-data` body framed with `boundary`, in RFC 7578's
+/// shape: a delimiter line per part, that part's headers, a blank line, its
+/// octets, and a closing delimiter.
+fn multipart(parts: &[SpecPart], boundary: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for part in parts {
+        out.extend_from_slice(b"--");
+        out.extend_from_slice(boundary.as_bytes());
+        out.extend_from_slice(b"\r\nContent-Disposition: form-data; name=\"");
+        out.extend_from_slice(part.name.as_bytes());
+        out.push(b'"');
+        if let Some(filename) = &part.filename {
+            out.extend_from_slice(b"; filename=\"");
+            out.extend_from_slice(filename.as_bytes());
+            out.push(b'"');
+        }
+        out.extend_from_slice(b"\r\n");
+        if let Some(content_type) = &part.content_type {
+            out.extend_from_slice(b"Content-Type: ");
+            out.extend_from_slice(content_type.as_bytes());
+            out.extend_from_slice(b"\r\n");
+        }
+        out.extend_from_slice(b"\r\n");
+        out.extend_from_slice(&part.bytes);
+        out.extend_from_slice(b"\r\n");
+    }
+    out.extend_from_slice(b"--");
+    out.extend_from_slice(boundary.as_bytes());
+    out.extend_from_slice(b"--\r\n");
+    out
+}
+
 /// `rule:concurrency/a-connection-is-a-root-isolate`'s
 /// connection isolate, prepared and not yet started: the program it runs, and
 /// the argument that has already crossed to it.
@@ -1625,5 +2059,219 @@ mod tests {
         let (third, _) = refused.into_parts();
         third(&mut ctx, Value::null());
         assert_eq!(marker.get(), 3);
+    }
+
+    /// The built carrier's head as text, which every [`InboundSpec`] assertion
+    /// below reads rather than the spec it came from: what a spec is worth is
+    /// what the request ends up carrying.
+    fn head(inbound: &Inbound) -> Vec<(String, String)> {
+        inbound
+            .headers()
+            .map(|(name, value)| {
+                (
+                    name.to_owned(),
+                    String::from_utf8(value.to_vec()).expect("a built field is text"),
+                )
+            })
+            .collect()
+    }
+
+    /// Every octet of a built carrier's body, joined, and `None` where the
+    /// request carries none.
+    fn body_of(inbound: &mut Inbound) -> Option<String> {
+        let body = inbound.body()?;
+        let mut octets = Vec::new();
+        while let Some(chunk) = body.next_chunk().expect("a held body cannot fail") {
+            octets.extend_from_slice(chunk);
+        }
+        Some(String::from_utf8(octets).expect("these bodies are text"))
+    }
+
+    /// `rule:errors/ambiguous-input-refused` at the
+    /// door of the builder: `body`, `form`, `json` and `files` are four
+    /// spellings of one body, so a bag holding two has said two things and the
+    /// refusal names both rather than picking one.
+    ///
+    /// The second half is what makes the refusal a refusal rather than a
+    /// report: the spec is unchanged, so the request that gets built is the
+    /// one the first spelling described and never a merge of the two.
+    #[test]
+    fn two_body_spellings_in_one_spec_are_refused_naming_both() {
+        let mut spec = InboundSpec::new("POST", "/users");
+        spec.set_body(SpecBody::Form(vec![("name".to_owned(), "ada".to_owned())]))
+            .expect("the first spelling is the body");
+
+        let refused = spec
+            .set_body(SpecBody::Json(b"{\"name\":\"ada\"}".to_vec()))
+            .expect_err("a second spelling is refused");
+        assert_eq!(refused, "`form` and `json` are two spellings of one body");
+
+        let mut inbound = spec.build();
+        assert_eq!(body_of(&mut inbound).as_deref(), Some("name=ada"));
+    }
+
+    /// A form body encodes its own pairs and declares its own type, which is
+    /// the whole of what the `form` key buys over `body`.
+    ///
+    /// The escape set is `Core\Uri::encodeFormValue`'s: a space is `+` and the
+    /// `&` that would otherwise open a pair of its own is `%26`, so a value
+    /// carrying the byte that structures the payload cannot restructure it.
+    #[test]
+    fn a_form_body_encodes_its_pairs_and_declares_its_own_type() {
+        let mut spec = InboundSpec::new("POST", "/users");
+        spec.set_body(SpecBody::Form(vec![
+            ("name".to_owned(), "ada lovelace".to_owned()),
+            ("q".to_owned(), "a&b".to_owned()),
+        ]))
+        .expect("one spelling");
+
+        let mut inbound = spec.build();
+        assert_eq!(
+            body_of(&mut inbound).as_deref(),
+            Some("name=ada+lovelace&q=a%26b")
+        );
+        assert_eq!(
+            head(&inbound),
+            vec![
+                (
+                    "content-type".to_owned(),
+                    "application/x-www-form-urlencoded".to_owned()
+                ),
+                ("content-length".to_owned(), "25".to_owned()),
+            ]
+        );
+    }
+
+    /// A `files` body is framed part by part, a part with no file name is a
+    /// form field rather than a file
+    /// (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`), and the
+    /// boundary is lengthened until no part holds it.
+    ///
+    /// The last of those is the one worth a test: a fixed boundary is what
+    /// makes a built body assertable at all, and a part that happened to carry
+    /// it would otherwise frame parts nobody wrote.
+    #[test]
+    fn a_files_body_frames_its_parts_and_lengthens_a_boundary_a_part_holds() {
+        let mut spec = InboundSpec::new("POST", "/avatars");
+        spec.set_body(SpecBody::Files(vec![
+            SpecPart {
+                name: "note".to_owned(),
+                filename: None,
+                content_type: None,
+                bytes: b"hi".to_vec(),
+            },
+            SpecPart {
+                name: "avatar".to_owned(),
+                filename: Some("a.png".to_owned()),
+                content_type: Some("image/png".to_owned()),
+                bytes: b"novisFormBoundary".to_vec(),
+            },
+        ]))
+        .expect("one spelling");
+
+        let mut inbound = spec.build();
+        assert_eq!(
+            body_of(&mut inbound).as_deref(),
+            Some(concat!(
+                "--novisFormBoundary-\r\n",
+                "Content-Disposition: form-data; name=\"note\"\r\n",
+                "\r\n",
+                "hi\r\n",
+                "--novisFormBoundary-\r\n",
+                "Content-Disposition: form-data; name=\"avatar\"; filename=\"a.png\"\r\n",
+                "Content-Type: image/png\r\n",
+                "\r\n",
+                "novisFormBoundary\r\n",
+                "--novisFormBoundary---\r\n",
+            ))
+        );
+        assert_eq!(
+            head(&inbound)[0],
+            (
+                "content-type".to_owned(),
+                "multipart/form-data; boundary=novisFormBoundary-".to_owned()
+            )
+        );
+    }
+
+    /// A part name that could frame a part header is refused, and the spec
+    /// keeps no body — the one place the builder checks what it was given,
+    /// because these are bytes it writes itself rather than bytes it carries.
+    #[test]
+    fn a_part_name_that_could_frame_a_header_is_refused() {
+        let mut spec = InboundSpec::new("POST", "/avatars");
+        let refused = spec
+            .set_body(SpecBody::Files(vec![SpecPart {
+                name: "a\"; filename=\"passwd".to_owned(),
+                filename: None,
+                content_type: None,
+                bytes: b"x".to_vec(),
+            }]))
+            .expect_err("a name carrying a quote is refused");
+        assert!(refused.starts_with("a part's name is written into a part header"));
+
+        let mut inbound = spec.build();
+        assert!(body_of(&mut inbound).is_none());
+    }
+
+    /// The four fields a spec derives — `host`, `cookie`, `content-type` and
+    /// `content-length` — are each written only where the spec did not write
+    /// that name itself, so a request never carries a field that disagrees
+    /// with itself.
+    #[test]
+    fn a_field_the_spec_wrote_itself_is_not_written_twice() {
+        let mut spec = InboundSpec::new("POST", "/users");
+        spec.push_header("host", b"written.example");
+        spec.push_header("cookie", b"session=written");
+        spec.push_header("content-type", b"text/plain");
+        spec.set_host("bag.example");
+        spec.push_cookie("session", "bag");
+        spec.set_body(SpecBody::Form(vec![("name".to_owned(), "ada".to_owned())]))
+            .expect("one spelling");
+
+        let inbound = spec.build();
+        assert_eq!(
+            head(&inbound),
+            vec![
+                ("host".to_owned(), "written.example".to_owned()),
+                ("cookie".to_owned(), "session=written".to_owned()),
+                ("content-type".to_owned(), "text/plain".to_owned()),
+                ("content-length".to_owned(), "8".to_owned()),
+            ]
+        );
+    }
+
+    /// Everything a spec says that is not a body reaches the carrier: the
+    /// query verbatim, the cookies as the one field a peer would have sent,
+    /// the host as its field line, and the peer as
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// walk would have decided it.
+    #[test]
+    fn a_spec_carries_its_query_its_cookies_its_host_and_its_peer() {
+        let mut spec = InboundSpec::new("GET", "/users");
+        spec.set_query("page=2&q=novis");
+        spec.push_header("accept", b"application/json");
+        spec.push_cookie("session", "abc123");
+        spec.push_cookie("theme", "dark");
+        spec.set_host("app.example");
+        spec.set_peer(Some(IpAddr::from([203, 0, 113, 9])), Scheme::Https);
+
+        let mut inbound = spec.build();
+        assert_eq!(inbound.method(), "GET");
+        assert_eq!(inbound.path(), "/users");
+        assert_eq!(inbound.query(), "page=2&q=novis");
+        assert_eq!(
+            head(&inbound),
+            vec![
+                ("accept".to_owned(), "application/json".to_owned()),
+                ("host".to_owned(), "app.example".to_owned()),
+                ("cookie".to_owned(), "session=abc123; theme=dark".to_owned()),
+            ]
+        );
+        assert_eq!(inbound.client(), Some(IpAddr::from([203, 0, 113, 9])));
+        assert_eq!(inbound.scheme(), Scheme::Https);
+        // A request with no body is not a request whose body is empty, and a
+        // spec that named none says the first of those.
+        assert!(body_of(&mut inbound).is_none());
     }
 }
