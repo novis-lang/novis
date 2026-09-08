@@ -674,22 +674,32 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: T, ...}` in type position — `rule:types/shape-type`, Novis's one
-    /// structurally-checked type. No ambiguity to resolve here the way the
-    /// value literal has (see [`Self::parse_object_literal_expr`]): type
+    /// `{name: T, name?: T, ...}` in type position — `rule:types/shape-type`,
+    /// Novis's one structurally-checked type. No ambiguity to resolve here the
+    /// way the value literal has (see [`Self::parse_object_literal_expr`]): type
     /// position never dispatches `{` to a block, so an empty `{}` is simply
     /// an empty shape rather than needing the literal's "at least one field"
     /// rule.
+    ///
+    /// The `?` sits before the `:` and marks the *key* optional, which is why
+    /// it cannot be confused with the `?` of a nullable type after it: `{a?:
+    /// ?int}` says both, and `{a?: int}` and `{a: ?int}` say different things.
     pub(super) fn parse_shape_type(&mut self) -> Type {
         let start = self.bump().span; // '{'
         let mut fields = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let field_start = self.peek().span;
             let name = self.expect(TokenKind::Ident, "a field name");
+            let required = self.eat(TokenKind::Question).is_none();
             self.expect(TokenKind::Colon, "`:`");
             let ty = self.parse_type();
             let span = field_start.to(ty.span);
-            fields.push(ShapeField { name, ty, span });
+            fields.push(ShapeField {
+                name,
+                ty,
+                required,
+                span,
+            });
             if self.eat(TokenKind::Comma).is_none() {
                 break;
             }

@@ -571,7 +571,7 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     }
     match interner.get(ty) {
         Ty::Array(elem) => contains_secret(*elem, interner),
-        Ty::Shape(fields) => fields.iter().any(|(_, f)| contains_secret(*f, interner)),
+        Ty::Shape(fields) => fields.iter().any(|f| contains_secret(f.ty, interner)),
         Ty::CoreShape(shape) => shape
             .fields
             .iter()

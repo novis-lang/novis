@@ -108,7 +108,7 @@ use rustc_hash::FxHashSet;
 
 use crate::expr_table::ArgSlot;
 use crate::locals::LocalScope;
-use crate::ty::{Ty, TypeId};
+use crate::ty::{ShapeField, Ty, TypeId};
 use crate::{Ctx, Env};
 
 use super::assign::{is_assignable, report_mismatch};
@@ -433,15 +433,15 @@ pub(crate) fn script_result(env: &mut Env<'_>) -> TypeId {
     let mixed = env.interner.mixed();
     let string = env.interner.string();
     let failure = env.interner.shape(vec![
-        ("class".to_owned(), string),
-        ("message".to_owned(), string),
+        ShapeField::required("class".to_owned(), string),
+        ShapeField::required("message".to_owned(), string),
     ]);
     let null = env.interner.null();
     let maybe_failure = env.interner.make_union([failure, null]);
     env.interner.shape(vec![
-        ("ok".to_owned(), bool_ty),
-        ("value".to_owned(), mixed),
-        ("output".to_owned(), string),
-        ("error".to_owned(), maybe_failure),
+        ShapeField::required("ok".to_owned(), bool_ty),
+        ShapeField::required("value".to_owned(), mixed),
+        ShapeField::required("output".to_owned(), string),
+        ShapeField::required("error".to_owned(), maybe_failure),
     ])
 }

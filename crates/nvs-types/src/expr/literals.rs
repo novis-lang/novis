@@ -750,15 +750,18 @@ pub(crate) fn check_object_literal(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    let mut out: Vec<(String, TypeId)> = Vec::with_capacity(fields.len());
+    let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
         let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
-        if out.iter().any(|(seen, _)| *seen == name) {
+        if out.iter().any(|seen| seen.name == name) {
             report_duplicate_shape_field(field, &name, env);
             continue;
         }
-        out.push((name, field_ty));
+        // Every key a literal writes is one the value carries, so the inferred
+        // shape names none of them optional — the `?` is a thing a *declared*
+        // type says, never a thing a value's own type discovers.
+        out.push(ShapeField::required(name, field_ty));
     }
     env.interner.shape(out)
 }

@@ -257,13 +257,18 @@ pub enum Ty {
     /// a function of the `QName`, so it never splits one enum into two
     /// interned types.
     Enum(QName, crate::enums::EnumBacking),
-    /// `{name: T, ...}` — `rule:types/shape-type`, Novis's one structurally-checked type.
+    /// `{name: T, name?: T, ...}` — `rule:types/shape-type`, Novis's one
+    /// structurally-checked type.
     /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
     /// naming the same fields in a different written order intern to the
     /// same `TypeId`; unlike [`Self::Union`]/[`Self::Intersection`] there is
     /// no flattening to do, since a shape field's type is never itself
     /// required to be a shape.
-    Shape(Vec<(String, TypeId)>),
+    ///
+    /// [`ShapeField::required`] carries the written `?`, and it is part of what
+    /// the type *is*: `{a?: int}` and `{a: int}` intern apart, and so do
+    /// `{a?: int}` and `{a: ?int}`, which ask different questions of a value.
+    Shape(Vec<ShapeField>),
     /// A `Core` parameter whose keys are fixed — `rule:core-api/shape-rules` R2's trailing options
     /// bag (`{step?: int}`) and `rule:core-api/shape-parameter`'s fixed-key shape parameter, which are
     /// **one** checked type because they differ in call-site rules rather than
@@ -370,6 +375,44 @@ pub struct CoreShape {
     /// no armless case to special-case and a bag takes the same path a
     /// two-armed shape does.
     pub arms: Vec<Vec<CoreShapeField>>,
+}
+
+/// One `name: T` field of a [`Ty::Shape`] — `rule:types/shape-type`.
+///
+/// A named struct rather than the pair this replaced, for the reason
+/// [`CoreShapeField`] gives for being one: the added member is a bare `bool`,
+/// and `("host", id, false)` at a construction site says nothing about which
+/// way round the flag runs. The polarity is deliberately
+/// [`CoreShapeField::required`]'s rather than a second, opposite spelling —
+/// both answer "must a value carry this key", and one of them reading the
+/// other way is a bug waiting at every site that moves a field between them.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ShapeField {
+    /// The key, as it is written on the left of the `:`.
+    pub name: String,
+    /// Its declared type. A field's type is never itself a shape's business to
+    /// restrict — ordinary assignability decides it (`rule:types/shape-type`).
+    pub ty: TypeId,
+    /// Whether a value must carry the key at all. A written `?` clears it, and
+    /// **that is not nullability**: `{a?: int}` accepts a value with no `a`,
+    /// `{a: ?int}` demands an `a` that may hold `null`, and the two intern
+    /// apart because they accept different values.
+    pub required: bool,
+}
+
+impl ShapeField {
+    /// The field every shape but a written one is built from: nothing seeded by
+    /// [`crate::error_lib`], inferred from an object literal, or substituted
+    /// through a type variable has a `?` to carry, so those sites say which
+    /// kind they mean once rather than repeating `required: true`.
+    #[must_use]
+    pub fn required(name: String, ty: TypeId) -> Self {
+        Self {
+            name,
+            ty,
+            required: true,
+        }
+    }
 }
 
 /// One key of a [`Ty::CoreShape`] — the checked half of
@@ -578,7 +621,10 @@ impl TypeInterner {
             Ty::Shape(fields) => {
                 let inner = fields
                     .iter()
-                    .map(|(name, ty)| format!("{name}: {}", self.describe(*ty)))
+                    .map(|field| {
+                        let opt = if field.required { "" } else { "?" };
+                        format!("{}{opt}: {}", field.name, self.describe(field.ty))
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{{{inner}}}")
@@ -862,8 +908,8 @@ impl TypeInterner {
     /// idea as [`Self::make_union`], applied to field order instead of
     /// member order).
     #[must_use]
-    pub fn shape(&mut self, mut fields: Vec<(String, TypeId)>) -> TypeId {
-        fields.sort_by(|a, b| a.0.cmp(&b.0));
+    pub fn shape(&mut self, mut fields: Vec<ShapeField>) -> TypeId {
+        fields.sort_by(|a, b| a.name.cmp(&b.name));
         self.intern(Ty::Shape(fields))
     }
 
@@ -1030,8 +1076,14 @@ mod tests {
         let mut i = TypeInterner::new();
         let int = i.int();
         let string = i.string();
-        let a = i.shape(vec![("x".to_owned(), int), ("y".to_owned(), string)]);
-        let b = i.shape(vec![("y".to_owned(), string), ("x".to_owned(), int)]);
+        let a = i.shape(vec![
+            ShapeField::required("x".to_owned(), int),
+            ShapeField::required("y".to_owned(), string),
+        ]);
+        let b = i.shape(vec![
+            ShapeField::required("y".to_owned(), string),
+            ShapeField::required("x".to_owned(), int),
+        ]);
         assert_eq!(a, b);
     }
 
@@ -1039,8 +1091,30 @@ mod tests {
     fn describe_renders_a_shape_with_its_fields() {
         let mut i = TypeInterner::new();
         let int = i.int();
-        let s = i.shape(vec![("x".to_owned(), int)]);
+        let s = i.shape(vec![ShapeField::required("x".to_owned(), int)]);
         assert_eq!(i.describe(s), "{x: int}");
+    }
+
+    /// `rule:types/shape-type`: an optional key and a nullable one are
+    /// different types, so they intern apart and describe apart — the `?`
+    /// before the `:` is the key's, the one after it the type's.
+    #[test]
+    fn an_optional_field_is_a_different_type_from_a_nullable_one() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let null = i.null();
+        let nullable = i.make_union([int, null]);
+        let optional = i.shape(vec![ShapeField {
+            name: "a".to_owned(),
+            ty: int,
+            required: false,
+        }]);
+        let required = i.shape(vec![ShapeField::required("a".to_owned(), int)]);
+        let of_nullable = i.shape(vec![ShapeField::required("a".to_owned(), nullable)]);
+        assert_ne!(optional, required);
+        assert_ne!(optional, of_nullable);
+        assert_eq!(i.describe(optional), "{a?: int}");
+        assert_eq!(i.describe(required), "{a: int}");
     }
 
     /// `rule:types/callable-signature`: a signature renders as the source

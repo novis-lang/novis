@@ -68,7 +68,7 @@ use rustc_hash::FxHashMap;
 use crate::defaults::ConstArg;
 use crate::enums::EnumBacking;
 use crate::signatures::{MethodSig, SignatureTable};
-use crate::ty::{TypeId, TypeInterner};
+use crate::ty::{ShapeField, TypeId, TypeInterner};
 
 /// Adds every [`nvs_hir::errors::TREE`] entry to `table`.
 ///
@@ -188,8 +188,8 @@ const ERROR_KIND: &str = r"Core\Db\ErrorKind";
 fn issue_shape(interner: &mut TypeInterner) -> TypeId {
     let string = interner.string();
     interner.shape(vec![
-        ("path".to_owned(), string),
-        ("message".to_owned(), string),
+        ShapeField::required("path".to_owned(), string),
+        ShapeField::required("message".to_owned(), string),
     ])
 }
 

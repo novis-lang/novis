@@ -244,13 +244,20 @@ pub enum TypeAtom {
     Name(Name, Vec<Type>),
 }
 
-/// One `name: T` field of a [`TypeAtom::Shape`] — `rule:types/shape-type`.
+/// One `name: T` or `name?: T` field of a [`TypeAtom::Shape`] —
+/// `rule:types/shape-type`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShapeField {
     /// The field's name.
     pub name: Span,
-    /// The field's required type.
+    /// The field's declared type.
     pub ty: Type,
+    /// Whether a value must carry this key at all. A written `?` after the
+    /// name clears it, and that is a different question from the type being
+    /// nullable: `{a?: int}` admits a value with no `a`, while `{a: ?int}`
+    /// demands one holding `null`. The polarity is `nvs_types::ty::ShapeField`'s
+    /// so nothing flips it on the way down.
+    pub required: bool,
     /// The whole field, name and all.
     pub span: Span,
 }

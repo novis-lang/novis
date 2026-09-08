@@ -69,7 +69,7 @@ use nvs_hir::{ClassGraph, QName};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::SignatureTable;
-use crate::ty::{Ty, TypeId, TypeInterner};
+use crate::ty::{ShapeField, Ty, TypeId, TypeInterner};
 
 /// Which concrete type each named variable was bound to.
 pub(crate) type Bindings = FxHashMap<String, TypeId>;
@@ -97,7 +97,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
             .any(|member| mentions_type_var(*member, interner)),
         Ty::Shape(fields) => fields
             .iter()
-            .any(|(_, field)| mentions_type_var(*field, interner)),
+            .any(|field| mentions_type_var(field.ty, interner)),
         // The merged list alone: every key an arm declares has a slot there,
         // typed as the union of the arms' declarations for it, so a variable
         // mentioned by any arm is mentioned by that slot.
@@ -186,8 +186,8 @@ pub(crate) fn bind(
             return;
         };
         let mut results = Vec::with_capacity(fields.len());
-        for (field, ty) in &fields {
-            let declared_ret = match interner.get(*ty) {
+        for field in &fields {
+            let declared_ret = match interner.get(field.ty) {
                 Ty::CallableSig { ret, .. } => Some(*ret),
                 _ => None,
             };
@@ -195,7 +195,7 @@ pub(crate) fn bind(
             // result — `mixed` is what that field is worth, and the rest of
             // the shape still answers precisely.
             let result = declared_ret.unwrap_or_else(|| interner.mixed());
-            results.push((field.clone(), result));
+            results.push(ShapeField::required(field.name.clone(), result));
         }
         let shape = interner.shape(results);
         out.entry(name).or_insert(shape);
@@ -293,11 +293,11 @@ pub(crate) fn bind(
         // the same walk either way.
         (Ty::Shape(declared_fields), Ty::Shape(actual_fields)) => declared_fields
             .iter()
-            .filter_map(|(name, declared_field)| {
+            .filter_map(|declared| {
                 actual_fields
                     .iter()
-                    .find(|(n, _)| n == name)
-                    .map(|(_, actual_field)| (*declared_field, *actual_field))
+                    .find(|actual| actual.name == declared.name)
+                    .map(|actual| (declared.ty, actual.ty))
             })
             .collect(),
         (Ty::CoreShape(declared), Ty::Shape(actual_fields)) => declared
@@ -306,8 +306,8 @@ pub(crate) fn bind(
             .filter_map(|declared| {
                 actual_fields
                     .iter()
-                    .find(|(name, _)| *name == declared.name)
-                    .map(|(_, actual_field)| (declared.ty, *actual_field))
+                    .find(|actual| actual.name == declared.name)
+                    .map(|actual| (declared.ty, actual.ty))
             })
             .collect(),
         _ => Vec::new(),
@@ -377,9 +377,16 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
             interner.make_intersection(members)
         }
         Ty::Shape(fields) => {
-            let fields: Vec<(String, TypeId)> = fields
+            // The required bit rides along untouched for the reason the arm
+            // below gives: substitution rewrites a key's type, never whether
+            // the key has to be there.
+            let fields: Vec<ShapeField> = fields
                 .iter()
-                .map(|(name, field)| (name.clone(), substitute(*field, bindings, interner)))
+                .map(|field| ShapeField {
+                    name: field.name.clone(),
+                    ty: substitute(field.ty, bindings, interner),
+                    required: field.required,
+                })
                 .collect();
             interner.shape(fields)
         }

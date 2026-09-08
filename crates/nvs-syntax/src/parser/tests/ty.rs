@@ -697,6 +697,26 @@ fn shape_type_can_be_empty_and_composes_with_array_and_union() {
     ));
 }
 
+/// `rule:types/shape-type`: the `?` before the `:` marks the *key* optional and
+/// the `?` after it marks the type nullable, so a field may carry both and the
+/// parser has to record them in two different places.
+#[test]
+fn a_shape_field_marks_its_key_optional_before_the_colon() {
+    let e = parse_ok("$m as {a?: int, b: int, c?: ?int}");
+    let ExprKind::Conversion { ty, .. } = e.kind else {
+        panic!("expected a conversion: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape type: {ty:?}");
+    };
+    let required: Vec<bool> = fields.iter().map(|field| field.required).collect();
+    assert_eq!(required, vec![false, true, false]);
+    // `c` says both things at once: the key may be absent, and when it is
+    // present it may hold `null`.
+    assert!(matches!(fields[2].ty.kind, TypeKind::Nullable(_)));
+    assert!(matches!(fields[0].ty.kind, TypeKind::Atom(TypeAtom::Int)));
+}
+
 /// `rule:types/callable-signature`: the signature is one atom holding its
 /// parameters and its mandatory return type.
 #[test]

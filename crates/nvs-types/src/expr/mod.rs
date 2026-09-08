@@ -53,7 +53,7 @@ use crate::lower::{lower_optional_type, lower_type};
 use crate::signatures::{
     MethodSig, SignatureTable, resolve_method, resolve_property, resolve_property_owned,
 };
-use crate::ty::{Ty, TypeId, TypeInterner};
+use crate::ty::{ShapeField, Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, FnSelf, span_text, strip_sigil};
 
 // One expression checker split across this directory — see each module's own

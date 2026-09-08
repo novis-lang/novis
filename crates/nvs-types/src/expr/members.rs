@@ -1193,8 +1193,8 @@ pub(crate) fn check_property_member(
             // the hint the runtime tries first (`nvs_ir::InstKind::SlotGet`).
             let (slot, ty) = fields
                 .iter()
-                .position(|(n, _)| *n == name)
-                .and_then(|slot| Some((u32::try_from(slot).ok()?, fields[slot].1)))
+                .position(|field| field.name == name)
+                .and_then(|slot| Some((u32::try_from(slot).ok()?, fields[slot].ty)))
                 .unwrap_or_else(|| (0, env.interner.mixed()));
             env.exprs.record(
                 object.span.to(*name_span),

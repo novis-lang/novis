@@ -911,7 +911,7 @@ fn json_reachable(
         // reachable exactly when what they hold is.
         Ty::Shape(fields) => fields
             .iter()
-            .all(|(_, held)| json_reachable(*held, interner, signatures, exprs)),
+            .all(|field| json_reachable(field.ty, interner, signatures, exprs)),
         Ty::Array(elem) => json_reachable(*elem, interner, signatures, exprs),
         Ty::Class(class, _) => class_has_codec(class, signatures, exprs),
         // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a

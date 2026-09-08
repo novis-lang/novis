@@ -130,7 +130,11 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             for field in fields {
                 let name = span_text(env.src, field.name).to_owned();
                 let field_ty = lower_type_at_depth(&field.ty, depth + 1, ctx, env);
-                out.push((name, field_ty));
+                out.push(crate::ty::ShapeField {
+                    name,
+                    ty: field_ty,
+                    required: field.required,
+                });
             }
             env.interner.shape(out)
         }
