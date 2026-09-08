@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo fmt`, `cargo build`, `cargo test`, the `.nvst` trees through the binary the build just
-produced, `cargo clippy --all-targets -- -D warnings`, and -- once `editors/vscode` exists --
-that extension's headless suites, in that order, stopping at the first failure. Green prints one
+`cargo fmt`, `tools/lints.py --check`, `cargo build`, `cargo test`, the `.nvst` trees through the
+binary the build just produced, `cargo clippy --all-targets -- -D warnings`, and -- once
+`editors/vscode` exists -- that extension's headless suites, in that order, stopping at the first
+failure. The lint gate precedes the compile steps because it decides what they enforce. Green prints one
 line per step; a failure prints that step's output and nothing else. `fmt` is the one step that
 *writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
 
@@ -178,7 +179,14 @@ CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a b
 # Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
 INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors", "docs/reference")
-INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml")
+INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml",
+               # The two steps that are a script rather than `cargo`. Their verdict changes when
+               # the script does -- a crate added to `lints.py`'s roster, a chapter rule changed
+               # in `reference.py` -- and `tools/` is not otherwise hashed, so without these a
+               # green cache would answer for a policy the tree no longer has. The rest of
+               # `tools/` is deliberately not an input: `loop.py` and friends change most
+               # sessions and change nothing these steps would say.
+               "tools/lints.py", "tools/reference.py")
 # Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
 # cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
 # files, which would make the green cache's own hash the slowest thing in this script.
@@ -335,6 +343,15 @@ def summarize_reference(out):
         "ran, but printed no `N of M examples hold` line -- check the log"
 
 
+def summarize_lints(out):
+    m = re.search(r"lints: (\d+) generated tables current", out)
+    if m:
+        return f"{m.group(1)} generated lint tables current"
+    m = re.search(r"(\d+) problem\(s\)", out)
+    return f"{m.group(1)} lint table(s) drifted -- run `python tools/lints.py`" if m else \
+        "ran, but printed no summary line -- check the log"
+
+
 def doc_step(opts):
     """The rustdoc gate: every ``[`Foo::bar`]`` in a doc comment, resolved.
 
@@ -363,6 +380,15 @@ def steps_for(opts):
         # summary line quotes. It takes no -p in the shape this workspace uses it, and the whole
         # tree is two seconds.
         steps.append(Step("fmt", ["fmt", "--all", "--", "-l"], summarize_fmt))
+        # Before the compile steps, because it decides what they enforce. `[workspace.lints]` is
+        # the one home for the lint policy, but the crates that hold `unsafe` cannot inherit it --
+        # cargo refuses a manifest that inherits the workspace table and overrides one entry -- so
+        # they restate it and `tools/lints.py` generates those copies. A drifted copy does not
+        # fail a build; it silently makes `clippy` below mean something weaker for one crate,
+        # which is how `benches/abi-probe` came to be missing seven of them. Sub-second, and
+        # unscoped: it reads manifests, so `-p` has nothing to narrow.
+        steps.append(Step("lints", ["tools/lints.py", "--check"], summarize_lints,
+                          exe=sys.executable))
     steps.append(Step("build", ["build", *scope], summarize_build))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:

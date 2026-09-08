@@ -205,6 +205,16 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: rustfmt
         run: cargo fmt --all --check
+      # Before clippy, because it decides what clippy enforces. The crates that hold `unsafe`
+      # cannot inherit `[workspace.lints]` -- cargo refuses a manifest that inherits the
+      # workspace table and overrides one entry of it -- so they restate it, and a restated
+      # table drifts without failing anything. `tools/lints.py` generates those copies and
+      # this checks they are still copies.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.x'
+      - name: Lint tables match the workspace
+        run: python tools/lints.py --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
@@ -220,8 +230,12 @@ jobs:
           RUSTDOCFLAGS: -A rustdoc::private_intra_doc_links -D warnings
 
   # ---------------------------------------------------------------------------
-  # Enforces the claims in docs/adr: no unsafe outside the audited modules, no
-  # C dependencies sneaking into the trusted core, no yanked or vulnerable deps.
+  # Enforces the claims in docs/adr: no C dependencies sneaking into the trusted
+  # core, no yanked or vulnerable deps. The other claim this comment used to
+  # make -- no unsafe outside the audited modules -- is the `lint` job's
+  # `tools/lints.py --check`, which is where the roster of those modules lives:
+  # a crate off it keeps `[workspace.lints]`'s `forbid`, which no `#[allow]` can
+  # relax, so it cannot hold an `unsafe` block at all.
   # ---------------------------------------------------------------------------
   supply-chain:
     name: supply chain

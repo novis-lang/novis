@@ -383,15 +383,22 @@ starts rather than sitting empty.
 
 ### Unsafe policy
 
-`unsafe_code = "forbid"` workspace-wide. Crates that genuinely need it opt down to `deny` and allow
-individual blocks with a stated reason: `nvs-runtime` and `nvs-codegen` (planned — the coroutine stack
-switcher, the request arena, JIT page mapping), `nvs-stdlib`, whose every `Core` member is an
-`rule:errors/propagation` helper entry point and therefore an `extern "C"` function
-decoding raw pointers, plus `benches/abi-probe`, which must call JIT-compiled code
-to measure it and is `publish = false`, so it does not widen the runtime's unsafe surface. Those modules
-carry `deny(unsafe_op_in_unsafe_fn)`, a safety-invariant doc comment per block, dedicated Miri/ASAN
-coverage, and require an ADR to grow. Prefer `corosensei` (audited, handles Windows SEH and aarch64) over a
-hand-rolled switcher. The policy is enforced in [Cargo.toml](../../Cargo.toml).
+`unsafe_code = "forbid"` workspace-wide, in [Cargo.toml](../../Cargo.toml)'s `[workspace.lints]`.
+`forbid` is not something an individual `#[allow]` can relax, so a crate that keeps it cannot hold an
+`unsafe` block at all — which makes the roster of crates that opt down to `deny` the whole policy.
+
+**That roster is `tools/lints.py`'s `UNSAFE_CRATES`, with the reason each crate needs it, and this
+section does not restate it.** A prose copy here is what went stale: it named four crates while seven
+carried `unsafe`, and nothing failed. Cargo refuses a manifest that inherits `[workspace.lints]` and
+overrides one entry, so those crates must restate the whole table; `tools/lints.py` generates the
+copies and `--check` fails the `lint` CI job and `verify.py` on any drift. A crate joins the roster
+with an ADR.
+
+Each `unsafe` block carries its own `#[allow(unsafe_code, reason = "...")]`, plus a safety-invariant
+doc comment and dedicated Miri/ASAN coverage. `unsafe_op_in_unsafe_fn` is edition 2024's
+warn-by-default and is promoted by the `-D warnings` both clippy gates run with, rather than being
+set per crate. Prefer `corosensei` (audited, handles Windows SEH and aarch64) over a hand-rolled
+switcher.
 
 ---
 
