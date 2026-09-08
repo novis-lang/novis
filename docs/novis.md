@@ -16112,7 +16112,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, route, mount
+Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, clientIp, scheme, host, route, mount
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
@@ -16191,6 +16191,9 @@ no request here
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 | [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
+| [`Core\Request::clientIp`](#core-core-request-clientip) | `clientIp(): ?tainted string` |
+| [`Core\Request::scheme`](#core-core-request-scheme) | `scheme(): tainted string` |
+| [`Core\Request::host`](#core-core-request-host) | `host(): ?tainted string` |
 | [`Core\Request::route`](#core-core-request-route) | `route(): ?Core\Router\Match` |
 | [`Core\Request::mount`](#core-core-request-mount) | `mount(): Core\Request\Mount` |
 
@@ -16386,6 +16389,45 @@ One submitted form field by name, read with PHP's bracket convention — the sam
 **Returns** `mixed` — The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the form carried no such name. Reading the body to its end is what this member does, so on a `multipart/form-data` request it is called **after** the `files()` walk, never before: the uploads are drained on the way to the last field.
 
 **Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — those two hand the bytes over uninterpreted and leave no fields behind. A body `files` is walking is the one case this member joins rather than refuses.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one, or what arrived is not the body it declared, or a urlencoded field holds percent escapes that decode to octets that are not UTF-8.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-clientip"></a>
+#### `Core\Request::clientIp`
+
+```nvs skip
+Core\Request::clientIp(): ?tainted string
+```
+
+The address this request came from, as the trusted-proxy walk settled it: the socket peer, unless a peer listed in `[server] trusted_proxies` asserted otherwise in `X-Forwarded-For`.
+
+**Returns** `?tainted string` — The address in its own text form, `tainted` — or `null` where the request genuinely arrived with no address to report, which a Unix-socket peer that forwarded nothing and a trusted hop that withheld it both do. Never `""` and never `"0.0.0.0"`: those would be a repair of a fact that is missing.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
+
+<a id="core-core-request-scheme"></a>
+#### `Core\Request::scheme`
+
+```nvs skip
+Core\Request::scheme(): tainted string
+```
+
+The scheme this request effectively arrived over, which only a trusted peer's `X-Forwarded-Proto` can make `https` for a connection that was not itself TLS.
+
+**Returns** `tainted string` — `"http"` or `"https"`, `tainted`. Never `null`: every request arrived over one, and a deployment that trusts no proxy always reads the scheme of the connection itself.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
+
+<a id="core-core-request-host"></a>
+#### `Core\Request::host`
+
+```nvs skip
+Core\Request::host(): ?tainted string
+```
+
+The authority this request named, which is what a host-mounted deployment reads to learn which tenant it is serving — the `Host` field alone, since no forwarded host header is read at all.
+
+**Returns** `?tainted string` — The host part, lower-cased with any port and one trailing dot removed — the three equivalences the server itself compares a host mount by — and `tainted`. `null` where the request named no authority, which the server refuses at the door for HTTP/1.1. `header("host")` is the line as it arrived, for a program that wants the port.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test.
 
 <a id="core-core-request-route"></a>
 #### `Core\Request::route`

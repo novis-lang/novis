@@ -1211,6 +1211,16 @@ mod tests {
     /// connection subscribed under, and a delivery's value crossed an isolate
     /// boundary carrying whatever qualifiers it already had, which this row
     /// may not add to.
+    /// The twenty-third, twenty-fourth and twenty-fifth are `Core\Request`'s
+    /// three peer facts — `clientIp`, `scheme` and `host` — and they are the
+    /// roster read from the far end of the wire: what a hop asserted about
+    /// where a request came from is peer input, and passing
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    /// trust check makes it believable rather than this process's own fact.
+    /// Two of the three answer a union for a reason none of the rows above
+    /// share: a request can arrive with no address to report and can name no
+    /// authority, so the mark sits on the arm that carries a value and the
+    /// `null` says the fact is missing rather than empty.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1259,6 +1269,11 @@ mod tests {
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
                 (r"Core\Request", "body", "tainted string".to_owned()),
+                (
+                    r"Core\Request",
+                    "clientIp",
+                    "null|tainted string".to_owned(),
+                ),
                 (r"Core\Request", "cookie", "null|tainted string".to_owned(),),
                 (r"Core\Request", "header", "null|tainted string".to_owned(),),
                 (
@@ -1266,7 +1281,9 @@ mod tests {
                     "headers",
                     "array<array<tainted string>>".to_owned(),
                 ),
+                (r"Core\Request", "host", "null|tainted string".to_owned(),),
                 (r"Core\Request", "path", "tainted string".to_owned()),
+                (r"Core\Request", "scheme", "tainted string".to_owned()),
                 (
                     r"Core\Request\Mount",
                     "captures",
@@ -1306,13 +1323,14 @@ mod tests {
                 ),
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed at \
-             twenty-two — a verified claim, an outbound reply's body, the two environment \
+             twenty-five — a verified claim, an outbound reply's body, the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \
-             the request being answered, the three declarations one of its uploaded parts \
-             made, the bytes of that part held whole, the two readers of the captures the \
-             matched route filled, the captures of the mount serving the request, and the \
-             two payloads a connection's peer sent. \
+             the request being answered, the three facts it arrived on, the three \
+             declarations one of its uploaded parts made, the bytes of that part held \
+             whole, the two readers of the captures the matched route filled, the captures \
+             of the mount serving the request, and the two payloads a connection's peer \
+             sent. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \

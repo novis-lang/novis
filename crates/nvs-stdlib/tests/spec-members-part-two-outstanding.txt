@@ -21,13 +21,10 @@
 # § 15 -- the request-facing half, and nothing else: every member left here is
 # one that needs a request. `Core\Env`, `Core\Cap` and `Core\Cli` are registered
 # whole; `Core\Request` has the request line (`method`, `path`, `query`), the
-# fields that arrived with it, all three readings of the body and ADR 0102 § 1's
-# `route`, and owes the peer, and `Core\Session` is whole: § 1's seven members
+# fields that arrived with it, all three readings of the body, the peer's three
+# and ADR 0102 § 1's `route`, and `Core\Session` is whole: § 1's seven members
 # all have registry rows. What is left of ADR 0139 is § 4's write-back at the end
 # of the request, which is a server question rather than a member.
-§15 Request::clientIp   # 17
-§15 Request::host       # 17
-§15 Request::scheme     # 17
 §15 Response::html      # 17
 §15 Response::sendFile  # 17
 

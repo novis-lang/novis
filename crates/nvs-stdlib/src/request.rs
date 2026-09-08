@@ -4,9 +4,9 @@
 //!
 //! # What is here, and what is not
 //!
-//! Twelve of
+//! Every one of
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
-//! seventeen members: `method`, `isHead`, `path` and `query` — the request
+//! members but two: `method`, `isHead`, `path` and `query` — the request
 //! *line*, and the one fact reporting a `HEAD` as a `Get` would otherwise lose
 //! — `header`, `headers` and `cookie`, the fields that arrived with it, and
 //! `body`, `bodyStream`, `files`, `post` and `json`, the five members here that
@@ -20,22 +20,17 @@
 //! either the octets or a parse another reader left behind — [`claim_body`]),
 //! or decoded as the one JSON document those octets spell, which is
 //! [`crate::json`]'s reader over this module's hold.
-//! `clientIp`, `scheme`, `host`, `mount` and
-//! `route` are known gaps of this module rather than of § 15, and each waits on
-//! a different thing:
-//! `route`/`mount` on the match `nvs_server` makes once
-//! before the handler, and `host` not on a carrier at all — a `Host` line is
-//! already one of [`nvs_runtime::Inbound`]'s headers, and what that member
-//! waits on is whether a *forwarded* host may be believed, which `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
-//! walk answers for an address and a scheme and deliberately not for this.
-//! **`clientIp` and `scheme` wait on nothing now**: ADR
-//! 0097 § 6's walk answers both per request, `nvs_server::serve_connection`
-//! hands its `Origin` to the handler, and the carrier holds the answer —
-//! [`nvs_runtime::Inbound::client`] and [`nvs_runtime::Inbound::scheme`]. What
-//! is left for each is this module's own five edits, and § 6 fixes the one
-//! signature they cannot settle here: `clientIp(): ?tainted string`, `null` for
-//! the two ways a request arrives with no address at all — a Unix-socket peer
-//! that forwarded nothing, and a trusted hop that withheld it.
+//!
+//! Then `clientIp`, `scheme` and `host`, the three facts the request arrived
+//! *on* rather than in, none of which this module decides: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+//! walk settles an address and a scheme at the door and
+//! [`nvs_runtime::Inbound`] carries the answer, while the authority is the
+//! `Host` line already among its headers, normalised by [`host_named`] and
+//! never read out of a forwarded one.
+//!
+//! `mount` and `route` are known gaps of this module rather than of § 15, both
+//! waiting on the same thing: the match `nvs_server` makes once before the
+//! handler.
 //!
 //! # There is no request here, and that is a throw
 //!
@@ -196,7 +191,7 @@
 //! a `tainted string` directly, do carry it.
 
 use nvs_runtime::{
-    BodyNeed, Ctx, Fault, HeldValue, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value,
+    BodyNeed, Ctx, Fault, HeldValue, Inbound, NvsArray, NvsStr, Scheme, Tag, ThrownClass, Value,
 };
 
 use crate::registry::{
@@ -209,11 +204,11 @@ pub(crate) const NAME: &str = r"Core\Request";
 
 /// Spec § 15's `Core\Request`, as much of it as the request line answers.
 ///
-/// The three here share one property that the twelve still to land do not: they
-/// are answerable from the request *line*, so nothing about them waits on a
-/// body being read or on headers crossing. That is why they are the first
-/// three — they close [`crate::router`]'s "nothing converts a verb into a case"
-/// gap without needing anything else to exist.
+/// The rows are in the order the spec's roster reads: the request line first,
+/// then the fields that arrived with it, then what the body spells, then the
+/// three facts the request arrived on. `mount` and `route` sit last because
+/// each answers a match made before the program ran rather than anything the
+/// peer sent.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -333,6 +328,33 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_request_post",
             doc: Some(&POST_DOC),
+        },
+        CoreMethod {
+            name: "clientIp",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_request_client_ip",
+            doc: Some(&CLIENT_IP_DOC),
+        },
+        CoreMethod {
+            name: "scheme",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_request_scheme",
+            doc: Some(&SCHEME_DOC),
+        },
+        CoreMethod {
+            name: "host",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_request_host",
+            doc: Some(&HOST_DOC),
         },
         CoreMethod {
             name: "route",
@@ -677,6 +699,54 @@ const POST_DOC: MethodDoc = MethodDoc {
                    length it declared.",
         },
     ],
+};
+
+/// `Core\Request::clientIp`'s reference card — `rule:core-api/reference-card`.
+const CLIENT_IP_DOC: MethodDoc = MethodDoc {
+    short: "The address this request came from, as the trusted-proxy walk settled it: the socket \
+            peer, unless a peer listed in `[server] trusted_proxies` asserted otherwise in \
+            `X-Forwarded-For`.",
+    params: &[],
+    ret: "The address in its own text form, `tainted` — or `null` where the request genuinely \
+          arrived with no address to report, which a Unix-socket peer that forwarded nothing and \
+          a trusted hop that withheld it both do. Never `\"\"` and never `\"0.0.0.0\"`: those \
+          would be a repair of a fact that is missing.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
+               worker or a test.",
+    }],
+};
+
+/// `Core\Request::scheme`'s reference card — `rule:core-api/reference-card`.
+const SCHEME_DOC: MethodDoc = MethodDoc {
+    short: "The scheme this request effectively arrived over, which only a trusted peer's \
+            `X-Forwarded-Proto` can make `https` for a connection that was not itself TLS.",
+    params: &[],
+    ret: "`\"http\"` or `\"https\"`, `tainted`. Never `null`: every request arrived over one, and \
+          a deployment that trusts no proxy always reads the scheme of the connection itself.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
+               worker or a test.",
+    }],
+};
+
+/// `Core\Request::host`'s reference card — `rule:core-api/reference-card`.
+const HOST_DOC: MethodDoc = MethodDoc {
+    short: "The authority this request named, which is what a host-mounted deployment reads to \
+            learn which tenant it is serving — the `Host` field alone, since no forwarded host \
+            header is read at all.",
+    params: &[],
+    ret: "The host part, lower-cased with any port and one trailing dot removed — the three \
+          equivalences the server itself compares a host mount by — and `tainted`. `null` where \
+          the request named no authority, which the server refuses at the door for HTTP/1.1. \
+          `header(\"host\")` is the line as it arrived, for a program that wants the port.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
+               worker or a test.",
+    }],
 };
 
 /// `Core\Request::route`'s reference card — `rule:core-api/reference-card`.
@@ -1278,6 +1348,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
         "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
+        "nvs_core_request_client_ip" => (nvs_core_request_client_ip as *const ()).cast(),
+        "nvs_core_request_scheme" => (nvs_core_request_scheme as *const ()).cast(),
+        "nvs_core_request_host" => (nvs_core_request_host as *const ()).cast(),
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
@@ -1659,9 +1732,10 @@ fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
 /// shadowing attempt from a name that was supposed to be unshadowable, and
 /// picking between them is the arrangement the prefix exists to end. The other
 /// half of § 3 — that the connection carrying a `__Host-` or `__Secure-` cookie
-/// was secure — is not decidable here and is a known gap of this module, waiting
-/// on `scheme()`, because the carrier does not hold what the door concluded
-/// about the connection. `Core\Response::addCookie` refuses to *write* a
+/// was secure — is a known gap of this module rather than a missing fact: the
+/// carrier holds what the door concluded about the connection and
+/// [`nvs_core_request_scheme`] answers it, and nothing on this read path asks.
+/// `Core\Response::addCookie` refuses to *write* a
 /// non-conforming one either way, which is the same rule from the other end.
 ///
 /// Otherwise the **first** line wins. RFC 6265 § 5.4 has a user agent send the
@@ -1965,6 +2039,110 @@ nvs_runtime::nvs_helper! {
         Ok(match joined_field(inbound, name.as_bytes()) {
             None => Value::null(),
             Some(value) => Value::str(NvsStr::new(&value)),
+        })
+    }
+}
+
+/// The address a request came from in the one text form it has, and `None`
+/// where the peer had none — [`nvs_core_request_client_ip`]'s answer, and a
+/// function of its own so a test can ask it without a whole context.
+fn client_text(inbound: &Inbound) -> Option<String> {
+    inbound.client().map(|address| address.to_string())
+}
+
+/// The scheme a request effectively arrived over, as the one of two words
+/// [`nvs_core_request_scheme`] answers with.
+fn scheme_text(inbound: &Inbound) -> &'static str {
+    match inbound.scheme() {
+        Scheme::Http => "http",
+        Scheme::Https => "https",
+    }
+}
+
+/// The authority a request named, as [`nvs_core_request_host`] answers it: the
+/// host part of the `Host` field, ASCII-lower-cased with any port and one
+/// trailing dot removed.
+///
+/// Those three are equivalences the relevant specifications define rather than
+/// repairs of a value that arrived broken
+/// (`rule:errors/ambiguous-input-refused`), and they are the same three the
+/// server compares a host mount by — so the tenant a deployment mounted is the
+/// tenant this member names, with no normalising left for a program to remember.
+/// A port names no different authority and is dropped for that reason;
+/// `header("host")` is the line as the peer wrote it, for a program that wants
+/// it back.
+///
+/// `None` where the request named no authority, a `Host` line with nothing in it
+/// included. Neither reaches a served program — an absent `Host` on HTTP/1.1 is
+/// a `400` at the door — so both answers belong to a carrier built in-process.
+fn host_named(inbound: &Inbound) -> Option<Vec<u8>> {
+    let line = joined_field(inbound, b"host")?;
+    let text = line.trim_ascii();
+    // A v6 address is the one authority that carries `:` inside it, and the
+    // brackets are what say so, so the port is whatever follows the `]`.
+    let end = if text.first() == Some(&b'[') {
+        text.iter()
+            .position(|byte| *byte == b']')
+            .map_or(text.len(), |at| at + 1)
+    } else {
+        text.iter()
+            .position(|byte| *byte == b':')
+            .unwrap_or(text.len())
+    };
+    let mut host = text[..end].to_ascii_lowercase();
+    if host.len() > 1 && host.last() == Some(&b'.') {
+        host.pop();
+    }
+    (!host.is_empty()).then_some(host)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::clientIp(): ?tainted string` — spec § 15's client
+    /// address, decided once at the door and only read here.
+    ///
+    /// The walk that decided it is `nvs_server::forwarded`'s
+    /// (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`)
+    /// and never this member's: what a hop asserted is a header, and whether
+    /// this deployment believes it is configuration. So the carrier holds an
+    /// answer rather than the claims it was reached from, and a request built
+    /// in-process states that answer outright.
+    ///
+    /// `null` is a fact — a Unix-socket peer that forwarded nothing, a trusted
+    /// hop that withheld the address — and `""` for it would be exactly the
+    /// repair `rule:errors/ambiguous-input-refused` forbids.
+    fn nvs_core_request_client_ip(ctx, _args: [0]) {
+        Ok(match client_text(inbound_of(ctx, "clientIp")?) {
+            None => Value::null(),
+            Some(address) => Value::str(NvsStr::new(address.as_bytes())),
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::scheme(): tainted string` — spec § 15's effective scheme.
+    ///
+    /// Two spellings and no third, so a program compares against a word rather
+    /// than reaching for a roster: the carrier holds one of two cases and this
+    /// is where they become text. Not nullable, because every request arrived
+    /// over a scheme — a deployment trusting no proxy reads the connection's
+    /// own, which is the same rule's fail-closed end.
+    fn nvs_core_request_scheme(ctx, _args: [0]) {
+        let scheme = scheme_text(inbound_of(ctx, "scheme")?);
+        Ok(Value::str(NvsStr::new(scheme.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::host(): ?tainted string` — spec § 15's authority, read
+    /// off the `Host` field and normalised by [`host_named`], which owns why.
+    ///
+    /// No forwarded host header is read here or anywhere else: deriving an
+    /// origin from one is host-header injection, and nothing in Novis needs an
+    /// external origin, `Core\Router::url` answering with a path.
+    fn nvs_core_request_host(ctx, _args: [0]) {
+        Ok(match host_named(inbound_of(ctx, "host")?) {
+            None => Value::null(),
+            Some(host) => Value::str(NvsStr::new(&host)),
         })
     }
 }
@@ -3187,8 +3365,8 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::{
-        CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, REQUEST_BODY, cookie_of,
-        grouped_fields, joined_field, method_ordinal, nvs_core_request_body,
+        CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, REQUEST_BODY, client_text,
+        cookie_of, grouped_fields, host_named, joined_field, method_ordinal, nvs_core_request_body,
         nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
@@ -3199,13 +3377,14 @@ mod tests {
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
         nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
-        nvs_core_request_post,
+        nvs_core_request_post, scheme_text,
     };
     use crate::router::METHOD;
     use nvs_runtime::{
         CONSTRUCTOR, ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Inbound, MethodRow, NvsFn,
-        NvsObj, OK, RequestBody, Value,
+        NvsObj, OK, RequestBody, Scheme, Value,
     };
+    use std::net::IpAddr;
 
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
@@ -3748,6 +3927,122 @@ mod tests {
             None,
             "a cookie the request never carried has no value at all"
         );
+    }
+
+    /// A carrier holding the peer facts a walk settled on, stated the way
+    /// `nvs_runtime::InboundSpec` states them for a request nobody sent.
+    fn from_peer(client: Option<IpAddr>, scheme: Scheme, lines: &[(&str, &str)]) -> Inbound {
+        let mut inbound = carrying(lines);
+        inbound.set_peer(client, scheme);
+        inbound
+    }
+
+    /// The address is the carrier's, in one spelling per address, and `None`
+    /// stays `None`: a peer that had no address to report is a fact this
+    /// module reports rather than one it fills in.
+    #[test]
+    fn client_ip_answers_the_peer_the_carrier_holds() {
+        let v4 = from_peer(Some(IpAddr::from([203, 0, 113, 7])), Scheme::Http, &[]);
+        assert_eq!(client_text(&v4).as_deref(), Some("203.0.113.7"));
+        let v6 = from_peer(
+            Some("2001:0db8:0000::1".parse().expect("a v6 address")),
+            Scheme::Http,
+            &[],
+        );
+        assert_eq!(
+            client_text(&v6).as_deref(),
+            Some("2001:db8::1"),
+            "an address is written back in its own canonical form, so two \
+             spellings of one do not read as two peers"
+        );
+        assert_eq!(
+            client_text(&from_peer(None, Scheme::Http, &[])),
+            None,
+            "`\"\"` here would be the repair `rule:errors/ambiguous-input-refused` forbids"
+        );
+    }
+
+    /// The scheme is what the door concluded, never what a line asserted: a
+    /// member re-reading `X-Forwarded-Proto` would answer `https` for the last
+    /// carrier below, which is the bug
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`
+    /// exists to close.
+    #[test]
+    fn scheme_answers_what_the_carrier_was_told_the_request_arrived_over() {
+        assert_eq!(scheme_text(&from_peer(None, Scheme::Https, &[])), "https");
+        assert_eq!(
+            scheme_text(&from_peer(None, Scheme::Http, &[])),
+            "http",
+            "not nullable: every request arrived over a scheme"
+        );
+        assert_eq!(
+            scheme_text(&from_peer(
+                None,
+                Scheme::Http,
+                &[("X-Forwarded-Proto", "https")]
+            )),
+            "http"
+        );
+    }
+
+    /// The authority folded by the three equivalences the specifications
+    /// define, and nothing else: no forwarded host is read, and a request that
+    /// named none says so.
+    #[test]
+    fn host_answers_the_authority_the_request_named() {
+        assert_eq!(
+            host_named(&carrying(&[("Host", "Example.Test.:8443")])).as_deref(),
+            Some(&b"example.test"[..]),
+            "case, the port and one trailing dot are the three the server \
+             compares a host mount by"
+        );
+        assert_eq!(
+            host_named(&carrying(&[("Host", "[2001:db8::1]:443")])).as_deref(),
+            Some(&b"[2001:db8::1]"[..]),
+            "a v6 authority is the one that carries `:` inside it, and the \
+             brackets are what say where the port begins"
+        );
+        assert_eq!(
+            host_named(&carrying(&[])),
+            None,
+            "a request that named no authority named none"
+        );
+        assert_eq!(
+            host_named(&carrying(&[("Host", "   ")])),
+            None,
+            "a `Host` line with nothing in it names none either"
+        );
+        assert_eq!(
+            host_named(&carrying(&[("X-Forwarded-Host", "attacker.test")])),
+            None,
+            "no forwarded host header is read: an origin derived from one is \
+             host-header injection"
+        );
+    }
+
+    /// Every one of the three answers a `tainted` string, the qualifier riding
+    /// on the value a program reaches rather than on the `?` around it
+    /// (`rule:security/tainted-sources`). A client address a proxy asserted is
+    /// peer input; that it passed a trust check makes it believable, never
+    /// laundered.
+    #[test]
+    fn all_three_peer_members_are_tainted() {
+        for name in ["clientIp", "scheme", "host"] {
+            let row = CLASS
+                .methods
+                .iter()
+                .find(|method| method.name == name)
+                .expect("the member is registered");
+            let carried = match &row.return_ty {
+                CoreTy::Nullable(inner) => *inner,
+                other => other,
+            };
+            assert!(
+                matches!(carried, CoreTy::TaintedStr),
+                "`Core\\Request::{name}` answers what a peer said, so its \
+                 string is `tainted`"
+            );
+        }
     }
 
     /// A repeated name reads as the first line — the user agent's own order,
