@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -383,9 +383,36 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 **An uploaded file is a stream, and `Core\Request::files(): Iterable<Part>` is the only way to receive one.** There is no temp file — no `tmp_name`, no `move_uploaded_file`, no temp directory to configure, permission or clean up after a crash — because where a part lands is an application's explicit call under `fs.write` ([`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream)), never the runtime's default.
 
-`Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is exclusive with `body()` and `files()` on one request. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
+`Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0105](../decisions/0105.md), [0005](../decisions/0005.md), [0053](../decisions/0053.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0105](../decisions/0105.md), [0005](../decisions/0005.md), [0053](../decisions/0053.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+
+<a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
+
+## A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it  *(designed — not yet in the compiler)*
+
+`rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+
+A request body is read either by a **buffering** reader — `Core\Request::body()`, `::post()`, `::json()`, `::jsonAs<T>()` — which keeps what it read, so another buffering reader may follow it; or by a **streaming** reader — `::bodyStream()`, `::files()` — which hands the octets to the program as they arrive, keeps none of them, and so consumes the body. A buffering reader fills the request's hold, bounded by `[limits] request_body` ([`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps)), and answers out of it: any of the four may follow any other, in any order, and each answers the same octets. A streaming reader may only be the first reader, and once it has run nothing reads those octets again.
+
+| Reader | Kind | Keeps |
+|---|---|---|
+| `body()` | buffering | the octets |
+| `post()` | buffering | the octets, and the fields it decoded from them |
+| `json()` | buffering | the octets, and the `Value` it decoded |
+| `jsonAs<T>()` | buffering | the octets |
+| `bodyStream()` | streaming | nothing |
+| `files()` | streaming | nothing of a file part; the non-file fields, which it buffers |
+
+A reader that arrives after the body was consumed throws `LogicError` naming the member that consumed it. It is refused rather than answered empty, because an empty answer from an exhausted stream is indistinguishable from a body that was empty, and that is the ambiguity [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) exists to refuse. The refusal is a defect in the program, never something a peer can provoke.
+
+**`post()` after `files()` is this rule rather than an exception to it.** A `files()` walk streams the file parts and buffers everything else: a multipart form's non-file fields are held as the walk passes them ([`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename)), charged against `request_body` like any other buffered body, and `post()` answers out of that hold. It drains whatever the walk did not reach before answering, so it reports every field rather than the ones that arrived ahead of the part the walk stopped on — which is why a handler that wants the uploads takes `files()` first. `body()` after a walk is still refused: the hold carries the decoded fields, never the raw octets.
+
+`json()` keeps its decoded `Value` because `Core\Json::decode` produces only arrays and scalars, and an array is copy-on-write, so a second caller can be handed a refcount bump safely. `jsonAs<T>()` keeps nothing beyond the octets and decodes per call, because `decodeAs` builds objects and two callers must never be handed the same one. **What this spends**, per [`programs/memory-priority`](programs.md#programs-memory-priority): the held octets, at most `[limits] request_body` per in-flight request — already `post()`'s bill before this rule — plus one decoded value for a request that called `json()`. Both are freed with the request, so the cost is O(in-flight) and never O(requests served).
+
+The kinds are not a roster to maintain: a member is buffering exactly when it fills the hold, which is a fact the runtime already has, so a body reader added later classifies itself. The alternative — a closed exclusive set of three members with `post()` and then `json()` each carved out of it — was rejected on the second carve-out, because two exceptions to a rule are the rule, unwritten.
+
+<sub>See also [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-static-serving-is-one-policy"></a>
 
@@ -727,13 +754,13 @@ The buffered array is absent on purpose. Choosing between a buffered and a strea
 
 `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
 
-A part is a file part exactly when its `Content-Disposition` carries `filename` — RFC 7578's own distinction, and the only one. Every other part is an ordinary form field: the server buffers it and `Core\Request::post()` reads it exactly as it reads a urlencoded form. A `<form>` with a title, a description and a file is read the way it was written, and the application never reconstructs `post()` out of part order. Those buffered fields are charged against `[limits] request_body`, because form-field text is bytes parsed into memory, which is what that cap means.
+A part is a file part exactly when its `Content-Disposition` carries `filename` — RFC 7578's own distinction, and the only one. Every other part is an ordinary form field: the server buffers it and `Core\Request::post()` reads it exactly as it reads a urlencoded form. A `<form>` with a title, a description and a file is read the way it was written, and the application never reconstructs `post()` out of part order. Those buffered fields are charged against `[limits] request_body`, because form-field text is bytes parsed into memory, which is what that cap means. They are also what a `files()` walk leaves behind: the walk streams the file parts and buffers these, so `post()` after a walk answers out of that hold like any other buffering reader, and needs no carve-out of its own ([`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it)).
 
 A `Part` answers `name()` (the form's field name), `filename()` (the client's claimed name, never a path) and `contentType()`, all three **`tainted`** and all three members rather than properties. `name` is marked with the other two although the form declared it: a peer is under no obligation to send back the names the form declared, and leaving it plain would have made it the one launderer on the class. `contentType()` answers RFC 7578's default `text/plain` where the part declared none.
 
 A part carries **no `size`**. There is no honest value to put there before the part has been consumed, and inventing one from `Content-Length` is the repair [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids. The part-count cap of [`errors/multipart-part-count`](errors.md#errors-multipart-part-count) applies unchanged; it bounds bookkeeping, which no byte cap reaches.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0105](../decisions/0105.md), [0095](../decisions/0095.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0105](../decisions/0105.md), [0095](../decisions/0095.md), [0024](../decisions/0024.md), [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-a-part-is-consumed-in-one-of-three-ways"></a>
 
@@ -754,9 +781,9 @@ foreach (Core\Request::files() as $part) {
 - **`content(): Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the iterator's current one. A part the walk has moved past refuses rather than reading the current one.
 - **`saveTo(string $path, {max?, overwrite?})`** — the shorthand for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), to which it delegates under the same bag, and the path nearly every upload takes. Its path is a sink: a `tainted` `filename()` reaching it is a compile error, and `Core\IO::within` is the launderer.
 
-A part's bytes are readable exactly once, in order. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which. Streaming-only was rejected because a small avatar to hash or a CSV about to be parsed wants bytes, and forcing a loop on them buys no safety once the bound moved to the call site.
+A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which. Streaming-only was rejected because a small avatar to hash or a CSV about to be parsed wants bytes, and forcing a loop on them buys no safety once the bound moved to the call site.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0105](../decisions/0105.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0105](../decisions/0105.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0156](../decisions/0156.md).</sub>
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 

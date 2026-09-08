@@ -1093,13 +1093,15 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:http-server/an-upload-is-received-only-through-files`); a
   multipart form's non-file parts are buffered into `post()` as usual;
   `post(string $name): mixed` reads one submitted field by name under `query`'s bracket convention, over
-  those buffered parts or over a urlencoded body, and is the one body reader that **joins** a `files` walk
-  rather than claiming against it — it reads to the **end** of the body, which is what makes it answer
-  every field rather than the ones that arrived before the part the walk stopped on, so a handler wanting
-  the uploads too takes `files()` first; and `bodyStream(): Iterable<tainted bytes>`
-  is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets, and
-  exclusive with it and with `files` on one request
-  (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
+  those buffered parts or over a urlencoded body, and reads to the **end** of the body, which is what
+  makes it answer every field rather than the ones that arrived before the part a `files` walk stopped
+  on, so a handler wanting the uploads too takes `files()` first; and `bodyStream(): Iterable<tainted bytes>`
+  is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets. `body`
+  and `post` are **buffering** readers, which keep what they read and so may follow one another;
+  `bodyStream` and `files` are **streaming** readers, each of which consumes the body and may only be the
+  first reader of it, which is why a `post()` reading the fields a walk buffered is ordinary rather than
+  an exception
+  (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get`, `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
   `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.

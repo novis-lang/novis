@@ -450,7 +450,8 @@
         "0105",
         "0005",
         "0053",
-        "0095"
+        "0095",
+        "0156"
       ],
       "divergesFromPhp": "`upload_max_filesize`, `post_max_size` and `$_FILES['tmp_name']` have no counterpart: there is no temp file, `Core\\Request::files()` yields streams, and a route raises its own cap before reading",
       "seeAlso": [
@@ -467,6 +468,23 @@
         "tests/conformance/core/a-body-stream-chunk-is-tainted-and-a-plain-bytes-binding-refuses-it.nvst",
         "tests/conformance/core/a-body-stream-is-named-before-it-is-walked-and-refuses-there.nvst"
       ]
+    },
+    {
+      "id": "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
+      "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
+      "status": "designed",
+      "because": [
+        "0156"
+      ],
+      "divergesFromPhp": "`$_POST` is populated before the program runs and leaves `php://input` empty for a multipart body; here nothing is read until a member asks, and which reader may follow which is stated rather than decided by `enable_post_data_reading`",
+      "seeAlso": [
+        "http-server/the-body-is-read-on-demand-under-two-caps",
+        "http-server/a-part-is-a-file-iff-it-carries-a-filename",
+        "http-server/an-upload-is-received-only-through-files",
+        "errors/ambiguous-input-refused",
+        "programs/memory-priority"
+      ],
+      "guardedBy": []
     },
     {
       "id": "http-server/static-serving-is-one-policy",
@@ -780,7 +798,8 @@
       "because": [
         "0105",
         "0095",
-        "0024"
+        "0024",
+        "0156"
       ],
       "divergesFromPhp": "a part answers `name()`, `filename()` and `contentType()` as tainted strings through members, and there is no `size`, no `tmp_name` and no `error` slot",
       "seeAlso": [
@@ -803,7 +822,8 @@
       "because": [
         "0105",
         "0024",
-        "0063"
+        "0063",
+        "0156"
       ],
       "divergesFromPhp": "`move_uploaded_file` is `saveTo`, `file_get_contents($tmp)` is `readAll` under `request_body`, and a second pass over an upload has to say where the first one put it",
       "seeAlso": [

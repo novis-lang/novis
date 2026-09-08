@@ -1,0 +1,18 @@
+A request body is read either by a **buffering** reader — `Core\Request::body()`, `::post()`, `::json()`, `::jsonAs<T>()` — which keeps what it read, so another buffering reader may follow it; or by a **streaming** reader — `::bodyStream()`, `::files()` — which hands the octets to the program as they arrive, keeps none of them, and so consumes the body. A buffering reader fills the request's hold, bounded by `[limits] request_body` (`rule:http-server/the-body-is-read-on-demand-under-two-caps`), and answers out of it: any of the four may follow any other, in any order, and each answers the same octets. A streaming reader may only be the first reader, and once it has run nothing reads those octets again.
+
+| Reader | Kind | Keeps |
+|---|---|---|
+| `body()` | buffering | the octets |
+| `post()` | buffering | the octets, and the fields it decoded from them |
+| `json()` | buffering | the octets, and the `Value` it decoded |
+| `jsonAs<T>()` | buffering | the octets |
+| `bodyStream()` | streaming | nothing |
+| `files()` | streaming | nothing of a file part; the non-file fields, which it buffers |
+
+A reader that arrives after the body was consumed throws `LogicError` naming the member that consumed it. It is refused rather than answered empty, because an empty answer from an exhausted stream is indistinguishable from a body that was empty, and that is the ambiguity `rule:errors/ambiguous-input-refused` exists to refuse. The refusal is a defect in the program, never something a peer can provoke.
+
+**`post()` after `files()` is this rule rather than an exception to it.** A `files()` walk streams the file parts and buffers everything else: a multipart form's non-file fields are held as the walk passes them (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`), charged against `request_body` like any other buffered body, and `post()` answers out of that hold. It drains whatever the walk did not reach before answering, so it reports every field rather than the ones that arrived ahead of the part the walk stopped on — which is why a handler that wants the uploads takes `files()` first. `body()` after a walk is still refused: the hold carries the decoded fields, never the raw octets.
+
+`json()` keeps its decoded `Value` because `Core\Json::decode` produces only arrays and scalars, and an array is copy-on-write, so a second caller can be handed a refcount bump safely. `jsonAs<T>()` keeps nothing beyond the octets and decodes per call, because `decodeAs` builds objects and two callers must never be handed the same one. **What this spends**, per `rule:programs/memory-priority`: the held octets, at most `[limits] request_body` per in-flight request — already `post()`'s bill before this rule — plus one decoded value for a request that called `json()`. Both are freed with the request, so the cost is O(in-flight) and never O(requests served).
+
+The kinds are not a roster to maintain: a member is buffering exactly when it fills the hold, which is a fact the runtime already has, so a body reader added later classifies itself. The alternative — a closed exclusive set of three members with `post()` and then `json()` each carved out of it — was rejected on the second carve-out, because two exceptions to a rule are the rule, unwritten.
