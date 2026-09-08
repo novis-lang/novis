@@ -37,6 +37,13 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "nvs",
+        "scopeName": "source.nvs",
+        "path": "./syntaxes/nvs.tmLanguage.json"
+      }
+    ],
     "configuration": {
       "title": "Novis",
       "properties": {
@@ -141,6 +148,8 @@
     "eslint": "^9.13.0",
     "mocha": "^10.8.0",
     "typescript": "^5.6.0",
-    "typescript-eslint": "^8.11.0"
+    "typescript-eslint": "^8.11.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   }
 }

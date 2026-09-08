@@ -1,0 +1,78 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Novis",
+  "scopeName": "source.nvs",
+  "comment": "Layer one of rule:ide/highlighting-is-two-layers: what a .nvs file looks like the instant it opens, before the server has started. Every scope here is a standard TextMate name suffixed `.nvs`, and test/grammar/allowlist.test.ts is where that is enforced rather than remembered.",
+  "patterns": [
+    { "include": "#shebang" },
+    { "include": "#inline-html" }
+  ],
+  "injections": {
+    "L:source.nvs -meta.embedded": {
+      "comment": "The openers are an injection rather than a top-level pattern because text mode nests: an HTML rule that has begun an attribute value owns every position until its own end, so a `<?nvs` inside `class=\"...\"` reaches no pattern of ours. An injection is offered at every position whatever rule is on the stack, and `L:` puts it ahead of that rule. The selector is `source.nvs` and not `text.html`, which is what a template grammar usually injects into: an external grammar included from `patterns` has its patterns inlined without its scope name being pushed, so a `text.html` selector matches nothing until the HTML grammar's own rules have begun. Excluding `meta.embedded` is what keeps it out of code mode, where the file is already open.",
+      "patterns": [{ "include": "#code-mode" }]
+    }
+  },
+  "repository": {
+    "code-mode": {
+      "comment": "The dual-mode lexer's three openers and its one closer, matched the way crates/nvs-syntax/src/lexer.rs:402 matches them: `<?nvs` and `<?php` are recognised in any case and must be followed by whitespace, `?` or the end of the line, so `<?phpx` is text; `<?=` is exact and needs no separator. Two of the four spellings open code mode and are wrong doing it — `<?php` is E0229 whatever its case (rule:statements/nvs-is-the-only-open-tag) and a miscased `<?NVS` is E_RESERVED_SPELLING_CASE (rule:classes/reserved-spellings-are-lower-case) — so they open the block, which keeps the rest of the file from collapsing into one span of inline HTML, and are marked invalid while doing it. Colouring either like `<?nvs` would confirm the mistake in the editor before the server contradicts it, which rule:ide/rejected-syntax-gets-no-colour refuses.",
+      "name": "meta.embedded.block.nvs",
+      "begin": "(<\\?nvs(?=[\\s?]|$)|<\\?=)|((?i:<\\?php)(?=[\\s?]|$)|(?i:<\\?nvs)(?=[\\s?]|$))",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.embedded.begin.nvs" },
+        "2": { "name": "invalid.illegal.open-tag.nvs" }
+      },
+      "end": "(\\?>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.embedded.end.nvs" }
+      },
+      "patterns": [{ "include": "#code" }]
+    },
+    "shebang": {
+      "comment": "`#!` at offset 0 opens code mode with no tag at all, and line one is trivia an editor sees as a comment: rule:tooling/shebang-opens-code-mode. A TextMate pattern cannot say `line one only`, so this one is anchored to the start of a line and tried first; the cost of that is a line of text-mode content beginning `#!`, which reads as a shebang and opens code mode until the next `?>`.",
+      "name": "meta.embedded.block.nvs",
+      "begin": "^(#!.*)$",
+      "beginCaptures": {
+        "1": { "name": "comment.line.number-sign.shebang.nvs" }
+      },
+      "end": "(\\?>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.embedded.end.nvs" }
+      },
+      "patterns": [{ "include": "#code" }]
+    },
+    "inline-html": {
+      "comment": "Outside every opener the bytes are HTML and the editor's own HTML grammar colours them, which is the mode M1's lexer is built around. In a registry that has no `text.html.basic` — the headless suite, where it is an editor's grammar rather than an npm package — the include resolves to nothing and the span stays plain text, which is the same claim the suite makes of it: inline HTML is not code.",
+      "patterns": [{ "include": "text.html.basic" }]
+    },
+    "code": {
+      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below these two: a rule that colours a keyword or a type has no way to know it is inside a comment, so whatever consumes comments has to be offered the position first.",
+      "patterns": [
+        { "include": "#attribute" },
+        { "include": "#comments" }
+      ]
+    },
+    "attribute": {
+      "comment": "`#[` opens an attribute and the lexer's `#` comment branch breaks out on exactly that pair: crates/nvs-syntax/src/lexer.rs:466. A grammar that misses the distinction colours every attribute in the file, and often the rest of its line, as a comment. The body is `#code` so that a `]` inside a string stops ending the attribute as soon as the string family lands.",
+      "name": "meta.attribute.nvs",
+      "begin": "(#\\[)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.attribute.begin.nvs" }
+      },
+      "end": "(\\])",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.attribute.end.nvs" }
+      },
+      "patterns": [{ "include": "#code" }]
+    },
+    "comments": {
+      "comment": "crates/nvs-syntax/src/lexer.rs:437 is the shape. A line comment's kind is read off its opening run of slashes and exactly three of them documents (rule:tooling/doc-comment-is-three-slashes), so `////` is a divider rather than documentation and `/**` is an ordinary block nothing reads. `#` comments to end of line at any length except `#[`, which the pattern refuses itself rather than by being listed after the attribute, so reordering these cannot silently turn every attribute into a comment.",
+      "patterns": [
+        { "name": "comment.line.documentation.nvs", "match": "///(?!/).*$" },
+        { "name": "comment.line.double-slash.nvs", "match": "//.*$" },
+        { "name": "comment.line.number-sign.nvs", "match": "#(?!\\[).*$" },
+        { "name": "comment.block.nvs", "begin": "/\\*", "end": "\\*/" }
+      ]
+    }
+  }
+}
