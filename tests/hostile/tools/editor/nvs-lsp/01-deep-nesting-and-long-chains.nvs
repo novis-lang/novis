@@ -1,0 +1,28 @@
+<?nvs
+// Deep nesting and long chains, one step under the parser's own limit -- the
+// document sized to hurt the front end a language server re-reads on every
+// keystroke. `nvs lsp` gave up incremental reparse, so what hurts it is depth
+// and length rather than size on disk. A `nvs run` is the same parse, the same
+// tree and the same offset index a cursor is answered out of, so what this
+// hopes to break is the deepest document the grammar still accepts.
+
+// Parentheses as deep as an expression may legally go. Every level is a frame
+// of the recursive-descent parser, and a cursor request walks out of all of
+// them to build its ancestor chain.
+var $deep = ((((((((((((7))))))))))));
+
+// Nesting the other way: a literal whose walk is recursive whatever walks it,
+// and whose innermost element is what an index lookup has to reach.
+array<array<array<array<array<string>>>>> $tree = [[[[["leaf"]]]]];
+
+// A sixty-term chain: one left-leaning tree the type checker types at every
+// step, and the shape a half-typed line grows into as somebody keeps typing.
+var $chain = "a" . "b" . "c" . "d" . "e" . "f" . "g" . "h" . "i" . "j"
+    . "k" . "l" . "m" . "n" . "o" . "p" . "q" . "r" . "s" . "t"
+    . "u" . "v" . "w" . "x" . "y" . "z" . "0" . "1" . "2" . "3"
+    . "4" . "5" . "6" . "7" . "8" . "9" . "A" . "B" . "C" . "D"
+    . "E" . "F" . "G" . "H" . "I" . "J" . "K" . "L" . "M" . "N"
+    . "O" . "P" . "Q" . "R" . "S" . "T" . "U" . "V" . "W" . "X";
+
+echo $deep, "\n";
+echo Core\Str::length($chain), "\n";

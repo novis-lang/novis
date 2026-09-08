@@ -621,6 +621,7 @@ mod tests {
         }
     }
 
+    // covers: tools:editor/nvs-lsp-test
     #[test]
     fn a_tree_of_cases_reports_one_summary_line() {
         let dir = scratch("tree");

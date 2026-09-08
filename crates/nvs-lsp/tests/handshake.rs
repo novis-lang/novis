@@ -94,6 +94,7 @@ fn client_offering(encodings: &[PositionEncodingKind]) -> ClientCapabilities {
     }
 }
 
+// covers: tools:editor/nvs-lsp
 #[test]
 fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
     // `rule:ide/the-request-set-is-closed`, read back off the wire rather than
