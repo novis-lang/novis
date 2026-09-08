@@ -1339,6 +1339,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   emitter — and the real lowering is `lower/expr.rs:3212` and `:3441` plus `lower/closure.rs:621`.
   One `grep -n` for the symbol the item names, before reading the window it inlined, is the whole
   fix. [until: reviewed 2026-09-06]
+- **The live acceptance list and the goal's own `docs/agent/goals/<goal>.toml` drift apart, and a
+  plain `diff` will not show you how far.** The live `docs/agent/loop-goal.toml` is written with CRLF
+  while the source stays LF, so `diff` reports every line changed and reads as two unrelated files —
+  and because `goal-switch.py` carries the *live* file's checks forward, a stale source is invisible
+  until something reinstalls it. Use `diff --strip-trailing-cr` before believing either file, and put
+  an amendment to a check into both in the same commit. [until: reviewed 2026-09-08]
 
 ## Running things
 
