@@ -1,0 +1,9 @@
+--TEST--
+narrowing an `array<mixed>` annotation to the literal that initializes it is derivable and still offered by nothing, because no diagnostic carries it and this server computes no fix of its own, `rule:ide/narrow-an-annotation-to-its-literal`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+array<mi<|>xed> $rows = [1, 2, 3];
+--REQUEST--
+codeAction
+--EXPECT--
+none

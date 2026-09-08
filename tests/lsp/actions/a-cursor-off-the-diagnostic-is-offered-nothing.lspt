@@ -1,0 +1,11 @@
+--TEST--
+the same document offers nothing two lines below its casing violation: an action is asked over a range and answered from the diagnostic that range meets, not from everything the file has wrong with it, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+class user_account {}
+var $u = new UserAccount();
+echo <|>"done";
+--REQUEST--
+codeAction
+--EXPECT--
+none

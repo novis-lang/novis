@@ -1,0 +1,10 @@
+--TEST--
+a legacy `(int)$n` offers `$n as int`, the edit covering the cast and its operand together because dropping one alone would change what the expression means, `rule:types/no-legacy-cast`, `rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+--FILE--
+<?nvs
+int $n = 3;
+int $m = (i<|>nt)$n;
+--REQUEST--
+codeAction
+--EXPECT--
+3:10-3:17 quickfix rewrite as `$n as int` -> "$n as int"
