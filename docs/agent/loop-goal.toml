@@ -215,7 +215,14 @@ adrs = ["0024 §1"]
 # The converter, and the three sections that argue it: the coercion table, the type-argument door
 # its third member joins, and the collected-failure shape it reuses.
 [context.stage.3]
-rules = ["core-classes/derive-attribute", "types/arrays"]
+rules = [
+  "core-classes/derive-attribute",
+  "types/arrays",
+  # The hydration walk decides an absent optional key and a `?T` field by these two, and stage 2's
+  # overlay is where the first was — a session doing the walk pays for it again without this.
+  "types/shape-type",
+  "expressions/nullable-conversion",
+]
 adrs = ["0007 §2", "0007 §5", "0071"]
 shapes = ["A `Core` member — the five edits"]
 

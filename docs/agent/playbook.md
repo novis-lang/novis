@@ -5191,6 +5191,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reading `desc.codec()` (`crates/nvs-stdlib/src/json.rs:583`). Anything handing a shape's per-field
   wire types to a native helper has to carry them at the *call site*, next to the
   `WRITTEN_CLASS_MEMBERS` descriptor rather than inside it. [until: reviewed 2026-09-08]
+- **A shape class arms no slot, so `NvsObj::new` leaves an absent field `null` rather than
+  never-written.** `ClassDesc::defaults` is the list that arms the marker and
+  `nvs_ir::lower::record_shape_class` writes `defaults: Vec::new()`, so a native decoder filling a
+  `{a?: int}` has to write `Value::unset()` into the slot itself — leave it and `{a?: int}` and
+  `{a: ?int}` hold the same thing, which is two types that intern apart reading as one. `NvsObj::new`'s
+  own doc comment names the never-written marker, which is exactly what makes the omission look
+  impossible. [until: reviewed 2026-09-08]
 
 ## Divergences and refusals already pinned
 
