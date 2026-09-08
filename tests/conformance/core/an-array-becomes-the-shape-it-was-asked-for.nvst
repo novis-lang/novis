@@ -1,0 +1,22 @@
+--TEST--
+`Core\Arr::shapeAs` reads an array as the type written at its call site, converting each named field with `as` and leaving every other key behind — `rule:types/arrays`, `rule:types/shape-type` and `rule:types/conversion`
+--FILE--
+<?nvs
+// `rule:types/arrays`'s type-argument door: `shapeAs<T>` is one of the members
+// a call site may write a type argument for, and an inline shape is one of the
+// three things that may be written there.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: int, s: string}>(["n" => 1, "s" => "a"])), "\n";
+
+// `rule:types/conversion`'s `string` → `int` row, and nothing new beside it: a
+// form's values are all text, so a declared `int` field asks for exactly the
+// whole-string reading `as int` performs.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: int}>(["n" => "42"])), "\n";
+
+// `rule:types/shape-type`'s width subtyping over loose values: a key the shape
+// does not name is ignored rather than refused, so a form carrying a CSRF
+// token does not break a handler reading two fields out of it.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: int}>(["n" => 2, "csrf" => "t0ken"])), "\n";
+--EXPECT--
+{"n":1,"s":"a"}
+{"n":42}
+{"n":2}

@@ -2387,6 +2387,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// the transaction, so both spellings have to be here or the same call through
 /// a `$tx` would lose its class.
 pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
+    (r"Core\Arr", "shapeAs"),
     (r"Core\Json", "decodeAs"),
     (r"Core\Request", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),

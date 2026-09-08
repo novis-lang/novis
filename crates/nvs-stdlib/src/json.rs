@@ -1047,7 +1047,7 @@ unsafe fn decode_as(
         reason = "the same live descriptor the caller vouched for"
     )]
     unsafe {
-        hydrate(ctx, class, shape, document, list, member)
+        hydrate(ctx, class, shape, document, list, Reading::Wire, member)
     }
 }
 
@@ -1080,6 +1080,38 @@ struct Contract<'a> {
     /// where it wrote a class name, which is the one bit everything above
     /// branches on.
     shape: Option<&'a nvs_runtime::ShapeCodec>,
+    /// What the values under this walk are, which is [`scalar`]'s one
+    /// question and no other caller's.
+    reading: Reading,
+}
+
+/// What the values one walk is handed already are — the second axis
+/// [`Contract`] carries, and the only one [`scalar`] reads.
+///
+/// A JSON document arrives *typed*: `1` is a number and `"1"` is a string,
+/// because the wire spelled them apart, so a `"1"` reaching an `int` field is
+/// a document that disagrees with the class it claims to be. A form, a query
+/// string and an array a program built arrive as whatever is in them — every
+/// value of a query string is text, and a field declaring `int` is asking for
+/// `rule:types/conversion`'s `string → int` row rather than for a wire type
+/// that was never there.
+///
+/// So the two doors differ in one place and share everything else: the field
+/// list, the presence column, the nesting, and — the reason this is one walk
+/// rather than two — the issue list a failure arrives as, which is what a
+/// program catches. Nothing new enters the conversion table for either;
+/// [`Values`] applies the rows `nvs_runtime::to_int` and its two siblings
+/// already answer for `$mixed as int`.
+///
+/// [`Values`]: Reading::Values
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Reading {
+    /// A JSON document's own types, matched exactly — `Core\Json::decodeAs`
+    /// and `Core\Request::jsonAs`.
+    Wire,
+    /// Loose values converted per field by `rule:types/conversion`'s table —
+    /// `Core\Arr::shapeAs` and the request wrappers over it.
+    Values,
 }
 
 impl<'a> Contract<'a> {
@@ -1103,7 +1135,27 @@ impl<'a> Contract<'a> {
         let desc = unsafe { &*class };
         #[expect(unsafe_code, reason = "the caller guarantees the contract is live")]
         let shape = shape.map(|codec| unsafe { &*codec });
-        Self { class, desc, shape }
+        Self {
+            class,
+            desc,
+            shape,
+            reading: Reading::Wire,
+        }
+    }
+
+    /// The same contract over values of `reading`.
+    ///
+    /// Set here rather than in [`Contract::new`] because [`check_codec`] asks
+    /// only what the *declaration* says, and a parameter it never reads on the
+    /// call every door already makes would be one more thing to get right for
+    /// nothing.
+    const fn over(self, reading: Reading) -> Self {
+        Self {
+            class: self.class,
+            desc: self.desc,
+            shape: self.shape,
+            reading,
+        }
     }
 
     /// Every field this decode walks, in the order the class lays its slots
@@ -1224,6 +1276,10 @@ pub(crate) unsafe fn check_codec(
 /// `document` is transferred: this releases it whichever branch ran and whether
 /// or not it failed.
 ///
+/// `reading` is what the values in it already are — [`Reading`] owns the one
+/// place the two answers differ, and every door but `Core\Arr::shapeAs` and
+/// its wrappers is a [`Reading::Wire`] one.
+///
 /// # Safety
 ///
 /// As [`decode_as`]'s.
@@ -1242,13 +1298,14 @@ pub(crate) unsafe fn hydrate(
     shape: Option<*const nvs_runtime::ShapeCodec>,
     document: Value,
     list: bool,
+    reading: Reading,
     member: &str,
 ) -> Result<Value, Fault> {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the descriptor and the contract are live"
     )]
-    let contract = unsafe { Contract::new(class, shape) };
+    let contract = unsafe { Contract::new(class, shape) }.over(reading);
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for"
@@ -1733,11 +1790,28 @@ unsafe fn convert_field(
         | CodecTy::Int
         | CodecTy::Uint
         | CodecTy::Float
-        | CodecTy::Str => scalar(field.ty, None, found),
+        | CodecTy::Str => {
+            #[expect(
+                unsafe_code,
+                reason = "the document owns this value for the length of this call"
+            )]
+            unsafe {
+                scalar(field.ty, None, found, contract.reading)
+            }
+        }
         // `rule:core-classes/derive-field-list`'s enum field: the roster travels with the field and the
         // decode is a membership test over it, so this is a scalar with one
         // more thing in hand rather than a nesting of its own.
-        CodecTy::Enum => scalar(field.ty, Some(cases_of(contract, field)?), found),
+        CodecTy::Enum => {
+            let cases = cases_of(contract, field)?;
+            #[expect(
+                unsafe_code,
+                reason = "the document owns this value for the length of this call"
+            )]
+            unsafe {
+                scalar(field.ty, Some(cases), found, contract.reading)
+            }
+        }
         // Reachable only through a *nested* class, whose own fields
         // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
         // crate has not written yet, so it is an engine fault wherever it is
@@ -1759,17 +1833,9 @@ unsafe fn convert_field(
             describe(found)
         )));
     };
-    // Every arm above either built a fresh scalar or passed the document's own
-    // value through; the pass-through arms are the ones that need a reference
-    // of their own, since the document is released before the constructor runs.
-    #[expect(
-        unsafe_code,
-        reason = "the document owns this value for the length of this call, so \
-                  taking a second reference to it is sound"
-    )]
-    unsafe {
-        value.retain();
-    }
+    // [`scalar`] answered with a reference of its own, which is what the
+    // object being built needs: the document is released before the
+    // constructor runs.
     Ok(value)
 }
 
@@ -1814,7 +1880,9 @@ unsafe fn decode_nested(
         ))));
     };
     #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
-    let nested = unsafe { Contract::new(class, None) };
+    // The reading carries down: what the values are is a property of the door
+    // the whole call came through, not of how deep the field sits.
+    let nested = unsafe { Contract::new(class, None) }.over(contract.reading);
     if nested.fields().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
@@ -1845,12 +1913,12 @@ unsafe fn decode_nested(
     }
 }
 
-/// One JSON value read as a scalar wire type, or `None` when the document held
-/// something else there.
+/// One value read as a scalar wire type, or `None` when it is not one and
+/// `reading` gives no row that makes it one.
 ///
 /// Split out of [`decode_field`] because [`decode_list`] asks the same
 /// question of every element, and a list whose elements converted by their own
-/// rules would be a second answer to "what is an `int` on the wire".
+/// rules would be a second answer to "what is an `int` here".
 ///
 /// A [`CodecTy::Class`], a [`CodecTy::List`] and a [`CodecTy::Opaque`] are not
 /// scalars and answer `None`; each has a caller that handles it before
@@ -1860,16 +1928,46 @@ unsafe fn decode_nested(
 /// [`CodecTy::Enum`] — the one wire type whose accepted values are a property
 /// of the field rather than of the type. Both callers resolve it before
 /// asking, so a `None` here is an already-diagnosed program and refuses.
-fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value> {
-    match ty {
+///
+/// **The answer is an owned reference.** A pass-through arm retains the
+/// document's own value on the way out and a converting arm hands over the one
+/// it built, so a caller adds the value to what it is assembling and never
+/// asks which happened — which it could not answer anyway once
+/// [`Reading::Values`]'s `→ string` row builds a string where the strict read
+/// would have refused outright.
+///
+/// # Safety
+///
+/// `found` must be a reference the caller keeps alive across the call, since a
+/// pass-through arm takes a second one to it.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of the value it borrowed from the document"
+)]
+unsafe fn scalar(
+    ty: CodecTy,
+    cases: Option<&EnumCases>,
+    found: Value,
+    reading: Reading,
+) -> Option<Value> {
+    let coerce = reading == Reading::Values;
+    let kept = match ty {
         // A `mixed` field is exactly as checked as `mixed` ever is (`rule:core-classes/derive-field-list`), so whatever the document held is the value.
         CodecTy::Mixed => Some(found),
+        // No row of `rule:types/conversion` lands on `bool` — PHP's truthy
+        // table is a *condition*'s answer and not a conversion's — so both
+        // readings want the value to be one already. A `"1"` from a checkbox
+        // is therefore a failed field and not a `true`, which is the whole
+        // point of the table being closed.
         CodecTy::Bool => found.as_bool().map(Value::bool),
+        CodecTy::Int if coerce => nvs_runtime::to_int(found).map(Value::int),
         CodecTy::Int => found.as_int().map(Value::int),
+        CodecTy::Uint if coerce => nvs_runtime::to_uint(found).map(Value::uint),
         CodecTy::Uint => found
             .as_int()
             .and_then(|number| u64::try_from(number).ok())
             .map(Value::uint),
+        CodecTy::Float if coerce => nvs_runtime::to_float(found).map(Value::float),
         // A JSON `1` reaching a `float` field widens, which is the one place
         // Novis does that — `rule:types/conversion` has no int-to-float widening in the
         // language, but a wire format has one number type and refusing an
@@ -1878,6 +1976,14 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
             .as_float()
             .or_else(|| found.as_int().map(|number| number as f64))
             .map(Value::float),
+        // `rule:types/conversion`'s "anything → `string`: total for scalars",
+        // which is the one converting row that allocates. An array or an
+        // object is not a scalar and needs `Stringable`, so both refuse here
+        // rather than reaching for a method a value read out of a form has no
+        // business having.
+        CodecTy::Str if coerce && found.tag() != Some(Tag::Str) => {
+            return nvs_runtime::value_to_string(found).ok();
+        }
         CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
         // `rule:enums/representation` reserves an enum tag and nothing writes one, so a case
         // is the integer behind it and there is nothing to construct: what a
@@ -1885,7 +1991,16 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
         // roster is a bad document rather than a case this build forgot.
         CodecTy::Enum => {
             let cases = cases?;
-            let number = found.as_int()?;
+            // The backing value first and the membership test after, which is
+            // `rule:types/conversion`'s "backing type / `mixed` → `EnumName`"
+            // read in the order it is written. Under `Values` the backing
+            // value is `"2"` as often as `2`, so the row that reaches it is
+            // the same one an `int` field's is.
+            let number = if coerce {
+                nvs_runtime::to_int(found)?
+            } else {
+                found.as_int()?
+            };
             if cases.values.binary_search(&i128::from(number)).is_err() {
                 return None;
             }
@@ -1893,14 +2008,27 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
             // in the runtime — `nvs_ir::lower::expr` emits one for a written
             // `Role::Admin` — so a decoded case has to be the same value a
             // written one is, or the two would compare unequal.
-            if cases.unsigned {
+            return if cases.unsigned {
                 u64::try_from(number).ok().map(Value::uint)
             } else {
                 Some(Value::int(number))
-            }
+            };
         }
         CodecTy::Class | CodecTy::List | CodecTy::Opaque => None,
+    }?;
+    // Every arm reaching here either passed the document's own value through
+    // or built an unrefcounted scalar, and a retain on the second is the
+    // no-op `Value::retain` documents. The two arms that allocate return
+    // above, holding the one reference they made.
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the document owns this value for the \
+                  length of the call, so a second reference to it is sound"
+    )]
+    unsafe {
+        kept.retain();
     }
+    Some(kept)
 }
 
 /// The enum roster `field` carries, or the engine fault a missing one is.
@@ -2005,24 +2133,20 @@ unsafe fn decode_list(
             }
             continue;
         }
-        let Some(value) = scalar(element, cases, item) else {
+        #[expect(
+            unsafe_code,
+            reason = "the document owns this element for the length of this call"
+        )]
+        let converted = unsafe { scalar(element, cases, item, contract.reading) };
+        let Some(value) = converted else {
             issues.push((
                 at_path,
                 format!("expected {}, found {}", wanted(element), describe(item)),
             ));
             continue;
         };
-        // As [`decode_field`]'s tail: a pass-through arm handed back the
-        // document's own value, and the document is released before the
-        // constructor runs.
-        #[expect(
-            unsafe_code,
-            reason = "the document owns this value for the length of this call, so \
-                      taking a second reference to it is sound"
-        )]
-        unsafe {
-            value.retain();
-        }
+        // As [`decode_field`]'s tail: [`scalar`] answered with a reference of
+        // its own, and the document is released before the constructor runs.
         decoded.append(value);
     }
     if !issues.is_empty() {
@@ -2068,7 +2192,8 @@ unsafe fn decode_element(
         ))));
     };
     #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
-    let element = unsafe { Contract::new(class, None) };
+    // [`decode_nested`]'s reason, for a list's element class.
+    let element = unsafe { Contract::new(class, None) }.over(contract.reading);
     if element.fields().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \

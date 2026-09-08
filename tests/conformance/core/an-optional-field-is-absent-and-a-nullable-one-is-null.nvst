@@ -1,0 +1,35 @@
+--TEST--
+A `Core\Arr::shapeAs` subject missing an optional key leaves that field unwritten, while a nullable field whose value does not convert is `null` — `rule:core-api/required-optional-and-nullable`, `rule:types/shape-type` and `rule:expressions/nullable-conversion`
+--FILE--
+<?nvs
+// `rule:core-api/required-optional-and-nullable`'s first column, written as
+// `rule:types/shape-type`'s `?` marker: an absent optional key leaves the slot
+// never written rather than holding `null`, so it encodes back out as an
+// absent key instead of as `"s":null`.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: int, s?: string}>(["n" => 3])), "\n";
+
+// The second column is the type's own, and `rule:expressions/nullable-conversion`
+// answers it: a shape's `?T` field is `as ?T`, which yields `null` exactly
+// where `as T` would have thrown. So a value the conversion refuses is that
+// `null` rather than a reported issue.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: ?int}>(["n" => "not a number"])), "\n";
+
+// The same field where the conversion succeeds is the converted value, which
+// is what makes `as ?T` the checked form and not a weaker one.
+echo Core\Json::encode(Core\Arr::shapeAs<{n: ?int}>(["n" => "7"])), "\n";
+
+// The two questions stay separate: a *required* key is a failure however its
+// type reads, and `{s: ?string}` demands an `s` that may hold `null`.
+try {
+    Core\Arr::shapeAs<{n: int, s: ?string}>(["n" => 1]);
+    echo "not reached\n";
+} catch (ParseError $missing) {
+    echo "issues=", Core\Arr::count($missing->issues) as string, "\n";
+    echo "  ", $missing->issues["0"]->path, ": ", $missing->issues["0"]->message, "\n";
+}
+--EXPECT--
+{"n":3}
+{"n":null}
+{"n":7}
+issues=1
+  s: required field missing

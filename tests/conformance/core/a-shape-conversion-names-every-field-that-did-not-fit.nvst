@@ -1,0 +1,33 @@
+--TEST--
+A `Core\Arr::shapeAs` conversion collects every field that did not fit into one `ParseError`, each at its own path — `rule:core-classes/derive-reports-every-field` and `rule:types/conversion`
+--FILE--
+<?nvs
+// Three ways to fail in one call: a value `as` refuses, a required key that is
+// absent, and a second value `as` refuses — the empty string, which is not an
+// exact numeric literal either. The report is one throw carrying all of them,
+// because a form needs the list rather than the first item of it.
+try {
+    Core\Arr::shapeAs<{a: int, b: int, c: int}>(["a" => "x", "c" => ""]);
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues) as string, "\n";
+    echo "  ", $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+    echo "  ", $bad->issues["1"]->path, ": ", $bad->issues["1"]->message, "\n";
+    echo "  ", $bad->issues["2"]->path, ": ", $bad->issues["2"]->message, "\n";
+}
+
+// No row of `rule:types/conversion` lands on `bool` — PHP's truthy table is a
+// condition's answer and not a conversion's — so a checkbox's `"1"` is a
+// failed field rather than a `true` this member invented.
+try {
+    Core\Arr::shapeAs<{flag: bool}>(["flag" => "1"]);
+    echo "not reached\n";
+} catch (ParseError $closed) {
+    echo $closed->issues["0"]->path, ": ", $closed->issues["0"]->message, "\n";
+}
+--EXPECT--
+issues=3
+  a: expected int, found a string
+  b: required field missing
+  c: expected int, found a string
+flag: expected bool, found a string

@@ -347,7 +347,7 @@ pub use dispatch::{
 pub use drain::Drain;
 pub use fmt::php_float_to_string;
 pub use graph::{GraphError, copy_graph, copy_graph_into, decode, encode};
-pub use helpers::{stringify, symbols, value_to_string, value_truthy};
+pub use helpers::{stringify, symbols, to_float, to_int, to_uint, value_to_string, value_truthy};
 pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
 };

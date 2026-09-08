@@ -2433,7 +2433,18 @@ nvs_runtime::nvs_helper! {
             reason = "the same descriptor, still owned by the compiled unit"
         )]
         unsafe {
-            crate::json::hydrate(ctx, class, shape, document, list, "Core\\Request::jsonAs")
+            crate::json::hydrate(
+                ctx,
+                class,
+                shape,
+                document,
+                list,
+                // A JSON document spelled its own types, so `"1"` reaching an
+                // `int` field is a document disagreeing with the `T` it was
+                // read as — `crate::json::Reading` owns the fork.
+                crate::json::Reading::Wire,
+                "Core\\Request::jsonAs",
+            )
         }
     }
 }

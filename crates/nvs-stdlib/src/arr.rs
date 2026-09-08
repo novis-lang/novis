@@ -700,6 +700,18 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_arr_average",
             doc: Some(&AVERAGE_DOC),
         },
+        // Last rather than in the spec's order because the spec has no row for
+        // it yet — `docs/agent/loop-goal.md` § *Standing decisions* owes §§ 6
+        // and 15 that entry, and this comment goes when it lands.
+        CoreMethod {
+            name: "shapeAs",
+            names: &["a"],
+            params: &[CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_arr_shape_as",
+            doc: Some(&SHAPE_AS_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -1893,6 +1905,35 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Arr::shapeAs`'s reference card — `rule:core-api/reference-card`.
+const SHAPE_AS_DOC: MethodDoc = MethodDoc {
+    short: "Reads `$a` as the type `T` written at the call site — an inline shape, `{name: T}`, \
+            or a class carrying `#[Json\\Derive]` — converting each named field with `as` and \
+            leaving every key the type does not name behind; write `array<T>` to read a list of \
+            them instead.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The loose values to read: a form, a query string, a decoded document, or an \
+               array a program built.",
+        shape: &[],
+    }],
+    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
+          entry, in the array's own order.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A field `T` requires is absent, or holds a value `as` refuses for its \
+                   declared type. Every field that failed is one issue on the error, at its own \
+                   dotted path, so a form shows the whole list rather than the first item of it.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`T` is a class that carries no `#[Json\\Derive]`, so there is no field list \
+                   to read `$a` against.",
+        },
+    ],
+};
+
 /// `float|decimal` — what dividing spec § 2's `int|float|decimal` by a count
 /// can land on, and the whole of what `average` answers under its `?`.
 ///
@@ -2217,6 +2258,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_arr_sum" => (nvs_core_arr_sum as *const ()).cast(),
         "nvs_core_arr_product" => (nvs_core_arr_product as *const ()).cast(),
         "nvs_core_arr_average" => (nvs_core_arr_average as *const ()).cast(),
+        "nvs_core_arr_shape_as" => (nvs_core_arr_shape_as as *const ()).cast(),
         _ => return None,
     })
 }
@@ -5860,9 +5902,261 @@ fn extremum(subject: &NvsArray, wanted: std::cmp::Ordering, member: &str) -> Res
     })
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Arr::shapeAs<T>(array<mixed> $a): T` — the array read as the type
+    /// the call site wrote, which is the member the two request wrappers are
+    /// one call over.
+    ///
+    /// **The walk is `crate::json`'s and nothing here is a second one.** A
+    /// shape's field list, its presence column, its dotted paths and the one
+    /// `ParseError` carrying every field that failed are all
+    /// `rule:core-classes/derive-reports-every-field`'s, which
+    /// `Core\Json::decodeAs` already reaches through the same
+    /// [`crate::json::hydrate`]. Two field-error conventions in one runtime is
+    /// how a program learns to catch two things, so this member converts and
+    /// reports by exactly the rules that door does. What differs is one bit —
+    /// `crate::json::Reading::Values`, because an array's entries carry no
+    /// wire types and `"42"` in an `int` field is
+    /// `rule:types/conversion`'s `string → int` row rather than a document
+    /// disagreeing with itself. Nothing new enters that table.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values — [`crate::registry::WRITTEN_CLASS_MEMBERS`] puts this member
+    /// on the roster whose helper is handed a `nvs_runtime::ClassDesc`, the
+    /// `array<...>` flag and an inline shape's wire contract ahead of its
+    /// declared parameters, so the arity here is three more than the row's.
+    ///
+    /// **What it spends:** the object it hands back, freed with the request
+    /// that asked for one, and nothing held between calls. The subject is the
+    /// caller's and is neither copied nor kept.
+    fn nvs_core_arr_shape_as(ctx, args: [4]) {
+        // Unreachable from source, on `Core\Request::jsonAs`'s reasoning: the
+        // three leading slots are constants `nvs_ir::lower` writes out of the
+        // type argument, and a call naming none is `E0442` before any of this
+        // runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Arr::shapeAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Arr::shapeAs` was called with no list flag in argument 1",
+        ))?;
+        // The zero word where the call site wrote a class, whose own contract
+        // is on the descriptor above.
+        let shape = args[2].as_shape_codec();
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call and every object made \
+                      from it"
+        )]
+        unsafe {
+            crate::json::check_codec(class, shape, "Core\\Arr::shapeAs")?;
+        }
+        // The subject is the caller's array and a helper's arguments are
+        // borrowed, while `hydrate` releases what it is handed — it was
+        // written for a document its own caller had just built. So this owes
+        // the reference it is about to give away.
+        #[expect(
+            unsafe_code,
+            reason = "the caller holds this array for the length of the call, so \
+                      a second reference to it is sound, and the callee releases it"
+        )]
+        unsafe {
+            args[3].retain();
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the same descriptor, still owned by the compiled unit"
+        )]
+        unsafe {
+            crate::json::hydrate(
+                ctx,
+                class,
+                shape,
+                args[3],
+                list,
+                crate::json::Reading::Values,
+                "Core\\Arr::shapeAs",
+            )
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Value, call};
+    use nvs_runtime::{
+        ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Fault, NvsArray, NvsObj, NvsStr,
+        OutputSink, ShapeCodec, Tag, ThrownClass, Value, call,
+    };
+
+    /// The two halves of an inline shape's contract: the class whose slots the
+    /// fields land in, and the [`ShapeCodec`] carrying their wire types.
+    ///
+    /// Nothing in this crate builds either, because nothing here compiles a
+    /// call site. [`crate::request`]'s `reading_class` is the nearest fixture
+    /// and it builds a *class*, whose contract rides on its own descriptor; a
+    /// shape's cannot, because `{n: int}` and `{n: string}` are one class, so
+    /// the field types live beside it and
+    /// [`ClassTable::define_shape_codec`] is what hands back their address.
+    ///
+    /// `fields` is `(name, wire type, required, nullable)` — the last two are
+    /// `rule:core-api/required-optional-and-nullable`'s two independent
+    /// columns — and must be in **sorted field-name order**, which is the
+    /// order a shape class lays its slots out in and therefore the order that
+    /// makes a field's index both its slot and its `param`.
+    ///
+    /// The table is leaked for `reading_class`'s reason: a descriptor's
+    /// *address* is its identity and it must outlive every instance made from
+    /// it. The contract's address survives the move into the leaked box
+    /// because [`ClassTable::define_shape_codec`] boxes each one, so the move
+    /// carries only the vector's header.
+    fn shape_of(fields: &[(&str, CodecTy, bool, bool)]) -> (*const ClassDesc, *const ShapeCodec) {
+        let names: Vec<&str> = fields.iter().map(|(name, ..)| *name).collect();
+        let mut table = ClassTable::new();
+        // `nvs_runtime::ClassDesc::is_shape` reads exactly this prefix, and `$`
+        // cannot start an Novis identifier, so no declared class collides.
+        let id = table.define(format!("$shape{{{}}}", names.join(",")), &names, &[]);
+        let codec: Vec<CodecField> = fields
+            .iter()
+            .enumerate()
+            .map(|(slot, (key, ty, required, nullable))| CodecField {
+                key: (*key).to_owned(),
+                slot,
+                param: slot,
+                ty: *ty,
+                element: None,
+                class: None,
+                cases: None,
+                nullable: *nullable,
+                required: *required,
+            })
+            .collect();
+        // One entry per field, null throughout: none of these names a class,
+        // which is the only thing the vector is read for.
+        let classes = vec![std::ptr::null(); codec.len()];
+        let shape = table.define_shape_codec(codec, classes);
+        // No `set_methods`, unlike the class fixture: a shape declares no
+        // constructor and `crate::json`'s `build_shape` writes its slots
+        // directly rather than reaching `nvs_runtime::construct`.
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// An array of the `(key, value)` pairs given, in order.
+    ///
+    /// The values are transferred: the array owns each one, so releasing the
+    /// array is the whole of what a test using this owes.
+    fn array_of<'a>(entries: impl IntoIterator<Item = (&'a str, Value)>) -> Value {
+        let mut array = NvsArray::new();
+        for (key, value) in entries {
+            array.set(NvsStr::new(key.as_bytes()), value);
+        }
+        Value::array(array)
+    }
+
+    /// `Core\Arr::shapeAs<T>($a)` at the ABI a compiled call site gives it:
+    /// [`crate::registry::WRITTEN_CLASS_MEMBERS`] writes the descriptor, the
+    /// `array<...>` flag and the wire contract ahead of the declared
+    /// parameter, so the helper's arity is three more than the row's.
+    fn shape_as(
+        ctx: &mut Ctx,
+        contract: (*const ClassDesc, *const ShapeCodec),
+        subject: Value,
+    ) -> Result<Value, i32> {
+        call(
+            super::nvs_core_arr_shape_as,
+            ctx,
+            &[
+                Value::class_desc(contract.0),
+                Value::bool(false),
+                Value::shape_codec(contract.1),
+                subject,
+            ],
+        )
+    }
+
+    /// The `slot`th field of an instance, borrowed rather than taken: the
+    /// caller still owns the reference it passed in.
+    #[expect(
+        unsafe_code,
+        reason = "the value is an instance this frame holds a reference to, so \
+                  the handle borrowed from it cannot outlive the allocation"
+    )]
+    fn field_at(instance: Value, slot: usize) -> Value {
+        let object = std::mem::ManuallyDrop::new(unsafe {
+            NvsObj::from_raw(
+                instance
+                    .obj_ptr()
+                    .expect("`shapeAs()` answers an instance of the shape it was given"),
+            )
+        });
+        object.field(slot)
+    }
+
+    /// A string field read back as text, for an assertion that wants the
+    /// bytes rather than the handle.
+    fn text_at(instance: Value, slot: usize) -> String {
+        let field = field_at(instance, slot);
+        let bytes = field
+            .as_str_bytes()
+            .expect("the field is declared `string`, so the walk produced one");
+        String::from_utf8(bytes.to_vec()).expect("a test's own literals are UTF-8")
+    }
+
+    /// Releases a reference this test owns.
+    #[expect(
+        unsafe_code,
+        reason = "each caller built or was handed the one reference it drops here"
+    )]
+    fn dropped(value: Value) {
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// Every issue on a `ParseError` as `(path, message)`, in the order the
+    /// walk recorded them.
+    ///
+    /// Read off the [`Fault`] rather than through
+    /// `nvs_runtime::Ctx::pending_slot`, which answers `None` until an
+    /// exception class table is installed — a fixture this question does not
+    /// otherwise need, since [`crate::json::hydrate`] is the walk the member
+    /// is one ABI above.
+    #[expect(
+        unsafe_code,
+        reason = "the fault owns the issue list for as long as the caller holds \
+                  it, so a borrow of the array behind it cannot outlive the \
+                  allocation"
+    )]
+    fn issues_of(fault: &Fault) -> Vec<(String, String)> {
+        let Fault::ThrownWithSlots(class, _, slots) = fault else {
+            panic!("a failed field is a `ParseError` carrying its issues");
+        };
+        assert!(
+            matches!(class, ThrownClass::Parse),
+            "a field that did not match is a `ParseError`"
+        );
+        let list = slots
+            .first()
+            .map(|(_, value)| *value)
+            .expect("the issue list is the one slot a `ParseError` fills");
+        let array = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(list.array_ptr().expect("`issues` is an `array<Issue>`"))
+        });
+        (0..array.count())
+            .map(|at| {
+                let issue = array
+                    .get_index(i64::try_from(at).expect("a test's issue list is short"))
+                    .expect("every position of a list is filled");
+                // `crate::issue::FIELDS` is sorted field-name order, so slot 0
+                // is `message` and slot 1 is `path`.
+                (text_at(issue, 1), text_at(issue, 0))
+            })
+            .collect()
+    }
 
     /// The member end to end through the `rule:errors/propagation` boundary compiled code will
     /// reach it at — `call` builds the same three pointers a JIT frame does.
@@ -7002,6 +7296,307 @@ mod tests {
             let status = call(helper, &mut ctx, &[Value::int(1), Value::null()])
                 .expect_err("an int is not an array");
             assert_eq!(status, nvs_runtime::FATAL);
+        }
+    }
+
+    /// The whole of what a shape asks for, over three of the wire types a form
+    /// or a program hands one: every field the shape names is on the instance,
+    /// at the slot its sorted position gives it.
+    #[test]
+    fn an_array_hydrates_into_every_field_the_shape_names() {
+        let contract = shape_of(&[
+            ("flag", CodecTy::Bool, true, false),
+            ("n", CodecTy::Int, true, false),
+            ("name", CodecTy::Str, true, false),
+        ]);
+        let subject = array_of([
+            ("n", Value::int(7)),
+            ("name", Value::str(NvsStr::new(b"ada"))),
+            ("flag", Value::bool(true)),
+        ]);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let built = shape_as(&mut ctx, contract, subject).expect("every field matched");
+        assert_eq!(field_at(built, 0).as_bool(), Some(true));
+        assert_eq!(field_at(built, 1).as_int(), Some(7));
+        assert_eq!(text_at(built, 2), "ada");
+
+        dropped(built);
+        dropped(subject);
+    }
+
+    /// `rule:types/conversion`'s `string` → number rows, asserted on both
+    /// sides: the whole-string reading is what `as` does, so `"42"` converts
+    /// and `"42abc"` does not, and a negative reaches `int` where `uint`
+    /// refuses it. Nothing new enters that table for this member — the rows
+    /// are `nvs_runtime::to_int` and `nvs_runtime::to_uint`, which are the two
+    /// `$mixed as int` and `$mixed as uint` already go through.
+    #[test]
+    fn a_numeric_string_reaches_an_int_field_by_the_same_rule_as_would() {
+        let signed = shape_of(&[("n", CodecTy::Int, true, false)]);
+        let unsigned = shape_of(&[("n", CodecTy::Uint, true, false)]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let asked =
+            |ctx: &mut Ctx, contract: (*const ClassDesc, *const ShapeCodec), text: &[u8]| {
+                let subject = array_of([("n", Value::str(NvsStr::new(text)))]);
+                let answer = shape_as(ctx, contract, subject).map(|built| {
+                    let field = field_at(built, 0);
+                    let number = field.as_int().or_else(|| {
+                        field
+                            .as_uint()
+                            .map(|value| i64::try_from(value).expect("a test's literals are small"))
+                    });
+                    dropped(built);
+                    number
+                });
+                dropped(subject);
+                answer
+            };
+
+        assert_eq!(asked(&mut ctx, signed, b"42"), Ok(Some(42)));
+        assert_eq!(asked(&mut ctx, signed, b"-7"), Ok(Some(-7)));
+        assert_eq!(asked(&mut ctx, unsigned, b"42"), Ok(Some(42)));
+        // The *whole* string, so there is no prefix parse and no empty one.
+        assert!(asked(&mut ctx, signed, b"42abc").is_err());
+        assert!(asked(&mut ctx, signed, b"").is_err());
+        // `string` → `uint` is exact, so the sign is where that row stops.
+        assert!(asked(&mut ctx, unsigned, b"-7").is_err());
+    }
+
+    /// A value no row converts is one failed field, and the issue names the
+    /// field rather than only the call — which is what makes the report usable
+    /// by a form. `bool` is the type no conversion lands on at all, so a `"1"`
+    /// there is the clearest case of the table being closed.
+    #[test]
+    fn a_value_as_refuses_is_a_failure_naming_its_field() {
+        let contract = shape_of(&[("flag", CodecTy::Bool, true, false)]);
+        let subject = array_of([("flag", Value::str(NvsStr::new(b"1")))]);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let failure = hydrated_failure(&mut ctx, contract, subject, crate::json::Reading::Values);
+        let issues = issues_of(&failure);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].0, "flag");
+        dropped_fault(failure);
+    }
+
+    /// `rule:core-api/required-optional-and-nullable`'s first column, asserted
+    /// in both directions at once: presence is the field's `required` bit and
+    /// nothing else, so an absent required key fails while an absent optional
+    /// one leaves its slot unwritten — `rule:types/shape-type`'s "the shape
+    /// proves its type and not its presence".
+    #[test]
+    fn an_absent_required_key_is_a_failure_and_an_absent_optional_one_is_not() {
+        let contract = shape_of(&[
+            ("a", CodecTy::Int, true, false),
+            ("b", CodecTy::Int, false, false),
+        ]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let only_required = array_of([("a", Value::int(1))]);
+        let built = shape_as(&mut ctx, contract, only_required)
+            .expect("an absent optional key is not a failure");
+        assert_eq!(field_at(built, 0).as_int(), Some(1));
+        assert_eq!(
+            field_at(built, 1).tag(),
+            Some(Tag::Unset),
+            "an absent optional key is never written, rather than written null"
+        );
+        dropped(built);
+        dropped(only_required);
+
+        let only_optional = array_of([("b", Value::int(2))]);
+        assert!(
+            shape_as(&mut ctx, contract, only_optional).is_err(),
+            "an absent required key is a failure whatever its type admits"
+        );
+        dropped(only_optional);
+    }
+
+    /// `rule:types/shape-type`'s width subtyping over loose values: a source
+    /// with more keys than the shape names still satisfies it, the extra key
+    /// is not copied onto the instance, and the subject is left as the caller
+    /// wrote it.
+    #[expect(
+        unsafe_code,
+        reason = "this test owns the array it built and the descriptor it \
+                  leaked, so both are live for the length of the assertions"
+    )]
+    #[test]
+    fn a_key_the_shape_does_not_name_is_left_behind() {
+        let contract = shape_of(&[("n", CodecTy::Int, true, false)]);
+        let subject = array_of([
+            ("n", Value::int(1)),
+            ("extra", Value::str(NvsStr::new(b"kept"))),
+            ("csrf", Value::int(9)),
+        ]);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let built = shape_as(&mut ctx, contract, subject).expect("extra keys are ignored");
+        assert_eq!(field_at(built, 0).as_int(), Some(1));
+
+        let source = std::mem::ManuallyDrop::new(unsafe {
+            NvsArray::from_raw(subject.array_ptr().expect("an array"))
+        });
+        assert_eq!(source.count(), 3, "the subject is the caller's, untouched");
+        assert_eq!(
+            unsafe { &*contract.0 }.field_count(),
+            1,
+            "the instance carries the shape's slots and no others"
+        );
+
+        dropped(built);
+        dropped(subject);
+    }
+
+    /// `rule:core-classes/derive-reports-every-field` through this door: three
+    /// bad fields arrive as **one** error carrying three issues, each at its
+    /// own path, rather than as the first of them. Counted rather than read
+    /// off a line, because a walk that stopped at its first failure would
+    /// still print a plausible issue.
+    #[test]
+    fn every_failure_of_one_call_arrives_in_one_error_with_its_paths() {
+        let contract = shape_of(&[
+            ("a", CodecTy::Int, true, false),
+            ("b", CodecTy::Int, true, false),
+            ("c", CodecTy::Int, true, false),
+        ]);
+        // `a` does not convert, `b` is absent and `c` is the empty string:
+        // three different ways to fail, one report.
+        let subject = array_of([
+            ("a", Value::str(NvsStr::new(b"x"))),
+            ("c", Value::str(NvsStr::new(b""))),
+        ]);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let failure = hydrated_failure(&mut ctx, contract, subject, crate::json::Reading::Values);
+        let issues = issues_of(&failure);
+        assert_eq!(issues.len(), 3);
+        let paths: Vec<&str> = issues.iter().map(|(path, _)| path.as_str()).collect();
+        assert_eq!(paths, ["a", "b", "c"], "in the shape's own field order");
+        dropped_fault(failure);
+    }
+
+    /// The agreement stage 3 of `docs/agent/loop-goal.md` asks for: an inline
+    /// shape reached through `Core\Json::decodeAs` and through
+    /// `Core\Arr::shapeAs` is **one** walk, so the two answer the same field
+    /// for the same input and report a bad one the same way. Asserted as an
+    /// agreement rather than as each member's own answer, because a second
+    /// walk grown under either door would still look right on its own line.
+    #[test]
+    fn decode_as_over_an_inline_shape_uses_the_one_hydration_walk() {
+        let contract = shape_of(&[("n", CodecTy::Int, true, false)]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let decoded =
+            decode_as(&mut ctx, contract, b"{\"n\": 5}").expect("the document matches the shape");
+        let subject = array_of([("n", Value::int(5))]);
+        let hydrated = shape_as(&mut ctx, contract, subject).expect("the array matches the shape");
+        assert_eq!(
+            field_at(decoded, 0).as_int(),
+            field_at(hydrated, 0).as_int()
+        );
+        dropped(decoded);
+        dropped(hydrated);
+        dropped(subject);
+
+        // And one bad field is one report either way, at the same path: a
+        // `true` is no more an `int` in an array than it is in a document, and
+        // the two readings differ only in which conversion rows they reach.
+        let reported = |ctx: &mut Ctx, reading| {
+            let refused = array_of([("n", Value::bool(true))]);
+            let failure = hydrated_failure(ctx, contract, refused, reading);
+            let issues = issues_of(&failure);
+            dropped_fault(failure);
+            issues
+        };
+        let over_values = reported(&mut ctx, crate::json::Reading::Values);
+        assert_eq!(over_values, reported(&mut ctx, crate::json::Reading::Wire));
+        assert_eq!(over_values.len(), 1);
+        assert_eq!(over_values[0].0, "n");
+
+        // The `Wire` half end to end, so the agreement above is over the walk
+        // `Core\Json::decodeAs` actually reaches rather than one beside it.
+        assert!(decode_as(&mut ctx, contract, b"{\"n\": true}").is_err());
+    }
+
+    /// `Core\Json::decodeAs<T>($json)` at the ABI [`shape_as`] describes, one
+    /// declared parameter along: the text, then the depth.
+    fn decode_as(
+        ctx: &mut Ctx,
+        contract: (*const ClassDesc, *const ShapeCodec),
+        json: &[u8],
+    ) -> Result<Value, i32> {
+        call(
+            crate::json::nvs_core_json_decode_as,
+            ctx,
+            &[
+                Value::class_desc(contract.0),
+                Value::bool(false),
+                Value::shape_codec(contract.1),
+                Value::str(NvsStr::new(json)),
+                Value::uint(crate::json::DEFAULT_MAX_DEPTH),
+            ],
+        )
+    }
+
+    /// The walk `shapeAs` is one ABI above, called directly so a failure
+    /// arrives as the [`Fault`] carrying its issues.
+    ///
+    /// Reading the same list back off the *thrown object* would need an
+    /// exception class table installed first — `nvs_runtime::Ctx::pending_slot`
+    /// answers `None` until then — and that is a fixture none of these
+    /// questions otherwise wants.
+    ///
+    /// `subject` is transferred, because the walk releases what it is handed.
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is one this module leaked, so it outlives every \
+                  instance made from it"
+    )]
+    fn hydrated(
+        ctx: &mut Ctx,
+        contract: (*const ClassDesc, *const ShapeCodec),
+        subject: Value,
+        reading: crate::json::Reading,
+    ) -> Result<Value, Fault> {
+        unsafe {
+            crate::json::hydrate(
+                ctx,
+                contract.0,
+                Some(contract.1),
+                subject,
+                false,
+                reading,
+                "Core\\Arr::shapeAs",
+            )
+        }
+    }
+
+    /// [`hydrated`] where the call is expected to fail.
+    fn hydrated_failure(
+        ctx: &mut Ctx,
+        contract: (*const ClassDesc, *const ShapeCodec),
+        subject: Value,
+        reading: crate::json::Reading,
+    ) -> Fault {
+        match hydrated(ctx, contract, subject, reading) {
+            Ok(built) => {
+                dropped(built);
+                panic!("the field does not convert, so the walk owed a failure");
+            }
+            Err(failure) => failure,
+        }
+    }
+
+    /// Releases what a `ParseError` carries — the issue list is a reference the
+    /// fault owns, and a test that read it still owes the drop.
+    fn dropped_fault(fault: Fault) {
+        if let Fault::ThrownWithSlots(_, _, slots) = fault {
+            for (_, value) in slots {
+                dropped(value);
+            }
         }
     }
 }

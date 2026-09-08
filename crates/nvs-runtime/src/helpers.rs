@@ -1523,12 +1523,20 @@ fn str_operand(value: &Value) -> Option<&str> {
 /// compile error for a statically-known operand and a failure for a `mixed`
 /// one.
 ///
-/// Two helpers read it and never a third, the arrangement [`to_decimal`] also
+/// Two helpers read it inside this crate, the arrangement [`to_decimal`] also
 /// uses: `nvs_tagged_to_int` turns a `None` into [`does_not_fit`] for
 /// `$mixed as int`, and `nvs_to_int_or_null` turns the same `None` into `null`
 /// for `rule:expressions/nullable-conversion`'s `as ?int`. Neither can drift from the other, because there is
 /// one row set.
-fn to_int(value: Value) -> Option<i64> {
+///
+/// Public because a third reader is a `Core` member converting a value it was
+/// handed rather than one a call site wrote: `nvs_stdlib::json`'s hydration
+/// walk applies these rows per field for `Core\Arr::shapeAs`, whose whole
+/// conversion rule is `rule:types/conversion`'s table and nothing of its own.
+/// It reaches the same row set for the same reason — a member with its own
+/// idea of what `"42"` is would be a second conversion table.
+#[must_use]
+pub fn to_int(value: Value) -> Option<i64> {
     match value.tag() {
         Some(Tag::Int) => value.as_int(),
         Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_int),
@@ -1538,8 +1546,9 @@ fn to_int(value: Value) -> Option<i64> {
     }
 }
 
-/// [`to_int`]'s row set, unsigned.
-fn to_uint(value: Value) -> Option<u64> {
+/// [`to_int`]'s row set, unsigned — public for its reason.
+#[must_use]
+pub fn to_uint(value: Value) -> Option<u64> {
     match value.tag() {
         Some(Tag::Uint) => value.as_uint(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_uint),
@@ -1549,8 +1558,9 @@ fn to_uint(value: Value) -> Option<u64> {
     }
 }
 
-/// [`to_int`]'s row set, landing on `float`.
-fn to_float(value: Value) -> Option<f64> {
+/// [`to_int`]'s row set, landing on `float` — public for its reason.
+#[must_use]
+pub fn to_float(value: Value) -> Option<f64> {
     match value.tag() {
         Some(Tag::Float) => value.as_float(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_float),
