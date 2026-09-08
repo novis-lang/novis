@@ -5115,13 +5115,29 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   its own, the way `SignatureTable::property_default_types` does.
   [until: gone crates/nvs-types/src/signatures.rs:let mut placeholder_exprs]
 - **A `TextEditorDecorationType` has no field for a CSS filter, and `textDecoration` is the one that
-  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx)"`
-  — the declaration is closed with `none` and the filter follows it. Adding a second property after
-  it does not compose: `clip-path: inset(0)`, meant to trim the blur's bleed, took the blur off
-  altogether and left the text sharp. Anything put in that field is CSS the extension chooses on the
-  user's behalf, so it stays geometric: a colour belongs in a `ThemeColor` field, which
+  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx);
+  clip-path: inset(0)"` — the declaration is closed with `none` and the rest follows it, several
+  properties deep. The clip is not optional: a blur bleeds about its radius past the decorated
+  range, and `overflow` cannot cut it back because a decoration is a non-replaced inline box, while
+  the `display: inline-block` that would make `overflow` apply moves the character cells a
+  decoration may never move. Anything put in that field is CSS the extension chooses on the user's
+  behalf, so it stays geometric: a colour belongs in a `ThemeColor` field, which
   `rule:ide/novis-ships-names-not-colours` is about.
   [until: gone editors/vscode/src/redactions.ts:filter: blur]
+- **A decoration that draws *nothing* is a dead server, not bad CSS — check which one before
+  touching the stylesheet.** In DevTools the difference is one glance: a range that was decorated
+  and styled badly carries a decoration class on its token span, and a range nobody answered for is
+  a bare `span.mtk<N>` with only its theme colour. `nvs/redactions` returning nothing looks exactly
+  like a filter that failed to apply, and a CSS change was made, shipped and written up as broken on
+  that misreading before `Novis: Restart Language Server` turned out to be the whole fix. The
+  status item and the `nvs.lsp.trace.server` channel answer it without guessing.
+  [until: gone editors/vscode/src/redactions.ts:filter: blur]
+- **`cargo build --release` cannot replace `target/release/nvs.exe` while an editor's `nvs lsp`
+  holds it**, and on Windows it fails with `failed to remove file ... Zugriff verweigert (os error
+  5)`. A `nvs.path` pointing at that binary is a lock on it for the life of the window, so a
+  release build made to test a server change silently leaves the old binary in place and the editor
+  keeps answering from it. Stop the server first — `nvs.lsp.enable` to `false`, or close the window
+  — then build. [until: gone editors/vscode/src/extension.ts:const SUBCOMMAND]
 - **No tier in this repository draws a decoration, so a change to how one looks is unverified until
   someone opens an editor.** `test:headless` runs the reveal state machine and the position
   conversion in plain Node, and the extension-host tier does not render; the README's *No pixel
