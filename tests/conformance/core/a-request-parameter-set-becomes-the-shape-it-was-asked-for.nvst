@@ -1,0 +1,24 @@
+--TEST--
+`Core\Request::queryAs` and `postAs` read the whole parameter set as the type written at the call site, converting each field with `as` and leaving every other key behind — `rule:types/arrays`, `rule:types/shape-type` and `rule:types/conversion`
+--GET--
+page=2&q=novis
+--POST--
+age=41&name=ada&csrf=t0ken
+--FILE--
+<?nvs
+// `rule:types/arrays`'s type-argument door over a request: with no `name`
+// option the subject is the whole parameter set, which is the only way a
+// program reaches it — neither member opens a public `query(): array<mixed>`.
+echo Core\Json::encode(Core\Request::queryAs<{page: uint, q: string}>()), "\n";
+
+// `rule:types/conversion`'s `string` → `int` row, and nothing new beside it: a
+// form's fields are all text, so a declared `int` asks for exactly the
+// whole-string reading `as int` performs.
+//
+// `rule:types/shape-type`'s width subtyping is the other half of the line: the
+// `csrf` key the shape does not name is left behind rather than refused, so a
+// form carrying a token does not break a handler reading two fields out of it.
+echo Core\Json::encode(Core\Request::postAs<{age: int, name: string}>()), "\n";
+--EXPECT--
+{"page":2,"q":"novis"}
+{"age":41,"name":"ada"}

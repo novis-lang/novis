@@ -1,0 +1,46 @@
+--TEST--
+A `Core\Request::postAs` or `queryAs` conversion collects every field that did not fit into one `ParseError`, and a `name` the request never carried is refused rather than read as an empty set — `rule:core-classes/derive-reports-every-field` and `rule:errors/ambiguous-input-refused`
+--GET--
+page=x
+--POST--
+age=&name=ada
+--FILE--
+<?nvs
+// Two ways to fail in one call: a value `as` refuses — the empty string, which
+// is not an exact numeric literal — and a required key the form never carried.
+// The report is one throw carrying both, because a form needs the list rather
+// than the first item of it.
+try {
+    Core\Request::postAs<{age: int, city: string}>();
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues) as string, "\n";
+    echo "  ", $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+    echo "  ", $bad->issues["1"]->path, ": ", $bad->issues["1"]->message, "\n";
+}
+
+// The same reading over a query string, and the same refusal: `page=x` is a
+// parameter that arrived and does not convert, which is one failed field
+// rather than a `0` this member invented.
+try {
+    Core\Request::queryAs<{page: uint}>();
+    echo "not reached\n";
+} catch (ParseError $loose) {
+    echo $loose->issues["0"]->path, ": ", $loose->issues["0"]->message, "\n";
+}
+
+// A `name` the query never carried reaches `null`, which is not a set of
+// fields — refused as one under `rule:errors/ambiguous-input-refused`, rather
+// than answered as a `T` whose every field happened to be absent.
+try {
+    Core\Request::queryAs<{page: uint}>({name: "filter"});
+    echo "not reached\n";
+} catch (ParseError $missing) {
+    echo "issues=", Core\Arr::count($missing->issues) as string, "\n";
+}
+--EXPECT--
+issues=2
+  age: expected int, found a string
+  city: required field missing
+page: expected uint, found a string
+issues=1

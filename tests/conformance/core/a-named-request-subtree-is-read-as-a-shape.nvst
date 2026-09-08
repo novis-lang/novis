@@ -1,0 +1,24 @@
+--TEST--
+`Core\Request::queryAs` and `postAs` given a `name` read the one bracket-named subtree under it rather than the whole set — `rule:core-api/shape-rules` and `rule:types/shape-type`
+--GET--
+filter[from]=2&filter[to]=9&page=1
+--POST--
+user[age]=41&user[email]=ada@example.com&csrf=t0ken
+--FILE--
+<?nvs
+// `rule:core-api/shape-rules` R15 — one name, one signature: the optional
+// `{name?: string}` is what makes the subtree reading the same member as the
+// whole-set one rather than a second member beside it.
+//
+// The name is `query`'s bracket convention exactly, written without brackets:
+// `filter[from]` is reached as a nested array under `filter`, and the shape is
+// checked against that array rather than against the whole query string, so
+// `page` is not a key this call ever sees.
+echo Core\Json::encode(Core\Request::queryAs<{from: uint, to: uint}>({name: "filter"})), "\n";
+
+// The same option over a form, and `post`'s convention is `query`'s: one walk
+// places `a[b]=c` in both, so the two members answer one shape here.
+echo Core\Json::encode(Core\Request::postAs<{age: int, email: string}>({name: "user"})), "\n";
+--EXPECT--
+{"from":2,"to":9}
+{"age":41,"email":"ada@example.com"}
