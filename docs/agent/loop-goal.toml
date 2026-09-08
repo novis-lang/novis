@@ -109,6 +109,13 @@ modules = [
   "crates/nvs-runtime/src/commands.rs",
   # The `Core\Uuid` schema arm, and where a `Parses` class answers `{"type": "string"}`.
   "crates/nvs-cli/src/openapi.rs",
+  # Fully-qualified names: `Foo`, `App\Models\User`, `Core\Str`.
+  "crates/nvs-hir/src/qname.rs",
+  # Name resolution: namespaces, `use` imports, and a file's declared symbols.
+  "crates/nvs-hir/src/resolve.rs",
+  # Lowering's own tests, one module deep so that `mod.rs` is the lowering and not the evidence
+  # for it.
+  "crates/nvs-ir/src/lower/tests.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
