@@ -59,6 +59,11 @@ Write what an attacker writes. The shapes that have found things in languages li
 - **The thing the feature promises not to do** — a sink handed a tainted value, a secret asked to
   print itself, a capability used without being granted. A refusal is the pass; a silent success is
   the finding.
+- **A type pushed past what the checker proved** — a `rule:types/narrowing` narrowing that should not
+  hold, a union reached through the wrong arm, a generic instantiated against its variance, a
+  `rule:types/erased-member-access` receiver widened and then read as its old shape. Compiled code
+  loads a field without re-reading its tag, because `rule:types/declaration` settles the static type,
+  so a checker that is wrong here is a memory-safety question rather than a wrong answer.
 
 Every case carries a first-line comment saying which of these it is and what it hopes to break.
 
