@@ -484,7 +484,10 @@
         "errors/ambiguous-input-refused",
         "programs/memory-priority"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
+        "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst"
+      ]
     },
     {
       "id": "http-server/static-serving-is-one-policy",

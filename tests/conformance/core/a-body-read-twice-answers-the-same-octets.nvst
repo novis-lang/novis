@@ -1,0 +1,26 @@
+--TEST--
+`Core\Request::body()` answers the same octets on every call, and the `post()` that follows reads its form out of what that reading held `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--POST--
+title=Q3+report
+--FILE--
+<?nvs
+// A buffering reader keeps what it read, so a second call is not a second
+// reading of the wire: it is a copy out of the hold. A member that pulled
+// again would print an empty second line here -- "the peer sent nothing",
+// about octets this program has already been handed -- and one that refused
+// its own second call would print a `LogicError` instead of either.
+echo Core\Request::body(), "\n";
+echo Core\Request::body(), "\n";
+// The reader that follows is a different member and the rule is the same one:
+// `post` parses the octets `body` held, where parsing the wire would find it
+// drained by then and answer a form with no fields in it.
+echo Core\Request::post("title") as string, "\n";
+// And the hold belongs to the request rather than to the member that filled
+// it, so the octets are still what `body` answers once a form has been parsed
+// out of them.
+echo Core\Request::body(), "\n";
+--EXPECT--
+title=Q3+report
+title=Q3+report
+Q3 report
+title=Q3+report

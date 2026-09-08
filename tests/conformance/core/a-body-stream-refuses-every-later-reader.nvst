@@ -1,0 +1,53 @@
+--TEST--
+a streaming reader consumes the body, so every reader after it is refused rather than answered empty `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+--POST_RAW--
+title=Q3+report
+--FILE--
+<?nvs
+// The walk is taken to its end first, so what the refusals below are about is
+// the reading and never the bytes: `bodyStream` keeps none of what it hands
+// over, and an answer of "" afterwards is indistinguishable from a body that
+// was empty -- which is the ambiguity this rule exists to refuse.
+foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+    echo "walked a chunk\n";
+}
+// Asked of all four, counted rather than printed four times: the sentence
+// differs only in the member naming itself, so a member that grew its own
+// refusal still prints plausibly on its own line and only the count can tell.
+// `post` is in the list because what a streamed body leaves behind is nothing
+// at all -- it is the `files` walk, which buffers the fields it passes, that
+// `post` reads after.
+uint $refused = 0;
+try {
+    Core\Request::body();
+} catch (LogicError $whole) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::post("title");
+} catch (LogicError $form) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::files();
+} catch (LogicError $parts) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::bodyStream();
+} catch (LogicError $again) {
+    $refused = $refused + 1;
+}
+echo "readers refused after the walk: ", $refused, " of 4\n";
+// And one of them in full, because the sentence is what the author of the
+// program reads: it names the reading that took the body, and says which
+// readers may follow which.
+try {
+    Core\Request::body();
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+walked a chunk
+readers refused after the walk: 4 of 4
+Core\Request::body(): this request's body has already been read by `Core\Request::bodyStream()`, and what it left behind is not what this member needs. `bodyStream()` and `files()` stream the body: they hand the octets over as they arrive, keep none of them, and so are the only reader of the body they read. `body()` and `post()` buffer it: they keep what they read — the octets, or over a multipart body the fields alone — so a reader that needs what one of them held may follow it, in any order. This is refused rather than answered empty, because an empty answer here would say the peer sent nothing about bytes this program has already been handed

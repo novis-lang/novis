@@ -3503,6 +3503,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   as an absence (`filter(…).length === 0`) or against the whole run the way `names.test.ts`'s
   `plain(" Base {")` does, never by expecting an uncoloured span to exist.
   [until: gone editors/vscode/test/grammar/tokenize.ts]
+- **A `--POST_RAW--` body carries the case file's trailing newline and a `--POST--` body does not.**
+  `tests/conformance/core/a-raw-request-body-reaches-the-program-verbatim.nvst` sends 42 visible
+  characters and reads `content-length` back as 43, while
+  `tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst` echoes a `--POST--` body with
+  a `"\n"` of its own and matches. So a case that echoes a raw body writes no newline after it, and one
+  that reads a field out of a raw body gets that newline inside the last field's value — write the body
+  the member will read rather than the one that looks tidy in the file.
+  [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
