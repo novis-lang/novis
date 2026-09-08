@@ -148,13 +148,21 @@ export function serve(client: LanguageClient | undefined): void {
  * `rule:ide/novis-ships-names-not-colours` is met by having nothing to ship rather than by naming a
  * theme key.
  *
- * The blur bleeds past the range it covers by roughly its own radius. That is why it is drawn
- * without a background: a fill behind it would have a hard edge the smear does not, and the two
- * together read as a box with a blurred label in it rather than as text that has been taken away.
+ * **A blur bleeds past the box it is drawn in, and `clip-path` is what cuts it back.** The smear
+ * reaches about its own radius past the range, over the punctuation and the identifier either side,
+ * which reads as damage to the line rather than as one concealed value. Clipping is the containment
+ * this box can take: `overflow` does not apply to a non-replaced inline element, and the
+ * `display: inline-block` that would make it apply moves the character cells, which is the one
+ * thing this decoration may not do. `clip-path` clips the *filtered* result — filters are applied
+ * before clipping in the rendering order — and changes no layout at all.
+ *
+ * Drawn without a background for a separate reason: a fill behind it would have a hard edge the
+ * smear does not, and the two together read as a box with a blurred label in it rather than as text
+ * that has been taken away.
  */
 function bar(): TextEditorDecorationType {
   return window.createTextEditorDecorationType({
-    textDecoration: `none; filter: blur(${BLUR})`,
+    textDecoration: `none; filter: blur(${BLUR}); clip-path: inset(0)`,
     // A character typed against either edge is outside the concealed range until the server says
     // otherwise, which is the direction that cannot draw over bytes nobody answered for.
     rangeBehavior: DecorationRangeBehavior.ClosedClosed,

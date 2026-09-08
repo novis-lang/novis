@@ -5115,10 +5115,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   its own, the way `SignatureTable::property_default_types` does.
   [until: gone crates/nvs-types/src/signatures.rs:let mut placeholder_exprs]
 - **A `TextEditorDecorationType` has no field for a CSS filter, and `textDecoration` is the one that
-  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx)"`
-  — the declaration is closed with `none` and the filter follows it. Anything put there is CSS the
-  extension chooses on the user's behalf, so it stays geometric: a colour belongs in a `ThemeColor`
-  field, which `rule:ide/novis-ships-names-not-colours` is about.
+  reaches the rendered rule verbatim.** A blur is written `textDecoration: "none; filter: blur(Npx);
+  clip-path: inset(0)"` — the declaration is closed with `none` and the rest follows it. The clip is
+  not optional: a blur bleeds about its radius past the decorated range, and `overflow` cannot cut it
+  back because a decoration is a non-replaced inline box, while the `display: inline-block` that
+  would make `overflow` apply moves the character cells a decoration may never move. Anything put
+  in that field is CSS the extension chooses on the user's behalf, so it stays geometric: a colour
+  belongs in a `ThemeColor` field, which `rule:ide/novis-ships-names-not-colours` is about.
   [until: gone editors/vscode/src/redactions.ts:filter: blur]
 - **A second `kind` on `nvs/redactions` is a change in three files, and the two that are not the
   server fail quietly.** The client conceals every kind it is handed, so a marker spelling added to
