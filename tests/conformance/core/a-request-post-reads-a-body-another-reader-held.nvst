@@ -1,14 +1,14 @@
 --TEST--
-`Core\Request`'s four readers of the body refuse in one sentence that differs only in the member naming itself, so the fourth of them did not grow a refusal of its own -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, spec § 15
+`Core\Request`'s four readers of the body refuse in one sentence that differs only in the member naming itself, and `post` -- the reader that reads what another one left behind -- reports the absent request rather than a body already held -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of the four members that read what arrived after the field
 // block: `body` pulls it whole, `bodyStream` walks it a chunk at a time,
 // `files` walks it as the parts a multipart body declares, and `post` reads it
-// to its end as the form it submitted. They are written apart -- three of them
-// claim the body against each other and `post` joins one of them -- so this is
-// the case that fails if the newest of the four states the shared rule in its
-// own words.
+// to its end as the form it submitted. They are written apart -- each of them
+// reaches the body its own way, and `post` is the one that reads what another
+// reader already had -- so this is the case that fails if the newest of the
+// four states the shared rule in its own words.
 //
 // Asserted by *comparison* rather than by printing four lines: a member that
 // grew its own wording still prints plausibly on its own line, and only a
@@ -37,6 +37,12 @@ try {
         $agreed = $agreed + 1;
     }
 }
+// Fourth on purpose, and the order is the assertion: `post` is called after
+// the three readers above have each named a reading of the same body, so a
+// `post` that reported "this body has already been read" instead of the
+// sentence its siblings give would fail the count rather than print
+// plausibly. What decides the answer is that no request arrived, and that is
+// ahead of every question about which reader is holding one.
 try {
     Core\Request::post("title");
 } catch (LogicError $form) {
@@ -49,6 +55,10 @@ echo "the body's four readers agree: ", $agreed, " of 4\n";
 // And the fourth is not the first three's refusal wearing another name: the
 // member it reports is its own, which is what a handler standing on two of
 // these reads to know which one it was standing on.
+//
+// Which reader is holding a body that did arrive is not a question this case
+// can put -- a conformance case answers no request -- and it is `nvs-stdlib`'s
+// `a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`.
 try {
     Core\Request::post("description");
 } catch (LogicError $which) {

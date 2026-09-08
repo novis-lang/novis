@@ -3616,11 +3616,12 @@ mod tests {
         );
     }
 
-    /// Spec § 15's exclusivity, asked of all three readings in both directions
-    /// and on a request with no body at all: whichever a program takes first is
-    /// the one that has the body, and the others are refused rather than
-    /// answered empty. Both directions matter, because a record kept by one
-    /// member would pass the direction it was written for and fail the other.
+    /// The three members that reach the body itself — `body`, `bodyStream` and
+    /// `files` — asked in both directions and on a request with no body at
+    /// all: the one that named the first reading is the one that has the body,
+    /// and the others are refused rather than answered empty. Both directions
+    /// matter, because a record kept by one member would pass the direction it
+    /// was written for and fail the other.
     ///
     /// The bodiless request is the case that says what the rule is *about*: no
     /// bytes were consumed either way, so a claim tied to the stream rather than
@@ -3640,7 +3641,7 @@ mod tests {
         }
         assert!(
             nvs_runtime::call(nvs_core_request_body_stream, &mut buffered, &[]).is_err(),
-            "`bodyStream` after `body` is the program bug § 15 names, not an empty walk"
+            "`bodyStream` after `body` is a program bug, not an empty walk"
         );
 
         let mut streamed = answering(Some(Chunks::of(&[&b"a body"[..]])));
@@ -3665,7 +3666,7 @@ mod tests {
             .expect("naming the walk is the reading, and it is the first one here");
         assert!(
             nvs_runtime::call(nvs_core_request_body, &mut parted, &[]).is_err(),
-            "`body` after `files` is the program bug § 15 names, not an empty answer"
+            "`body` after `files` is a program bug, not an empty answer"
         );
         assert_eq!(
             parts_of(&mut parted, files)
@@ -3702,7 +3703,7 @@ mod tests {
 
     /// `bodyStream` against the other two readings, in both directions and
     /// with **no chunk ever pulled** — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s second of three ways,
-    /// held to spec § 15.
+    /// asked of the members that read one body rather than of its parts.
     ///
     /// The pair its twin above leaves unasked is `bodyStream` and `files`,
     /// which is the one where an implementation could plausibly let both
