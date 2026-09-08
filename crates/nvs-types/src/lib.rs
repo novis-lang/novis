@@ -508,14 +508,18 @@ pub(crate) struct Env<'a> {
     /// on; nothing ever removes an entry, so this is O(element writes
     /// written in the file).
     pub write_target_levels: FxHashMap<Span, bool>,
-    /// Every subscript read this run has seen under a `??`, by span.
+    /// Every read this run has seen under a `??`, an `isset` or an `empty`,
+    /// by span — a subscript level and a property level alike, since
+    /// `rule:types/shape-type`'s optional field asks the same "may it be
+    /// absent" question of a shape that a key asks of an array.
     ///
-    /// Filled by [`crate::expr::check_expr`]'s `ExprKind::Binary` arm
-    /// **before** it checks the left operand, because the one thing that reads
-    /// it is inside that check: the `ExprKind::Index` arm answers `?elem_ty`
-    /// for a guarded read and records the fact on its
-    /// [`crate::expr_table::ExprInfo::Index`] entry, which is what makes an
-    /// absent key `null` rather than a throw down in `nvs-ir`.
+    /// Filled by [`crate::expr::presence::mark_guarded_places`] **before** the
+    /// operand is checked, because the things that read it are inside that
+    /// check: the `ExprKind::Index` arm answers `?elem_ty` and records
+    /// `guarded` on its [`crate::expr_table::ExprInfo::Index`] entry, and
+    /// [`crate::expr::members::check_property_member`] does the same for a
+    /// shape's optional field — which is what makes absence `null` rather than
+    /// a throw down in `nvs-ir`.
     ///
     /// **Every level of the chain is marked, not just the outermost one.**
     /// PHP reads `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there",

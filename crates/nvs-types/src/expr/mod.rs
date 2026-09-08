@@ -319,18 +319,16 @@ pub(crate) fn infer(
             inner_ty
         }
         ExprKind::Binary { op, lhs, rhs } => {
-            // PHP's `??` is "absent or `null`, without the warning", so no
-            // subscript under one takes `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw — and that
+            // PHP's `??` is "absent or `null`, without the warning", so no read
+            // under one takes `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw — and that
             // is the whole chain, not only the outermost level: PHP reads
             // `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there".
-            // Marked before the operand is checked, because the arm that reads
-            // it is inside that check — see `Env::coalesce_guarded`.
+            // `presence::mark_guarded_places` is the walk, shared with `isset`
+            // and `empty` so the three cannot drift apart, and it runs before
+            // the operand is checked because the arms that read the mark are
+            // inside that check — see `Env::coalesce_guarded`.
             if *op == BinaryOp::Coalesce {
-                let mut level = &**lhs;
-                while let ExprKind::Index { base, .. } = &level.kind {
-                    env.coalesce_guarded.insert(level.span);
-                    level = base;
-                }
+                presence::mark_guarded_places(lhs, env);
             }
             // The literal side is checked *second*, so the type it takes its
             // placement from is already in hand — see
@@ -759,7 +757,8 @@ pub(crate) fn infer(
         }
         // `rule:classes/unset-is-refused-on-a-property`: `isset($x)` is `$x != null`, and a list of operands
         // is the conjunction — so every one of them is checked, and every
-        // subscript under one is a guarded read. `presence` owns both rules.
+        // subscript and shape-property level under one is a guarded read.
+        // `presence` owns both rules.
         ExprKind::Isset(operands) => {
             for operand in operands {
                 presence::check_isset_operand(operand, live, scope, ctx, env);
@@ -767,7 +766,7 @@ pub(crate) fn infer(
             env.interner.bool_ty()
         }
         // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s table negated — over any
-        // expression at all, so it shares `isset`'s guarded-subscript rule and
+        // expression at all, so it shares `isset`'s guarded-read rule and
         // none of its shape check. `presence` owns both.
         ExprKind::Empty(operand) => {
             let operand_ty = presence::check_empty_operand(operand, live, scope, ctx, env);

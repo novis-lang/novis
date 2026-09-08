@@ -19,14 +19,14 @@
 //! there since 5.5, `!$x` being defined for a value as much as for a place, so
 //! `empty(Foo::bar())` is an ordinary truthy test.
 //!
-//! **A subscript under either is a guarded read.** `isset($a["k"])` over an
-//! array with no `"k"` is `false` in PHP and `empty($a["k"])` is `true`, in
-//! neither case a warning and in neither a throw, so every `Index` level of an
-//! operand is marked in [`Env::coalesce_guarded`] — the same set `??` fills
-//! for the same reason, and the same one [`super::check_expr`]'s
-//! `ExprKind::Index` arm reads to answer `?elem_ty` and record `guarded` on
-//! its [`crate::expr_table::ExprInfo::Index`] entry. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's
-//! throw is what that marking turns off; without it these two would report
+//! **A read that can be absent is a guarded read under either.**
+//! `isset($a["k"])` over an array with no `"k"` is `false` in PHP and
+//! `empty($a["k"])` is `true`, in neither case a warning and in neither a
+//! throw, and `rule:types/shape-type`'s optional field asks the same question
+//! of a shape — so every `Index` **and** `PropertyAccess` level of an operand
+//! is marked in [`Env::coalesce_guarded`] by [`mark_guarded_places`], which is
+//! also the walk `??` fills that same set with. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's
+//! throw is what the marking turns off; without it these two would report
 //! absence by raising the very error they exist to avoid.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
@@ -57,7 +57,7 @@ pub(crate) fn check_isset_operand(
     if !names_storage(operand) {
         report_not_a_variable(operand, env);
     }
-    mark_guarded_subscripts(operand, env);
+    mark_guarded_places(operand, env);
     // Checked even when it was refused above, so a mistake inside the operand
     // arrives in the same run rather than one edit later.
     check_expr(operand, None, live, scope, ctx, env)
@@ -67,7 +67,7 @@ pub(crate) fn check_isset_operand(
 ///
 /// This is [`check_isset_operand`] without the shape check: `empty` is `!$x`
 /// and PHP has accepted any expression there since 5.5, so only the
-/// guarded-subscript half carries over. What `nvs-ir` then lowers is `rule:expressions/truthy-table`'s table plus a `Not`, which is `!` exactly.
+/// guarded-read half carries over. What `nvs-ir` then lowers is `rule:expressions/truthy-table`'s table plus a `Not`, which is `!` exactly.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
 pub(crate) fn check_empty_operand(
@@ -77,18 +77,27 @@ pub(crate) fn check_empty_operand(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    mark_guarded_subscripts(operand, env);
+    mark_guarded_places(operand, env);
     check_expr(operand, None, live, scope, ctx, env)
 }
 
-/// Marks every `Index` level of `operand` as a guarded read, so an absent key
-/// answers `null` there instead of taking `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw.
+/// Marks every level of `operand` that can be absent — a subscript, and a
+/// property whose receiver may be a shape with an optional field — as a guarded
+/// read, so absence answers `null` there instead of taking
+/// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw.
 ///
-/// Called *before* the operand is checked, because the arm that reads the mark
-/// is inside that check — [`Env::coalesce_guarded`]'s own doc comment owns the
-/// ordering, and `$a["k"]["j"]` needs every level marked for the same reason
-/// `$a["k"]["j"] ?? "d"` does.
-fn mark_guarded_subscripts(operand: &Expr, env: &mut Env<'_>) {
+/// This is the whole walk behind [`Env::coalesce_guarded`], shared with `??`'s
+/// own left operand ([`super::check_expr`]'s `BinaryOp::Coalesce` arm) so that
+/// `isset($p->a)` and `$p->a ?? 0` cannot come to answer two different
+/// questions. Called *before* the operand is checked, because the arms that
+/// read the mark are inside that check — [`Env::coalesce_guarded`]'s own doc
+/// comment owns the ordering, and `$a["k"]["j"]` needs every level marked for
+/// the same reason `$a["k"]["j"] ?? "d"` does.
+///
+/// A property level is marked whatever the receiver turns out to be: this runs
+/// before any type is known, and the arms that read the mark are the ones that
+/// know which levels the mark means anything for.
+pub(super) fn mark_guarded_places(operand: &Expr, env: &mut Env<'_>) {
     let mut level = operand;
     loop {
         match &level.kind {
@@ -96,6 +105,10 @@ fn mark_guarded_subscripts(operand: &Expr, env: &mut Env<'_>) {
             ExprKind::Index { base, .. } => {
                 env.coalesce_guarded.insert(level.span);
                 level = base;
+            }
+            ExprKind::PropertyAccess { object, .. } => {
+                env.coalesce_guarded.insert(level.span);
+                level = object;
             }
             _ => break,
         }
