@@ -304,7 +304,8 @@ The `#[Route]` payload:
 
 **Captures bind to parameters** by name: every `{name}` needs a parameter `$name`, and that
 parameter's declared type is what the segment converts to — `string`, `int`, `uint`, `decimal`,
-`bool`, an enum, a union of string or int literals (`"en"|"de"`), or `Core\Uuid`. A `float`
+`bool`, an enum, a union of string or int literals (`"en"|"de"`), or a class implementing `Parses`,
+which `Core\Uuid` is one of and a class of your own is another. A `float`
 parameter is refused. A `{name?}` parameter needs a default. A `{name...}` parameter is a
 `string`. The converted value is not `tainted`.
 
@@ -506,7 +507,7 @@ greet: Say hello
   refused. `#[Option]` away from a `#[Command]` method is refused.
 - An option or positional parameter must have a type an argument's text converts to — the same
   list a route capture accepts (`string`, `int`, `uint`, `decimal`, `bool`, an enum, a union of
-  literals, `Core\Uuid`); anything else is refused.
+  literals, a class implementing `Parses`); anything else is refused.
 - The method is **`static`** and returns `void` (exit status 0) or `uint` (the exit status). Both
   are refused where they are not met (`E0789`): a command is dispatched by name off the compiled
   table, which holds no instance to call a handler on, and what a handler answers with is the
