@@ -105,6 +105,9 @@ modules = [
   "crates/nvs-test/src/section.rs",
   # Seeding the checker's signature table with `Core`.
   "crates/nvs-types/src/core_lib.rs",
+  # A call's arguments: arity, each argument against its parameter, `rule:core-api/shape-rules`
+  # R2's trailing options bag, an `inout $x` argument, and the type arguments a call site binds.
+  "crates/nvs-types/src/expr/args.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
