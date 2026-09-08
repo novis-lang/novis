@@ -97,6 +97,7 @@ pub mod actions;
 mod capabilities;
 mod case;
 pub mod completion;
+pub mod coverage;
 pub mod definition;
 pub mod diagnostics;
 mod document;

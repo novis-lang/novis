@@ -12,6 +12,12 @@
 //! nothing with `nvs test`'s**: two suites answering two questions, and a
 //! summary that meant both would mean neither.
 //!
+//! `--coverage` prints [`crate::coverage`]'s matrix **instead of** that line,
+//! never under it: the driver reads the last line, so a run reports one thing
+//! or the other. The matrix comes out of the same pass — a case is answered
+//! once and its constructs are read off the analysis that answered it — which
+//! is why [`Outcome`] carries both.
+//!
 //! A case runs in this process rather than in one of its own. `.nvst` spawns
 //! per case because it runs a *program* whose stdout is the expectation;
 //! nothing here runs a program at all, so a case is a parse, a question and a
@@ -41,14 +47,15 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use lsp_types::Uri;
-use nvs_diagnostics::PositionEncoding;
+use nvs_diagnostics::{BytePos, PositionEncoding};
 
 use crate::actions;
 use crate::case::{Case, MAIN_PATH, Request};
 use crate::completion;
+use crate::coverage::{self, Matrix};
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
-use crate::document::{Documents, analyse, uri_of};
+use crate::document::{Analysed, Documents, analyse, uri_of};
 use crate::folding;
 use crate::hover;
 use crate::links;
@@ -82,6 +89,34 @@ impl Summary {
     pub const fn is_success(self) -> bool {
         self.failed == 0
     }
+}
+
+/// Everything one run produced: what it came to, and what it covered.
+///
+/// The matrix travels with the count because it is derived from the same pass
+/// and cannot be rebuilt without repeating it — a corpus is answered once, and
+/// a caller that wanted both would otherwise run every case twice.
+#[derive(Debug, Clone)]
+pub struct Outcome {
+    /// Cases passed and failed.
+    pub summary: Summary,
+    /// What the passing cases covered
+    /// (`rule:ide/lspt-coverage-is-inferred`).
+    pub matrix: Matrix,
+}
+
+/// What a run prints when it is done.
+///
+/// The two are alternatives rather than one plus the other: `tools/loop.py`'s
+/// `nvs-suite` check reads the last line as `N passed, M failed`, so a matrix
+/// printed under it would be a summary the driver could not find, and a matrix
+/// printed over it is a report for a person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Report {
+    /// `N passed, M failed`, the line the loop parses.
+    Summary,
+    /// The request × construct matrix instead.
+    Coverage,
 }
 
 /// Collects every `.lspt` file under `paths`, sorted, directories walked.
@@ -137,13 +172,19 @@ fn gather(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 /// *case* is not an error: it is counted in the returned [`Summary`], and so is
 /// a case that could not be parsed, because a file that is not a case is a
 /// failure of that file rather than of the run.
-pub fn run(paths: &[PathBuf], out: &mut dyn Write) -> io::Result<Summary> {
-    let mut summary = Summary::default();
+pub fn run(paths: &[PathBuf], out: &mut dyn Write, report: Report) -> io::Result<Outcome> {
+    let mut outcome = Outcome {
+        summary: Summary::default(),
+        matrix: Matrix::new(),
+    };
     for path in collect(paths)? {
         match check(&path) {
-            Ok(()) => summary.passed += 1,
+            Ok((request, covered)) => {
+                outcome.summary.passed += 1;
+                outcome.matrix.record(&path, request, &covered);
+            }
             Err(lines) => {
-                summary.failed += 1;
+                outcome.summary.failed += 1;
                 writeln!(out, "FAIL {}", path.display())?;
                 for line in lines {
                     writeln!(out, "  {line}")?;
@@ -151,18 +192,30 @@ pub fn run(paths: &[PathBuf], out: &mut dyn Write) -> io::Result<Summary> {
             }
         }
     }
-    writeln!(out, "{} passed, {} failed", summary.passed, summary.failed)?;
-    Ok(summary)
+    match report {
+        Report::Summary => writeln!(
+            out,
+            "{} passed, {} failed",
+            outcome.summary.passed, outcome.summary.failed
+        )?,
+        Report::Coverage => write!(out, "{}", outcome.matrix.render())?,
+    }
+    Ok(outcome)
 }
 
 /// Reads one case, asks its question and compares the rendering.
-fn check(path: &Path) -> Result<(), Vec<String>> {
+///
+/// The constructs come back with the request that reached them, and only from
+/// here: a case whose rendering is not what it froze covers nothing, because
+/// coverage is a claim a frozen expectation makes
+/// (`rule:ide/lspt-coverage-is-inferred`).
+fn check(path: &Path) -> Result<(Request, Vec<&'static str>), Vec<String>> {
     let text = fs::read_to_string(path).map_err(|error| vec![format!("{error}")])?;
     let case = Case::parse(path, &text).map_err(|error| vec![format!("{error}")])?;
-    let answer = answer(&case).map_err(|why| vec![why])?;
-    let rendered = answer.render();
+    let answered = answer(&case).map_err(|why| vec![why])?;
+    let rendered = answered.response.render();
     if rendered == case.expect {
-        return Ok(());
+        return Ok((case.request, answered.covered));
     }
     // Both halves in full, and never a "did not match": an expectation is
     // frozen, so what a reader has to decide is whether the *answer* changed
@@ -178,6 +231,14 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
     Err(lines)
 }
 
+/// What one case's question came to.
+pub(crate) struct Answered {
+    /// The answer, in the shape the request answers.
+    pub response: Response,
+    /// Every construct the question landed on, sorted — see [`crate::coverage`].
+    pub covered: Vec<&'static str>,
+}
+
 /// Answers the question `case` asks of its document.
 ///
 /// This is the seam every request slice landed in, one arm at a time, and the
@@ -185,20 +246,49 @@ fn check(path: &Path) -> Result<(), Vec<String>> {
 /// [`Request`] is a build error here rather than a case that passes by being
 /// skipped — which is `rule:ide/the-request-set-is-closed` enforced by the
 /// compiler on the side the runner controls.
-fn answer(case: &Case) -> Result<Response, String> {
-    match case.request {
-        Request::Diagnostics => diagnostics(case),
-        Request::Hover => hover(case),
-        Request::Definition => definition(case),
-        Request::Completion => completion(case),
-        Request::SemanticTokens => semantic_tokens(case),
-        Request::DocumentSymbol => document_symbol(case),
-        Request::SelectionRange => selection_range(case),
-        Request::FoldingRange => folding_range(case),
-        Request::DocumentLink => document_link(case),
-        Request::CodeAction => code_action(case),
-        Request::Redactions => redactions(case),
-    }
+///
+/// **The analysis is made once, here, and every arm is handed it.** That is
+/// what lets coverage be inferred rather than declared: the construct a case
+/// reached is read off the same [`Analysed`] that answered it, and an arm has
+/// no opportunity to report a construct its own answer did not touch
+/// (`rule:ide/lspt-coverage-is-inferred`).
+///
+/// The materialised files are held until the answer is rendered, because the
+/// files a `require` resolves against go when they do.
+pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
+    let (files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let response = match case.request {
+        Request::Diagnostics => diagnostics(&analysed, case.args.phase_all),
+        Request::Hover => hover(&analysed, at(case)),
+        Request::Definition => definition(&analysed, &files, at(case)),
+        Request::Completion => completion(&analysed, case, at(case)),
+        Request::SemanticTokens => semantic_tokens(&analysed, &case.args.types),
+        Request::DocumentSymbol => document_symbol(&analysed),
+        Request::SelectionRange => selection_range(&analysed, at(case)),
+        Request::FoldingRange => folding_range(&analysed),
+        Request::DocumentLink => document_link(&analysed, &files),
+        Request::CodeAction => code_action(&analysed, at(case)),
+        Request::Redactions => redactions(&analysed),
+    };
+    let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
+    Ok(Answered { response, covered })
+}
+
+/// The case's cursor as a byte offset, if it wrote one.
+fn cursor(case: &Case) -> Option<BytePos> {
+    case.cursor
+        .map(|at| BytePos::try_from(at).unwrap_or(BytePos::MAX))
+}
+
+/// The case's cursor, for a request that is asked at one.
+///
+/// [`Request::takes_cursor`] names those requests and [`Case::parse`] refuses
+/// one written without a `<|>`, so the marker is guaranteed by the time an arm
+/// is picked rather than defaulted to offset 0.
+fn at(case: &Case) -> BytePos {
+    cursor(case).expect("a request asked at a position was written a cursor")
 }
 
 /// One case's `--FILE--` sections on disk, in a directory of this run's own.
@@ -313,20 +403,13 @@ fn open(documents: &mut Documents, path: &Path, text: &str) -> Result<Uri, Strin
 /// read with the filter switched off, which is what pins
 /// `rule:ide/diagnostics-are-phase-gated` from the side that would otherwise be
 /// invisible: what the gate holds back.
-fn diagnostics(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer: the files a `require` resolves against go
-    // when it does.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    let phases = if case.args.phase_all {
+fn diagnostics(analysed: &Analysed, phase_all: bool) -> Response {
+    let phases = if phase_all {
         Phases::All
     } else {
         Phases::Gated
     };
-    Ok(Response::Diagnostics(for_document(
-        &analysed, phases, COLUMNS,
-    )))
+    Response::Diagnostics(for_document(analysed, phases, COLUMNS))
 }
 
 /// `textDocument/documentSymbol` — the entry document's outline.
@@ -334,14 +417,8 @@ fn diagnostics(case: &Case) -> Result<Response, String> {
 /// No cursor and no arguments: the outline is a walk of the whole file, so a
 /// case asks for it and nothing else. [`crate::symbols::for_document`] is the
 /// same call the server makes, on an analysis produced the same way.
-fn document_symbol(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::DocumentSymbol(symbols::for_document(
-        &analysed, COLUMNS,
-    )))
+fn document_symbol(analysed: &Analysed) -> Response {
+    Response::DocumentSymbol(symbols::for_document(analysed, COLUMNS))
 }
 
 /// `textDocument/semanticTokens/full` — every name the case's document writes.
@@ -350,38 +427,17 @@ fn document_symbol(case: &Case) -> Result<Response, String> {
 /// be asking about a position nothing here reads.
 /// [`crate::semantic::for_document`] is the same call the server makes, on an
 /// analysis produced the same way.
-fn semantic_tokens(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::SemanticTokens(semantic::for_document(
-        &analysed,
-        COLUMNS,
-        &case.args.types,
-    )))
+fn semantic_tokens(analysed: &Analysed, types: &[String]) -> Response {
+    Response::SemanticTokens(semantic::for_document(analysed, COLUMNS, types))
 }
 
 /// `textDocument/selectionRange` — the chain at the case's `<|>`.
 ///
-/// The first request here asked *at* a position, and the cursor is already
-/// guaranteed: [`Request::takes_cursor`] names this one, so a case that wrote
-/// no `<|>` was refused when it was read rather than answered at offset 0.
-///
 /// The offset is into the case's document, which is byte-for-byte what was
 /// materialised and then loaded, so it is the entry file's offset with no
 /// conversion — the marker is taken out before either is written.
-fn selection_range(case: &Case) -> Result<Response, String> {
-    let cursor = case.cursor.expect("selectionRange is asked at a position");
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::SelectionRange(selection::at(
-        &analysed,
-        u32::try_from(cursor).unwrap_or(u32::MAX),
-        COLUMNS,
-    )))
+fn selection_range(analysed: &Analysed, offset: BytePos) -> Response {
+    Response::SelectionRange(selection::at(analysed, offset, COLUMNS))
 }
 
 /// `textDocument/definition` — where the name under the cursor is declared.
@@ -392,23 +448,12 @@ fn selection_range(case: &Case) -> Result<Response, String> {
 /// directory this case was materialised into. A declaration in a `--FILE
 /// lib/user.nvs--` section is therefore spelled `lib/user.nvs`, which is what
 /// makes a cross-file case readable.
-fn definition(case: &Case) -> Result<Response, String> {
-    let cursor = case.cursor.expect("definition is asked at a position");
-    // Held to the end of the answer, as in `diagnostics` — and here it is also
-    // what the declaring file is named against.
-    let (files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    let found = definition::at(
-        &analysed,
-        u32::try_from(cursor).unwrap_or(u32::MAX),
-        COLUMNS,
-    )
-    .map(|declared| Place {
+fn definition(analysed: &Analysed, files: &Materialised, offset: BytePos) -> Response {
+    let found = definition::at(analysed, offset, COLUMNS).map(|declared| Place {
         path: files.spelling(&declared.path),
         position: declared.range.start,
     });
-    Ok(Response::Definition(found))
+    Response::Definition(found)
 }
 
 /// `textDocument/completion` — what may be written at the case's `<|>`.
@@ -421,20 +466,15 @@ fn definition(case: &Case) -> Result<Response, String> {
 /// first. `rule:ide/a-request-line-is-closed` is what keeps the pair closed;
 /// the client applies neither, because an editor filters as the developer
 /// types.
-fn completion(case: &Case) -> Result<Response, String> {
-    let cursor = case.cursor.expect("completion is asked at a position");
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    let mut items = completion::at(&analysed, u32::try_from(cursor).unwrap_or(u32::MAX));
+fn completion(analysed: &Analysed, case: &Case, offset: BytePos) -> Response {
+    let mut items = completion::at(analysed, offset);
     if let Some(prefix) = &case.args.prefix {
         items.retain(|item| item.label.starts_with(prefix));
     }
     if let Some(limit) = case.args.limit {
         items.truncate(limit);
     }
-    Ok(Response::Completion(items))
+    Response::Completion(items)
 }
 
 /// `textDocument/hover` — what the declaration under the case's `<|>` says
@@ -444,17 +484,8 @@ fn completion(case: &Case) -> Result<Response, String> {
 /// comment's own prose with its markers off — which is the point of freezing it
 /// here rather than in a Rust test: the run is read the way a reader will see
 /// it. [`crate::hover::at`] is the same call the server makes.
-fn hover(case: &Case) -> Result<Response, String> {
-    let cursor = case.cursor.expect("hover is asked at a position");
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::Hover(hover::at(
-        &analysed,
-        u32::try_from(cursor).unwrap_or(u32::MAX),
-        COLUMNS,
-    )))
+fn hover(analysed: &Analysed, offset: BytePos) -> Response {
+    Response::Hover(hover::at(analysed, offset, COLUMNS))
 }
 
 /// `textDocument/foldingRange` — where the entry document collapses.
@@ -462,14 +493,8 @@ fn hover(case: &Case) -> Result<Response, String> {
 /// No cursor and no arguments, as the outline takes none:
 /// [`crate::folding::for_document`] is the same call the server makes, on an
 /// analysis produced the same way.
-fn folding_range(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::FoldingRange(folding::for_document(
-        &analysed, COLUMNS,
-    )))
+fn folding_range(analysed: &Analysed) -> Response {
+    Response::FoldingRange(folding::for_document(analysed, COLUMNS))
 }
 
 /// `textDocument/documentLink` — every `require` the entry document writes.
@@ -478,20 +503,15 @@ fn folding_range(case: &Case) -> Result<Response, String> {
 /// [`Link`]'s doc leaves to the runner: what the analysis answers is an
 /// absolute path inside the directory this case was materialised into, and
 /// nothing else knows what that directory is.
-fn document_link(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer, as in `diagnostics` — and here it is also
-    // what a target is named against.
-    let (files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    let links = links::for_document(&analysed, COLUMNS)
+fn document_link(analysed: &Analysed, files: &Materialised) -> Response {
+    let links = links::for_document(analysed, COLUMNS)
         .into_iter()
         .map(|link| Link {
             range: link.range,
             target: files.spelling(&link.target),
         })
         .collect();
-    Ok(Response::DocumentLink(links))
+    Response::DocumentLink(links)
 }
 
 /// `textDocument/codeAction` — what may be fixed where the cursor is.
@@ -503,20 +523,14 @@ fn document_link(case: &Case) -> Result<Response, String> {
 /// [`crate::actions::Kind::QuickFix`] is what a person's client asks for, so it
 /// is the kind a case freezes; the other kind is a client's own request and is
 /// answered from the same translation.
-fn code_action(case: &Case) -> Result<Response, String> {
-    let cursor = case.cursor.expect("codeAction is asked at a position");
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    let at = u32::try_from(cursor).unwrap_or(u32::MAX);
-    Ok(Response::CodeAction(actions::at(
-        &analysed,
-        at,
-        at,
+fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
+    Response::CodeAction(actions::at(
+        analysed,
+        offset,
+        offset,
         actions::Kind::QuickFix,
         COLUMNS,
-    )))
+    ))
 }
 
 /// `nvs/redactions` — which bytes of the entry document the client conceals.
@@ -524,14 +538,8 @@ fn code_action(case: &Case) -> Result<Response, String> {
 /// No cursor and no arguments, on [`folding_range`]'s terms: the request is
 /// asked of the whole document, and the same
 /// [`crate::redactions::for_document`] call the server makes answers it.
-fn redactions(case: &Case) -> Result<Response, String> {
-    // Held to the end of the answer, as in `diagnostics`.
-    let (_files, documents, entry) = store(case)?;
-    let analysed = analyse(&documents, &entry)
-        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
-    Ok(Response::Redactions(crate::redactions::for_document(
-        &analysed, COLUMNS,
-    )))
+fn redactions(analysed: &Analysed) -> Response {
+    Response::Redactions(crate::redactions::for_document(analysed, COLUMNS))
 }
 
 #[cfg(test)]
@@ -558,7 +566,10 @@ mod tests {
              --EXPECT--\n"
         );
         let case = Case::parse(Path::new("gate.lspt"), &text).expect("the case parses");
-        answer(&case).expect("diagnostics are answered").render()
+        answer(&case)
+            .expect("diagnostics are answered")
+            .response
+            .render()
     }
 
     /// The codes in a rendering, which is `L:C-L:C severity CODE message`.
@@ -626,18 +637,19 @@ mod tests {
         write(&dir.join("README.md"), "what this tree is for\n");
 
         let mut report = Vec::new();
-        let summary = run(std::slice::from_ref(&dir), &mut report).expect("the tree is readable");
+        let outcome = run(std::slice::from_ref(&dir), &mut report, Report::Summary)
+            .expect("the tree is readable");
         let report = String::from_utf8(report).expect("the report is text");
 
         assert_eq!(
-            summary,
+            outcome.summary,
             Summary {
                 passed: 0,
                 failed: 2
             },
             "{report}"
         );
-        assert!(!summary.is_success());
+        assert!(!outcome.summary.is_success());
         assert!(report.ends_with("0 passed, 2 failed\n"), "{report}");
 
         // The two failures read differently: one file is not a case at all,
@@ -652,7 +664,8 @@ mod tests {
         // A path that does not exist is the mistake it looks like, rather than
         // an empty suite that passes.
         let missing = dir.join("nowhere");
-        let error = run(&[missing], &mut Vec::new()).expect_err("a mistyped path is an error");
+        let error = run(&[missing], &mut Vec::new(), Report::Summary)
+            .expect_err("a mistyped path is an error");
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
 
         let _ = fs::remove_dir_all(&dir);

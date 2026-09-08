@@ -342,12 +342,14 @@ fn completion(item: &CompletionItem) -> (String, String) {
     (item.label.clone(), text.trim_end().to_owned())
 }
 
-/// `L:C+len type modifiers`, one line per token, with the wire's deltas undone.
+/// Where each token starts, with the wire's deltas undone.
 ///
-/// The deltas are relative to the token before, so a case freezing them raw
-/// would be reading an encoding rather than an answer — and one token inserted
-/// ahead of the interesting one would rewrite the whole expectation.
-fn semantic_tokens(tokens: &[SemanticToken]) -> Vec<String> {
+/// A delta is relative to the token before it, so nothing outside this module
+/// can read a token's position without redoing this loop — and two copies of it
+/// would disagree the first time a legend or an encoding moved. Both readers
+/// are here: the rendering below, and [`crate::coverage`], which asks what
+/// construct each name the server coloured belongs to.
+pub(crate) fn absolute(tokens: &[SemanticToken]) -> Vec<Position> {
     let (mut line, mut character) = (0_u32, 0_u32);
     let mut out = Vec::with_capacity(tokens.len());
     for token in tokens {
@@ -357,7 +359,20 @@ fn semantic_tokens(tokens: &[SemanticToken]) -> Vec<String> {
         } else {
             token.delta_start
         };
-        let at = position(Position { line, character });
+        out.push(Position { line, character });
+    }
+    out
+}
+
+/// `L:C+len type modifiers`, one line per token, with the wire's deltas undone.
+///
+/// The deltas are relative to the token before, so a case freezing them raw
+/// would be reading an encoding rather than an answer — and one token inserted
+/// ahead of the interesting one would rewrite the whole expectation.
+fn semantic_tokens(tokens: &[SemanticToken]) -> Vec<String> {
+    let mut out = Vec::with_capacity(tokens.len());
+    for (token, at) in tokens.iter().zip(absolute(tokens)) {
+        let at = position(at);
         let kind = index(TOKEN_TYPES, token.token_type, "type");
         let modifiers = modifiers(token.token_modifiers_bitset);
         let entry = format!("{at}+{} {kind} {modifiers}", token.length);
