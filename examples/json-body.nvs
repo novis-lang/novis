@@ -1,0 +1,89 @@
+<?nvs
+// A request body read as JSON, as a program.
+//
+// `Core\Request::json()` and `Core\Request::jsonAs<T>()` are the two ways in,
+// and both read the one body the request holds:
+// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+// is the rule they land under, and it is the same hold `post()` already had.
+//
+// This leg runs under `nvs run --request examples/json-body.nvsr`, so unlike
+// `examples/upload.nvs` a body's own facts are assertable here rather than
+// narrated: a real request is inbound, and every line below is printed by a
+// question this program asked of it. A line that does not appear is a member
+// that answered something else.
+//
+// What one program cannot show is a *second* body. One request carries one, so
+// the two refusals at the foot run the decoder `json()` runs, over octets this
+// program holds instead of octets a peer sent.
+// `tests/conformance/core/a-malformed-json-body-is-a-parse-error.nvst` is where
+// the same refusal is asserted on the wire, and `nvs-stdlib`'s
+// `an_absent_or_empty_body_is_a_parse_error_for_json` is where an absent body
+// earns it.
+
+// A body is a peer's bytes, so the field that receives them declares the
+// qualifier it carries: `rule:security/derived-codec-qualifiers` asks that at
+// the declaration, and a plain `string $name` here is `E0810` at the call
+// below rather than a silent laundering.
+#[Core\Json\Derive]
+class Author {
+    public tainted string $name;
+    public int $tags;
+
+    public function constructor(tainted string $name, int $tags) {
+        $this->name = $name;
+        $this->tags = $tags;
+    }
+}
+
+// The verb, as a case of `Core\Http\Method` rather than a string a handler
+// would have to spell two ways.
+if (Core\Request::method() == Core\Http\Method::Post) {
+    echo "method is Post\n";
+}
+
+// `jsonAs<T>()` is `Core\Json::decodeAs` over the body's octets: one `new` per
+// document, every declared field read out of it, and nothing kept afterwards.
+// `echo` escapes what it is handed, which is what a `tainted` field is for.
+Author $author = Core\Request::jsonAs<Author>();
+echo "name is ", $author->name, "\n";
+
+// `json()` keeps what it decoded, so the second call is not a second reading of
+// the wire; `body()` is a third reader on the same held octets and answers them
+// byte for byte, which is what re-encoding the document above has to agree
+// with. A member that pulled again would find the wire drained here.
+mixed $first = Core\Request::json();
+mixed $second = Core\Request::json();
+tainted string $raw = Core\Request::body();
+if (Core\Json::encode($first) == $raw && Core\Json::encode($second) == $raw) {
+    echo "the second read answers the same document\n";
+}
+
+// A document that stops in the middle is a `ParseError`, which spec § 10 puts
+// under `RuntimeError` as "input did not match a format this code declared" and
+// a handler maps to 400. It is never a `LogicError`: a peer must not be able to
+// make a program report its own defect.
+try {
+    Core\Json::decode("{\"name\":\"ada\"");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "a malformed body is a ParseError\n";
+}
+
+// And no octets at all is the same refusal rather than `null`, because `?mixed`
+// cannot tell "no body" from a body holding the document `null` --
+// `rule:errors/ambiguous-input-refused` is what refuses to guess between them.
+try {
+    Core\Json::decode("");
+    echo "not reached\n";
+} catch (ParseError $empty) {
+    echo "an empty body is a ParseError\n";
+}
+
+// The peer labelled these octets `text/plain` and both readers above took them
+// as a document regardless: a header is what a peer wrote, not what a body is.
+// A member that gated on the type would have thrown at the first reading, and
+// the mislabelled-but-valid document is exactly the case `post()` already reads.
+string $declared = Core\Request::header("content-type") as string;
+if ($declared == "text/plain") {
+    echo "the declared content type is not consulted\n";
+}

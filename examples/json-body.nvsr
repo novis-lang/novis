@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/authors
+--HEADERS--
+content-type: text/plain
+content-length: 23
+--BODY--
+{"name":"ada","tags":2}

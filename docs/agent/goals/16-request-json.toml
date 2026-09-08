@@ -5498,7 +5498,13 @@ kind = "exact"
 stage = "5 the proofs"
 file = "examples/json-body.nvs"
 # This leg runs under `nvs run --request`, which stage 2 builds -- so unlike goal 6's `upload.nvs` and
-# `session.nvs`, a body's own facts ARE assertable here.
+# `session.nvs`, a body's own facts ARE assertable here. `examples/json-body.nvsr` is the request it
+# answers, in the format `crates/nvs-test/src/request.rs` owns, and is the fixture's other half: without
+# `--request` the first line is `Core\Request::method()` refusing, which is
+# `rule:security/request-state-throws-in-an-isolate` and not this goal's fact. The valgrind sweep runs a
+# fixture without a leg's arguments, so it sees that refusal and not the held document -- stage 5's leak
+# run is a separate one, as the goal prose says.
+args = ["--request", "examples/json-body.nvsr"]
 want = [
   "method is Post",
   "name is ada",
