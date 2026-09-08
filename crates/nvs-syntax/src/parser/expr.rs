@@ -750,16 +750,33 @@ impl<'src, 'd> Parser<'src, 'd> {
             self.bump(); // ')'
             let operand = self.parse_unary();
             let span = start.to(operand.span);
-            self.diags.report(
-                Diagnostic::error(
-                    code::E_LEGACY_CAST_UNSUPPORTED,
-                    format!("`({spelling})expr` is not supported"),
-                )
-                .with_primary(span, "Novis keeps exactly one conversion spelling")
-                .with_help(format!(
-                    "use `expr as {spelling}` — it throws instead of silently truncating"
-                )),
-            );
+            let mut reported = Diagnostic::error(
+                code::E_LEGACY_CAST_UNSUPPORTED,
+                format!("`({spelling})expr` is not supported"),
+            )
+            .with_primary(span, "Novis keeps exactly one conversion spelling")
+            .with_help(format!(
+                "use `expr as {spelling}` — it throws instead of silently truncating"
+            ));
+            // The rewrite the help line describes, computed once here rather
+            // than by whoever reads it: an editor offers it as a code action
+            // (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`)
+            // and `nvs convert` writes it with a `TODO` beside it. Unsafe
+            // because it is exactly the behaviour change the help line names —
+            // the cast truncated where `as` throws — so a converter must not
+            // apply it silently. An operand that did not parse gets no fix: its
+            // text is whatever the recovery consumed rather than an expression.
+            if !matches!(operand.kind, ExprKind::Error(_))
+                && let Some(text) = self.file.span_text(operand.span)
+                && !text.is_empty()
+            {
+                reported = reported.with_unsafe_fix(
+                    span,
+                    format!("{text} as {spelling}"),
+                    format!("rewrite as `{text} as {spelling}`"),
+                );
+            }
+            self.diags.report(reported);
             return Expr {
                 span,
                 kind: ExprKind::Error(span),
