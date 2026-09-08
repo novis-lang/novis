@@ -184,8 +184,11 @@ adrs = ["0016 §5"]
 [context.stage.6]
 rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-covers-bytes-only",
          "security/reveal-is-explicit-and-window-local",
-         "security/tainted-has-no-default-decoration"]
-adrs = ["0101 §3"]
+         "security/tainted-has-no-default-decoration",
+         "ide/the-request-set-is-closed", "ide/semantic-tokens-carry-the-qualifiers"]
+# §1 is the wire shape of `nvs/redactions`, and the `kind` field's open string is the only place a
+# `tainted` marker can come from: the request set is closed, so there is no second request to add.
+adrs = ["0101 §1", "0101 §3"]
 
 [context.stage.7]
 rules = ["ide/tasks-carry-a-problem-matcher", "ide/the-ast-panel-shells-out-to-the-cli",

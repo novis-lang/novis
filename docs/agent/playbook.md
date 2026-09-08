@@ -4985,6 +4985,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   out of it and not spans. So a modifier read off `declared_ty` at a property declaration is always zero
   and fails no build. Read it off the access's own `ExprInfo::Property` entry instead, the way
   `nvs_lsp::semantic`'s `qualifiers_recorded` does. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
+- **The VS Code client cannot decorate `tainted` from what it already receives.** The token legend
+  at `crates/nvs-lsp/src/capabilities.rs:66` carries `tainted` at every *use* and declares no
+  `declaration` modifier, and `rule:ide/the-request-set-is-closed` admits no second request to ask
+  with. The open route is another `kind` on `nvs/redactions`' answer, which ADR 0101 § 1 leaves room
+  for: add it beside `crates/nvs-lsp/src/redactions.rs:112`.
+  [until: exists crates/nvs-lsp/src/redactions.rs:TAINTED]
 
 ## Divergences and refusals already pinned
 

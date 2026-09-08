@@ -2,54 +2,59 @@
 
 ## State
 
-**Goal 15 stage 5 is whole, and the acceptance check `vscode (headless)` is green** — `grammar:`,
-`contributions:` and `protocol:` all print, at 141 passing and 0 failing, and `npm run lint` is
-clean. `editors/vscode/src/` exists: `extension.ts` spawns `nvs lsp` from `nvs.path` falling back to
-`PATH` and reports health through a `LanguageStatusItem`, and `version.ts` holds the series
-comparison and imports no `vscode`, which is what lets the headless tier check it.
+**Goal 15 stage 6 draws and reveals.** The client conceals every range `nvs lsp` answers for
+`nvs/redactions` and uncovers them one at a time. `editors/vscode/src/concealment.ts` holds the
+window's state and imports no `vscode`; `src/redactions.ts` is the decoration, the ask and the two
+commands' bodies; `nvs.revealSecret` and `nvs.hideSecrets` are registered at
+`editors/vscode/src/extension.ts:68`. The headless tier is 155 passing and 0 failing over four
+suites — `client:` is the new one, over the pure state machine — and `npm run lint` is clean.
 
-**The extension is versioned `0.0.1`, the workspace's own**, and the client understands a server in
-its own `major.minor`. That decision and the two it replaced are in
-`editors/vscode/README.md` § *Decided here*, not here.
+**The concealment outlives the server that answered it.** Only an answer replaces what is held, so
+an error, a cancellation, a version refusal or a restart leaves the bar exactly where it was;
+`Concealment.hold` is the only writer and `forget`, on the editor closing, the only eraser. That is
+`rule:security/redaction-ranges-come-from-the-server`'s fail direction, and `concealment.ts`'s
+module doc is where it is written down rather than here.
 
-**`nvs lsp` used to outlive every session it started**: `run()` joined the io threads while the
-connection still held a sender, so the writer thread never ended. Fixed at
-`crates/nvs-lsp/src/server.rs:87`, and `handshake.test.ts`'s last case is what would catch it again
-— nothing that speaks the protocol without owning the process can see it.
-
-**Stage 6 is next and stage 8 is unblocked**: `main` is in the manifest, so a `.vsix` is now worth
-building.
+**Stage 6's third item is server work, not client work.** Nothing the client receives says where a
+`tainted` declaration or a sink is; the playbook bullet under *Writing Novis itself* carries the two
+anchors and the one route that is open. `nvs.taint.mark` is `off` and draws nothing, which is what
+the milestone asks of the default.
 
 ## Next group
 
-**Stage 6: `secret` concealed, `tainted` left alone** — one file set: `editors/vscode/src/`,
-`editors/vscode/package.json` and `editors/vscode/test/protocol/`. The server half landed with goal
-14, so this group draws what it is handed and decides nothing.
+**Stage 6: where a `tainted` marker's ranges come from** — one file set:
+`crates/nvs-lsp/src/redactions.rs`, `crates/nvs-lsp/src/server.rs`, `tests/lsp/redactions/` and
+`editors/vscode/src/redactions.ts`. The client half is written and waiting; what is missing is an
+answer to draw from, and the request that would carry it already exists.
 
-- [ ] **The redactions the client draws** — a new `editors/vscode/src/redactions.ts`, wired in
-      beside the client at `editors/vscode/src/extension.ts:110`, asking the server's own request
-      (`nvs/redactions`, `crates/nvs-lsp/src/redactions.rs:106`) and concealing each range with a
-      `TextEditorDecorationType` that keeps the character cells, so every edit still addresses the
-      real text. Default on, behind `nvs.secrets.redact`.
-      `rule:security/redaction-ranges-come-from-the-server`.
-- [ ] **The reveal state machine** — `nvs.revealSecret` and `nvs.hideSecrets` registered beside
-      `nvs.restartServer` at `editors/vscode/src/extension.ts:59`, revealing **one** range and
-      leaving a second secret in the same file hidden, and forgetting every reveal when the editor
-      closes. Keep the decision in a module that imports no `vscode`, the way
-      `editors/vscode/src/version.ts:1` does, so the headless tier can hold its test.
-- [ ] **`tainted` decorated only if asked** — `nvs.taint.mark` is `off` by default and draws
-      nothing; `declaration` and `sink` are the two glyph placements the setting's
-      `enumDescriptions` at `editors/vscode/package.json:109` already promise.
+- [ ] **A second kind on the one request** — a constant beside `SECRET_LITERAL` at
+      `crates/nvs-lsp/src/redactions.rs:112`, answered from the walk under it, so a marker's ranges
+      arrive on the request that is already there rather than on a new one.
+      `rule:ide/the-request-set-is-closed`, and ADR 0101 § 1 is now in this stage's
+      `[context] adrs`. Decide there whether the answer stays one list or splits by kind.
+- [ ] **An `.lspt` case freezing what it answers** — beside
+      `tests/lsp/redactions/a-secret-literal-and-an-interpolation-slot-are-concealed.lspt:1`, over
+      the binding shape `tests/lsp/semantic/a-tainted-and-a-secret-binding-carry-their-qualifier-at-every-use.lspt:6`
+      writes, so the marker and the concealment are frozen by one corpus.
+      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
+- [ ] **The glyph, only if asked** — `nvs.taint.mark` read where `nvs.secrets.redact` is read at
+      `editors/vscode/src/redactions.ts:157`, drawing a themed icon at `declaration` and nothing at
+      all at `off`; the colour is a `ThemeColor` and never a literal, the way the concealment bar at
+      `editors/vscode/src/redactions.ts:99` already is.
       `rule:security/tainted-has-no-default-decoration`.
 
 ## Backlog
 
-- `semanticTokenScopes` for `tainted` and `secret` is not contributed yet; without it a theme has
-  nothing to match — `rule:ide/novis-ships-names-not-colours`.
-- Five of the six frozen commands are contributed but unregistered, so the palette offers them and
-  they fail — stages 6 and 7 register them.
+- `semanticTokenScopes` for `tainted` and `secret` is still uncontributed, and no rule names the
+  scopes to map them to: `rule:ide/novis-ships-names-not-colours` requires the mapping and
+  `rule:ide/highlighting-is-two-layers` specifies none. A gap in the rule, and the goal's *Colour is
+  specified, not designed* says a session may not close it by choosing.
+- Three of the six frozen commands are contributed but unregistered — `nvs.run`, `nvs.test` and
+  `nvs.showAst`, all stage 7's.
+- Stage 7's Tasks and problem matcher, and stage 8's `.vsix` and CI, are untouched.
 - `nvs.lsp.debounce` reaches no server: nothing is sent in `initializationOptions` and the server
   reads none.
-- Stage 7's Tasks and problem matcher, and stage 8's `.vsix` and CI, are untouched.
+- Stage 9's `python tools/dossier.py --only tools:editor/the-vs-code-extension --gate` is the
+  earliest red acceptance check and nothing has been written for it yet.
 - `docs/agent/loop-goal.toml`'s `[context] modules` names `editors/vscode/src/**`, which matches no
-  Rust module and warns every session; the pack has no field for a TypeScript directory.
+  Rust module.
