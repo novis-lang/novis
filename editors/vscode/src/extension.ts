@@ -9,6 +9,10 @@
 // Server health and version reach the user through a `LanguageStatusItem`, which is the API VS Code
 // sanctions for it (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`); no status-bar
 // item is hand-rolled here.
+//
+// The concealment of `secret` values is `redactions.ts`, installed once here and told which client
+// to ask. It is on its own listeners rather than this file's, because what it draws outlives the
+// server it drew from (`rule:security/redaction-ranges-come-from-the-server`).
 
 import {
   ConfigurationChangeEvent,
@@ -29,6 +33,7 @@ import {
   TransportKind,
 } from "vscode-languageclient/node";
 
+import * as redactions from "./redactions";
 import { refusal } from "./version";
 
 // The subcommand that is the server. `nvs lsp` speaks the protocol on its own stdin and stdout and
@@ -58,12 +63,18 @@ export async function activate(context: ExtensionContext): Promise<void> {
     channel,
     status,
     commands.registerCommand("nvs.restartServer", () => restart(context)),
+    // The two halves of a reveal. They are registered here rather than in `redactions.ts` so the
+    // command roster the manifest freezes has one place it is answered from.
+    commands.registerCommand("nvs.revealSecret", (where?: Parameters<typeof redactions.reveal>[0]) =>
+      redactions.reveal(where)),
+    commands.registerCommand("nvs.hideSecrets", () => redactions.hide()),
     workspace.onDidChangeConfiguration((event: ConfigurationChangeEvent) => {
       if (RESPAWNING_SETTINGS.some((setting) => event.affectsConfiguration(setting))) {
         void restart(context);
       }
     }),
   );
+  redactions.install(context);
   await start(context);
 }
 
@@ -111,12 +122,16 @@ async function start(context: ExtensionContext): Promise<void> {
   }
 
   client = starting;
+  redactions.serve(client);
   report(`nvs lsp ${reported?.version}`, `${command} lsp is answering.`, LanguageStatusSeverity.Information);
 }
 
 async function stop(): Promise<void> {
   const running = client;
   client = undefined;
+  // What is already concealed stays concealed while nothing is answering
+  // (`rule:security/redaction-ranges-come-from-the-server`); this only says where to ask next.
+  redactions.serve(undefined);
   await running?.stop();
 }
 

@@ -41,6 +41,16 @@ const AFTER_ARROW: Position = { line: 15, character: 22 };
 const CASING_URI = "file:///casing.nvs";
 const CASING = ["<?nvs", "class user_account {}", ""].join("\n");
 
+// Two secrets on two lines, which is the shape the reveal state machine is written against: one
+// range is revealed and the other stays concealed.
+const SECRETS_URI = "file:///secrets.nvs";
+const SECRETS = [
+  "<?nvs", //                                     0
+  'secret string $key = "sk-live-abcdef";', //    1
+  'secret string $spare = "sk-live-999999";', //  2
+  "",
+].join("\n");
+
 interface Hover {
   contents: { kind: string; value: string };
   range?: Range;
@@ -77,6 +87,11 @@ interface CodeAction {
   title: string;
   kind?: string;
   edit?: unknown;
+}
+
+interface Redaction {
+  range: Range;
+  kind: string;
 }
 
 describe("the requests the client routes to nvs lsp", function () {
@@ -194,6 +209,34 @@ describe("the requests the client routes to nvs lsp", function () {
     assert.equal(actions[0].kind, "quickfix");
     assert.ok(actions[0].title.includes("UserAccount"), actions[0].title);
     assert.ok(actions[0].edit, "the action carries no edit");
+  });
+
+  it("answers nvs/redactions with the bytes of every secret literal", async () => {
+    // The one request of Novis's own, and the only source a client has for which bytes it conceals
+    // (`rule:security/redaction-ranges-come-from-the-server`). Which ranges are answered for which
+    // construct is frozen in `tests/lsp/redactions/`; what is only visible here is that a client
+    // sending a `TextDocumentIdentifier` gets `{range, kind}` back, over the wire, from the binary.
+    session.open(SECRETS_URI, SECRETS);
+    await session.diagnostics(SECRETS_URI);
+
+    const answered = await session.request<Redaction[]>("nvs/redactions", { uri: SECRETS_URI });
+    assert.equal(answered.length, 2, JSON.stringify(answered));
+    const lines = SECRETS.split("\n");
+    const covered = answered.map((redaction) => {
+      assert.equal(redaction.kind, "secretLiteral");
+      assert.equal(redaction.range.start.line, redaction.range.end.line, JSON.stringify(redaction));
+      return lines[redaction.range.start.line]
+        .slice(redaction.range.start.character, redaction.range.end.character);
+    });
+    // The literal token and nothing around it: never the `$key` naming it and never the
+    // `secret string` declaring it (`rule:security/redaction-covers-bytes-only`).
+    assert.deepEqual(covered, ['"sk-live-abcdef"', '"sk-live-999999"']);
+  });
+
+  it("answers an empty list for a document with nothing to conceal", async () => {
+    // An answer of nothing, not the absence of an answer: the client holds its last concealment
+    // when none arrives, so the two must be distinguishable on the wire.
+    assert.deepEqual(await session.request("nvs/redactions", document.textDocument), []);
   });
 
   it("writes nothing to stderr while it does all that", () => {
