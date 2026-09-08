@@ -1203,13 +1203,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   miss a frame that arrives every other time. Before treating a red *named* test as the regression
   that outranks your item, run that one test and then its whole crate suite — if both pass, it was
   load and the ledger's next line will not repeat it. [until: reviewed 2026-09-07]
-- **`M4B:verify`'s "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is already false, and
-  the guard carrying that name asserts something else.** `hyper` depends on `tokio` unconditionally
-  at `features = ["sync"]`, so the name has been in the lock file since goal 6, and
-  `nvs-runtime`'s `tokio_appears_in_neither_the_manifest_nor_the_lockfile` keeps the wider name
-  while checking the stronger property — no crate of ours names it, and what compiles of it is
-  synchronisation alone. Read the test rather than the paragraph, and do not hunt for a lock entry
-  to delete. [until: gone docs/plan/m4b.md:appears in neither]
 - **`session.py --wrap` can refuse over a link no session touched, because a rule fragment's
   relative link is resolved from two different places.** A fragment's links are copied verbatim
   into the chapter one directory above it, so `../../../README.md` resolved from
@@ -3436,6 +3429,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Run the candidate with `target/debug/nvs.exe run` first, keep a legal nest near a dozen
   parentheses, and write the nested type out — `array<array<string>> $t = [["leaf"]];`.
   [until: reviewed 2026-09-08]
+- **A test that walks this repository's `Cargo.toml` files cannot be proved by seeding the line it
+  exists to catch into a workspace member, because cargo re-resolves every member before the test
+  binary runs and a fictional dependency stops at the network.**
+  `crates/nvs-runtime/tests/manifest_policy.rs` walks every `Cargo.toml` outside `target/` and
+  `.git/`, and `benches/*` is a member of the root workspace while `fuzz/Cargo.toml` declares its own
+  empty `[workspace]`. Seed the line in `fuzz/`, watch the assertion fail naming that path, and revert
+  — that walk reads the file and cargo never resolves it. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
