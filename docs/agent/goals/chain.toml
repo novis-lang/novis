@@ -217,10 +217,9 @@ retired = true
 [[goal]]
 name = "17 test-request"
 md = "docs/agent/goals/17-test-request.md"
-toml = "docs/agent/goals/17-test-request.toml"
-handoff = "docs/agent/goals/17-test-request.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # goal 18's record: one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
 # over it -- which is what stops a request reader's answer being `mixed`. Last because its stage 2 is

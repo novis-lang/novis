@@ -2,45 +2,50 @@
 
 ## State
 
-**Goal 17, stage 2 is closed.** Every name the stage's three checks ask for now runs and passes:
-`crates/nvs-runtime/src/ctx/inbound.rs`'s test module carries `a_spec_becomes_an_inbound_with_every_field_it_named`,
-`a_form_field_encodes_urlencoded_and_sets_its_content_type`, `a_json_field_encodes_the_value_and_sets_its_content_type`,
-`a_files_field_builds_a_multipart_body_with_a_boundary` and `a_cookies_field_becomes_one_cookie_header`,
-and the sixth name is a prefix of `two_body_spellings_in_one_spec_are_refused_naming_both`, which a
-`cargo-named` check matches as a substring. The stage's other two checks were already on disk —
-`crates/nvs-cli/src/main.rs:2032` and `crates/nvs-test/src/case.rs:1171`.
+**Goal 18 — untrusted input becomes a declared shape, at one converter — has just started; nothing of it
+has landed yet.** Goal 17's whole list is this goal's Stage 1 floor.
 
-**Stages 1 and 3 were green before this session and stage 4's check is green without stage 4's work.**
-`docs/agent/loop-goal.toml:5642` names five `nvs-stdlib` gates that hold on every tree, so the driver's
-acceptance can now report the whole goal green while stage 4's deliverable is unwritten. That gap is
-this session's next group and is recorded in [carried-gaps.md](carried-gaps.md) so it survives a goal
-switch.
+The scope line matters here: **this goal does not make array key access shape-checked.** It adds one
+converter from `array<mixed>` to a declared shape and two request members over it. A session that finds
+itself giving `array<T>` per-key types has left the goal — that design was considered and rejected in
+*Standing decisions*, and `rule:types/object-top` rejected the general form of it before that.
 
-`python tools/verify.py` is 8 of 8 green at this commit — 3616 tests, conformance 1607, differential 276.
+What the goal is really buying is one thing said twice. `Core\Request` answers `mixed` at every reader, so
+nothing between the socket and the third frame of a handler is checked; and the type surface that would
+check it — `rule:types/shape-type`'s inline shape — cannot describe a form, because every field it names is required
+and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then ordinary `Core` members.
 
 ## Next group
 
-**Stage 4: the signature, frozen** — one file set: `docs/rules/testing/`, `docs/spec/01-core-library.md`.
+**Stage 2: the grammar** — one file set: `crates/nvs-syntax/src/parser/ty.rs`,
+`crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/expr/assign.rs`.
 
-- [ ] **The rule carries `Core\Test::request`'s signature** — `docs/rules/testing/in-process-request.md:8`
-      states two response readings where goal prose stage 4 item 1 asks for the shape: the options bag,
-      the mutual-exclusion rule over the four body spellings, and `Core\Test\Response`'s roster
-      (`status`, `header`, `headers`, `body`, `cookies`, `json()`, `jsonAs<T>()`). It gains the shape and
-      nothing else — dispatch, `tainted` bodies and `#[Test(server:)]` keep saying what they say.
-      `rule:testing/in-process-request` is the rule; `python tools/rules.py --render` after the edit, and
-      the goal opens no ADR number for it.
-- [ ] **Spec § 13's `Core\Test` row becomes a § 15-shaped bullet** — `docs/spec/01-core-library.md:999`
-      is one English cell holding the whole roster; the class, its members one by one and the ADR, with
-      `Core\Test\Response` getting a row of its own. This does **not** bring it under the coverage gate:
-      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:583` excludes §§ 13/16/17 on purpose.
-- [ ] **Strike the row this pair closes** — `docs/agent/carried-gaps.md:57` is the entry, and the
-      contract two headings above it says an entry leaves exactly one way.
+- [ ] **`Ty::Shape` gains a required bit per field** — `crates/nvs-types/src/ty.rs:250`. The bit exists
+      one struct away: `CoreShapeField::required` (`:359`) is this for a Core options bag under `rule:core-api/shape-parameter`,
+      so reuse that representation rather than inventing a second. Parser: `{name?: T}` in
+      `crates/nvs-syntax/src/parser/ty.rs`. `{a?: T}` and `{a: ?T}` stay **different types** — key may be
+      absent, versus key present holding `null`.
+- [ ] **`tainted {…}` desugars at parse time** — `rule:security/tainted-qualifier`'s grammar widened to admit a shape.
+      Taint is variants, not an axis (`Ty::TaintedString` and friends, `ty.rs:48-62`), so the qualifier
+      rewrites each text-carrying field to its tainted variant transitively and is gone before the
+      checker. A shape naming no text-carrying field is a diagnostic, not a no-op.
+- [ ] **`is_assignable` learns the bit** — `crates/nvs-types/src/expr/assign.rs`: missing optional
+      satisfies, missing required does not, extra fields still satisfy (`rule:types/shape-type`, unchanged).
 
 ## Backlog
 
-- `docs/agent/carried-gaps.md:56` still names `Core\Request::clientIp`/`host`/`scheme` under owner 17;
-  stage 3 landed all three, so check `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`
-  and strike what is done — the row's other half, `Response::html`/`sendFile`, is not stage 2–4's.
-- `Core\Test\Response`'s `header`, `headers`, `cookies`, `json()` and `jsonAs<T>()` are documented by
-  stage 4 and registered by nothing; `crates/nvs-stdlib/src/test.rs:1137` holds the two that exist.
-  Registering them is outside this goal, which asks for the signature and not the members.
+- Stage 3 (`Core\Arr::shapeAs<T>`, the five edits, hydrating through `as` and collecting every failure
+  into one `ParseError` the way `rule:core-classes/derive-attribute`'s derived hydration does) is the second group. It shares
+  `nvs-types` with stage 2 through `expr/args.rs` — the third written type argument — and adds
+  `crates/nvs-stdlib/src/arr.rs` and `json.rs`.
+- Stage 4 (`postAs`/`queryAs` beside `post`) is the third. `crate::uri::parse_query` already answers the
+  whole array `post(name)` indexes into (`request.rs:1229`), so the whole-form spelling walks nothing new
+  — and it must not open a public `post(): array<mixed>`.
+- Stage 5 is the fixture, the reference pages and stage 2's diagnostic corpus.
+- **One inherited question, settled in stage 2 rather than deferred**: goal 16 specifies
+  `Core\Request::json(): tainted mixed`, which `rule:security/tainted-qualifier`'s grammar admits no more than it admits
+  `tainted {…}`. Either the widening covers `mixed` too or goal 16's signature is corrected to what the
+  grammar allows. Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
+- **When this goal's last check goes green the driver switches to goal 19** — goal 19's `Parses`, which
+  opens the route-capture and command-argument roster to any class declaring it can be built from text.
+  This goal's whole list becomes its floor.
