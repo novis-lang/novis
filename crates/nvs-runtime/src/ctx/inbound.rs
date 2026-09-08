@@ -285,17 +285,50 @@ pub struct Inbound {
     /// pieces rather than one chunk, because `nvs_stdlib::multipart` holds a
     /// whole chunk in its own buffer and would otherwise hold the body twice.
     ///
-    /// The bytes rather than the parsed array, so that this crate holds no
-    /// value of the program's and nothing here has a reference to release when
-    /// the request ends. `Core\Request::query` re-parses per call over the
-    /// query string for exactly that reason, and this is the same trade one
-    /// field along.
+    /// The bytes rather than the parsed array, so that what every reader
+    /// shares is the one thing all of them agree on: a parse is one member's
+    /// reading of these octets and not a second copy of them, which is why
+    /// `Core\Request::query` re-parses per call over the query string too.
+    /// [`Self::decoded`] is the single hold that is a value of the program's,
+    /// and it is a memo one member keeps over these bytes rather than
+    /// something any other reader answers out of.
     ///
     /// **What it spends:** the body's own bytes, resident until the request
     /// ends, only for a request whose program buffered one — bounded by
     /// `[limits] request_body`, which `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes the cap on form field
     /// text, and O(in-flight).
     held: Option<Box<[u8]>>,
+    /// The document `Core\Request::json` decoded out of [`Self::held`], and the
+    /// `maxDepth` it decoded at — `None` until that member has answered once.
+    ///
+    /// It is here because
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// has that member answer the same document on every call, and decoding the
+    /// held octets again per call would spend a whole parse arriving back at a
+    /// value already resident. The rule's table is what says only `json()`
+    /// keeps one: `Core\Json::decode` builds arrays and scalars, an array is
+    /// copy-on-write, so a later caller can be handed a refcount bump safely —
+    /// where `jsonAs<T>()` builds objects, two callers must never share one,
+    /// and it therefore keeps nothing beyond the octets.
+    ///
+    /// **The depth is part of the hold, not a fact about the request.** The bag
+    /// is the *call's*, so a call naming a different cap is a different
+    /// question and is decoded again — which is what keeps a `{maxDepth: 2}`
+    /// call throwing over a document a default-depth one already read. Only the
+    /// first reading fills this, and a call at another depth answers and leaves
+    /// it alone, so a request holds one document however many depths its
+    /// program tried.
+    ///
+    /// This is the one reference this crate owns on a program's behalf, which
+    /// is the whole of why [`HeldValue`] exists rather than a bare [`Value`]
+    /// here. [`Ctx`]'s own `Drop` is where it is given back, before the
+    /// live-list sweep and for the reason that body states.
+    ///
+    /// **What it spends:** the decoded document, resident until the request
+    /// ends, only for a request whose program called `json()` — a bounded
+    /// multiple of the octets [`Self::held`] already charges against
+    /// `[limits] request_body`, and O(in-flight).
+    decoded: Option<HeldValue>,
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
@@ -404,9 +437,105 @@ impl std::fmt::Debug for Inbound {
             .field("scheme", &self.scheme)
             .field("body", &self.body.is_some())
             .field("parts", &self.parts.is_some())
+            .field("decoded", &self.decoded.is_some())
             .field("upgrade", &self.upgrade.is_some())
             .field("sse", &self.sse.is_some())
             .finish()
+    }
+}
+
+/// A [`Value`] a request owns one reference to, with the `maxDepth` it was
+/// decoded at, released when the request ends.
+///
+/// The carrier holds bytes and parses and deliberately no values —
+/// [`Inbound::held`] says why — so this type is the whole machinery of the one
+/// exception: `Core\Request::json`'s document is the program's value sitting on
+/// something that is not the program's, and a reference nobody gave back would
+/// be a leak per *request* rather than a bug in one program.
+///
+/// [`Drop`] is what makes forgetting it impossible, and it is deliberately not
+/// the whole story. A carrier is a field of the [`Ctx`], and a field is dropped
+/// after that type's own `Drop` body has run — which is after
+/// `crate::object::sweep`, so a hold left to this `Drop` would be given back to
+/// an allocation the sweep had already reached. `Ctx`'s `Drop` therefore takes
+/// this hold itself, exactly as it takes `pending` and for the same reason, and
+/// what remains here is the backstop for a carrier dropped anywhere else.
+#[derive(Debug)]
+pub struct HeldValue {
+    /// The document, owning exactly one reference — the one [`Self::holding`]
+    /// took and [`Drop`] gives back.
+    value: Value,
+    /// The `maxDepth` it was decoded at, so a call naming another one is
+    /// answered by decoding rather than out of here.
+    depth: u32,
+}
+
+impl HeldValue {
+    /// Takes a reference of its own to `value`, to be given back when this is
+    /// dropped.
+    ///
+    /// **A reference of its own rather than the caller's**, so the member that
+    /// decoded the document hands nothing over and returns the very value it
+    /// holds: one reference for the program and one for the request is what
+    /// two independent lifetimes need, and making the hold take its own is what
+    /// keeps the arithmetic at the one call site that can see both.
+    ///
+    /// # Safety
+    ///
+    /// `value`'s payload must be live, which for a caller holding a reference
+    /// of its own it is.
+    #[expect(
+        unsafe_code,
+        reason = "the payload's liveness is the caller's obligation to state"
+    )]
+    #[must_use]
+    pub unsafe fn holding(value: Value, depth: u32) -> Self {
+        // SAFETY: the caller guarantees the payload is live, which is all
+        // `Value::retain` asks; the reference it adds is this type's, and
+        // `Drop` is where it is given back.
+        unsafe { value.retain() };
+        Self { value, depth }
+    }
+    /// The `maxDepth` the held document was decoded at.
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth
+    }
+    /// A further reference to the held document, for a caller to hand on and
+    /// release itself.
+    ///
+    /// Safe where [`Self::holding`] is not: this value's payload is live for as
+    /// long as the borrow is, which is the invariant that constructor asked its
+    /// own caller for and the only one a retain needs.
+    #[must_use]
+    pub fn retained(&self) -> Value {
+        #[expect(
+            unsafe_code,
+            reason = "this type owns a reference to that payload, so it is live \
+                      for as long as the borrow handing out another is"
+        )]
+        // SAFETY: `Self::holding` took a reference that is still held, so the
+        // allocation cannot have been freed while `&self` stands.
+        unsafe {
+            self.value.retain();
+        }
+        self.value
+    }
+}
+
+impl Drop for HeldValue {
+    /// Gives back the reference [`HeldValue::holding`] took.
+    fn drop(&mut self) {
+        #[expect(
+            unsafe_code,
+            reason = "this type owns exactly the one reference it took, and \
+                      this is the only place it is given back"
+        )]
+        // SAFETY: every other reference to that payload was made by
+        // `HeldValue::retained` and is owned by whoever it was handed to.
+        unsafe {
+            self.value.release();
+        }
     }
 }
 
@@ -434,6 +563,7 @@ impl Inbound {
             scheme: Scheme::Http,
             parts: None,
             held: None,
+            decoded: None,
             claimed_by: None,
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
@@ -754,6 +884,36 @@ impl Inbound {
     #[must_use]
     pub fn held_body(&self) -> Option<&[u8]> {
         self.held.as_deref()
+    }
+    /// Gives this carrier the document `Core\Request::json` decoded, for that
+    /// member's later calls to answer out of — [`Self::decoded`] owns why it is
+    /// a value here where every other hold is bytes.
+    ///
+    /// Called at most once per request: the member fills this only where
+    /// [`Self::decoded_body`] answered `None`, so a call at a depth this one
+    /// was not decoded at decodes again and hands the answer straight back.
+    pub fn hold_decoded_body(&mut self, decoded: HeldValue) {
+        self.decoded = Some(decoded);
+    }
+    /// The document [`Self::hold_decoded_body`] was given, or `None` where
+    /// nothing has decoded one yet.
+    ///
+    /// The depth rides along because the answer is only this one for a call
+    /// asking the same question: [`HeldValue::depth`] is what the caller
+    /// compares its own `maxDepth` against.
+    #[must_use]
+    pub fn decoded_body(&self) -> Option<&HeldValue> {
+        self.decoded.as_ref()
+    }
+    /// Takes the hold back out, for the one caller that has to release it
+    /// before this carrier's fields go down of their own accord.
+    ///
+    /// That caller is [`Ctx`]'s `Drop`, and its body is the home of why: a
+    /// carrier is a *field* of the context, so leaving this to [`HeldValue`]'s
+    /// own `Drop` would give the reference back after the live-list sweep had
+    /// already reached what it points at.
+    pub fn take_decoded_body(&mut self) -> Option<HeldValue> {
+        self.decoded.take()
     }
 
     /// Offers `rule:concurrency/a-connection-is-a-root-isolate`'s upgrade to this request: the slot

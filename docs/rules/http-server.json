@@ -472,7 +472,7 @@
     {
       "id": "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
       "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0156"
       ],
@@ -486,7 +486,8 @@
       ],
       "guardedBy": [
         "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
-        "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst"
+        "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst",
+        "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst"
       ]
     },
     {

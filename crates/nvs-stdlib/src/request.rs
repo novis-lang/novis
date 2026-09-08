@@ -195,7 +195,9 @@
 //! source of an injection: `Core\Request::header` and `::cookie`, which answer
 //! a `tainted string` directly, do carry it.
 
-use nvs_runtime::{BodyNeed, Ctx, Fault, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{
+    BodyNeed, Ctx, Fault, HeldValue, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value,
+};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -2104,10 +2106,28 @@ nvs_runtime::nvs_helper! {
     /// `rule:errors/ambiguous-input-refused` refuses ambiguity, not
     /// mislabelling.
     ///
+    /// **It answers the same document on every call, out of a hold of its
+    /// own.** The octets are shared with every other buffering reader, and the
+    /// decoded value is this member's alone: the first reading leaves it on the
+    /// request ([`nvs_runtime::Inbound::hold_decoded_body`]) and a later call
+    /// asking the same question is handed a reference to it rather than a
+    /// second parse of bytes already in memory. That the value may be shared at
+    /// all is `Core\Json::decode` building nothing but arrays and scalars, and
+    /// an array being copy-on-write — which is exactly what
+    /// [`nvs_core_request_json_as`] cannot say of the objects it builds, and
+    /// why that member holds nothing.
+    ///
+    /// **A call naming a different `maxDepth` is a different question**, so it
+    /// decodes again and leaves the hold as it stands. The cap is the call's
+    /// and never the request's: a `{maxDepth: 2}` call still throws over a
+    /// document a default-depth call already read, and the default-depth
+    /// reading after it still answers.
+    ///
     /// **What it spends:** the body's own bytes for the rest of the request,
-    /// which is [`nvs_core_request_body`]'s hold and shared with it, plus the
-    /// decoded value this call hands back. Both are bounded by
-    /// [`REQUEST_BODY`] and both are O(in-flight).
+    /// which is [`nvs_core_request_body`]'s hold and shared with it, plus one
+    /// decoded document for the rest of the request, held once however many
+    /// times the program asks. Both are bounded by [`REQUEST_BODY`] — the
+    /// second as what those octets can decode to — and both are O(in-flight).
     fn nvs_core_request_json(ctx, args: [1]) {
         // In `body`'s order, and for `body`'s reasons: the request first, so
         // "no request arrived" stays a different fact from what the body says.
@@ -2120,8 +2140,36 @@ nvs_runtime::nvs_helper! {
         // it holds them, so another buffering reader may follow it, and a
         // streaming reader ahead of it is refused.
         claim_body(ctx, "json", BodyNeed::Octets)?;
-        let octets = held_octets(ctx, "json")?;
-        decoded_body(octets, max, "json")
+        // The hold, where this member has already answered at this call's
+        // depth: a reference to a document in memory rather than a second
+        // parse of the octets it came out of. A call naming another cap falls
+        // through and decodes, and finds a hold already here, so what the
+        // request keeps is the first reading and never one per depth tried.
+        let held = inbound_of(ctx, "json")?.decoded_body();
+        let answer = held.and_then(|held| (held.depth() == max).then(|| held.retained()));
+        let first = held.is_none();
+        match answer {
+            Some(document) => Ok(document),
+            None => {
+                let octets = held_octets(ctx, "json")?;
+                let document = decoded_body(octets, max, "json")?;
+                if first {
+                    #[expect(
+                        unsafe_code,
+                        reason = "the hold takes a reference of its own, which \
+                                  is sound only because this call still owns one"
+                    )]
+                    // SAFETY: `decoded_body` handed back a value owning a live
+                    // reference, and it is still owned here — the hold's own
+                    // reference is given back by `Ctx`'s teardown.
+                    let hold = unsafe { HeldValue::holding(document, max) };
+                    ctx.inbound_mut()
+                        .expect("the caller reads the request before it reads the body")
+                        .hold_decoded_body(hold);
+                }
+                Ok(document)
+            }
+        }
     }
 }
 
@@ -5283,6 +5331,50 @@ mod tests {
             "which is where the two members part: the octets are answerable and \
              the document is not"
         );
+    }
+
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
+    /// `json()` row: the member keeps the document it decoded, so a later call
+    /// asking the same question is handed that value rather than a second parse
+    /// of octets nothing has changed.
+    ///
+    /// Asserted on the array's **identity**, because a re-decode answers a
+    /// document that compares equal and is a different allocation — which is
+    /// the whole of what the hold buys and the one thing an equality assertion
+    /// could not see. The depth is asked in the middle for the same reason it
+    /// is part of the hold: the bag is the call's, so a cap this document is
+    /// past is refused with a hold sitting here decoded at another one, and the
+    /// default-depth reading after it still answers out of that hold.
+    #[test]
+    fn json_decodes_the_body_and_the_second_call_answers_the_held_value() {
+        let mut ctx = answering(Some(Chunks::of(&[&b"{\"n\":[1,2]}"[..]])));
+
+        let first = read_json(&mut ctx).expect("the body is one JSON document");
+        let held = first
+            .array_ptr()
+            .expect("a JSON object decodes to an array");
+        let second = read_json(&mut ctx).expect("a second call answers out of the hold");
+        assert_eq!(
+            second.array_ptr(),
+            Some(held),
+            "the second call is handed the document the first one decoded"
+        );
+
+        let deep = nvs_runtime::call(nvs_core_request_json, &mut ctx, &[Value::uint(2)]);
+        assert!(
+            deep.is_err(),
+            "the list under `n` sits at depth 3, so a cap of 2 refuses this document"
+        );
+        let third = read_json(&mut ctx).expect("and the default depth answers as it did");
+        assert_eq!(
+            third.array_ptr(),
+            Some(held),
+            "out of the hold the refused call left alone"
+        );
+
+        dropped(first);
+        dropped(second);
+        dropped(third);
     }
 
     /// The declared `Content-Type` is not consulted, in either direction.

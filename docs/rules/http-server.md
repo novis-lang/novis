@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*9 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -389,7 +389,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 <a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
 
-## A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it  *(designed — not yet in the compiler)*
+## A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it
 
 `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
 

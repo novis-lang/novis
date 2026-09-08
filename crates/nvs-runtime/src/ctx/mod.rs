@@ -1181,6 +1181,15 @@ impl Drop for Ctx {
         // *after* this body: the sweep would otherwise reach an object that is
         // about to be released a second time.
         drop(self.pending.take());
+        // `Core\Request::json`'s decoded document, taken here for that same
+        // reason: the carrier holding it is a field too, so leaving the
+        // reference to `HeldValue`'s own `Drop` would give it back after the
+        // sweep below had already reached what it points at.
+        drop(
+            self.inbound
+                .as_deref_mut()
+                .and_then(Inbound::take_decoded_body),
+        );
         // Last, and only once every root above is gone: what is still on the
         // live list is then exactly the cyclic garbage the refcounts could not
         // free. `rule:security/isolate-teardown-is-a-drain-then-a-sweep` is the decision and `crate::object::sweep` the
