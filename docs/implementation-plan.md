@@ -108,7 +108,7 @@ somebody has already followed.
 | goal 1 | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | goals 12, 14, 15 | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | goal 2 | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
-| goal 3 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
+| goals 3, 36 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | goals 6, 16, 18, 19, 23, 32 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
 | goals 4, 5, 17, 20, 24, 25, 26, 29, 31 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |

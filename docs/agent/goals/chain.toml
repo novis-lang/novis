@@ -454,9 +454,15 @@ handoff = "docs/agent/goals/35-editor-surfaces.handoff.md"
 milestone = "M10"
 preflight = "docker"
 
-# TODO: why this goal sits here rather than anywhere else on the chain. The order is a dependency
-# chain, not a preference, and this comment is the only home of the reason -- goal 36 (The memory
-# ceiling stops a single operation).
+# The chain's first correctness item since goal 21, and it sits ahead of the dossier because a
+# proof written over an unenforced ceiling proves the wrong thing. M6 reported `[limits] memory`
+# done on a ladder that is correct once something notices a breach -- and nothing notices one in a
+# program that calls no member, so the acceptance line *memory/CPU caps terminate runaway scripts
+# as a FATAL* has never held for a loop over runtime primitives. It is placed after the editor
+# goals rather than before them because it is priority 1 against their priority 4: a runaway
+# request ends at `handle_alloc_error`, which aborts the worker and every other request on it, and
+# that is request isolation rather than fairness. Its keystone was measured before the goal was
+# written, so what is left is publication and refusal rather than a design search.
 [[goal]]
 name = "36 memory-ceiling"
 md = "docs/agent/goals/36-memory-ceiling.md"
