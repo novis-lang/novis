@@ -454,6 +454,17 @@ handoff = "docs/agent/goals/35-editor-surfaces.handoff.md"
 milestone = "M10"
 preflight = "docker"
 
+# TODO: why this goal sits here rather than anywhere else on the chain. The order is a dependency
+# chain, not a preference, and this comment is the only home of the reason -- goal 36 (The memory
+# ceiling stops a single operation).
+[[goal]]
+name = "36 memory-ceiling"
+md = "docs/agent/goals/36-memory-ceiling.md"
+toml = "docs/agent/goals/36-memory-ceiling.toml"
+handoff = "docs/agent/goals/36-memory-ceiling.handoff.md"
+milestone = "M6"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and

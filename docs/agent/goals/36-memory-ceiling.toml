@@ -1,0 +1,108 @@
+# Goal 36 -- The memory ceiling stops a single operation
+# The acceptance test, as data.
+#
+# `36-memory-ceiling.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # TODO: every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the
+  # previous goal's list into this one, so starting empty is fine -- but the key must exist.
+]
+
+[context]
+
+modules = [
+  # TODO: six to fifteen paths, each with the one line saying why a session opens it. This list is
+  # the session's whole read budget; loop-authoring.md section 2 is how it is chosen.
+]
+
+# TODO: the two or three RULE IDS -- `topic/slug`, not an ADR number -- that every stage of this
+# goal works inside. A rule id prints the fragment, which is the rule; a record number prints its
+# rules' titles, which is a pointer to them. Name a record here only for the surrounding map, and
+# put the rules a single stage is written against in that stage's own table below.
+rules = []
+
+# TODO: usually empty. An ADR section argues one stage's design, so it belongs in that stage's
+# table below -- naming it here prints it to every session of every stage.
+adrs = []
+
+# TODO: the conventions.md shapes this goal writes -- the ones EVERY stage writes.
+shapes = ["A commit message"]
+
+# TODO: the milestone this goal builds inside, as "M8:verify" for its acceptance paragraph alone.
+milestones = []
+
+playbook = [
+  # This goal's own file set.
+  "Tooling > editors/vscode/package.json's contributes",
+  'Tooling > tools/verify.py runs',
+  'Tooling > a textmate',
+  'Writing a test case > a -p nvs-cli test',
+  'Writing a test case > a test that asserts',
+  'Tooling > a cargo-named acceptance',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `36-memory-ceiling.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 TODO"` labels, which may group several prose stages under one
+# acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# TODO: the rule ids stage 2 is written against, and the ADR sections that argue it.
+rules = []
+adrs = []
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# TODO: why this goal preflights a daemon -- its own checks, its floor's, or
+# both. The driver stops the run before the first session when it is absent.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+# TODO: one [[check]] per stage, named for what it proves rather than what it runs. Delete this one
+# if the first thing this goal proves is a fixture rather than a unit test.
+[[check]]
+kind = "cargo-named"
+stage = "2 TODO"
+name = "TODO"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+]
