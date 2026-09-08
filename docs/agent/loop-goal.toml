@@ -120,6 +120,9 @@ modules = [
   # store issues, the record it keeps under it, and the two directives that decide where that
   # store is and how long a record survives.
   "crates/nvs-stdlib/src/session.rs",
+  # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
+  # settings, and the two members that need no connection at all.
+  "crates/nvs-stdlib/src/db/open.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
