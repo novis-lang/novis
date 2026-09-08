@@ -259,8 +259,29 @@ const LOCAL_TIER: &str = "local";
 const SHARED_TIER: &str = "shared";
 
 /// `[cache.shared] url` — which store the coherent tier is, as
-/// `redis://host[:port]`. Absent, there is no shared tier and `shared()` says so.
+/// `redis://host[:port]` or `unix:/path/to.sock`. Absent, there is no shared tier
+/// and `shared()` says so.
 const URL: &str = "cache.shared.url";
+
+/// The scheme [`socket`]'s spelling of [`URL`] carries, from the crate that owns
+/// the key — `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` names
+/// the transport and no protocol, because the block speaks RESP and nothing else.
+///
+/// An alias and not a second copy of the string: `[cache.shared]`'s vocabulary is
+/// `nvs_config`'s, and this module is what reads a value written in it.
+const UNIX: &str = nvs_config::store::UNIX_SCHEME;
+
+/// The spellings of [`URL`] this client reads, named by every refusal.
+///
+/// The `unix:` half only where there is a transport for it: naming a spelling
+/// this build refuses would be advice the operator taking it lands back here
+/// with.
+#[cfg(unix)]
+const READS: &str = "`redis://host[:port]` or `unix:/path/to.sock`";
+
+/// [`READS`] on a build with no Unix-domain transport.
+#[cfg(not(unix))]
+const READS: &str = "`redis://host[:port]`";
 
 /// `[cache.shared] timeout` — the bound on a handshake and on a command, each.
 const TIMEOUT: &str = "cache.shared.timeout";
@@ -600,8 +621,7 @@ fn timeout_of(ctx: &Ctx) -> Duration {
         .unwrap_or(DEFAULT_TIMEOUT)
 }
 
-/// `[cache.shared] url` split into the host the grant is asked about and the
-/// port the connection is made to.
+/// `[cache.shared] url` read into the place this core's connection goes.
 ///
 /// # Errors
 ///
@@ -610,13 +630,16 @@ fn timeout_of(ctx: &Ctx) -> Duration {
 /// three is refused rather than ignored: a `rediss://` treated as `redis://`
 /// would be a plaintext connection wearing a TLS spelling, and a database index
 /// dropped on the floor would put the entries somewhere the operator did not
-/// ask for.
-fn endpoint(url: &str, member: &str) -> Result<(String, u16), Fault> {
+/// ask for. Plus everything [`socket`] refuses, for the second spelling.
+fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     let refuse = |why: &str| {
         Fault::thrown(format!(
-            "{member}: `{URL}` is `{url}`, and {why} — this client reads `redis://host[:port]`"
+            "{member}: `{URL}` is `{url}`, and {why} — this client reads {READS}"
         ))
     };
+    if let Some(path) = url.strip_prefix(UNIX) {
+        return socket(path).map_err(refuse);
+    }
     let Some(authority) = url.strip_prefix("redis://") else {
         return Err(refuse(
             "that is not a scheme it speaks; a `rediss://` store is refused rather than \
@@ -632,7 +655,7 @@ fn endpoint(url: &str, member: &str) -> Result<(String, u16), Fault> {
     }
     // An IPv6 literal is written `[::1]` and carries colons of its own, so the
     // last one is a port separator only when nothing after it belongs to the
-    // address. `pin_host` takes the brackets off itself.
+    // address. `resolve_host` takes the brackets off itself.
     let (host, port) = match authority.rsplit_once(':') {
         Some((head, tail)) if !tail.contains(']') => {
             let port = tail
@@ -645,25 +668,113 @@ fn endpoint(url: &str, member: &str) -> Result<(String, u16), Fault> {
     if host.is_empty() {
         return Err(refuse("it names no host"));
     }
-    Ok((host.to_owned(), port))
+    // Resolved and not pinned: `rule:config/cache-shared-is-the-grant-over-the-configured-store` is
+    // that the endpoint an operator wrote carries the authority that granted the capability, so
+    // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
+    // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
+    let address = nvs_runtime::capability::resolve_host(host, member)?;
+    Ok(Target::Tcp(SocketAddr::new(address, port)))
 }
 
-/// Makes this core's connection the one to `address`, and dials it.
+/// The `unix:` spelling's target, on a build whose reactor carries `AF_UNIX`.
 ///
-/// A connection already open to that same address is kept — the ordinary case,
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` is the scheme,
+/// and the path after it must be absolute for the reason a bare path in a key
+/// called `url` is refused outright: a socket named against a working directory
+/// this process promises nothing about is a store two readers cannot point at
+/// twice.
+///
+/// # Errors
+///
+/// The clause [`endpoint`]'s refusal appends, for a `unix:` with nothing after
+/// it or with a relative path.
+#[cfg(unix)]
+fn socket(path: &str) -> Result<Target, &'static str> {
+    if path.is_empty() {
+        return Err("it names no socket after the scheme");
+    }
+    if !path.starts_with('/') {
+        return Err("a socket is named by an absolute path and this one is relative");
+    }
+    Ok(Target::Socket(std::path::PathBuf::from(path)))
+}
+
+/// The same arm on a build with no Unix-domain transport, where the answer is a
+/// refusal.
+///
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` puts
+/// this refusal at boot, where `E0627` names the key an operator wrote; this is
+/// the same answer at the door, for a snapshot that reached one anyway.
+///
+/// # Errors
+///
+/// Always. There is nothing here a socket could be dialled with, and reading the
+/// spelling as loopback TCP instead is the thing that rule refuses.
+#[cfg(not(unix))]
+fn socket(_path: &str) -> Result<Target, &'static str> {
+    Err(
+        "this build carries no Unix-domain transport, so there is nothing to dial a socket \
+         with — and reading it as loopback TCP is refused for the reason `rediss://` is",
+    )
+}
+
+/// Where this core's connection to the shared store goes.
+///
+/// The key [`open_shared`] compares to decide reuse-or-replace, which is what a
+/// reloaded configuration looks like from there. It widened from a
+/// [`SocketAddr`] because
+/// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s second
+/// spelling has no address for one to hold, and it lives here rather than beside
+/// the wire for the split [`redis`]'s module doc states: this module decides
+/// *which* store is reached, and that one speaks to it.
+///
+/// The socket half is `#[cfg(unix)]` rather than a variant that refuses when it
+/// is dialled, so a build with no `AF_UNIX` transport cannot hold a path to dial
+/// at all — the platform half of
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`, made
+/// impossible by the type instead of caught by a check.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Target {
+    /// A `redis://host[:port]`, resolved to the one address the connection is
+    /// made to, carrying the URL's port or [`redis::DEFAULT_PORT`].
+    Tcp(SocketAddr),
+    /// A `unix:/path`, exactly as an operator wrote it: there is nothing to
+    /// resolve, and
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
+    /// is why no program can name one.
+    #[cfg(unix)]
+    Socket(std::path::PathBuf),
+}
+
+impl std::fmt::Display for Target {
+    /// What a failure names the store as, which is the spelling an operator
+    /// wrote rather than a description of it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tcp(address) => write!(f, "{address}"),
+            #[cfg(unix)]
+            Self::Socket(path) => write!(f, "{}", path.display()),
+        }
+    }
+}
+
+/// Makes this core's connection the one to `target`, and dials it.
+///
+/// A connection already open to that same target is kept — the ordinary case,
 /// since every request on this core asks for the same configured store. One to a
-/// *different* address is replaced, which is what a reloaded configuration looks
-/// like from here.
+/// *different* target is replaced, which is what a reloaded configuration looks
+/// like from here, and it is the whole reason [`Target`] carries the address or
+/// the path rather than only what one of the two transports can say.
 ///
 /// # Errors
 ///
 /// A thrown `IOError` for a store that cannot be reached, which is the second
 /// half of [`SHARED_DOC`]'s card: an unreachable store throws at the door rather
 /// than answering a handle whose every operation would fail.
-fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(), Fault> {
+fn open_shared(target: Target, timeout: Duration, member: &str) -> Result<(), Fault> {
     SHARED.with_borrow_mut(|held| {
-        if held.as_ref().is_none_or(|open| open.address() != address) {
-            *held = Some(redis::Connection::new(address, timeout));
+        if held.as_ref().is_none_or(|open| open.target() != &target) {
+            *held = Some(redis::Connection::new(target, timeout));
         }
         held.as_mut()
             .expect("the connection was just written")
@@ -674,8 +785,8 @@ fn open_shared(address: SocketAddr, timeout: Duration, member: &str) -> Result<(
 
 /// Opens this core's connection to the configured shared store — the **door**,
 /// as the module doc's third decision defines one: the directive is read here,
-/// the grant is asked for here, the host is pinned here, and the connection is
-/// made to the address the grant approved.
+/// the grant is asked for here, the URL becomes a [`Target`] here, and the
+/// connection is made to that and to nothing the store answers with later.
 ///
 /// `remedy` is the clause a caller appends to the unconfigured refusal, because
 /// what to do instead is the caller's own contract: `Core\Cache::shared()` can
@@ -702,13 +813,7 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
     // question is put beside the effect it authorizes.
     nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
 
-    let (host, port) = endpoint(&url, member)?;
-    // Resolved and not pinned: `rule:config/cache-shared-is-the-grant-over-the-configured-store` is
-    // that the endpoint an operator wrote carries the authority that granted the capability, so
-    // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
-    // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
-    let address = nvs_runtime::capability::resolve_host(&host, member)?;
-    open_shared(SocketAddr::new(address, port), timeout_of(ctx), member)
+    open_shared(endpoint(&url, member)?, timeout_of(ctx), member)
 }
 
 /// One command on this core's connection to the shared store, for `owner`'s
@@ -881,7 +986,7 @@ mod tests {
 
     use super::{
         CLASS, Ctx, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC, LOCAL_DOC, MAX_SIZE,
-        SHARED_DOC, Value, local_cap, open_configured, store_get, store_put,
+        SHARED_DOC, Value, endpoint, local_cap, open_configured, store_get, store_put,
     };
 
     /// The member a store's door names in a refusal, and what a case here is
@@ -1287,5 +1392,49 @@ mod tests {
             "and the two per-core halves ask nothing, for the reason the rows state"
         );
         assert_eq!(asked(super::NAME, "local"), None);
+    }
+
+    /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s scheme at
+    /// the door, and
+    /// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`'s
+    /// answer on the platform that has none: one `url` is a socket target where
+    /// the reactor carries `AF_UNIX` and a refusal where it does not.
+    ///
+    /// Both sides are here for `nvs_config::store::validate`'s reason one layer
+    /// up — a case written for one of them passes against a door that answers
+    /// that way everywhere — and what the refusing side is really asserting is
+    /// that the spelling never quietly becomes loopback TCP, which is the
+    /// failure the rule exists to prevent and the only one review cannot see.
+    #[test]
+    fn a_unix_url_is_refused_where_the_platform_has_no_transport() {
+        let read = endpoint("unix:/run/redis.sock", MEMBER);
+
+        #[cfg(unix)]
+        {
+            assert_eq!(
+                read.expect("a socket is an ordinary store where there is a transport for one"),
+                super::Target::Socket(std::path::PathBuf::from("/run/redis.sock")),
+                "the path is taken as written: there is nothing here to resolve"
+            );
+            // And it is a *path*, so the two spellings that are not one are
+            // refused rather than read against a working directory this process
+            // promises nothing about.
+            assert!(endpoint("unix:redis.sock", MEMBER).is_err());
+            assert!(endpoint("unix:", MEMBER).is_err());
+        }
+
+        #[cfg(not(unix))]
+        {
+            let Fault::Thrown(class, message) =
+                read.expect_err("a socket with no transport under it is refused at the door")
+            else {
+                panic!("a store this build cannot reach is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            assert!(
+                message.contains("no Unix-domain transport") && message.contains("redis://"),
+                "the refusal says what is missing and what to write instead: {message}"
+            );
+        }
     }
 }

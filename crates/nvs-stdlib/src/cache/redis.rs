@@ -2,14 +2,20 @@
 //! commands `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s operations become, and the one `EVAL` `rule:core-classes/ratelimit-two-members`'s
 //! limiter needs.
 //!
-//! [`super`] owns the *policy* — which store is configured, which address the
-//! capability approved it at, and what an entry's bytes are. What is here is
+//! [`super`] owns the *policy* — which store is configured, where the grant
+//! approved reaching it, and what an entry's bytes are. What is here is
 //! the part that talks, and the split is the one
 //! [`crate::http::transport`](../http/transport/index.html) already makes for the
-//! same reason: this module takes a [`SocketAddr`] rather than a `Ctx`, so
+//! same reason: this module takes a [`Target`] rather than a `Ctx`, so
 //! nothing here can widen a decision the door already made and a test can drive
 //! a whole exchange against a listener on loopback with no capability snapshot
 //! in front of it.
+//!
+//! **Which transport that target names is the only thing this file reads off
+//! it.** A store over TCP and a store over a Unix-domain socket speak the same
+//! RESP down the same parking stream, so [`Transport`] is where the two part
+//! company and every line after it is written once — the whole of what
+//! `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` costs the wire.
 //!
 //! # Two commands, hand-written, and no client library
 //!
@@ -60,10 +66,13 @@
 //! O(cores) and deliberately not O(requests served).
 
 use std::io::{Read, Write};
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use nvs_host::net::NvsTcp;
+#[cfg(unix)]
+use nvs_host::net::NvsUnix;
+
+use super::Target;
 
 /// The port a `redis://host` with no `:port` on it names.
 pub(super) const DEFAULT_PORT: u16 = 6379;
@@ -88,33 +97,36 @@ const ELEMENT_CEILING: i64 = 64;
 
 /// One core's connection to the shared store.
 ///
-/// The address is the one [`super`]'s door pinned and is never re-resolved
-/// here — `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
+/// The target is the one [`super`]'s door read out of the configuration and is
+/// never resolved again here —
+/// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 /// rule that every attempt of one approval reuses the approved address, which is
-/// what closes the window a second DNS answer would open.
+/// what closes the window a second DNS answer would open. A socket target has no
+/// address and so nothing to re-resolve, which is the same property arrived at
+/// for free.
 pub(crate) struct Connection {
     /// Where the store was approved to be reached.
-    address: SocketAddr,
+    target: Target,
     /// Every wait's bound: the handshake's, and each command's.
     timeout: Duration,
     /// Absent before the first dial and after a failed command.
-    stream: Option<NvsTcp>,
+    stream: Option<Transport>,
 }
 
 impl Connection {
-    /// A connection to `address`, not yet dialled.
-    pub(crate) const fn new(address: SocketAddr, timeout: Duration) -> Self {
+    /// A connection to `target`, not yet dialled.
+    pub(crate) const fn new(target: Target, timeout: Duration) -> Self {
         Self {
-            address,
+            target,
             timeout,
             stream: None,
         }
     }
 
-    /// Where this one was pinned — what [`super`] compares a later approval
+    /// Where this one goes — what [`super`] compares a later approval
     /// against before reusing it.
-    pub(crate) const fn address(&self) -> SocketAddr {
-        self.address
+    pub(crate) const fn target(&self) -> &Target {
+        &self.target
     }
 
     /// Dials, unless this connection already holds a stream.
@@ -127,8 +139,8 @@ impl Connection {
         if self.stream.is_some() {
             return Ok(());
         }
-        let stream = NvsTcp::connect_timeout(self.address, self.timeout)
-            .map_err(|err| format!("connecting to {} failed: {err}", self.address))?;
+        let stream = Transport::dial(&self.target, self.timeout)
+            .map_err(|err| format!("connecting to {} failed: {err}", self.target))?;
         self.stream = Some(stream);
         Ok(())
     }
@@ -279,11 +291,11 @@ impl Connection {
     /// stream has no way back. Each carries whether the request had already left
     /// this process, which is what [`Connection::command`] replays on.
     fn exchange(&mut self, request: &[u8]) -> Result<Reply, Failure> {
-        let address = self.address;
+        let target = &self.target;
         let deadline = Instant::now() + self.timeout;
         let stream = self.stream.as_mut().ok_or_else(|| Failure {
             sent: false,
-            why: format!("no connection to {address} to send on"),
+            why: format!("no connection to {target} to send on"),
         })?;
         stream.set_deadline(Some(deadline));
         stream
@@ -291,16 +303,91 @@ impl Connection {
             .and_then(|()| stream.flush())
             .map_err(|err| Failure {
                 sent: false,
-                why: format!("sending to {address} failed: {err}"),
+                why: format!("sending to {target} failed: {err}"),
             })?;
         Wire {
             stream,
-            address,
+            target,
             buf: Vec::new(),
             at: 0,
         }
         .reply()
         .map_err(|why| Failure { sent: true, why })
+    }
+}
+
+/// The two transports one store may be reached over, behind the three
+/// operations everything above this line uses: a deadline, a write and a read.
+///
+/// An enum rather than a type parameter on [`Connection`], because which
+/// transport a deployment configured is not something any caller knows at compile
+/// time — [`Target`] is read out of `nvs.toml` — and a generic would push that
+/// choice through every one of [`super`]'s signatures to buy nothing here: the
+/// bytes are the same bytes either way.
+///
+/// The Unix arm is `#[cfg(unix)]` and [`Target::Socket`] is too, so this match is
+/// exhaustive on both platforms with no arm that exists only to refuse.
+enum Transport {
+    /// A store that named a host, reached over TCP.
+    Tcp(NvsTcp),
+    /// A store that named a path, reached over a Unix-domain socket.
+    #[cfg(unix)]
+    Unix(NvsUnix),
+}
+
+impl Transport {
+    /// Dials `target`, bounded by `timeout` as the TCP half always was.
+    ///
+    /// # Errors
+    ///
+    /// The platform's connect failure — including `TimedOut`, which a local
+    /// connect reaches only through a listener whose backlog is full.
+    fn dial(target: &Target, timeout: Duration) -> std::io::Result<Self> {
+        match target {
+            Target::Tcp(address) => NvsTcp::connect_timeout(*address, timeout).map(Self::Tcp),
+            #[cfg(unix)]
+            Target::Socket(path) => NvsUnix::connect_timeout(path, timeout).map(Self::Unix),
+        }
+    }
+
+    /// Ends every wait on this connection by `at`.
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tcp(stream) => stream.set_deadline(at),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.set_deadline(at),
+        }
+    }
+}
+
+impl Read for Transport {
+    /// Whatever has arrived, from whichever socket this is.
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.read(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for Transport {
+    /// As much of `buf` as the socket took.
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.write(buf),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.write(buf),
+        }
+    }
+
+    /// Pushes what is held, which for both of these is nothing the stream keeps.
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.flush(),
+            #[cfg(unix)]
+            Self::Unix(stream) => stream.flush(),
+        }
     }
 }
 
@@ -365,10 +452,10 @@ impl Reply {
 /// been consumed.
 struct Wire<'a> {
     /// The stream the rest of the reply is still coming down.
-    stream: &'a mut NvsTcp,
+    stream: &'a mut Transport,
     /// Named by every failure, since a reply that will not frame is a fact
     /// about the peer.
-    address: SocketAddr,
+    target: &'a Target,
     /// Everything read so far, which for one command is at most one reply.
     buf: Vec<u8>,
     /// How much of [`Wire::buf`] the parse has taken.
@@ -402,12 +489,12 @@ impl Wire<'_> {
             ":" => rest
                 .parse()
                 .map(Reply::Number)
-                .map_err(|_| format!("{} sent an integer that is not one: {rest}", self.address)),
+                .map_err(|_| format!("{} sent an integer that is not one: {rest}", self.target)),
             "*" => {
                 let count: i64 = rest.parse().map_err(|_| {
                     format!(
                         "{} sent an array length that is not a number: {rest}",
-                        self.address
+                        self.target
                     )
                 })?;
                 if count < 0 {
@@ -416,7 +503,7 @@ impl Wire<'_> {
                 if count > ELEMENT_CEILING {
                     return Err(format!(
                         "{} answered {count} elements, past this client's {ELEMENT_CEILING}",
-                        self.address
+                        self.target
                     ));
                 }
                 let mut numbers = Vec::new();
@@ -432,7 +519,7 @@ impl Wire<'_> {
                 let len: i64 = rest.parse().map_err(|_| {
                     format!(
                         "{} sent a bulk length that is not a number: {rest}",
-                        self.address
+                        self.target
                     )
                 })?;
                 if len < 0 {
@@ -442,14 +529,14 @@ impl Wire<'_> {
                 if len > REPLY_CEILING {
                     return Err(format!(
                         "{} answered {len} bytes, past this client's {REPLY_CEILING}-byte ceiling",
-                        self.address
+                        self.target
                     ));
                 }
                 Ok(Reply::Bulk(self.exact(len)?))
             }
             _ => Err(format!(
                 "{} sent a reply this client does not read: {head}",
-                self.address
+                self.target
             )),
         }
     }
@@ -465,17 +552,17 @@ impl Wire<'_> {
         let read = self
             .stream
             .read(&mut chunk)
-            .map_err(|err| format!("reading from {} failed: {err}", self.address))?;
+            .map_err(|err| format!("reading from {} failed: {err}", self.target))?;
         if read == 0 {
             return Err(format!(
                 "{} closed the connection part-way through a reply",
-                self.address
+                self.target
             ));
         }
         if self.buf.len() + read > REPLY_CEILING {
             return Err(format!(
                 "{} sent more than this client's {REPLY_CEILING}-byte reply ceiling",
-                self.address
+                self.target
             ));
         }
         self.buf.extend_from_slice(&chunk[..read]);
@@ -497,7 +584,7 @@ impl Wire<'_> {
                 let start = self.at;
                 self.at = start + offset + 2;
                 return String::from_utf8(self.buf[start..start + offset].to_vec())
-                    .map_err(|_| format!("{} sent a reply line that is not text", self.address));
+                    .map_err(|_| format!("{} sent a reply line that is not text", self.target));
             }
             self.fill()?;
         }
@@ -519,7 +606,7 @@ impl Wire<'_> {
         if &self.buf[start + len..self.at] != b"\r\n" {
             return Err(format!(
                 "{} sent a bulk reply that does not end where its length says",
-                self.address
+                self.target
             ));
         }
         Ok(self.buf[start..start + len].to_vec())
@@ -547,11 +634,11 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::time::Duration;
 
-    use super::Connection;
+    use super::{Connection, Target};
 
     /// A listener on loopback and the address it took — the shape
     /// `crate::http::transport`'s own cases use, and the reason this module
-    /// takes an address rather than a `Ctx`.
+    /// takes a target rather than a `Ctx`.
     fn listening() -> (TcpListener, SocketAddr) {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a loopback port");
         let address = listener.local_addr().expect("the port it took");
@@ -584,7 +671,7 @@ mod tests {
             (set, get)
         });
 
-        let mut connection = Connection::new(address, Duration::from_secs(5));
+        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
         connection
             .set(b"k", b"hi")
@@ -614,7 +701,7 @@ mod tests {
                 .expect("the refusal");
         });
 
-        let mut connection = Connection::new(address, Duration::from_secs(5));
+        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
         assert_eq!(connection.get(b"k").expect("absence is an answer"), None);
 

@@ -1136,7 +1136,7 @@ mod tests {
         write_back,
     };
     use crate::cache::redis::Connection;
-    use crate::cache::{store_get, store_put};
+    use crate::cache::{Target, store_get, store_put};
 
     /// The record two cores exchange, and the id it lives under.
     const ID: &str = "PmA5tKz1QvR3sYbN";
@@ -1243,7 +1243,7 @@ mod tests {
         let store = Arc::clone(&held);
         thread::spawn(move || serving(listener, store));
 
-        let mut open = Connection::new(address, Duration::from_secs(5));
+        let mut open = Connection::new(Target::Tcp(address), Duration::from_secs(5));
         save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record reaches the configured store");
 
         assert_eq!(
@@ -1273,7 +1273,7 @@ mod tests {
         thread::spawn(move || serving(listener, held));
 
         let wrote = thread::spawn(move || {
-            let mut open = Connection::new(address, Duration::from_secs(5));
+            let mut open = Connection::new(Target::Tcp(address), Duration::from_secs(5));
             save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
             store_put(&key_of(ID), RECORD.to_vec(), None);
             assert_eq!(store_get(&key_of(ID)), Some(RECORD.to_vec()));
@@ -1281,7 +1281,7 @@ mod tests {
         wrote.join().expect("the first core");
 
         let read = thread::spawn(move || {
-            let mut open = Connection::new(address, Duration::from_secs(5));
+            let mut open = Connection::new(Target::Tcp(address), Duration::from_secs(5));
             (
                 load(&mut open, ID).expect("the store answers"),
                 store_get(&key_of(ID)),
@@ -1443,7 +1443,7 @@ mod tests {
         thread::spawn(move || serving(listener, held));
 
         let answered = thread::spawn(move || {
-            let mut open = Connection::new(address, Duration::from_secs(5));
+            let mut open = Connection::new(Target::Tcp(address), Duration::from_secs(5));
             save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
             let before = load(&mut open, ID).expect("the store answers");
             destroy(&mut open, ID).expect("the record is forgotten");
