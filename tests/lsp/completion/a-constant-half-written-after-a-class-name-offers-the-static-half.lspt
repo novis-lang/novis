@@ -1,0 +1,20 @@
+--TEST--
+a class constant still being written is an access like any other, so the cursor in its member half is offered the whole static half of the class rather than the constants alone, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Config
+{
+    public const int MAX = 10;
+
+    public static function of(): int
+    {
+        return 1;
+    }
+}
+
+echo Config::MA<|>X;
+--REQUEST--
+completion
+--EXPECT--
+MAX     constant  int
+of      method    (): int

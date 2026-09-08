@@ -134,7 +134,10 @@
 //! it is in an access before it asks what half of one. The fifth is the
 //! parameter list and the return type of a method, which are inside its own
 //! node and no statement's, so a cursor there is answered as the body it
-//! precedes rather than as the type position it is.
+//! precedes rather than as the type position it is. The sixth is the inside of
+//! a string literal, answered as the position around it: the variables are
+//! what an interpolation slot takes and are right, and the words that open a
+//! statement sit beside them as noise no filter here removes.
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nvs_diagnostics::{BytePos, SourceFile, Span};

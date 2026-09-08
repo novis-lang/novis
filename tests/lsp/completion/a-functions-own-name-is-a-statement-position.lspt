@@ -1,0 +1,13 @@
+--TEST--
+a free function is a declaration the language refuses and the grammar still parses, and a cursor in its own name is answered as a position, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+function hel<|>per(): int
+{
+    return 1;
+}
+--REQUEST--
+completion prefix=r
+--EXPECT--
+require keyword
+return  keyword

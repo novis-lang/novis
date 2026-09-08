@@ -1,0 +1,12 @@
+--TEST--
+a member the grammar refused is still a node the cursor lands in, and it is answered as the position it is rather than as the class body around it, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User
+{
+    va<|>r $total = 1;
+}
+--REQUEST--
+completion prefix=v
+--EXPECT--
+var     keyword

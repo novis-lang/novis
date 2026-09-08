@@ -1,0 +1,13 @@
+--TEST--
+a case's own declaration is the enum's value half rather than a body, so it offers nothing where the body around it offers `case`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+--REQUEST--
+completion
+--EXPECT--
+none

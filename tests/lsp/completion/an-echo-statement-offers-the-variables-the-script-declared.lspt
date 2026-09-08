@@ -1,0 +1,10 @@
+--TEST--
+a cursor on the `echo` keyword is in the statement and in none of its arguments, which is a position, and the script frame's own locals are in scope there, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+var $total = 3;
+ech<|>o $total;
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$total  variable  int

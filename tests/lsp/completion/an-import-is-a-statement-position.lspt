@@ -1,0 +1,12 @@
+--TEST--
+an import is a name the resolver applies rather than a body, so the cursor in one is offered the words that open a statement, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+completion prefix=a
+--EXPECT--
+abstract keyword
+autoload keyword

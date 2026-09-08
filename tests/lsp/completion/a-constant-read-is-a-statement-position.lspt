@@ -1,0 +1,12 @@
+--TEST--
+a bare constant read is no access, so the cursor inside one is offered what may be written where the statement it is in goes, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+const LIMIT = 10;
+echo LI<|>MIT;
+--REQUEST--
+completion prefix=e
+--EXPECT--
+echo    keyword
+empty   keyword
+enum    keyword

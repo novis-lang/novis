@@ -1,0 +1,22 @@
+--TEST--
+an interface's body takes the members a class's does, so it offers that one list of words and no variable, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Greets
+{
+    <|>
+    public function greet(): string;
+}
+--REQUEST--
+completion
+--EXPECT--
+abstract keyword
+const   keyword
+final   keyword
+function keyword
+lateinit keyword
+private keyword
+protected keyword
+public  keyword
+readonly keyword
+static  keyword

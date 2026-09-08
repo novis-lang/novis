@@ -1,0 +1,17 @@
+--TEST--
+a static property access reaches the static half of the class the checker recorded for it, which is the only way `self::` names one at all, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+$count  property  int
