@@ -3224,6 +3224,29 @@ pub mod code {
     /// against.
     pub const E_CALLABLE_CALL_ARITY: Code = Code::new("E0809");
 
+    /// `Core\Request::jsonAs<T>()` over a `T` holding a `string` or `bytes`
+    /// property that is not written `tainted` —
+    /// `rule:security/derived-codec-qualifiers`.
+    ///
+    /// A derived codec assigns a peer's octets straight into the declared
+    /// property types, so the qualifier a field declares has to be the one the
+    /// payload carries. The codec cannot ask that question: it is derived from
+    /// a class that says nothing about where its documents come from, and the
+    /// same class is legitimate over one the program built itself. The call
+    /// that decodes is where the qualifier is statically known, so that is
+    /// where it is asked.
+    ///
+    /// The message names the **property**, not the call, because writing
+    /// `tainted` on that property is the whole fix and the site has nothing to
+    /// change. Only `string` and `bytes` carry a qualifier
+    /// (`rule:security/tainted-qualifier`), so a `T` of integers, decimals,
+    /// enums or instants never reaches this.
+    ///
+    /// It is `jsonAs`'s alone rather than every decoder's: `Core\Json::decodeAs`
+    /// takes its document through a plain `string` parameter, so a tainted
+    /// argument is already refused where it is passed.
+    pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
