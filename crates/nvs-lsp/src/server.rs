@@ -35,19 +35,21 @@ use lsp_types::notification::{
     PublishDiagnostics,
 };
 use lsp_types::request::{
-    Completion, DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
-    HoverRequest, Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
+    CodeActionRequest, Completion, DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest,
+    GotoDefinition, HoverRequest, Request as _, SelectionRangeRequest, SemanticTokensFullRequest,
 };
 use lsp_types::{
-    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CompletionParams,
+    CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentLink, DocumentLinkParams, DocumentSymbolParams,
     DocumentSymbolResponse, FoldingRange, FoldingRangeParams, GotoDefinitionParams,
     GotoDefinitionResponse, HoverParams, InitializeParams, Location, PublishDiagnosticsParams,
     Range, SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, TextDocumentIdentifier, Uri,
+    SemanticTokensResult, TextDocumentIdentifier, TextEdit, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::PositionEncoding;
 
+use crate::actions;
 use crate::capabilities::initialize_result;
 use crate::completion;
 use crate::definition;
@@ -212,6 +214,10 @@ fn answer(documents: &Documents, encoding: PositionEncoding, request: Request) -
                 id,
                 document_link(documents, encoding, &params.text_document.uri),
             ),
+            Err(error) => unreadable(id, &method, &error),
+        },
+        CodeActionRequest::METHOD => match serde_json::from_value::<CodeActionParams>(params) {
+            Ok(params) => Response::new_ok(id, code_actions(documents, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
@@ -437,6 +443,59 @@ fn document_link(
                 target: Some(uri_of(&link.target)?),
                 tooltip: None,
                 data: None,
+            })
+        })
+        .collect()
+}
+
+/// `textDocument/codeAction` — the fixes offered over the range asked about.
+///
+/// Every one is a `Suggestion` a diagnostic already carried, translated by
+/// [`actions::at`], which the `.lspt` suite calls too — so a light bulb and a
+/// frozen case offer the same fix
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+///
+/// The edit crosses as a [`WorkspaceEdit`] naming this document alone: one
+/// `Suggestion` is one span in one file, and the file is the one the client
+/// asked about. `diagnostics` is left unset — the client is holding the
+/// published diagnostic already, and re-deriving the wire value here would be a
+/// second place the same range is computed.
+///
+/// An empty list rather than `null` for a document nothing is open for, on
+/// [`document_symbol`]'s terms.
+fn code_actions(
+    documents: &Documents,
+    encoding: PositionEncoding,
+    params: &CodeActionParams,
+) -> Vec<CodeActionOrCommand> {
+    let Some(analysed) = analyse(documents, &params.text_document.uri) else {
+        return Vec::new();
+    };
+    let file = analysed.map.file(analysed.entry);
+    let start = offset_at(file, params.range.start, encoding);
+    let end = offset_at(file, params.range.end, encoding);
+    let kind = actions::Kind::asked_for(params.context.only.as_deref());
+    actions::at(&analysed, start, end, kind, encoding)
+        .into_iter()
+        .map(|action| {
+            CodeActionOrCommand::CodeAction(CodeAction {
+                title: action.title,
+                kind: Some(CodeActionKind::new(kind.name())),
+                edit: Some(WorkspaceEdit {
+                    changes: Some(
+                        [(
+                            params.text_document.uri.clone(),
+                            vec![TextEdit {
+                                range: action.range,
+                                new_text: action.replacement,
+                            }],
+                        )]
+                        .into_iter()
+                        .collect(),
+                    ),
+                    ..WorkspaceEdit::default()
+                }),
+                ..CodeAction::default()
             })
         })
         .collect()

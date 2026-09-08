@@ -43,6 +43,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use lsp_types::Uri;
 use nvs_diagnostics::PositionEncoding;
 
+use crate::actions;
 use crate::case::{Case, MAIN_PATH, Request};
 use crate::completion;
 use crate::definition;
@@ -195,6 +196,7 @@ fn answer(case: &Case) -> Result<Response, String> {
         Request::SelectionRange => selection_range(case),
         Request::FoldingRange => folding_range(case),
         Request::DocumentLink => document_link(case),
+        Request::CodeAction => code_action(case),
         Request::Redactions => redactions(case),
     }
 }
@@ -490,6 +492,31 @@ fn document_link(case: &Case) -> Result<Response, String> {
         })
         .collect();
     Ok(Response::DocumentLink(links))
+}
+
+/// `textDocument/codeAction` — what may be fixed where the cursor is.
+///
+/// The request is asked over a range and a case writes a cursor, so the range
+/// is the empty one at it: a light bulb with nothing selected, which is how
+/// both of the fixes that ship are reached
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+/// [`crate::actions::Kind::QuickFix`] is what a person's client asks for, so it
+/// is the kind a case freezes; the other kind is a client's own request and is
+/// answered from the same translation.
+fn code_action(case: &Case) -> Result<Response, String> {
+    let cursor = case.cursor.expect("codeAction is asked at a position");
+    // Held to the end of the answer, as in `diagnostics`.
+    let (_files, documents, entry) = store(case)?;
+    let analysed = analyse(&documents, &entry)
+        .ok_or_else(|| "the case's document could not be analysed".to_owned())?;
+    let at = u32::try_from(cursor).unwrap_or(u32::MAX);
+    Ok(Response::CodeAction(actions::at(
+        &analysed,
+        at,
+        at,
+        actions::Kind::QuickFix,
+        COLUMNS,
+    )))
 }
 
 /// `nvs/redactions` — which bytes of the entry document the client conceals.

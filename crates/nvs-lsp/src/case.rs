@@ -71,6 +71,8 @@ pub enum Request {
     FoldingRange,
     /// `textDocument/documentLink`.
     DocumentLink,
+    /// `textDocument/codeAction`.
+    CodeAction,
     /// `nvs/redactions`.
     Redactions,
 }
@@ -87,6 +89,7 @@ impl Request {
         Self::SelectionRange,
         Self::FoldingRange,
         Self::DocumentLink,
+        Self::CodeAction,
         Self::Redactions,
     ];
 
@@ -103,6 +106,7 @@ impl Request {
             Self::SelectionRange => "selectionRange",
             Self::FoldingRange => "foldingRange",
             Self::DocumentLink => "documentLink",
+            Self::CodeAction => "codeAction",
             Self::Redactions => "redactions",
         }
     }
@@ -116,17 +120,27 @@ impl Request {
     /// Whether this request is asked *at* a position rather than of the whole
     /// document.
     ///
-    /// The four that are take exactly one `<|>` and the rest take none, which
+    /// The five that are take exactly one `<|>` and the rest take none, which
     /// is `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s "exactly one per
     /// case, and none for a request that needs none". The split is structural
     /// rather than a convention: a document-wide request has no cursor to be
     /// asked at, so a `<|>` in such a case is a claim the runner would have to
     /// ignore.
+    ///
+    /// `codeAction` is asked over a *range* and is still on this side of the
+    /// split: the range a case asks over is the empty one at its cursor, which
+    /// is where a light bulb appears when nothing is selected. A format that
+    /// could write a selection would be freezing a claim about the editor
+    /// rather than about the server.
     #[must_use]
     pub fn takes_cursor(self) -> bool {
         matches!(
             self,
-            Self::Hover | Self::Definition | Self::Completion | Self::SelectionRange
+            Self::Hover
+                | Self::Definition
+                | Self::Completion
+                | Self::SelectionRange
+                | Self::CodeAction
         )
     }
 }
@@ -689,7 +703,13 @@ lib/user.nvs:2:36
             .collect();
         assert_eq!(
             at_a_position,
-            ["hover", "definition", "completion", "selectionRange"]
+            [
+                "hover",
+                "definition",
+                "completion",
+                "selectionRange",
+                "codeAction"
+            ]
         );
     }
 

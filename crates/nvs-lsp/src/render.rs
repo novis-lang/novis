@@ -98,6 +98,34 @@ pub struct Redaction {
     pub kind: String,
 }
 
+/// One fix an editor may offer, with the edit it would apply.
+///
+/// **One edit and not a list.** Every action this server offers is a
+/// translation of one [`nvs_diagnostics::Suggestion`]
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), and
+/// a suggestion is one span and the text to put there. A fix wanting two edits
+/// is one the checker would have to compute, which is the far side of the
+/// boundary that rule draws.
+///
+/// The kind is a string for [`Redaction`]'s reason turned around: LSP's own
+/// kinds are an open hierarchy, and the two this server answers under
+/// ([`crate::CODE_ACTION_KINDS`]) are decided by what the client asked for
+/// rather than by the fix.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Action {
+    /// What the client shows for it — the suggestion's own message, so what a
+    /// terminal prints under a diagnostic and what a light bulb offers are one
+    /// sentence written once.
+    pub title: String,
+    /// The kind it is filed under, which is what decides whether
+    /// `editor.codeActionsOnSave` runs it.
+    pub kind: String,
+    /// The bytes it replaces.
+    pub range: Range,
+    /// What it puts there. Empty means a deletion.
+    pub replacement: String,
+}
+
 /// One answer, in the shape the request that produced it answers.
 ///
 /// One variant per request in `rule:ide/the-request-set-is-closed`'s list, and
@@ -125,6 +153,8 @@ pub enum Response {
     FoldingRange(Vec<FoldingRange>),
     /// `textDocument/documentLink`.
     DocumentLink(Vec<Link>),
+    /// `textDocument/codeAction`.
+    CodeAction(Vec<Action>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
 }
@@ -143,6 +173,7 @@ impl Response {
             Self::SelectionRange(_) => Request::SelectionRange,
             Self::FoldingRange(_) => Request::FoldingRange,
             Self::DocumentLink(_) => Request::DocumentLink,
+            Self::CodeAction(_) => Request::CodeAction,
             Self::Redactions(_) => Request::Redactions,
         }
     }
@@ -164,6 +195,7 @@ impl Response {
             Self::SelectionRange(answer) => lines(answer.as_ref().map_or_else(Vec::new, ancestry)),
             Self::FoldingRange(items) => lines(items.iter().map(folding_range).collect()),
             Self::DocumentLink(items) => lines(items.iter().map(link).collect()),
+            Self::CodeAction(items) => lines(sorted(items.iter().map(action))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
         }
     }
@@ -410,6 +442,27 @@ fn redaction(item: &Redaction) -> String {
     format!("{} {}", range(item.range), item.kind)
 }
 
+/// `L:C-L:C kind title -> "replacement"`.
+///
+/// The replacement is the one field a rendering quotes, and it is quoted
+/// because it is the one field whose exact bytes are the answer: a deletion is
+/// empty, and a fix that inserts a space is a fix an expectation would
+/// otherwise freeze as a line an editor's whitespace trim silently corrects.
+/// Both it and the title write their line breaks escaped, on [`diagnostic`]'s
+/// terms — one entry is one line, and a fix spanning lines is not two actions.
+fn action(item: &Action) -> ((u32, u32, u32, u32), String) {
+    let title = item.title.replace('\n', "\\n");
+    let replacement = item.replacement.replace('\n', "\\n");
+    (
+        span_key(item.range),
+        format!(
+            "{} {} {title} -> \"{replacement}\"",
+            range(item.range),
+            item.kind
+        ),
+    )
+}
+
 /// What a legend entry answers when asked for its name.
 ///
 /// `SemanticTokenType` and `SemanticTokenModifier` each have an inherent
@@ -537,6 +590,12 @@ mod tests {
                 range: span(1, 8, 24),
                 target: "lib/user.nvs".to_owned(),
             }]),
+            Response::CodeAction(vec![Action {
+                title: "rename to `UserAccount`".to_owned(),
+                kind: "quickfix".to_owned(),
+                range: span(1, 6, 18),
+                replacement: "UserAccount".to_owned(),
+            }]),
             Response::Redactions(vec![Redaction {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
@@ -556,6 +615,7 @@ mod tests {
             Response::SelectionRange(None),
             Response::FoldingRange(Vec::new()),
             Response::DocumentLink(Vec::new()),
+            Response::CodeAction(Vec::new()),
             Response::Redactions(Vec::new()),
         ]
     }
@@ -669,6 +729,28 @@ mod tests {
             }])
             .render(),
             "4:19-4:31 secretLiteral\n"
+        );
+
+        // Two actions at one cursor sort by where they edit, and a deletion is
+        // the line whose replacement is nothing at all.
+        assert_eq!(
+            Response::CodeAction(vec![
+                Action {
+                    title: "drop it".to_owned(),
+                    kind: "quickfix".to_owned(),
+                    range: span(2, 4, 9),
+                    replacement: String::new(),
+                },
+                Action {
+                    title: "rename to `UserAccount`".to_owned(),
+                    kind: "quickfix".to_owned(),
+                    range: span(1, 6, 18),
+                    replacement: "UserAccount".to_owned(),
+                },
+            ])
+            .render(),
+            "2:7-2:19 quickfix rename to `UserAccount` -> \"UserAccount\"\n\
+             3:5-3:10 quickfix drop it -> \"\"\n"
         );
 
         // The completion rendering is the one the format's own worked example
