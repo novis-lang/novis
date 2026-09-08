@@ -1,0 +1,16 @@
+<?nvs
+$identical = $a === $b;
+$different = $a !== $b;
+$ordered = $a <> $b;
+$legacy = (int)$raw;
+$spaced = (string) $raw;
+$negated = (bool) !$raw;
+$converted = $raw as int;
+$piped = $rows |> Str::join($_);
+if ($ready):
+    echo "alternative";
+endif;
+foreach ($rows as $row):
+    echo $row;
+endforeach;
+?>
