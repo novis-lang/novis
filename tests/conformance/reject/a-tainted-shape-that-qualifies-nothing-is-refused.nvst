@@ -1,0 +1,34 @@
+--TEST--
+`tainted` over a shape carrying no text anywhere is refused rather than silently doing nothing, and the five spellings it does reach agree that it reaches them — `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// `rule:security/tainted-qualifier` distributes the qualifier to every text-carrying leaf
+// under a shape, so what this file asks is where that reaches. The first five
+// members are silent: text at the top level, `bytes` beside `string`, and
+// text reached transitively through a nested shape, an `array<T>` element and
+// a nullable arm. A qualifier that reached only the top level would leave
+// three of them refused here while still reading right on its own line.
+class Door {
+    public static function a(tainted {name: string} $in): int { return 1; }
+    public static function b(tainted {raw: bytes} $in): int { return 2; }
+    public static function c(tainted {inner: {name: string}} $in): int { return 3; }
+    public static function d(tainted {items: array<string>} $in): int { return 4; }
+    public static function e(tainted {maybe: ?string} $in): int { return 5; }
+
+    // The last two carry no text anywhere under them, so the qualifier promises
+    // something nothing enforces. That is a refusal and not a no-op: a
+    // declaration that reads as a promise has to be one.
+    public static function f(tainted {n: int, ok: bool} $in): int { return 6; }
+    public static function g(tainted {inner: {n: int}} $in): int { return 7; }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0132]: `tainted` qualifies nothing in this shape
+   --> case.nvs:18:30
+%A
+error[E0132]: `tainted` qualifies nothing in this shape
+   --> case.nvs:19:30
+%A
+error: aborting due to 2 errors
