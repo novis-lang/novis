@@ -3616,7 +3616,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `every_error_path_is_asserted_or_declared_unreachable` then names one line and reads like a
   missing case. Write "unreachable from source" plus the diagnostic that refuses the call
   directly above **each** guard.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:8 lines above the site]
+  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW]
 
 ## Splitting a file that got too big
 
