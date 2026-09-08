@@ -1854,6 +1854,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exactly like a real bug in whatever you just wrote — a checker relaxation reads as an ordering
   bug in your own comparison. Rebuild with `cargo build -p nvs-cli` before believing a `.nvst`
   failure that a `-p <crate>` test contradicts. [until: reviewed 2026-09-08]
+- **`nvs run --request` hands a program the request but never matches it against the route table, so
+  `Core\Request::route()` answers `null` in that leg.** `crates/nvs-cli/src/main.rs:1651` installs the
+  table because `Core\Router`'s own members read it, and says in the same breath that a program run off
+  the command line is matched against nothing — only the server's door and `runner.rs:504`'s test seam
+  call `Inbound::set_route`. A fixture that needs the match spells the door's walk itself, over
+  `Core\Request::method()` and `Core\Request::path()`, which is what `examples/parses.nvs` does.
+  [until: gone crates/nvs-cli/src/main.rs:matched against nothing]
 
 ## Writing a test case
 
@@ -5279,6 +5286,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   freezes every `tainted`-answering member's rendered return type. Grep `tests/` and `crates/` for a
   slice of the old rendering first, and take the new one from the binary rather than composing it —
   the order is the interner's. [until: reviewed 2026-09-08]
+- **`as` refuses a `Core` class as its target, so a capture union's `Core\Uuid` arm cannot be
+  downcast the way a user class's can.** `E0711` says the target "names no class to test the value
+  against", because `rule:types/conversion` tabulates conversions into a *declared* class and
+  `Core\Uuid` is not one — while `$capture as Slug` compiles right beside it and reads as if the two
+  were symmetric. Read the engine's arm by rendering it instead: `echo $match->param("id")` prints the
+  canonical text, since every arm of that union renders.
+  [until: reviewed 2026-09-08]
 
 ## Divergences and refusals already pinned
 
