@@ -93,6 +93,16 @@ modules = [
   "crates/nvs-cli/src/serve.rs",
   # The registry cards, and the gates that read them.
   "crates/nvs-stdlib/src/registry.rs",
+  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
+  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
+  # process makes on the way in.
+  "crates/nvs-cli/src/bundle.rs",
+  # The request a case answers, frozen into the file `nvs run --request` reads.
+  "crates/nvs-test/src/request.rs",
+  # Running one `Case` and deciding whether it passed.
+  "crates/nvs-test/src/run.rs",
+  # The section lexer: cutting a case file into its `--NAME--` sections.
+  "crates/nvs-test/src/section.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
