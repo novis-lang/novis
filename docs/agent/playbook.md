@@ -1760,6 +1760,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   you just changed away. `tasklist //FI "IMAGENAME eq nvs.exe"` before trusting a rebuild that
   disagrees with your edit, `taskkill //F //IM nvs.exe` to clear it, and check the mtime rather than
   the exit status. [until: reviewed 2026-09-08]
+- **A new `Core\Request` member that answers `mixed` fails a test in `nvs-types`, and the message
+  names a count rather than the member.** `core_lib.rs`'s
+  `every_request_member_returning_outside_data_returns_it_tainted` asserts the *exact set* of rows
+  under the `Core\Request` prefix that answer an unqualified type — it is the gate that catches a
+  member handing a peer's bytes back unmarked — so a row answering `mixed` lands in it and the
+  assertion reads "closed at eight". Add the row to the set and rewrite the count and the sentence
+  naming `query` and `post` as the known hole. [until: reviewed 2026-09-08]
 
 ## Writing a test case
 
@@ -3511,6 +3518,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   that reads a field out of a raw body gets that newline inside the last field's value — write the body
   the member will read rather than the one that looks tidy in the file.
   [until: reviewed 2026-09-08]
+- **A `--POST_RAW--` body carries the section's own closing newline, so `echo Core\Request::body(),
+  "\n"` prints a blank line the `--EXPECT--` does not have.** `--POST--` does not — it is a field
+  list the runner re-encodes — so a case copied from a form-bodied neighbour fails on a line that
+  looks identical in the diff. Echo a raw body with no separator of your own, and say so in a
+  comment beside it. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
