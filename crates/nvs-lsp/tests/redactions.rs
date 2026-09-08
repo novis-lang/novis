@@ -48,11 +48,33 @@ fn a_secret_literal_and_a_secret_interpolation_slot_are_answered() {
 /// a confidentiality claim, and `rule:security/tainted-qualifier`'s axis is
 /// about trust — a value nobody may be shown is not the same as one nothing may
 /// be told (`rule:security/secret-qualifier`).
+///
+/// The `tainted` declaration's *name* is answered, and that is the other kind:
+/// a marker the client draws only where `nvs.taint.mark` asks for one, over the
+/// six bytes of `$dirty` rather than the eleven of the literal beside it.
 #[test]
 fn a_plain_and_a_tainted_literal_are_not() {
     assert_eq!(
         concealed("<?nvs\nstring $plain = \"hello\";\ntainted string $dirty = \"untrusted\";\n"),
-        "none\n"
+        "3:16-3:22 taintedDeclaration\n"
+    );
+}
+
+/// Both kinds on one list, in document order
+/// (`rule:security/tainted-has-no-default-decoration` and
+/// `rule:security/redaction-ranges-come-from-the-server`).
+///
+/// The `secret` declaration's own name is answered for nothing — it carries no
+/// `tainted` and a name is never concealed — so the two ranges here are the
+/// marked name and the concealed literal below it, and nothing has to say which
+/// list a client should have looked in.
+#[test]
+fn a_marked_declaration_and_a_concealed_literal_share_one_list() {
+    assert_eq!(
+        concealed(
+            "<?nvs\ntainted string $dirty = \"untrusted\";\nsecret string $key = \"sk-live-abcdef\";\n"
+        ),
+        "2:16-2:22 taintedDeclaration\n3:22-3:38 secretLiteral\n"
     );
 }
 

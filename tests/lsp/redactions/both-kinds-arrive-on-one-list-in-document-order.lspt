@@ -1,0 +1,12 @@
+--TEST--
+One request answers both kinds and one list carries them, in the order the file reads: a `tainted` declaration's name is marked and a `secret` literal's bytes are concealed, and nothing but `kind` says which is which, ADR 0101 § 1; the `tainted` *use* below them is answered for nothing, because the declaration is the one place the qualifier was written
+--FILE--
+<?nvs
+tainted string $dirty = "untrusted";
+secret string $key = "sk-live-abcdef";
+echo "prefix $dirty suffix";
+--REQUEST--
+redactions
+--EXPECT--
+2:16-2:22 taintedDeclaration
+3:22-3:38 secretLiteral
