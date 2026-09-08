@@ -176,7 +176,8 @@ rules = ["testing/nvst-is-separate"]
 adrs = ["0079 §18", "0079 §23"]
 
 [context.stage.3]
-rules = ["http-server/the-body-is-read-on-demand-under-two-caps",
+rules = ["http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
+         "http-server/the-body-is-read-on-demand-under-two-caps",
          "http-server/a-part-is-consumed-in-one-of-three-ways",
          "http-server/a-part-is-a-file-iff-it-carries-a-filename"]
 adrs = ["0105 §2", "0097 §8"]
