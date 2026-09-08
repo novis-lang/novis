@@ -1,0 +1,16 @@
+<?nvs
+// One line per fact the request file describes, so what the assertion reads
+// is the request rather than a value. Every one of these throws where the
+// program is not answering a request
+// (`rule:security/request-state-throws-in-an-isolate`), which is the other
+// test in this file.
+if (Core\Request::method() == Core\Http\Method::Post) {
+    echo "method: POST\n";
+}
+echo "path: ", Core\Request::path(), "\n";
+echo "query: ", Core\Request::query("q"), "\n";
+echo "header: ", Core\Request::header("x-trace") ?? "-", "\n";
+echo "cookie: ", Core\Request::cookie("session") ?? "-", "\n";
+// Last and with no newline of its own: `--BODY--` is the rest of the file
+// verbatim, so the body's own trailing newline ends the output.
+echo "body: ", Core\Request::body();

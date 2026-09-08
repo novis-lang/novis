@@ -1,0 +1,13 @@
+--METHOD--
+POST
+--PATH--
+/users
+--QUERY--
+page=2&q=novis
+--HEADERS--
+x-trace: 7
+cookie: session=abc123
+content-type: application/x-www-form-urlencoded
+content-length: 9
+--BODY--
+name=ada

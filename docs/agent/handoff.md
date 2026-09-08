@@ -2,41 +2,42 @@
 
 ## State
 
-**Goal 16 — stage 5 is closed: every class `Core\Request` hands out now has a page.**
-`docs/reference/core/Request-Mount.md` and `Request-PartContent.md` join the three landed last session,
-`docs/novis.md` is regenerated around them, and `python tools/reference.py` reports 291 of 291 examples
-hold. No `Core\Request` class renders from its reference cards alone any more. Nothing is blocked.
+**Goal 16 — stage 2 is two checks of three green.** `nvs-test` now pins all six tests the first check
+names, and `nvs-cli` both of the second's. What is left of the stage is the third check: the three
+`.nvst` cases under `tests/conformance/core/` that answer a request end to end. Nothing is blocked.
 
-**The driver's red check is stage 2, and that is unwritten work, not a regression.** `nvs-test`'s five
-request sections already *parse*: `crates/nvs-test/src/case.rs:534` builds the body, query, cookies and
-headers, and `crates/nvs-test/src/case.rs:1039` already refuses `--POST--` beside `--POST_RAW--`. What
-the check names is the other half — that a section reaches the `Wire` frozen into the file
-`nvs run --request` reads — and the tests it lists do not exist under any name. Stage 2 is the earliest
-failing stage, so it is the next group.
+**The whole crossing already works at the built binary**, so the remaining cases are authoring and not
+implementation: `./target/debug/nvs.exe run --request <file> <program>` answers `Core\Request::path`,
+`query`, `header`, `cookie`, `body` and `method` off the file, and refuses with `LogicError` where no
+file was named (`crates/nvs-cli/tests/fixtures/request/reads-the-request.nvs:1`, run both ways this
+session). The runner writes `request.nvsr` into the case's workdir at `crates/nvs-test/src/run.rs:193`
+and passes `--request` at `crates/nvs-test/src/run.rs:334`, so a case that writes a request section
+needs no runner change at all.
 
 ## Next group
 
-**Stage 2: a section becomes the request the case answers** — one file set: `crates/nvs-test/src/request.rs`,
-`crates/nvs-test/src/case.rs`.
+**Stage 2: a `.nvst` case answers a request** — one file set: `tests/conformance/core/`, over the
+runner path already on disk. Each case is `--RUN--` `run` by default, which is the only subcommand that
+takes a request (`crates/nvs-test/src/case.rs:577`), and **never `--ORACLE--`** — conformance runs
+where there is no PHP.
 
-- [ ] **The five section tests the check names** — `a_get_section_becomes_the_requests_query_string` and
-      its four siblings, each asserting a section reaches the `Wire`, not merely the `Request`:
-      `render` is `crates/nvs-test/src/request.rs:79` and `read` is `crates/nvs-test/src/request.rs:129`,
-      with the parse that feeds them at `crates/nvs-test/src/case.rs:534`. `rule:testing/nvst-is-separate`
-      is the rule — `.nvst` is unchanged as a format and the `.phpt` superset now includes these sections.
-- [ ] **`a_post_and_a_post_raw_section_together_are_a_parse_error`** — the claim is already pinned at
-      `crates/nvs-test/src/case.rs:1039` under the name the corpus took, so read that test before writing
-      one: this is the playbook's "a drafted name describes a claim already pinned elsewhere", and the
-      repair may be the check's name in both `docs/agent/loop-goal.toml` and
-      `docs/agent/goals/16-request-json.toml` rather than a new test.
-- [ ] **The stage's `nvs-cli` half, if the ceiling allows** —
-      `a_request_file_becomes_the_inbound_the_program_answers` and
-      `a_run_without_a_request_file_answers_no_request` over `crates/nvs-cli/src/main.rs:1`. A different
-      file set, so take it only as a third slice, never as the first.
+- [ ] **`tests/conformance/core/a-request-reads-the-body-a-post-raw-section-sent.nvst`** — a
+      `--POST_RAW--` case echoing `Core\Request::body()`. The body is the rest of the request file
+      verbatim, its trailing newline included (`crates/nvs-test/src/request.rs:117`), so `--EXPECT--`
+      carries that newline; `crates/nvs-test/src/request.rs:276` is the test that pins it.
+      `rule:testing/nvst-is-separate` is the rule.
+- [ ] **`tests/conformance/core/a-request-reads-a-field-a-post-section-sent.nvst`** — a `--POST--`
+      case reading one pair back. The `post` row is `crates/nvs-stdlib/src/request.rs:329`; **not
+      checked** whether it answers at runtime, unlike `query`, which this session ran. If it does not,
+      the case is still the right one to write and the gap is stdlib's, not the format's.
+- [ ] **`tests/conformance/core/a-request-reads-a-header-and-a-cookie-a-section-sent.nvst`** — a
+      `--HEADERS--` plus `--COOKIE--` case. Both members answer today, and the spellings that compile
+      are in `crates/nvs-cli/tests/fixtures/request/reads-the-request.nvs:12`; `--COOKIE--`'s pairs
+      arrive as the one joined `cookie` field (`crates/nvs-test/src/request.rs:92`).
 
 ## Backlog
 
-- Stage 2's three conformance cases (`tests/conformance/core/a-request-reads-*.nvst`) — `docs/agent/loop-goal.toml:5429`.
-- `Request-Files.md`'s `[limits] request_body` clause names a constant; it needs editing when the
-  configuration slice lands — `docs/reference/core/Request-Files.md:34`.
-- `json()` and `jsonAs<T>()` themselves are still the goal's own subject — `docs/agent/loop-goal.md`.
+- The plan's conformance count rises by three when those cases land — `docs/implementation-plan.md`.
+- `Core\Request::method()` compares with `==` and never `===`, which `E0232` refuses — a case echoing
+  the verb needs the `if` form, not a cast. `docs/rules/` owns the operator.
+- Stage 3 and later of goal 16 are untouched — `docs/agent/loop-goal.toml`.
