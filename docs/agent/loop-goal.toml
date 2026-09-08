@@ -103,6 +103,19 @@ modules = [
   "crates/nvs-stdlib/src/uri.rs",
   # The registry cards for the three members.
   "crates/nvs-stdlib/src/registry.rs",
+  # Lowers one already-checked method body to a `crate::ir::Function` — see the crate's own module
+  # docs for which statement and expression shapes are covered, and why this trusts its input
+  # rather than re-checking it.
+  "crates/nvs-ir/src/lower/mod.rs",
+  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
+  # inline behind it — plus the `ClassDesc` every instance points back at.
+  "crates/nvs-runtime/src/object.rs",
+  # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
+  # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
+  "crates/nvs-stdlib/src/db/row.rs",
+  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
+  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
+  "crates/nvs-types/src/derive.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
