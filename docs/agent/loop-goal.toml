@@ -119,6 +119,8 @@ modules = [
   # Every declared class's **field slot order** and its flattened set of supertypes — the second
   # thing this crate publishes for `nvs-ir` to read back, alongside `crate::expr_table`.
   "crates/nvs-types/src/layout.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
