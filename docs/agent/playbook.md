@@ -1299,6 +1299,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which reads exactly like unwritten work. `python tools/loop.py --list` prints each fixture's whole
   argv: read that before believing a `want` cannot be produced, and fix
   `docs/agent/goals/<goal>.toml` too. [until: reviewed 2026-09-08]
+- **A `toml file=nvs.toml` fence attaches to the next *runnable* example, not to the next fence, so an
+  `nvs skip` between them hands the config to a later program.** `tools/reference.py:618` skips a `skip`
+  fence without clearing `pending`, so a configuration block written to illustrate an unrunnable example
+  lands in the working directory of whatever runnable example comes next — on a reference page that ends
+  with the house `LogicError` refusal, that is the one it reaches. Put the configuration in a comment
+  inside the `skip` fence, or place the `file=` block directly before the runnable program it belongs to.
+  [until: reviewed 2026-09-08]
 
 ## Running things
 
