@@ -656,9 +656,11 @@ echo $made->prefix, "\n";
 
 # Interfaces
 
-Five interfaces are declared by the compiler for every program and need no `use`; the ones with a
+Six interfaces are declared by the compiler for every program and need no `use`; the ones with a
 type parameter are implemented at a concrete type (`implements Iterable<int>`) and are the only
-generic names a class may implement:
+generic names a class may implement. `Parses` is what a class implements to be built from a piece
+of text, which is what lets a route capture, a `#[Core\Query]` parameter, a command argument or a
+command option be declared at that class and arrive as an object:
 
 <!-- generated: interfaces -->
 
@@ -1045,6 +1047,77 @@ if ($a < $b) {
 ```
 ```output
 does not implement `Comparable`
+```
+
+# `Parses`
+
+A class implementing the global interface `Parses` is built from a piece of text. Its one required
+member is `public static function parse(tainted string $s): static`, which answers an instance of the
+called class or throws. The text is `tainted` because the text at every site that builds one arrived
+from outside the process, and the object it answers carries no qualifier at all — `tainted` is a
+property of `string` and `bytes` and never of a class, so a field keeping the text keeps it
+`tainted`.
+<!-- src: `rule:security/tainted-qualifier` -->
+
+That contract is what a binding site asks for rather than naming one class: a route capture, a
+`#[Core\Query]` parameter, a command argument and a command option are each declared at any class
+carrying it, and a parameter typed at a class without it is a compile error naming `Parses` as the
+fix. A path capture is the one site that reads two ways. The router converts the types it reads
+itself — `int`, `uint`, `decimal`, `Core\Uuid` and a closed set — while it matches, so a segment
+those refuse is no match and ends in a `404`; a capture at any other `Parses` class matches on shape
+and runs `parse` where the match crosses into the program, so a segment that class refuses is a
+`400`.
+<!-- src: `rule:security/route-capture-is-laundered-by-its-type` -->
+
+```nvs
+<?nvs
+class Slug implements Parses {
+    public function constructor(public tainted string $text) {}
+
+    public static function parse(tainted string $s): static {
+        if ($s != Core\Str::lower($s)) {
+            throw new ParseError("a slug is written in lower case");
+        }
+        return new static($s);
+    }
+}
+
+class Posts {
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Slug $slug, #[Core\Query] Slug $tag): string {
+        return "one post";
+    }
+}
+
+echo Slug::parse("hello-world")->text, "\n";
+try {
+    echo Slug::parse("Hello-World")->text, "\n";
+} catch (ParseError $refusal) {
+    echo $refusal->message, "\n";
+}
+```
+```output
+hello-world
+a slug is written in lower case
+```
+
+```nvs error
+<?nvs
+class Tag {
+    public string $text = "";
+}
+
+class Posts {
+    #[Core\Route(path: "/posts/{tag}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Tag $tag): string {
+        return "one post";
+    }
+}
+```
+```output
+or a class implementing `Parses`
 ```
 
 # Objects are handles
