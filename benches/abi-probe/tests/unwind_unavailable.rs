@@ -16,6 +16,15 @@
 //! process dies, taking the test runner with it. So the test re-executes its own
 //! binary as a child, and inspects how the child died.
 
+#![expect(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "stdout is this test's channel, not its logging: the child reports through the \
+              `STARTED` and `CAUGHT` markers below and the parent reads them back off its \
+              `Output`, so a print here is the mechanism being tested rather than a stray \
+              debug line the lint exists to catch"
+)]
+
 use std::panic::{self, AssertUnwindSafe};
 use std::process::Command;
 

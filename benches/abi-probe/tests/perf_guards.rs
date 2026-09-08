@@ -14,6 +14,14 @@
 //! cargo test --release -p nvs-abi-probe --test perf_guards
 //! ```
 
+#![expect(
+    clippy::print_stdout,
+    reason = "the measured figure is this guard's output. A threshold test that passed silently \
+              would report only that a cost is under 10x its baseline, which is the one thing a \
+              reader already knows when it is green; the printed nanoseconds are what makes a \
+              CI log answer how far under, and `docs/perf/` quotes them"
+)]
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
 use std::time::{Duration, Instant};
