@@ -58,6 +58,29 @@
 //!    `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
 //!    here.
 //!
+//! # A shape is a second contract, not a second walk
+//!
+//! `rule:types/shape-type`'s `{n: int}` may be written where `decodeAs<T>`
+//! takes its type argument, and what reaches this module is two things: the
+//! class the compiler synthesized for the shape's *field names*, and a
+//! [`nvs_runtime::ShapeCodec`] carrying the field *types*. They are separate
+//! because `{n: int}` and `{n: string}` share one class, so a shape's wire
+//! types have nowhere on a descriptor to live — `nvs-ir`'s module docs own that
+//! fork and what it costs.
+//!
+//! [`Contract`] is the join. It answers the field list either way, so
+//! [`decode_fields`] and everything under it is one walk over one
+//! [`nvs_runtime::CodecField`] list rather than a decoder per door — and a
+//! program catching a decode failure catches one shape of report whichever door
+//! it wrote.
+//!
+//! Two answers differ, and each is the shape's own type saying so rather than a
+//! second convention: a shape is built slot by slot ([`build_shape`]), because
+//! it declares no constructor to run, and both of
+//! `rule:core-api/required-optional-and-nullable`'s columns are answered here
+//! rather than deferred to a default nothing can materialize —
+//! [`decode_field`]'s own doc comment owns which and why.
+//!
 //! # Known gaps
 //!
 //! 1. **The integer-overflow refusal covers `i64::MAX`..=`u64::MAX` only.**
@@ -73,8 +96,9 @@
 //!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
 //!    any of those, and a `?T` of any of them — the whole of
 //!    [`nvs_runtime::CodecTy`] but its last variant. A `decimal`, an
-//!    `Instant`, an inline shape and an `array<T>` of one of those are all
-//!    codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
+//!    `Instant`, an inline shape reached as a *field*, and an `array<T>` of one
+//!    of those are all codec-reachable by that ADR and all land on
+//!    `CodecTy::Opaque`, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
 //!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
@@ -98,7 +122,10 @@
 //!    apart and only the filling is owed. `nvs_types::defaults` evaluates a
 //!    default into a constant the *call site* emits, and a native decoder is
 //!    not a call site — closing this means carrying the constant onto
-//!    `nvs_runtime::CodecField` beside that bit.
+//!    `nvs_runtime::CodecField` beside that bit. A **shape** is not in this
+//!    gap and never will be: it declares no constructor, so there is no default
+//!    to be missing, and [`decode_field`] answers an absent optional key with
+//!    the never-written marker instead.
 //! 4. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
@@ -588,10 +615,21 @@ impl Encodable {
         if desc.is_shape() {
             let mut map = ser.serialize_map(Some(desc.field_count()))?;
             for slot in 0..desc.field_count() {
+                let held = object.field(slot);
+                // An optional field the document a hydration read did not carry
+                // (`rule:types/shape-type`) is the never-written storage state,
+                // so the key that was absent on the way in is absent on the way
+                // out. Nothing else can put a slot in that state — a shape
+                // literal writes every one of its fields — and reading it from
+                // Novis is that rule's own catchable throw, which is not this
+                // encoder's answer to give.
+                if held.tag() == Some(Tag::Unset) {
+                    continue;
+                }
                 let name = desc
                     .field_name(slot)
                     .ok_or_else(|| S::Error::custom("a slot below the field count is named"))?;
-                map.serialize_entry(name, &self.child(object.field(slot)))?;
+                map.serialize_entry(name, &self.child(held))?;
             }
             return map.end();
         }
@@ -946,32 +984,42 @@ nvs_runtime::nvs_helper! {
         let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Json::decodeAs` was called with no list flag in argument 1",
         ))?;
+        // Slot 2 is an inline shape's wire contract, and a written *class* gets
+        // the zero word there — which is the whole of what tells the two apart,
+        // since `Value::as_shape_codec` answers `None` for a zero payload. A
+        // shape class carries no codec of its own, so this is the only thing
+        // that says what `{n: int}`'s `n` is on the wire.
+        let shape = args[2].as_shape_codec();
         let text = text_of(&args[3], "decodeAs")?;
         let max = max_depth(&args[4], "Core\\Json::decodeAs")?;
         #[expect(
             unsafe_code,
-            reason = "the descriptor came out of a `ClassDescConst` the compiled \
-                      unit owns, so it outlives this call and every object made \
-                      from it"
+            reason = "the descriptor and the contract came out of the constants a \
+                      compiled unit owns, so both outlive this call and every \
+                      object made from it"
         )]
         unsafe {
-            decode_as(ctx, class, text, max, list, "Core\\Json::decodeAs")
+            decode_as(ctx, class, shape, text, max, list, "Core\\Json::decodeAs")
         }
     }
 }
 
 /// `rule:core-classes/derive-field-list`'s decode: the
-/// class's codec checked once, the document read once, and then one instance —
+/// contract checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
-/// The two shapes share this frame because the codec questions are the class's
-/// and not the document's: an `Opaque` field is a decoder this crate has not
-/// written, whether it is asked for once or a thousand times.
+/// The two shapes share this frame because the codec questions are the
+/// contract's and not the document's: an `Opaque` field is a decoder this crate
+/// has not written, whether it is asked for once or a thousand times.
+///
+/// `shape` is the wire contract where the call site wrote an inline shape
+/// rather than a class name, and `None` where it wrote one — [`Contract`] owns
+/// what the two answer differently.
 ///
 /// # Safety
 ///
 /// `class` must refer to a live descriptor whose method table `nvs-codegen`
-/// has filled.
+/// has filled, and `shape` to a live contract where it is `Some`.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
@@ -979,6 +1027,7 @@ nvs_runtime::nvs_helper! {
 unsafe fn decode_as(
     ctx: &mut nvs_runtime::Ctx,
     class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
     text: &str,
     max: u32,
     list: bool,
@@ -986,7 +1035,7 @@ unsafe fn decode_as(
 ) -> Result<Value, Fault> {
     #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
     unsafe {
-        check_codec(class, member)?;
+        check_codec(class, shape, member)?;
     }
     let document = read(text, max).map_err(|why| {
         let message = format!("{member}(): {why}");
@@ -998,7 +1047,108 @@ unsafe fn decode_as(
         reason = "the same live descriptor the caller vouched for"
     )]
     unsafe {
-        hydrate(ctx, class, document, list, member)
+        hydrate(ctx, class, shape, document, list, member)
+    }
+}
+
+/// The field list one decode walks and the class it fills: a class's own
+/// derived codec, or the wire contract an inline shape was written as at the
+/// call site.
+///
+/// One type rather than two decoders, because the two agree everywhere the
+/// document is concerned — `rule:types/shape-type`'s structural type is the
+/// same field list a `#[Json\Derive]` class carries, read off the type instead
+/// of off a declaration. Three questions have two answers, and every one of
+/// them is a caller of this:
+///
+/// * **Where the fields come from.** A shape class is keyed on its field names
+///   alone, so `{n: int}` and `{n: string}` are one
+///   [`nvs_runtime::ClassDesc`] and the per-field wire types live beside it in
+///   a [`nvs_runtime::ShapeCodec`].
+/// * **How the object is built** — [`build_shape`] against
+///   [`nvs_runtime::construct`].
+/// * **What an absent optional key and a `?T` mean** — [`decode_field`].
+#[derive(Clone, Copy)]
+struct Contract<'a> {
+    /// The class an instance is made of, kept as the pointer the two builders
+    /// take rather than only as the reference below.
+    class: *const nvs_runtime::ClassDesc,
+    /// That same descriptor, dereferenced once for every message and every
+    /// field-count question under this walk.
+    desc: &'a nvs_runtime::ClassDesc,
+    /// The wire contract, where a call site wrote an inline shape — and `None`
+    /// where it wrote a class name, which is the one bit everything above
+    /// branches on.
+    shape: Option<&'a nvs_runtime::ShapeCodec>,
+}
+
+impl<'a> Contract<'a> {
+    /// The contract for `class`, read against `shape` where the call site wrote
+    /// an inline shape rather than a class name.
+    ///
+    /// # Safety
+    ///
+    /// As [`decode_as`]'s: `class` must be live, and `shape` where it is
+    /// `Some`. `nvs-codegen` defines the two beside each other and the compiled
+    /// unit owns both for its life.
+    #[expect(
+        unsafe_code,
+        reason = "the caller owes the liveness of two addresses no signature can express"
+    )]
+    unsafe fn new(
+        class: *const nvs_runtime::ClassDesc,
+        shape: Option<*const nvs_runtime::ShapeCodec>,
+    ) -> Self {
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let desc = unsafe { &*class };
+        #[expect(unsafe_code, reason = "the caller guarantees the contract is live")]
+        let shape = shape.map(|codec| unsafe { &*codec });
+        Self { class, desc, shape }
+    }
+
+    /// Every field this decode walks, in the order the class lays its slots
+    /// out.
+    fn fields(&self) -> &'a [nvs_runtime::CodecField] {
+        match self.shape {
+            Some(codec) => codec.fields(),
+            None => self.desc.codec(),
+        }
+    }
+
+    /// The descriptor the `index`th field decodes into, or `None` where that
+    /// field names no class — [`nvs_runtime::ClassDesc::codec_class`] and
+    /// [`nvs_runtime::ShapeCodec::class`] being one question asked of two
+    /// tables.
+    fn class_at(&self, index: usize) -> Option<*const nvs_runtime::ClassDesc> {
+        match self.shape {
+            Some(codec) => codec.class(index),
+            None => self.desc.codec_class(index),
+        }
+    }
+
+    /// How many positions the walk fills: a shape's own field count, since it
+    /// writes slots, and a derived class's declared constructor arity.
+    fn arity(&self) -> usize {
+        match self.shape {
+            Some(codec) => codec.fields().len(),
+            None => self.desc.ctor_arity(),
+        }
+    }
+
+    /// The class's rendered name, which is what a message names — `$shape{n}`
+    /// for a shape, since that label is the only name it has.
+    fn name(&self) -> &'a str {
+        self.desc.name()
+    }
+
+    /// The descriptor an instance is made of.
+    const fn class(&self) -> *const nvs_runtime::ClassDesc {
+        self.class
+    }
+
+    /// Whether an inline shape's contract is what this walks.
+    const fn is_shape(&self) -> bool {
+        self.shape.is_some()
     }
 }
 
@@ -1024,18 +1174,25 @@ unsafe fn decode_as(
 )]
 pub(crate) unsafe fn check_codec(
     class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
     member: &str,
 ) -> Result<(), Fault> {
-    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
-    let desc = unsafe { &*class };
-    let fields = desc.codec();
-    if fields.is_empty() {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor and the contract are live"
+    )]
+    let contract = unsafe { Contract::new(class, shape) };
+    let fields = contract.fields();
+    // Asked of a class only. An inline shape *is* a wire contract — there is no
+    // declaration it could have opted in on and nothing for this to send the
+    // reader to write, which is why the message names the attribute.
+    if fields.is_empty() && !contract.is_shape() {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "{member}(): `{}` has no JSON codec — a class participates by \
                  carrying `#[Json\\Derive]`",
-                desc.name()
+                contract.name()
             ),
         ));
     }
@@ -1048,7 +1205,7 @@ pub(crate) unsafe fn check_codec(
             "{member}(): `{}`'s `{}` field has a declared type this decoder \
              has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
              `nvs_stdlib::json`'s own known gap",
-            desc.name(),
+            contract.name(),
             field.key
         )));
     }
@@ -1082,21 +1239,25 @@ pub(crate) unsafe fn check_codec(
 pub(crate) unsafe fn hydrate(
     ctx: &mut nvs_runtime::Ctx,
     class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
     document: Value,
     list: bool,
     member: &str,
 ) -> Result<Value, Fault> {
-    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
-    let desc = unsafe { &*class };
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor and the contract are live"
+    )]
+    let contract = unsafe { Contract::new(class, shape) };
     #[expect(
         unsafe_code,
         reason = "the same live descriptor the caller vouched for"
     )]
     let decoded = unsafe {
         if list {
-            decode_each(ctx, class, desc, document, member)
+            decode_each(ctx, contract, document, member)
         } else {
-            decode_object(ctx, class, desc, document, None, member)
+            decode_object(ctx, contract, document, None, member)
         }
     };
     // Released here whichever branch ran and whether or not it failed: every
@@ -1136,15 +1297,14 @@ pub(crate) unsafe fn hydrate(
 )]
 unsafe fn decode_each(
     ctx: &mut nvs_runtime::Ctx,
-    class: *const nvs_runtime::ClassDesc,
-    desc: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     document: Value,
     member: &str,
 ) -> Result<Value, Fault> {
     let refusal = || {
         let message = format!(
             "{member}(): an `array<{}>` decodes from a JSON array",
-            desc.name()
+            contract.name()
         );
         let issues = crate::issue::list([("", message.as_str())]);
         Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
@@ -1169,7 +1329,7 @@ unsafe fn decode_each(
             unsafe_code,
             reason = "the same live descriptor, and the document's own element"
         )]
-        let value = unsafe { decode_object(ctx, class, desc, element, Some(index), member)? };
+        let value = unsafe { decode_object(ctx, contract, element, Some(index), member)? };
         decoded.append(value);
     }
     Ok(Value::array(decoded))
@@ -1193,8 +1353,7 @@ unsafe fn decode_each(
 )]
 unsafe fn decode_object(
     ctx: &mut nvs_runtime::Ctx,
-    class: *const nvs_runtime::ClassDesc,
-    desc: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     document: Value,
     at: Option<usize>,
     member: &str,
@@ -1205,11 +1364,14 @@ unsafe fn decode_object(
     };
     let Some(ptr) = document.array_ptr() else {
         let message = match at {
-            None => format!("{member}(): a `{}` decodes from a JSON object", desc.name()),
+            None => format!(
+                "{member}(): a `{}` decodes from a JSON object",
+                contract.name()
+            ),
             Some(index) => format!(
                 "{member}(): element {index} is not a JSON object, and a `{}` \
                  decodes from one",
-                desc.name()
+                contract.name()
             ),
         };
         let issues = crate::issue::list([(path_of(&prefix, None).as_str(), message.as_str())]);
@@ -1225,7 +1387,7 @@ unsafe fn decode_object(
         unsafe_code,
         reason = "the same live descriptor, and a borrow of the document's own object"
     )]
-    match unsafe { decode_fields(ctx, class, desc, &source, &prefix) } {
+    match unsafe { decode_fields(ctx, contract, &source, &prefix) } {
         Ok(value) => Ok(value),
         Err(DecodeFailure::Fault(fault)) => Err(fault),
         Err(DecodeFailure::Issues(issues)) => Err(Fault::thrown_with_issues(
@@ -1233,7 +1395,7 @@ unsafe fn decode_object(
             format!(
                 "{member}(): {} field(s) of `{}` did not match",
                 issues.len(),
-                desc.name()
+                contract.name()
             ),
             crate::issue::list(
                 issues
@@ -1259,9 +1421,15 @@ enum DecodeFailure {
     Fault(Fault),
 }
 
-/// One object's fields decoded into its constructor's arguments, and the
-/// constructor run — `rule:core-classes/derive-reports-every-field`'s accumulate-then-construct, over an object
-/// whose JSON shape a caller has already checked.
+/// One object's fields decoded into the positions that fill them, and the
+/// instance built — `rule:core-classes/derive-reports-every-field`'s
+/// accumulate-then-construct, over an object whose JSON shape a caller has
+/// already checked.
+///
+/// A position is a constructor parameter under a class contract and a field
+/// slot under a shape's, which is the whole of what [`build_shape`] is for: the
+/// accumulation is one vector either way, and only the last statement knows
+/// which door it goes out of.
 ///
 /// `prefix` is what § 5's issue paths are rooted at: `""` at the top, `2.`
 /// inside a list's third element, `2.address.` inside that element's nested
@@ -1278,14 +1446,14 @@ enum DecodeFailure {
 )]
 unsafe fn decode_fields(
     ctx: &mut nvs_runtime::Ctx,
-    class: *const nvs_runtime::ClassDesc,
-    desc: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     source: &NvsArray,
     prefix: &str,
 ) -> Result<Value, DecodeFailure> {
-    let fields = desc.codec();
-    let mut ctor_args = vec![Value::null(); desc.ctor_arity()];
-    let mut filled = vec![false; desc.ctor_arity()];
+    let fields = contract.fields();
+    let arity = contract.arity();
+    let mut ctor_args = vec![Value::null(); arity];
+    let mut filled = vec![false; arity];
     let mut issues: Vec<(String, String)> = Vec::new();
     for (index, field) in fields.iter().enumerate() {
         #[expect(
@@ -1293,7 +1461,7 @@ unsafe fn decode_fields(
             reason = "the descriptor is the caller's, and a nested field's is one \
                       `nvs-codegen` resolved out of the same class table"
         )]
-        let outcome = unsafe { decode_field(ctx, desc, index, source, prefix) };
+        let outcome = unsafe { decode_field(ctx, contract, index, source, prefix) };
         match outcome {
             Ok(value) => match ctor_args.get_mut(field.param) {
                 Some(slot) => {
@@ -1311,17 +1479,16 @@ unsafe fn decode_fields(
                         value.release();
                     }
                     // Unreachable from source with no diagnostic to name:
-                    // `field.param` and `desc.ctor_arity()` are two readings of
-                    // one class's own constructor, both written while compiling
-                    // that class, so a field naming a parameter it does not
-                    // have is a generated table disagreeing with itself rather
-                    // than anything a program can write.
+                    // `field.param` and the arity are two readings of one
+                    // contract, both written while compiling the call site or
+                    // the class, so a field naming a position it does not have
+                    // is a generated table disagreeing with itself rather than
+                    // anything a program can write.
                     return Err(DecodeFailure::Fault(Fault::fatal(format!(
-                        "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
-                        desc.name(),
+                        "internal error: `{}`'s `{}` field names position {} of {arity}",
+                        contract.name(),
                         field.key,
-                        field.param,
-                        desc.ctor_arity()
+                        field.param
                     ))));
                 }
             },
@@ -1345,62 +1512,146 @@ unsafe fn decode_fields(
     // materialize that default — `nvs_types::defaults` evaluates it into a
     // constant the *call site* emits, and there is no call site here. Loud
     // rather than passing `null`, which would be right for `?T $x = null` and
-    // silently wrong for everything else.
+    // silently wrong for everything else. A shape reaches this with every
+    // position filled, an absent optional key included: what fills that one is
+    // the never-written marker, not a default.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
              field, and a skipped field's default is `nvs_stdlib::json`'s own known gap",
-            desc.name()
+            contract.name()
         ))));
+    }
+    if contract.is_shape() {
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and every value is one this frame \
+                      owns and hands over"
+        )]
+        return unsafe { build_shape(contract, ctor_args) };
     }
     #[expect(
         unsafe_code,
         reason = "the same live descriptor, and every argument is one this frame \
                   owns and hands over"
     )]
-    unsafe { nvs_runtime::construct(ctx, class, &ctor_args) }.map_err(DecodeFailure::Fault)
+    unsafe { nvs_runtime::construct(ctx, contract.class(), &ctor_args) }
+        .map_err(DecodeFailure::Fault)
 }
 
-/// The `index`th field of `owner`, taken over, or how it failed.
+/// One shape's decoded fields written into a fresh instance of its class — the
+/// half a derived class gets by running its own constructor.
 ///
-/// `rule:core-api/required-optional-and-nullable`'s table, minus its two
-/// default-bearing rows: a parameter default is `nvs_types::defaults`'
-/// constant and no call site emits one here, so an absent key still fails
-/// whichever column it sits in. What it no longer does is *misreport* which —
-/// `nvs_runtime::CodecField::required` carries that rule's first column down
-/// from the declaration, so an optional key's absence names the gap that
-/// stops it being filled instead of claiming the field was required.
+/// A shape class declares none: `rule:types/object-literal` gives a shape
+/// literal no constructor to write, so the class `nvs-ir` synthesizes lays its
+/// slots out in the shape's sorted field-name order and every writer fills them
+/// one at a time. That order is why a shape's
+/// [`nvs_runtime::CodecField::param`] and `slot` are the same number, and why
+/// [`decode_fields`] can accumulate into one vector for both doors.
 ///
-/// Takes the owning descriptor and a position rather than the
-/// [`nvs_runtime::CodecField`] alone because a nested field's class is
-/// [`nvs_runtime::ClassDesc::codec_class`]'s answer, indexed the same way —
-/// the field itself carries the label and never the descriptor.
+/// `values` is transferred: every reference in it is written into the object or
+/// released.
 ///
 /// # Safety
 ///
-/// As [`decode_as`]'s, for `owner` and for the nested descriptor it hands out.
+/// As [`decode_as`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn build_shape(
+    contract: Contract<'_>,
+    mut values: Vec<Value>,
+) -> Result<Value, DecodeFailure> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let object = unsafe { NvsObj::new(contract.class()) };
+    for field in contract.fields() {
+        // Unreachable from source with no diagnostic to name: a shape class's
+        // slots are the sorted field names its contract was built from, so a
+        // slot past the end is `nvs-ir`'s two halves disagreeing about one
+        // written shape. Checked here rather than left to
+        // `nvs_runtime::NvsObj::set_field`, whose answer is a panic and so
+        // costs the process rather than the request.
+        if field.param >= values.len() || field.slot >= object.field_count() {
+            release_all(&values);
+            return Err(DecodeFailure::Fault(Fault::fatal(format!(
+                "internal error: `{}`'s `{}` field names position {} and slot {} of {}",
+                contract.name(),
+                field.key,
+                field.param,
+                field.slot,
+                object.field_count()
+            ))));
+        }
+        // Left `null` behind so the release above frees each value exactly
+        // once, whichever field a later failure stops at.
+        let value = std::mem::replace(&mut values[field.param], Value::null());
+        object.set_field(field.slot, value);
+    }
+    Ok(Value::object(object))
+}
+
+/// The `index`th field of `contract`, taken over, or how it failed.
+///
+/// `rule:core-api/required-optional-and-nullable`'s table, and which of its
+/// rows are answered here is the one place the two contracts part.
+///
+/// A **class** gets the table minus its two default-bearing rows: a parameter
+/// default is `nvs_types::defaults`' constant and no call site emits one here,
+/// so an absent key still fails whichever column it sits in. What it no longer
+/// does is *misreport* which — `nvs_runtime::CodecField::required` carries that
+/// rule's first column down from the declaration, so an optional key's absence
+/// names the gap that stops it being filled instead of claiming the field was
+/// required.
+///
+/// A **shape** has no constructor and therefore no default to be missing, so
+/// both columns are answered rather than deferred:
+///
+/// * **An absent optional key** answers the never-written marker
+///   ([`nvs_runtime::Value::unset`]), which is the storage state
+///   `rule:types/shape-type`'s "an absent key is that same rule's checked,
+///   catchable throw" is read back out of. Writing `null` would instead make
+///   `{a?: int}` and `{a: ?int}` — two types that intern apart — hold the same
+///   thing.
+/// * **A `?T` field is `expr as ?T`**, which answers `null` exactly where
+///   `as T` would throw (`rule:expressions/nullable-conversion`), so a value
+///   the wire type refuses is that `null` rather than an issue. Only the
+///   *conversion* is answered that way: presence is the other column, kept
+///   independent of the type, so a required `?T` whose key is missing still
+///   fails.
+///
+/// Takes the contract and a position rather than the
+/// [`nvs_runtime::CodecField`] alone because a nested field's class is
+/// [`Contract::class_at`]'s answer, indexed the same way — the field itself
+/// carries the label and never the descriptor.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, for the contract's own descriptor and for the nested one
+/// it hands out.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
 unsafe fn decode_field(
     ctx: &mut nvs_runtime::Ctx,
-    owner: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     index: usize,
     source: &NvsArray,
     prefix: &str,
 ) -> Result<Value, DecodeFailure> {
-    let field = &owner.codec()[index];
+    let field = &contract.fields()[index];
     let issue = |why: String| DecodeFailure::Issues(vec![(path_of(prefix, Some(&field.key)), why)]);
     let Some(found) = source.get(field.key.as_bytes()) else {
         // `nvs_runtime::CodecField::required` is what tells the two absences
-        // apart. An optional key still fails here, because filling it needs
-        // the parameter's default and this crate has no call site to emit that
-        // constant from — but it fails saying so, rather than reporting a
-        // field the document was never obliged to carry as one it was.
+        // apart, and this is the presence column alone: a required field fails
+        // whatever its type admits.
         if field.required {
             return Err(issue("required field missing".to_owned()));
+        }
+        if contract.is_shape() {
+            return Ok(Value::unset());
         }
         return Err(issue(
             "optional field missing, and filling one from its constructor default is \
@@ -1408,6 +1659,47 @@ unsafe fn decode_field(
                 .to_owned(),
         ));
     };
+    #[expect(
+        unsafe_code,
+        reason = "the contract's descriptor is the caller's, and a nested field's \
+                  is one `nvs-codegen` resolved out of the same class table"
+    )]
+    let converted = unsafe { convert_field(ctx, contract, index, found, prefix) };
+    match converted {
+        // The `as ?T` above, in the one place every conversion under this field
+        // comes back through — a nested object's issue list included, since
+        // what failed is the whole conversion and `as ?T` has one answer for
+        // that. A `Fault` is the decoder admitting a gap of its own and is
+        // never a conversion's answer, so it passes through untouched.
+        Err(DecodeFailure::Issues(_)) if contract.is_shape() && field.nullable => Ok(Value::null()),
+        outcome => outcome,
+    }
+}
+
+/// The `index`th field's value converted, for a key the document carries —
+/// [`decode_field`]'s second half.
+///
+/// Split from it so that the presence column is answered once, above, and every
+/// path a *conversion* can fail on comes back through one place — which is what
+/// lets a shape's `?T` field answer `null` without also swallowing an absent
+/// key.
+///
+/// # Safety
+///
+/// As [`decode_field`]'s.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn convert_field(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    index: usize,
+    found: Value,
+    prefix: &str,
+) -> Result<Value, DecodeFailure> {
+    let field = &contract.fields()[index];
+    let issue = |why: String| DecodeFailure::Issues(vec![(path_of(prefix, Some(&field.key)), why)]);
     if found.tag() == Some(Tag::Null) {
         if field.nullable {
             return Ok(Value::null());
@@ -1422,19 +1714,19 @@ unsafe fn decode_field(
             #[expect(
                 unsafe_code,
                 reason = "`nvs-codegen` resolved this out of the same class table \
-                          the owner came from, so it lives exactly as long"
+                          the contract came from, so it lives exactly as long"
             )]
-            return unsafe { decode_nested(ctx, owner, index, found, prefix) };
+            return unsafe { decode_nested(ctx, contract, index, found, prefix) };
         }
         // `rule:core-classes/derive-field-list`'s list field, decoded one element at a time under a
         // path this key extends — the second nesting § 5's dotted path covers.
         CodecTy::List => {
             #[expect(
                 unsafe_code,
-                reason = "the owner is the caller's, and an element class is one \
+                reason = "the contract is the caller's, and an element class is one \
                           `nvs-codegen` resolved out of the same class table"
             )]
-            return unsafe { decode_list(ctx, owner, index, found, prefix) };
+            return unsafe { decode_list(ctx, contract, index, found, prefix) };
         }
         CodecTy::Mixed
         | CodecTy::Bool
@@ -1445,7 +1737,7 @@ unsafe fn decode_field(
         // `rule:core-classes/derive-field-list`'s enum field: the roster travels with the field and the
         // decode is a membership test over it, so this is a scalar with one
         // more thing in hand rather than a nesting of its own.
-        CodecTy::Enum => scalar(field.ty, Some(cases_of(owner, field)?), found),
+        CodecTy::Enum => scalar(field.ty, Some(cases_of(contract, field)?), found),
         // Reachable only through a *nested* class, whose own fields
         // [`decode_as`]'s pre-check never saw: an `Opaque` is a decoder this
         // crate has not written yet, so it is an engine fault wherever it is
@@ -1455,7 +1747,7 @@ unsafe fn decode_field(
                 "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
                  has no case for yet — `rule:core-classes/derive-field-list`'s wider codec-reachable set is \
                  `nvs_stdlib::json`'s own known gap",
-                owner.name(),
+                contract.name(),
                 field.key
             ))));
         }
@@ -1485,47 +1777,52 @@ unsafe fn decode_field(
 /// itself has a codec", run over the object this key holds.
 ///
 /// The class is the compiler's answer and never the document's: the descriptor
-/// comes out of [`nvs_runtime::ClassDesc::codec_class`], which `nvs-codegen`
-/// resolved from the declared type. A decoder that read a class name out of
-/// the JSON would let untrusted input choose which constructor runs.
+/// comes out of [`Contract::class_at`], which `nvs-codegen` resolved from the
+/// declared type. A decoder that read a class name out of the JSON would let
+/// untrusted input choose which constructor runs.
+///
+/// What it nests into is always a *class* contract, whichever one named it: an
+/// inline shape reached as a field erases to `CodecTy::Opaque` in
+/// `nvs_types::derive`, so it never reaches here.
 ///
 /// # Safety
 ///
-/// As [`decode_as`]'s, for `owner` and for the descriptor it names at `index`.
+/// As [`decode_as`]'s, for the contract's own descriptor and for the one it
+/// names at `index`.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
 unsafe fn decode_nested(
     ctx: &mut nvs_runtime::Ctx,
-    owner: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     index: usize,
     found: Value,
     prefix: &str,
 ) -> Result<Value, DecodeFailure> {
-    let field = &owner.codec()[index];
-    let Some(class) = owner.codec_class(index) else {
+    let field = &contract.fields()[index];
+    let Some(class) = contract.class_at(index) else {
         // Unreachable from source: `nvs_types::derive` refused a field type
         // with no codec at the declaration, so a label with no descriptor is
         // `nvs-codegen`'s join disagreeing with the class table it built.
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "internal error: `{}`'s `{}` field decodes into `{}`, which this unit's class \
              table has no descriptor for",
-            owner.name(),
+            contract.name(),
             field.key,
             field.class.as_deref().unwrap_or("<unnamed>")
         ))));
     };
     #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
-    let desc = unsafe { &*class };
-    if desc.codec().is_empty() {
+    let nested = unsafe { Contract::new(class, None) };
+    if nested.fields().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
              derived codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own \
              known gap",
-            owner.name(),
+            contract.name(),
             field.key,
-            desc.name()
+            nested.name()
         ))));
     }
     let Some(ptr) = found.array_ptr() else {
@@ -1533,7 +1830,7 @@ unsafe fn decode_nested(
             path_of(prefix, Some(&field.key)),
             format!(
                 "expected an object for `{}`, found {}",
-                desc.name(),
+                nested.name(),
                 describe(found)
             ),
         )]));
@@ -1544,13 +1841,7 @@ unsafe fn decode_nested(
         reason = "the resolved descriptor, and a borrow of the document's own object"
     )]
     unsafe {
-        decode_fields(
-            ctx,
-            class,
-            desc,
-            &source,
-            &format!("{prefix}{}.", field.key),
-        )
+        decode_fields(ctx, nested, &source, &format!("{prefix}{}.", field.key))
     }
 }
 
@@ -1619,7 +1910,7 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
 /// erasure disagreeing with itself — the same shape [`decode_list`] gives a
 /// list with no element wire type.
 fn cases_of<'a>(
-    owner: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     field: &'a nvs_runtime::CodecField,
 ) -> Result<&'a EnumCases, DecodeFailure> {
     // Unreachable from source, as the doc comment above says: the roster is
@@ -1627,7 +1918,7 @@ fn cases_of<'a>(
     field.cases.as_ref().ok_or_else(|| {
         DecodeFailure::Fault(Fault::fatal(format!(
             "internal error: `{}`'s `{}` field is an enum with no case roster",
-            owner.name(),
+            contract.name(),
             field.key
         )))
     })
@@ -1652,12 +1943,12 @@ fn cases_of<'a>(
 )]
 unsafe fn decode_list(
     ctx: &mut nvs_runtime::Ctx,
-    owner: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     index: usize,
     found: Value,
     prefix: &str,
 ) -> Result<Value, DecodeFailure> {
-    let field = &owner.codec()[index];
+    let field = &contract.fields()[index];
     let path = path_of(prefix, Some(&field.key));
     let Some(element) = field.element else {
         // Unreachable from source: `nvs_types::derive` writes the element
@@ -1665,7 +1956,7 @@ unsafe fn decode_list(
         // that erasure disagreeing with itself.
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "internal error: `{}`'s `{}` field is a list with no element wire type",
-            owner.name(),
+            contract.name(),
             field.key
         ))));
     };
@@ -1679,7 +1970,7 @@ unsafe fn decode_list(
     // Resolved once rather than per position: an element's roster is the
     // field's own, as its class label is.
     let cases = if element == CodecTy::Enum {
-        Some(cases_of(owner, field)?)
+        Some(cases_of(contract, field)?)
     } else {
         None
     };
@@ -1707,7 +1998,7 @@ unsafe fn decode_list(
                 reason = "the element descriptor `nvs-codegen` resolved out of the \
                           owner's own class table"
             )]
-            match unsafe { decode_element(ctx, owner, index, item, &at_path) } {
+            match unsafe { decode_element(ctx, contract, index, item, &at_path) } {
                 Ok(value) => decoded.append(value),
                 Err(DecodeFailure::Issues(mut nested)) => issues.append(&mut nested),
                 Err(fault @ DecodeFailure::Fault(_)) => return Err(fault),
@@ -1743,26 +2034,27 @@ unsafe fn decode_list(
 /// One element of a list whose element type is another derived class, decoded
 /// under `path` — [`decode_nested`] for a position rather than a key.
 ///
-/// The descriptor is [`nvs_runtime::ClassDesc::codec_class`]'s answer at the
-/// *field's* index, because a list field's class label is its element's; the
-/// two halves of [`nvs_runtime::CodecField::class`] meet here.
+/// The descriptor is [`Contract::class_at`]'s answer at the *field's* index,
+/// because a list field's class label is its element's; the two halves of
+/// [`nvs_runtime::CodecField::class`] meet here.
 ///
 /// # Safety
 ///
-/// As [`decode_as`]'s, for `owner` and for the descriptor it names at `index`.
+/// As [`decode_as`]'s, for the contract's own descriptor and for the one it
+/// names at `index`.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
 )]
 unsafe fn decode_element(
     ctx: &mut nvs_runtime::Ctx,
-    owner: &nvs_runtime::ClassDesc,
+    contract: Contract<'_>,
     index: usize,
     item: Value,
     path: &str,
 ) -> Result<Value, DecodeFailure> {
-    let field = &owner.codec()[index];
-    let Some(class) = owner.codec_class(index) else {
+    let field = &contract.fields()[index];
+    let Some(class) = contract.class_at(index) else {
         // Unreachable from source, as [`decode_nested`]'s twin: the element
         // type was refused at the declaration if it had no codec, so a label
         // with no descriptor is `nvs-codegen`'s join disagreeing with the
@@ -1770,20 +2062,20 @@ unsafe fn decode_element(
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "internal error: `{}`'s `{}` field holds `{}`, which this unit's class table \
              has no descriptor for",
-            owner.name(),
+            contract.name(),
             field.key,
             field.class.as_deref().unwrap_or("<unnamed>")
         ))));
     };
     #[expect(unsafe_code, reason = "the descriptor `nvs-codegen` resolved is live")]
-    let desc = unsafe { &*class };
-    if desc.codec().is_empty() {
+    let element = unsafe { Contract::new(class, None) };
+    if element.fields().is_empty() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \
              codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own known gap",
-            owner.name(),
+            contract.name(),
             field.key,
-            desc.name()
+            element.name()
         ))));
     }
     let Some(ptr) = item.array_ptr() else {
@@ -1791,7 +2083,7 @@ unsafe fn decode_element(
             path.to_owned(),
             format!(
                 "expected an object for `{}`, found {}",
-                desc.name(),
+                element.name(),
                 describe(item)
             ),
         )]));
@@ -1802,7 +2094,7 @@ unsafe fn decode_element(
         reason = "the resolved descriptor, and a borrow of the document's own object"
     )]
     unsafe {
-        decode_fields(ctx, class, desc, &source, &format!("{path}."))
+        decode_fields(ctx, element, &source, &format!("{path}."))
     }
 }
 

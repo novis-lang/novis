@@ -2357,12 +2357,12 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_request_body`] answers, carrying that member's `{maxDepth?}`
     /// bag and its default.
     ///
-    /// **Arguments 0 and 1 are the class written at the call site and whether
-    /// it was written as `array<...>` of one**, not values:
-    /// `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on the roster
-    /// whose helper is handed a `nvs_runtime::ClassDesc` and that flag ahead of
-    /// its declared parameters, and that roster's docs own why. So the arity
-    /// here is two more than the registry row's.
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values: `crate::registry::WRITTEN_CLASS_MEMBERS` puts this member on
+    /// the roster whose helper is handed a `nvs_runtime::ClassDesc`, the
+    /// `array<...>` flag and an inline shape's wire contract ahead of its
+    /// declared parameters, and that roster's docs own why. So the arity here
+    /// is three more than the registry row's.
     ///
     /// **It holds nothing of what it built**, which is the whole of what
     /// separates it from [`nvs_core_request_json`]: `decodeAs` builds objects,
@@ -2401,6 +2401,10 @@ nvs_runtime::nvs_helper! {
         let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
             "internal error: `Core\\Request::jsonAs` was called with no list flag in argument 1",
         ))?;
+        // Slot 2 is an inline shape's wire contract, and a written *class* gets
+        // the zero word there — `crate::json::decode_as`'s own reading, since
+        // this member is that member over the request's octets.
+        let shape = args[2].as_shape_codec();
         // Both questions before the claim, on `json`'s reasoning: a `maxDepth`
         // this member will refuse and a `T` that carries no codec are defects
         // in the program, and saying so must not spend a reading of the body.
@@ -2412,7 +2416,7 @@ nvs_runtime::nvs_helper! {
                       from it"
         )]
         unsafe {
-            crate::json::check_codec(class, "Core\\Request::jsonAs")?;
+            crate::json::check_codec(class, shape, "Core\\Request::jsonAs")?;
         }
         // What this member needs is the octets, exactly as `body` needs them:
         // it holds them, so another buffering reader may follow it, and a
@@ -2429,7 +2433,7 @@ nvs_runtime::nvs_helper! {
             reason = "the same descriptor, still owned by the compiled unit"
         )]
         unsafe {
-            crate::json::hydrate(ctx, class, document, list, "Core\\Request::jsonAs")
+            crate::json::hydrate(ctx, class, shape, document, list, "Core\\Request::jsonAs")
         }
     }
 }
