@@ -2,71 +2,67 @@
 
 ## State
 
-**Goal 18, stages 1 and 2 are complete; stage 3 has landed the fork, the carrier's runtime end and the
-checker's recording half.** Optional shape fields, `tainted {…}`, guarded reads, the codec tables'
-`required` column, `nvs_types::derive::shape_codec`, `nvs_runtime::ShapeCodec` and its `ClassTable`
-owner all stand — `rule:types/shape-type`'s optional-field paragraph,
+**Goal 18, stages 1 and 2 are complete; stage 3 has landed the fork, the carrier's runtime end, the
+checker's recording half and now the emitting half.** Optional shape fields, `tainted {…}`, guarded
+reads, the codec tables' `required` column, `nvs_types::derive::shape_codec`, `nvs_runtime::ShapeCodec`
+and its `ClassTable` owner all stand — `rule:types/shape-type`'s optional-field paragraph,
 `rule:core-api/required-optional-and-nullable` and [ADR 0157](../decisions/0157.md) § 2 own that half,
-and `crates/nvs-ir/src/lib.rs` § *Design choices* owns the fork (a shape's wire contract is a constant
-of the call site, never of its class). No rule changed, so ADR 0159 is still unopened.
+and `crates/nvs-ir/src/lib.rs` § *Design choices* owns the fork. No rule changed, so ADR 0159 is still
+unopened.
 
-**What landed this session:** a call site writing an inline shape where the type-argument door expects a
-class is now accepted and recorded twice — the synthesized class's label on
-`ResolvedCall::written_shape`, and the per-field wire contract on the expression table under the **type
-argument's own span**, since `{n: int}` and `{n: string}` share the label `$shape{n}`. The label's one
-home is `nvs_types::derive::shape_class_label`; `nvs_ir::lower::shape_class_label` delegates to it.
+**What landed this session: the carrier is emitted, published and relocated, and nothing ICEs.** A
+`WRITTEN_CLASS_MEMBERS` call now carries **three** leading constants, not two — descriptor, list flag,
+wire contract — and `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS`' own docs are that ABI's home. The
+third is `ir::InstKind::ShapeCodecConst`, naming an entry of `ir::Program::shape_codecs` by the key
+`lower::shape_codec_key` renders from the contract itself, so `{n: int}` and `{n: string}` share one
+`$shape{n}` class and get one table each. `nvs-codegen` defines them in `link_codecs`' pass and
+publishes `shape_codec_symbol`'s name beside every descriptor's; a written class emits the zero word.
+`Lowering::written_type_constants` is the one emitter for all three call paths and registers the shape's
+class itself, so a unit that hydrates a shape it never spells still resolves its descriptor.
 
-**The emitting half is one slice behind the checker, and it panics rather than miscompiling.**
-`nvs_ir::lower::written_class_label` (`crates/nvs-ir/src/lower/mod.rs:2983`) is the one reader for all
-three call paths, and it panics naming the shape whose contract has no constant to ride in. So
-`Core\Json::decodeAs<{n: int}>` type-checks today and ICEs at lowering — the next item is what removes
-that, and the playbook bullet above dies with it.
+**The next gap is the decoder, and it is a throw rather than an ICE.**
+`Core\Json::decodeAs<{n: int}>("…")` compiles and runs today, and answers
+`LogicError: `$shape{n}` has no JSON codec` — `json::check_codec`
+(`crates/nvs-stdlib/src/json.rs:1025`) asks the descriptor, which is the one thing a shape's descriptor
+cannot answer, and slot 2 is not read by any member yet. The playbook bullet at
+`crates/nvs-stdlib/src/arr.rs:shapeAs` now says exactly that.
 
 The failing acceptance check (`examples/input-shapes.nvs`) is stage 5's fixture — an unwritten artefact,
 not a regression.
 
 ## Next group
 
-**Stage 3: the carrier is emitted and then consumed** — one file set:
-`crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-ir/src/print.rs`, `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`,
-`crates/nvs-stdlib/src/arr.rs`, `crates/nvs-stdlib/src/registry.rs`. **In this order** — the coverage
-gate fails the moment a registry row has no conformance case, so the member is last.
+**Stage 3: the contract is read, and then a member writes shapes** — one file set:
+`crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/arr.rs`, `crates/nvs-stdlib/src/registry.rs`.
+**In this order** — the coverage gate fails the moment a registry row has no conformance case, so the
+member is last, and it has nothing to call until the walk exists.
 
-- [ ] **Emit the carrier, and register the shape's class with it** — a third constant beside the
-      descriptor and the list flag at `crates/nvs-ir/src/lower/expr.rs:3217` and `:3434` (and
-      `crates/nvs-ir/src/lower/closure.rs:623`), all three of which now read
-      `written_class_label` (`crates/nvs-ir/src/lower/mod.rs:2983`) — deleting its shape panic is the
-      slice's own acceptance. The contract is `self.exprs.shape_codec(span)` with the span
-      `ResolvedCall::written_shape` carries, converted the way `codec_fields`
-      (`crates/nvs-ir/src/lower/mod.rs:748` is its one caller) converts a class's, except that a shape
-      field's `param` **is** its slot, so there is no layout to join against. It needs a
-      `record_shape_class` (`crates/nvs-ir/src/lower/mod.rs:1793`) call so the descriptor constant
-      resolves in a unit that spells that shape nowhere else, a new `InstKind` beside `ClassDescConst`
-      (`crates/nvs-ir/src/ir.rs:507`, one arm each in `crates/nvs-ir/src/print.rs:179` and
-      `crates/nvs-codegen/src/emit.rs:597`), and a program-global key for the codec, since the lists are
-      collected per function and merged. `crates/nvs-codegen/src/lib.rs:1111` materializes it through
-      `ClassTable::define_shape_codec` (`crates/nvs-runtime/src/object.rs:1335`) in the same second pass
-      `link_codecs` runs in. `crates/nvs-ir/src/lib.rs` § *A shape's wire contract* is the design it
-      implements.
-- [ ] **`Core\Arr::shapeAs<T>` — the row, the roster entry and three cases in one slice** —
-      `crates/nvs-stdlib/src/arr.rs` and the five edits
-      ([conventions.md](conventions.md) § *A `Core` member*), plus the roster row at
-      `crates/nvs-stdlib/src/registry.rs:2382`; the body reads its contract through
-      `Value::as_shape_codec` (`crates/nvs-runtime/src/value.rs:588`) and hydrates with `as`'s own
-      table. `docs/agent/loop-goal.md` § *Stage 3*.
+- [ ] **Hydrate against the contract instead of the descriptor** — `nvs_core_json_decode_as`
+      (`crates/nvs-stdlib/src/json.rs:933`) reads slot 2 with `Value::as_shape_codec`, and where it is
+      `Some` the walk runs against those fields rather than `desc.codec()`: `check_codec`
+      (`crates/nvs-stdlib/src/json.rs:1025`) refuses `$shape{n}` today because a shape's descriptor
+      carries no codec, and `hydrate`/`decode_fields`
+      (`crates/nvs-stdlib/src/json.rs:1082` and `:1279`) build through `desc.ctor_arity()` and a
+      constructor, which a synthesized shape class has neither of — a shape's fields are written slot
+      by slot, and `nvs_runtime::ShapeCodec`'s `CodecField::param` **is** its slot
+      (`crates/nvs-runtime/src/object.rs:1335`). `rule:core-classes/derive-reports-every-field`'s
+      collected report is the failure shape, unchanged; loop-goal.md § *Stage 3* items 2 to 4 are the
+      specification.
+- [ ] **`Core\Arr::shapeAs<T>` — the row, the card, the roster entry and three cases in one slice** —
+      `crates/nvs-stdlib/src/arr.rs:92` is the class, and the five edits are conventions.md's; the
+      member calls the walk above rather than keeping one, which is loop-goal.md § *Stage 3* item 2.
+      `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` (`crates/nvs-stdlib/src/registry.rs:2382`) gains its
+      row, and the ABI it joins is that constant's own docs.
 - [ ] **`E_TYPE_ARG_NOT_A_CLASS` still says a class is the only answer** —
-      `crates/nvs-types/src/expr/args.rs:1562`'s message and help predate the shape the door now takes,
-      and `shapeAs` is the member that makes them misdirect. The expectation is frozen in
-      `tests/conformance/core/db-query-as-builds-a-class-and-not-a-scalar.nvst:37`, so the case moves
-      with the wording. `rule:types/arrays`'s type-argument sentence is amended by the slice above it.
+      `crates/nvs-types/src/expr/args.rs:1560` reports it and `:1479` documents the reading; the door
+      now admits a shape, so the wording and the code's `docs/` entry both name two answers. A
+      different file from the two above, so take it only if the first two left room.
 
 ## Backlog
 
-- `rule:types/arrays`'s "a call site may write the type argument" sentence still names two members;
-  stage 3 makes it three — `docs/agent/loop-goal.md` § *Stage 3* item 1.
-- A shape written at `Core\Request::jsonAs`/`Core\Db\Queryable::queryAs` records neither a decode site
-  nor a row site (`crates/nvs-types/src/expr/args.rs:1540`); both of those checks ask about a
-  *declaration*, which a shape has none of — revisit when either member's body learns to hydrate one.
-- Stage 4's `Core\Request::postAs`/`queryAs`, then stage 5's proofs, including
-  `examples/input-shapes.nvs` — `docs/agent/loop-goal.md`.
+- `$shape{n}` is an internal label reaching a user-facing throw — `crates/nvs-stdlib/src/json.rs:1035`.
+- Registering a shape class from a call site claims `Ty::Tagged` slots, which degrades a same-named
+  literal's checked writes in that unit — `crates/nvs-ir/src/lower/mod.rs`, `written_type_constants`.
+- Stage 4's `postAs<T>`/`queryAs<T>` and stage 5's `examples/input-shapes.nvs` — loop-goal.md.
+- `Core\Db\Connection::queryAs` still refuses an inline shape at run time for the same reason
+  `decodeAs` does — `crates/nvs-stdlib/src/db/execute.rs:1161`.

@@ -5177,11 +5177,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   of boundary where the code is instead: the `ExprInfo` field's own doc says what the entry carries,
   and the lowering site's comment says which fields it reads and which it does not.
   [until: gone crates/nvs-ir/src/lib.rs:Each panics naming itself]
-- **A `Core` member whose type argument is a *shape* cannot ride `WRITTEN_CLASS_MEMBERS`.** That
-  roster hands a helper a declared class's `ClassDesc`, and `json::decode_fields` builds through
-  `desc.ctor_arity()` and a constructor — while the `$shape{…}` class
-  `nvs_ir::lower::record_shape_class` synthesizes has neither codec nor constructor. Price the
-  checker, IR and runtime plumbing as slices before the registry row, which cannot land alone.
+- **A `Core` member whose type argument is a *shape* reaches its helper with a descriptor no
+  decoder can build through.** The ABI carries the contract now — argument 2, see
+  `WRITTEN_CLASS_MEMBERS` — but `json::decode_fields` still builds through `desc.ctor_arity()` and
+  a constructor, and the `$shape{…}` class `nvs_ir::lower::record_shape_class` synthesizes has
+  neither, so `decodeAs<{n: int}>` compiles and throws `has no JSON codec` naming the internal
+  label. Price a decoder that reads the contract before the registry row, which cannot land alone.
   [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
 - **A shape's synthesized class cannot carry a codec, because two different shapes share it.**
   `nvs_ir::lower::shape_class_label` keys on the sorted field *names* alone
@@ -5190,12 +5191,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reading `desc.codec()` (`crates/nvs-stdlib/src/json.rs:583`). Anything handing a shape's per-field
   wire types to a native helper has to carry them at the *call site*, next to the
   `WRITTEN_CLASS_MEMBERS` descriptor rather than inside it. [until: reviewed 2026-09-08]
-- **Widening what a *type argument* accepts reaches every member on the roster, not the one the goal is
-  about.** `nvs_ir::lower::written_class_label` (`crates/nvs-ir/src/lower/mod.rs:2983`) panics when a
-  `WRITTEN_CLASS_MEMBERS` call site recorded no class, so widening `written_class_of` turns a diagnostic
-  into an ICE for all four rows. Grep that roster's `nvs-ir` consumers before believing "inert until the
-  roster names a member", and make the panic name what is missing.
-  [until: gone crates/nvs-ir/src/lower/mod.rs:has no constant to ride in yet]
 
 ## Divergences and refusals already pinned
 
