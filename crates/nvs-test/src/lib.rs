@@ -46,6 +46,8 @@
 //! | `--ORACLE-DIVERGES--` | the one-line reason there is deliberately no twin |
 //! | `--EXPECT-ERROR--` | expected standard error, compared literally |
 //! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
+//! | `--CLIENT_IP--` | the address the request's peer resolved to, on one line |
+//! | `--SCHEME--` | `http` or `https`, the scheme that request arrived over |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
 //! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit` or `config dump --origin`: the command line `--FILE--` goes through |
 //!
@@ -147,14 +149,23 @@
 //! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
 //!
-//! The five request sections **are** honoured, and they are the one thing in
+//! The seven request sections **are** honoured, and they are the one thing in
 //! this format that changes what the program under test *is*: a case writing
-//! `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` or `--HEADERS--` is
-//! answering a request, so `Core\Request`'s members read it back rather than
-//! throwing (`rule:security/request-state-throws-in-an-isolate`). The runner
-//! freezes the description beside the program and points `nvs run --request`
-//! at it — [`request`] owns that file, and the three facts a case does not
-//! write.
+//! `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--`, `--HEADERS--`,
+//! `--CLIENT_IP--` or `--SCHEME--` is answering a request, so `Core\Request`'s
+//! members read it back rather than throwing
+//! (`rule:security/request-state-throws-in-an-isolate`). The runner freezes the
+//! description beside the program and points `nvs run --request` at it —
+//! [`request`] owns that file, and the three facts a case does not write.
+//!
+//! The last two are the peer's, and are Novis's own because `.phpt` has no way
+//! to say either: `--CLIENT_IP--` is the address the request resolved to and
+//! `--SCHEME--` is `http` or `https`. Both are *answers* rather than the
+//! headers an answer is walked out of, which is why a case states them instead
+//! of writing `x-forwarded-for`
+//! (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`), and
+//! both are read where they are written: an address that is not one, or a third
+//! scheme, is a parse error naming the line.
 //!
 //! Two refusals come with them. `--POST--` and `--POST_RAW--` together are
 //! refused rather than merged, since two spellings of one body cannot both be

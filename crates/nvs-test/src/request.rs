@@ -1,7 +1,8 @@
 //! The request a case answers, frozen into the file `nvs run --request` reads.
 //!
-//! A case's `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` and
-//! `--HEADERS--` describe a request, and the program answering it is a
+//! A case's `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--`,
+//! `--HEADERS--`, `--CLIENT_IP--` and `--SCHEME--` describe a request, and the
+//! program answering it is a
 //! separate process ([the `run` module](mod@crate::run)'s doc owns why), so
 //! the description has to cross a process boundary. It crosses as a **file
 //! named on the command line** and never as an environment variable: whether
@@ -19,6 +20,10 @@
 //! /
 //! --QUERY--
 //! page=2&q=novis
+//! --CLIENT_IP--
+//! 203.0.113.7
+//! --SCHEME--
+//! https
 //! --HEADERS--
 //! accept: application/json
 //! cookie: session=abc123
@@ -43,6 +48,17 @@
 //! is what makes `nvs run --request` worth having on its own — a request is
 //! reproduced without standing a listener up in front of it.
 //!
+//! **The peer's two facts are sections rather than field lines**, because
+//! nothing a peer sends states either one: with `[server] trusted_proxies`
+//! empty the forwarded headers are not read at all
+//! (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`), so a
+//! file writing `x-forwarded-for` would be describing a claim rather than an
+//! answer. `--CLIENT_IP--` is the address that walk settled on and `--SCHEME--`
+//! the scheme it decided, each said outright — and a file naming neither
+//! describes a request from nobody in particular over plaintext, which is
+//! `nvs_runtime::InboundSpec`'s own fail-closed pair rather than a hole for
+//! anything downstream to fill.
+//!
 //! `--COOKIE--`'s pairs are joined into the one `cookie` field a peer would
 //! have sent, because the wire has no cookie of its own — only a header — and
 //! `content-type` and `content-length` are written for a body the case did not
@@ -59,7 +75,9 @@
 //! written by hand is never written a second time — so a file that already
 //! carries one of the three is carried through the spec untouched.
 
-use crate::case::{Body, Request};
+use std::net::IpAddr;
+
+use crate::case::{Body, Request, Scheme};
 use crate::section;
 
 /// The name a runner writes this file under, in the case's own directory.
@@ -80,6 +98,13 @@ pub struct Wire {
     /// same state as an empty one (RFC 9110 § 8.6), and the two reach a
     /// program differently.
     pub body: Option<String>,
+    /// `--CLIENT_IP--`, the address the request's peer resolved to, and `None`
+    /// for a peer with no address at all — the `null`
+    /// `Core\Request::clientIp` answers, which is a fact rather than a value
+    /// still to be filled in.
+    pub client_ip: Option<IpAddr>,
+    /// `--SCHEME--`, and [`Scheme::Http`] for a file naming none.
+    pub scheme: Scheme,
 }
 
 /// Renders the request `case` describes as the file `nvs run --request` reads.
@@ -93,7 +118,22 @@ pub fn render(case: &Request) -> String {
     text.push_str(if body.is_some() { "POST\n" } else { "GET\n" });
     text.push_str("--PATH--\n/\n--QUERY--\n");
     text.push_str(case.query.as_deref().unwrap_or(""));
-    text.push_str("\n--HEADERS--\n");
+    text.push('\n');
+    // Each written only where the case named it, so a rendered file carries no
+    // claim about the peer that the case did not make: an absent
+    // `--CLIENT_IP--` is a peer with no address and an absent `--SCHEME--` is
+    // plaintext, which is what reading one back answers anyway.
+    if let Some(client_ip) = case.client_ip {
+        text.push_str("--CLIENT_IP--\n");
+        text.push_str(&client_ip.to_string());
+        text.push('\n');
+    }
+    if let Some(scheme) = case.scheme {
+        text.push_str("--SCHEME--\n");
+        text.push_str(scheme.name());
+        text.push('\n');
+    }
+    text.push_str("--HEADERS--\n");
     for (name, value) in &case.headers {
         field(&mut text, name, value);
     }
@@ -132,8 +172,9 @@ pub fn render(case: &Request) -> String {
 /// # Errors
 ///
 /// Returns the one-line reason, already phrased for a terminal: an unknown or
-/// repeated section, a missing `--METHOD--` or `--PATH--`, or a header line
-/// that is not a field.
+/// repeated section, a missing `--METHOD--` or `--PATH--`, a header line that
+/// is not a field, a `--CLIENT_IP--` that is not an address, or a `--SCHEME--`
+/// that is neither of the two a request can arrive over.
 pub fn read(text: &str) -> Result<Wire, String> {
     // The body is the rest of the file rather than a section, which is this
     // format's one deviation from the shape and the module doc's reason for
@@ -152,6 +193,7 @@ pub fn read(text: &str) -> Result<Wire, String> {
     let sections = section::lex(&head)
         .map_err(|stray| format!("line {}: text before `--METHOD--`", stray.line))?;
     let (mut method, mut path, mut query) = (None, None, None);
+    let (mut client_ip, mut scheme) = (None, None);
     let mut headers = Vec::new();
     for seen in &sections {
         let (name, at) = (seen.name.as_str(), seen.line);
@@ -162,6 +204,8 @@ pub fn read(text: &str) -> Result<Wire, String> {
             "METHOD" => &mut method,
             "PATH" => &mut path,
             "QUERY" => &mut query,
+            "CLIENT_IP" => &mut client_ip,
+            "SCHEME" => &mut scheme,
             "HEADERS" => {
                 for (offset, line) in seen.body.lines().enumerate() {
                     let line = line.trim();
@@ -199,12 +243,31 @@ pub fn read(text: &str) -> Result<Wire, String> {
             "`--PATH--` is a path and starts with `/`, not `{path}`"
         ));
     }
+    // A file that names no peer describes one with no address, over plaintext:
+    // the pair `nvs_runtime::InboundSpec` starts every spec with, for the same
+    // fail-closed reason. A section written empty is refused instead, since a
+    // file that opened one meant to say something in it.
+    let client_ip = match client_ip {
+        None => None,
+        Some(text) if text.is_empty() => return Err("`--CLIENT_IP--` is empty".to_owned()),
+        Some(text) => Some(
+            text.parse::<IpAddr>()
+                .map_err(|_| format!("`--CLIENT_IP--` is one client address, not `{text}`"))?,
+        ),
+    };
+    let scheme = match scheme.as_deref() {
+        None | Some("http") => Scheme::Http,
+        Some("https") => Scheme::Https,
+        Some(other) => return Err(format!("`--SCHEME--` is `http` or `https`, not `{other}`")),
+    };
     Ok(Wire {
         method,
         path,
         query: query.unwrap_or_default(),
         headers,
         body,
+        client_ip,
+        scheme,
     })
 }
 
@@ -323,6 +386,46 @@ mod tests {
     }
 
     #[test]
+    fn the_peer_sections_cross_the_file_as_the_case_wrote_them() {
+        let wire = wire("--CLIENT_IP--\n2001:db8::1\n--SCHEME--\nhttps\n");
+        // Read as an address at both ends rather than carried as text: the one
+        // spelling `IpAddr` writes back is what the carrier is given, so a case
+        // and the program it runs cannot disagree about which address two
+        // spellings of one were.
+        assert_eq!(
+            wire.client_ip,
+            Some("2001:db8::1".parse::<IpAddr>().expect("a v6 address"))
+        );
+        assert_eq!(wire.scheme, Scheme::Https);
+        // Describing a peer is describing a request, so the three facts no
+        // section spells are derived for it as for any other.
+        assert_eq!(wire.method, "GET");
+        assert_eq!(wire.path, "/");
+    }
+
+    #[test]
+    fn a_peer_the_file_cannot_read_is_refused_rather_than_repaired() {
+        // A file written by hand reaches `read` without a case parser ahead of
+        // it, so the refusals are here as well — and they are refusals rather
+        // than a fallback to the socket peer, which would answer a question the
+        // file got wrong instead of saying so.
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--CLIENT_IP--\n203.0.113\n")
+                .expect_err("three octets are not an address"),
+            "`--CLIENT_IP--` is one client address, not `203.0.113`"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--CLIENT_IP--\n\n").expect_err("nothing in it"),
+            "`--CLIENT_IP--` is empty"
+        );
+        assert_eq!(
+            read("--METHOD--\nGET\n--PATH--\n/\n--SCHEME--\nftp\n")
+                .expect_err("a request arrives over one of two schemes"),
+            "`--SCHEME--` is `http` or `https`, not `ftp`"
+        );
+    }
+
+    #[test]
     fn a_case_describing_a_request_renders_what_a_peer_would_have_sent() {
         // The derivations are the point of the assertion: a body makes the
         // verb `POST`, `--COOKIE--`'s pairs are one joined field, and the two
@@ -335,8 +438,12 @@ mod tests {
                 ("theme".to_owned(), "dark".to_owned()),
             ],
             headers: vec![("Accept".to_owned(), "application/json".to_owned())],
+            client_ip: Some(IpAddr::from([203, 0, 113, 7])),
+            scheme: Some(Scheme::Https),
         });
         let wire = read(&rendered).expect("it reads back");
+        assert_eq!(wire.client_ip, Some(IpAddr::from([203, 0, 113, 7])));
+        assert_eq!(wire.scheme, Scheme::Https);
         assert_eq!(wire.method, "POST");
         assert_eq!(wire.path, "/");
         assert_eq!(wire.query, "page=2&q=novis");
@@ -362,12 +469,18 @@ mod tests {
             body: None,
             cookies: Vec::new(),
             headers: Vec::new(),
+            client_ip: None,
+            scheme: None,
         }))
         .expect("it reads back");
         assert_eq!(wire.method, "GET");
         assert_eq!(wire.query, "");
         assert!(wire.headers.is_empty());
         assert_eq!(wire.body, None);
+        // The peer a case did not describe: no address at all, over plaintext,
+        // which is an answer rather than a pair still to be decided.
+        assert_eq!(wire.client_ip, None);
+        assert_eq!(wire.scheme, Scheme::Http);
     }
 
     #[test]
@@ -381,6 +494,8 @@ mod tests {
             body: Some(Body::Raw(raw.to_owned())),
             cookies: Vec::new(),
             headers: vec![("Content-Type".to_owned(), "text/plain".to_owned())],
+            client_ip: None,
+            scheme: None,
         }))
         .expect("it reads back");
         assert_eq!(wire.body.as_deref(), Some(raw));

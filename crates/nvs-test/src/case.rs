@@ -11,6 +11,7 @@
 //! documentation — that is the one home for the format.
 
 use std::fmt;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 use crate::section;
@@ -50,10 +51,38 @@ pub enum Body {
     Raw(String),
 }
 
-/// The request a case is answering, assembled from the five sections that
+/// The scheme a request is to have effectively arrived over, which `--SCHEME--`
+/// names and `Core\Request::scheme` answers.
+///
+/// `nvs_runtime::Scheme` is these same two cases, and this crate cannot name it
+/// — it has no dependencies, for the reason its manifest gives — so the two
+/// meet in one `match` at `nvs run --request`'s door. Nothing here decides
+/// which scheme a request had: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+/// walk does that for a served request, and a case states its answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scheme {
+    /// A plaintext connection, and what a case naming no scheme describes.
+    Http,
+    /// TLS, as a trusted proxy asserted it.
+    Https,
+}
+
+impl Scheme {
+    /// The one spelling a case writes this scheme as and a request file carries
+    /// it in.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Http => "http",
+            Self::Https => "https",
+        }
+    }
+}
+
+/// The request a case is answering, assembled from the seven sections that
 /// describe one.
 ///
-/// Every part is optional and a case that wrote none of the five carries no
+/// Every part is optional and a case that wrote none of the seven carries no
 /// `Request` at all rather than an empty one: answering a request and running
 /// as a program are different things, and what a case wrote is how it says
 /// which of them it is.
@@ -80,6 +109,23 @@ pub struct Request {
     /// than merged or refused, because a message may legitimately carry one
     /// twice and what that means belongs to whatever reads the field.
     pub headers: Vec<(String, String)>,
+    /// `--CLIENT_IP--`, the address the request's peer is to have had, and
+    /// `None` where the case named none.
+    ///
+    /// That `None` is an answer rather than a hole: a peer can genuinely have
+    /// no address to report, which is the `null` `Core\Request::clientIp`
+    /// answers (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`).
+    /// It is the address the walk *settled on*, not a hop's claim — a case
+    /// pinning what a forwarded header did to that claim writes the header in
+    /// `--HEADERS--` and the settled address here.
+    pub client_ip: Option<IpAddr>,
+    /// `--SCHEME--`, and `None` where the case named none, which the request
+    /// file and the carrier both read as [`Scheme::Http`].
+    ///
+    /// Fail-closed for `nvs_runtime::Inbound::new`'s reason: `https` is a claim
+    /// only a section can make, so a case that says nothing describes a request
+    /// that arrived over plaintext.
+    pub scheme: Option<Scheme>,
 }
 
 /// Which `nvs` subcommand a case's own `--FILE--` is run through.
@@ -213,7 +259,8 @@ pub struct Case {
     /// lines are dropped, on [`Case::args`]' rule.
     pub env: Vec<(String, String)>,
     /// The request this case answers, or `None` where it wrote none of
-    /// `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--` and `--HEADERS--`.
+    /// `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--`, `--HEADERS--`,
+    /// `--CLIENT_IP--` and `--SCHEME--`.
     pub request: Option<Request>,
     /// Every `--FILE <relative/path>--`, in the order they were written.
     pub aux: Vec<AuxFile>,
@@ -279,6 +326,8 @@ const KNOWN: &[&str] = &[
     "POST_RAW",
     "COOKIE",
     "HEADERS",
+    "CLIENT_IP",
+    "SCHEME",
     "FILE",
     "EXPECT",
     "EXPECTF",
@@ -558,15 +607,26 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
         .map(|section| fields("HEADERS", ':', "Name: value", section))
         .transpose()?
         .unwrap_or_default();
+    let client_ip = take("CLIENT_IP")
+        .map(|section| address("CLIENT_IP", section))
+        .transpose()?;
+    let scheme = take("SCHEME").map(scheme_of).transpose()?;
     // Not answering a request is a different state from answering an empty
     // one, and which of the two a case means is what it wrote.
-    let request = if query.is_some() || body.is_some() || !cookies.is_empty() || !headers.is_empty()
+    let request = if query.is_some()
+        || body.is_some()
+        || !cookies.is_empty()
+        || !headers.is_empty()
+        || client_ip.is_some()
+        || scheme.is_some()
     {
         Some(Request {
             query,
             body,
             cookies,
             headers,
+            client_ip,
+            scheme,
         })
     } else {
         None
@@ -624,6 +684,39 @@ fn pick(
         (Some((_, body)), None) => Ok(Some(Expectation::Exact(body.clone()))),
         (None, Some((_, body))) => Ok(Some(Expectation::Format(body.clone()))),
         (None, None) => Ok(None),
+    }
+}
+
+/// Reads a one-line section as the client address it names, or the reason it
+/// names none.
+///
+/// Refused where it is written rather than carried through as text: the request
+/// file this becomes reads it back as an address too, and a case whose peer is
+/// a typo would otherwise fail one process later with the wrong line number on
+/// it.
+fn address(name: &str, section: (usize, String)) -> Result<IpAddr, ParseError> {
+    let line = section.0;
+    let text = one_line(name, section)?;
+    text.parse().map_err(|_| {
+        err(
+            format!("`--{name}--` is one client address, not `{text}`"),
+            Some(line),
+        )
+    })
+}
+
+/// Reads `--SCHEME--` as one of the two schemes a request can have arrived
+/// over, or the reason it is neither.
+fn scheme_of(section: (usize, String)) -> Result<Scheme, ParseError> {
+    let line = section.0;
+    let text = one_line("SCHEME", section)?;
+    match text.as_str() {
+        "http" => Ok(Scheme::Http),
+        "https" => Ok(Scheme::Https),
+        other => Err(err(
+            format!("`--SCHEME--` is `http` or `https`, not `{other}`"),
+            Some(line),
+        )),
     }
 }
 
@@ -1022,6 +1115,11 @@ hi
                 ("X-Trace".to_owned(), "7".to_owned()),
             ]
         );
+        // The peer sections are the two this case did not write, and a case
+        // that writes neither describes a request from nobody in particular
+        // over plaintext rather than one with a peer still to be decided.
+        assert_eq!(request.client_ip, None);
+        assert_eq!(request.scheme, None);
         // Nothing about it is deferred: the runner writes the request beside
         // the program and points `nvs run` at it (`crate::request`).
         assert!(parsed.unsupported.is_none());
@@ -1031,6 +1129,41 @@ hi
         assert_eq!(
             refused.to_string(),
             "line 3: a case that describes a request is `--RUN--` `run`: no other subcommand takes one"
+        );
+    }
+
+    #[test]
+    fn the_peer_sections_say_who_the_request_came_from() {
+        let parsed = case(
+            "--TEST--\na peer\n--FILE--\n<?nvs\necho 1;\n--CLIENT_IP--\n203.0.113.7\n--SCHEME--\nhttps\n--EXPECT--\n1\n",
+        )
+        .expect("it parses");
+        let request = parsed
+            .request
+            .expect("naming a peer is describing a request");
+        assert_eq!(request.client_ip, Some(IpAddr::from([203, 0, 113, 7])));
+        assert_eq!(request.scheme, Some(Scheme::Https));
+
+        // Both are read here rather than carried through as text: the request
+        // file reads them back as an address and a scheme too, so a case whose
+        // peer is a typo fails on the line that holds it instead of one
+        // process later.
+        let refused = case(
+            "--TEST--\na bad peer\n--FILE--\n<?nvs\necho 1;\n--CLIENT_IP--\n203.0.113.999\n--EXPECT--\n1\n",
+        )
+        .expect_err("that is not an address");
+        assert_eq!(
+            refused.to_string(),
+            "line 6: `--CLIENT_IP--` is one client address, not `203.0.113.999`"
+        );
+
+        let refused = case(
+            "--TEST--\na bad scheme\n--FILE--\n<?nvs\necho 1;\n--SCHEME--\nftp\n--EXPECT--\n1\n",
+        )
+        .expect_err("a request arrives over one of two schemes");
+        assert_eq!(
+            refused.to_string(),
+            "line 6: `--SCHEME--` is `http` or `https`, not `ftp`"
         );
     }
 

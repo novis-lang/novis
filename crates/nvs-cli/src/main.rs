@@ -1430,6 +1430,18 @@ fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> 
     if let Some(body) = wire.body {
         spec.set_body(nvs_runtime::SpecBody::Raw(body.into_bytes()))?;
     }
+    // The peer is stated, never derived: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+    // walk is what decides a served request's address and scheme, and a file
+    // describes the answer it reached rather than the headers it read. The two
+    // `Scheme` enumerations are the same two cases in a crate that may not name
+    // this one, so this is where they meet.
+    spec.set_peer(
+        wire.client_ip,
+        match wire.scheme {
+            nvs_test::case::Scheme::Http => nvs_runtime::Scheme::Http,
+            nvs_test::case::Scheme::Https => nvs_runtime::Scheme::Https,
+        },
+    );
     Ok(spec.build())
 }
 
