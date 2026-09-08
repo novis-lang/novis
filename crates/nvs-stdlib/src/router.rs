@@ -1202,6 +1202,8 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use nvs_runtime::routes::Param;
 
+    use nvs_runtime::{ClassTable, Ctx, ErrorClass, MethodRow, NvsFn, OK, OutputSink, Value};
+
     use super::{METHOD, capture_value};
 
     /// The text a capture becomes, or the message it refused with — the seam
@@ -1271,6 +1273,172 @@ mod tests {
         let signed =
             capture_value(&mut ctx, "n", &Param::Int(-7)).expect("a number refuses nothing");
         assert_eq!(signed.as_int(), Some(-7));
+    }
+
+    thread_local! {
+        /// The text [`parse_handler`] was handed, so that a crossing which
+        /// answered plausibly without ever reaching the class — or reached it
+        /// with the wrong slot — fails here rather than on the value alone.
+        static PARSED: std::cell::RefCell<Option<String>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// A `Parses` implementor's `parse`, as `nvs-codegen` would have compiled
+    /// it: slot 0 is the called class and slot 1 is the one `string` the
+    /// interface declares.
+    ///
+    /// It answers `true` — a value no segment's own text could be — so that
+    /// "the class's answer replaced the segment" is asserted on the slot and
+    /// not only on what arrived.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_static` calls through: \
+                  exactly two live values and the address of a live `Value` for the \
+                  result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn parse_handler(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let text = unsafe { *args.add(1) };
+        PARSED.with_borrow_mut(|parsed| {
+            *parsed = text.as_text().map(str::to_owned);
+        });
+        unsafe {
+            for index in 0..2 {
+                (*args.add(index)).release();
+            }
+            *out = Value::bool(true);
+        }
+        OK
+    }
+
+    /// [`parse_handler`]'s twin that refuses, which is the whole of what a
+    /// `Parses` implementor does to reject text: it throws, and the sentence
+    /// is the class's own.
+    #[expect(
+        unsafe_code,
+        reason = "as `parse_handler`, and the pending message is set through the \
+                  context the ABI hands every compiled function"
+    )]
+    unsafe extern "C" fn refusing_parse(
+        ctx: *mut Ctx,
+        args: *const Value,
+        _out: *mut Value,
+    ) -> i32 {
+        unsafe {
+            for index in 0..2 {
+                (*args.add(index)).release();
+            }
+            (*ctx).set_pending("a slug is lower case and digits");
+        }
+        nvs_runtime::THROWN
+    }
+
+    /// A context carrying a class table with `App\Slug::parse` bound to
+    /// `code` — the armed table [`capture_value`] needs and the door has not.
+    ///
+    /// `crate::command`'s `dispatching` is this same fixture one table along,
+    /// and is the home of why the handle is `set_runtime_error_class`: that
+    /// handle *is* a context's anchor into the compiled unit's classes, which
+    /// is how `nvs_runtime::call_static` turns a `Class::method` label into an
+    /// address.
+    fn parsing(code: NvsFn) -> Ctx {
+        let mut classes = ClassTable::new();
+        let id = classes.define("App\\Slug", &[] as &[&str], &[]);
+        classes.set_methods(
+            id,
+            vec![MethodRow {
+                name: "parse".to_owned(),
+                code: code as *const u8,
+                arity: 1,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), id));
+        ctx
+    }
+
+    /// The class-typed capture's other half, on the side that may take it: the
+    /// segment reaches the class's own `parse` here, before the handler is
+    /// called, and what the parameter receives is what `parse` answered.
+    ///
+    /// The decode runs first and is asserted on the slot rather than on the
+    /// result, because the two orders answer the same value for every segment
+    /// with no escape in it: a class handed `caf%C3%A9` would be judging text
+    /// no other capture ever sees.
+    #[test]
+    fn a_parses_capture_converts_the_segment_before_the_handler_is_reached() {
+        let mut ctx = parsing(parse_handler);
+        PARSED.with_borrow_mut(|parsed| *parsed = None);
+        let crossed = capture_value(
+            &mut ctx,
+            "target",
+            &Param::Parses {
+                class: "App\\Slug".to_owned(),
+                text: "caf%C3%A9".to_owned(),
+            },
+        )
+        .expect("the class parsed the segment");
+        assert_eq!(
+            PARSED.with_borrow(Clone::clone),
+            Some("café".to_owned()),
+            "the decode runs first, so `parse` reads the segment and not its escapes"
+        );
+        assert_eq!(
+            crossed.as_text(),
+            None,
+            "the segment does not survive the crossing"
+        );
+        assert_eq!(crossed.as_bool(), Some(true), "`parse`'s answer does");
+    }
+
+    /// The exception `rule:security/route-capture-is-laundered-by-its-type`
+    /// carves out of its own "a failed conversion is not a match": a segment
+    /// the class refuses is a **matched** request carrying a bad value, so the
+    /// refusal is the throw a handler answers `400` with rather than a fall
+    /// through to the next route and a `404`.
+    ///
+    /// Both sides are asserted here rather than the throw alone, because "over
+    /// a route that matched" is the half that makes it a `400` — and the match
+    /// is `nvs_runtime::routes`' answer, not an assumption this side is free
+    /// to make about the other.
+    #[test]
+    fn a_segment_the_class_refuses_is_a_matched_bad_value_rather_than_no_match() {
+        let routes = nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
+            "Get",
+            "/deploy/{target}",
+            None,
+            "App\\Deploys::show",
+            None,
+            vec![nvs_runtime::routes::Capture {
+                name: "target".to_owned(),
+                conv: nvs_runtime::routes::CaptureConv::Parses("App\\Slug".to_owned()),
+            }],
+        )]);
+        let matched = routes
+            .match_request("GET", "/deploy/PROD!!")
+            .expect("the door matches on shape, so a segment the class refuses still matches");
+        let capture = matched.param("target").expect("the capture the path names");
+
+        let mut ctx = parsing(refusing_parse);
+        match capture_value(&mut ctx, "target", capture) {
+            // The class's throw travels unchanged rather than being reworded
+            // here, which is what `Fault::Pending` *is*: the sentence is still
+            // on the context, where the handler's own `catch` reads it.
+            // `crate::command`'s `parse_each` is the same throw read the other
+            // way, into a usage page, and the two arms are why that split is
+            // one function apart rather than one variant apart.
+            Err(nvs_runtime::Fault::Pending(_)) => {
+                let said = ctx.take_pending().expect("the class's own sentence");
+                assert!(
+                    said.contains("a slug is lower case and digits"),
+                    "the implementor's sentence is what the handler answers with: {said}"
+                );
+            }
+            Err(_) => panic!("a refusal is the class's own throw, not the engine's"),
+            Ok(_) => panic!("a `parse` that threw converted nothing"),
+        }
     }
 
     /// The tail is what the doc comment promises, asserted rather than
