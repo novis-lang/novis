@@ -1,15 +1,16 @@
-# Goal 18 -- untrusted input becomes a declared shape, at one converter. The acceptance test, as data.
+# Goal 19 -- a class a string names, at one contract. The acceptance test, as data.
 #
-# `18-input-shapes.md` is the prose. One home each.
+# `19-parses.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# When this list goes green the driver switches to goal 19 (`19-parses.toml`), whose floor this whole
-# list becomes.
+# When this list goes green the driver switches to goal 20 -- `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s Unix sockets -- and then to
+# goal 50, the dossier, whose emitter writes everything after it.
 
 files = [
-  "examples/input-shapes.nvs",
+  "examples/parses.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/input-shapes.nvs",
   "examples/request-fields.nvs",
   "examples/json-body.nvs",
   "examples/pipeline.nvs",
@@ -80,83 +81,55 @@ files = [
 [context]
 
 modules = [
-  # The type grammar: `{name?: T}`'s marker, and `tainted` in front of a shape.
-  "crates/nvs-syntax/src/parser/ty.rs",
-  # `Ty::Shape` gains the required bit `CoreShapeField` has had since `rule:core-api/shape-parameter`; the tainted variants
-  # the desugaring rewrites into are the same file.
-  "crates/nvs-types/src/ty.rs",
-  # `is_assignable` -- width subtyping learns that a missing optional field still satisfies.
-  "crates/nvs-types/src/expr/assign.rs",
-  # The qualifier checks: where `tainted {...}` must not become a launderer.
-  "crates/nvs-types/src/expr/quals.rs",
-  # `check_generic_args` -- the call-site half of the third written type argument.
-  "crates/nvs-types/src/expr/args.rs",
-  # `CoreTy` -> `Ty` lowering for the new member's signature.
+  # The reserved roster: `Comparable`, `Stringable`, and the third name this goal adds.
+  "crates/nvs-hir/src/interfaces.rs",
+  # What a class claiming a roster interface owes, and the diagnostic when it owes it still.
+  "crates/nvs-types/src/conformance.rs",
+  # `converts_from_string` -- the one predicate all four binding surfaces read, and the `Core\Uuid`
+  # arm that becomes the contract. Also two of the three roster diagnostics.
+  "crates/nvs-types/src/commands.rs",
+  # The route half: `#[Query]`'s walk, `closed_set`, and the other roster diagnostic.
+  "crates/nvs-types/src/routes.rs",
+  # How a `Core` class satisfies a global interface without naming it -- the `Comparable` seed the
+  # `Parses` seed sits two lines below.
   "crates/nvs-types/src/core_lib.rs",
-  # The converter itself, and `Core\Arr`'s rows.
-  "crates/nvs-stdlib/src/arr.rs",
-  # `decodeAs<T>` over an inline shape calls the one walk rather than keeping its own.
-  "crates/nvs-stdlib/src/json.rs",
-  # `postAs`/`queryAs` beside `post`, and the buffering-reader claim they take.
-  "crates/nvs-stdlib/src/request.rs",
-  # `parse_query` already answers the whole array the whole-form spelling hands over.
-  "crates/nvs-stdlib/src/uri.rs",
-  # The registry cards for the three members.
+  # `implements_comparable`, which `implements_parses` is written beside and modelled on.
   "crates/nvs-stdlib/src/registry.rs",
-  # Lowers one already-checked method body to a `crate::ir::Function` — see the crate's own module
-  # docs for which statement and expression shapes are covered, and why this trusts its input
-  # rather than re-checking it.
-  "crates/nvs-ir/src/lower/mod.rs",
-  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
-  # inline behind it — plus the `ClassDesc` every instance points back at.
-  "crates/nvs-runtime/src/object.rs",
-  # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
-  # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
-  "crates/nvs-stdlib/src/db/row.rs",
-  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
-  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
-  "crates/nvs-types/src/derive.rs",
-  # The written-class lowering: the descriptor constant and the list flag, ahead of the receiver.
-  # This is where a `WRITTEN_CLASS_MEMBERS` call site is built, and `lower/call.rs` is not.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # The argument slot a descriptor and a shape's wire contract both ride in.
-  "crates/nvs-runtime/src/value.rs",
-  # The second pass that resolves a codec's nested descriptors, and the one place a constant's
-  # address is baked into compiled code.
-  "crates/nvs-codegen/src/lib.rs",
+  # `Core\Uuid`'s rows -- read to confirm they already satisfy the contract, not to change them.
+  "crates/nvs-stdlib/src/uuid.rs",
+  # `CaptureConv` and gap 2: the capture arm that stops handing a segment's text over unconverted.
+  "crates/nvs-runtime/src/routes.rs",
+  # `ArgConv` and gap 1: the same arm for a command argument.
+  "crates/nvs-runtime/src/commands.rs",
+  # The `Core\Uuid` schema arm, and where a `Parses` class answers `{"type": "string"}`.
+  "crates/nvs-cli/src/openapi.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADRs 0007, 0063 came out: each created more than eight rules, so naming
+# decision. ADRs 0077, 0102, 0007, 0063 came out: each created more than eight rules, so naming
 # them here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  "core-api/tier-placement",
-  "types/declaration",
-  "types/conversion",
-  "0036",
-  "0024",
+  "programs/no-runtime-autoload",
+  "security/route-capture-is-laundered-by-its-type",
+  "routing/a-query-parameter-is-declared-like-a-capture",
+  "0013",
   "0066",
-  "0071",
-  "0139",
-  "0095",
-  "0117",
+  "0024",
+  "0088",
   "0004",
 ]
 
-# 0036 whole: it is this goal's type surface and the only ADR a session should need in full, in
-# every stage. The other four each argue one stage and moved into it -- 0024 § 1 is the grammar
-# stage 2 widens; 0007 § 2 is the conversion table that is the whole coercion rule, § 5 the
-# type-argument door, and 0071 the collected-failure shape, all three of them stage 3's converter.
-adrs = ["0036"]
+# 0013 whole: it is the precedent for a global interface gating a language operation, the only ADR a
+# session should need in full, and it holds in every stage. 0024 § 1 is the taint axis every stage
+# marks against. The other five each argue one stage and moved into it -- 0066 § 3a is the
+# `tryParse` contract stage 2 encodes and § 3 the class row it must NOT widen; 0077 § 3 and
+# 0102 §§ 3 and 5 are the roster stage 4's predicate replaces.
+adrs = ["0013", "0024 §1"]
 
-# Stages 3 and 4 each write `Core` members -- the converter, then the two at the request boundary --
-# so the five-edit shape is named by both and is in neither base nor one stage alone. The rest a
-# session may need in any stage: `A rule fragment` and `A decision record` stay because this goal's
-# standing decisions leave open which stage records what, and a session that cannot find the shape
-# writes the wrong one.
 shapes = [
+  "A `Core` member — the five edits",
   "A diagnostic",
   "A `.nvst` test case",
   "A rule fragment",
@@ -197,7 +170,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `18-input-shapes.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `19-parses.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -208,29 +181,15 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
+# The contract this stage encodes, and the class row it must not widen.
 [context.stage.2]
-rules = ["core-api/shape-parameter", "security/tainted-qualifier", "types/shape-type"]
-adrs = ["0024 §1"]
+rules = ["expressions/try-parse"]
+adrs = ["0066 §3a", "0066 §3"]
 
-# The converter, and the three sections that argue it: the coercion table, the type-argument door
-# its third member joins, and the collected-failure shape it reuses.
-[context.stage.3]
-rules = [
-  "core-classes/derive-attribute",
-  "types/arrays",
-  # The hydration walk decides an absent optional key and a `?T` field by these two, and stage 2's
-  # overlay is where the first was — a session doing the walk pays for it again without this.
-  "types/shape-type",
-  "expressions/nullable-conversion",
-]
-adrs = ["0007 §2", "0007 §5", "0071"]
-shapes = ["A `Core` member — the five edits"]
-
-# `postAs<T>` and `queryAs<T>`: the rows, the cards after them and the bodies -- two members, and
-# the same five edits stage 3 makes for the converter.
+# The roster the predicate replaces.
 [context.stage.4]
-rules = ["core-api/shape-rules"]
-shapes = ["A `Core` member — the five edits"]
+rules = ["routing/a-capture-narrows-to-a-closed-set"]
+adrs = ["0077 §3", "0102 §3", "0102 §5"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -238,12 +197,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-17's container-backed checks. Same compose file, same memoization.
+# The floor carries goals 4-18's container-backed checks. Same compose file, same memoization.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 372 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5702,15 +5667,12 @@ tests = [
   "every_registry_rows_names_are_the_specs_signature_column",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the two things a shape cannot say yet. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the grammar"
+stage = "1 floor"
 name = "nvs-syntax (the optional marker, and a qualifier in front of a shape)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -5722,7 +5684,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the grammar"
+stage = "1 floor"
 name = "nvs-types (the required bit, and what it does to assignability)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -5737,10 +5699,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the converter. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the converter"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Arr::shapeAs)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5756,7 +5717,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the converter"
+stage = "1 floor"
 name = "conformance (three cases, over a declared shape)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5768,10 +5729,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the two members at the boundary. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the boundary"
+stage = "1 floor"
 name = "nvs-stdlib (postAs and queryAs)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5789,7 +5749,7 @@ tests = [
 # `nvs-hir`, so that crate can carry the value but has nothing to write the diagnosis with.
 [[check]]
 kind = "nvs-suite"
-stage = "4 the boundary"
+stage = "1 floor"
 name = "conformance (the boundary's four claims, over a built request)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5804,10 +5764,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the proofs. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "5 the proofs"
+stage = "1 floor"
 file = "examples/input-shapes.nvs"
 # The request fixture is this check's own argument, not a note about how to run the program by hand:
 # goal 16 stage 2's flag over goal 17's builder, so the whole path is exercised — a real form, a
@@ -5822,6 +5781,139 @@ want = [
   "city is Vienna",
   "an unnamed field was left behind",
   "two fields did not fit: age, city",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
+
+[[check]]
+kind = "command"
+stage = "1 floor"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: `Parses` on the reserved roster. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the contract"
+name = "nvs-hir (the roster gains a third global interface)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  "parses_is_a_reserved_interface_taking_no_type_arguments",
+  "a_program_declaring_its_own_interface_named_parses_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the contract"
+name = "nvs-types (what a class claiming Parses owes)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_class_implementing_parses_and_declaring_no_parse_names_the_member",
+  "a_parse_returning_something_other_than_static_is_refused",
+  "a_class_implementing_parses_inherits_try_parse_without_declaring_it",
+  "an_implementor_may_override_try_parse",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the predicate learns the contract, and `Core\Uuid` stops being a name. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the predicate"
+name = "nvs-types (converts_from_string reads the interface, not a name)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_user_class_implementing_parses_may_be_a_route_capture",
+  "a_user_class_implementing_parses_may_be_a_query_parameter",
+  "a_user_class_implementing_parses_may_be_a_command_argument",
+  "a_class_without_the_interface_is_refused_naming_parses_as_the_fix",
+  # The streamlining, asserted rather than assumed: the name test is gone and `Core\Uuid` still passes.
+  "core_uuid_reaches_the_roster_through_the_interface_and_not_its_name",
+  # `closed_set` is untouched: a Parses class converts and narrows nothing.
+  "a_parses_capture_names_no_closed_set_and_changes_no_route_rank",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the predicate"
+name = "nvs-stdlib (a Core class satisfies Parses by carrying the members)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "implements_parses_is_true_for_core_uuid_and_false_for_a_class_without_both_members",
+  "implements_parses_requires_try_parse_to_answer_the_nullable_self",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the runtime arm, closing runtime gap 2 and commands gap 1. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the runtime arm"
+name = "nvs-runtime (a capture and an argument are converted, not handed over)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_parses_capture_converts_the_segment_before_the_handler_is_reached",
+  "a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value",
+  "a_decimal_capture_is_converted_and_no_longer_unconverted",
+  "a_parses_command_argument_is_converted_and_a_refusal_is_a_usage_error",
+  "a_decimal_command_argument_is_converted_and_no_longer_unconverted",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the runtime arm"
+name = "conformance (three cases, over a user class at the door)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-class-that-parses-stands-where-a-uuid-stands.nvst",
+  "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst",
+  "tests/conformance/core/a-class-claiming-the-contract-owes-its-one-member.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the proofs. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "5 the proofs"
+file = "examples/parses.nvs"
+# Run under `nvs run --request` (goal 16 stage 2, goal 17's builder) so the whole path is exercised:
+# a user class in a capture, in a `#[Query]` with a default, and one segment refused at the door.
+want = [
+  "slug is hello-world",
+  "tag is absent",
+  "tag is release-notes",
+  "a segment the class refuses did not match",
+  "and Core\\Uuid took the same door",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the proofs"
+name = "nvs-cli (the OpenAPI schema for a class built from text)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_parses_capture_is_a_string_schema",
+  "core_uuid_keeps_its_named_format_over_that_schema",
 ]
 
 [[check]]

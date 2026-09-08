@@ -230,10 +230,9 @@ retired = true
 [[goal]]
 name = "18 input-shapes"
 md = "docs/agent/goals/18-input-shapes.md"
-toml = "docs/agent/goals/18-input-shapes.toml"
-handoff = "docs/agent/goals/18-input-shapes.handoff.md"
 milestone = "M7"
 preflight = "docker"
+retired = true
 
 # goal 19's record: `Parses` -- the global interface that replaces `converts_from_string`'s `Core\Uuid` name
 # test, so a route capture, a `#[Query]`, a command argument and an option admit any class that declares

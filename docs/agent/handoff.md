@@ -2,56 +2,59 @@
 
 ## State
 
-**Goal 18's acceptance list has no known-red check left. Stage 5's three checks were each run in this
-session and each passes**, so the status line claims `DONE`; the driver measures that claim against
-its own acceptance run and records a `done-claim` if it disagrees.
+**Goal 19 — a class a string names, at one contract — has just started; nothing of it has landed yet.**
+Goal 18's whole list is this goal's Stage 1 floor. This is the chain's last entry.
 
-The stage-5 failure was never missing work. `examples/input-shapes.nvs` and `examples/input-shapes.nvsr`
-have been on disk and correct; the check ran the fixture as a bare `nvs run`, so `postAs()` answered
-its CLI refusal — the right answer to the wrong question. The missing half was the check's own `args`,
-now `docs/agent/loop-goal.toml:5817`, and `nvs run --request examples/input-shapes.nvsr
-examples/input-shapes.nvs` prints the six `want` lines exactly, exit 0.
+The scope line matters here, and it is a *narrowing* the user chose deliberately: **this goal does not
+give `as` a class-building meaning.** The proposal it came from did, and that half was rejected — a
+session that finds itself editing the conversion table, `expr as T`'s lowering, or `rule:expressions/nullable-conversion-availability`'s class
+row has left the goal. The three reasons are in *Standing decisions* and are not to be re-derived.
 
-**The five roster gates are standing green** — `every_part_two_spec_member_is_registered`,
-`every_part_two_member_has_a_conformance_case`, `every_core_class_has_a_conformance_floor_of_three`,
-`every_registry_row_carries_a_reference_card` and
-`every_registry_rows_names_are_the_specs_signature_column` all pass under `cargo test -p nvs-stdlib`,
-with nothing below a floor and no card missing. `python tools/reference.py --check` passes: 291 of 291
-examples hold.
-
-**`docs/agent/goals/18-input-shapes.toml` had fallen three hunks behind its live copy** — the
-`[context]` modules, the stage-3 rules overlay and stage 4's amended `nvs-suite` cases were all
-written to `loop-goal.toml` alone by earlier sessions. The two files are now byte-identical modulo
-line endings; the playbook bullet above owns why a plain `diff` hides this.
-
-**What this session did not run:** the WSL leg and the valgrind sweep. Both were judged from the
-driver's own report rather than executed here.
+What the goal is buying is one sentence made sayable. Four binding surfaces — a route `{capture}`, a
+`#[Query]`, a command argument, a command option — all ask `converts_from_string`
+(`crates/nvs-types/src/commands.rs:694`) whether a type can be built from text, and its class arm is
+`*name == QName::parse(r"Core\Uuid")`. The roster is a roster only because the language had no way to
+describe what `Core\Uuid` is. `Parses` describes it; the arm becomes a predicate; `Core\Uuid` reaches the
+door through the same contract as everyone else and **not one line of `crates/nvs-stdlib/src/uuid.rs`
+changes** — its rows at `:139` and `:148` already are the contract.
 
 ## Next group
 
-**Stage 5: what the acceptance run says, and the one gap it will not catch** — one file set:
-`docs/agent/loop-goal.toml`'s stage-5 block and `tools/loop.py`'s fixture runners. `rule:testing/four-proofs`
-is the specification for what a fixture is meant to prove; the goal's stage-5 prose is
-`docs/agent/loop-goal.md:"## Stage 5"`.
+**Stage 2: the contract** — one file set: `crates/nvs-hir/src/interfaces.rs`,
+`crates/nvs-types/src/conformance.rs`.
 
-- [ ] **Read the driver's verdict before writing anything new** — `docs/agent/loop-goal.toml:5811` is
-      the check that was red, and `:5817` is the `args` line that closes it. If the run went green the
-      goal switched and this whole handoff is stale; if it went red the failure names the leg, and the
-      WSL leg is the only one this session did not exercise.
-- [ ] **The valgrind sweep runs the request fixture without its request** — `tools/loop.py:2394`
-      (`cmd_for`) builds `valgrind … nvs run <file>` with no check `args`, so
-      `examples/input-shapes.nvs` is leak-checked on its refusal path rather than on the hydration path
-      it exists to prove. Either thread the owning check's `args` through the sweep, or say in
-      `[valgrind] skip` that this fixture is covered elsewhere — the second is a smaller claim and
-      needs the first written down as why.
-- [ ] **Nothing checks a check's `args` fixture is on disk** — `tools/loop.py:1749` refuses a `file`
-      outside `files`, but `examples/input-shapes.nvsr` is named only in `args`, and a `.nvsr` cannot
-      join `files` because the valgrind sweep would `nvs run` it. A missing request fixture fails the
-      check with a confusing message rather than at load.
+- [ ] **`Parses` joins the reserved roster** — `crates/nvs-hir/src/interfaces.rs:46`, the
+      `("Comparable", &[]), ("Stringable", &[])` list, plus a name constant beside `COMPARABLE` (`:55`)
+      and `STRINGABLE` (`:59`). No type parameters; those two take none either.
+- [ ] **Conformance owes `parse`** — `crates/nvs-types/src/conformance.rs:41` is the walk, and its own
+      test at `:570` (`class Money implements Comparable {}` naming `compareTo`) is the shape to copy. A
+      class claiming `Parses` with no `parse` names the member and the interface.
+- [ ] **`tryParse` is a default body on the interface, not a second required member** — `rule:expressions/try-parse`
+      condition 2, whose reason is CVE-2024-5458: `tryParse` *is* `parse` plus a caught throw. Requiring
+      both would hand that failure to every implementor. The signature is
+      `parse(tainted string $s): static` and `tryParse(tainted string $s): ?static`; `static` is what
+      makes an implementor's `parse` answer its own class.
 
 ## Backlog
 
-- Goal 18's prose stage 5 is not re-read against the tree — `docs/agent/loop-goal.md`.
-- `docs/reference/core/Request.md` and `Arr.md` carry the members; no session has re-read them since.
-- The `[context]` manifest gap that sent this session to `tools/loop.py` six times: no `tools` field
-  exists, and the driver's own check schema is what a stage-5 session reads — `docs/agent/loop-goal.toml`'s `[context]`.
+- Stage 3 (`converts_from_string`'s class arm becomes the contract; `implements_parses` beside
+  `implements_comparable` at `crates/nvs-stdlib/src/registry.rs:2311`; the seed two lines below the
+  `Comparable` one at `crates/nvs-types/src/core_lib.rs:83`; the three roster diagnostics at
+  `commands.rs:660`, `routes.rs:1713` and `routes.rs:1799` stop reciting a name) is the second group. It
+  shares `nvs-types` with stage 2 and adds `nvs-stdlib`'s two files.
+- Stage 4 (the runtime arm) is the third, and it closes two gaps that are already written down as gaps
+  with the same diagnosis — `crates/nvs-runtime/src/routes.rs:57` gap 2 and
+  `crates/nvs-runtime/src/commands.rs:41` gap 1, both "the conversion exists as a `Core` member and what
+  is missing is the arm". `decimal` rides along because it is named in both and is one arm in each of the
+  two matches already being edited. The enum and literal-union half of commands gap 1 is **not** in
+  scope.
+- Stage 5 is `examples/parses.nvs`, the OpenAPI schema arm (`crates/nvs-cli/src/openapi.rs:372` — a
+  `Parses` class is `{"type": "string"}` and `Core\Uuid` keeps `format: uuid` as a documentation hint
+  over it), the reference pages, and the diagnostic corpus.
+- **One question settled in stage 2 rather than deferred**: whether a plain `string` argument assigns to
+  a `tainted string` parameter. If it does not, `parse`'s parameter takes `rule:security/unclassified-parameter-refuses-tainted`'s
+  `Qual::Contagious` admission instead, which is what every `Core` member in this position already uses.
+  Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
+- **When this goal's last check goes green the driver takes goal 20** — `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s Unix sockets — and
+  then goal 50, the dossier, which appends everything after it. `docs/agent/goals/chain.toml` is the
+  schedule and this does not restate it.
