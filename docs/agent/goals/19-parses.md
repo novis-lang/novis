@@ -111,12 +111,14 @@ This is the streamlining, and it is where the goal pays for itself.
 Both gaps are already written down as gaps, in the two modules that own them, with the same diagnosis:
 *the conversion exists as a `Core` member and what is missing is the arm.*
 
-1. **`CaptureConv` gains a parsing arm** — `crates/nvs-runtime/src/routes.rs:88`, and gap 2 at `:57`:
-   "**`decimal` and `Core\Uuid` captures are `CaptureConv::Unconverted`**, which matches the segment and
-   hands its text over … A route declaring one therefore matches a segment its declared type would have
-   refused." The arm carries the class the checker resolved, and a segment `parse` refuses is **no
-   match**, which is what makes the narrowing a property of the table rather than a check the handler was
-   trusted to write.
+1. **`CaptureConv` gains no parsing arm, and that is the decision rather than an omission** —
+   `crates/nvs-runtime/src/routes.rs:88`, and gap 3 at `:76`. The router narrows on the conversions it
+   reads natively, `CaptureConv::Uuid` (`:418`, `crate::uuid::read`) among them, and a capture typed as
+   any other `Parses` class stays `CaptureConv::Unconverted`: it matches on shape, and the class's own
+   `parse` runs at the binding site where the program dispatches. `crates/nvs-cli/src/main.rs:1413`'s
+   `Some(r"Core\Uuid") => CaptureConv::Uuid` therefore stays a name arm, because it answers which types
+   the *router* reads and not which may stand in a capture — and only the second question is the roster
+   this goal deletes. *Standing decisions* below is the settlement and what it costs.
 2. **`ArgConv` gains the same arm** — `crates/nvs-runtime/src/commands.rs:57`, gap 1 at `:41`: four of
    § 6's conversions are `Unconverted`, of which `Core\Uuid` is one. A command argument `parse` refuses is
    a usage error at the moment it is run, which is what every other `ArgConv` arm already does.
@@ -168,7 +170,33 @@ is refused at the door. Plus:
 - **The converted value at a binding site is not `tainted`** — `rule:routing/a-query-parameter-is-declared-like-a-capture`'s existing sentence,
   unchanged and not re-argued. It held for `Core\Uuid` because `parse` checks; it holds for a `Parses`
   class for the same reason and no other.
-- **`Core\Uuid` keeps its `format: uuid`, and it is the one name test that survives.** A `Parses` class
+- **A program's `parse` runs after the match; the router's own conversions decide the match.**
+  `converts_from_string` becomes a predicate for one question — may this type stand in a capture — and
+  never for the other, which is what the *router* narrows on. It narrows on what it reads natively:
+  `int`, `uint`, `decimal`, `Core\Uuid` and a closed set, where a segment it refuses is no match and
+  then a `404`, all unchanged. A capture typed as any other `Parses` class matches on shape and
+  converts at the binding site, so a segment that class refuses is a `400`.
+  **Why the split sits there:** matching runs at the door with no program installed —
+  `crates/nvs-server/src/route.rs:85` holds no `Ctx`, and `crates/nvs-cli/src/runner.rs:504` matches
+  before `unit.install_in(ctx)` — so arming a class table ahead of it would put an implementor's
+  `parse`, a body that can loop, allocate and throw, on every request URL including the ones that match
+  nothing. That is the priority-1 objection `rule:routing/a-capture-narrows-to-a-closed-set` already
+  makes to a regex, and a `parse` body is strictly more than a regex. `Core\RateLimit` and the access
+  decision are both the program's own (0075 § 4, 0102 § 8), so binding at dispatch is what puts a
+  program's parsing behind them. This is *A `Parses` class narrows nothing* below, read at run time.
+- **What that costs, said rather than implied:** a `Core\Uuid` capture that will not convert falls
+  through to the next route and a user class's capture does not, so two captures spelled the same way
+  fail two ways — a `404` and a `400`. The line between them is *who runs at the door*, it is one
+  sentence to document, and it is the line the rulebook already draws when it sends a `[a-z0-9-]+` slug
+  to a `Core\Validate` check inside the handler answering `400`.
+- **The rule edits and ADR 0160 land in the commit that implements the binding site, not before it.**
+  `rule:security/route-capture-is-laundered-by-its-type`'s *a failed conversion is not a match* and
+  `rule:routing/a-bad-query-value-is-a-400`'s *a path capture that fails is a `404`* are both true of
+  the tree as it stands, and both gain the class-typed exception the day the binding site exists —
+  `conventions.md` § *A decision record*: a rule and the record behind it are one commit.
+- **`Core\Uuid` keeps its `format: uuid`, and it is one of the two name tests that survive.** The other
+  is `main.rs:1413` above, and both survive for the same reason: they answer what the *engine* does
+  with a type it ships, not which types the language admits. A `Parses` class
   answers `{"type": "string"}`; a *named format* is a documentation hint over that, not a conversion rule,
   and a short list of them in `openapi.rs` is the right home for a short list of them. Adding a way for a
   class to declare its own OpenAPI format is a real feature and it is not this goal's.

@@ -5920,13 +5920,14 @@ kind = "exact"
 stage = "5 the proofs"
 file = "examples/parses.nvs"
 # Run under `nvs run --request` (goal 16 stage 2, goal 17's builder) so the whole path is exercised:
-# a user class in a capture, in a `#[Query]` with a default, and one segment refused at the door.
+# a user class in a capture, in a `#[Query]` with a default, and one segment each class refuses --
+# which the two refuse in different places, and the last two lines are what pin that.
 want = [
   "slug is hello-world",
   "tag is absent",
   "tag is release-notes",
-  "a segment the class refuses did not match",
-  "and Core\\Uuid took the same door",
+  "a segment the class refuses is a 400",
+  "and a Core\\Uuid segment the router refuses is no match",
 ]
 
 [[check]]

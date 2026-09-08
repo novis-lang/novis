@@ -105,18 +105,20 @@ pub enum ArgConv {
     /// is input, so a word the class refuses is a usage error rather than a
     /// throw, which is [`Self::OneOf`]'s rule reached from the other side.
     ///
-    /// **[`crate::routes::CaptureConv`] has no such arm, and whether it may ever
-    /// have one is open.** A route matches at the door: `nvs-server`'s matching
-    /// step holds no context at all, and `nvs-cli`'s runner matches before the
-    /// compiled unit is installed on one, so there is no class table to resolve
-    /// the label in. Arming one earlier is the smaller half of the question.
-    /// The larger half is that an implementor's `parse` would then be
-    /// application-authored code over the request path running before anything
-    /// rate-limits it — the priority-1 objection
-    /// `rule:routing/a-capture-narrows-to-a-closed-set` already makes to a regex
-    /// constraint, and a `parse` body is strictly more than a regex.
-    /// [`crate::routes::CaptureConv::Unconverted`] carries the segment
-    /// meanwhile, which converts nothing and refuses nothing.
+    /// **[`crate::routes::CaptureConv`] has no such arm and is not to gain one.**
+    /// A route matches at the door: `nvs-server`'s matching step holds no
+    /// context at all, and `nvs-cli`'s runner matches before the compiled unit
+    /// is installed on one, so there is no class table to resolve the label in.
+    /// Arming one earlier is the smaller half of the reason. The larger half is
+    /// that an implementor's `parse` would then be application-authored code
+    /// over the request path running before anything rate-limits it — the
+    /// priority-1 objection `rule:routing/a-capture-narrows-to-a-closed-set`
+    /// already makes to a regex constraint, and a `parse` body is strictly more
+    /// than a regex. So the router narrows on the conversions it reads natively
+    /// and a route capture converts at its binding site, where a segment the
+    /// class refuses is a `400`;
+    /// [`crate::routes::CaptureConv::Unconverted`] carries the segment until
+    /// that site exists, converting nothing and refusing nothing.
     Parses(String),
     /// § 3's closed set: the word each member of a union of literal types
     /// admits, in the order the union declares them, and a usage error for

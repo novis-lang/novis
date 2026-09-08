@@ -73,16 +73,19 @@
 //!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
-//! 3. **A capture typed as a `Parses` class crosses as its segment text and is
-//!    converted nowhere**, and closing it is a decision rather than an arm.
-//!    `rule:security/route-capture-is-laundered-by-its-type` says a failed
-//!    conversion is not a match, which puts the conversion *in* the match —
-//!    where [`crate::commands::ArgConv::Parses`] records what running a
-//!    program's `parse` would cost, ahead of everything that rate-limits the
-//!    request. Converting after the match instead cannot mean "not a match" and
-//!    so is a `400` on
-//!    `rule:routing/a-query-parameter-is-declared-like-a-capture`'s reading,
-//!    which is a change to that same rule. Both readings are a record's to make.
+//! 3. **A capture typed as a `Parses` class crosses as its segment text, and
+//!    the binding site that converts it does not exist yet.** Where it converts
+//!    is settled and is not here: this walk runs at the door with no program
+//!    installed, so reaching a compiled `parse` from it —
+//!    [`crate::commands::ArgConv::Parses`] is the one home of what that reach
+//!    costs — would put program code over every request URL ahead of anything
+//!    that rate-limits it. The router narrows on the conversions it reads
+//!    natively, [`CaptureConv::Uuid`] among them, and a class's `parse` runs
+//!    where the program dispatches, so a segment that class refuses is a `400`
+//!    rather than a failed match. What is missing is that binding site, not a
+//!    variant here; `rule:security/route-capture-is-laundered-by-its-type` and
+//!    `rule:routing/a-bad-query-value-is-a-400` gain the class-typed exception
+//!    in the commit that writes it.
 
 use std::sync::Arc;
 
@@ -126,10 +129,13 @@ pub enum CaptureConv {
     /// text is handed over — never silently `Text`, so what is missing stays an
     /// arm rather than a behaviour somebody has to notice.
     ///
-    /// **The `Parses` entry is not an unwritten arm but an open question**, and
-    /// [`crate::commands::ArgConv::Parses`] is the one home of it: a match runs
-    /// at the door, with no armed class table to reach a compiled `parse`
-    /// through and before anything rate-limits the request that reached it.
+    /// **The `Parses` entry is not an unwritten arm**: a match runs at the door,
+    /// with no armed class table to reach a compiled `parse` through and before
+    /// anything rate-limits the request that reached it, so such a capture
+    /// matches on shape and converts at the binding site instead — where a
+    /// segment the class refuses is a `400`. Gap 3 in this module's doc is what
+    /// that leaves owing, and [`crate::commands::ArgConv::Parses`] is the one
+    /// home of why only the command side may make the reach.
     Unconverted,
 }
 
