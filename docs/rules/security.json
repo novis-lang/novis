@@ -1180,7 +1180,7 @@
     {
       "id": "security/reveal-is-explicit-and-window-local",
       "title": "A reveal is per range, window-local, and does not survive the editor closing",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0101"
       ],
@@ -1188,7 +1188,9 @@
         "security/redaction-ranges-come-from-the-server",
         "security/redaction-does-not-reach"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "editors/vscode/test/client/concealment.test.ts"
+      ]
     },
     {
       "id": "security/redaction-ranges-come-from-the-server",

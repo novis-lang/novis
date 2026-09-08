@@ -1,7 +1,7 @@
-// What this client draws over the ranges `nvs/redactions` answers: a bar over the bytes of a
+// What this client draws over the ranges `nvs/redactions` answers: a blur over the bytes of a
 // `secret`, and a glyph after the name of a `tainted` declaration where the user asked for one.
 //
-// Two decorations because the two kinds are two instructions, not two colours of one. The bar is on
+// Two decorations because the two kinds are two instructions, not two colours of one. The blur is on
 // by default and unconditional (`rule:security/redaction-ranges-come-from-the-server`); the glyph is
 // drawn only where `nvs.taint.mark` is not `off`, because a marker is added content and shipping one
 // by default would write into someone else's editor
@@ -18,9 +18,15 @@
 // the character cells stay where they were, so the cursor, the selection and every edit still
 // address the real text (`rule:security/redaction-covers-bytes-only`).
 //
-// A reveal is one range, and what is revealed lives in `concealment.ts` where no `vscode` import
-// reaches it. This file is the part that cannot be tested without a display, which is why it is as
-// thin as it is: it converts positions, asks, and calls `setDecorations`.
+// A reveal is one range, and there are three ways to ask for one. Two are explicit and are held in
+// `concealment.ts`, where no `vscode` import reaches them: the hover's command link and the palette
+// command, both of which stay uncovered until the editor closes or `nvs.hideSecrets` runs. The
+// third is the cursor, and it holds nothing — a range with the cursor in it is drawn uncovered and
+// is covered again the moment the cursor leaves, so it is read off `editor.selections` in `options`
+// rather than recorded anywhere.
+//
+// This file is the part that cannot be tested without a display, which is why it is as thin as it
+// is: it converts positions, asks, and calls `setDecorations`.
 
 import {
   DecorationOptions,
@@ -58,6 +64,19 @@ const MARK = "nvs.taint.mark";
 // a reveal — the palette and a keybinding are the other two, and all three are the same command.
 const REVEAL = "nvs.revealSecret";
 
+// The radius the concealed bytes are blurred by.
+//
+// A blur rather than an opaque bar, because a bar over a value the user is editing reads as damage
+// rather than as concealment: nothing about it says the bytes are still there and deliberately
+// covered. A blur says exactly that, and it is the one form of concealment that needs no colour of
+// Novis's own — `rule:ide/novis-ships-names-not-colours` satisfied by having nothing to ship.
+//
+// It is a **weaker** concealment than an opaque fill and that is the trade this constant is:
+// the smear is a convolution, so a recording of the screen carries more of the value than a fill
+// would, and a short low-entropy literal keeps its shape. `rule:security/redaction-does-not-reach`
+// is where the reach of the whole mechanism is written down, this included.
+const BLUR = "10px";
+
 const held = new Concealment();
 let concealing: TextEditorDecorationType | undefined;
 let marking: TextEditorDecorationType | undefined;
@@ -80,6 +99,17 @@ export function install(context: ExtensionContext): void {
     workspace.onDidChangeTextDocument((event) => void ask(event.document)),
     workspace.onDidCloseTextDocument((document) => held.forget(document.uri.toString())),
     window.onDidChangeVisibleTextEditors((editors) => shown(editors)),
+    // Becoming the active editor changes no document and makes no editor newly visible, so neither
+    // listener above fires for it. It is still the moment a user is most likely to be looking at a
+    // concealed range for the first time, and a window restored with a document already open
+    // reaches its first draw through here.
+    window.onDidChangeActiveTextEditor((editor) => shown(editor === undefined ? [] : [editor])),
+    // A cursor moving in or out of a concealed range changes what is drawn, because a range with
+    // the cursor inside it is uncovered for exactly as long as that is true
+    // (`rule:security/reveal-is-explicit-and-window-local`). This fires on every cursor move and
+    // `draw` is O(ranges held for the visible documents), which is the count the server answered
+    // for one file — small enough to redo rather than to track a delta against.
+    window.onDidChangeTextEditorSelection(() => draw()),
     workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration(SETTING) || event.affectsConfiguration(MARK)) {
         draw();
@@ -104,20 +134,27 @@ export function serve(client: LanguageClient | undefined): void {
 }
 
 /**
- * The decoration one concealed range is drawn with.
+ * The decoration one concealed range is drawn with: the glyphs smeared past reading, in place.
  *
- * The glyphs and the bar over them are one colour, so the bytes are unreadable while every
- * character cell stays exactly the width it was. A `before`/`after` content or a `display: none`
- * would move them, and then a click would land on a column the buffer does not have there.
+ * The blur takes the characters where they are, so every cell stays exactly the width it was and a
+ * click still lands on the column the buffer has there. A `before`/`after` content or a
+ * `display: none` would move them, and then it would not.
  *
- * Both colours are `ThemeColor` references and neither is a literal: what a concealed range looks
- * like is the user's theme's to decide, the same way `rule:ide/novis-ships-names-not-colours` has
- * the two colouring layers ship names alone.
+ * **`textDecoration` is the field a filter reaches through, and that is not what its name says.**
+ * This API has no property for a CSS filter, and the string given here is written into the rendered
+ * rule verbatim — so the `text-decoration` declaration is closed with `none` and the filter follows
+ * it. Anything put here is CSS this extension is choosing on the user's behalf, which is why it is
+ * only ever the one geometric property: no colour is set at all, and
+ * `rule:ide/novis-ships-names-not-colours` is met by having nothing to ship rather than by naming a
+ * theme key.
+ *
+ * The blur bleeds past the range it covers by roughly its own radius. That is why it is drawn
+ * without a background: a fill behind it would have a hard edge the smear does not, and the two
+ * together read as a box with a blurred label in it rather than as text that has been taken away.
  */
 function bar(): TextEditorDecorationType {
   return window.createTextEditorDecorationType({
-    color: new ThemeColor("editor.foreground"),
-    backgroundColor: new ThemeColor("editor.foreground"),
+    textDecoration: `none; filter: blur(${BLUR})`,
     // A character typed against either edge is outside the concealed range until the server says
     // otherwise, which is the direction that cannot draw over bytes nobody answered for.
     rangeBehavior: DecorationRangeBehavior.ClosedClosed,
@@ -192,7 +229,7 @@ function draw(): void {
     }
     const settings = workspace.getConfiguration("nvs", editor.document.uri);
     const uri = editor.document.uri.toString();
-    editor.setDecorations(bar, settings.get<boolean>("secrets.redact", true) ? options(uri) : []);
+    editor.setDecorations(bar, settings.get<boolean>("secrets.redact", true) ? options(editor) : []);
     editor.setDecorations(
       mark,
       settings.get<string>("taint.mark", "off") === "off" ? [] : marks(uri),
@@ -200,12 +237,35 @@ function draw(): void {
   }
 }
 
-/** The concealment held for `uri`, as the editor takes it. */
-function options(uri: string): DecorationOptions[] {
-  return held.concealed(uri).map((range) => ({
-    range: span(range),
-    hoverMessage: hover(uri, range.start),
-  }));
+/**
+ * The concealment drawn in `editor`: what is held for its document, less whatever a cursor is
+ * sitting in.
+ *
+ * The cursor is the third way to uncover a range and the only one that undoes itself. A user who
+ * clicks into a `secret` is reading or editing that value and wants to see it; moving out covers it
+ * again with nothing held anywhere, so the range is never left uncovered behind them. That is why
+ * this is computed here from `editor.selections` rather than recorded in `concealment.ts` beside
+ * the explicit reveals: there is no state to get wrong, and no state to outlive the moment.
+ *
+ * `Range.contains` takes the end position too, so a cursor parked immediately after the closing
+ * quote counts as inside. That is the direction that matches what a user means by clicking at the
+ * end of a string, and the range is covered again as soon as they leave it either way.
+ */
+function options(editor: TextEditor): DecorationOptions[] {
+  const uri = editor.document.uri.toString();
+  return held
+    .concealed(uri)
+    .filter((range) => !under(editor, range))
+    .map((range) => ({
+      range: span(range),
+      hoverMessage: hover(uri, range.start),
+    }));
+}
+
+/** Whether a cursor in `editor` sits inside `range`. */
+function under(editor: TextEditor, range: Wire): boolean {
+  const at = span(range);
+  return editor.selections.some((selection) => at.contains(selection.active));
 }
 
 /**

@@ -21947,11 +21947,36 @@ agree unless a `nvs.path` points somewhere else on purpose.
 
 #### Concealed values, on this side of the wire
 
-`nvs/redactions` decides the ranges; this client draws them. A `secretLiteral` range is covered by a
-bar — a decoration and not an edit, so the buffer is still the file on disk byte for byte and the
-cursor, the selection and every edit address the real text. Hovering one offers the reveal, which
-uncovers that range alone: a second secret on the same line stays covered, the reveal is this
-window's and not the file's, and nothing is written down, so closing the editor ends it.
+`nvs/redactions` decides the ranges; this client draws them. A `secretLiteral` range is blurred in
+place — a decoration and not an edit, so the buffer is still the file on disk byte for byte and the
+cursor, the selection and every edit address the real text.
+
+There are three ways to uncover one range, and they differ in what they leave behind. Hovering it
+offers a **Reveal** link, and `nvs.revealSecret` does the same at the cursor; both stay uncovered
+until the editor closes or `nvs.hideSecrets` runs. **Putting the cursor inside a range also
+uncovers it, for exactly as long as the cursor is there** — moving out covers it again, and nothing
+records that it was open. Each way uncovers the one range: a second secret on the same line stays
+covered, the reveal is this window's and not the file's, and nothing is written down, so closing the
+editor ends it.
+
+##### What the concealment does not reach
+
+The blur is cosmetic, and this list is part of the decision rather than a caveat on it — a redaction
+trusted past its reach is worse than none.
+
+- **Workspace search results and quick-open previews** render matching lines outside any editor, so
+  no decoration applies to them.
+- **Diff and version-control views** can be decorated, but there is no type information for the
+  "before" side, so the old value of an edited secret is visible in the review of that edit.
+- **The minimap** renders from the buffer.
+- **Any other extension's** hover, lens or webview reads the document text directly.
+- **A copy of a concealed range copies the plaintext.** Nothing may intercept the clipboard.
+- **The file itself** is on disk, in the working tree, and in the history the moment it is
+  committed. Concealing a hardcoded credential does not make it less hardcoded.
+
+The blur is also a weaker concealment than an opaque fill would be: the smear is a convolution, so a
+recording of the screen carries more of the value than a fill would, and a short low-entropy literal
+keeps its shape.
 
 A `taintedDeclaration` range is the opposite instruction and is never concealed — it is a name to
 mark, and only where `nvs.taint.mark` asks. The client conceals any range kind it does not recognise
