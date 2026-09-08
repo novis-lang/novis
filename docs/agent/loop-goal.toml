@@ -115,6 +115,10 @@ modules = [
   # get, delete and enumerate **named objects on a disk an operator configured**, over the `fs.*`
   # capabilities `rule:core-api/tier-roster` already grants and no capability of its own.
   "crates/nvs-stdlib/src/storage.rs",
+  # `rule:http-server/a-session-store-answers-four-operations`'s session store: the identifier a
+  # store issues, the record it keeps under it, and the two directives that decide where that
+  # store is and how long a record survives.
+  "crates/nvs-stdlib/src/session.rs",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
