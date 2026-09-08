@@ -37,6 +37,18 @@
 //! unusable* is the opposite case and panics, because the harness sets all of
 //! them together — skipping there would report green for a run that never
 //! happened, which is the one outcome a verification matrix must not produce.
+//!
+//! # Known gaps
+//!
+//! 1. **There is no socket leg.** [`Location`] has a published server and a
+//!    file and no third arm, so the transport
+//!    `rule:core-classes/db-unix-socket-path` gives MySQL, MariaDB and
+//!    PostgreSQL is asserted against listeners this crate binds itself and
+//!    against no real server. The property a second transport has to have is
+//!    that the driver agrees across both, which is what running the TCP legs'
+//!    own case list over `AF_UNIX` would say. It needs a container's socket
+//!    directory bind-mounted onto the host by `tools/db-matrix.py`, and one
+//!    more field beside the group above.
 
 use std::path::PathBuf;
 
