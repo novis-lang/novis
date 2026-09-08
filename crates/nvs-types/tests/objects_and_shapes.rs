@@ -202,6 +202,16 @@ fn reading_a_field_a_shape_names_recovers_its_type_with_no_diagnostic() {
 }
 
 #[test]
+fn reading_an_optional_field_answers_the_declared_type_not_a_nullable_one() {
+    // `rule:types/shape-type`: the shape proves the type and not the presence,
+    // so an ordinary read answers `int` and absence is the runtime throw —
+    // deliberately not widened to `?int`, which would answer "the key may be
+    // absent" the way nullability answers "the value may be `null`".
+    let diags = check_in_method("({a?: int}) $p = {a: 1};\nint $n = $p->a;");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn reading_a_field_a_shape_does_not_name_is_erased_with_no_diagnostic() {
     // Deferred to `rule:classes/no-dynamic-properties`'s runtime-checked fallback (M4) — this
     // compile-time checker cannot know either way, so it reports

@@ -995,7 +995,12 @@ impl<'a> Lowering<'a> {
                 // same variant — so § 4's write half, incoming-value check
                 // included, is here rather than in the `panic!` below, which
                 // has no reachable target at all.
-                if let Some(ExprInfo::ShapeProperty { name, slot, ty }) =
+                // `guarded` is a read's question and is never set on a write
+                // target — a name the concrete class does not carry is a
+                // throw on this side whatever the read side was written
+                // under, which is `nvs_runtime::nvs_object_slot_set`'s own
+                // "never creates a field" half.
+                if let Some(ExprInfo::ShapeProperty { name, slot, ty, .. }) =
                     self.exprs.lookup(target.span)
                 {
                     let field = super::expr::ShapeField {

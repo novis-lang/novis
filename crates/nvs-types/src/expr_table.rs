@@ -579,8 +579,23 @@ pub enum ExprInfo {
         /// The field's position in the shape's sorted field list — a hint the
         /// runtime tries first, not the answer. See `nvs_ir::InstKind::SlotGet`.
         slot: u32,
-        /// The field's own declared type.
+        /// The field's own declared type. Not the type the *expression* has:
+        /// a guarded read of an optional field answers `?ty`, exactly as
+        /// [`Self::Index`] records `elem_ty` and leaves the `null` to the
+        /// consumer.
         ty: TypeId,
+        /// Whether an absent field must answer `null` here rather than taking
+        /// `rule:types/erased-member-access`'s throw — this access is under a
+        /// `??`, an `isset` or an `empty`, and the name is one the receiver's
+        /// shape marks optional or one an erased receiver cannot promise at
+        /// all. [`Self::Index::guarded`] is the same bit one storage kind
+        /// along, and carries the reasoning for both.
+        ///
+        /// A **required** field is never guarded whatever it is written
+        /// under: `rule:types/shape-type` proves it present, so there is no
+        /// absence for the mark to answer for and `$p->b ?? 0` on one is the
+        /// short-circuit it already was.
+        guarded: bool,
     },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type, **or**
@@ -1992,6 +2007,44 @@ mod tests {
             exprs.lookup(span),
             Some(ExprInfo::ShapeProperty { slot: 1, .. })
         ));
+    }
+
+    /// `rule:types/shape-type`'s optional field under a `??`: absence has an
+    /// answer there, so the read is marked guarded and the entry says so. The
+    /// span the helper hands back is the whole `??`, so the access is found by
+    /// its variant instead.
+    #[test]
+    fn a_guarded_read_of_an_optional_field_records_it_as_guarded() {
+        let (exprs, _span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function m({a?: int} $p): int {\n    return $p->a ?? 0;\n  }\n}\n",
+        );
+        let entry = exprs
+            .entries
+            .iter()
+            .find(|e| matches!(e, ExprInfo::ShapeProperty { .. }))
+            .expect("expected a recorded `ShapeProperty` entry");
+        let ExprInfo::ShapeProperty { name, guarded, .. } = entry else {
+            unreachable!("filtered to that variant")
+        };
+        assert_eq!((name.as_str(), *guarded), ("a", true));
+    }
+
+    /// The other half, and the one that says the bit is about *optionality*
+    /// rather than about the `??`: a required field is proven present, so the
+    /// same spelling over one leaves the read unguarded and `nvs-ir` keeps the
+    /// throwing fetch.
+    #[test]
+    fn a_read_of_a_required_field_under_a_coalesce_is_not_guarded() {
+        let (exprs, _span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function m({a: int} $p): int {\n    return $p->a ?? 0;\n  }\n}\n",
+        );
+        assert!(
+            exprs
+                .entries
+                .iter()
+                .any(|e| matches!(e, ExprInfo::ShapeProperty { guarded: false, .. })),
+            "a required field's read must not be marked guarded"
+        );
     }
 
     /// A name the shape does not list is erased exactly like a plain `object`

@@ -3801,7 +3801,14 @@ impl<'a> Lowering<'a> {
         // the table, so this reads it and is done. Everything below — the
         // hook question, the declaring class, the label — is a class
         // receiver's problem and none of it applies.
-        if let Some(ExprInfo::ShapeProperty { name, slot, ty }) = self.exprs.lookup(expr.span) {
+        // `ExprInfo::ShapeProperty::guarded` is the one field this does not
+        // read. `InstKind::SlotGet` has one absence answer — the throw — where
+        // `InstKind::ArrayGet` carries an `AbsentKey`, so a guarded read of an
+        // optional field lowers to the same fetch an unguarded one does and
+        // absence throws through it. The checker has already typed that read
+        // `?T`, so what closes this is the instruction and its runtime entry
+        // point, not another bit in the table.
+        if let Some(ExprInfo::ShapeProperty { name, slot, ty, .. }) = self.exprs.lookup(expr.span) {
             let field = ShapeField {
                 name: name.clone(),
                 slot: *slot,

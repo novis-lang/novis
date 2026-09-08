@@ -1153,9 +1153,11 @@ pub(crate) fn check_property_member(
 
     // `rule:types/erased-member-access`, extending `rule:classes/no-dynamic-properties`'s "a dynamically computed property
     // name is a checked runtime throw, never a fallback" rule to a second
-    // trigger: an *erased receiver type*. A field a shape type names is
-    // proven present at compile time — reading it never throws, so this just
-    // recovers its type, same as any other statically-known access. A name
+    // trigger: an *erased receiver type*. A **required** field a shape type
+    // names is proven present at compile time — reading it never throws, so
+    // this just recovers its type, same as any other statically-known access.
+    // An optional one is proven only in type, and the arm below says what a
+    // read of it answers guarded and unguarded. A name
     // the shape doesn't list, or a plain `object` receiver, is fully erased;
     // whether it exists at runtime isn't a question this compile-time
     // checker can answer either way, so — unlike an ordinary class receiver's
@@ -1169,7 +1171,8 @@ pub(crate) fn check_property_member(
     // runtime tries first and its declared type as the result; an erased one
     // hints slot 0 and answers `mixed`, leaving `nvs_runtime::ClassDesc::
     // field_slot`'s by-name search — and § 4's catchable missing-name throw —
-    // as the whole of the resolution.
+    // as the whole of the resolution. The `guarded` bit rides along on all
+    // four and says whether that throw is the answer at all here.
     //
     // A `mixed` receiver is the fourth, and it is `rule:types/conversion`'s one
     // unchecked position rather than a fourth kind of erasure: PHP accepts
@@ -1181,39 +1184,70 @@ pub(crate) fn check_property_member(
     // not always a `Ty::Object`).
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
-            // A field the shape names is proven present, so reading it never
-            // throws (`rule:types/erased-member-access`) — but it is *not* proven to be at one
-            // slot. The interner sorted this list by name and every producer
-            // of a shape value lays its slots out in that same order, so the
-            // position resolved here is right exactly where this shape is the
-            // value's own exact type. Through a *widened view* — § 3's width
-            // subtyping, which is the one way a value's shape and its
-            // receiver's differ — it is not, which is why § 4 keys the fetch
-            // on the **name** and this records one; the slot rides along as
-            // the hint the runtime tries first (`nvs_ir::InstKind::SlotGet`).
-            let (slot, ty) = fields
+            // A **required** field the shape names is proven present, so
+            // reading it never throws (`rule:types/erased-member-access`) —
+            // but it is *not* proven to be at one slot. The interner sorted
+            // this list by name and every producer of a shape value lays its
+            // slots out in that same order, so the position resolved here is
+            // right exactly where this shape is the value's own exact type.
+            // Through a *widened view* — § 3's width subtyping, which is the
+            // one way a value's shape and its receiver's differ — it is not,
+            // which is why § 4 keys the fetch on the **name** and this records
+            // one; the slot rides along as the hint the runtime tries first
+            // (`nvs_ir::InstKind::SlotGet`).
+            //
+            // An **optional** one — `{a?: int}` — is the middle case
+            // `rule:types/shape-type` names: the shape proves the type and not
+            // the presence, so the read answers the declared `T` and an absent
+            // key is that same throw. Under a `??`, an `isset` or an `empty`
+            // it is instead a *guarded* read, and there the expression answers
+            // `?T` so the `null` it may produce is inside the left operand's
+            // own static type — the shape of `ExprInfo::Index`'s guarded
+            // subscript, one storage kind along. The `?` never reaches the
+            // recorded entry: `ty` is the field's declared type there and the
+            // `guarded` bit beside it is what `nvs-ir` reads.
+            let resolved = fields
                 .iter()
                 .position(|field| field.name == name)
-                .and_then(|slot| Some((u32::try_from(slot).ok()?, fields[slot].ty)))
-                .unwrap_or_else(|| (0, env.interner.mixed()));
+                .and_then(|slot| {
+                    Some((
+                        u32::try_from(slot).ok()?,
+                        fields[slot].ty,
+                        fields[slot].required,
+                    ))
+                });
+            let (slot, ty, required) = resolved.unwrap_or_else(|| (0, env.interner.mixed(), false));
+            let guarded = !required && env.coalesce_guarded.contains(&access_span);
             env.exprs.record(
                 object.span.to(*name_span),
                 ExprInfo::ShapeProperty {
                     name: name.clone(),
                     slot,
                     ty,
+                    guarded,
                 },
             );
+            if guarded {
+                let null = env.interner.null();
+                return env.interner.make_union([ty, null]);
+            }
             return ty;
         }
         Ty::Object | Ty::Mixed => {
+            // An erased receiver promises no field at all, so every name it
+            // carries is the optional case above with nothing static to read
+            // off it: a guarded access answers `null` for absence rather than
+            // throwing, and `mixed` already admits that `null` without being
+            // unioned with one.
             let ty = env.interner.mixed();
+            let guarded = env.coalesce_guarded.contains(&access_span);
             env.exprs.record(
                 object.span.to(*name_span),
                 ExprInfo::ShapeProperty {
                     name: name.clone(),
                     slot: 0,
                     ty,
+                    guarded,
                 },
             );
             return ty;
