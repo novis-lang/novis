@@ -1313,6 +1313,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   slice. Read `git reflog` before continuing such a commit: a reset and a re-land by the user leaves
   the same paths dirty as work that is genuinely still owed, and the reflog is the only thing that
   tells the two apart. [until: reviewed 2026-09-08]
+- **`peek.py --locate` takes symbol names only and answers one line per file, so a name two `impl`
+  blocks in one file share resolves silently to the first one.** `--locate set_peer
+  crates/nvs-runtime/src/ctx/inbound.rs` reports `Inbound::set_peer` at `:600` and never
+  `InboundSpec::set_peer` at `:1227`, and it reads the path as a second *symbol* — printing
+  `NOT FOUND` for it rather than scoping the search — while a `file.rs:@Type::method` target answers
+  "no definition or mention" for a method that is right there. For a name a file carries twice, one
+  `grep -n 'fn <name>' <file>` names both and is the only form that does.
+  [until: reviewed 2026-09-08]
 
 ## Running things
 

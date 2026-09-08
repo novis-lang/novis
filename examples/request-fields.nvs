@@ -1,0 +1,52 @@
+<?nvs
+// Every field of one request, read back by the program answering it.
+//
+// This leg runs under `nvs run --request examples/request-fields.nvsr`, so the
+// request below is a real one: `examples/request-fields.nvsr` describes it in
+// the format `crates/nvs-test/src/request.rs` owns, and every line printed here
+// is a question this program asked of the carrier. Without the `--request`
+// argument the first line is `Core\Request::method()` refusing, which is
+// `rule:security/request-state-throws-in-an-isolate` and not this file's fact.
+//
+// Nothing here is a superglobal: `$_GET`, `$_POST`, `$_COOKIE` and `$_REQUEST`
+// have no replacement of any kind, and every reading of a request is a member
+// (`rule:statements/no-host-populated-variables`). Every value that came from
+// outside the process arrives `tainted`, which is why `echo` is the safe thing
+// to do with one and a sink is not.
+
+// The verb, as a case of `Core\Http\Method` rather than a string a handler
+// would have to spell two ways. A `HEAD` request answers `Get` here, with
+// `isHead()` carrying the difference, so a `Get`-only route table still matches.
+if (Core\Request::method() == Core\Http\Method::Post) {
+    echo "method is Post\n";
+}
+
+// The path with the matched mount's prefix already removed, so an application
+// reads the same paths wherever it is mounted; the query is read by name and
+// never decoded twice.
+echo "path is ", Core\Request::path(), "\n";
+echo "query id is ", Core\Request::query("id") as string, "\n";
+
+// A field is matched without regard to case, as RFC 9110 § 5.1 compares one,
+// and a cookie is one pair out of the single `Cookie` line a peer sent.
+echo "header accept is ", Core\Request::header("accept") ?? "none", "\n";
+echo "cookie session is ", Core\Request::cookie("session") ?? "none", "\n";
+
+// The submitted form, read out of the body's octets under the same bracket
+// convention `query()` uses.
+echo "field name is ", Core\Request::post("name") as string, "\n";
+
+// The three facts the request arrived *on* rather than in. None of them is
+// derived here: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
+// walk settles the address and the scheme at the door, and a request that
+// crossed a file states what that walk concluded. A forwarded header from a
+// peer nothing trusts changes none of these — it is readable through
+// `header()`, and believed by nothing.
+//
+// `clientIp()` is nullable because a request can genuinely arrive with no
+// address to report; `scheme()` is not, because every request arrived over one.
+// `host()` is the `Host` line folded the way the server compares a host mount,
+// which is what a host-mounted deployment looks its tenant up by.
+echo "client ip is ", Core\Request::clientIp() ?? "none", "\n";
+echo "scheme is ", Core\Request::scheme(), "\n";
+echo "host is ", Core\Request::host() ?? "none", "\n";

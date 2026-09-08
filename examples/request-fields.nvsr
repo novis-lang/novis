@@ -1,0 +1,18 @@
+--METHOD--
+POST
+--PATH--
+/users/1
+--QUERY--
+id=7
+--CLIENT_IP--
+203.0.113.7
+--SCHEME--
+https
+--HEADERS--
+accept: application/json
+cookie: session=opaque
+host: example.test
+content-type: application/x-www-form-urlencoded
+content-length: 8
+--BODY--
+name=ada

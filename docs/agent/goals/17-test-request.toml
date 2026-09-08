@@ -5591,7 +5591,10 @@ kind = "exact"
 stage = "3 the peer facts"
 file = "examples/request-fields.nvs"
 # Run under `nvs run --request` (goal 16 stage 2), so every field of the bag is exercised end to end --
-# including the three facts no `nvs run` leg could assert before this goal.
+# including the three facts no `nvs run` leg could assert before this goal. `examples/request-fields.nvsr`
+# is the request it answers, and the peer's two are sections of that file rather than header lines:
+# nothing a peer sends states either one.
+args = ["--request", "examples/request-fields.nvsr"]
 want = [
   "method is Post",
   "path is /users/1",
