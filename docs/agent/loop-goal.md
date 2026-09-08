@@ -1,140 +1,100 @@
-# Loop goal 16 — a body is read once, and JSON is one of the ways to read it
+# Loop goal 17 — the request a test builds, and the peer facts it carries
 
-Two facts about `Core\Request` that are one goal because they are one file set. **First**, the rule that
-decides who may read a body is wrong in a way that costs a real program: spec § 15 makes `body`,
-`bodyStream` and `files` exclusive, `claim_body` refuses any second claimant *including the same member
-again*, and so `Core\Json::decode(Core\Request::body())` can be written exactly once per request. A
-validating middleware that reads the body and a handler that wants it too is a `LogicError`, not a slow
-path. `post()` already escapes this by holding its bytes and re-parsing, but as a special case with no
-principle behind it. **Second**, there is no JSON body reader at all — the shape a JSON API sends is the
-one shape `Core\Request` has no member for.
+`rule:testing/in-process-request` promises `Core\Test::request(...)`: a
+test builds a request, it runs through `rule:routing/routes-are-compiled-not-registered`'s compiled route
+table and the real middleware chain in-process, and what comes back is asserted. The **dispatch** half of
+that is M8's and is out of this goal's scope. The **request** half is not, and it is the half with a
+problem: today `request` exists as one English word in spec § 13's `| Class | Surface | ADR |` table and
+one example in the ADR — **no parameter list, no options bag, no return type, and no gate that will ever
+notice**, because the coverage walk reads §§ 14–19's bullets and § 19's table and excludes § 13 on purpose.
 
-Both are unprovable in-language today, and that is the goal's third half: **a `.nvst` case answers no
-request**, so every request-facing member in this repository is proven by a Rust `#[test]` name in a goal
-manifest, and the three-`.nvst`-case floor `conformance_coverage.rs` enforces is met by cases asserting
-the *refusal*. `.nvst` gets `.phpt`'s request sections, and then the members can be proven the way every
-other member is.
+So this goal builds the request and freezes its shape. Everything a test may say about a request goes into
+**one builder with one home**, goal 16's `.nvst` sections are re-pointed at it so there are not two
+spellings, and M8 is left with dispatch and nothing else to invent.
 
-Its floor is goal 15's whole list, which is the parity program, the four post-parity goals and M4B.
+Then the fact that falls out of it. The builder's bag carries `clientIp`, `scheme` and `host` — and those
+are exactly the three `Core\Request` members `crates/nvs-stdlib/src/request.rs:20` lists as known gaps.
+**Two of them are no longer waiting on a carrier**: `nvs_server::forwarded` is `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk, it
+answers a client address and an effective scheme per request, and `Inbound::set_peer` now carries both
+down — so `clientIp` and `scheme` are each this goal's own five edits, and `host` is the one still owed a
+decision. A builder that can say what a trusted-proxy header resolves to is still the cheapest coverage
+that walk will ever get.
 
-## What the members answer, in the two registers the cards carry
-
-**In simple words**: *`json()` — the body the peer sent, read as a JSON document. Every call answers the
-same document; the request is read once and the answer is kept. `jsonAs<T>()` — the same body hydrated
-into a declared type, so a field the peer never sent is a throw rather than a surprise later.*
-
-**In detailed words**: `Core\Request::json({maxDepth?: uint}): tainted mixed` is
-[`Core\Json::decode`](../spec/01-core-library.md) over the body's octets, carrying the same
-`{maxDepth?}` bag and the same default of 512. `Core\Request::jsonAs<T>({maxDepth?: uint}): T` is
-`Core\Json::decodeAs<T>` over the same octets, and it is the member with the security return: `decodeAs`
-over a `tainted` argument diagnoses a `T` whose text-carrying fields are unqualified, naming the field —
-and a request body is *always* tainted, so the type checker does the taint work at the call site. Both
-throw `ParseError` on a malformed body **and on an absent or empty one**, which is the same failure a
-handler maps to `400`. Neither looks at `Content-Type`: what a peer wrote in a header is not what decides
-what a body is, which is `post()`'s own rule already.
+Its floor is goal 16's whole list.
 
 ## Stage 0 — the catch-up
 
-The exclusivity fixtures written against the rule stage 3 replaces:
-`tests/conformance/core/a-request-post-refuses-on-the-terms-the-other-body-readers-do.nvst`,
-`a-request-post-refuses-before-it-reads-the-name-it-was-given.nvst` and the two `nvs-stdlib` unit tests
-`a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other` and
-`body_stream_is_exclusive_with_body_and_with_files`. Their *questions* survive; the answers move. Do this
-first: every case written against the old wording in the meantime is a case rewritten twice.
+Nothing. Goal 16's rule is the one this goal builds on, and it lands there.
 
 ## Stage 1 — the floor
 
-Goal 15's whole acceptance list, never traded.
+Goal 16's whole acceptance list, never traded.
 
-## Stage 2 — the keystone: a `.nvst` case can answer a request
+## Stage 2 — the keystone: one builder, one home
 
-Nothing else in this goal is provable in-language until this lands, and the three-case floor cannot be met
-honestly without it.
+1. **`InboundSpec` beside `Inbound`** in `crates/nvs-runtime/src/ctx/inbound.rs:113` — the description of a
+   request as data, and the one place it becomes an `Inbound`. Its fields are `Core\Test::request`'s bag
+   exactly: `query`, `headers`, `cookies`, `body`, `form`, `json`, `files`, `clientIp`, `scheme`, `host`.
+   `nvs-runtime` is the home because all four crates that need it — `nvs-test`, `nvs-cli`, `nvs-stdlib`,
+   `nvs-server` — already depend on it, and a builder in any of them is a builder the others copy.
+2. **The four body spellings are one field.** `body` is raw; `form` encodes urlencoded and sets its
+   `Content-Type`; `json` encodes a value and sets its own; `files` builds a `multipart/form-data` body
+   with a boundary. Two of them together is a refusal naming both, never a merge
+   (`rule:errors/ambiguous-input-refused`).
+3. **The encoder is the builder's, and `crates/nvs-stdlib/src/multipart.rs` stays a parser.** One
+   direction each: they are not twins under `rule:core-api/shape-rules` R17,
+   because neither can be reached through the other.
+4. **Goal 16's sections re-point at it.** `--GET--`/`--POST--`/`--POST_RAW--`/`--COOKIE--`/`--HEADERS--`
+   and `nvs run --request` stop building an `Inbound` by hand and build an `InboundSpec` instead. This is
+   the slice that makes "one home" true rather than aspirational.
 
-1. **The sections**, in `crates/nvs-test/src/lib.rs:20`'s table and `case.rs`'s parse — `--GET--`,
-   `--POST--`, `--POST_RAW--`, `--COOKIE--` and `--HEADERS--`, spelled as `.phpt` spells them so the M11
-   corpus import stays mechanical. `--GET--` is a query string, `--POST--` urlencoded pairs, `--POST_RAW--`
-   the body verbatim, `--COOKIE--` and `--HEADERS--` one field per line. `--POST--` and `--POST_RAW--`
-   together is a parse error, not a merge.
-2. **The carrier.** A case is run by spawning `nvs run` (`crates/nvs-cli/src/main.rs:1163`), so the
-   sections have to cross a process boundary: `nvs run --request <file>` reads a frozen description and
-   builds the `Inbound` before the program runs (`crates/nvs-cli/src/main.rs:923`, where `nvs run`'s `Ctx`
-   is made; `Ctx::set_inbound` is `crates/nvs-runtime/src/ctx/inbound.rs:23`). The build itself is the
-   dev server's, three calls deep: `Inbound::new` (`:339`), `push_header` (`:490`), `set_body` (`:511`) —
-   `crates/nvs-cli/src/serve.rs:323` is the worked example.
-3. **The section that says so.** `crates/nvs-test`'s module doc owns the format; its *What is parsed but
-   not yet honoured* list is where these five are recorded as honoured, beside `--ENV--` and `--ARGS--`.
+## Stage 3 — the peer facts, and the three members waiting on them
 
-## Stage 3 — the rule: buffering readers share, streaming readers consume
+1. **`Inbound` gains the peer** — the client address and the effective scheme the request was decided to
+   have, plus the host. Set by whoever accepted the request: `crates/nvs-server/src/serve.rs:1344` and
+   `:1443` for a served one, `crates/nvs-cli/src/serve.rs:323` for the dev server, `InboundSpec` for a
+   built one. `nvs_server::forwarded` already computes both — `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, landed — so this is a field
+   and a hand-over, not a new decision.
+2. **`Core\Request::clientIp()`, `scheme()` and `host()`** — the five edits each, off
+   `crates/nvs-stdlib/src/request.rs`'s known-gap list and into spec § 15's registered roster. All three
+   are `tainted`: what a proxy asserted is not this process's fact.
+3. **The proof only a built request can give**: a request whose `Forwarded` header says one thing from a
+   peer that is not in `[server] trusted_proxies` resolves to the socket peer, and the same request from
+   one that is resolves to what the header said. That is `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s whole rule, asserted in-language
+   for the first time.
 
-1. **The body-read rule, a new `http-server/` fragment**, this goal's one new number. *A body is read once. A **streaming** reader — `bodyStream`,
-   `files` — consumes it and refuses every later reader. A **buffering** reader — `body`, `post`, `json`,
-   `jsonAs` — keeps what it read, so any buffering reader may follow another.* `post()` joining `files`
-   stops being an exception and becomes a consequence: `files` buffers the non-file parts on its way past,
-   so it leaves something behind.
-2. **`hold_body`**, generalizing `Inbound::hold_form` (`crates/nvs-runtime/src/ctx/inbound.rs:602`),
-   and `claim_body` (`:551`) rewritten to answer the *class* of the holder rather than its name.
-   `nvs_stdlib::request`'s `claim_body`/`claim_form` pair (`crates/nvs-stdlib/src/request.rs:1032`,
-   `:1081`) collapses into one call against it.
-3. **`body()` becomes idempotent** (`crates/nvs-stdlib/src/request.rs:1696`) — the same octets on every
-   call, which is what makes middleware-then-handler work whether or not a JSON member is the one reading.
+## Stage 4 — the signature, frozen
 
-## Stage 4 — the members
-
-Two `Core` members, the five edits each, in `crates/nvs-stdlib/src/request.rs` beside `body` (the rows at
-`:255`, the cards after them, the bodies, the `address()` arm at `:982`), plus:
-
-1. **The decode** reuses `crate::json::read` (`crates/nvs-stdlib/src/json.rs:864`) and
-   `DECODE_OPTIONS`/`DEFAULT_MAX_DEPTH` (`:339`, `:367`) — no second JSON reader and no second default.
-2. **`json()` caches its decoded value on the request**; `jsonAs<T>()` never does. `Inbound::hold_parts`'s
-   `Box<dyn Any>` (`crates/nvs-runtime/src/ctx/inbound.rs:571`) is the precedent for the slot, and the value is
-   dropped with the request.
-3. **The spec** — § 15's `Core\Request` bullet gains both members and loses the three-way exclusivity
-   sentence to the new body-read rule. `spec_registry_coverage.rs` reads that bullet as the roster, so this edit
-   is what makes the registry rows legal rather than a separate chore.
-4. **Three `.nvst` cases each**, each asking a different question, over stage 2's sections — the first
-   request-facing members in this repository proven the way every other member is.
-
-## Stage 5 — the proofs
-
-`examples/json-body.nvs` as the runnable fixture, the reference page at `docs/reference/core/Request.md`
-(there is none today), and the leak sweep — the cached decoded value is a new refcount edge held across a
-request boundary, so it gets a `valgrind` run of its own rather than riding the general one.
+1. **`rule:testing/in-process-request` is amended** to carry the signature rather than an example: the bag above, the
+   mutual-exclusion rule, and `Core\Test\Response` — `status`, `header`, `headers`, `body`, `cookies`,
+   `json()` and `jsonAs<T>()`. The last two mirror goal 16's request-side pair so one spelling reads in
+   both directions, and a captured response raises none of the claim or caching questions the request side
+   does. The section keeps saying what it already says about dispatch, tainted bodies and
+   `#[Test(server:)]`; it gains the shape and nothing else.
+2. **Spec § 13's `Core\Test` row becomes a § 15-shaped bullet** — the class, its members one by one, the
+   ADR — so `request`'s signature is written where every other member's is, and `Core\Test\Response` gets
+   a row of its own. **This does not bring it under the coverage gate**, and it is not meant to:
+   `crates/nvs-stdlib/tests/spec_registry_coverage.rs:583` excludes §§ 13/16/17 because their members live
+   inside English cells, and teaching that walk to read prose is how a gate starts lying. The hole is
+   named there already; this goal makes the roster honest without touching the gate.
 
 ## Standing decisions
 
-- **Both members land, `json()` and `jsonAs<T>()`** — the pair mirrors `Core\Json`'s own `decode`/
-  `decodeAs` and R6 decides the spelling. This is settled; it is not re-opened on the grounds that
-  `json()` alone is close to `rule:core-api/tier-placement` test 6's line. It is not an alias for `Json::decode(body())`: it
-  takes a *claim* on the body, which the composition cannot express, and that is `post()`'s own defence.
-- **The rule generalizes; it is not patched.** Adding `json` to a three-member exclusive set and giving it
-  `post()`'s hold-and-re-read as a second special case was considered and rejected — two exceptions to a
-  rule are the rule, unwritten.
-- **`json()` holds its decoded `Value`, and `jsonAs<T>()` holds nothing.** `decode` produces only arrays
-  and scalars and arrays are COW, so handing out a refcount bump is safe; `decodeAs<T>` builds objects and
-  two callers must never be handed the same one. **What this spends**, per
-  `rule:programs/memory-priority`'s ledger: the held octets, ≤ `[limits] request_body`
-  (8 MiB) per in-flight request — already `post()`'s bill — plus the decoded value for a request that
-  called `json()`, freed with the request and O(in-flight), never O(requests served).
-- **The fallback, if the held `Value` fights the carrier's ownership rules**: hold the octets only and
-  re-decode per call, which is exactly `post()`'s shape and costs latency rather than an invariant.
-  Decided-and-recorded in `nvs-runtime`'s `Inbound` doc comment, never `BLOCKED`.
-- **No `Content-Type` gate**, on `post()`'s stated reasoning. A mislabelled but valid document is read; a
-  malformed one throws `ParseError`. `rule:errors/ambiguous-input-refused`
-  refuses ambiguity, not mislabelling.
-- **An absent or empty body is a `ParseError`, never `null` and never `LogicError`.** `?mixed` cannot
-  distinguish "no body" from a body holding the document `null`, and a peer must never be able to make a
-  program throw `LogicError`.
-- **This goal may open the body-read rule (one new `http-server/` fragment and its record) and no other new number.** Everything else is an amendment folded into
-  the existing body: spec § 15's roster and exclusivity sentence,
-  `rule:http-server/the-body-is-read-on-demand-under-two-caps` and
-  `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
-  where they state the old rule, and
-  `rule:testing/nvst-is-separate`, whose "`.nvst` is unchanged" sentence
-  becomes "unchanged as a format, and the `.phpt` superset now includes its request sections".
-- **`nvs run --request <file>` is a documented flag, not an environment variable.** A variable that
-  changes whether a program is answering a request is a semantic change nothing at the call site shows,
-  and the flag is independently useful for reproducing a request without a listener. Its file format is
-  `crates/nvs-test`'s to own, since that crate writes it.
-- **`--POST--` and `--POST_RAW--` in one case is a parse error.** Two spellings of one body, merged, is
-  the silent-wrong-answer this repository refuses everywhere else.
+- **Dispatch is M8's and is out of scope.** This goal builds the request; it does not run one. A session
+  that finds itself wiring a route table has left the goal.
+- **The builder's home is `nvs-runtime`, beside `Inbound`.** Ambiguity about where a piece of it belongs
+  resolves toward that module, recorded in its doc comment, never `BLOCKED`.
+- **`Core\Test\Response` gets `json()` and `jsonAs<T>()`.** Settled; not re-opened on `rule:core-api/tier-placement` test 6
+  grounds. The argument for the request-side pair does not apply here — nothing about a captured body is
+  single-use — but the argument for *one spelling in both directions* does, and it is the stronger one for
+  a member a test author reads.
+- **The three peer members are `tainted`**
+  (`rule:security/tainted-qualifier`). A client address that a proxy
+  asserted is peer input; that it passed a trusted-proxy check makes it *trusted enough to believe*, never
+  laundered.
+- **This goal opens no new ADR number.** `rule:testing/in-process-request` is amended in place — an ADR's body always states
+  the current rule — and spec § 13 and § 15 take the rosters. If a session finds a decision that genuinely
+  needs a number, that is the one thing worth stopping for.
+- **What this spends**, per `rule:programs/memory-priority`'s ledger: three short
+  strings per in-flight request on `Inbound` — the peer address, the scheme and the host — and nothing
+  per request served. The builder itself exists only in a test process.

@@ -206,10 +206,9 @@ retired = true
 [[goal]]
 name = "16 request-json"
 md = "docs/agent/goals/16-request-json.md"
-toml = "docs/agent/goals/16-request-json.toml"
-handoff = "docs/agent/goals/16-request-json.handoff.md"
 milestone = "M7"
 preflight = "docker"
+retired = true
 
 # `Core\Test::request`'s shape, frozen, and the peer fields that fall out of its options bag -- which are
 # what `Core\Request::clientIp`/`scheme`/`host` have been waiting on. After goal 16 because it re-points

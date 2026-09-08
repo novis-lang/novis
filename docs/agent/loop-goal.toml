@@ -1,15 +1,16 @@
-# Goal 16 -- a body is read once, and JSON is one of the ways to read it. The acceptance test, as data.
+# Goal 17 -- the request a test builds, and the peer facts it carries. The acceptance test, as data.
 #
-# `16-request-json.md` is the prose. One home each.
+# `17-test-request.md` is the prose. One home each.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. The exception goal 6's file records
-# still holds and is narrower here than it was there: a `want` naming a fact no `nvs run` leg can produce
-# is a mis-filed check -- but stage 2 is what makes an inbound request one of the facts a leg CAN produce,
-# so after it lands that excuse stops applying to this goal's own fixtures.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# Goal 18 follows this one: its stages 4-5 are proven over the builder this goal freezes, so this list
+# going green is what makes them writable.
 
 files = [
-  "examples/json-body.nvs",
+  "examples/request-fields.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/json-body.nvs",
   "examples/pipeline.nvs",
   "examples/doc-comments.nvs",
   "examples/typed-callable.nvs",
@@ -78,69 +79,48 @@ files = [
 [context]
 
 modules = [
-  # The four body readers, `claim_body`/`claim_form`, and where the two new rows go.
-  "crates/nvs-stdlib/src/request.rs",
-  # `crate::json::read` and the `{maxDepth?}` bag both members reuse; no second JSON reader.
-  "crates/nvs-stdlib/src/json.rs",
-  # `Inbound` -- the claim, `hold_form`/`hold_parts`, and the three calls that build one.
+  # `Inbound` and the new `InboundSpec` beside it -- the one home for a request as data.
   "crates/nvs-runtime/src/ctx/inbound.rs",
-  # The `.nvst` format's own home: the section table in the module doc, and the parse.
-  "crates/nvs-test/src/lib.rs",
-  "crates/nvs-test/src/case.rs",
-  # Where `nvs run` builds its `Ctx` -- the seam `--request` sets an inbound on.
-  "crates/nvs-cli/src/main.rs",
-  # The worked example of building an `Inbound` from a real request.
+  # The three members off the known-gap list, and where their rows go.
+  "crates/nvs-stdlib/src/request.rs",
+  # `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk: it already answers the client address and the effective scheme.
+  "crates/nvs-server/src/forwarded.rs",
+  # Where a served request becomes an `Inbound`.
+  "crates/nvs-server/src/serve.rs",
+  # The dev server's build of one, and `nvs run --request`'s.
   "crates/nvs-cli/src/serve.rs",
-  # The registry cards, and the gates that read them.
+  "crates/nvs-cli/src/main.rs",
+  # Goal 16's sections, re-pointed at the builder.
+  "crates/nvs-test/src/case.rs",
+  # The registry cards for the three members.
   "crates/nvs-stdlib/src/registry.rs",
-  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
-  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
-  # process makes on the way in.
-  "crates/nvs-cli/src/bundle.rs",
-  # The request a case answers, frozen into the file `nvs run --request` reads.
-  "crates/nvs-test/src/request.rs",
-  # Running one `Case` and deciding whether it passed.
-  "crates/nvs-test/src/run.rs",
-  # The section lexer: cutting a case file into its `--NAME--` sections.
-  "crates/nvs-test/src/section.rs",
-  # Seeding the checker's signature table with `Core`.
-  "crates/nvs-types/src/core_lib.rs",
-  # A call's arguments: arity, each argument against its parameter, `rule:core-api/shape-rules`
-  # R2's trailing options bag, an `inout $x` argument, and the type arguments a call site binds.
-  "crates/nvs-types/src/expr/args.rs",
-  # The per-request context: the first argument of every compiled function and every helper.
-  "crates/nvs-runtime/src/ctx/mod.rs",
-  # TODO: why a session opens this.
-  "editors/vscode/src/extension.ts",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADRs 0097, 0079, 0063 came out: each created more than eight rules, so naming
+# decision. ADRs 0079, 0097, 0077, 0063 came out: each created more than eight rules, so naming
 # them here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  "0105",
-  "0095",
+  "core-api/tier-placement",
+  "routing/routes-are-compiled-not-registered",
   "0024",
+  "0095",
   "0117",
   "0012",
   "0004",
-  "0051",
 ]
 
-# Empty, because every one of this goal's four sections argues one stage's design and each moved
-# into that stage's table below. 0079 § 18 and § 23 are the two sentences this goal amends and sit
-# with stage 2's `.nvst` sections; 0105 § 2 is the buffering `files` does and 0097 § 8 is the
-# body-and-streaming-reader section the new rule replaces, both with the stage 3 that writes it.
-adrs = []
+# 0079 § 18 is the section this goal amends; 0097 § 6 is the walk it finally carries; 0079 § 10 is the
+# double, which is what a test uses INSTEAD of this for a service and is worth knowing is not this.
+adrs = ["0079 §18", "0097 §6", "0079 §10"]
 
-# Stage 4 is "the members" and stage 3 is "the rule", so the five-edit shape and the two
-# record-writing shapes sit with the stage that writes one. What is left every stage may need.
+# Stage 3 is where the five edits are written; the rest a session may need in any stage.
 shapes = [
   "A `.nvst` test case",
+  "A rule fragment",
+  "A decision record",
   "A commit message",
-  "A diagnostic",
 ]
 
 playbook = [
@@ -149,7 +129,6 @@ playbook = [
   'Writing a test case > registering a core member',
   'Writing a test case > the coverage gate matches',
   'Writing a test case > a -p nvs-stdlib test can hand a core member a real',
-  'Writing a test case > a --run--',
   'Writing Novis itself > core is',
   'Writing Novis itself > a new core member owes',
   'Running things > nvshelper! takes',
@@ -178,33 +157,26 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `16-request-json.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `17-test-request.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
-# the base above -- an overlay adds and never replaces. This goal's stages name their rules in prose
-# rather than as `rule:` tokens, so these were placed by reading each stage; every entry is one that
-# stage's own text is about. loop-authoring.md section 2 is the whole of it.
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
 # ---------------------------------------------------------------------------------------------------
 
-# The fixtures being rewritten were written against the rule stage 3 replaces.
-[context.stage.0]
-rules = ["http-server/the-body-is-read-on-demand-under-two-caps"]
-
 [context.stage.2]
-rules = ["testing/nvst-is-separate"]
-adrs = ["0079 §18", "0079 §23"]
+rules = ["core-api/shape-rules", "errors/ambiguous-input-refused"]
 
 [context.stage.3]
-rules = ["http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
-         "http-server/the-body-is-read-on-demand-under-two-caps",
-         "http-server/a-part-is-consumed-in-one-of-three-ways",
-         "http-server/a-part-is-a-file-iff-it-carries-a-filename"]
-adrs = ["0105 §2", "0097 §8"]
-shapes = ["A rule fragment", "A decision record"]
+rules = ["http-server/trusted-proxies-is-empty-and-empty-reads-nothing"]
+shapes = ["A `Core` member — the five edits"]
 
 [context.stage.4]
-rules = ["core-api/tier-placement", "errors/ambiguous-input-refused"]
-shapes = ["A `Core` member — the five edits"]
+rules = ["testing/in-process-request"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -212,13 +184,17 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goal 4's Redis tier, goal 5's drivers and goal 6's session store, all of which need
-# containers. Same compose file, same memoization.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 354 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5377,16 +5353,13 @@ stage = "1 floor"
 name = "the extension heading owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the catch-up: the cases written against the rule stage 3 replaces. A "0" stage runs before
 # the native leg, so an unfinished catch-up is what the ledger names. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "0 catch-up"
+stage = "1 floor"
 name = "conformance (the refusals that survive the new rule)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5400,10 +5373,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: a `.nvst` case can answer a request. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the sections"
+stage = "1 floor"
 name = "nvs-test (the five request sections)"
 args = ["test", "-p", "nvs-test"]
 tests = [
@@ -5418,7 +5390,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the sections"
+stage = "1 floor"
 name = "nvs-cli (`nvs run --request` builds the inbound)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -5428,7 +5400,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "2 the sections"
+stage = "1 floor"
 name = "conformance (a case that answers a request)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5443,10 +5415,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the rule: buffering readers share, streaming readers consume. A new `http-server/` fragment. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the rule"
+stage = "1 floor"
 name = "nvs-stdlib (the body-read rule -- who may read a body)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5459,7 +5430,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the rule"
+stage = "1 floor"
 name = "conformance (the rule, in language)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5470,10 +5441,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the members: json() and jsonAs<T>(). Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the members"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Request::json and jsonAs)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5488,7 +5458,7 @@ tests = [
 # `cargo test`: a suite is green when the member was never added to the spec bullet it is read from.
 [[check]]
 kind = "cargo-named"
-stage = "4 the members"
+stage = "1 floor"
 name = "nvs-stdlib (the spec, the cards and the three-case floor)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5500,7 +5470,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "4 the members"
+stage = "1 floor"
 name = "conformance (three cases each, and the taint refusal)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -5517,10 +5487,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the proofs: the runnable fixture. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "5 the proofs"
+stage = "1 floor"
 file = "examples/json-body.nvs"
 # This leg runs under `nvs run --request`, which stage 2 builds -- so unlike goal 6's `upload.nvs` and
 # `session.nvs`, a body's own facts ARE assertable here. `examples/json-body.nvsr` is the request it
@@ -5543,6 +5512,121 @@ want = [
 # generated from `nvs meta --json` and never edited, which is what makes a stale card fail here.
 [[check]]
 kind = "command"
-stage = "5 the proofs"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: one builder, one home. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the builder"
+name = "nvs-runtime (InboundSpec -- a request as data)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_spec_becomes_an_inbound_with_every_field_it_named",
+  "a_form_field_encodes_urlencoded_and_sets_its_content_type",
+  "a_json_field_encodes_the_value_and_sets_its_content_type",
+  "a_files_field_builds_a_multipart_body_with_a_boundary",
+  "a_cookies_field_becomes_one_cookie_header",
+  # ADR 0095: four spellings of one field, and two of them is a refusal naming both.
+  "two_body_spellings_in_one_spec_are_refused",
+]
+
+# One home, proved rather than asserted: goal 16's sections build a spec now, not an `Inbound`.
+[[check]]
+kind = "cargo-named"
+stage = "2 the builder"
+name = "nvs-test (the sections go through the builder)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "the_request_sections_build_an_inbound_spec",
+  "a_post_and_a_post_raw_section_together_are_a_parse_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the peer facts, and the three members waiting on them. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the peer facts"
+name = "nvs-stdlib (clientIp, scheme and host)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "client_ip_answers_the_peer_the_carrier_holds",
+  "scheme_answers_what_the_carrier_was_told_the_request_arrived_over",
+  "host_answers_the_authority_the_request_named",
+  "all_three_peer_members_are_tainted",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the peer facts"
+name = "nvs-server (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk reaches the carrier)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_forwarded_walks_answer_is_set_on_the_inbound",
+  "an_untrusted_peers_forwarded_header_does_not_reach_the_carrier",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the peer facts"
+name = "conformance (three cases each, over a built request)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-answers-the-client-address-its-carrier-holds.nvst",
+  "tests/conformance/core/a-request-answers-the-scheme-it-was-decided-to-have.nvst",
+  "tests/conformance/core/a-request-answers-the-host-it-named.nvst",
+  "tests/conformance/core/a-forwarded-header-from-an-untrusted-peer-is-not-believed.nvst",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 the peer facts"
+file = "examples/request-fields.nvs"
+# Run under `nvs run --request` (goal 16 stage 2), so every field of the bag is exercised end to end --
+# including the three facts no `nvs run` leg could assert before this goal.
+want = [
+  "method is Post",
+  "path is /users/1",
+  "query id is 7",
+  "header accept is application/json",
+  "cookie session is opaque",
+  "field name is ada",
+  "client ip is 203.0.113.7",
+  "scheme is https",
+  "host is example.test",
+]
+
+[[check]]
+kind = "command"
+stage = "3 the peer facts"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the signature, frozen. Goal prose stage 4.
+#
+# The § 13 roster is prose and nothing gates it -- `spec_registry_coverage.rs:583` excludes that section
+# on purpose and this goal does not change that. What IS checkable is that the three members it registers
+# are read by the gates that DO run, which is the check below.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the signature"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
