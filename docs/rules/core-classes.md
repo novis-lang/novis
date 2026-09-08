@@ -715,10 +715,11 @@ database.
 
 The cost is one piece of protocol trivia per driver, encoded where that driver's trivia belongs.
 
-**Shipped for MySQL only.** `crates/nvs-db/src/mysql.rs` opens the socket file as written, over the
-second arm of `crate::conn::Endpoint` — the address-or-path every driver's `connect` will take.
-`crates/nvs-db/src/pg.rs` holds neither the derivation nor the transport, `crates/nvs-db/src/maria.rs`
-still takes an address, and `crates/nvs-db/src/tds/mod.rs` has no refusal to report.
+**MariaDB is the one still owing this.** `crates/nvs-db/src/mysql.rs` opens the socket file as
+written and `crates/nvs-db/src/pg.rs` derives the engine's own name in its `socket_endpoint`, both
+over the second arm of `crate::conn::Endpoint` — the address-or-path a driver's `connect` takes;
+`crates/nvs-db/src/tds/mod.rs` refuses a path in `TdsTarget::resolve`, as `BlockError`'s
+`NoSocketTransport`. `crates/nvs-db/src/maria.rs` still takes an address.
 
 <sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
 

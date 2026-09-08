@@ -3674,6 +3674,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   building a fault around it, so an arm matching `Fault::Thrown(_, said)` — what the *engine's own*
   refusals look like one arm along — panics on a refusal that worked. Match `Fault::Pending(_)` and
   read `ctx.take_pending()`, as `crate::command`'s `parse_each` does. [until: reviewed 2026-09-08]
+- **A driver's stream type has more than one default type parameter to move, and the compiler blames
+  the caller rather than the type.** Giving `pg.rs` a `PgStream` meant changing `Wire<S = …>`'s
+  default *and* `PgRows<'a, S = …>`'s, and the one error was an `expected &mut Wire<NvsTls>, found
+  &mut Wire` on `PgConn::query`'s call to `start_statement`, which reads as a bug in the free
+  function. Before widening a driver's transport, `grep -n '= NvsTls<NvsTcp>'` in that module and
+  move every default in one edit. [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 
