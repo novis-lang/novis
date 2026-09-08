@@ -1441,15 +1441,56 @@ pub(crate) fn check_written_type_args(
     (Some(sig.substituted(&bindings, env.interner)), written)
 }
 
-/// The class a member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` was
-/// asked to build and whether it was written as a **list** of that class,
-/// reporting `E_TYPE_ARG_NOT_A_CLASS` when what was written is neither.
+/// What a call site wrote in that position: a declared class, or an inline
+/// shape that names its own fields.
+///
+/// Two variants rather than one label, because the two are recorded on
+/// different fields of [`crate::expr_table::ResolvedCall`] and reach `nvs-ir`
+/// carrying different amounts: a class is a [`QName`] whose descriptor and
+/// codec are both already filed under it, while a shape's descriptor is
+/// labelled `$shape{…}` — which no name can be — and its wire contract is
+/// filed under the call site instead, since the label cannot tell two shapes
+/// with one field set apart.
+pub(crate) enum WrittenTarget {
+    /// A declared class, `Core\Json::decodeAs<User>`.
+    Class(QName),
+    /// An inline shape, `Core\Arr::shapeAs<{n: int}>`.
+    Shape(crate::expr_table::WrittenShape),
+}
+
+impl WrittenTarget {
+    /// Writes this target onto the call record, with the list flag both halves
+    /// share.
+    ///
+    /// One method rather than a `match` at each of the two sites that build a
+    /// [`crate::expr_table::ResolvedCall`], so the instance and static halves
+    /// of the same roster cannot drift apart.
+    pub(crate) fn record_on(self, call: &mut crate::expr_table::ResolvedCall, list: bool) {
+        match self {
+            Self::Class(class) => call.written_class = Some(class),
+            Self::Shape(shape) => call.written_shape = Some(shape),
+        }
+        call.written_class_is_list = list;
+    }
+}
+
+/// The class or inline shape a member on
+/// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` was asked to build and whether
+/// it was written as a **list** of one, reporting `E_TYPE_ARG_NOT_A_CLASS` when
+/// what was written is neither.
 ///
 /// `array<C>` records `C` with `true`: a list decode is the same decode run
-/// once per element, so the class the native member needs is the element's and
-/// the flag is the whole of what distinguishes the two shapes. Nesting stops
+/// once per element, so what the native member needs is the element's and the
+/// flag is the whole of what distinguishes the two shapes. Nesting stops
 /// there — `array<array<C>>` is not a document shape `rule:core-api/required-optional-and-nullable` gives a
 /// field, so it is refused here rather than recorded as a class it is not.
+///
+/// A shape leaves **two** records where a class leaves one: the label goes back
+/// to the caller on [`WrittenTarget::Shape`], and the per-field wire contract
+/// [`crate::derive::shape_codec`] reads off the type goes onto the expression
+/// table under the type argument's own span. It cannot ride the label —
+/// `{n: int}` and `{n: string}` are one `$shape{n}` — and it cannot ride
+/// [`crate::expr_table::ResolvedCall`], which `nvs-ir` reads by span anyway.
 ///
 /// `None` for every member not on that roster, which is all but one of them —
 /// so this is a table lookup on the ordinary path and nothing more.
@@ -1460,7 +1501,7 @@ pub(crate) fn written_class_of(
     type_args: &[Type],
     call_span: Span,
     env: &mut Env<'_>,
-) -> Option<(QName, bool)> {
+) -> Option<(WrittenTarget, bool)> {
     if !nvs_stdlib::registry::takes_written_class(&owner.to_string(), method) {
         return None;
     }
@@ -1494,7 +1535,23 @@ pub(crate) fn written_class_of(
                 span,
             ));
         }
-        return Some((qname, list));
+        return Some((WrittenTarget::Class(qname), list));
+    }
+    // An inline shape declares its own fields, so the two whole-program
+    // questions a class raises are already answered where it is written: there
+    // is no declaration further down the file to find a deriving attribute on,
+    // and no property list to check a column type or a qualifier against. It
+    // therefore records neither a decode site nor a row site — what it records
+    // is the contract itself, read straight off the type.
+    if let Ty::Shape(fields) = env.interner.get(element) {
+        let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
+        let label = crate::derive::shape_class_label(&names);
+        let span = type_args.first().map_or(call_span, |ty| ty.span);
+        if let Some(codec) = crate::derive::shape_codec(element, env.interner, env.enums) {
+            env.exprs.record_shape_codec(span, codec);
+        }
+        let shape = crate::expr_table::WrittenShape { label, codec: span };
+        return Some((WrittenTarget::Shape(shape), list));
     }
     let found = env.interner.describe(first);
     let span = type_args.first().map_or(call_span, |ty| ty.span);

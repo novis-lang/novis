@@ -483,6 +483,27 @@ pub fn shape_codec(
     })
 }
 
+/// The label the class synthesized for an inline shape carries — `$shape{n}`
+/// for `{n: int}`, built from the field names
+/// [`crate::ty::TypeInterner::shape`] has already sorted.
+///
+/// The format lives here, a crate before the one that synthesizes that class,
+/// because both ends spell it: `nvs_ir::lower::shape_class_label` names the
+/// class it registers, and [`crate::expr::args::written_class_of`] names the
+/// same class when it records a call site's shape. A label, not a name — it
+/// identifies a row in `nvs_ir::ir::Program`'s class table and nothing else,
+/// and `$` cannot start a Novis identifier, so no declaration collides with it.
+///
+/// Keyed on the field names alone, so two shapes with the same fields share one
+/// class whatever their field *types* are: a class carries slot names, not slot
+/// types. What that costs is that the label cannot key a wire contract —
+/// [`crate::expr_table::ExprTypeTable::record_shape_codec`] keys that by the
+/// call site instead.
+#[must_use]
+pub fn shape_class_label(sorted_fields: &[String]) -> String {
+    format!("$shape{{{}}}", sorted_fields.join(","))
+}
+
 /// `declared`, erased to what a native decoder branches on, with the class
 /// label and the enum roster beside it where the erasure loses one.
 ///

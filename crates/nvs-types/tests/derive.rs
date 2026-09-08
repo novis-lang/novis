@@ -12,11 +12,12 @@
 
 mod common;
 
-use common::{check_src, check_src_table};
+use common::{check_src, check_src_declared, check_src_table};
 use nvs_diagnostics::{Code, Diagnostics, code};
 use nvs_stdlib::CodecTy;
 use nvs_types::derive;
 use nvs_types::enums::EnumTable;
+use nvs_types::expr_table::ExprInfo;
 use nvs_types::ty::{ShapeField, TypeInterner};
 
 /// Whether `diags` reported `want`. By code rather than by `has_errors`, for
@@ -706,4 +707,53 @@ fn a_type_that_is_not_a_shape_reads_as_no_codec_at_all() {
         derive::shape_codec(empty, &mut interner, &enums).expect("an empty shape is still a shape");
     assert!(codec.fields.is_empty());
     assert_eq!(codec.ctor_arity, 0);
+}
+
+/// A call site that writes an inline shape where `rule:types/arrays`'s
+/// type-argument door expects a class is recorded twice over: the label of the
+/// class the shape's field *names* produce, and — under the type argument's own
+/// span — the contract its field *types* produce.
+///
+/// Two calls writing one field set and two field types is the whole reason the
+/// second record is not keyed by the first: both are `$shape{n}`, and a table
+/// keyed by that label would answer one of them with the other's wire types.
+#[test]
+fn a_written_inline_shape_records_one_label_and_a_contract_per_call_site() {
+    let (diags, declared) = check_src_declared(
+        "<?nvs
+string $doc = \"{}\";
+var $one = Core\\Json::decodeAs<{n: int}>($doc);
+var $two = Core\\Json::decodeAs<{n: string}>($doc);
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let written = |call: &str| match declared.folded_at(call) {
+        Some(ExprInfo::Call(resolved)) => resolved
+            .written_shape
+            .clone()
+            .expect("an inline shape was written at this call site"),
+        _ => panic!("no call was recorded for `{call}`"),
+    };
+    let one = written("Core\\Json::decodeAs<{n: int}>($doc)");
+    let two = written("Core\\Json::decodeAs<{n: string}>($doc)");
+
+    // One class, because a shape class carries slot names and not slot types.
+    assert_eq!(one.label, "$shape{n}");
+    assert_eq!(two.label, one.label);
+    // The class-keyed table stays empty: what a shape leaves there is a label
+    // two call sites share, so nothing about the wire is filed under it.
+    assert!(declared.exprs().codec(&one.label).is_none());
+
+    // Two contracts, each reached by the span the shape was written at.
+    let field_ty = |shape: &nvs_types::expr_table::WrittenShape| {
+        declared
+            .exprs()
+            .shape_codec(shape.codec)
+            .expect("the call site recorded a wire contract")
+            .fields[0]
+            .ty
+    };
+    assert_eq!(field_ty(&one), CodecTy::Int);
+    assert_eq!(field_ty(&two), CodecTy::Str);
 }

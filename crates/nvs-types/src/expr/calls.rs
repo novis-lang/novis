@@ -194,11 +194,10 @@ pub(crate) fn infer_method_call(
         // — see the static call's own record below. The receiver settles
         // nothing here: `queryAs` produces its `T` rather than reading one off
         // a `Rows` it was called on.
-        if let Some((class, list)) =
+        if let Some((target, list)) =
             written_class_of(qname, name, &written, type_args, expr.span, env)
         {
-            call.written_class = Some(class);
-            call.written_class_is_list = list;
+            target.record_on(&mut call, list);
         }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
@@ -478,11 +477,10 @@ pub(crate) fn infer_static_call(
         if matches!(class.kind, ExprKind::ConstFetch(_)) {
             call.static_class = resolve_class_expr(class, ctx, env);
         }
-        if let Some((class, list)) =
+        if let Some((target, list)) =
             written_class_of(qname, name, &written, type_args, expr.span, env)
         {
-            call.written_class = Some(class);
-            call.written_class_is_list = list;
+            target.record_on(&mut call, list);
         }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
@@ -1055,6 +1053,9 @@ pub(crate) fn resolved_call(
         // `registry::WRITTEN_CLASS_MEMBERS` — see the field's own doc comment.
         written_class: None,
         written_class_is_list: false,
+        // Its counterpart for a type argument that is an inline shape, set
+        // beside it and by the same call — see the field's own doc comment.
+        written_shape: None,
     }
 }
 

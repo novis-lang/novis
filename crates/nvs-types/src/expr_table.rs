@@ -69,6 +69,28 @@ use crate::ty::TypeId;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ExprId(u32);
 
+/// The inline shape a call site wrote as the type argument of a member on
+/// `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Arr::shapeAs<{n: int}>`.
+///
+/// Two facts rather than one, because a shape's class and a shape's wire
+/// contract are keyed differently and have to be: [`Self::label`] names the
+/// class `nvs-ir` synthesizes, which is keyed on the sorted field *names*
+/// alone, so `{n: int}` and `{n: string}` are one class and one label;
+/// [`Self::codec`] is the span the type argument was written at, which is what
+/// [`ExprTypeTable::shape_codec`] answers the per-field wire types under —
+/// exactly the fact the label cannot tell apart.
+#[derive(Clone, Debug)]
+pub struct WrittenShape {
+    /// `$shape{n}` — [`crate::derive::shape_class_label`] over the shape's
+    /// sorted field names, which is the label `nvs-ir` registers the
+    /// synthesized class under and an `InstKind::ClassDescConst` resolves.
+    pub label: String,
+    /// The type argument's own span, the key
+    /// [`ExprTypeTable::shape_codec`] reads this shape's
+    /// [`crate::derive::DerivedCodec`] back out under.
+    pub codec: Span,
+}
+
 /// A statically resolved call target — an instance method call
 /// (`$obj->method(...)`), a static call (`self::method(...)`/
 /// `Class::method(...)`), or `new`'s own constructor invocation — whenever
@@ -167,15 +189,27 @@ pub struct ResolvedCall {
     /// *element's*, and [`Self::written_class_is_list`] is what tells the two
     /// apart.
     pub written_class: Option<QName>,
-    /// Whether [`Self::written_class`] was written wrapped in an `array<...>`,
-    /// so the member decodes a JSON array into one instance per element rather
-    /// than the document into one instance.
+    /// Whether what was written — [`Self::written_class`] or
+    /// [`Self::written_shape`] — was wrapped in an `array<...>`, so the member
+    /// decodes a JSON array into one instance per element rather than the
+    /// document into one instance.
     ///
     /// A separate field rather than a second `QName` because the native member
     /// needs a descriptor either way: erasure removes which class, and this
     /// removes nothing further — `array` has no descriptor to build. `nvs-ir`
     /// emits it as an `InstKind::ConstBool` in the slot after the descriptor.
     pub written_class_is_list: bool,
+    /// The **inline shape** written in that same first type argument, where
+    /// what was written is a shape rather than a class —
+    /// `Core\Arr::shapeAs<{n: int}>` records `$shape{n}` and the span its wire
+    /// contract is filed under.
+    ///
+    /// A field of its own rather than a second spelling of
+    /// [`Self::written_class`], which is a [`QName`]: a shape's class is
+    /// synthesized by `nvs-ir` and labelled `$shape{…}`, which no name can be.
+    /// At most one of the two is `Some`, and a member off that roster records
+    /// neither.
+    pub written_shape: Option<WrittenShape>,
     /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —
@@ -972,6 +1006,7 @@ pub struct ExprTypeTable {
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
+    shape_codecs: FxHashMap<Span, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
     inline_snapshots: Vec<crate::testing::InlineSnapshot>,
@@ -1211,6 +1246,28 @@ impl ExprTypeTable {
     #[must_use]
     pub fn db_codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
         self.db_codecs.get(label)
+    }
+
+    /// Records the wire contract of the inline shape written at `span`, read
+    /// off the type itself by [`crate::derive::shape_codec`].
+    ///
+    /// Keyed by the span the shape was **written** at rather than by the class
+    /// label its fields produce, which is the one thing
+    /// [`Self::record_codec`] cannot do here: a shape class is keyed on sorted
+    /// field names alone, so `{n: int}` and `{n: string}` share `$shape{n}`
+    /// while sharing no wire contract at all. So this is a fact about a call
+    /// site, exactly as [`ResolvedCall::written_class`] is, and never one about
+    /// a declaration.
+    pub(crate) fn record_shape_codec(&mut self, span: Span, codec: crate::derive::DerivedCodec) {
+        self.shape_codecs.insert(span, codec);
+    }
+
+    /// The wire contract of the inline shape written at `span`, or `None` where
+    /// no call site on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` wrote one
+    /// there — [`ResolvedCall::written_shape`] carries the span to ask with.
+    #[must_use]
+    pub fn shape_codec(&self, span: Span) -> Option<&crate::derive::DerivedCodec> {
+        self.shape_codecs.get(&span)
     }
 
     /// Records `rule:testing/test-attribute`'s `#[Test]` table for the class labelled `label`,
