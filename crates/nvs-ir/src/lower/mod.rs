@@ -443,6 +443,12 @@ fn codec_fields(
                     // resolution at all: it is already the values themselves.
                     cases: field.cases.clone(),
                     nullable: field.nullable,
+                    // `rule:core-api/required-optional-and-nullable`'s first
+                    // column, already read off the constructor parameter's
+                    // default by `nvs_types::derive`. The slot order this join
+                    // computes says nothing about it, so it rides down
+                    // untouched like the two above.
+                    required: field.required,
                 })
             })
             .collect()

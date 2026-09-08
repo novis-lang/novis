@@ -5574,6 +5574,7 @@ mod tests {
                 class: None,
                 cases: None,
                 nullable: false,
+                required: true,
             }],
             1,
             vec![std::ptr::null()],

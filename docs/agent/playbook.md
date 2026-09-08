@@ -5171,6 +5171,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   of boundary where the code is instead: the `ExprInfo` field's own doc says what the entry carries,
   and the lowering site's comment says which fields it reads and which it does not.
   [until: gone crates/nvs-ir/src/lib.rs:Each panics naming itself]
+- **A `Core` member whose type argument is a *shape* cannot ride `WRITTEN_CLASS_MEMBERS`.** That
+  roster hands a helper a declared class's `ClassDesc`, and `json::decode_fields` builds through
+  `desc.ctor_arity()` and a constructor — while the `$shape{…}` class
+  `nvs_ir::lower::record_shape_class` synthesizes has neither codec nor constructor. Price the
+  checker, IR and runtime plumbing as slices before the registry row, which cannot land alone.
+  [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
 
 ## Divergences and refusals already pinned
 

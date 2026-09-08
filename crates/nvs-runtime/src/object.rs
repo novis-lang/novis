@@ -689,6 +689,18 @@ pub struct CodecField {
     /// column, which is a property of the *type* and says nothing about
     /// whether the key may be absent.
     pub nullable: bool,
+    /// Whether a document must carry [`Self::key`] at all —
+    /// `rule:core-api/required-optional-and-nullable`'s first column, and the
+    /// independent question [`Self::nullable`] deliberately does not answer.
+    ///
+    /// A derived field is required exactly when its constructor parameter
+    /// declares no default, which is that rule's "optionality belongs to the
+    /// default" read off the one declaration that carries it. A shape field is
+    /// required exactly when it was written without `?`
+    /// (`rule:types/shape-type`), so the two spellings reach one decoder
+    /// through one column rather than through a branch on which of them built
+    /// the descriptor.
+    pub required: bool,
 }
 
 impl ClassDesc {

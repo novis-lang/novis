@@ -403,6 +403,17 @@ pub struct DerivedField {
     pub cases: Option<EnumCases>,
     /// Whether the declared type admits `null` (`rule:core-api/required-optional-and-nullable`'s second column).
     pub nullable: bool,
+    /// Whether a document must carry [`Self::key`] at all
+    /// (`rule:core-api/required-optional-and-nullable`'s first column, which
+    /// is independent of [`Self::nullable`]).
+    ///
+    /// Read off the constructor parameter's own default, which is where that
+    /// rule puts optionality: a parameter with a default may be filled without
+    /// the key, one without a default may not. `true` where the declaration
+    /// named no parameter at all, so a field
+    /// [`check_constructor_parameter`] has already refused does not also read
+    /// as an optional one.
+    pub required: bool,
     /// This field's position in the constructor's parameter list, or `None`
     /// when the class declares no matching parameter — which
     /// [`check_constructor_parameter`] has already reported.
@@ -1241,7 +1252,11 @@ fn codec_field(
         );
         return FieldOutcome::Refused;
     }
-    let param = check_constructor_parameter(p.name, &name, declared, format, params, ctx, env);
+    let resolved = check_constructor_parameter(p.name, &name, declared, format, params, ctx, env);
+    let param = resolved.map(|(index, _)| index);
+    // A refused declaration reads as required rather than as optional: the
+    // parameter that would have said otherwise is the one that is missing.
+    let required = resolved.is_none_or(|(_, required)| required);
     let nullable = env.interner.is_nullable(declared);
     // The `null` arm is what nullability *is*, so the decode target is the
     // rest of the union — `?int` decodes an `int` or a JSON null, never a
@@ -1270,6 +1285,7 @@ fn codec_field(
         class,
         cases,
         nullable,
+        required,
         param,
     })
 }
@@ -1278,8 +1294,11 @@ fn codec_field(
 /// parameter of the same name and the same type".
 ///
 /// Reports and returns the parameter's *position*, which is what a generated
-/// decoder fills; the field is recorded either way, so one bad property does
-/// not silently drop the rest of the wire contract.
+/// decoder fills, and whether that parameter makes the field **required** —
+/// `rule:core-api/required-optional-and-nullable` puts optionality on the
+/// default, and the parameter list is the one declaration that carries one.
+/// The field is recorded either way, so one bad property does not silently
+/// drop the rest of the wire contract.
 ///
 /// A promoted parameter matches itself here, at its own position and its own
 /// type, so neither refusal below can fire for one — which is § 2's "for a
@@ -1295,7 +1314,7 @@ fn check_constructor_parameter(
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> Option<usize> {
+) -> Option<(usize, bool)> {
     // A class with no written constructor has no parameter list to disagree
     // with, and `nvs_types::ctor_init` has already reported that its properties
     // are not definitely assigned (`rule:classes/definite-property-initialization`) — a second diagnostic here would
@@ -1321,9 +1340,13 @@ fn check_constructor_parameter(
         );
         return None;
     };
+    // `rule:core-api/required-optional-and-nullable`: the default is where
+    // optionality is written, so it is read here — beside the parameter — and
+    // not from the property, which has no default of its own to carry.
+    let required = param.default.is_none();
     let param_ty = crate::lower::lower_optional_type(param.ty.as_ref(), ctx, env);
     if param_ty == declared {
-        return Some(index);
+        return Some((index, required));
     }
     let want = env.interner.describe(declared);
     let got = env.interner.describe(param_ty);
@@ -1339,7 +1362,7 @@ fn check_constructor_parameter(
              it to the constructor, so the two have to agree",
         ),
     );
-    Some(index)
+    Some((index, required))
 }
 
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier.

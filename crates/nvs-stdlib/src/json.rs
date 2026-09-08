@@ -89,13 +89,16 @@
 //!    backing integer, so [`scalar`] answers it as a membership test against
 //!    the roster [`nvs_runtime::CodecField::cases`] carries.
 //! 3. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
-//!    two default-bearing rows are unimplemented: an absent key is always
-//!    *required field missing*, and a `#[Json\Field(skip: true)]` property
+//!    two default-bearing rows are unimplemented: an absent key fails whether
+//!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
 //!    which [`decode_fields`] reports as an engine fault rather than passing
-//!    `null`. `nvs_types::defaults` evaluates a default into a constant the
-//!    *call site* emits, and a native decoder is not a call site — closing
-//!    this means carrying the constant onto `nvs_runtime::CodecField`.
+//!    `null`. What is no longer missing is the *distinction* —
+//!    `nvs_runtime::CodecField::required` carries it, so the two absences read
+//!    apart and only the filling is owed. `nvs_types::defaults` evaluates a
+//!    default into a constant the *call site* emits, and a native decoder is
+//!    not a call site — closing this means carrying the constant onto
+//!    `nvs_runtime::CodecField` beside that bit.
 //! 4. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
@@ -1361,9 +1364,13 @@ unsafe fn decode_fields(
 
 /// The `index`th field of `owner`, taken over, or how it failed.
 ///
-/// `rule:core-api/required-optional-and-nullable`'s table, minus its two default-bearing rows: a parameter
-/// default is `nvs_types::defaults`' constant and no call site emits one here,
-/// so an absent key is always *required field missing* today.
+/// `rule:core-api/required-optional-and-nullable`'s table, minus its two
+/// default-bearing rows: a parameter default is `nvs_types::defaults`'
+/// constant and no call site emits one here, so an absent key still fails
+/// whichever column it sits in. What it no longer does is *misreport* which —
+/// `nvs_runtime::CodecField::required` carries that rule's first column down
+/// from the declaration, so an optional key's absence names the gap that
+/// stops it being filled instead of claiming the field was required.
 ///
 /// Takes the owning descriptor and a position rather than the
 /// [`nvs_runtime::CodecField`] alone because a nested field's class is
@@ -1387,7 +1394,19 @@ unsafe fn decode_field(
     let field = &owner.codec()[index];
     let issue = |why: String| DecodeFailure::Issues(vec![(path_of(prefix, Some(&field.key)), why)]);
     let Some(found) = source.get(field.key.as_bytes()) else {
-        return Err(issue("required field missing".to_owned()));
+        // `nvs_runtime::CodecField::required` is what tells the two absences
+        // apart. An optional key still fails here, because filling it needs
+        // the parameter's default and this crate has no call site to emit that
+        // constant from — but it fails saying so, rather than reporting a
+        // field the document was never obliged to carry as one it was.
+        if field.required {
+            return Err(issue("required field missing".to_owned()));
+        }
+        return Err(issue(
+            "optional field missing, and filling one from its constructor default is \
+             `nvs_stdlib::json`'s own known gap"
+                .to_owned(),
+        ));
     };
     if found.tag() == Some(Tag::Null) {
         if field.nullable {

@@ -1386,7 +1386,7 @@ mod tests {
         assert!(refused.contains("`float`"), "{refused}");
     }
 
-    /// One [`nvs_runtime::CodecField`], with the six properties this file's
+    /// One [`nvs_runtime::CodecField`], with the seven properties this file's
     /// cases never vary spelled once.
     fn codec_field(key: &str, param: usize, ty: nvs_runtime::CodecTy) -> nvs_runtime::CodecField {
         nvs_runtime::CodecField {
@@ -1398,6 +1398,7 @@ mod tests {
             class: None,
             cases: None,
             nullable: false,
+            required: true,
         }
     }
 
