@@ -163,6 +163,27 @@ impl Resolver {
         diags: &mut Diagnostics,
     ) {
         let qname = QName::join(namespace, name_text(src, name));
+        // The compiler declares two rosters in every program — the global
+        // interfaces of [`crate::interfaces::RESERVED`] and the exception tree
+        // of [`crate::errors::TREE`] — and every resolver in this crate
+        // short-circuits on their names before it consults the symbol table
+        // (`hierarchy::resolve_supertype`, `Self::resolve_imports`). A source
+        // declaration of one is therefore not a shadow but dead text:
+        // `implements Parses` binds to the compiler's interface whatever the
+        // file in front of the reader says. That is the same collision
+        // `rule:core-api/reserved-namespace` refuses under `Core`, so it is
+        // refused here in the same words, and the compiler's declaration is
+        // the one that stands.
+        if qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
+            diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("`{qname}` is already declared by the compiler"),
+                )
+                .with_primary(name.span, "duplicate declaration"),
+            );
+            return;
+        }
         let symbol = Symbol {
             kind,
             qname: qname.clone(),
@@ -350,6 +371,44 @@ mod tests {
                 .any(|d| d.code == Some(code::E_DUPLICATE_DECLARATION))
         );
         assert_eq!(module.symbols.len(), 1, "the first declaration wins");
+    }
+
+    /// A program may not declare either compiler-owned roster's names, and
+    /// `Parses` is on one of them: the interface a binding site asks a class
+    /// for exists in every program, so a file declaring its own would be
+    /// writing text nothing could ever reach.
+    #[test]
+    fn a_program_declaring_its_own_interface_named_parses_is_refused() {
+        let (module, diags) = resolve("<?nvs\ninterface Parses {}\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DUPLICATE_DECLARATION)),
+            "{diags:?}"
+        );
+        assert!(!module.symbols.contains(&QName::parse("Parses")));
+    }
+
+    /// The other roster, on the same terms — `nvs_hir::errors::TREE`'s classes
+    /// are reached by `extends` and `new` without a declaration anywhere.
+    #[test]
+    fn a_program_declaring_its_own_copy_of_an_exception_class_is_refused() {
+        let (_module, diags) = resolve("<?nvs\nclass Throwable {}\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DUPLICATE_DECLARATION)),
+            "{diags:?}"
+        );
+    }
+
+    /// The refusal is on the bare global name and nothing wider: a namespace
+    /// of one's own is where a `Parses` of one's own is legal.
+    #[test]
+    fn a_namespaced_name_matching_a_reserved_one_is_an_ordinary_declaration() {
+        let (module, diags) = resolve("<?nvs\nnamespace App;\ninterface Parses {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&QName::parse("App\\Parses")));
     }
 
     #[test]
