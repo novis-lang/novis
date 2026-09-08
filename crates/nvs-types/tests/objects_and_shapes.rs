@@ -124,6 +124,67 @@ fn a_class_missing_a_shapes_field_is_diagnosed() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
+// `rule:types/shape-type`: a field marked `name?:` relaxes presence and
+// nothing else, and it is a different question from the field's type being
+// nullable.
+
+#[test]
+fn an_object_literal_missing_an_optional_field_satisfies_the_shape() {
+    let diags = check_in_method("({x: int, y?: int}) $p = {x: 1};");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn an_optional_field_that_is_present_is_still_type_checked() {
+    let diags = check_in_method(r#"({x?: int}) $p = {x: "s"};"#);
+    assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+}
+
+#[test]
+fn an_optional_field_does_not_admit_null_and_a_nullable_one_does_not_admit_absence() {
+    // The two halves of `{a?: int}` versus `{a: ?int}`, asserted together so
+    // that a checker collapsing them into one type fails here whichever way
+    // round it collapsed them.
+    let optional_given_null = check_in_method("({a?: int}) $p = {a: null};");
+    assert!(
+        optional_given_null
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{optional_given_null:?}"
+    );
+    let nullable_given_absent = check_in_method("({a: ?int}) $p = {b: 1};");
+    assert!(
+        nullable_given_absent
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{nullable_given_absent:?}"
+    );
+    let nullable_given_null = check_in_method("({a: ?int}) $p = {a: null};");
+    assert!(!nullable_given_null.has_errors(), "{nullable_given_null:?}");
+}
+
+#[test]
+fn a_source_whose_own_field_is_optional_does_not_fill_a_required_one() {
+    // Presence has to be *proven*, not merely possible: a `{a?: int}` value
+    // widens to another `{a?: int}` and to `{}`, and to nothing that promises
+    // an `a`.
+    let diags = check_src(
+        "<?nvs\ntype Maybe = {a?: int};\ntype Sure = {a: int};\nclass T {\n  function m(Maybe $q): void {\n    Sure $p = $q;\n  }\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_class_missing_the_property_still_satisfies_an_optional_field() {
+    let diags = check_src(
+        "<?nvs\nclass Foo { public int $x; function constructor() { $this->x = 1; } }\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    ({x: int, y?: string}) $p = $a;\n  }\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 #[test]
 fn a_shape_type_alias_resolves_like_any_other_alias() {
     let diags = check_src(

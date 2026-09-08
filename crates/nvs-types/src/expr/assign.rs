@@ -210,9 +210,12 @@ pub(crate) fn is_assignable(
         let Ty::Shape(fields) = interner.get(from) else {
             return false;
         };
-        return fields
-            .iter()
-            .all(|(_, ty)| matches!(interner.get(*ty), Ty::Callable | Ty::CallableSig { .. }));
+        return fields.iter().all(|field| {
+            matches!(
+                interner.get(field.ty),
+                Ty::Callable | Ty::CallableSig { .. }
+            )
+        });
     }
     // `rule:types/callable-arity` and `rule:types/callable-variance` are one
     // comparison. Arity is a **prefix** match — `n ≤ m`, only the first `n`
@@ -331,9 +334,17 @@ pub(crate) fn class_satisfied(
 /// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
 /// access already uses; any other `from` (a scalar, `object`, a mismatched
 /// shape) never satisfies a shape target.
+///
+/// A field the target marks optional ([`ShapeField::required`] false) relaxes
+/// exactly one half of that: the key may be **absent** from `from`. When it is
+/// present it is checked like any other, so `{a?: int}` still refuses a source
+/// whose `a` is a `string`. The relaxation does not run the other way — a
+/// source whose own `a` is optional is not proven to carry one, so it fills a
+/// required `a` no better than a source with no `a` at all, and only another
+/// optional field accepts it.
 pub(crate) fn shape_satisfied(
     from: TypeId,
-    to_fields: &[(String, TypeId)],
+    to_fields: &[ShapeField],
     interner: &mut TypeInterner,
     graph: &ClassGraph,
     signatures: &SignatureTable,
@@ -343,18 +354,25 @@ pub(crate) fn shape_satisfied(
     // read while it recurses. A shape type is a handful of fields and this
     // path runs once per shape-typed assignment.
     match interner.get(from).clone() {
-        Ty::Shape(from_fields) => to_fields.iter().all(|(name, field_ty)| {
-            from_fields
-                .iter()
-                .find(|(n, _)| n == name)
-                .is_some_and(|(_, from_field_ty)| {
-                    is_assignable(*from_field_ty, *field_ty, interner, graph, signatures)
-                })
+        Ty::Shape(from_fields) => to_fields.iter().all(|to_field| {
+            match from_fields.iter().find(|from| from.name == to_field.name) {
+                Some(from) => {
+                    (from.required || !to_field.required)
+                        && is_assignable(from.ty, to_field.ty, interner, graph, signatures)
+                }
+                None => !to_field.required,
+            }
         }),
-        Ty::Class(qname, _) => to_fields.iter().all(|(name, field_ty)| {
-            resolve_property(&qname, name, signatures, graph).is_some_and(|from_field_ty| {
-                is_assignable(from_field_ty, *field_ty, interner, graph, signatures)
-            })
+        // A declared property is always present, so nothing here asks about
+        // `from.required`: a class satisfies an optional field by carrying it
+        // at an assignable type, and by not carrying it at all.
+        Ty::Class(qname, _) => to_fields.iter().all(|to_field| {
+            match resolve_property(&qname, &to_field.name, signatures, graph) {
+                Some(from_field_ty) => {
+                    is_assignable(from_field_ty, to_field.ty, interner, graph, signatures)
+                }
+                None => !to_field.required,
+            }
         }),
         _ => false,
     }
