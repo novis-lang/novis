@@ -28,6 +28,7 @@ interface Manifest {
   name: string;
   publisher: string;
   license: string;
+  icon: string;
   engines: Record<string, string>;
   extensionKind: string[];
   activationEvents: string[];
@@ -37,7 +38,12 @@ interface Manifest {
   devDependencies?: Record<string, string>;
   scripts: Record<string, string>;
   contributes: {
-    languages: { id: string; extensions: string[]; configuration?: string }[];
+    languages: {
+      id: string;
+      extensions: string[];
+      configuration?: string;
+      icon?: { light: string; dark: string };
+    }[];
     configuration: { title: string; properties: Record<string, ConfigProperty> };
     commands: { command: string; title: string; category?: string }[];
     configurationDefaults?: Record<string, unknown>;
@@ -99,6 +105,21 @@ describe("the extension's identity", () => {
     assert.equal(manifest.version, workspace);
   });
 
+  it("ships the Novis logo as its icon", () => {
+    // The one asset in the `.vsix`, and the only place the extension is branded. It is a copy of
+    // `website/media/novis-logo.png` rather than a reference to it: an extension package carries
+    // no path out of its own directory. A `.vscodeignore` entry that swept `media/` away would
+    // leave the manifest naming a file the package does not hold, which `vsce package` refuses,
+    // so the existence check here is what fails first and says why.
+    assert.equal(manifest.icon, "media/novis-logo.png");
+    const icon = readFileSync(join(ROOT, manifest.icon));
+    assert.deepEqual([...icon.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+                     "the icon is not a PNG");
+    // IHDR is the first chunk: width and height are the two big-endian words at byte 16.
+    assert.ok(icon.readUInt32BE(16) >= 128 && icon.readUInt32BE(20) >= 128,
+              "the Marketplace wants at least 128x128");
+  });
+
   it("points main at the compiled client", () => {
     // `tsc` puts `src/extension.ts` here, and a manifest naming anything else installs an
     // extension that activates and does nothing.
@@ -130,6 +151,18 @@ describe("the file types the extension claims", () => {
     assert.equal(language.id, "nvst");
     assert.deepEqual(language.extensions, [".nvst", ".lspt"]);
     assert.equal(language.configuration, undefined);
+  });
+
+  it("gives both languages the logo as their file icon", () => {
+    // What an explorer with a file-icon theme draws beside a `.nvs` or a `.nvst`. One image for
+    // both themes: the logo is a transparent PNG that carries its own contrast, so a second
+    // variant would be the same file under another name. A theme that draws its own icon for a
+    // language wins, and this is only the fallback.
+    for (const language of manifest.contributes.languages) {
+      assert.deepEqual(language.icon,
+                       { light: "./media/novis-logo.png", dark: "./media/novis-logo.png" },
+                       `${language.id} contributes no file icon`);
+    }
   });
 
   it("activates on nvs and on nothing else", () => {

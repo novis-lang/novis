@@ -5,6 +5,7 @@
   "version": "0.0.1",
   "publisher": "nvs-lang",
   "license": "MIT",
+  "icon": "media/novis-logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/nvs-lang/nvs.git",
@@ -35,7 +36,11 @@
         "extensions": [
           ".nvs"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/novis-logo.png",
+          "dark": "./media/novis-logo.png"
+        }
       },
       {
         "id": "nvst",
@@ -46,7 +51,11 @@
         "extensions": [
           ".nvst",
           ".lspt"
-        ]
+        ],
+        "icon": {
+          "light": "./media/novis-logo.png",
+          "dark": "./media/novis-logo.png"
+        }
       }
     ],
     "grammars": [
