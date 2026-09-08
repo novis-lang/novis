@@ -35,6 +35,17 @@
           ".nvs"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "nvst",
+        "aliases": [
+          "Novis case",
+          "nvst"
+        ],
+        "extensions": [
+          ".nvst",
+          ".lspt"
+        ]
       }
     ],
     "grammars": [
@@ -42,6 +53,14 @@
         "language": "nvs",
         "scopeName": "source.nvs",
         "path": "./syntaxes/nvs.tmLanguage.json"
+      },
+      {
+        "language": "nvst",
+        "scopeName": "source.nvst",
+        "path": "./syntaxes/nvst.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.nvs": "nvs"
+        }
       }
     ],
     "configuration": {

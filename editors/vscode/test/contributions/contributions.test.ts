@@ -35,7 +35,7 @@ interface Manifest {
   devDependencies?: Record<string, string>;
   scripts: Record<string, string>;
   contributes: {
-    languages: { id: string; extensions: string[]; configuration: string }[];
+    languages: { id: string; extensions: string[]; configuration?: string }[];
     configuration: { title: string; properties: Record<string, ConfigProperty> };
     commands: { command: string; title: string; category?: string }[];
     configurationDefaults?: Record<string, unknown>;
@@ -97,20 +97,34 @@ describe("the extension's identity", () => {
 
 describe("the file types the extension claims", () => {
   it("registers nvs as its own language, on .nvs alone", () => {
-    assert.equal(manifest.contributes.languages.length, 1);
     const language = manifest.contributes.languages[0];
     assert.equal(language.id, "nvs");
     assert.deepEqual(language.extensions, [".nvs"]);
     assert.equal(language.configuration, "./language-configuration.json");
   });
 
+  it("registers the case format as a second language, on .nvst and .lspt", () => {
+    // `rule:ide/case-files-have-their-own-grammar`. One language for both formats: they share the
+    // section shape, and the grammar reads either. It carries no language configuration — a case
+    // has no comment or bracket of its own, and what is inside `--FILE--` is Novis's.
+    assert.equal(manifest.contributes.languages.length, 2);
+    const language = manifest.contributes.languages[1];
+    assert.equal(language.id, "nvst");
+    assert.deepEqual(language.extensions, [".nvst", ".lspt"]);
+    assert.equal(language.configuration, undefined);
+  });
+
   it("activates on nvs and on nothing else", () => {
+    // A grammar is contributed statically, so colouring a case starts nothing: the second language
+    // adds no activation event, and opening one does not start the server.
     assert.deepEqual(manifest.activationEvents, ["onLanguage:nvs"]);
   });
 
   it("names php nowhere in the manifest", () => {
     // Claiming `.php` would fight every PHP extension the user already has, and losing that
-    // fight silently looks like Novis being broken.
+    // fight silently looks like Novis being broken. `--ORACLE--`'s body is PHP and the case grammar
+    // includes `source.php` to colour it, which is a reference to a grammar and not a claim on a
+    // file type — it stays in `syntaxes/`, and no `embeddedLanguages` entry names php either.
     assert.equal(/\bphp\b/i.test(manifestText), false, "the manifest mentions php");
   });
 });

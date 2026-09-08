@@ -1252,6 +1252,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   found was a shallower line with the same opening brace. Take the depth from a line whose nesting you
   already know, or read the exact bytes with `sed -n 'A,Bp' <file> | cat -A`, before writing the OLD
   block. [until: reviewed 2026-09-08]
+- A TextMate `begin`/`end` rule whose only pattern is an include the registry cannot resolve is
+  dropped whole, and the drop takes the rule that included it with it. `--ORACLE--` lost its header
+  colour and its whole body that way, because it includes `source.php`, which no registry outside a
+  real editor holds. Stub the missing scope in `editors/vscode/test/grammar/tokenize.ts` as
+  `text.html.basic` already is, rather than hunting a regex that looks wrong.
+  [until: gone editors/vscode/test/grammar/tokenize.ts:PHP_STUB]
 
 ## Running things
 

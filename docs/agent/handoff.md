@@ -2,57 +2,52 @@
 
 ## State
 
-**Goal 15 stage 3 is whole.** `editors/vscode/syntaxes/nvs.tmLanguage.json` colours every construct
-family [ADR 0099 § 4](../decisions/0099.md) names: the openers and the shebang, comments and `#[...]`
-attributes, every string literal, the reserved table with the contextual spellings beside it, numeric
-and duration literals, every name — and now a written type in every slot
-`rule:types/declaration` gives one, the name a `type` alias introduces, and
-`rule:types/object-top`'s inline shape. `npm run test:headless` is green at 99 and `npm run lint` is
-clean.
+**Goal 15 stage 4 is whole.** `editors/vscode/syntaxes/nvst.tmLanguage.json` is the second grammar
+`rule:ide/case-files-have-their-own-grammar` asks for: a section per `^--NAME--$`, ending at
+`(?=^--[A-Z])`, with Novis embedded in `--FILE--`, `--FILE <path>--`, `--SKIPIF--` and `--CLEAN--`,
+PHP in `--ORACLE--`, `expect.rs`'s twelve `%` escapes in `--EXPECTF--`/`--EXPECTF-ERROR--`, and every
+other section literal with only its delimiter coloured. The manifest contributes it as a second
+language, `nvst`, on `.nvst` and `.lspt`. `npm run test:headless` is green at 118 and `npm run lint`
+is clean.
+
+**The PHP split the goal flagged is settled, and the grammar's own comment is its home.**
+`source.php` is code-only — it does not handle the `<?php` opener — and `text.html.php` is what does,
+so `#oracle-code` matches the tag itself and includes `source.php` for what follows.
 
 **The acceptance check `vscode (headless)` is still red on `protocol:` alone** — stage 5's suite,
 which cannot go green before then. `grammar:` and `contributions:` both print.
 
-**Two slots are deliberately narrower than `rule:types/grammar` allows**, and both are pinned in
-`editors/vscode/test/grammar/types.test.ts`: a return type is read only inside a `#signature` region,
-because a ternary's colon and a return type's are one spelling; an inline shape only inside a type
-region, because the object literal `{n: $n * 10}` is written the same way as `{n: int}`.
-
 **Still no `src/` and no `main`** — stage 5's, and stage 8's `.vsix` wants `main` before it is worth
-running. The pack's `[context] modules` warning about `editors/vscode/src/**` is that absence, not a
-manifest bug.
+running. The pack's `[context] modules` warning about `editors/vscode/src/**` is that absence.
 
 ## Next group
 
-**Stage 4: the `.nvst`/`.lspt` grammar** — one file set: `editors/vscode/syntaxes/`,
-`editors/vscode/package.json` and the two suites under `editors/vscode/test/` that freeze the manifest.
-The goal calls it nearly free and says to group it with stage 3: same directory, same harness, and it
-is the cheapest check that stage 3's grammar is embeddable at all.
+**Stage 5: the client** — one file set: `editors/vscode/src/` (new), `editors/vscode/package.json`,
+`editors/vscode/test/protocol/` (new) and `editors/vscode/scripts/headless.mjs`. This is the group
+that turns the acceptance check green: `protocol:` is the one suite of the three that prints nothing
+today.
 
-- [ ] **A second grammar for the case formats** — `editors/vscode/syntaxes/nvst.tmLanguage.json`, a
-      `begin`/`end` per section anchored on `^--NAME--$` and ending at `(?=^--[A-Z])`, with
-      `source.nvs` included in the four sections that hold a program: `--FILE--`, `--FILE <path>--`
-      (its own rule, since that header carries an argument), `--SKIPIF--` and `--CLEAN--`. The section
-      list is `crates/nvs-test/src/lib.rs:1`'s module doc — read it rather than inferring the set from
-      the corpus, and every section it names that this stage does not is literal text with only its
-      delimiter coloured. `rule:ide/case-files-have-their-own-grammar`.
-- [ ] **`--ORACLE--` is PHP and `--EXPECTF--` is escapes** — `constant.character.escape` on the `%`
-      escapes in `--EXPECTF--` and `--EXPECTF-ERROR--`, and the PHP leg settled in the snapshot test
-      rather than from documentation: VS Code splits PHP across `source.php` and `text.html.php` and
-      only the latter opens on the `<?php` every oracle body starts with. The registry that decides
-      what a scope name loads is `editors/vscode/test/grammar/tokenize.ts:56`, and the HTML stub above
-      it at `:32` is the shape to copy for a leg the headless registry has no package for.
-- [ ] **The manifest gains a second language and a second grammar** — `editors/vscode/package.json`,
-      against the two assertions that freeze it today: `editors/vscode/test/grammar/allowlist.test.ts:87`
-      deep-equals `contributes.grammars` to the one `nvs` entry, and
-      `editors/vscode/test/contributions/contributions.test.ts:99` holds `contributes.languages` at
-      one. Read `contributions.test.ts:111` — "names php nowhere in the manifest" — before embedding
-      PHP anywhere, since a `.nvst` grammar naming `text.html.php` is not the `.php` claim that test
-      exists to refuse (`rule:ide/the-extension-claims-nvs-only`).
+- [ ] **The client that starts `nvs lsp`** — a new `editors/vscode/src/extension.ts` and `main`
+      beside `editors/vscode/package.json:23`'s `activationEvents`, spawning the binary from
+      `nvs.path` and falling back to `PATH`, with the `LanguageStatusItem` for health and version.
+      `vscode-languageclient` is already the one runtime dependency, at
+      `editors/vscode/package.json:159`. `rule:ide/one-server-two-thin-clients` and
+      `rule:ide/vscode-is-the-reference-client`; no language logic in TypeScript.
+- [ ] **The version handshake that refuses a binary it does not understand** — what `initialize`
+      declares is `crates/nvs-lsp/src/capabilities.rs:1`, and the client registers the same legend or
+      nothing lines up. `rule:ide/the-extension-refuses-a-binary-it-does-not-understand`.
+- [ ] **The protocol round-trip, headless** — a new `editors/vscode/test/protocol/`, picked up by
+      `editors/vscode/scripts/headless.mjs:21`'s `ORDER`, driving the real `nvs lsp` from Node over
+      stdio. It needs no `vscode` module, which is why it belongs in this tier at all.
 
 ## Backlog
 
-- `callable(T): U` in a *parameter* leaves `T` uncoloured — that argument list is not a type region.
-- A shape type spanning two lines closes its region at the opening `{`; one line is what colours.
-- No `editors/vscode/src/` and no `main` yet — stage 5's, and stage 8's `.vsix` waits on it.
-- The extension-host tier stays off this machine on purpose — goal § *Standing decisions*.
+- Stage 6: `secret` concealment and `tainted` left alone — `docs/agent/loop-goal.md` § *Stage 6*.
+- Stage 7: Tasks, the problem matcher's two regexes against `crates/nvs-diagnostics/src/render.rs`,
+  the AST panel — `docs/agent/loop-goal.md` § *Stage 7*.
+- Stage 8: the `.vsix` and the extension-host tier, which is CI's and never run here — the goal's
+  § *Standing decisions*.
+- `orient.py`'s `[context] modules` prints a module's first sentence only, so a table inside one
+  (`crates/nvs-test/src/expect.rs`'s `%` escapes) is reachable only as a handoff anchor.
+- The extension's README does not yet record the decided-and-rejected pixel tier — the goal's
+  § *Standing decisions* says it is that file's job.
