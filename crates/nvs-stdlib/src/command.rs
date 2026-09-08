@@ -292,6 +292,16 @@ nvs_runtime::nvs_helper! {
             Ok(values) => values,
             Err(problem) => return usage(ctx, &format!("{problem}\n\n{}", page_for(&row))),
         };
+        // The one conversion `matched` leaves undone, because it is the one
+        // needing a context rather than only a word. `parse_each` is the home of
+        // why it is a second pass and of why a refusal lands on the usage page.
+        let values = match parse_each(ctx, &row, values) {
+            Ok(values) => values,
+            Err(Refused::Usage(problem)) => {
+                return usage(ctx, &format!("{problem}\n\n{}", page_for(&row)));
+            }
+            Err(Refused::Fault(fault)) => return Err(fault),
+        };
         // The callee reads one slot per declared parameter, so a count that
         // disagrees with the row is memory-unsafe rather than wrong. This is
         // unreachable from source in a `debug_assert!`'s sense and not in a
@@ -535,6 +545,12 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         ArgConv::Uuid => nvs_runtime::uuid::read(text)
             .map(crate::uuid::of_octets)
             .ok_or_else(|| format!("`{}` takes a UUID, and `{text}` is not one", arg.param)),
+        // The word itself, and the one conversion this function does not
+        // finish: a class's own `parse` needs the context that [`parse_each`]
+        // has and a walk over words has not. Nothing typed `string` here
+        // reaches a parameter that declared a class — that second pass runs
+        // over this same list before the handler is called.
+        ArgConv::Parses(_) => Ok(Value::str(NvsStr::new(text.as_bytes()))),
         // § 3's closed set, and the one conversion whose refusal can name every
         // value it would have accepted — a command line is a person typing, so
         // the set is worth more in the message than the type's own spelling.
@@ -586,6 +602,101 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
             arg.param
         )),
     }
+}
+
+/// Why a word did not become the value its parameter declared.
+///
+/// Two answers rather than one because [`parse_each`] reaches a program's own
+/// `parse`, and that call can fail in a way no usage page could honestly
+/// describe. A word the class refused is [`Self::Usage`] — the command line is
+/// input, and § 6 answers input with a page. Anything the *engine* could not do
+/// is [`Self::Fault`] and is returned unchanged, so a fatal never reaches a
+/// person as advice about the word they typed.
+#[derive(Debug)]
+enum Refused {
+    /// The sentence a usage page leads with.
+    Usage(String),
+    /// A fault the caller answers with as its own.
+    Fault(Fault),
+}
+
+/// Replaces every `Parses` argument's word with what that class's own `parse`
+/// answered, over the list [`matched`] filled and before the handler is called.
+///
+/// `nvs_runtime::commands::ArgConv::Parses` is the home of why a command line
+/// may take this reach where a route match may not, and of why the member
+/// called is `parse` rather than `rule:expressions/try-parse`'s twin. Two
+/// things are decided here instead. It is a **second pass** rather than an arm
+/// of [`convert`]: that function is a walk over words alone, so keeping the one
+/// conversion that needs a context out of it keeps every other one answerable
+/// without building one. And a refusal becomes the sentence a usage page leads
+/// with, carrying what the class itself said, because a command line is input —
+/// `nvs_runtime::commands::ArgConv::OneOf`'s rule, reached from the other side.
+///
+/// Nothing survives an `Err`, exactly as in [`matched`]: the values this frame
+/// was handed are released here, so the caller sweeps only the list it got back.
+fn parse_each(
+    ctx: &mut nvs_runtime::Ctx,
+    row: &Command,
+    values: Vec<Value>,
+) -> Result<Vec<Value>, Refused> {
+    let mut done: Vec<Value> = Vec::with_capacity(values.len());
+    let mut rest = values.into_iter();
+    for arg in &row.args {
+        let Some(word) = rest.next() else {
+            break;
+        };
+        let ArgConv::Parses(class) = &arg.conv else {
+            done.push(word);
+            continue;
+        };
+        let outcome = nvs_runtime::call_static(ctx, &format!("{class}::parse"), &[word]);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference `word` holds, and \
+                      `call_static` retained its own for the callee to release"
+        )]
+        unsafe {
+            word.release();
+        }
+        let refusal = match outcome {
+            Ok(Some(value)) => {
+                done.push(value);
+                continue;
+            }
+            // Unreachable from source: `E0746` refuses a parameter whose class
+            // does not implement `Parses`, and one that does owes `parse` to
+            // `nvs_types::conformance` before a row naming it is ever built. A
+            // miss here is a class table that does not match the command table
+            // built beside it, which no program can write its way into.
+            Ok(None) => Refused::Fault(Fault::fatal(format!(
+                "internal error: `{class}::parse` is not in this program's class table"
+            ))),
+            // Taking the pending message is the catch itself, and the reason
+            // this arm exists rather than a `?`.
+            Err(Fault::Pending(_)) => Refused::Usage(match ctx.take_pending() {
+                Some(said) => format!("`{}` takes a `{class}`, and {said}", arg.param),
+                None => format!("`{}` takes a `{class}`, and that one refused", arg.param),
+            }),
+            Err(fault) => Refused::Fault(fault),
+        };
+        #[expect(
+            unsafe_code,
+            reason = "every value in either list is one this frame owns and \
+                      nothing else has seen, as on `matched`'s failing path"
+        )]
+        unsafe {
+            for value in done {
+                value.release();
+            }
+            for value in rest {
+                value.release();
+            }
+        }
+        return Err(refusal);
+    }
+    done.extend(rest);
+    Ok(done)
 }
 
 /// The spelling an option is *summarized* by — its long one where it has one,
@@ -1372,6 +1483,135 @@ mod tests {
             param_tags: 0,
             public: true,
             native: false,
+        }
+    }
+
+    thread_local! {
+        /// The word [`parse_handler`] was handed, so that a pass which answered
+        /// plausibly without ever reaching the class — or reached it with the
+        /// wrong slot — fails here rather than on the value alone.
+        static PARSED: std::cell::RefCell<Option<String>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// A `Parses` implementor's `parse`, as `nvs-codegen` would have compiled
+    /// it: slot 0 is the called class and slot 1 is the one `string` the
+    /// interface declares.
+    ///
+    /// It answers `true` — a value no argument's own text could be — so that
+    /// "the class's answer replaced the word" is asserted on the slot and not
+    /// only on what arrived.
+    #[expect(
+        unsafe_code,
+        reason = "compiled code's own signature, which `call_at` calls through: \
+                  exactly two live values and the address of a live `Value` for \
+                  the result, neither expressible in the type"
+    )]
+    unsafe extern "C" fn parse_handler(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        let word = unsafe { *args.add(1) };
+        PARSED.with_borrow_mut(|parsed| {
+            *parsed = word.as_text().map(str::to_owned);
+        });
+        unsafe {
+            for index in 0..2 {
+                (*args.add(index)).release();
+            }
+            *out = Value::bool(true);
+        }
+        OK
+    }
+
+    /// [`parse_handler`]'s twin that refuses, which is the whole of what a
+    /// `Parses` implementor does to reject text: it throws, and the message is
+    /// the class's own.
+    #[expect(
+        unsafe_code,
+        reason = "as `parse_handler`, and the pending message is set through the \
+                  context the ABI hands every compiled function"
+    )]
+    unsafe extern "C" fn refusing_parse(
+        ctx: *mut Ctx,
+        args: *const Value,
+        _out: *mut Value,
+    ) -> i32 {
+        unsafe {
+            for index in 0..2 {
+                (*args.add(index)).release();
+            }
+            (*ctx).set_pending("no target is spelled `prod`");
+        }
+        nvs_runtime::THROWN
+    }
+
+    /// `code`'s row under the name the interface requires, arity 1 with the
+    /// receiver excluded — what `nvs_types::layout::ClassLayout::methods`
+    /// writes for a `public static function parse(string): static`.
+    fn parse_row(code: NvsFn) -> MethodRow {
+        MethodRow {
+            name: "parse".to_owned(),
+            code: code as *const u8,
+            arity: 1,
+            param_tags: 0,
+            public: true,
+            native: false,
+        }
+    }
+
+    /// [`deploy`]'s positional, declared as a class implementing `Parses`
+    /// instead of as `string`, with the word the matcher would have filled it
+    /// with.
+    fn parses_row() -> (Command, Vec<Value>) {
+        let mut row = deploy();
+        row.args[0].conv = ArgConv::Parses("Deployer".to_owned());
+        let values = vec![
+            Value::str(nvs_runtime::NvsStr::new("prod".as_bytes())),
+            Value::bool(false),
+        ];
+        (row, values)
+    }
+
+    /// The reach `nvs_runtime::commands::ArgConv::Parses` settles, end to end
+    /// on the side that may take it: the word crosses to the class's own
+    /// `parse` and what comes back is what the parameter receives.
+    #[test]
+    fn a_parses_argument_becomes_what_the_classs_own_parse_answered() {
+        let mut ctx = dispatching(&["deploy", "prod"], vec![parse_row(parse_handler)]);
+        let (row, values) = parses_row();
+        PARSED.with_borrow_mut(|parsed| *parsed = None);
+        let values = parse_each(&mut ctx, &row, values).expect("the class parsed the word");
+        assert_eq!(
+            PARSED.with_borrow(Clone::clone),
+            Some("prod".to_owned()),
+            "the argument's own text reaches `parse`"
+        );
+        assert_eq!(
+            values[0].as_text(),
+            None,
+            "the word does not survive the pass"
+        );
+        assert_eq!(values[0].as_bool(), Some(true), "`parse`'s answer does");
+        assert_eq!(
+            values[1].as_bool(),
+            Some(false),
+            "an argument no class parses is left where it was"
+        );
+        release(values);
+    }
+
+    /// A class that refuses text is a *usage* error carrying the sentence the
+    /// class wrote, never a throw — a command line is input, so the person who
+    /// typed the word reads why it was refused.
+    #[test]
+    fn a_parse_that_refuses_is_a_usage_sentence_carrying_what_the_class_said() {
+        let mut ctx = dispatching(&["deploy", "prod"], vec![parse_row(refusing_parse)]);
+        let (row, values) = parses_row();
+        match parse_each(&mut ctx, &row, values) {
+            Err(Refused::Usage(said)) => assert!(
+                said.contains("no target is spelled `prod`"),
+                "the class's own sentence reaches the page: {said}"
+            ),
+            Err(Refused::Fault(_)) => panic!("a refusal is not a fault"),
+            Ok(_) => panic!("a `parse` that threw converted nothing"),
         }
     }
 

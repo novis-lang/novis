@@ -73,6 +73,16 @@
 //!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
+//! 3. **A capture typed as a `Parses` class crosses as its segment text and is
+//!    converted nowhere**, and closing it is a decision rather than an arm.
+//!    `rule:security/route-capture-is-laundered-by-its-type` says a failed
+//!    conversion is not a match, which puts the conversion *in* the match —
+//!    where [`crate::commands::ArgConv::Parses`] records what running a
+//!    program's `parse` would cost, ahead of everything that rate-limits the
+//!    request. Converting after the match instead cannot mean "not a match" and
+//!    so is a `400` on
+//!    `rule:routing/a-query-parameter-is-declared-like-a-capture`'s reading,
+//!    which is a change to that same rule. Both readings are a record's to make.
 
 use std::sync::Arc;
 
@@ -110,11 +120,16 @@ pub enum CaptureConv {
     /// what makes the narrowing a property of the *table* rather than a check
     /// the handler was trusted to write.
     OneOf(Vec<String>),
-    /// A type § 5 admits and no arm above turns text into: a `bool`, and an
-    /// `enum` whose segment spelling is `Core\Router::match`'s to decide and is
-    /// out of this goal's scope. The segment matches and its text is handed
-    /// over — never silently `Text`, so what is missing stays an arm rather
-    /// than a behaviour somebody has to notice.
+    /// A type § 5 admits and no arm above turns text into: a `bool`, an `enum`
+    /// whose segment spelling is `Core\Router::match`'s to decide, and every
+    /// class implementing `Parses` but `Core\Uuid`. The segment matches and its
+    /// text is handed over — never silently `Text`, so what is missing stays an
+    /// arm rather than a behaviour somebody has to notice.
+    ///
+    /// **The `Parses` entry is not an unwritten arm but an open question**, and
+    /// [`crate::commands::ArgConv::Parses`] is the one home of it: a match runs
+    /// at the door, with no armed class table to reach a compiled `parse`
+    /// through and before anything rate-limits the request that reached it.
     Unconverted,
 }
 

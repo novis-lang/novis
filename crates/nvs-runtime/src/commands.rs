@@ -54,15 +54,6 @@
 //!    `Core\Router::match`'s to decide and is out of this goal's scope. So
 //!    closing this means reading the union's members here, where § 6 owns the
 //!    spelling, rather than widening that function underneath a second caller.
-//!
-//! 2. **A `Parses` class other than `Core\Uuid` is [`ArgConv::Unconverted`].**
-//!    § 6 admits a class for the pair it declares
-//!    (`rule:expressions/try-parse`), so `nvs_types::commands::ArgConv::Parses`
-//!    carries the class's own name; what is missing is the arm that calls that
-//!    class's `parse` on the argument's text. [`ArgConv::Uuid`] is the one
-//!    implementor with a reader written, so it is the one that converts, and
-//!    the bridge in `nvs-cli` says so on the row rather than converting an
-//!    argument as something the parameter did not declare.
 
 /// What an argument's text becomes before the handler is called.
 ///
@@ -95,6 +86,38 @@ pub enum ArgConv {
     /// command line supplies and a segment a route matches are admitted by one
     /// grammar rather than by two that agree today.
     Uuid,
+    /// A class implementing `Parses` — the argument's text through that class's
+    /// own `parse`, and a usage error carrying what the parse said where it
+    /// refused. The name is the label that call is made through.
+    ///
+    /// **This is the one home of where a conversion path may reach a compiled
+    /// `parse`, because only one of the two paths may.** The reach is
+    /// [`crate::call_static`] over `Class::parse`, which is the same route
+    /// `Core\Command::run` already takes to the handler: a command argument
+    /// converts inside a program whose class table is armed and whose own code
+    /// is about to run regardless.
+    ///
+    /// It is `parse` and never `rule:expressions/try-parse`'s twin. That twin
+    /// is a default on a compiler-declared interface, and `nvs_types::layout`
+    /// enters no method for one of those, so an implementor inherits nothing a
+    /// descriptor's method table could name. Catching the throw at this
+    /// boundary *is* what that rule says `tryParse` does — and a command line
+    /// is input, so a word the class refuses is a usage error rather than a
+    /// throw, which is [`Self::OneOf`]'s rule reached from the other side.
+    ///
+    /// **[`crate::routes::CaptureConv`] has no such arm, and whether it may ever
+    /// have one is open.** A route matches at the door: `nvs-server`'s matching
+    /// step holds no context at all, and `nvs-cli`'s runner matches before the
+    /// compiled unit is installed on one, so there is no class table to resolve
+    /// the label in. Arming one earlier is the smaller half of the question.
+    /// The larger half is that an implementor's `parse` would then be
+    /// application-authored code over the request path running before anything
+    /// rate-limits it — the priority-1 objection
+    /// `rule:routing/a-capture-narrows-to-a-closed-set` already makes to a regex
+    /// constraint, and a `parse` body is strictly more than a regex.
+    /// [`crate::routes::CaptureConv::Unconverted`] carries the segment
+    /// meanwhile, which converts nothing and refuses nothing.
+    Parses(String),
     /// § 3's closed set: the word each member of a union of literal types
     /// admits, in the order the union declares them, and a usage error for
     /// anything else — a command line is input, so a word outside the set is

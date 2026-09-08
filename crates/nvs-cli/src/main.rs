@@ -1268,19 +1268,18 @@ fn runtime_commands(
                                 nvs_runtime::commands::ArgConv::Decimal
                             }
                             // A `Parses` class crosses as the name the checker
-                            // resolved. `Core\Uuid` reaches the runtime's own
-                            // reader; every other implementor is
-                            // `Unconverted`, because the arm that calls a
-                            // class's `parse` is `nvs_runtime::commands`'s gap
-                            // 2 and is not written yet. Same policy as
-                            // [`capture_conv`]: what the runtime has no arm for
-                            // says so, rather than converting as something
-                            // else.
+                            // resolved, which is the label the matcher calls
+                            // that class's own `parse` through. `Core\Uuid` is
+                            // the exception and takes the runtime's reader
+                            // instead: its parse is a `Core` member with no row
+                            // in a program's class table, so there is no label
+                            // to call — and one grammar either way, which is
+                            // `nvs_runtime::commands::ArgConv::Uuid`'s point.
                             nvs_types::commands::ArgConv::Parses(class) => {
                                 if class.as_str() == r"Core\Uuid" {
                                     nvs_runtime::commands::ArgConv::Uuid
                                 } else {
-                                    nvs_runtime::commands::ArgConv::Unconverted
+                                    nvs_runtime::commands::ArgConv::Parses(class.clone())
                                 }
                             }
                             // The set itself crosses, because it is the answer
@@ -1394,7 +1393,10 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
 /// a union of string literals renders as a type nothing would convert, and its
 /// admitted set is the whole of what § 5 narrows with. Everything the runtime
 /// has no arm for is `Unconverted` rather than silently `Text`, so the gap is
-/// one an arm closes rather than a behaviour somebody has to notice.
+/// one an arm closes rather than a behaviour somebody has to notice — except a
+/// class implementing `Parses`, where whether a match may call a compiled
+/// `parse` at all is the open question
+/// `nvs_runtime::commands::ArgConv::Parses` states.
 fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureConv {
     use nvs_runtime::routes::CaptureConv;
 
