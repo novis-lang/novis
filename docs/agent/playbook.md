@@ -5241,6 +5241,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `a-property-that-was-never-written-is-read-as-a-throw.nvst` and
   `an-optional-field-is-absent-and-a-nullable-one-is-null.nvst`.
   [until: exists docs/rules/classes/an-unwritten-property-read-throws.md:shape]
+- **A member seeded onto a compiler-declared interface is invisible to `nvs_hir::members`.**
+  `member_declared_rec` (`crates/nvs-hir/src/members.rs:1307`) walks `implements` into `Parses`, finds
+  no `MemberTable` entry — nothing declares a reserved interface in source — so `Slug::tryParse($s)` is
+  `E0309` even though `crate::conformance` agrees the class inherits it. Do not repair that by trusting
+  the roster the way line 1315 trusts `Core`: while the default body has no compiled function, the
+  refusal is the safe answer and the alternative is a dispatch to nothing.
+  [until: reviewed 2026-09-08]
 
 ## Divergences and refusals already pinned
 

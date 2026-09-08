@@ -19,6 +19,12 @@
 //! *does* have a body — its own, an inherited one, or an `rule:classes/interface-default-methods`
 //! interface default.
 //!
+//! The same walk asks one question of the answers it accepts: a member the
+//! ancestor declared `: static` has to be answered by a declaration that also
+//! writes `static` (`E0404`, [`reject_dropped_static_return`]). Nothing else
+//! about the two signatures is compared here — argument and return
+//! assignability is a rule of its own that nothing has decided yet.
+//!
 //! These are outside it, each for its own reason:
 //!
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
@@ -54,7 +60,8 @@ use crate::ty::Ty;
 use crate::{span_text, strip_sigil};
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing
-/// answers. See the module docs for the exemptions.
+/// answers, and one `E0404` per member the answer weakens. See the module
+/// docs for the exemptions.
 pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
     if decl.modifiers.contains(&Modifier::Abstract) {
         return;
@@ -79,9 +86,12 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
         if delegated.contains(&method) {
             continue;
         }
-        let answered = resolve_method(qname, &method, env.signatures, env.graph)
-            .is_some_and(|(_, sig)| sig.has_body);
-        if answered {
+        let answer = resolve_method(qname, &method, env.signatures, env.graph)
+            .map(|(_, sig)| (sig.has_body, sig.returns_static));
+        if let Some((true, keeps_static)) = answer {
+            if !keeps_static {
+                reject_dropped_static_return(decl, qname, &interface, &method, env);
+            }
             continue;
         }
         env.diags.report(
@@ -99,6 +109,66 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
             )),
         );
     }
+}
+
+/// `E0404` for an answer that drops the `static` its declaration promised.
+///
+/// A member declared `: static` promises the *called* class, and that promise
+/// is what a caller reads: `Slug::parse($text)` is a `Slug` only because
+/// [`MethodSig::returns_static`](crate::signatures::MethodSig::returns_static)
+/// makes the call site substitute the class the call named. An answer written
+/// `: Slug`, `: self` or `: string` keeps the assignability rule — every one of
+/// those is assignable to the interface's own class, or is refused elsewhere —
+/// and still breaks that substitution for every subclass, so assignability is
+/// not the question here and a check of its own is.
+///
+/// This is the shape `Parses` needs and the only one this reports: `parse` is
+/// declared `parse(tainted string $s): static`, and a binding site that hands
+/// a route segment to it reads the answer as the class the parameter named.
+/// An implementor answering anything else would put a value of one class where
+/// the site had already decided another, which is priority 2 in AGENTS.md's
+/// ordering.
+///
+/// The primary lands on the class's own declaration of the member where it has
+/// one; a class that inherits the weakened answer gets its own name instead,
+/// which is the only span it wrote.
+fn reject_dropped_static_return(
+    decl: &ClassDecl,
+    qname: &QName,
+    interface: &QName,
+    method: &str,
+    env: &mut Env<'_>,
+) {
+    let requires_static = env
+        .signatures
+        .get(interface)
+        .and_then(|sig| sig.methods.get(method))
+        .is_some_and(|sig| sig.returns_static);
+    if !requires_static {
+        return;
+    }
+    let written = decl.members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Method(m) if span_text(env.src, m.name) == method => Some(
+            m.return_type
+                .as_ref()
+                .map_or(m.name, |declared| declared.span),
+        ),
+        _ => None,
+    });
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INCOMPATIBLE_OVERRIDE,
+            format!("`{qname}::{method}` does not return `static`, which `{interface}` declares"),
+        )
+        .with_primary(
+            written.unwrap_or(decl.name.span),
+            "this answers a class of its own",
+        )
+        .with_help(format!(
+            "write `: static` here — `{interface}::{method}` promises the class the call named, \
+             which a subclass may be"
+        )),
+    );
 }
 
 /// The promises `final` makes, checked where the declaration that breaks
@@ -581,5 +651,67 @@ mod tests {
              }\n",
         );
         assert!(!answered.has_errors(), "{answered:?}");
+    }
+
+    /// `Parses` is one required member, so a class claiming it and declaring
+    /// nothing owes `parse` by exactly `Comparable`'s route above.
+    #[test]
+    fn a_class_implementing_parses_and_declaring_no_parse_names_the_member() {
+        let owed = check_src("<?nvs\nclass Slug implements Parses {}\n");
+        assert!(missing(&owed), "{owed:?}");
+        assert!(
+            owed.iter().any(|d| d.message.contains("`parse`")),
+            "the diagnostic names the member it owes: {owed:?}"
+        );
+    }
+
+    /// `rule:expressions/try-parse`: `tryParse` is a default body on the
+    /// interface, not a second required member, so declaring `parse` alone is
+    /// a complete implementation.
+    #[test]
+    fn a_class_implementing_parses_inherits_try_parse_without_declaring_it() {
+        let diags = check_src(
+            "<?nvs\n\
+             class Slug implements Parses {\n\
+             public static function parse(tainted string $s): static { return new static(); }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// ...and writing the second implementation that rule warns about is
+    /// latitude, not a diagnostic — the same latitude `Comparable::compareTo`
+    /// has.
+    #[test]
+    fn an_implementor_may_override_try_parse() {
+        let diags = check_src(
+            "<?nvs\n\
+             class Slug implements Parses {\n\
+             public static function parse(tainted string $s): static { return new static(); }\n\
+             public static function tryParse(tainted string $s): ?Slug { return null; }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `static` is what makes an implementor's `parse` answer its own class at
+    /// the binding site — see [`super::reject_dropped_static_return`].
+    #[test]
+    fn a_parse_returning_something_other_than_static_is_refused() {
+        for written in ["Slug", "self", "string"] {
+            let refused = check_src(&format!(
+                "<?nvs\n\
+                 class Slug implements Parses {{\n\
+                 public static function parse(tainted string $s): {written} \
+                 {{ return new Slug(); }}\n\
+                 }}\n",
+            ));
+            assert!(
+                refused
+                    .iter()
+                    .any(|d| d.code == Some(code::E_INCOMPATIBLE_OVERRIDE)),
+                "`{written}` is not `static`: {refused:?}"
+            );
+        }
     }
 }

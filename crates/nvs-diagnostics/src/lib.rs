@@ -662,6 +662,12 @@ pub mod code {
     /// A return type that no return statement can satisfy.
     pub const E_BAD_RETURN_TYPE: Code = Code::new("E0403");
     /// An override whose signature is not compatible with the parent's.
+    ///
+    /// One incompatibility is reported under it: a member an ancestor declared
+    /// `: static` answered by a declaration that writes a class of its own.
+    /// `nvs_types::conformance::reject_dropped_static_return` owns why that one
+    /// is not an assignability question, and argument and return assignability
+    /// across an override is a rule no decision has reached yet.
     pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404");
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405");
