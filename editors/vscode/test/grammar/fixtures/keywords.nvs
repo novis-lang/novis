@@ -1,0 +1,39 @@
+<?nvs
+if ($ready) {
+    echo "yes";
+} elseif ($other) {
+    return null;
+} else {
+    foreach ($rows as $row) {
+        continue;
+    }
+}
+
+final class Order extends Base implements Iterable by $rows {
+    public const int LIMIT = 10;
+    private readonly secret string $token;
+    protected tainted string $input;
+
+    public static function total(uint $n, decimal $amount): float {
+        $sum = self::LIMIT;
+        return $n is uint ? $sum as float : parent::total($n, $amount);
+    }
+
+    public string $name { get => $this->raw; set { } }
+    public private(set) bool $open;
+}
+
+interface Reader {}
+enum Suit {}
+type Id = int;
+$double = fn($x) => $x;
+$flag = true;
+$job = spawn script "worker.nvs";
+await $job;
+$rest = yield from $rows;
+autoload "App\\" from "src/";
+autoload discover "modules/*.nvs";
+class IF extends TRUE {}
+$member = $order->list;
+$constant = Order::class;
+?>
