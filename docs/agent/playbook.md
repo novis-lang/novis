@@ -1115,6 +1115,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   gap reads as a standing decision while being a stale one. One `grep -n` of `loop-goal.md` for the
   name settles it before you treat a gap note as a decision: a reason naming a goal file is true for
   one goal, unlike one naming a rule. [until: reviewed 2026-09-06]
+- **A mid-goal edit to `docs/agent/goals/<n>-<slug>.md` is invisible to the loop until the same edit
+  lands in `docs/agent/loop-goal.md`.** That file is `goal-switch.py`'s verbatim copy of the goal's
+  prose and the one `orient.py` pipes into a session, and nothing re-syncs the two between switches —
+  so a settled standing decision can sit in the source while every pack still prints the question.
+  Edit both, and `diff` them before committing. [until: gone docs/agent/loop-goal.md]
 - **A `loop-goal.toml` `cargo-named` check's *other* test names are the specification for the design
   question the rule left open.** A sibling name such as
   `a_cli_runs_record_is_still_level_and_msg_alone` bounds what the first test may assume — stamping
