@@ -1293,7 +1293,7 @@ fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> 
     let reading = claim_form(ctx)?;
     match declared.filter(|value| crate::multipart::is_multipart(value)) {
         Some(declared) => multipart_form(ctx, &declared, reading),
-        None => urlencoded_form(ctx, reading),
+        None => urlencoded_form(ctx),
     }
 }
 
@@ -1365,24 +1365,35 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], reading: Reading) -> Result<Nv
 ///
 /// The bytes are held on [`nvs_runtime::Inbound`] rather than the array,
 /// because this crate hands a fresh value to each call and the carrier below it
-/// holds no value of the program's — [`nvs_runtime::Inbound::hold_form`] owns
+/// holds no value of the program's — [`nvs_runtime::Inbound::hold_body`] owns
 /// that argument.
+///
+/// **Whether to pull is asked of the hold, not of [`Reading`].** The two
+/// answered alike while `post()` was the only member that buffered a body;
+/// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+/// admits others, and a hold somebody else filled is one this member reads
+/// rather than one it pulls again off an exhausted wire.
 ///
 /// It does not check the content type. A body that declares nothing, or
 /// declares something else, is still read the way `$_POST` reads one, because
 /// what a peer wrote in a header is not what decides whether a form is a form —
 /// and a body that is not one parses to no fields rather than to a refusal.
-fn urlencoded_form(ctx: &mut Ctx, reading: Reading) -> Result<NvsArray, Fault> {
-    if reading != Reading::Again {
+fn urlencoded_form(ctx: &mut Ctx) -> Result<NvsArray, Fault> {
+    if ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the form")
+        .held_body()
+        .is_none()
+    {
         let whole = whole_body(ctx, "post")?;
         ctx.inbound_mut()
             .expect("the caller reads the request before it reads the form")
-            .hold_form(whole.into_boxed_slice());
+            .hold_body(whole.into_boxed_slice());
     }
     let held = ctx
         .inbound()
         .expect("the caller reads the request before it reads the form")
-        .form()
+        .held_body()
         .expect("the branch above holds the body before the first read of it");
     // Refused rather than repaired, under ADR 0095: a urlencoded body is
     // percent-escaped ASCII by construction, so a raw octet outside UTF-8 in

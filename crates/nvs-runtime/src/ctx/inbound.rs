@@ -253,13 +253,17 @@ pub struct Inbound {
     /// that actually walked its parts — what `nvs_stdlib::multipart`'s own doc
     /// accounts for, which is one wire chunk and one delimiter's tail.
     parts: Option<Box<dyn std::any::Any>>,
-    /// The body `Core\Request::post()` read, verbatim, for a request that did
-    /// not declare a multipart one.
+    /// The body a buffering reader pulled off the wire, verbatim, for a request
+    /// that did not declare a multipart one.
     ///
-    /// It is here because `post()` answers **one named field per call** while
-    /// the body it reads is a stream that can be pulled once: the second
+    /// It is here because the body is a stream that can be pulled once, while
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// lets more than one member read it. Both halves of that need this field:
+    /// `post()` answers **one named field per call**, so the second
     /// `post('description')` on a request would otherwise read an exhausted
-    /// supplier and answer `null` for a field the peer sent. A multipart body
+    /// supplier and answer `null` for a field the peer sent; and a buffering
+    /// reader following another would find the same nothing. The first of them
+    /// fills this, and every later one answers out of it. A multipart body
     /// needs nothing here — [`Self::parts`] already holds `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s
     /// buffered fields, which is the same fact stored where that parse put it.
     ///
@@ -270,10 +274,10 @@ pub struct Inbound {
     /// field along.
     ///
     /// **What it spends:** the body's own bytes, resident until the request
-    /// ends, only for a request whose program called `post()` — bounded by
+    /// ends, only for a request whose program buffered one — bounded by
     /// `[limits] request_body`, which `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes the cap on form field
     /// text, and O(in-flight).
-    form: Option<Box<[u8]>>,
+    held: Option<Box<[u8]>>,
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
@@ -412,7 +416,7 @@ impl Inbound {
             client: None,
             scheme: Scheme::Http,
             parts: None,
-            form: None,
+            held: None,
             claimed_by: None,
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
@@ -676,20 +680,21 @@ impl Inbound {
     )> {
         Some((self.parts.as_deref_mut()?, self.body.as_deref_mut()?))
     }
-    /// Gives this carrier the body `Core\Request::post()` read, for every later
-    /// call of that member to parse again — [`Self::form`] owns why.
+    /// Gives this carrier the body a buffering reader pulled off the wire, for
+    /// that member's later calls and for every later reader to answer out of —
+    /// [`Self::held`] owns why it is the bytes and not a parse of them.
     ///
-    /// Called at most once per request: `post()` reads the body behind
-    /// [`Self::claim_body`], so the call that fills this is the only one that
-    /// finds it empty.
-    pub fn hold_form(&mut self, form: Box<[u8]>) {
-        self.form = Some(form);
+    /// Called at most once per request: a reader pulls only where
+    /// [`Self::held_body`] answered `None`, so the call that fills this is the
+    /// one that found it empty.
+    pub fn hold_body(&mut self, body: Box<[u8]>) {
+        self.held = Some(body);
     }
-    /// The body [`Self::hold_form`] was given, or `None` where `post()` has not
-    /// read one.
+    /// The body [`Self::hold_body`] was given, or `None` where nothing has
+    /// buffered one yet.
     #[must_use]
-    pub fn form(&self) -> Option<&[u8]> {
-        self.form.as_deref()
+    pub fn held_body(&self) -> Option<&[u8]> {
+        self.held.as_deref()
     }
 
     /// Offers `rule:concurrency/a-connection-is-a-root-isolate`'s upgrade to this request: the slot
