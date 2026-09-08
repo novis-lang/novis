@@ -194,10 +194,9 @@ retired = true
 [[goal]]
 name = "15 editor"
 md = "docs/agent/goals/15-editor.md"
-toml = "docs/agent/goals/15-editor.toml"
-handoff = "docs/agent/goals/15-editor.handoff.md"
 milestone = "M4B"
 preflight = "docker"
+retired = true
 
 # The body-read rule (a new `http-server/` fragment) and the two JSON body readers, plus the `.nvst` request sections that make any of
 # it provable in language. It is here rather than beside goal 6 because it was decided after that goal was

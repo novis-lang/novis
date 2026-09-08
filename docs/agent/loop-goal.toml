@@ -1,17 +1,14 @@
-# Goal 15 -- `editors/vscode`. The acceptance test, as data.
+# Goal 16 -- a body is read once, and JSON is one of the ways to read it. The acceptance test, as data.
 #
-# `15-editor.md` is the prose. One home each.
+# `16-request-json.md` is the prose. One home each.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A grammar snapshot is re-frozen
-# deliberately, with the reason in the commit message, and never to make a run go green.
-#
-# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg --
-# which is right: a TextMate grammar has no calling convention, and the WSL leg exists for the one
-# thing that does. The distro therefore needs no Node.
-#
-# `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
-# fixtures; this goal names none of its own.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. The exception goal 6's file records
+# still holds and is narrower here than it was there: a `want` naming a fact no `nvs run` leg can produce
+# is a mis-filed check -- but stage 2 is what makes an inbound request one of the facts a leg CAN produce,
+# so after it lands that excuse stops applying to this goal's own fixtures.
+
 files = [
+  "examples/json-body.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/pipeline.nvs",
   "examples/doc-comments.nvs",
@@ -81,45 +78,66 @@ files = [
 [context]
 
 modules = [
-  # The extension's own source. `orient.py` reads `editors/*/src/**/*.ts` for its first `//`/JSDoc
-  # line the same way it reads a crate's `//!`. Until stage 2 creates the directory it warns that the
-  # pattern matched no module: expected on this goal's first session, and not a tooling bug to chase.
-  "editors/vscode/src/**",
-  # The section set the second grammar colours -- read this, never the corpus.
+  # The four body readers, `claim_body`/`claim_form`, and where the two new rows go.
+  "crates/nvs-stdlib/src/request.rs",
+  # `crate::json::read` and the `{maxDepth?}` bag both members reuse; no second JSON reader.
+  "crates/nvs-stdlib/src/json.rs",
+  # `Inbound` -- the claim, `hold_form`/`hold_parts`, and the three calls that build one.
+  "crates/nvs-runtime/src/ctx/inbound.rs",
+  # The `.nvst` format's own home: the section table in the module doc, and the parse.
   "crates/nvs-test/src/lib.rs",
-  # The diagnostic renderer's format, which the problemMatcher's two regexes must match exactly.
-  "crates/nvs-diagnostics/src/render.rs",
-  # The legend the server declares; the client registers the same one or nothing lines up.
-  "crates/nvs-lsp/src/**",
+  "crates/nvs-test/src/case.rs",
+  # Where `nvs run` builds its `Ctx` -- the seam `--request` sets an inbound on.
+  "crates/nvs-cli/src/main.rs",
+  # The worked example of building an `Inbound` from a real request.
+  "crates/nvs-cli/src/serve.rs",
+  # The registry cards, and the gates that read them.
+  "crates/nvs-stdlib/src/registry.rs",
 ]
 
-# THE BASE IS WHAT A SESSION NEEDS WHATEVER STAGE IT IS ON; a stage's own entries are in its
-# `[context.stage.N]` table below, and an overlay only ever ADDS. The way this list gets shorter is
-# by moving an entry down into a stage, never by deleting one.
-#
-# These three hold in every stage: the extension holds no language logic, it ships names and never
-# colours, and what it may not become is the boundary every stage is measured against.
-#
-# ADR 0099 came out even though it is this goal's other half: it created 31 rules, so naming it
-# here printed the whole `ide/` chapter as titles to every session of every stage. The rules that
-# bind a stage are named by id in that stage's table, and `brief.py --where ide` reaches the rest
-# in one call.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0097, 0079, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
 rules = [
-  "ide/one-server-two-thin-clients",
-  "ide/novis-ships-names-not-colours",
-  "ide/the-extension-builds-no-ui-the-editor-already-has",
+  "0105",
+  "0095",
+  "0024",
+  "0117",
+  "0012",
+  "0004",
+  "0051",
 ]
 
-# Base names no ADR section: each argued one stage's design, and § 4's colour lists say nothing to
-# the session writing the client or the CI jobs.
+# Empty, because every one of this goal's four sections argues one stage's design and each moved
+# into that stage's table below. 0079 § 18 and § 23 are the two sentences this goal amends and sit
+# with stage 2's `.nvst` sections; 0105 § 2 is the buffering `files` does and 0097 § 8 is the
+# body-and-streaming-reader section the new rule replaces, both with the stage 3 that writes it.
 adrs = []
 
-shapes = ["A commit message"]
+# Stage 4 is "the members" and stage 3 is "the rule", so the five-edit shape and the two
+# record-writing shapes sit with the stage that writes one. What is left every stage may need.
+shapes = [
+  "A `.nvst` test case",
+  "A commit message",
+  "A diagnostic",
+]
 
 playbook = [
-  'Running things > adding a',
-  'Running things > target/release/nvs.exe is',
-  'Writing a test case > a rule',
+  'Writing a test case > a .nvst case can write',
+  'Writing a test case > a new core member owes three conformance cases, not one, and the',
+  'Writing a test case > registering a core member',
+  'Writing a test case > the coverage gate matches',
+  'Writing a test case > a -p nvs-stdlib test can hand a core member a real',
+  'Writing a test case > a --run--',
+  'Writing Novis itself > core is',
+  'Writing Novis itself > a new core member owes',
+  'Running things > nvshelper! takes',
+  'Running things > value::asstrbytes and',
+  'Tooling > a core class',
+  'Tooling > a docs/reference/core/<class>.md',
+  "Tooling > nvs-stdlib's gates",
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -133,76 +151,40 @@ playbook = [
   'Tooling > orient.py prints',
   'Tooling > another session',
   'Tooling > another agent',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
 ]
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone; the colour lists are `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added`, already named above.
-milestones = ["M4B:verify"]
-
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `15-editor.md`, holding what only that stage needs.
-# `orient.py` applies the one `handoff.md`'s `## Next group` names and appends it to the base above;
-# an overlay adds and never replaces. Stages 0 and 1 have nothing of their own and need no table.
+# THE STAGES. One table per prose stage in `16-request-json.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. This goal's stages name their rules in prose
+# rather than as `rule:` tokens, so these were placed by reading each stage; every entry is one that
+# stage's own text is about. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
+
+# The fixtures being rewritten were written against the rule stage 3 replaces.
+[context.stage.0]
+rules = ["http-server/the-body-is-read-on-demand-under-two-caps"]
 
 [context.stage.2]
-rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
-         "ide/language-configuration-is-content", "ide/contributions-are-frozen-and-only-ever-added",
-         "ide/the-extension-runs-where-the-binary-is",
-         "ide/the-lockfile-is-committed-and-build-output-is-not",
-         # The contributions suite asserts both of these, so stage 2 writes them down: the
-         # allowlist is over `dependencies` alone, and `onEnterRules` continues `///` and not
-         # the `/** */` block a borrowed PHP configuration continues.
-         "ide/dependencies-are-allowlisted", "ide/doc-comment-authoring-is-the-editors-own"]
+rules = ["testing/nvst-is-separate"]
+adrs = ["0079 §18", "0079 §23"]
 
 [context.stage.3]
-rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",
-         "types/duration-literal", "types/object-top",
-         # The type slots are the family with the most surface, and neither of the two rules that
-         # bound it can be inferred from the one that lists them: which positions carry a written
-         # type, and which spellings a type expression has once a position is known.
-         "types/declaration", "types/grammar",
-         # The grammar colours what the lexer accepts, so the three rules deciding which
-         # spellings it accepts are the ones a family is written against: one open tag in one
-         # case, three slashes and no more to document with.
-         "statements/nvs-is-the-only-open-tag", "classes/reserved-spellings-are-lower-case",
-         "tooling/doc-comment-is-three-slashes"]
-adrs = ["0099 §4"]
+rules = ["http-server/the-body-is-read-on-demand-under-two-caps",
+         "http-server/a-part-is-consumed-in-one-of-three-ways",
+         "http-server/a-part-is-a-file-iff-it-carries-a-filename"]
+adrs = ["0105 §2", "0097 §8"]
+shapes = ["A rule fragment", "A decision record"]
 
 [context.stage.4]
-rules = ["ide/case-files-have-their-own-grammar"]
-shapes = ["An `.lspt` case"]
-
-[context.stage.5]
-rules = ["ide/vscode-is-the-reference-client",
-         "ide/the-extension-refuses-a-binary-it-does-not-understand",
-         "ide/dependencies-are-allowlisted"]
-adrs = ["0016 §5"]
-
-[context.stage.6]
-rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-covers-bytes-only",
-         "security/reveal-is-explicit-and-window-local",
-         "security/tainted-has-no-default-decoration",
-         "ide/the-request-set-is-closed", "ide/semantic-tokens-carry-the-qualifiers"]
-# §1 is the wire shape of `nvs/redactions`, and the `kind` field's open string is the only place a
-# `tainted` marker can come from: the request set is closed, so there is no second request to add.
-# §4 is what that kind must answer — `nvs.taint.mark`'s three values and what each one marks — which
-# §1 does not say and no rule spells out either.
-adrs = ["0101 §1", "0101 §3", "0101 §4"]
-
-[context.stage.7]
-rules = ["ide/tasks-carry-a-problem-matcher", "ide/the-ast-panel-shells-out-to-the-cli",
-         "security/redaction-reaches-the-tools-own-renderings"]
-
-[context.stage.8]
-rules = ["ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
-         "ide/semantic-tokens-carry-the-qualifiers"]
-adrs = ["0099 §6", "0099 §8"]
-
-[context.stage.9]
-rules = ["testing/four-proofs", "0134"]
+rules = ["core-api/tier-placement", "errors/ambiguous-input-refused"]
+shapes = ["A `Core` member — the five edits"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -210,12 +192,19 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries goals 4-14's container-backed checks.
+# The floor carries goal 4's Redis tier, goal 5's drivers and goal 6's session store, all of which need
+# containers. Same compose file, same memoization.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 343 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5310,22 +5299,20 @@ tests = [
   "the_workspace_has_no_async_runtime",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stages 2-7 -- the headless tier, which runs every iteration. Three suites behind one script: the
 # TextMate grammar snapshots, the contributions/allowlist test, and the protocol round-trip against
 # the real `nvs lsp` binary. Each names itself so a ledger line says which one broke.
 # Goal prose stages 2, 3, 4, 5, 6 and 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 headless"
+stage = "1 floor"
 name = "vscode (headless)"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
 want = ["grammar:", "contributions:", "protocol:", "0 failing"]
+
 # `contributions:` covers more than it sounds like -- the dependency allowlist, the absence of any
 # colour-customization default, `wordPattern` matching `$total` whole, the extension id, and the
 # twelve frozen setting and command ids. All of them break a user's config silently rather than
@@ -5343,10 +5330,9 @@ want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 #
 # Packaging stays: `vsce` is headless, and a `.vsix` that does not build is a broken artifact.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "8 the artifact"
+stage = "1 floor"
 name = "vsix packages"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "package"]
@@ -5356,15 +5342,175 @@ want = [".vsix"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the reference chapter's last heading. Goal prose stage 9.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "9 the reference"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "9 the reference"
+stage = "1 floor"
 name = "the extension heading owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the catch-up: the cases written against the rule stage 3 replaces. A "0" stage runs before
+# the native leg, so an unfinished catch-up is what the ledger names. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "0 catch-up"
+name = "conformance (the refusals that survive the new rule)"
+args = ["test", "tests/conformance/"]
+cases = [
+  # Still true, and true for a different reason than exclusivity: `rule:security/request-state-throws-in-an-isolate`'s "no request arrived".
+  "tests/conformance/core/a-request-refuses-every-read-when-no-request-arrived.nvst",
+  # Re-pointed at the new body-read rule: `post` reads a body another buffering reader already held.
+  "tests/conformance/core/a-request-post-reads-a-body-another-reader-held.nvst",
+  "tests/conformance/core/a-request-post-refuses-before-it-reads-the-name-it-was-given.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a `.nvst` case can answer a request. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the sections"
+name = "nvs-test (the five request sections)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "a_get_section_becomes_the_requests_query_string",
+  "a_post_section_becomes_a_urlencoded_body",
+  "a_post_raw_section_is_the_body_verbatim",
+  "a_headers_section_pushes_one_line_per_field",
+  "a_cookie_section_becomes_one_cookie_header",
+  # Two spellings of one body, refused rather than merged.
+  "a_post_and_a_post_raw_section_together_are_a_parse_error",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the sections"
+name = "nvs-cli (`nvs run --request` builds the inbound)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_request_file_becomes_the_inbound_the_program_answers",
+  "a_run_without_a_request_file_answers_no_request",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the sections"
+name = "conformance (a case that answers a request)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-reads-the-body-a-post-raw-section-sent.nvst",
+  "tests/conformance/core/a-request-reads-a-field-a-post-section-sent.nvst",
+  "tests/conformance/core/a-request-reads-a-header-and-a-cookie-a-section-sent.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the rule: buffering readers share, streaming readers consume. A new `http-server/` fragment. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the rule"
+name = "nvs-stdlib (the body-read rule -- who may read a body)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_buffering_reader_may_follow_another_buffering_reader",
+  "a_streaming_reader_refuses_every_later_reader",
+  "body_answers_the_same_octets_on_every_call",
+  # The exception that stops being one: `files` buffers what `post` then reads.
+  "post_reads_the_fields_a_files_walk_buffered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the rule"
+name = "conformance (the rule, in language)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
+  "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the members: json() and jsonAs<T>(). Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "nvs-stdlib (Core\\Request::json and jsonAs)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "json_decodes_the_body_and_the_second_call_answers_the_held_value",
+  "json_as_hydrates_a_declared_type_and_never_shares_an_object",
+  "an_absent_or_empty_body_is_a_parse_error_for_json",
+  "json_ignores_the_content_type_the_peer_declared",
+  "json_and_json_as_share_one_reading_of_one_body",
+]
+
+# The three gates that hold the spec, the registry and the case tree together. Named rather than left to
+# `cargo test`: a suite is green when the member was never added to the spec bullet it is read from.
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the members"
+name = "conformance (three cases each, and the taint refusal)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-reads-its-body-as-json.nvst",
+  "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst",
+  "tests/conformance/core/a-malformed-json-body-is-a-parse-error.nvst",
+  "tests/conformance/core/a-request-hydrates-its-body-into-a-declared-type.nvst",
+  "tests/conformance/core/a-json-body-missing-a-declared-field-is-refused.nvst",
+  "tests/conformance/core/a-json-body-past-max-depth-is-refused.nvst",
+  # `rule:security/tainted-qualifier`: the body is tainted, so a `T` whose text fields are unqualified is a compile error.
+  "tests/conformance/reject/a-json-body-hydrated-into-an-unqualified-type-is-refused.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the proofs: the runnable fixture. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "5 the proofs"
+file = "examples/json-body.nvs"
+# This leg runs under `nvs run --request`, which stage 2 builds -- so unlike goal 6's `upload.nvs` and
+# `session.nvs`, a body's own facts ARE assertable here.
+want = [
+  "method is Post",
+  "name is ada",
+  "the second read answers the same document",
+  "a malformed body is a ParseError",
+  "an empty body is a ParseError",
+  "the declared content type is not consulted",
+]
+
+# Two new members and a new hand-written page for `Core\Request`, so the one-file reference moves. It is
+# generated from `nvs meta --json` and never edited, which is what makes a stale card fail here.
+[[check]]
+kind = "command"
+stage = "5 the proofs"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
