@@ -38,11 +38,11 @@
 //!   namespace and imports. A type *position* is exactly what a regex can see,
 //!   so ADR 0099 § 4 already gives it to the TextMate grammar, and the layer
 //!   that would have to resolve it is the one that does not have to.
-//! - **A class constant gets none either way.** `Config::MAX` and
-//!   `Status::Draft` are one production, and telling a constant from an enum
-//!   case is resolution again. LSP's legend has `enumMember` and no name at all
-//!   for a class constant, so a guess here would be wrong in one direction and
-//!   unspellable in the other.
+//! - **A class constant gets none.** `Config::MAX` and `Status::Draft` are one
+//!   production, and LSP's legend has `enumMember` and no name at all for a
+//!   class constant, so there is nothing to spell the first of them with. Which
+//!   of the two is written is resolution rather than grammar, so it is asked of
+//!   the checker under the next heading rather than guessed at here.
 //! - **A free `function` or `const` gets none.**
 //!   `rule:classes/no-free-functions-or-constants` refuses both, and
 //!   `rule:ide/rejected-syntax-gets-no-colour` is why nothing here dresses one
@@ -53,7 +53,13 @@
 //!   stage by stage (`crate::capabilities`), so an unemitted type is expected
 //!   rather than a gap.
 //!
-//! # Decision: a modifier is a resolution, so the checker's table answers it
+//! # Decision: what only a resolution knows is read off the checker's table
+//!
+//! Two answers here are not facts the tree holds, and neither is guessed at:
+//! the `Core` modifier below, and the one token the section above leaves
+//! unspelled. Both come out of `nvs_types::ExprTypeTable`, which is the
+//! checker's own recorded resolution rather than a second one — the standing
+//! rule of [`crate::definition`] reaching a colour instead of a name.
 //!
 //! [`Modifier::DefaultLibrary`] marks a `Core` class, and unlike everything
 //! above it is not a fact the tree holds: `Core\Str` and a user class called
@@ -67,6 +73,14 @@
 //! its own, the call around it is. A class the checker did not resolve carries
 //! no modifier, which is the same silence a document that does not compile gets
 //! everywhere else here.
+//!
+//! [`Kind::EnumMember`] on the member half of `Status::Draft` is the same read
+//! one step further: `nvs_types::ExprInfo::EnumCase` is recorded against an
+//! access the checker resolved to a case and against no other, so
+//! [`Named::is_enum_case`] is the resolution itself and not a rule about the
+//! spelling. A plain `Config::MAX` matches nothing there and keeps the silence
+//! the section above gives it, as does either one in a document that did not
+//! get through the checker.
 //!
 //! [`Modifier::Tainted`] and [`Modifier::Secret`] are the pair this layer is
 //! built for at all — `rule:security/tainted-qualifier` and
@@ -417,6 +431,23 @@ impl Named<'_> {
         } else {
             0
         }
+    }
+
+    /// Whether the checker resolved the access at `span` to an enum case.
+    ///
+    /// `Status::Draft` and `Config::MAX` are one production, so the grammar
+    /// cannot say which is written — the same shape [`Self::library_at`] is in,
+    /// and answered out of the same table: `nvs_types::ExprInfo::EnumCase` is
+    /// recorded against the whole access's span and against nothing else, an
+    /// ordinary class constant travelling in another variant. So `span` is the
+    /// *enclosing expression's* here too, and a document the checker did not
+    /// get through leaves every access silent rather than guessing at one.
+    fn is_enum_case(&self, span: Span) -> bool {
+        matches!(
+            self.analysed
+                .and_then(|analysed| analysed.exprs.lookup(span)),
+            Some(ExprInfo::EnumCase { .. })
+        )
     }
 
     /// The qualifiers the binding written at `span` was declared with.
@@ -847,9 +878,18 @@ impl Named<'_> {
                 self.receiver(class, library);
                 self.push_with(*name, Kind::Property, quals);
             }
-            // Both halves silent: the module doc above says why a class
-            // constant and an enum case cannot be told apart here.
-            ExprKind::ClassConstAccess { class, .. } | ExprKind::ClassNameConst { class } => {
+            // The member half is a token only where the checker's table said
+            // which of the two productions this is; the module doc above says
+            // why nothing here decides that for itself.
+            ExprKind::ClassConstAccess { class, name } => {
+                self.expr(class);
+                if self.is_enum_case(expr.span) {
+                    self.push(*name, Kind::EnumMember);
+                }
+            }
+            // `Foo::class` names a class and yields a string; the `class`
+            // keyword is the grammar's, so the TextMate layer has it.
+            ExprKind::ClassNameConst { class } => {
                 self.expr(class);
             }
             ExprKind::Index { base, index } => {

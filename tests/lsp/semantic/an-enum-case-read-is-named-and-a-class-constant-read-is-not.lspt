@@ -1,0 +1,19 @@
+--TEST--
+`Status::Draft` and `Config::MAX` are one production, so the checker's recorded resolution is what colours the case's own half and leaves the constant's silent, `rule:ide/semantic-tokens-carry-the-qualifiers`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+}
+class Config { public const int MAX = 10; }
+var $state = Status::Draft;
+var $cap = Config::MAX;
+--REQUEST--
+semanticTokens
+--EXPECT--
+2:6+6 enum
+3:10+5 enumMember
+5:7+6 class
+6:5+6 variable
+6:22+5 enumMember
+7:5+4 variable
