@@ -11,7 +11,7 @@ age=&name=ada
 // The report is one throw carrying both, because a form needs the list rather
 // than the first item of it.
 try {
-    Core\Request::postAs<{age: int, city: string}>();
+    Core\Request::postAs<tainted {age: int, city: string}>();
     echo "not reached\n";
 } catch (ParseError $bad) {
     echo "issues=", Core\Arr::count($bad->issues) as string, "\n";

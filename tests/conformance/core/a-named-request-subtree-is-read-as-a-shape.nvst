@@ -18,7 +18,7 @@ echo Core\Json::encode(Core\Request::queryAs<{from: uint, to: uint}>({name: "fil
 
 // The same option over a form, and `post`'s convention is `query`'s: one walk
 // places `a[b]=c` in both, so the two members answer one shape here.
-echo Core\Json::encode(Core\Request::postAs<{age: int, email: string}>({name: "user"})), "\n";
+echo Core\Json::encode(Core\Request::postAs<tainted {age: int, email: string}>({name: "user"})), "\n";
 --EXPECT--
 {"from":2,"to":9}
 {"age":41,"email":"ada@example.com"}

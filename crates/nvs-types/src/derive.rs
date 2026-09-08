@@ -868,18 +868,71 @@ pub(crate) fn check_decode_sites(
 }
 
 /// Whether a peer's octets can land in `declared` without the qualifier: a
-/// `string` or a `bytes`, or an array of either, which decodes element by
-/// element into the same declared text.
+/// `string` or a `bytes`, or anything built out of one — an array of either,
+/// which decodes element by element into the same declared text; an arm of a
+/// union, since the value may arrive as that arm; or a field of a nested shape,
+/// which receives the same document one level down.
 ///
 /// `secret` never reaches here — [`codec_field`] refuses a `secret` property at
-/// its declaration — and nothing else carries a qualifier at all
+/// its declaration — and the tainted forms are atoms of their own
 /// (`rule:security/tainted-qualifier`), so an `int`, a `decimal`, an enum or a
 /// nested class answers `false` and is walked instead.
 fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(declared) {
         Ty::String | Ty::Bytes => true,
         Ty::Array(element) => unqualified_text(*element, interner),
+        Ty::Union(arms) => arms.iter().any(|arm| unqualified_text(*arm, interner)),
+        Ty::Shape(fields) => fields
+            .iter()
+            .any(|field| unqualified_text(field.ty, interner)),
         _ => false,
+    }
+}
+
+/// `rule:security/tainted-qualifier`'s qualifier asked of an **inline shape**
+/// written at a `Core\Request` decode site — the shape half of the question
+/// [`check_decode_sites`] asks of a deriving class.
+///
+/// **Answered where it is written rather than recorded.** A shape declares its
+/// own fields at the call site, so there is no declaration further down the
+/// file to find a qualifier on and nothing about the rest of the program to
+/// wait for; the whole question is in hand at
+/// [`crate::expr::args::written_class_of`], which is the one caller and which
+/// decides there which members read a peer's octets.
+///
+/// The report names the field and the shape, because a shape has no class name
+/// to give, and the fix is one `tainted` in front of the braces: the qualifier
+/// distributes to every text-carrying field, so a shape of six strings takes
+/// one word and not six.
+pub(crate) fn check_shape_decode_site(
+    element: TypeId,
+    member: &str,
+    span: Span,
+    interner: &crate::ty::TypeInterner,
+    diags: &mut Diagnostics,
+) {
+    let Ty::Shape(fields) = interner.get(element) else {
+        return;
+    };
+    let shape = interner.describe(element);
+    for field in fields.iter().filter(|f| unqualified_text(f.ty, interner)) {
+        let name = &field.name;
+        let declared = interner.describe(field.ty);
+        diags.report(
+            Diagnostic::error(
+                code::E_DECODED_FIELD_NOT_TAINTED,
+                format!(
+                    "`{name}` is declared `{declared}` in `{shape}`, and `{member}` \
+                     answers a peer's octets"
+                ),
+            )
+            .with_primary(span, "written without a qualifier")
+            .with_help(
+                "`rule:security/tainted-qualifier`: write the qualifier in front of the \
+                 shape — `tainted {…}` distributes to every text-carrying field, so it is \
+                 one word however many keys receive text",
+            ),
+        );
     }
 }
 

@@ -1,0 +1,38 @@
+--TEST--
+an unqualified shape written at a Core\Request decode site names the field and the shape, and the three members that take one agree rather than each answering for itself — `rule:security/tainted-qualifier`, `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// `rule:security/tainted-sources` makes the body and the query alike a peer's octets, so a
+// shape written at one of these three doors is the declaration those octets
+// land in. An unqualified text field is a promise nothing is making, and it is
+// refused where the shape is written: there is no declaration further down the
+// file to carry the qualifier instead, which is what separates a shape from
+// `rule:core-classes/derive-attribute`'s deriving class, whose property is reported at its
+// declaration by the same code.
+var $body = Core\Request::jsonAs<{name: string}>();
+var $query = Core\Request::queryAs<{q: string}>();
+var $form = Core\Request::postAs<{email: string}>();
+
+// A field carrying no text is not in the diagnosis at all -- an `int` holds no
+// octets a sink could read, so a shape of them needs no qualifier and this
+// line is silent.
+var $page = Core\Request::queryAs<{page: int}>();
+
+// `tainted {…}` is the answer to the verbosity rather than an opt-out, and it
+// distributes to every text-carrying field, so one word answers a shape of two
+// and this line is silent as well.
+var $ok = Core\Request::postAs<tainted {email: string, note: string}>();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `name` is declared `string` in `{name: string}`, and `Core\Request::jsonAs` answers a peer's octets
+  --> case.nvs:9:34
+%A
+error[E0810]: `q` is declared `string` in `{q: string}`, and `Core\Request::queryAs` answers a peer's octets
+   --> case.nvs:10:36
+%A
+error[E0810]: `email` is declared `string` in `{email: string}`, and `Core\Request::postAs` answers a peer's octets
+   --> case.nvs:11:34
+%A
+error: aborting due to 3 errors

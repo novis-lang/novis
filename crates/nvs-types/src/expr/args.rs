@@ -1540,13 +1540,31 @@ pub(crate) fn written_class_of(
     // An inline shape declares its own fields, so the two whole-program
     // questions a class raises are already answered where it is written: there
     // is no declaration further down the file to find a deriving attribute on,
-    // and no property list to check a column type or a qualifier against. It
-    // therefore records neither a decode site nor a row site — what it records
-    // is the contract itself, read straight off the type.
+    // and no property list to look a column type up in later. It therefore
+    // records no row site, and no decode site either — the qualifier question a
+    // decode site exists to defer is answered here instead, against the fields
+    // in hand. What it does record is the contract itself, read straight off
+    // the type.
     if let Ty::Shape(fields) = env.interner.get(element) {
         let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
         let label = crate::derive::shape_class_label(&names);
         let span = type_args.first().map_or(call_span, |ty| ty.span);
+        // Every `Core\Request` member on this roster reads the request —
+        // `rule:security/tainted-sources` makes the body and the query alike a
+        // peer's octets. The other owners do not: `Core\Json::decodeAs` takes
+        // its document through a plain `string` parameter, so a tainted one is
+        // refused where it is passed; `Core\Arr::shapeAs` converts an array the
+        // program already holds, whose taint it carries in already; and a
+        // `Core\Db` row is not a taint source at all.
+        if owner.to_string() == r"Core\Request" {
+            crate::derive::check_shape_decode_site(
+                element,
+                &format!("{owner}::{method}"),
+                span,
+                env.interner,
+                env.diags,
+            );
+        }
         if let Some(codec) = crate::derive::shape_codec(element, env.interner, env.enums) {
             env.exprs.record_shape_codec(span, codec);
         }
