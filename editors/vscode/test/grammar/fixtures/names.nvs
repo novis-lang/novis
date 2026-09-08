@@ -1,0 +1,24 @@
+<?nvs
+namespace App\Orders;
+
+final class Order extends Base {
+    public string $label = "unnamed";
+
+    public function total(uint $count): decimal {
+        $sum = $this->subtotal;
+        $rate = self::RATE;
+        return $sum->plus($rate)?->rounded;
+    }
+}
+
+interface Reader {}
+enum Suit {}
+
+function checkout($order) {
+    $named = $order::class;
+    echo "{$order->label} pays";
+}
+
+$closure = function ($amount) { return $amount; };
+$short = fn($x) => $x;
+?>

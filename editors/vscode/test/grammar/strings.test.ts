@@ -64,7 +64,10 @@ describe("a double-quoted string, which interpolates both spellings", () => {
 
   it("reads one level of ->prop", () => {
     assert.ok(span(spans, "$user").scopes.includes(VARIABLE));
-    assert.ok(span(spans, "->").scopes.includes("punctuation.accessor.nvs"));
+    // The slots hold code, which reaches an accessor of its own, so this is the one outside them.
+    const simple = spans.filter((s) => s.text === "->" && !s.scopes.includes(SLOT));
+    assert.equal(simple.length, 1, `${simple.length} accessors outside a slot, wanted 1`);
+    assert.ok(simple[0].scopes.includes("punctuation.accessor.nvs"));
     assert.ok(span(spans, "email").scopes.includes("variable.other.property.nvs"));
   });
 
@@ -76,7 +79,8 @@ describe("a double-quoted string, which interpolates both spellings", () => {
   });
 
   it("opens a slot on {$ and closes it on the matching }", () => {
-    const body = span(spans, "$order->total");
+    // The slot holds code, so the code-mode patterns read it: `$order` is a span of its own there.
+    const body = span(spans, "$order");
     assert.ok(body.scopes.includes(SLOT), "the complex slot holds no embedded code");
     assert.ok(body.scopes.includes(DOUBLE), "the slot escaped the string it is in");
   });
@@ -119,7 +123,7 @@ describe("a heredoc, which interpolates, and a nowdoc, which does not", () => {
 
   it("interpolates and escapes inside a heredoc, bare label or quoted", () => {
     assert.ok(span(spans, "$inner").scopes.includes(VARIABLE));
-    assert.ok(span(spans, "$nested->total").scopes.includes(SLOT));
+    assert.ok(span(spans, "$nested").scopes.includes(SLOT));
     assert.ok(span(spans, "\\r").scopes.includes(ESCAPE));
     assert.ok(span(spans, "$shout").scopes.includes(VARIABLE));
   });

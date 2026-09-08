@@ -46,9 +46,11 @@ describe("the openers, and the HTML around them", () => {
   });
 
   it("reads what is between them as code", () => {
-    for (const text of ["$total = ", "1"]) {
-      assert.ok(span(spans, text).scopes.includes(CODE), `${text} is not code`);
+    // `$total` is a span of its own on both sides of the closer, so both are checked.
+    for (const found of spans.filter((s) => s.text === "$total")) {
+      assert.ok(found.scopes.includes(CODE), `$total is not code: ${found.scopes}`);
     }
+    assert.ok(span(spans, "1").scopes.includes(CODE), "1 is not code");
   });
 
   it("reads what is outside them as not code", () => {
@@ -66,7 +68,11 @@ describe("the openers, and the HTML around them", () => {
     const found = span(spans, "<?=");
     assert.ok(found.scopes.includes("string.quoted.double.html"), `${found.scopes}`);
     assert.ok(found.scopes.includes(BEGIN), `${found.scopes}`);
-    assert.ok(span(spans, " $total ").scopes.includes(CODE));
+    const inside = spans.filter(
+      (s) => s.text === "$total" && s.scopes.includes("string.quoted.double.html"),
+    );
+    assert.equal(inside.length, 1, "the opener inside the attribute value opened no code");
+    assert.ok(inside[0].scopes.includes(CODE), `${inside[0].scopes}`);
   });
 });
 
@@ -84,7 +90,7 @@ describe("the tags that open code mode and are wrong doing it", () => {
     assert.ok(found.scopes.includes(INVALID), `${found.scopes}`);
     assert.equal(found.scopes.includes(BEGIN), false, "<?php is coloured like a valid opener");
     assert.ok(found.scopes.includes(CODE), "<?php does not open code mode");
-    assert.ok(span(spans, "$legacy = ").scopes.includes(CODE));
+    assert.ok(span(spans, "$legacy").scopes.includes(CODE));
   });
 
   it("marks a miscased <?NVS invalid and still opens code mode", () => {
@@ -93,7 +99,7 @@ describe("the tags that open code mode and are wrong doing it", () => {
     const found = span(spans, "<?NVS");
     assert.ok(found.scopes.includes(INVALID), `${found.scopes}`);
     assert.equal(found.scopes.includes(BEGIN), false, "<?NVS is coloured like a valid opener");
-    assert.ok(span(spans, "$total = ").scopes.includes(CODE));
+    assert.ok(span(spans, "$total").scopes.includes(CODE));
   });
 
   it("reads <?phpx as the text it is", () => {
@@ -115,7 +121,7 @@ describe("a file that opens with #!", () => {
   it("reads line one as a comment and continues in code mode", () => {
     const shebang = span(spans, "#!/usr/bin/env nvs");
     assert.ok(shebang.scopes.includes("comment.line.number-sign.shebang.nvs"), `${shebang.scopes}`);
-    assert.ok(span(spans, "$total = ").scopes.includes(CODE));
+    assert.ok(span(spans, "$total").scopes.includes(CODE));
   });
 
   it("switches to text mode on ?> like any other code block", () => {

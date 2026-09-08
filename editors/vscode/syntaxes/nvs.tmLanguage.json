@@ -46,12 +46,14 @@
       "patterns": [{ "include": "text.html.basic" }]
     },
     "code": {
-      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below the first three: a rule that colours a keyword or a type has no way to know it is inside a comment or a string literal, so whatever consumes those has to be offered the position first. The contextual spellings go above the reserved table for the same reason in miniature — `spawn script` has to be read before `spawn` can be read as anything.",
+      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below the first three: a rule that colours a keyword or a type has no way to know it is inside a comment or a string literal, so whatever consumes those has to be offered the position first. The contextual spellings go above the reserved table for the same reason in miniature — `spawn script` has to be read before `spawn` can be read as anything — and the names go above it on the same one, because a declaration's pattern consumes the keyword that introduces the name and would otherwise be offered the position after the reserved table has already taken it.",
       "patterns": [
         { "include": "#attribute" },
         { "include": "#comments" },
         { "include": "#strings" },
         { "include": "#contextual-keywords" },
+        { "include": "#legacy-cast" },
+        { "include": "#names" },
         { "include": "#keywords" },
         { "include": "#numbers" }
       ]
@@ -78,8 +80,70 @@
         { "name": "comment.block.nvs", "begin": "/\\*", "end": "\\*/" }
       ]
     },
+    "legacy-cast": {
+      "comment": "The seven spellings crates/nvs-syntax/src/parser/expr.rs:720 recognises as `(` type keyword `)` in an operand position, and refuses with E0225 rather than parsing (rule:types/no-legacy-cast). The pattern consumes the shape and names nothing, which is rule:ide/rejected-syntax-gets-no-colour as literally as it can be written: coloured, `(int)$x` looks in the editor exactly like the PHP cast it is not, which confirms the mistake before the server contradicts it. Everywhere else the keyword keeps its ordinary colour, because everywhere else it keeps its ordinary meaning — the lookahead is what separates the two, and it holds the operand spellings a refused cast still consumes, `(int) !$x` among them.",
+      "match": "\\(\\s*(?:int|uint|float|string|bool|array|object)\\s*\\)\\s*(?=[$!~@+\\-\\w\"'(\\[])"
+    },
+    "names": {
+      "comment": "Every name the grammar can be sure of from the token beside it. A declaration's pattern carries the keyword that introduces the name, so the name is coloured only where something declares it and `IF` in `class IF {}` is the class name rather than a mis-cased keyword (rule:classes/reserved-spellings-are-lower-case). A name reached through an accessor is a member, and the grammar stops there: which kind of member it is — a property, a class constant, a method — is what rule:ide/highlighting-is-two-layers gives layer two, so all three carry the one scope the string family already uses for `$a->b`. `::class` is the one spelling after an accessor that is not a member at all but the class-name constant (tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst), so it is offered first and coloured as the construct it is. `$this` is the receiver rather than a local, and everything else beginning `$` is a variable — that a variable holds a `tainted` or `secret` value is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
+      "patterns": [
+        {
+          "match": "(?<![$\\w])(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.class.nvs" },
+            "2": { "name": "entity.name.type.class.nvs" }
+          }
+        },
+        {
+          "match": "(?<![$\\w])(interface)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.class.nvs" },
+            "2": { "name": "entity.name.type.interface.nvs" }
+          }
+        },
+        {
+          "match": "(?<![$\\w])(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.class.nvs" },
+            "2": { "name": "entity.name.type.enum.nvs" }
+          }
+        },
+        {
+          "comment": "`fn` and an anonymous `function (` introduce no name, so the pattern needs one and the reserved table colours the keyword alone where there is none.",
+          "match": "(?<![$\\w])(function|fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.function.nvs" },
+            "2": { "name": "entity.name.function.nvs" }
+          }
+        },
+        {
+          "match": "(?<![$\\w])(namespace)\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.other.nvs" },
+            "2": { "name": "entity.name.namespace.nvs" }
+          }
+        },
+        {
+          "match": "(\\?->|->|::)\\s*(class)\\b",
+          "captures": {
+            "1": { "name": "punctuation.accessor.nvs" },
+            "2": { "name": "keyword.other.nvs" }
+          }
+        },
+        {
+          "comment": "The nullsafe spelling is offered first because `->` is its own suffix, and matching the shorter one would leave the `?` outside the accessor it belongs to: crates/nvs-syntax/src/parser/expr.rs:1799.",
+          "match": "(\\?->|->|::)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.accessor.nvs" },
+            "2": { "name": "variable.other.property.nvs" }
+          }
+        },
+        { "name": "variable.language.nvs", "match": "\\$this\\b" },
+        { "name": "variable.other.nvs", "match": "\\$[A-Za-z_][A-Za-z0-9_]*" }
+      ]
+    },
     "keywords": {
-      "comment": "The whole reserved table at crates/nvs-syntax/src/token.rs:424, matched exactly and in lower case only, because crates/nvs-syntax/src/lexer.rs:650 looks a name up as it is written: `IF` is an identifier and a legal class name (rule:classes/reserved-spellings-are-lower-case), so no pattern here may be case-insensitive. The two lookbehinds are the one place this grammar knows more than the lexer: `$obj->list` and `Order::class` lex as keyword tokens there too, but the name after `->` or `::` is a member rather than a construct, and layer two is what colours it as one. The qualifiers `tainted` and `secret` are ordinary modifiers here — that a value carries one at its use site is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
+      "comment": "The whole reserved table at crates/nvs-syntax/src/token.rs:424, matched exactly and in lower case only, because crates/nvs-syntax/src/lexer.rs:650 looks a name up as it is written: `IF` is an identifier and a legal class name (rule:classes/reserved-spellings-are-lower-case), so no pattern here may be case-insensitive. The two lookbehinds keep the table off a name that only looks like one of its rows: `$obj->list` and `Order::class` lex as keyword tokens there too, and `#names` is what colours each of them for what it is. The qualifiers `tainted` and `secret` are ordinary modifiers here — that a value carries one at its use site is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
       "patterns": [
         {
           "name": "keyword.control.nvs",

@@ -77,7 +77,8 @@ describe("the reserved table", () => {
 
   it("colours a declaration by what it declares", () => {
     for (const word of ["class", "interface", "enum"]) {
-      coloured(word, CLASS);
+      // `Order::class` reads the same and is not a declaration, so one span of each is enough.
+      assert.ok(all(word).some((s) => s.scopes.includes(CLASS)), `${word} declares nothing`);
     }
     for (const word of ["function", "fn"]) {
       coloured(word, FUNCTION);
@@ -107,14 +108,27 @@ describe("the reserved table", () => {
 
 describe("what is a keyword only where it is written", () => {
   it("reads a mis-cased spelling as the identifier it is", () => {
-    // `class IF extends TRUE {}` is a class declaration, and both names are legal ones.
-    plain(" IF ");
+    // `class IF extends TRUE {}` is a class declaration, and both names are legal ones: `IF` is
+    // coloured because `class` stands in front of it, and `TRUE` because nothing does.
+    coloured("IF", "entity.name.type.class.nvs");
+    for (const found of all("IF")) {
+      assert.equal(found.scopes.includes(CONTROL), false, "IF is read as the keyword if");
+    }
     plain(" TRUE {}");
   });
 
-  it("reads a name after -> or :: as a member rather than a construct", () => {
-    plain("$member = $order->list;");
-    plain("$constant = Order::class;");
+  it("reads a name after -> as a member rather than a construct", () => {
+    coloured("list", "variable.other.property.nvs");
+    for (const found of all("list")) {
+      assert.equal(found.scopes.includes(OTHER), false, "list is read as the keyword list");
+    }
+  });
+
+  it("reads the class-name constant after :: as a construct rather than a member", () => {
+    // `Order::class` is the one spelling after an accessor that names no member at all.
+    const constant = all("class").filter((s) => s.scopes.includes(OTHER));
+    assert.equal(constant.length, 1, "Order::class is coloured as a member");
+    assert.equal(constant[0].scopes.includes("variable.other.property.nvs"), false);
   });
 
   it("reads a capitalized type name as a name", () => {
