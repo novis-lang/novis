@@ -1756,6 +1756,27 @@ pub mod code {
     /// from the other side.
     pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634");
 
+    /// `[cache.shared] url` or `[db.<name>] host` names a Unix-domain socket on a
+    /// build that carries no `AF_UNIX` transport.
+    ///
+    /// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`.
+    /// The transport is `#[cfg(unix)]`: `AF_UNIX` does exist on Windows, but the
+    /// reactor's I/O layer does not carry it, so the spelling names a store this
+    /// binary has no way to open — and every request until someone notices is one
+    /// this refusal would have prevented.
+    ///
+    /// Not `E0626`'s refusal reached from another direction — that one is the
+    /// same question answered the other way round. A session `backend = "db"`
+    /// names a store the roster admits whose second half is unwritten, so
+    /// refusing it at the key would claim the decision was wrong rather than that
+    /// the build has not caught up; a Unix socket on a platform with no `AF_UNIX`
+    /// is not waiting for this project, and the deployment has to be spelled
+    /// differently. Reading it as loopback TCP instead is refused for the reason
+    /// `Core\Cache` refuses `rediss://`: a configuration that reads as one
+    /// transport and runs as another is invisible in exactly the review that
+    /// would have caught it.
+    pub const E_NO_UNIX_TRANSPORT: Code = Code::new("E0635");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

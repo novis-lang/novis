@@ -336,6 +336,11 @@ pub fn resolve(
     // wrong value never reports itself at run time — a per-core session store forgets people rather
     // than failing — so the merged tree is the last moment anything can say so.
     crate::session::validate(&resolved.config, &origins)?;
+    // `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`, which is the session
+    // check above answered the other way round: a Unix socket on a build with no `AF_UNIX` transport
+    // is not waiting for this project, so the key is refused where it was written rather than read
+    // as loopback TCP by something that could not tell an operator it had.
+    crate::store::validate(&resolved.config, &origins)?;
     // `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s pair, beside the store
     // question above and after the `[capabilities]` the merge settled: a `[cache.shared] url` with
     // no `cache.shared` grant names a store nothing may open, which is knowable here and otherwise

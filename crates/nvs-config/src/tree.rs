@@ -946,8 +946,11 @@ pub struct CacheLocal {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CacheShared {
-    /// `redis://host[:port]`. Absent, there is no shared tier and `Core\Cache::shared()` throws
-    /// saying so rather than answering a store that would behave like the local one.
+    /// `redis://host[:port]`, or `unix:/path/to.sock` for a store on this machine
+    /// (`rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`, and [`crate::store::validate`]
+    /// for the platform that has no transport for one). Absent, there is no shared tier and
+    /// `Core\Cache::shared()` throws saying so rather than answering a store that would behave like
+    /// the local one.
     pub url: Option<String>,
     /// The bound on the handshake, and on each command. Omitted, the shipped five seconds.
     pub timeout: Option<String>,
