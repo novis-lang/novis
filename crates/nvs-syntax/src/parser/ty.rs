@@ -331,7 +331,38 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let atom = match inner.kind {
                     TypeKind::Atom(TypeAtom::String) => TypeAtom::TaintedString,
                     TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::TaintedBytes,
-                    TypeKind::Atom(
+                    // `rule:security/tainted-qualifier`: over a shape the
+                    // qualifier distributes to every text-carrying field and is
+                    // then gone, so what reaches the checker is the
+                    // field-by-field spelling this saves writing. A shape with
+                    // no text anywhere is diagnosed rather than accepted as a
+                    // no-op — a qualifier that promises nothing still reads as
+                    // a promise.
+                    TypeKind::Atom(TypeAtom::Shape(fields)) => {
+                        let mut carries_text = false;
+                        let fields = fields
+                            .into_iter()
+                            .map(|field| ShapeField {
+                                ty: Self::taint_type(field.ty, &mut carries_text),
+                                ..field
+                            })
+                            .collect();
+                        if !carries_text {
+                            self.diags.report(
+                                Diagnostic::error(
+                                    code::E_TAINTED_SHAPE_HAS_NO_TEXT,
+                                    "`tainted` qualifies nothing in this shape",
+                                )
+                                .with_primary(span, "no `string` or `bytes` field anywhere in it")
+                                .with_help(
+                                    "drop the qualifier, or write the field this shape was \
+                                     meant to carry (`rule:security/tainted-qualifier`)",
+                                ),
+                            );
+                        }
+                        TypeAtom::Shape(fields)
+                    }
+                    other @ TypeKind::Atom(
                         TypeAtom::SecretString
                         | TypeAtom::SecretBytes
                         | TypeAtom::SecretTaintedString
@@ -353,24 +384,18 @@ impl<'src, 'd> Parser<'src, 'd> {
                                  (`rule:security/secret-qualifier`)",
                             ),
                         );
-                        return Type {
-                            kind: inner.kind,
-                            span,
-                        };
+                        return Type { kind: other, span };
                     }
-                    _ => {
+                    other => {
                         self.diags.report(
                             Diagnostic::error(
                                 code::E_TAINTED_NON_SCALAR,
-                                "`tainted` only qualifies `string`/`bytes`",
+                                "`tainted` only qualifies `string`, `bytes` and a shape of them",
                             )
-                            .with_primary(span, "not a scalar `tainted` can qualify")
-                            .with_help("write `tainted string` or `tainted bytes` (`rule:security/tainted-qualifier`)"),
+                            .with_primary(span, "not something `tainted` can qualify")
+                            .with_help("write `tainted string`, `tainted bytes` or `tainted {…}` (`rule:security/tainted-qualifier`)"),
                         );
-                        return Type {
-                            kind: inner.kind,
-                            span,
-                        };
+                        return Type { kind: other, span };
                     }
                 };
                 Type {
@@ -708,6 +733,86 @@ impl<'src, 'd> Parser<'src, 'd> {
         Type {
             kind: TypeKind::Atom(TypeAtom::Shape(fields)),
             span: start.to(close),
+        }
+    }
+
+    /// `tainted {…}`'s distribution — `rule:security/tainted-qualifier`. Every
+    /// text-carrying leaf under `ty` becomes its tainted form, transitively:
+    /// through a nullable, a grouping, a union or intersection member, an
+    /// `array<T>` element and a nested shape's fields. `carries_text` is set by
+    /// any leaf that is text at all, already-tainted ones included, because the
+    /// question the caller asks is whether the qualifier promises anything —
+    /// not whether this rewrite changed something.
+    fn taint_type(ty: Type, carries_text: &mut bool) -> Type {
+        let kind = match ty.kind {
+            TypeKind::Nullable(inner) => {
+                TypeKind::Nullable(Box::new(Self::taint_type(*inner, carries_text)))
+            }
+            TypeKind::Paren(inner) => {
+                TypeKind::Paren(Box::new(Self::taint_type(*inner, carries_text)))
+            }
+            TypeKind::Union(members) => TypeKind::Union(
+                members
+                    .into_iter()
+                    .map(|member| Self::taint_type(member, carries_text))
+                    .collect(),
+            ),
+            TypeKind::Intersection(members) => TypeKind::Intersection(
+                members
+                    .into_iter()
+                    .map(|member| Self::taint_type(member, carries_text))
+                    .collect(),
+            ),
+            TypeKind::Atom(atom) => TypeKind::Atom(Self::taint_atom(atom, carries_text)),
+        };
+        Type {
+            kind,
+            span: ty.span,
+        }
+    }
+
+    /// [`Self::taint_type`] at a leaf. A `secret` scalar becomes the composed
+    /// `secret tainted` atom rather than a diagnostic: the rejected order is
+    /// `tainted secret` *written* that way (`rule:security/secret-qualifier`),
+    /// and a field the shape's qualifier reaches was written `secret` first.
+    fn taint_atom(atom: TypeAtom, carries_text: &mut bool) -> TypeAtom {
+        match atom {
+            TypeAtom::String => {
+                *carries_text = true;
+                TypeAtom::TaintedString
+            }
+            TypeAtom::Bytes => {
+                *carries_text = true;
+                TypeAtom::TaintedBytes
+            }
+            TypeAtom::SecretString => {
+                *carries_text = true;
+                TypeAtom::SecretTaintedString
+            }
+            TypeAtom::SecretBytes => {
+                *carries_text = true;
+                TypeAtom::SecretTaintedBytes
+            }
+            already @ (TypeAtom::TaintedString
+            | TypeAtom::TaintedBytes
+            | TypeAtom::SecretTaintedString
+            | TypeAtom::SecretTaintedBytes) => {
+                *carries_text = true;
+                already
+            }
+            TypeAtom::Array(Some(elem)) => {
+                TypeAtom::Array(Some(Box::new(Self::taint_type(*elem, carries_text))))
+            }
+            TypeAtom::Shape(fields) => TypeAtom::Shape(
+                fields
+                    .into_iter()
+                    .map(|field| ShapeField {
+                        ty: Self::taint_type(field.ty, carries_text),
+                        ..field
+                    })
+                    .collect(),
+            ),
+            other => other,
         }
     }
 

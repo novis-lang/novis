@@ -367,3 +367,72 @@ class Fragments {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+// `rule:security/tainted-qualifier`: `tainted {…}` over a shape, which the parser
+// distributes to every text-carrying field and then erases.
+
+#[test]
+fn tainted_over_a_shape_taints_every_text_field() {
+    // The qualifier reached `a`, so a tainted value fits it. Without the
+    // distribution the field would be a plain `string` and this would be the
+    // mismatch `a_tainted_value_is_not_assignable_into_a_plain_typed_target`
+    // pins one storage kind along.
+    let diags = check_in_method(
+        "tainted {a: string, n: int} $s = {a: \"literal\" as tainted string, n: 1};\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_field_read_off_a_tainted_shape_is_tainted() {
+    let diags = check_in_method(
+        "tainted {a: string} $s = {a: \"literal\" as tainted string};\n\
+         string $bad = $s->a;\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn tainted_reaches_through_an_array_element_and_a_nested_shape() {
+    // The two spellings are one type, so each is assignable into the other.
+    // Asserting it in both directions is what makes this the distribution
+    // rather than one-directional widening.
+    let diags = check_src(
+        "<?nvs
+type Qualified = tainted {rows: array<string>, inner: {b: string}};
+type Spelled = {rows: array<tainted string>, inner: {b: tainted string}};
+class T {
+    public function m(Qualified $a, Spelled $b): void
+    {
+        $b = $a;
+        $a = $b;
+    }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn tainted_over_a_shape_carrying_no_text_is_refused() {
+    // A qualifier that promises nothing still reads as a promise, so the empty
+    // distribution is a diagnostic rather than a no-op. Written in a parameter,
+    // because a local's type is trial-parsed and any diagnostic raised inside
+    // one backtracks the whole statement (`crates/nvs-syntax/src/parser/stmt.rs:956`).
+    let diags = check_src_allowing_parse_errors(
+        "<?nvs
+class T {
+    public function m(tainted {n: int} $p): void {}
+}
+",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TAINTED_SHAPE_HAS_NO_TEXT)),
+        "{diags:?}"
+    );
+}

@@ -233,6 +233,12 @@ pub mod code {
     /// unresolved-variable error because the fix is a `|>` and not a
     /// declaration.
     pub const E_HOLE_OUTSIDE_A_PIPELINE: Code = Code::new("E0131");
+    /// `tainted {…}` over a shape carrying no `string` and no `bytes` anywhere
+    /// — `rule:security/tainted-qualifier`. The qualifier distributes to text
+    /// and there is none to reach, so it promises something nothing enforces,
+    /// which is worth a diagnostic rather than the silent no-op it would
+    /// otherwise be.
+    pub const E_TAINTED_SHAPE_HAS_NO_TEXT: Code = Code::new("E0132");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -3316,13 +3322,14 @@ mod tests {
     }
 
     #[test]
-    fn the_pipeline_codes_are_the_next_free_parser_band_numbers() {
+    fn the_newest_parser_code_is_the_bands_highest_number() {
         let pipeline = [
             code::E_PIPELINE_RIGHT_SIDE_HAS_NO_HOLE,
             code::E_PIPELINE_RIGHT_SIDE_REPEATS_THE_HOLE,
             code::E_HOLE_OUTSIDE_A_PIPELINE,
         ];
         assert_eq!(pipeline.map(Code::as_str), ["E0129", "E0130", "E0131"]);
+        assert_eq!(code::E_TAINTED_SHAPE_HAS_NO_TEXT.as_str(), "E0132");
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");
@@ -3331,10 +3338,10 @@ mod tests {
         unique.dedup();
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
-            band.split_off(band.len() - 3),
-            [29, 30, 31],
-            "the pipeline's three are no longer the band's highest, so they are \
-             no longer the next free numbers",
+            band.pop(),
+            Some(32),
+            "the newest code is no longer the band's highest, so the number after \
+             it is no longer the next free one",
         );
     }
 
