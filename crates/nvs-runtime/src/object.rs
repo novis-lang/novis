@@ -3005,7 +3005,71 @@ pub unsafe extern "C" fn nvs_object_slot_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        read_erased_property_hinted(receiver, name, hint)
+        read_erased_property_hinted(receiver, name, hint, AbsentField::Throws)
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, std::ptr::null(), 0, out, body)
+    }
+}
+
+/// [`nvs_object_slot_get`] with exactly one of its refusals replaced: a name
+/// the receiver's concrete class does not carry answers `null` instead of
+/// throwing. That is the read `rule:types/shape-type`'s optional field needs
+/// when it is reached under a guard — `??`, `isset` or `empty`, the spellings
+/// that ask whether a key is there without wanting the throw absence
+/// otherwise raises. Which of the two a site wants is
+/// `nvs_ir::InstKind::SlotGet`'s to carry; nothing decides it here.
+///
+/// **Only that one refusal moves.** A receiver that is not an object, and a
+/// slot that was never written (`rule:classes/an-unwritten-property-read-throws`), throw exactly as they do
+/// on the throwing path: neither is a question about whether the key is
+/// present, so answering `null` for either would swallow a fault the guard
+/// never asked about.
+///
+/// **Borrows**, the `hint`, and the receiver arriving as a whole [`Value`] by
+/// address are all [`nvs_object_slot_get`]'s, for its reasons.
+///
+/// # Errors
+///
+/// [`nvs_object_slot_get`]'s non-object-receiver and [`Tag::Unset`] throws.
+/// Its missing-field throw is this function's `null`.
+///
+/// # Safety
+///
+/// [`nvs_object_slot_get`]'s contract, unchanged.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a value by address and a static byte \
+              range, neither of which the signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_object_slot_optional_get(
+    ctx: *mut Ctx,
+    receiver: *const Value,
+    name: *const u8,
+    len: usize,
+    hint: usize,
+    out: *mut Value,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the byte range is initialized and outlives \
+                  this call"
+    )]
+    let name = unsafe { std::slice::from_raw_parts(name, len) };
+    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+        let name = std::str::from_utf8(name)
+            .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this points at one initialized value"
+        )]
+        let receiver = unsafe { *receiver };
+        read_erased_property_hinted(receiver, name, hint, AbsentField::Null)
     };
     #[expect(
         unsafe_code,
@@ -3221,16 +3285,38 @@ fn key_name(key: &Value) -> Result<&str, Fault> {
 ///
 /// [`nvs_object_slot_get`]'s, which its own documentation owns.
 fn read_erased_property(receiver: Value, name: &str) -> crate::HelperResult {
-    read_erased_property_hinted(receiver, name, 0)
+    read_erased_property_hinted(receiver, name, 0, AbsentField::Throws)
+}
+
+/// What a read answers for a name the receiver's concrete class does not
+/// carry, which is the one thing [`nvs_object_slot_get`] and
+/// [`nvs_object_slot_optional_get`] disagree about.
+///
+/// It is a presence question and nothing else: every other way a read can
+/// fail throws under both, so this decides one `else` arm rather than a mode
+/// the whole lookup runs in.
+#[derive(Clone, Copy)]
+enum AbsentField {
+    /// `rule:types/erased-member-access`'s throw naming the field and the concrete class.
+    Throws,
+    /// `null`, for a read a `??`, `isset` or `empty` guard already covers.
+    Null,
 }
 
 /// [`read_erased_property`] with the caller's slot hint — see
-/// [`ClassDesc::field_slot`] for what one buys.
+/// [`ClassDesc::field_slot`] for what one buys — and its answer for a name
+/// the class does not carry.
 ///
 /// # Errors
 ///
-/// [`read_erased_property`]'s.
-fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crate::HelperResult {
+/// [`read_erased_property`]'s, less the missing-field throw under
+/// [`AbsentField::Null`].
+fn read_erased_property_hinted(
+    receiver: Value,
+    name: &str,
+    hint: usize,
+    absent: AbsentField,
+) -> crate::HelperResult {
     let Some(ptr) = receiver.obj_ptr() else {
         return Err(Fault::thrown(format!(
             "attempt to read property `{name}` on {}",
@@ -3249,10 +3335,13 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
     let Some(slot) = desc.field_slot(name, hint) else {
-        return Err(Fault::thrown(format!(
-            "`{}` has no field `{name}`",
-            desc.name()
-        )));
+        return match absent {
+            AbsentField::Null => Ok(Value::null()),
+            AbsentField::Throws => Err(Fault::thrown(format!(
+                "`{}` has no field `{name}`",
+                desc.name()
+            ))),
+        };
     };
     #[expect(
         unsafe_code,
