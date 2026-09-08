@@ -5262,6 +5262,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-cli/src/main.rs` before pricing such a slice, and decide the bridge's answer for the new
   arm in that slice rather than from the build.
   [until: gone crates/nvs-cli/src/main.rs:nvs_types::commands::ArgConv::]
+- **A global interface's *default* method is in no implementor's method table, so
+  `nvs_runtime::call_static` answers `Ok(None)` for it.** `nvs_hir::interfaces::RESERVED` has no
+  source declaration, so `crates/nvs-types/src/layout.rs:219` enters an empty method list per entry
+  and `flatten_methods` inherits nothing — `Parses::tryParse` reads as a member in `iter_lib` and is
+  reachable only through the checker. Call the *required* member and catch the throw yourself; a
+  `Class::tryParse` label comes back `Ok(None)`, which reads as a missing class.
+  [until: gone crates/nvs-types/src/layout.rs:no member on the roster has code for a descriptor's method table to name]
 
 ## Divergences and refusals already pinned
 

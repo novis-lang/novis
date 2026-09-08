@@ -2,61 +2,59 @@
 
 ## State
 
-**Goal 19 — a class a string names, at one contract. Stage 3 is closed; stage 4 is the next group.**
+**Goal 19 — a class a string names, at one contract. Stage 4 is closed on the command side and
+BLOCKED on the route side.** The tree is green (`verify.py`, 8 of 8).
 
-The name comparison is gone from the checker. `crates/nvs-types/src/commands.rs`'s `reaches_parses`
-(`:817`) is the two-table question `crate::expr::operators`'s `reaches_comparable` already asks of
-`Comparable` — `nvs_hir::implements_interface` for a written `implements Parses`, and
-`crate::signatures::resolve_interface_args` for `Core\Uuid`, whose edge `crate::core_lib:92` seeds off
-`nvs_stdlib::registry::implements_parses`. Both of `commands.rs`'s readings go through it, and
-`converts_from_string` is the roster `routes.rs:1724` and `:1818` read, so all four surfaces widened at
-once. The three diagnostics and the two doc comments now say "a class implementing `Parses`".
+**A command argument now converts through its class's own `parse`.**
+`nvs_runtime::commands::ArgConv::Parses(String)` carries the label, `nvs-stdlib`'s `parse_each`
+(`crates/nvs-stdlib/src/command.rs:636`) calls it through `nvs_runtime::call_static` — the same
+route `Core\Command::run` already takes to the handler — and a throw becomes the usage page's
+sentence, carrying what the class said. `Refused` (`:616`) is why: a word the class refused is a
+page, an engine fault is returned unchanged. Two `-p nvs-stdlib --lib` cases pin both.
 
-**`ArgConv::Uuid` became `ArgConv::Parses(String)`** — the row carries the class the checker resolved,
-which is what stage 4's arm needs. `nvs-cli/src/main.rs:1270` is the bridge: `Core\Uuid` reaches
-`nvs_runtime::commands::ArgConv::Uuid`, and every other implementor is `Unconverted`, under the policy
-`capture_conv`'s doc (`crates/nvs-cli/src/main.rs:1384`) already states — what the runtime has no arm
-for says so rather than converting as something else. Written down as gap 2 of
-`crates/nvs-runtime/src/commands.rs`.
+**`ArgConv::Parses`'s doc comment is the one home of where a conversion path may reach a compiled
+`parse`.** Read it before touching either table. Its three findings: the reach is `call_static` and
+needs an armed class table; the member is `parse` and never `tryParse` (see the playbook bullet);
+and `CaptureConv` has no such arm because a match runs at the door.
 
-**The goal doc's stage 4 quotes two gaps the tree no longer has.** `crates/nvs-runtime/src/routes.rs`'s
-gaps 1 and 2 are the linear scan and the reader; `CaptureConv::Decimal` and `CaptureConv::Uuid` both
-have arms (`:101`, `:107`, matched at `:403`), and so does `ArgConv::Uuid`
-(`crates/nvs-stdlib/src/command.rs:535`). So stage 4's items 1 and 3 are already on disk and what is
-actually left is one arm per enum for a `Parses` class that is **not** `Core\Uuid` — and the open
-design question is how the runtime reaches a user class's static `parse` from a conversion path that
-today calls Rust readers only.
-
-The goal's one record is still unwritten; stage 5 schedules its prose half, and it owes stage 3's
-`ArgConv::Uuid` → `ArgConv::Parses` widening in its `changes` block alongside the `Core\Uuid`
-reclassification, the `Core\Uri` exclusion, `rule:core-api/reserved-namespace` and stage 2's `E0404`.
+**BLOCKED — the user has to choose, and the two sides cannot both hold.** `loop-goal.toml:5922`'s
+frozen fixture wants `"a segment the class refuses did not match"`, which puts a program's `parse`
+*inside* matching. But matching runs at the door: `crates/nvs-server/src/route.rs:86` holds no
+context at all and `crates/nvs-cli/src/runner.rs:504` matches before `unit.install_in(ctx)`, and
+arming one earlier makes an implementor's `parse` application-authored code on the request path
+ahead of everything that rate-limits it — 0102 § 5's own "0075 is above the handler, not above the
+match", and the priority-1 objection `rule:routing/a-capture-narrows-to-a-closed-set` already makes
+to a regex, which a `parse` body exceeds. **(a)** accept that and arm the table before the match, or
+**(b)** convert after the match, where a refusal is a `400` on
+`rule:routing/a-query-parameter-is-declared-like-a-capture`'s reading — a change to
+`rule:security/route-capture-is-laundered-by-its-type` and to one frozen `want` line. **(b) is the
+safe option and the tree carries it:** the capture stays `CaptureConv::Unconverted`, converting
+nothing and refusing nothing, and `crates/nvs-runtime/src/routes.rs`'s gap 3 states the question.
 
 ## Next group
 
-**Stage 4: the runtime arm, in the two enums that cross** — one file set:
-`crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/commands.rs`,
-`crates/nvs-cli/src/main.rs`, `crates/nvs-stdlib/src/command.rs`.
+**Stage 5: the proofs, the half the open question does not touch** — one file set:
+`crates/nvs-cli/src/openapi.rs`, `crates/nvs-cli/tests/openapi.rs`.
 
-- [ ] **Settle how a conversion path reaches a class's `parse`, then write it once** —
-      `crates/nvs-stdlib/src/command.rs:535` is where a command argument converts and
-      `crates/nvs-runtime/src/routes.rs:403` is where a segment does; both call Rust readers and
-      neither can call a compiled static today. `rule:expressions/try-parse` is the contract the arm
-      honours. Prefer the safe answer if the reach is not cheap: leave the arm `Unconverted` and say so
-      in the gap rather than converting at the wrong type.
-- [ ] **`CaptureConv` gains the parsing arm** — `crates/nvs-runtime/src/routes.rs:107` is the
-      `Core\Uuid` variant it generalizes and `crates/nvs-runtime/src/routes.rs:403` its match arm; a
-      segment `parse` refuses is **no match**, per
-      `rule:security/route-capture-is-laundered-by-its-type`.
-- [ ] **The two `nvs-cli` bridges stop naming the class** — `crates/nvs-cli/src/main.rs:1385` is
-      `capture_conv`'s `Some(r"Core\Uuid")` arm and `crates/nvs-cli/src/main.rs:1270` is the
-      `ArgConv::Parses` arm this session wrote as a two-way `if`; both become the widened variant once
-      the runtime has somewhere to send it.
+- [ ] **A `Parses` capture's schema is a bare `{"type": "string"}`** —
+      `crates/nvs-cli/src/openapi.rs:372` is the `Core\Uuid` arm and `:356` the function; every
+      other implementor answers the same string with no `format`, which is the goal's standing
+      decision that a named format is a documentation hint over the schema and not a conversion
+      rule. `rule:attributes/api-adds-and-cannot-contradict` is what the document owes.
+- [ ] **The two named checks** — `crates/nvs-cli/tests/openapi.rs:502` is where they append:
+      `a_parses_capture_is_a_string_schema` and `core_uuid_keeps_its_named_format_over_that_schema`,
+      spelled exactly as `docs/agent/loop-goal.toml:5936` names them. The second is the *agreement*
+      shape: the
+      one class with a format keeps it while the roster around it widens.
 
 ## Backlog
 
-- Stage 5's record and its `.nvst` proofs, including `examples/parses.nvs` — the acceptance check the
-  driver reports as failing (`docs/agent/loop-goal.md` § Stage 5).
-- `crates/nvs-types/src/commands.rs:189`'s `OneOf` doc still uses `Core\Uuid` as its worked example; it
-  is true, not stale, and is the record's business if anything's.
-- `crates/nvs-cli/src/openapi.rs`'s `format: uuid` stays a name test on purpose — `docs/agent/loop-goal.md`
-  § Standing decisions.
+- The blocked decision above — its home is the goal's one record, `docs/decisions/0160.md`.
+- `examples/parses.nvs` (`loop-goal.toml:5919`) — blocked on the same answer; its fourth `want` line
+  is the one that moves under (b).
+- ADR 0160, the goal's one record — owes the settlement, stage 3's `ArgConv::Uuid` →
+  `ArgConv::Parses` widening, the `Core\Uuid` reclassification, the `Core\Uri` exclusion,
+  `rule:core-api/reserved-namespace` and stage 2's `E0404`.
+- The route-side conversion site, once the answer lands — `crates/nvs-runtime/src/routes.rs` gap 3.
+- A subset of an enum's cases is still `ArgConv::Unconverted` — `crates/nvs-runtime/src/commands.rs`
+  gap 1, untouched by this goal.
