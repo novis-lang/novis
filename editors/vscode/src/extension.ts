@@ -153,11 +153,15 @@ function version(context: ExtensionContext): string {
   return String(context.extension.packageJSON.version ?? "");
 }
 
+// Every state the item shows, marked. `novis-mark` is the manifest's `contributes.icons` entry, a
+// one-glyph font rather than an image because `text` takes only `$(name)` — and being a glyph is
+// what lets the editor tint it, so the mark turns red with the item on an `Error` severity without
+// a second asset. Prefixed here so no call site can forget it.
 function report(text: string, detail: string, severity: LanguageStatusSeverity): void {
   if (status === undefined) {
     return;
   }
-  status.text = text;
+  status.text = `$(novis-mark) ${text}`;
   status.detail = detail;
   status.severity = severity;
 }

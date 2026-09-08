@@ -49,6 +49,10 @@ interface Manifest {
     }[];
     configuration: { title: string; properties: Record<string, ConfigProperty> };
     commands: { command: string; title: string; category?: string }[];
+    icons?: Record<string, {
+      description: string;
+      default: { fontPath: string; fontCharacter: string };
+    }>;
     configurationDefaults?: Record<string, unknown>;
     themes?: unknown[];
   };
@@ -149,6 +153,19 @@ describe("the extension's identity", () => {
               "the Marketplace wants at least 128x128");
   });
 
+  it("carries the mark for the status item as a font glyph", () => {
+    // A `LanguageStatusItem`'s `text` renders `$(name)` and no image path, so the mark reaches it
+    // as a one-glyph font that the editor tints with the item's own severity colour
+    // (`src/extension.ts`, `report`). The header check is what catches a half-written build: a
+    // WOFF opens with `wOFF`, and the third word is the length the whole file should have.
+    const icon = manifest.contributes.icons?.["novis-mark"];
+    assert.equal(icon?.default.fontPath, "./media/novis-icons.woff");
+    assert.equal(icon?.default.fontCharacter, "\\E001");
+    const font = readFileSync(join(ROOT, icon?.default.fontPath ?? ""));
+    assert.equal(font.subarray(0, 4).toString("latin1"), "wOFF", "the icon font is not a WOFF");
+    assert.equal(font.readUInt32BE(8), font.length, "the icon font is truncated");
+  });
+
   it("points main at the compiled client", () => {
     // `tsc` puts `src/extension.ts` here, and a manifest naming anything else installs an
     // extension that activates and does nothing.
@@ -182,15 +199,31 @@ describe("the file types the extension claims", () => {
     assert.equal(language.configuration, undefined);
   });
 
-  it("gives both languages the logo as their file icon", () => {
-    // What an explorer with a file-icon theme draws beside a `.nvs` or a `.nvst`. One image for
-    // both themes: the logo is a transparent PNG that carries its own contrast, so a second
-    // variant would be the same file under another name. A theme that draws its own icon for a
-    // language wins, and this is only the fallback.
+  it("gives each language a file icon for each theme", () => {
+    // What an explorer with a file-icon theme draws beside a `.nvs` or a `.nvst`. Four images,
+    // because nothing tints these: the editor draws whichever of the pair matches the theme
+    // exactly as it was authored, so `light` is the crimson tile, which holds against a light
+    // ground, and `dark` the pink one. The `.nvst` pair is the same tile under a badge. They are
+    // copies of `website/media/` as the Marketplace icon is — an extension package carries no
+    // path out of its own directory. A theme that draws its own icon for a language wins, and
+    // this is only the fallback.
+    const icons: Record<string, { light: string; dark: string }> = {
+      nvs: {
+        light: "./media/novis-logo-file-icon-light-theme.svg",
+        dark: "./media/novis-logo-file-icon-dark-theme.svg",
+      },
+      nvst: {
+        light: "./media/novis-logo-file-icon-light-theme-nvst.svg",
+        dark: "./media/novis-logo-file-icon-dark-theme-nvst.svg",
+      },
+    };
     for (const language of manifest.contributes.languages) {
-      assert.deepEqual(language.icon,
-                       { light: "./media/novis-logo.png", dark: "./media/novis-logo.png" },
-                       `${language.id} contributes no file icon`);
+      assert.deepEqual(language.icon, icons[language.id],
+                       `${language.id} contributes the wrong file icon`);
+      for (const path of Object.values(language.icon ?? {})) {
+        assert.ok(readFileSync(join(ROOT, path), "utf8").includes("<svg"),
+                  `${path} is not an SVG the package holds`);
+      }
     }
   });
 

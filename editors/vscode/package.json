@@ -38,8 +38,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./media/novis-logo.png",
-          "dark": "./media/novis-logo.png"
+          "light": "./media/novis-logo-file-icon-light-theme.svg",
+          "dark": "./media/novis-logo-file-icon-dark-theme.svg"
         }
       },
       {
@@ -53,11 +53,20 @@
           ".lspt"
         ],
         "icon": {
-          "light": "./media/novis-logo.png",
-          "dark": "./media/novis-logo.png"
+          "light": "./media/novis-logo-file-icon-light-theme-nvst.svg",
+          "dark": "./media/novis-logo-file-icon-dark-theme-nvst.svg"
         }
       }
     ],
+    "icons": {
+      "novis-mark": {
+        "description": "The Novis mark",
+        "default": {
+          "fontPath": "./media/novis-icons.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
     "grammars": [
       {
         "language": "nvs",
