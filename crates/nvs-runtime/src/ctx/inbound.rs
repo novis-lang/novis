@@ -299,12 +299,11 @@ pub struct Inbound {
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
-    /// `docs/spec/01-core-library.md` § 15 makes `body`, `bodyStream` and
-    /// `files` exclusive on one request, and this field is the whole of that
-    /// rule. `post` takes the claim as well, and is the only member that reads
-    /// the name back to *join* rather than to refuse — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
-    /// 's form fields being what a `files` walk sets aside — which is
-    /// `nvs_stdlib::request`'s `claim_form` and nothing this crate decides.
+    /// It is the **first** reader's name and stays it, because that reading is
+    /// what decided what the later ones can have: whether one of them is
+    /// refused is this name read against [`Self::held`] and [`Self::parts`],
+    /// which is [`Self::claim_body`]'s matrix and
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`.
     /// **It lives on the carrier rather than on any one member**,
     /// because what is exclusive is the *request*: each of them consumes the
     /// same stream, so a record kept by one of them could not see the others
@@ -635,27 +634,44 @@ impl Inbound {
         self.body.as_deref_mut()
     }
     /// Records that `member` is reading this request's body, or names the one
-    /// that already is.
+    /// that already read it — decided by what `member` needs of the body and
+    /// by what the last reader left behind.
     ///
-    /// Spec § 15's exclusivity, enforced: `body`, `bodyStream` and `files` each
-    /// consume the stream the other two would read, so the second of them on one
-    /// request is a program bug. Answering it empty — which is what an exhausted
-    /// stream says on its own — would report "the peer sent nothing" for a
-    /// request whose bytes the program had already been handed, and that is the
-    /// silent-wrong-answer this whole carrier is written against.
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`,
+    /// enforced. A streaming reader hands the octets over as they arrive and
+    /// keeps none, so nothing reads them after it: answering the next reader
+    /// empty — which is what an exhausted stream says on its own — would
+    /// report "the peer sent nothing" for a request whose bytes the program had
+    /// already been handed, and that is the silent-wrong-answer this whole
+    /// carrier is written against. A buffering reader leaves what it read in
+    /// [`Self::held`] or in [`Self::parts`], and a later reader that hold
+    /// satisfies is answered out of it.
     ///
-    /// The [`Err`] is the claiming member's own name, for the caller to put in
-    /// a message — or to read, `post` being the member that answers some of
-    /// those names by joining the reading rather than by refusing. This crate
-    /// raises nothing and decides nothing about which is which; the members are
-    /// `nvs_stdlib`'s and so is the rule.
+    /// **The parameter is a [`BodyNeed`] rather than the reader's kind**, whose
+    /// argument that type carries, and the three needs against the two holds
+    /// are the whole of the rule this carrier can state.
+    ///
+    /// The claim stays the **first** reader's, whoever is let through
+    /// afterwards: it is the name a refusal has to carry, and the reading a
+    /// program wrote first is the one that decided what the others can have.
+    ///
+    /// This crate raises nothing and decides nothing about which member needs
+    /// what; the needs arrive with the call, the members are `nvs_stdlib`'s and
+    /// so is the rule.
     ///
     /// # Errors
     ///
-    /// The name of the member that claimed the body first, where one has.
-    pub fn claim_body(&mut self, member: &'static str) -> Result<(), &'static str> {
+    /// The name of the member that claimed the body first, where one has and
+    /// what it left behind is not what `member` needs.
+    pub fn claim_body(&mut self, member: &'static str, need: BodyNeed) -> Result<(), &'static str> {
+        let answerable = match need {
+            BodyNeed::Octets => self.held.is_some(),
+            BodyNeed::OctetsOrParse => self.held.is_some() || self.parts.is_some(),
+            BodyNeed::Wire => false,
+        };
         match self.claimed_by {
-            Some(first) => Err(first),
+            Some(first) if !answerable => Err(first),
+            Some(_) => Ok(()),
             None => {
                 self.claimed_by = Some(member);
                 Ok(())
@@ -668,15 +684,31 @@ impl Inbound {
     pub fn has_body(&self) -> bool {
         self.body.is_some()
     }
-    /// Gives this carrier the parse of its body that `Core\Request::files()`
-    /// built, for [`Self::parts_mut`] to hand back on every later call.
+    /// Whether this request's body has been parsed already, which is the
+    /// question a member asks before building a parse of its own.
     ///
-    /// Called at most once per request: `files()` is the only member that names
-    /// a parse, and [`Self::claim_body`] is what makes it callable once.
+    /// Separate from [`Self::parts_mut`] because it is asked where no borrow is
+    /// wanted and answered for a request that carried no body: "nothing has
+    /// parsed this" and "there is nothing here to parse" are different facts,
+    /// and the accessor that hands the parse out collapses them into one
+    /// `None`.
+    #[must_use]
+    pub fn has_parts(&self) -> bool {
+        self.parts.is_some()
+    }
+    /// Gives this carrier the parse of its multipart body, for
+    /// [`Self::parts_mut`] to hand back on every later call.
+    ///
+    /// Called at most once per request. `Core\Request::files()` and
+    /// `Core\Request::post()` both name a parse, and the second of them finds
+    /// this one filled and walks it instead of building another — which is what
+    /// makes the fields a walk buffered readable by the form reader that
+    /// follows it, and [`Self::claim_body`] is what keeps a third member off
+    /// the body entirely.
     pub fn hold_parts(&mut self, parts: Box<dyn std::any::Any>) {
         self.parts = Some(parts);
     }
-    /// The parse and the body it reads, borrowed **together** — `None` unless
+    /// The parse and the octets it reads, borrowed **together** — `None` unless
     /// this request has both.
     ///
     /// One accessor rather than two, because the two are borrowed at the same
@@ -686,17 +718,26 @@ impl Inbound {
     /// could not hand that out. They are two fields of one struct, so this is a
     /// borrow the compiler can see through where a pair of calls would not be.
     ///
+    /// **Which octets is decided here**, in the one place that can see both
+    /// halves: [`Self::held`]'s where a buffering reader filled it, and the
+    /// wire otherwise. A parse over a request whose body was already pulled
+    /// whole has to read what that reader held — the wire is drained by then
+    /// and would answer a form with no fields in it — and asking the member to
+    /// know that would put
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// in two places.
+    ///
     /// `None` for a request that carried no body at all, which is a walk over
     /// no parts rather than an error: RFC 9110 § 8.6's "there is no body" is
     /// the same fact [`Self::body`] answers `None` for, and a multipart parse
     /// of it would be a parse of nothing.
-    pub fn parts_mut(
-        &mut self,
-    ) -> Option<(
-        &mut (dyn std::any::Any + 'static),
-        &mut (dyn RequestBody + 'static),
-    )> {
-        Some((self.parts.as_deref_mut()?, self.body.as_deref_mut()?))
+    pub fn parts_mut(&mut self) -> Option<(&mut (dyn std::any::Any + 'static), BodySource<'_>)> {
+        let parse = self.parts.as_deref_mut()?;
+        let source = match self.held.as_deref() {
+            Some(octets) => BodySource::Hold { octets, at: 0 },
+            None => BodySource::Wire(self.body.as_deref_mut()?),
+        };
+        Some((parse, source))
     }
     /// Gives this carrier the body a buffering reader pulled off the wire, for
     /// that member's later calls and for every later reader to answer out of —
@@ -1054,6 +1095,105 @@ pub trait RequestBody {
     /// ends the body**: nothing may be pulled after one, and a supplier that
     /// answered one has already given up on the connection.
     fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>>;
+}
+
+/// What a reader needs of a request's body, which is what decides whether it
+/// may have it — [`Inbound::claim_body`]'s parameter.
+///
+/// **A need rather than the reader's kind**, because the kind is not fixed per
+/// member and so cannot be a table of names: `Core\Request::post()` consumes
+/// the wire where it is the first reader and consumes nothing where a hold is
+/// already filled, so it is both kinds on different requests. What *is* fixed
+/// is what each member has to be given, and the carrier already holds the
+/// facts that answer it — the octets it holds, the parse it holds, and the
+/// name that claimed. So the parameter is the need and the matrix in
+/// [`Inbound::claim_body`] is the whole rule.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BodyNeed {
+    /// The octets themselves: `body()`, `json()` and `jsonAs()`. They are there
+    /// for the taking while no reader has claimed the body, and afterwards only
+    /// where a buffering reader left them held — a streaming reader keeps none,
+    /// and a multipart `post()` keeps the fields it decoded rather than the
+    /// bytes they came out of.
+    Octets,
+    /// The octets **or** a parse of them: `post()`, which reads either a form
+    /// out of the body it pulls itself or the fields another reader buffered.
+    OctetsOrParse,
+    /// The wire: `bodyStream()` and `files()`, which pull the octets as they
+    /// arrive and keep none of them. Nothing may have read the body before one
+    /// of these, and nothing reads it after.
+    Wire,
+}
+
+/// The octets a parse is driven with: whichever of the request's own two
+/// suppliers is the one that still has them.
+///
+/// [`Inbound::parts_mut`] hands one out, and which variant it is is the
+/// carrier's answer rather than a member's choice: a multipart `post()`
+/// following `body()` reads the hold that reader filled, while the same call on
+/// a request nothing has read yet reads the wire. A member that picked for
+/// itself would be the second copy of
+/// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`,
+/// and two copies of one rule is how they come to disagree.
+pub enum BodySource<'a> {
+    /// The request's own supplier, pulled a chunk at a time as the peer sends
+    /// it — the only source for a body nothing has held.
+    Wire(&'a mut (dyn RequestBody + 'static)),
+    /// [`Inbound::held`]'s octets, walked in place.
+    ///
+    /// In [`HOLD_PIECE`] pieces rather than one chunk: a reader holds a whole
+    /// chunk in its own buffer — `nvs_stdlib::multipart` does — so handing one
+    /// the body entire would hold it twice, which is exactly the second copy
+    /// `[limits] request_body` was set to bound the first of.
+    Hold {
+        /// The held body, borrowed from the carrier for this walk.
+        octets: &'a [u8],
+        /// How far the walk has read.
+        at: usize,
+    },
+}
+
+impl std::fmt::Debug for BodySource<'_> {
+    /// Written out rather than derived, for [`Inbound`]'s own reason: a
+    /// [`RequestBody`] is a socket mid-read and there is nothing to print of it
+    /// but that it is the source. A hold prints how far the walk has come and
+    /// how much there is, never the octets, which are a peer's bytes.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Wire(_) => f.write_str("Wire"),
+            Self::Hold { octets, at } => f
+                .debug_struct("Hold")
+                .field("octets", &octets.len())
+                .field("at", at)
+                .finish(),
+        }
+    }
+}
+
+/// The most of a held body [`BodySource::Hold`] hands over at once.
+///
+/// Big enough that a walk over a multipart body of any size is a handful of
+/// pulls per part rather than one per line, small enough that a reader
+/// buffering a whole piece has not re-held the body. Chunk boundaries mean
+/// nothing to a reader ([`RequestBody::next_chunk`]), so this number is free to
+/// be an implementation's choice.
+pub const HOLD_PIECE: usize = 64 * 1024;
+
+impl RequestBody for BodySource<'_> {
+    fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
+        match self {
+            Self::Wire(body) => body.next_chunk(),
+            Self::Hold { octets, at } => {
+                let end = octets.len().min(at.saturating_add(HOLD_PIECE));
+                if *at == end {
+                    return Ok(None);
+                }
+                let piece = &octets[*at..end];
+                *at = end;
+                Ok(Some(piece))
+            }
+        }
+    }
 }
 
 /// A [`RequestBody`] whose octets are already held, which is what
