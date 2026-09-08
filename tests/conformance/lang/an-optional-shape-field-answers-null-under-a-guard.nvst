@@ -1,0 +1,47 @@
+--TEST--
+An optional shape field read under a guard answers `null` where it is absent, and the same read written without one throws catchably — `rule:types/shape-type` and `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// `rule:types/shape-type`: `{a?: string}` proves the field's *type* and not
+// its presence, so the two spellings of the same read answer differently.
+// `??`, `isset` and `empty` are the ones that ask whether the key is there;
+// everything else takes `rule:types/erased-member-access`'s throw.
+class Opt {
+    // Under a guard the read answers `?string`, so an absent `a` is the
+    // `null` the `??` tests and never reaches the default's own operand.
+    public static function guarded({a?: string, b: int} $p): string {
+        return $p->a ?? "default";
+    }
+
+    // The same field, the same value, no guard: absence is a checked,
+    // catchable throw naming the field and the concrete class.
+    public static function unguarded({a?: string, b: int} $p): string {
+        try {
+            return $p->a;
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    // `isset` asks the same question and answers it without a default.
+    public static function asked({a?: string, b: int} $p): bool {
+        return isset($p->a);
+    }
+}
+
+// A value with no `a` at all satisfies the shape, the key being optional —
+// and one that carries an `a` satisfies it too, so both reach every read
+// above through the same parameter.
+echo Opt::guarded({b: 1}), "\n";
+echo Opt::guarded({a: "here", b: 1}), "\n";
+echo Opt::unguarded({b: 1}), "\n";
+echo Opt::unguarded({a: "here", b: 1}), "\n";
+echo Opt::asked({b: 1}) ? "yes" : "no", "\n";
+echo Opt::asked({a: "here", b: 1}) ? "yes" : "no", "\n";
+--EXPECT--
+default
+here
+`$shape{b}` has no field `a`
+here
+no
+yes
