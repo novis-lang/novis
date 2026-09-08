@@ -312,6 +312,19 @@ pub enum BlockError<'a> {
         /// The driver whose resolver read the block.
         expected: Driver,
     },
+    /// `host` is a Unix-domain socket path ([`is_socket_host`]) written on a
+    /// driver whose protocol has no transport for one.
+    ///
+    /// `rule:core-classes/db-unix-socket-path` puts this here rather than at
+    /// the dial: MSSQL reports a path as **a target it does not speak**, not as
+    /// a file it could not open, so the refusal arrives when the block is read
+    /// and names the field an operator would edit.
+    NoSocketTransport {
+        /// What the block wrote.
+        written: &'a str,
+        /// The driver whose resolver read the block.
+        expected: Driver,
+    },
     /// `time_zone` is written and is not one of § 9's offsets — the `None`
     /// [`crate::sql::time_zone_for`] answers with, turned into a refusal here
     /// rather than folded into UTC.
@@ -376,6 +389,12 @@ impl std::fmt::Display for BlockError<'_> {
             BlockError::Unusable { field, expected } => write!(
                 f,
                 "`{field}` belongs to another driver, and a {} connection reads nothing from it",
+                expected.display_name()
+            ),
+            BlockError::NoSocketTransport { written, expected } => write!(
+                f,
+                "`host` is `{written}`, which is a Unix-domain socket, and the {} protocol has no \
+                 transport that speaks one: write the `host:port` the server listens on",
                 expected.display_name()
             ),
             BlockError::TimeZone { written } => write!(

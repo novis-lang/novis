@@ -119,7 +119,7 @@ use nvs_runtime::{Decimal, NvsStr, Tag, Value};
 
 use crate::conn::{
     BlockError, ColumnType, DbErrorKind, Driver, Isolation, ServerError, State, TdsConn,
-    written_value,
+    is_socket_host, written_value,
 };
 use crate::span::QuerySpan;
 use crate::sql::{Dialect, StatementCache, statement_cache_for, time_zone_for};
@@ -271,7 +271,9 @@ impl<'a> TdsTarget<'a> {
     /// [`crate::MySqlTarget::resolve`] runs them: the `driver` first, since a
     /// block belonging to another backend resolved here would send LOGIN7 to a
     /// server that cannot answer it; then a field belonging to another driver;
-    /// then each field LOGIN7 sends, by its own key; then § 9's zone.
+    /// then each field LOGIN7 sends, by its own key — `host` twice, once for
+    /// being unwritten and once for being a socket path this protocol has no
+    /// transport for; then § 9's zone.
     pub fn resolve(block: &'a Database) -> Result<TdsTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -311,6 +313,16 @@ impl<'a> TdsTarget<'a> {
         };
 
         let host = written_value(block.host.as_deref(), "host", Driver::SqlServer)?;
+        // TDS has no `AF_UNIX` transport, so a path is refused here rather than
+        // carried to a dial that would have nothing to open it with —
+        // `rule:core-classes/db-unix-socket-path`, and the refusal names the
+        // target rather than the file.
+        if is_socket_host(host) {
+            return Err(BlockError::NoSocketTransport {
+                written: host,
+                expected: Driver::SqlServer,
+            });
+        }
         let user = written_value(block.user.as_deref(), "user", Driver::SqlServer)?;
         let database = written_value(block.database.as_deref(), "database", Driver::SqlServer)?;
 
@@ -700,6 +712,49 @@ mod tests {
                 BlockError::Blank { field }
             );
         }
+    }
+
+    /// `rule:core-classes/db-unix-socket-path`: MSSQL reports a socket path as
+    /// a target it does not speak, and never as a file it could not open.
+    ///
+    /// Asserted at the *resolver* rather than at a dial, which is the whole
+    /// point of the shape: TDS has no `AF_UNIX` transport on any platform, so
+    /// there is no build where this path reaches a connect, and the refusal
+    /// arrives when an operator's block is read. The message names `host`,
+    /// because `host` is the line they would edit, and it must not read as an
+    /// unopenable file — a `[db.<name>]` on this driver is wrong, not missing.
+    #[test]
+    fn a_tds_target_refuses_a_socket_path() {
+        for written in ["/var/run/mssql.sock", "/tmp/sqlserver/"] {
+            let mut block = block();
+            block.host = Some(written.to_owned());
+            let refused = TdsTarget::resolve(&block).unwrap_err();
+            assert_eq!(
+                refused,
+                BlockError::NoSocketTransport {
+                    written,
+                    expected: Driver::SqlServer,
+                }
+            );
+
+            let text = refused.refusal("main");
+            assert!(
+                text.contains("`host`") && text.contains("transport that speaks one"),
+                "the refusal names the field and the transport that is missing: {text}"
+            );
+            assert!(
+                !text.contains("open") && !text.contains("file"),
+                "a path is refused as a target, so nothing here reads as an \
+                 unopenable file: {text}"
+            );
+        }
+
+        let mut network = block();
+        network.host = Some("mssql.test".to_owned());
+        assert!(
+            TdsTarget::resolve(&network).is_ok(),
+            "only a path is refused, and a host:port is untouched"
+        );
     }
 
     /// The password is the field with its own arm, so it gets its own case: an
