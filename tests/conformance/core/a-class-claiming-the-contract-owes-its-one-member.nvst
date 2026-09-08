@@ -1,0 +1,24 @@
+--TEST--
+A class claiming `Parses` owes the one member the contract requires, so a class with no `parse` is refused where it is declared and never at a binding site that names it — `rule:expressions/try-parse` and `rule:classes/comparable`
+--FILE--
+<?nvs
+// `Parses` is what a binding site asks a class for instead of naming one, so the
+// question "may this class stand in a capture" has to be answerable from the
+// class's own declaration and nowhere else. That makes the missing member an
+// error *here*, at the class, rather than at the route that declared a capture at
+// it -- one diagnostic naming the member, instead of one per site pointing back
+// at a class that never said what it owed.
+//
+// `tryParse` is not the member being asked for: it is a default body on the
+// interface, so a class inherits it and cannot discharge `parse` by writing it.
+// One implementation of "is this text a `Slug`", never two.
+class Slug implements Parses
+{
+    public tainted string $text = "";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0449]: `Slug` does not declare `parse`, which `Parses` requires
+%A
+error: aborting due to 1 error
