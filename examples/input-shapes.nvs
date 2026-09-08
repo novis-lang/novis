@@ -1,0 +1,65 @@
+<?nvs
+// Loose input read as a declared shape, which is the only way a request's
+// values reach a program with types on them.
+//
+// This leg runs under `nvs run --request examples/input-shapes.nvsr`, so the
+// form and the query string below are a real request's: the file beside this
+// one describes it in the format `crates/nvs-test/src/request.rs` owns.
+// Without the `--request` argument the first line is `Core\Request::postAs`
+// refusing, which is `rule:security/request-state-throws-in-an-isolate`.
+//
+// There is no shaped `array<T>` and no per-key-typed array: an array stays
+// homogeneous (`rule:types/arrays`), and the conversion happens once, at the
+// boundary, where a failure is still a `400` rather than a surprise three
+// calls deeper. After it nothing downstream is holding a `mixed` to check.
+
+// The submitted form, read as the type written at the call site. Each named
+// field is converted with `as` (`rule:types/conversion`), so `age` is an `int`
+// here rather than the text the wire carried.
+//
+// `tainted {…}` is one word over the whole shape rather than a `tainted` on
+// every text field: it distributes to each text-carrying field and is gone
+// before the checker sees it (`rule:security/tainted-qualifier`), so `email`
+// is a `tainted string` and `age`, being an `int`, carries nothing. That is
+// what a peer chose, said out loud — the qualifier costs nothing at run time
+// and is the reason a sink cannot be reached from here by accident.
+(tainted {email: string, age: int, nickname?: string}) $account =
+    Core\Request::postAs<tainted {email: string, age: int, nickname?: string}>();
+echo "email is ", $account->email, "\n";
+echo "age is ", $account->age as string, "\n";
+
+// `{nickname?: string}` proves the field's type and not its presence, so an
+// absent key is a catchable throw and `??` is the spelling that asks without
+// one (`rule:types/shape-type`). Optional is not nullable: `{nickname: ?string}`
+// would demand the key and let it hold `null`.
+echo "nickname is ", $account->nickname ?? "absent", "\n";
+
+// The query string, through the same walk. `queryAs` and `postAs` are one
+// mechanism over two subjects — `Core\Arr::shapeAs` below is that mechanism
+// said in general, with the array named outright.
+(tainted {city: string}) $where = Core\Request::queryAs<tainted {city: string}>();
+echo "city is ", $where->city, "\n";
+
+// Width subtyping over loose values: `note` is a key the shape never named, so
+// it is left behind rather than refused. That is deliberate and has no opt-out
+// — a client adding a field must not break a server that never asked for it
+// (`rule:core-api/shape-rules`).
+if (Core\Json::encode(Core\Arr::shapeAs<{city: string}>(["city" => "Vienna", "note" => "ignored"]))
+    == "{\"city\":\"Vienna\"}") {
+    echo "an unnamed field was left behind\n";
+}
+
+// The failure, which is the half a form actually needs: `{name: "bad"}` reads
+// the one bracket-named subtree under `bad`, where `age` holds text no `as int`
+// accepts and `city` was never sent at all. Both are reported, each at its own
+// dotted path, because a form wants the whole list rather than the first item
+// of it (`rule:core-classes/derive-reports-every-field`).
+try {
+    Core\Request::queryAs<tainted {age: int, city: string}>({name: "bad"});
+    echo "not reached\n";
+} catch (ParseError $refused) {
+    if (Core\Arr::count($refused->issues) == 2) {
+        echo "two fields did not fit: ",
+            $refused->issues["0"]->path, ", ", $refused->issues["1"]->path, "\n";
+    }
+}

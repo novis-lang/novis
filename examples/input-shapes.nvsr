@@ -1,0 +1,11 @@
+--METHOD--
+POST
+--PATH--
+/accounts
+--QUERY--
+city=Vienna&note=ignored&bad[age]=old
+--HEADERS--
+content-type: application/x-www-form-urlencoded
+content-length: 40
+--BODY--
+email=ada@example.test&age=36&csrf=t0ken
