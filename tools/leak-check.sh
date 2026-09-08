@@ -10,11 +10,19 @@
 #
 #   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.nvs examples/report.nvs
 #   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --test target/tests.nvs
+#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh --request examples/json-body.nvsr examples/json-body.nvs
 #
 # `--test` runs the fixtures through `nvs test` instead of `nvs run`, which is a
 # different program: the entry file's own statements do not run and the
 # `#[Test]` methods and ADR 0079 § 8's fixtures do, so a refcount edge on that
 # path is unreachable from `run` at all.
+#
+# `--request` answers the request that file describes, for the same reason: a
+# body reader's edges — the octets a request holds and the document
+# `Core\Request::json` leaves beside them — are unreachable without one, because
+# every `Core\Request` member refuses outright where no request arrived. The
+# whole-suite sweep in `loop.py` runs a fixture with no arguments at all, so
+# this is the only way an edge that only a served request opens gets looked at.
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
 # quoting, so this is a file passed by path instead. AGENTS.md says why.
@@ -38,9 +46,14 @@ BIN=/var/tmp/nvs-linux/debug/nvs
 VG_ERROR=97
 
 SUB=run
+REQUEST=()
 if [ "${1:-}" = "--test" ]; then
     SUB=test
     shift
+fi
+if [ "${1:-}" = "--request" ]; then
+    REQUEST=(--request "${2:?--request names the file describing the request}")
+    shift 2
 fi
 
 fails=0
@@ -48,7 +61,8 @@ for f in "$@"; do
     echo "== $f"
     valgrind --error-exitcode=$VG_ERROR --errors-for-leak-kinds=definite \
         --suppressions=tools/valgrind.supp \
-        --leak-check=full "$BIN" "$SUB" "$f" >/tmp/leak-out 2>/tmp/leak-err
+        --leak-check=full "$BIN" "$SUB" ${REQUEST[@]+"${REQUEST[@]}"} "$f" \
+        >/tmp/leak-out 2>/tmp/leak-err
     code=$?
     echo "   exit $code"
     if [ "$code" -eq "$VG_ERROR" ]; then
