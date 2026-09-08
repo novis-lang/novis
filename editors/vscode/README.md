@@ -35,3 +35,16 @@ never varies — the test that never fires.
 **Nothing is published.** CI builds an installable `.vsix` as an artifact. There is no Marketplace
 publisher, no listing and no branding; `rule:ide/one-server-two-thin-clients` § *Revisiting* keeps that
 question open.
+
+**One version, compared by series.** The extension's `version` is the workspace's, from the root
+`Cargo.toml`, and the client refuses a server outside its own `major.minor`
+(`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`, `src/version.ts`). A second constant
+naming the server versions understood was the alternative, and it is one more thing to forget: the two
+halves ship from one commit, the contributions suite asserts the manifest and the workspace agree, and
+the protocol suite asserts the binary on disk is in the series. A patch release is accepted either way
+round, because it fixes answers rather than changing the shape of the protocol.
+
+**The version is read at `initialize`, so the refusal is a stop and not a non-start.** LSP has nowhere
+earlier to report one, and asking `nvs --version` first would be a second process and a second answer to
+keep in step. The client starts the server, reads `serverInfo`, and stops it before it is handed a
+document or a request — what the rule refuses is a session.

@@ -31,6 +31,8 @@ interface Manifest {
   engines: Record<string, string>;
   extensionKind: string[];
   activationEvents: string[];
+  main: string;
+  version: string;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   scripts: Record<string, string>;
@@ -85,6 +87,22 @@ describe("the extension's identity", () => {
     assert.equal(manifest.publisher, "nvs-lang");
     assert.equal(manifest.name, "nvs");
     assert.deepEqual(manifest.extensionKind, ["workspace"]);
+  });
+
+  it("is versioned with the binary it speaks to", () => {
+    // The extension and `nvs` are released from one repository at one version, which is what lets
+    // the client refuse a server by comparing against its own
+    // (`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`, `src/version.ts`). The
+    // workspace's version is in the root `Cargo.toml`.
+    const cargo = readFileSync(join(ROOT, "..", "..", "Cargo.toml"), "utf8");
+    const workspace = /^version = "([^"]+)"$/m.exec(cargo)?.[1];
+    assert.equal(manifest.version, workspace);
+  });
+
+  it("points main at the compiled client", () => {
+    // `tsc` puts `src/extension.ts` here, and a manifest naming anything else installs an
+    // extension that activates and does nothing.
+    assert.equal(manifest.main, "./out/src/extension.js");
   });
 
   it("carries the npm scripts the repository's tooling calls", () => {

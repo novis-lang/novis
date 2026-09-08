@@ -2,7 +2,7 @@
   "name": "nvs",
   "displayName": "Novis",
   "description": "Novis language support: syntax, diagnostics, completion and navigation for .nvs files.",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "publisher": "nvs-lang",
   "license": "MIT",
   "repository": {
@@ -23,6 +23,7 @@
   "activationEvents": [
     "onLanguage:nvs"
   ],
+  "main": "./out/src/extension.js",
   "contributes": {
     "languages": [
       {
