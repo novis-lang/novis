@@ -46,8 +46,8 @@
 > the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
 > `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows;
 > `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
-> `Isolate`**, whole: mounts, statics, the admission ceiling, the proxy walk, the two `Core` request
-> types, routing, captures and a class mount.
+> `Isolate`**, whole: mounts, statics, admission ceiling, proxy walk, the two `Core` request types,
+> routing, captures and a class mount.
 > **`rule:http-server/a-session-store-answers-four-operations`'s session is whole**: shared or db,
 > `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's ticker fires**: a root
 > isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§ 6-7 land**: `afterResponse`
@@ -60,12 +60,11 @@
 > refuses a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key
 > named. **`rule:packaging/a-service-is-one-stored-argv` refuses**: `E0630`-`E0634`; `nvs service
 > unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is
-> guarded**: `never` never `stat`s, one window is one check, a swap publishes, § 3a picks
-> `validate`, 10k cold compile once.
-> **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is
-> whole.** Conformance 1592, differential 276, migration 100%; valgrind green, arrays too. Serve:
-> 2.78x php-cgi.  **The store publishes** gated diagnostics; nine, `nvs/redactions` , two fixes and
-> a silent stdout; 189 cases, matrix full.
+> guarded**: `never` never `stat`s, one window one check, a swap publishes, § 3a picks `validate`,
+> 10k cold compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
+> lands.** **`Core\Cldr` is whole.** Conformance 1592, differential 276, migration 100%; valgrind
+> green, arrays too. Serve: 2.78x php-cgi.  **The store publishes** gated diagnostics; nine,
+> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
