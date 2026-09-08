@@ -1265,6 +1265,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   roster rather than the behaviour. Write a reference chapter from `src/extension.ts`'s
   `registerCommand` calls and `getConfiguration` reads, and use the manifest only for the spellings
   and defaults. [until: exists editors/vscode/src/extension.ts:nvs.showAst]
+- **`session.py --wrap` cannot commit a rename: a `## commit:` naming the path that went away is
+  refused with "no such path", and naming only the new one leaves the deletion uncommitted.** Every
+  named path is checked against the disk before a byte is written, and the commit it makes is
+  pathspec-limited, so no spelling of the section carries a `git mv` — and `git add -- <old>` would exit
+  128 anyway once the index has the rename. Commit a renaming slice yourself, `git add -A -- <dir>` then
+  `git commit -F`, after `verify.py` is green, and leave the wrap the docs. [until: reviewed 2026-09-08]
 
 ## Running things
 
