@@ -196,7 +196,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [31 queue-purge](31-queue-purge.md) | M8, `rule:concurrency/queue-deletion-is-explicit-and-bounded` + `rule:concurrency/queue-four-members`/0084 changed by a record | `nvs-stdlib`, `nvs-config`, `nvs-cli`, `nvs-db` |
 | [32 serve-runs-the-queue](32-serve-runs-the-queue.md) | M7, `rule:concurrency/one-process-serves-requests-schedules-and-jobs` + `rule:config/reloadability-is-its-own-field`/0078 changed by a record | `nvs-cli`, `nvs-config`, `nvs-server` |
 | [33 editor-install](33-editor-install.md) | post-parity, `rule:ide/the-extension-guides-an-install-and-never-bundles-one`/0155 | `nvs-lsp`, and `editors/vscode` — the only goal whose weight is TypeScript |
-| 34–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [34 workspace-index](34-workspace-index.md) | M10, `rule:ide/five-features-are-one-reference-index` | `nvs-lsp` — one index, its five readers, and the requests M4B's closed list left out |
+| [35 editor-surfaces](35-editor-surfaces.md) | M10, `rule:ide/tasks-carry-a-problem-matcher` | `editors/vscode` and the two CLI surfaces it queries — Tasks, the AST panel, a Test Explorer, template regions |
+| 36–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |
 

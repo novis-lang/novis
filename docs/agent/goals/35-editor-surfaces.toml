@@ -206,4 +206,5 @@ tests = [
 [[check]]
 kind = "command"
 stage = "6 the regions"
-name = "the one-file referen
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
