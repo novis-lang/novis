@@ -1,0 +1,17 @@
+<?nvs
+$timeout = 30s;
+$window = 1h30m;
+$tick = 250ms;
+$every = 2w3d4h5m6s7ms8us9ns;
+$plain = 42;
+$grouped = 1_000;
+$fraction = 3.14;
+$exponent = 1e9;
+$hex = 0x1d;
+$binary = 0b1010;
+$octal = 0o777;
+$ascending = 30m1h;
+$repeated = 1h1h;
+$upper = 30S;
+$float = 1.5s;
+?>

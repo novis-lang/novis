@@ -3443,6 +3443,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `.git/`, and `benches/*` is a member of the root workspace while `fuzz/Cargo.toml` declares its own
   empty `[workspace]`. Seed the line in `fuzz/`, watch the assertion fail naming that path, and revert
   — that walk reads the file and cargo never resolves it. [until: reviewed 2026-09-08]
+- **A new pattern in the grammar's `#code` splits spans that another suite already asserted on, and
+  `span()` throws instead of failing softly.** `editors/vscode/test/grammar/tokenize.ts:89` wants exactly
+  one span reading the text, so `span(spans, "$total = 1;")` stops resolving the moment a keyword or a
+  number rule claims part of it, and the error names the text rather than the pattern that took it.
+  Before adding a construct family, grep the other `*.test.ts` under `editors/vscode/test/grammar/` for a
+  `span(` whose text holds a word the new pattern claims, and split that assertion into the pieces the
+  new rule leaves. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 
