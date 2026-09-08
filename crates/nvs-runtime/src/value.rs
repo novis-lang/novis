@@ -24,7 +24,7 @@ use std::fmt;
 
 use crate::array::{ArrayHeader, NvsArray};
 use crate::decimal::Decimal;
-use crate::object::{ClassDesc, NvsObj, ObjHeader};
+use crate::object::{ClassDesc, NvsObj, ObjHeader, ShapeCodec};
 use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
@@ -561,6 +561,33 @@ impl Value {
     pub const fn as_class_desc(self) -> Option<*const ClassDesc> {
         match self.tag() {
             Some(Tag::Null) if self.bits != 0 => Some(self.bits as usize as *const ClassDesc),
+            _ => None,
+        }
+    }
+
+    /// A slot carrying `codec`, for the argument a call site writing an inline
+    /// shape as its type argument hands over beside the descriptor — the
+    /// encoding side of [`Self::as_shape_codec`], on
+    /// [`Self::class_desc`]'s convention exactly.
+    ///
+    /// A second named pair rather than a generic payload read, for the reason
+    /// [`Self::as_class_desc`] gives: two engine-owned addresses share one slot
+    /// spelling, and a generic accessor would let either be read as the other.
+    #[must_use]
+    pub fn shape_codec(codec: *const ShapeCodec) -> Self {
+        Self::new(Tag::Null, codec as usize as u64)
+    }
+
+    /// The [`ShapeCodec`] an argument slot carries, if it carries one —
+    /// [`Self::as_class_desc`]'s twin, `None` on the same two answers.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the payload is a pointer `nvs-codegen` widened to u64 when it stored the slot, so narrowing it back is exact on every target"
+    )]
+    pub const fn as_shape_codec(self) -> Option<*const ShapeCodec> {
+        match self.tag() {
+            Some(Tag::Null) if self.bits != 0 => Some(self.bits as usize as *const ShapeCodec),
             _ => None,
         }
     }

@@ -703,6 +703,51 @@ pub struct CodecField {
     pub required: bool,
 }
 
+/// The wire contract of one **inline shape** written as a type argument —
+/// `rule:types/shape-type`'s `{name: T}` read as a codec, which is what a
+/// member hydrating into a shape decodes against.
+///
+/// The same list [`ClassDesc::codec`] holds for a class, carried *beside* a
+/// descriptor instead of on one, because a shape class is keyed on its field
+/// names alone (`nvs_ir::lower::shape_class_label`): `{n: int}` and
+/// `{n: string}` are one class and one [`ClassDesc`], so the per-field wire
+/// types have nowhere on the descriptor to live. `nvs-ir`'s module docs own
+/// that choice, the one it was taken against, and what it costs.
+///
+/// One of these per distinct shape *type*, not per call site — whoever defines
+/// them decides that sharing, since this table has no way to compare two field
+/// lists for the same meaning.
+#[derive(Debug)]
+pub struct ShapeCodec {
+    /// Every field of the shape, in the sorted field-name order the shape
+    /// class lays its slots out in — so a field's index is its slot and its
+    /// [`CodecField::param`] alike, and nothing has to join two orders.
+    fields: Vec<CodecField>,
+    /// One entry per [`Self::fields`] entry, null except where the field names
+    /// a class — [`ClassDesc::codec_class`]'s convention, resolved in the same
+    /// second pass and for the same reason.
+    classes: Vec<*const ClassDesc>,
+}
+
+impl ShapeCodec {
+    /// Every field this shape decodes, in slot order.
+    #[must_use]
+    pub fn fields(&self) -> &[CodecField] {
+        &self.fields
+    }
+
+    /// The descriptor the `index`th field decodes into, or `None` where that
+    /// field names no class — [`ClassDesc::codec_class`], indexed the same way
+    /// and for its reason.
+    #[must_use]
+    pub fn class(&self, index: usize) -> Option<*const ClassDesc> {
+        match self.classes.get(index) {
+            Some(desc) if !desc.is_null() => Some(*desc),
+            _ => None,
+        }
+    }
+}
+
 impl ClassDesc {
     /// The class's rendered name.
     #[must_use]
@@ -1008,6 +1053,15 @@ pub struct ClassTable {
         reason = "each descriptor's address must survive later `define` calls;                   see the field's own comment"
     )]
     classes: Vec<Box<ClassDesc>>,
+    /// Every inline shape's wire contract this unit's call sites wrote —
+    /// boxed for the field above's reason, since `nvs-codegen` bakes one of
+    /// these addresses too. Owned here rather than beside the descriptors
+    /// because a shape's contract belongs to no class: see [`ShapeCodec`].
+    #[expect(
+        clippy::vec_box,
+        reason = "each contract's address must survive later definitions;                   see `classes` above"
+    )]
+    shape_codecs: Vec<Box<ShapeCodec>>,
 }
 
 impl ClassTable {
@@ -1261,6 +1315,41 @@ impl ClassTable {
         desc.db_codec = codec;
         desc.db_codec_classes = classes;
         desc.ctor_arity = ctor_arity;
+    }
+
+    /// Takes ownership of one inline shape's wire contract and hands back its
+    /// address, for `nvs-codegen` to bake into the call site that wrote the
+    /// shape — [`ShapeCodec`]'s own docs say why a shape's contract cannot ride
+    /// on a [`ClassDesc`] the way a class's does.
+    ///
+    /// Boxed for [`ClassTable::desc`]'s reason, unchanged: the address is
+    /// handed to compiled code, so it has to survive every later definition
+    /// this table takes. It is filled in the same second pass
+    /// [`ClassTable::set_codec`] is, and for the same reason — a nested field
+    /// names a class that may not be defined yet.
+    ///
+    /// # Panics
+    ///
+    /// If `classes` is not one entry per field, which would decode one field
+    /// into another field's class.
+    pub fn define_shape_codec(
+        &mut self,
+        fields: Vec<CodecField>,
+        classes: Vec<*const ClassDesc>,
+    ) -> *const ShapeCodec {
+        assert!(
+            classes.len() == fields.len(),
+            "a shape codec has {} field(s) but {} resolved nested class(es)",
+            fields.len(),
+            classes.len()
+        );
+        self.shape_codecs
+            .push(Box::new(ShapeCodec { fields, classes }));
+        let codec: &ShapeCodec = self
+            .shape_codecs
+            .last()
+            .expect("the entry just pushed is the last one");
+        std::ptr::from_ref(codec)
     }
 
     /// Fills in `id`'s method table — one [`MethodRow`] per name, which this
@@ -3548,6 +3637,74 @@ mod tests {
         let animal = table.define("Animal", &["name"], &[]);
         let dog = table.define("Dog", &["name", "breed"], &[animal, greets]);
         (table, animal, dog, greets)
+    }
+
+    /// One field of a shape's wire contract: the `index`th slot, read under
+    /// its own name, holding whatever `ty` says.
+    fn shape_field(index: usize, name: &str, ty: CodecTy) -> CodecField {
+        CodecField {
+            key: name.to_owned(),
+            // A shape lays its slots out in the sorted field order its codec
+            // is built in, so one index answers for both — `ShapeCodec`.
+            slot: index,
+            param: index,
+            ty,
+            element: None,
+            class: None,
+            cases: None,
+            nullable: false,
+            required: true,
+        }
+    }
+
+    #[test]
+    fn a_shape_codec_keeps_its_address_and_answers_its_nested_class() {
+        let (mut table, animal, _dog, _greets) = hierarchy();
+        let first = table.define_shape_codec(
+            vec![shape_field(0, "n", CodecTy::Int)],
+            vec![std::ptr::null()],
+        );
+        let nested = table.desc(animal);
+        let second = table.define_shape_codec(
+            vec![
+                shape_field(0, "pet", CodecTy::Class),
+                shape_field(1, "seen", CodecTy::Bool),
+            ],
+            vec![nested, std::ptr::null()],
+        );
+        // Every later definition — of a class or of another contract — leaves
+        // both addresses where compiled code was told they are.
+        table.define("Later", &["x"], &[]);
+        table.define_shape_codec(Vec::new(), Vec::new());
+        #[expect(
+            unsafe_code,
+            reason = "both pointers came from this table, which owns its contracts for its whole life"
+        )]
+        let (first, second) = unsafe { (&*first, &*second) };
+        assert_eq!(first.fields().len(), 1);
+        assert_eq!(first.fields()[0].key, "n");
+        assert!(first.class(0).is_none());
+        assert_eq!(second.class(0), Some(nested));
+        assert!(second.class(1).is_none(), "a `bool` field names no class");
+        assert!(
+            second.class(2).is_none(),
+            "and neither does no field at all"
+        );
+    }
+
+    #[test]
+    fn a_shape_codec_rides_an_argument_slot_the_way_a_descriptor_does() {
+        let mut table = ClassTable::new();
+        let codec = table.define_shape_codec(
+            vec![shape_field(0, "n", CodecTy::Int)],
+            vec![std::ptr::null()],
+        );
+        let slot = Value::shape_codec(codec);
+        assert_eq!(slot.as_shape_codec(), Some(codec));
+        // The convention is one `Tag::Null` byte over an address, so nothing
+        // sweeping this slot can mistake it for a heap reference.
+        assert!(!slot.tag().is_some_and(Tag::is_refcounted));
+        assert_eq!(Value::null().as_shape_codec(), None);
     }
 
     #[test]
