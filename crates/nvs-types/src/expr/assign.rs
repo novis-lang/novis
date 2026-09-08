@@ -392,6 +392,15 @@ pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env:
 /// that is allowed to know more than the types do —
 /// `crate::expr::args::check_shape_field` knows the refused key is a sink and
 /// can therefore name the way through.
+///
+/// A shape target adds its own help here rather than at a caller, for that same
+/// reason and one more: [`missing_required_keys`] answers the question the
+/// reader actually has — which key is absent — and *every* position that
+/// assigns into a shape asks it, so a caller that had to opt in would leave a
+/// `return`, an attribute payload and a `foreach` binding printing both shapes
+/// whole for the reader to diff. It stays [`code::E_TYPE_MISMATCH`] because it
+/// is the same mistake, a value that does not fit its declared type; a code of
+/// its own would fire on this one arm and say nothing the help line does not.
 pub(crate) fn mismatch(
     span: Span,
     expected: TypeId,
@@ -400,11 +409,57 @@ pub(crate) fn mismatch(
 ) -> Diagnostic {
     let expected_desc = env.interner.describe(expected);
     let actual_desc = env.interner.describe(actual);
-    Diagnostic::error(
+    let diag = Diagnostic::error(
         code::E_TYPE_MISMATCH,
         format!("expected `{expected_desc}`, found `{actual_desc}`"),
     )
-    .with_primary(span, format!("this is `{actual_desc}`"))
+    .with_primary(span, format!("this is `{actual_desc}`"));
+    match missing_required_keys(expected, actual, env).as_slice() {
+        [] => diag,
+        [one] => diag.with_help(format!(
+            "`{one}` is required here, and this value does not supply it"
+        )),
+        several => {
+            let names: Vec<String> = several.iter().map(|name| format!("`{name}`")).collect();
+            diag.with_help(format!(
+                "these keys are required here, and this value supplies none of them: {}",
+                names.join(", ")
+            ))
+        }
+    }
+}
+
+/// The keys `expected`'s shape requires that `actual` does not supply, in the
+/// shape's own declaration order. Empty whenever `expected` is not a shape, and
+/// empty when the source carries every required key — a mismatch on a field's
+/// *type* has both shapes printed and no key to name.
+///
+/// "Does not supply" is [`shape_satisfied`]'s test rather than a weaker one, so
+/// the two cannot disagree about which key is at fault: a source field that is
+/// itself optional is not proven to carry a value, fills a required key no
+/// better than an absent one, and is named here. That asymmetry, and the one
+/// that lets a class answer presence alone, are [`shape_satisfied`]'s to own.
+fn missing_required_keys(expected: TypeId, actual: TypeId, env: &mut Env<'_>) -> Vec<String> {
+    let (signatures, graph) = (env.signatures, env.graph);
+    let Ty::Shape(to_fields) = env.interner.get(expected).clone() else {
+        return Vec::new();
+    };
+    let required = to_fields.into_iter().filter(|field| field.required);
+    match env.interner.get(actual).clone() {
+        Ty::Shape(from_fields) => required
+            .filter(|to| {
+                !from_fields
+                    .iter()
+                    .any(|from| from.name == to.name && from.required)
+            })
+            .map(|to| to.name)
+            .collect(),
+        Ty::Class(qname, _) => required
+            .filter(|to| resolve_property(&qname, &to.name, signatures, graph).is_none())
+            .map(|to| to.name)
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Checks a `return expr;`'s value against the method's declared return
