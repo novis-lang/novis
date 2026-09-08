@@ -1,0 +1,20 @@
+<?nvs
+$single = 'no $plain and no {$complex} in a single-quoted string';
+$escaped = 'an escaped \' quote and an escaped \\ backslash';
+$literal = 'a literal \n is two characters';
+$double = "hello $who, and $byword[label], $bynum[0], $byvar[$key]";
+$reach = "a property $user->email, and a complex {$order->total} slot";
+$escapes = "escapes: \n \t \" \$ \101 \x41 \u{1F600}";
+$asis = "a \q is no escape, and \u{ is a broken one";
+$curly = "${brace} names no variable in Novis";
+$closer = "a ?> in a string does not end code mode";
+$here = <<<EOT
+    a heredoc interpolates $inner and {$nested->total}, and escapes \r
+    EOT;
+$loud = <<<"LOUD"
+    a quoted label interpolates $shout as well
+    LOUD;
+$raw = <<<'RAW'
+    a nowdoc interpolates no $never and no {$missing->total}, and \r stays literal
+    RAW;
+?>
