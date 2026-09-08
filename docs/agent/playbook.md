@@ -3609,13 +3609,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   through the `.nvsr` *file* instead, whose one reader is `inbound_from` in
   `crates/nvs-cli/src/main.rs`, and names the other writer where the derivation is duplicated.
   [until: gone crates/nvs-test/Cargo.toml:No dependencies on purpose]
-- **A `-p nvs-stdlib` test that hydrates an *inline shape* has to build both halves of the contract
-  itself, and nothing in the crate builds either.** The `ShapeCodec` comes from
-  `nvs_runtime::ClassTable::define_shape_codec` and the shape's `ClassDesc` is a constructor-less class
-  whose name starts `$shape{`, so the class fixtures under `crates/nvs-stdlib/src/request.rs` are a model
-  for the `Ctx` and for nothing else. Budget the scaffold before the tests, and put the fields in sorted
-  field-name order, since a field's index is its slot and its `param` alike.
-  [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
+- **`conformance_coverage`'s error-path gate reads an 8-line window, so one comment cannot
+  declare two adjacent internal-error guards.** A new `Core` member on
+  `registry::WRITTEN_CLASS_MEMBERS` has three `Fault::fatal` guards in a row for the constants
+  its call site wrote, and a leading paragraph covering all three reaches only the first —
+  `every_error_path_is_asserted_or_declared_unreachable` then names one line and reads like a
+  missing case. Write "unreachable from source" plus the diagnostic that refuses the call
+  directly above **each** guard.
+  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:8 lines above the site]
 
 ## Splitting a file that got too big
 
@@ -5184,13 +5185,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   of boundary where the code is instead: the `ExprInfo` field's own doc says what the entry carries,
   and the lowering site's comment says which fields it reads and which it does not.
   [until: gone crates/nvs-ir/src/lib.rs:Each panics naming itself]
-- **A `Core` member whose type argument is a *shape* reaches its helper with a descriptor no
-  decoder can build through.** The ABI carries the contract now — argument 2, see
-  `WRITTEN_CLASS_MEMBERS` — but `json::decode_fields` still builds through `desc.ctor_arity()` and
-  a constructor, and the `$shape{…}` class `nvs_ir::lower::record_shape_class` synthesizes has
-  neither, so `decodeAs<{n: int}>` compiles and throws `has no JSON codec` naming the internal
-  label. Price a decoder that reads the contract before the registry row, which cannot land alone.
-  [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
 - **A shape's synthesized class cannot carry a codec, because two different shapes share it.**
   `nvs_ir::lower::shape_class_label` keys on the sorted field *names* alone
   (`crates/nvs-ir/src/lower/mod.rs:2957`), so `{n: int}` and `{n: string}` are one class and one

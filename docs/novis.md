@@ -7147,7 +7147,7 @@ Fills the `printf` template `$template` from `$arguments`, as `sprintf` and `vsp
 <a id="core-core-arr"></a>
 ### `Core\Arr`
 
-Keywords: count, sizeof, array_filter, array_map, array_reduce, array_keys, array_values, array_key_first, array_key_last, reset, end, in_array, array_search, array_slice, array_splice, array_chunk, array_push, array_pop, array_shift, array_unshift, array_pad, array_reverse, array_flip, array_fill, array_fill_keys, range, array_combine, iterator_to_array, array_column, array_merge, array_replace, array_replace_recursive, array_diff, array_intersect, array_unique, array_count_values, array_find, array_any, array_all, array_sum, array_product, min, max, sort, rsort, asort, arsort, usort, uasort, ksort, krsort, uksort, natsort, array_multisort, array_is_list, array_key_exists, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average
+Keywords: count, sizeof, array_filter, array_map, array_reduce, array_keys, array_values, array_key_first, array_key_last, reset, end, in_array, array_search, array_slice, array_splice, array_chunk, array_push, array_pop, array_shift, array_unshift, array_pad, array_reverse, array_flip, array_fill, array_fill_keys, range, array_combine, iterator_to_array, array_column, array_merge, array_replace, array_replace_recursive, array_diff, array_intersect, array_unique, array_count_values, array_find, array_any, array_all, array_sum, array_product, min, max, sort, rsort, asort, arsort, usort, uasort, ksort, krsort, uksort, natsort, array_multisort, array_is_list, array_key_exists, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average, shapeAs
 
 `Core\Arr` is every PHP array function as a static member that answers a **new** array and never
 changes its argument: there is no `sort($a)` by reference — `Core\Arr::sort` returns the sorted
@@ -7246,6 +7246,7 @@ ada:92 bo:67 cy:85 di:74
 | [`Core\Arr::sum`](#core-core-arr-sum) | `sum(array<int\|float\|decimal> $a): int\|float\|decimal` |
 | [`Core\Arr::product`](#core-core-arr-product) | `product(array<int\|float\|decimal> $a): int\|float\|decimal` |
 | [`Core\Arr::average`](#core-core-arr-average) | `average(array<int\|float\|decimal> $a): ?float\|decimal` |
+| [`Core\Arr::shapeAs`](#core-core-arr-shapeas) | `shapeAs<T>(array<mixed> $a): T` |
 
 <a id="core-core-arr-count"></a>
 #### `Core\Arr::count`
@@ -8157,6 +8158,23 @@ The entries' mean — `array_sum($a) / count($a)` with the empty case answered.
 **Returns** `?float|decimal` — A `decimal` when the total is one — exact, rounded half to even at the widest scale the quotient admits — and a `float` otherwise; `null` for the empty array.
 
 **Throws** `RuntimeError` — The running total leaves its type's range or meets a `float` and a `decimal` in one array, as `sum` throws; or a `decimal` quotient falls outside what a `decimal` can hold.
+
+<a id="core-core-arr-shapeas"></a>
+#### `Core\Arr::shapeAs`
+
+```nvs skip
+Core\Arr::shapeAs<T>(array<mixed> $a): T
+```
+
+Reads `$a` as the type `T` written at the call site — an inline shape, `{name: T}`, or a class carrying `#[Json\Derive]` — converting each named field with `as` and leaving every key the type does not name behind; write `array<T>` to read a list of them instead.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `array<mixed>` | The loose values to read: a form, a query string, a decoded document, or an array a program built. |
+
+**Returns** `T` — A new `T` whose every field is the declared type, or — for an `array<T>` — one per entry, in the array's own order.
+
+**Throws** `ParseError` — A field `T` requires is absent, or holds a value `as` refuses for its declared type. Every field that failed is one issue on the error, at its own dotted path, so a form shows the whole list rather than the first item of it.; `LogicError` — `T` is a class that carries no `#[Json\Derive]`, so there is no field list to read `$a` against.
 
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`

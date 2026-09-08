@@ -2,61 +2,59 @@
 
 ## State
 
-**Goal 18, stages 1 and 2 are complete, and stage 3's hydration walk plus its type-argument door are
-landed.** `Core\Json::decodeAs<{n: int}>("…")` and `Core\Request::jsonAs<{…}>()` hydrate an inline shape
-today: the walk reads slot 2's `nvs_runtime::ShapeCodec` with `Value::as_shape_codec`, and where it is
-`Some` the field list, the nested-class lookup and the build door all come from the contract instead of
-the descriptor. `crates/nvs-stdlib/src/json.rs`'s module doc § *A shape is a second contract, not a
-second walk* is that fork's home, and `decode_field`'s own doc owns the two answers a shape gives
-differently.
+**Goal 18, stages 1 to 3 are complete.** `Core\Arr::shapeAs<T>(array<mixed> $a): T` is a registry
+row, a card, a body and an `address()` arm in `crates/nvs-stdlib/src/arr.rs`, and
+`crates/nvs-stdlib/src/registry.rs`'s `WRITTEN_CLASS_MEMBERS` opens the type-argument door for it.
+`rule:types/arrays`'s roster names four members now.
 
-**The door now says so out loud.** `E0465`'s message and help name the inline shape beside the class, and
-`rule:types/arrays`'s type-argument-door sentence names the three members that have the door and the
-three things that may be written at it. ADR 0159 is the record behind that — it is the goal's authorized
-number, and it is now spent, so a further rule change in this goal has no record left to hang on.
+**The walk is `crate::json`'s and there is exactly one.** `shapeAs` calls `crate::json::hydrate`,
+which `Core\Json::decodeAs` and `Core\Request::jsonAs` already reach, so the field list, the
+presence column, the dotted paths and the one collected `ParseError` are shared. What forked is a
+single bit — `crate::json::Reading`, a field on `Contract` — because an array's entries carry no
+wire types: under `Reading::Values` a scalar field converts through `nvs_runtime::to_int`,
+`to_uint`, `to_float` and `value_to_string`, which are the rows `$mixed as int` already goes
+through, and under `Reading::Wire` a JSON document's own types are matched exactly as before.
+`Reading`'s own doc comment in `crates/nvs-stdlib/src/json.rs` is that fork's home. Nothing new
+entered `rule:types/conversion`'s table, and no row lands on `bool`, so a checkbox's `"1"` is a
+failed field rather than a `true`.
 
-**What stage 3 still owes is the member itself** — `Core\Arr::shapeAs<T>`. The failing acceptance check
-(`examples/input-shapes.nvs`) is stage 5's fixture, an unwritten artefact rather than a regression.
+`crate::json::scalar` now answers with an **owned** reference — the retain moved inside it from
+its two callers — because `Reading::Values`'s `→ string` row builds a string where the strict read
+refused outright, so "did this arm allocate" stopped being a question a caller could answer.
+
+The failing acceptance check (`examples/input-shapes.nvs`) is stage 5's fixture: an unwritten
+artefact, not a regression.
 
 ## Next group
 
-**Stage 3: the converter member** — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`crates/nvs-stdlib/src/registry.rs`. The five edits and the tests are one slice, because the coverage
-gate fails the moment a registry row has no conformance case; the test scaffold is a slice of its own
-only if it grows past the fixture below.
+**Stage 4: the two members at the boundary** — one file set: `crates/nvs-stdlib/src/request.rs`,
+`crates/nvs-stdlib/src/uri.rs`. loop-goal.md § *Stage 4* is the specification and the four check
+names in `docs/agent/loop-goal.toml` are the question set; stage 3's member is the whole mechanism,
+so each of these is a row plus one call.
 
-- [ ] **The scaffold a shape test needs, in `crates/nvs-stdlib/src/arr.rs`'s test module** — a
-      `-p nvs-stdlib` test cannot borrow one from anywhere: nothing in the crate builds a
-      `nvs_runtime::ShapeCodec` today. Both halves come off the `ClassTable` —
-      `crates/nvs-runtime/src/object.rs:1335` is `define_shape_codec(fields, classes)`, which takes one
-      `nvs_types::CodecField` per field in **sorted field-name order** and one `*const ClassDesc` per
-      field (null where the field names no class), and the shape's own `ClassDesc` is an ordinary
-      definition whose name starts `$shape{` (`crates/nvs-runtime/src/object.rs:777`) with one slot per
-      field and **no constructor** — `crates/nvs-stdlib/src/json.rs:1563`'s `build_shape` writes slots
-      directly, which is why. `crates/nvs-stdlib/src/request.rs:5542` is the nearest existing fixture, and
-      it builds a *class*, so it is a model for the `Ctx` half only.
-- [ ] **`Core\Arr::shapeAs<T>` — the row, the card, the `address()` arm, the roster entry and the cases**
-      — `crates/nvs-stdlib/src/arr.rs:92` is the class, `crates/nvs-stdlib/src/arr.rs:2161` the
-      `address()` arm, and `crates/nvs-stdlib/src/registry.rs:2389` is `WRITTEN_CLASS_MEMBERS`, which is
-      the whole of what opens the type-argument door. Row: `names: &["a"]`,
-      `params: &[CoreTy::Array(&CoreTy::Mixed)]`, `return_ty: CoreTy::Written("T")`, so the helper is
-      `args: [4]` — three more than the row's arity. The body reads slots 0/1/2 exactly as
-      `crates/nvs-stdlib/src/request.rs:2384` does, calls `crate::json::check_codec` first, then
-      `crate::json::hydrate(ctx, class, shape, document, list, "Core\\Arr::shapeAs")`
-      (`crates/nvs-stdlib/src/json.rs:1239`) — and **`args[3]` must be retained before it is passed**,
-      because `hydrate` releases the document it is handed and the subject is the caller's array, not one
-      this member built. loop-goal.md § *Stage 3* items 2 to 4 are the specification, the seven test
-      names in `docs/agent/loop-goal.toml:5746` are the question set, and
-      `tests/conformance/core/json-decodes-into-an-inline-shape.nvst` is the case to vary rather than
-      repeat.
-- [ ] **`rule:types/arrays`'s roster gains its fourth member** once the row lands —
-      `docs/rules/types/arrays.md:42` names three today. No new record: ADR 0159 § 2 decides that the
-      roster is the compiler's table and a member joining it is a row, not a decision. Re-render with
-      `python tools/rules.py --render`.
+- [ ] **`Core\Request::postAs<T>` — the row, the card, the body and the `address()` arm** —
+      `crates/nvs-stdlib/src/request.rs:324` is `post`'s row, `crates/nvs-stdlib/src/request.rs:1991`
+      its body and `crates/nvs-stdlib/src/request.rs:1340` the `address()` arm. Signature is
+      `postAs<T>({name?: string}): T` — `rule:core-api/shape-rules` R15's one row, not two — so the
+      helper is `args: [4]`: the three written-type constants, then the options bag's one option.
+      `crates/nvs-stdlib/src/arr.rs`'s `nvs_core_arr_shape_as` is the body to copy: read slots 0/1/2,
+      `crate::json::check_codec`, retain the subject, then `crate::json::hydrate(..., Reading::Values,
+      "Core\\Request::postAs")`. The whole-form read is the array `post` already indexes into, and
+      **this does not open a public `post(): array<mixed>`**. Add `(r"Core\Request", "postAs")` to
+      `crates/nvs-stdlib/src/registry.rs:2389`.
+- [ ] **`Core\Request::queryAs<T>` — the same four edits over the query string** —
+      `crates/nvs-stdlib/src/request.rs:243` is `query`'s row and
+      `crates/nvs-stdlib/src/request.rs:1928` its body; `crates/nvs-stdlib/src/uri.rs:2348` is
+      `parse_query`, which already answers the entire array. Roster entry beside `postAs`.
+- [ ] **Three `.nvst` cases each**, over goal 16's request sections and goal 17's builder —
+      `tests/conformance/core/an-array-becomes-the-shape-it-was-asked-for.nvst` is the shape to
+      vary, and `crates/nvs-stdlib/src/arr.rs:6016` is `shape_of`, the fixture a `-p nvs-stdlib`
+      test borrows for both halves of an inline shape's contract.
 
 ## Backlog
 
-- Stage 4's two wrappers, `postAs<T>` and `queryAs<T>` — loop-goal.md § *Stage 4*.
 - Stage 5's fixture `examples/input-shapes.nvs`, which is the failing acceptance check — loop-goal.md.
 - Spec §§ 6 and 15's rosters still do not list `shapeAs` — loop-goal.md § *Standing decisions*.
 - `docs/reference/core/Arr.md`, if that page exists, owes `shapeAs` a paragraph — playbook, *Tooling*.
+- `Reading::Values` over a *nested* class field is threaded but has no case; an inline shape nested
+  in a shape still erases to `CodecTy::Opaque` — `crates/nvs-stdlib/src/json.rs` § *Known gaps*.
