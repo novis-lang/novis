@@ -13,5 +13,5 @@ theme already styles — and a theme with no opinion falls back to the underlyin
 nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCustomizations` or
 `editor.semanticTokenColorCustomizations`: whatever a `tainted` value ought to look like is not Novis's
 call to make in someone else's editor, which is also what
-`rule:security/tainted-has-no-default-decoration` applies. A bundled theme is a legitimate future option a
+`rule:ide/tainted-has-no-default-decoration` applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.

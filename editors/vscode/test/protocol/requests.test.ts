@@ -213,7 +213,7 @@ describe("the requests the client routes to nvs lsp", function () {
 
   it("answers nvs/redactions with the bytes of every secret literal", async () => {
     // The one request of Novis's own, and the only source a client has for which bytes it conceals
-    // (`rule:security/redaction-ranges-come-from-the-server`). Which ranges are answered for which
+    // (`rule:ide/redaction-ranges-come-from-the-server`). Which ranges are answered for which
     // construct is frozen in `tests/lsp/redactions/`; what is only visible here is that a client
     // sending a `TextDocumentIdentifier` gets `{range, kind}` back, over the wire, from the binary.
     session.open(SECRETS_URI, SECRETS);
@@ -229,7 +229,7 @@ describe("the requests the client routes to nvs lsp", function () {
         .slice(redaction.range.start.character, redaction.range.end.character);
     });
     // The literal token and nothing around it: never the `$key` naming it and never the
-    // `secret string` declaring it (`rule:security/redaction-covers-bytes-only`).
+    // `secret string` declaring it (`rule:ide/redaction-covers-bytes-only`).
     assert.deepEqual(covered, ['"sk-live-abcdef"', '"sk-live-999999"']);
   });
 

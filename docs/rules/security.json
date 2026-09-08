@@ -711,22 +711,6 @@
       ]
     },
     {
-      "id": "security/tainted-has-no-default-decoration",
-      "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
-      "status": "designed",
-      "because": [
-        "0101",
-        "0099",
-        "0088"
-      ],
-      "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
-        "security/sink-predicate",
-        "security/tainted-qualifier"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "security/sink-predicate",
       "title": "A `string` or `bytes` parameter is a sink when its content becomes an instruction a parser executes",
       "status": "shipped",
@@ -1179,78 +1163,20 @@
       ]
     },
     {
-      "id": "security/reveal-is-explicit-and-window-local",
-      "title": "A reveal is per range, window-local, and does not survive the editor closing",
-      "status": "shipped",
-      "because": [
-        "0101"
-      ],
-      "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
-        "security/redaction-does-not-reach"
-      ],
-      "guardedBy": [
-        "editors/vscode/test/client/concealment.test.ts"
-      ]
-    },
-    {
-      "id": "security/redaction-ranges-come-from-the-server",
-      "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
-      "status": "designed",
-      "because": [
-        "0101",
-        "0033",
-        "0016",
-        "0099"
-      ],
-      "seeAlso": [
-        "security/redaction-covers-bytes-only",
-        "security/reveal-is-explicit-and-window-local",
-        "security/redaction-does-not-reach"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "security/redaction-covers-bytes-only",
-      "title": "Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation",
-      "status": "designed",
-      "because": [
-        "0101",
-        "0040"
-      ],
-      "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
-        "security/secret-qualifier"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "security/redaction-reaches-the-tools-own-renderings",
-      "title": "Every rendering the toolchain itself produces inherits the redaction, the AST dump included",
+      "title": "No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included",
       "status": "designed",
       "because": [
         "0101",
         "0033",
         "0099",
-        "0092"
+        "0092",
+        "0158"
       ],
       "seeAlso": [
         "security/secret-sinks-refuse",
         "errors/record-transformations",
-        "security/redaction-ranges-come-from-the-server"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "security/redaction-does-not-reach",
-      "title": "What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none",
-      "status": "designed",
-      "because": [
-        "0101"
-      ],
-      "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
-        "security/reveal-is-explicit-and-window-local"
+        "ide/redaction-ranges-come-from-the-server"
       ],
       "guardedBy": []
     },

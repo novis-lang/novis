@@ -1,5 +1,5 @@
 --TEST--
-a later assignment is concealed through the binding it writes rather than through a type on the literal, which is the same attribution the declaration uses, `rule:security/redaction-covers-bytes-only`
+a later assignment is concealed through the binding it writes rather than through a type on the literal, which is the same attribution the declaration uses, `rule:ide/redaction-covers-bytes-only`
 --FILE--
 <?nvs
 secret string $key = "first";

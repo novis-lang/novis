@@ -6,7 +6,7 @@ application's markup is written, not an edge case.
 
 **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
-grammar, for the reason `rule:security/redaction-ranges-come-from-the-server` gives for redaction
+grammar, for the reason `rule:ide/redaction-ranges-come-from-the-server` gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
 the extension did not write is not language logic in the client.
 

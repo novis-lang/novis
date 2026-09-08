@@ -605,7 +605,7 @@ impl SignatureTable {
     /// Keyed by the *initializer's* span rather than the annotation's, because
     /// the one consumer asks at the expression: a `secret` property's default
     /// is bytes an editor conceals
-    /// (`rule:security/redaction-covers-bytes-only`), and the walk that
+    /// (`rule:ide/redaction-covers-bytes-only`), and the walk that
     /// answers that reaches the default as a node and never sees the
     /// annotation at all.
     ///

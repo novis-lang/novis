@@ -94,7 +94,7 @@ speak the same protocol without an editor in the room.
 
 ## Stage 6 — `secret` concealment, and `tainted` left alone
 
-`rule:security/redaction-ranges-come-from-the-server`: the
+`rule:ide/redaction-ranges-come-from-the-server`: the
 ranges come from goal 14's `nvs/redactions` and the client draws them and knows nothing. **A `secret`
 literal is concealed by default** — blurred in place, the character cells kept, so every edit still
 addresses the real text — and a reveal is **per range** and dies when the editor closes, because the threat

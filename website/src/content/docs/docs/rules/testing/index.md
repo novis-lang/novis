@@ -6,8 +6,8 @@ editUrl: false
 lastUpdated: false
 tableOfContents: false
 prev:
-  link: /docs/rules/ide/phpstorm-and-the-debugger/
-  label: "PhpStorm and the debugger"
+  link: /docs/rules/ide/security-in-the-editor/
+  label: "Security in the editor"
 next:
   link: /docs/rules/testing/writing-a-test/
   label: "Writing a test"

@@ -10,7 +10,7 @@ tokens over the TextMate baseline once the server is live — the two-layer patt
 Deno use. `editor.formatOnSave` and the format commands go to `textDocument/formatting` and
 `rangeFormatting` against `nvs-fmt`; `nvs run` and `nvs test` are VS Code Tasks and a "Run File"
 command. A `secret` value's bytes are concealed by default on ranges the server hands over, and
-`tainted` gets no default decoration (`rule:security/tainted-has-no-default-decoration`).
+`tainted` gets no default decoration (`rule:ide/tainted-has-no-default-decoration`).
 
 Nothing in that list is language logic (`rule:ide/one-server-two-thin-clients`). The concrete
 contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.

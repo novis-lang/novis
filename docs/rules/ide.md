@@ -3,7 +3,7 @@
 
 # The editor
 
-*62 of 62 rules below are **designed** rather than shipped, and are marked where they appear.*
+*66 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -228,27 +228,6 @@ rather than new work.
 
 <sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md).</sub>
 
-<a id="ide-stdout-belongs-to-the-protocol"></a>
-
-## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`  *(designed — not yet in the compiler)*
-
-`rule:ide/stdout-belongs-to-the-protocol`
-
-stdio *is* the wire. One stray `println!` anywhere under the analysis corrupts the framing, which presents
-as the server dying for no reason. So nothing but the protocol may write to stdout: the server logs to
-stderr and, for anything a user should see, `window/logMessage`, and `nvs-lsp` does not carry `nvs-cli`'s
-`clippy::print_stdout` allowance.
-
-`println!`/`print!` appears nowhere in `crates/` outside `nvs-cli`, whose whole job is terminal
-output, so this is an invariant to keep rather than one to establish, and it is kept by a test over
-every crate the server links rather than by care. The server links the type checker, so `nvs-stdlib`
-and `nvs-runtime` beneath it are in that closure, and the runtime does write to stdout: it is where a
-program's `echo` goes under `nvs run`. That is not an exception, because it is a sink a caller wires
-into a `Ctx` and the server builds no `Ctx` at all — so the test exempts the sink's own
-implementation and separately checks that nothing under the server wires one.
-
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
-
 <a id="ide-the-request-set-is-closed"></a>
 
 ## M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing  *(designed — not yet in the compiler)*
@@ -266,7 +245,7 @@ and three that are projections of data the tree already holds rather than featur
 `selectionRange` (the index's ancestor list is the response), `foldingRange` (the same walk plus comment
 blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require` or `autoload`).
 The one non-standard request is `nvs/redactions`
-([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
+([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
 show this to the room".
 
 The last three standard ones are admitted on one test — the data structure M4B already builds *is* the
@@ -274,7 +253,7 @@ answer — and that test is what keeps the list from drifting toward M10's catal
 inlay hints and everything else stay. `codeDescription` is not set: it takes a URL per code and there is
 no site to point one at.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -707,7 +686,7 @@ The legend the client registers must equal the legend the server declares. A mis
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
 
 <a id="ide-novis-ships-names-not-colours"></a>
 
@@ -730,10 +709,10 @@ theme already styles — and a theme with no opinion falls back to the underlyin
 nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCustomizations` or
 `editor.semanticTokenColorCustomizations`: whatever a `tainted` value ought to look like is not Novis's
 call to make in someone else's editor, which is also what
-[`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
+[`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
 
 <a id="ide-five-features-are-one-reference-index"></a>
 
@@ -850,7 +829,7 @@ application's markup is written, not an edge case.
 
 **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
-grammar, for the reason [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) gives for redaction
+grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
 the extension did not write is not language logic in the client.
 
@@ -864,7 +843,7 @@ any other span it does not reflow, so formatting a `.nvs` file with markup in it
 `nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
 tooling has to be able to get out of the way of ours.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 
@@ -1008,7 +987,7 @@ the developer's own `settings.json`.
 and formatting are implemented. An editor client is a thin adapter: it starts the server or the
 formatter, translates its own editor's events into LSP requests, and renders what comes back. It
 decides nothing about the language — not what a name resolves to, not where a line breaks, not even
-which range is a `secret` ([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)).
+which range is a `secret` ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)).
 
 The reason is the same one that gives every fact one home in the documentation, applied to executable
 behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
@@ -1019,7 +998,7 @@ The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-
 ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
 the extension is what enforces "holds no language logic" rather than review.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
 
 <a id="ide-editor-clients-live-under-editors"></a>
 
@@ -1065,12 +1044,12 @@ tokens over the TextMate baseline once the server is live — the two-layer patt
 Deno use. `editor.formatOnSave` and the format commands go to `textDocument/formatting` and
 `rangeFormatting` against `nvs-fmt`; `nvs run` and `nvs test` are VS Code Tasks and a "Run File"
 command. A `secret` value's bytes are concealed by default on ranges the server hands over, and
-`tainted` gets no default decoration ([`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)).
+`tainted` gets no default decoration ([`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration)).
 
 Nothing in that list is language logic ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The concrete
 contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
 
 <a id="ide-nvs-is-its-own-file-type"></a>
 
@@ -1171,7 +1150,7 @@ contribution, and anything added later is added, never renamed.
 
 M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.lsp.enable`,
 `nvs.lsp.debounce`, `nvs.lsp.trace.server`, and — added under this rule by
-[`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local) and [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)
+[`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local) and [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration)
 — `nvs.secrets.redact` (default `true`) and `nvs.taint.mark` (default `off`). Commands: `nvs.run`,
 `nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
 `nvs.hideSecrets`. Nothing else is contributed at M4B.
@@ -1181,7 +1160,7 @@ M10 adds, under the same rule and not as an exception to it: the settings `nvs.c
 default `all`), the command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions`. A
 contributions test asserts `package.json` declares exactly what the roster names.
 
-<sub>See also [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
+<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 
@@ -1243,22 +1222,6 @@ The `.vsix` carries no binary either, on any platform:
 and why a copy the extension installed is tried after the user's own toolchain rather than before it.
 
 <sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0099](../decisions/0099.md), [0155](../decisions/0155.md).</sub>
-
-<a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
-
-## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
-
-`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
-
-`nvs lsp` reports its version at `initialize`. On a mismatch with the extension's own, the
-`LanguageStatusItem` says so and the client does not start, rather than running and producing confusing
-answers.
-
-An old `nvs` earlier on `PATH` than the intended one is the single most likely support question this
-extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
-version gets a refusal and a status item, not a session.
-
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-the-extension-guides-an-install-and-never-bundles-one"></a>
 
@@ -1334,23 +1297,6 @@ panel and the compiler cannot disagree about a file's shape.
 
 <sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
 
-<a id="ide-dependencies-are-allowlisted"></a>
-
-## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
-
-`rule:ide/dependencies-are-allowlisted`
-
-The extension may hold no language logic — no parser, no formatter, no type table — and this is enforced
-rather than intended: its `package.json` `dependencies` are checked against an allowlist by its own test
-suite, so a second implementation cannot arrive as a dependency, and the reviewer is not the only thing
-standing between the repository and one.
-
-The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
-of [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
-there is nothing in it a parser would help with, and the test is unchanged by it.
-
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
-
 <a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
 
 ## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored  *(designed — not yet in the compiler)*
@@ -1393,23 +1339,6 @@ real quality gap between an LSP bridge and PhpStorm's PHP support, and a full na
 explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
 
 <sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
-
-## The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands  *(designed — not yet in the compiler)*
-
-`rule:ide/phpstorm-draws-no-redaction-at-m4b`
-
-`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
-whenever it is built — the range computation is shared, per
-[`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). What is not shared is the drawing: an editor-side
-decoration is per-editor work with no common half.
-
-The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. That is a decision rather
-than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
-due when its plugin is.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md).</sub>
 
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
@@ -1464,3 +1393,208 @@ adapter's capability list is therefore the debugger's scope, and it is this:
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 
 <sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+
+<a id="ide-stdout-belongs-to-the-protocol"></a>
+
+## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`  *(designed — not yet in the compiler)*
+
+`rule:ide/stdout-belongs-to-the-protocol`
+
+stdio *is* the wire. One stray `println!` anywhere under the analysis corrupts the framing, which presents
+as the server dying for no reason. So nothing but the protocol may write to stdout: the server logs to
+stderr and, for anything a user should see, `window/logMessage`, and `nvs-lsp` does not carry `nvs-cli`'s
+`clippy::print_stdout` allowance.
+
+`println!`/`print!` appears nowhere in `crates/` outside `nvs-cli`, whose whole job is terminal
+output, so this is an invariant to keep rather than one to establish, and it is kept by a test over
+every crate the server links rather than by care. The server links the type checker, so `nvs-stdlib`
+and `nvs-runtime` beneath it are in that closure, and the runtime does write to stdout: it is where a
+program's `echo` goes under `nvs run`. That is not an exception, because it is a sink a caller wires
+into a `Ctx` and the server builds no `Ctx` at all — so the test exempts the sink's own
+implementation and separately checks that nothing under the server wires one.
+
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
+
+## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
+
+`nvs lsp` reports its version at `initialize`. On a mismatch with the extension's own, the
+`LanguageStatusItem` says so and the client does not start, rather than running and producing confusing
+answers.
+
+An old `nvs` earlier on `PATH` than the intended one is the single most likely support question this
+extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
+version gets a refusal and a status item, not a session.
+
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-dependencies-are-allowlisted"></a>
+
+## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
+
+`rule:ide/dependencies-are-allowlisted`
+
+The extension may hold no language logic — no parser, no formatter, no type table — and this is enforced
+rather than intended: its `package.json` `dependencies` are checked against an allowlist by its own test
+suite, so a second implementation cannot arrive as a dependency, and the reviewer is not the only thing
+standing between the repository and one.
+
+The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
+of [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
+there is nothing in it a parser would help with, and the test is unchanged by it.
+
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-redaction-ranges-come-from-the-server"></a>
+
+## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess  *(designed — not yet in the compiler)*
+
+`rule:ide/redaction-ranges-come-from-the-server`
+
+A `secret` value is concealed in the editor by default. The language server answers a list of ranges
+and their kinds; the client draws them and knows nothing about what a secret is, because the
+alternative is the client guessing.
+
+**This is a rendering, and it is not what makes a `secret` safe.** The language's guarantee is that
+every sink refuses one ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), checked by the compiler, with no editor
+involved and nothing an editor could weaken. Concealment covers the one exposure a compiler cannot
+reach — a value legible on a screen somebody else is looking at — and it covers nothing else. An
+editor drawing no decoration at all is not running a less safe language; it is only less discreet,
+which is why every rule in this section is the editor's and none of them is the language's.
+
+It does **not** ride the semantic-token channel, even though the qualifier already travels there. That
+channel's contract is *names a theme styles*, and its correct degradation is to fall back to the
+underlying token type — which a security default whose failure mode is *the value becomes visible*
+cannot inherit. Two mechanisms, two contracts, and neither can silently disable the other.
+
+The fail direction is named, because mid-edit is exactly when the type is unknown. A range whose
+expression cannot be typed, but whose **binding's declared type carries `secret`**, is redacted
+anyway; the client **holds its last answer** and never clears decorations on an error, a cancellation
+or a restart. An empty answer means nothing to redact; a *missing* answer means nothing at all.
+
+**Not on disk.** There is no language server in the tree.
+
+<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-redaction-covers-bytes-only"></a>
+
+## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation  *(designed — not yet in the compiler)*
+
+`rule:ide/redaction-covers-bytes-only`
+
+A range is answered when it is a string, heredoc or `bytes` literal token whose static type carries
+`secret`, or an interpolation slot inside one whose interpolated expression does. Nothing else.
+
+**Never an identifier** — a variable or property name is a name, not a secret, and concealing it hides
+no bytes while making the file unreadable for the developer whose editor it is. **Never a type
+annotation** — `secret string` is the declaration doing its job, and it is how a reader knows the
+concealment below it is deliberate rather than a rendering fault. **Never a whole line, statement or
+block**, which line-granular folding structurally cannot express anyway.
+
+The concealment is a decoration over the range with the character cells kept, so the cursor, the
+selection and every edit still address the real text. It is a rendering, not an edit: the buffer is
+the file on disk, byte for byte.
+
+**Not on disk.** There is no language server in the tree.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-reveal-is-explicit-and-window-local"></a>
+
+## A reveal is per range, window-local, and does not survive the editor closing
+
+`rule:ide/reveal-is-explicit-and-window-local`
+
+A reveal is per range, window-local, and dropped when the editor for that document closes. It is not
+written to workspace state and does not survive a reload.
+
+The threat model is an unattended screen, so a reveal that outlives the moment it was needed is the
+same as no redaction at all — and a user who revealed one credential to read it has not consented to
+reveal every credential in the workspace for the rest of the week.
+
+There are three ways to ask, and they divide on what they leave behind rather than on how they are
+spelled. The hover's command link and the `nvs.revealSecret` command are **held**: the range stays
+uncovered until the editor closes or `nvs.hideSecrets` runs, so each one is a decision the user made
+about one range and can be pointed at afterwards. **A cursor inside a range uncovers it and holds
+nothing** — the range is covered again the instant the cursor leaves, and nothing anywhere records
+that it was ever uncovered.
+
+The cursor is admitted because it cannot leave a screen uncovered behind the user. A held reveal
+can: it survives every scroll, edit and tab switch until the window is told otherwise, which is
+exactly the exposure the paragraph above is about. A reveal that is a function of where the caret is
+right now expires on the next arrow key, so the worst it can do is show the value the user is
+already looking at. That is a smaller surface than the two held reveals it sits beside, not a larger
+one — the reason to write it down is that it *reads* like the opposite.
+
+There is still **no automatic re-conceal on a signal**, because there is no signal: nothing reports
+that a window is being shared, recorded or projected. Anything that looked like one would be a guess
+with a security failure attached, so redaction is unconditional by default and the user is the only
+thing that turns it off.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-redaction-does-not-reach"></a>
+
+## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none  *(designed — not yet in the compiler)*
+
+`rule:ide/redaction-does-not-reach`
+
+The concealment is cosmetic, and what it cannot cover is written down and shipped in the tool's own
+documentation, because a redaction trusted past its reach is worse than none.
+
+Workspace search results and quick-open previews render matching lines outside any editor, so no
+decoration applies. Diff and version-control views can be decorated, but there is no type information
+for the "before" side, so the old value of an edited secret is visible in the review of that edit. The
+minimap renders from the buffer. Any other extension's hover, lens or webview reads the document text
+directly. A copy of a concealed range copies the plaintext, and nothing may intercept the clipboard.
+And the file itself is on disk, in the working tree, and in the history the moment it is committed —
+concealing a hardcoded credential does not make it less hardcoded.
+
+This list is part of the decision, not commentary on it.
+
+**Not on disk.** There is no language server in the tree.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
+
+## The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands  *(designed — not yet in the compiler)*
+
+`rule:ide/phpstorm-draws-no-redaction-at-m4b`
+
+`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
+whenever it is built — the range computation is shared, per
+[`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). What is not shared is the drawing: an editor-side
+decoration is per-editor work with no common half.
+
+The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. That is a decision rather
+than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
+due when its plugin is.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+
+<a id="ide-tainted-has-no-default-decoration"></a>
+
+## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
+
+`rule:ide/tainted-has-no-default-decoration`
+
+`tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
+content rather than a colour, and shipping one on by default writes into someone else's editor exactly
+what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
+default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
+reference rather than a literal.
+
+**The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
+a security incident, which is what buys `secret` its default
+([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)). A tainted value on a screen is not an event
+at all: `tainted` is a compile-time guarantee already enforced by refusing the sink
+([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
+user's theme.
+
+**Not on disk.** There is no language server in the tree.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md), [0158](../decisions/0158.md).</sub>

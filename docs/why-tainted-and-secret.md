@@ -85,6 +85,6 @@ that as a headline, and pairing a retired claim with a live one weakens both.
 | Where untrusted data enters a program at all | `rule:statements/no-host-populated-variables` |
 | A launderer's return type, and why only an idempotent escape answers a `string` | `rule:security/launderer-answers-a-carrier` |
 | Both qualifiers at an extension boundary | `rule:security/extension-manifest-only-tightens` |
-| A `secret` value concealed in the editor | `rule:security/redaction-ranges-come-from-the-server` |
+| A `secret` value concealed in the editor | `rule:ide/redaction-ranges-come-from-the-server` |
 | Who Novis is for, and the three claims it makes about itself | `rule:programs/audience` |
 | How a developer writes either qualifier | [the reference](novis.md), chapter A.2 |

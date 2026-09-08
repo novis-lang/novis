@@ -4,5 +4,5 @@ suite, so a second implementation cannot arrive as a dependency, and the reviewe
 standing between the repository and one.
 
 The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
-of `rule:security/redaction-ranges-come-from-the-server` is a range list from the server and a decoration;
+of `rule:ide/redaction-ranges-come-from-the-server` is a range list from the server and a decoration;
 there is nothing in it a parser would help with, and the test is unchanged by it.

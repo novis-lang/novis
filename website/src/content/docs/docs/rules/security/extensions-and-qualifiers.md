@@ -6,8 +6,8 @@ editUrl: false
 lastUpdated: false
 tableOfContents: false
 prev:
-  link: /docs/rules/security/redaction/
-  label: "Redaction in the editor"
+  link: /docs/rules/security/secrets/
+  label: "Secrets"
 next:
   link: /docs/rules/security/protocols-and-tokens/
   label: "Protocols, tokens and CSRF"

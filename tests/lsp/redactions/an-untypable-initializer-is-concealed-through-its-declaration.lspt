@@ -1,5 +1,5 @@
 --TEST--
-the initializer calls a free function the language refuses, so it has no type at all, and the literal in it is concealed anyway because the declaration beside it is what says `secret`, `rule:security/redaction-ranges-come-from-the-server`
+the initializer calls a free function the language refuses, so it has no type at all, and the literal in it is concealed anyway because the declaration beside it is what says `secret`, `rule:ide/redaction-ranges-come-from-the-server`
 --FILE--
 <?nvs
 secret string $key = "sk-live-" . nope();

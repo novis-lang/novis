@@ -29,7 +29,7 @@ fn concealed(source: &str) -> String {
     Response::Redactions(redactions::for_document(&analysed, PositionEncoding::Utf8)).render()
 }
 
-/// The two shapes `rule:security/redaction-covers-bytes-only` names: a literal
+/// The two shapes `rule:ide/redaction-covers-bytes-only` names: a literal
 /// token whose binding carries `secret`, and an interpolation slot whose
 /// expression does — the second answered inside a statement that does not
 /// compile, because `echo` of a `secret` is exactly where the value would
@@ -61,8 +61,8 @@ fn a_plain_and_a_tainted_literal_are_not() {
 }
 
 /// Both kinds on one list, in document order
-/// (`rule:security/tainted-has-no-default-decoration` and
-/// `rule:security/redaction-ranges-come-from-the-server`).
+/// (`rule:ide/tainted-has-no-default-decoration` and
+/// `rule:ide/redaction-ranges-come-from-the-server`).
 ///
 /// The `secret` declaration's own name is answered for nothing — it carries no
 /// `tainted` and a name is never concealed — so the two ranges here are the

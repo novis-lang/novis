@@ -177,7 +177,7 @@ milestone = "M1"
 preflight = "docker"
 retired = true
 
-# `crates/nvs-lsp`: nine standard requests, one of Novis's own (`rule:security/redaction-ranges-come-from-the-server`'s `nvs/redactions`) and two code
+# `crates/nvs-lsp`: nine standard requests, one of Novis's own (`rule:ide/redaction-ranges-come-from-the-server`'s `nvs/redactions`) and two code
 # actions, over `lsp-server` and `lsp-types` with no async runtime. Its stage 3 builds the `.lspt` case
 # and `nvs lsp-test` BEFORE any handler, because this is the first thing the loop verifies that no
 # program prints.

@@ -5,9 +5,9 @@
 // What is left in `src/redactions.ts` once this file has run is position conversion and a call to
 // `setDecorations`, and the extension's README § *Decided here* records why no tier drives that.
 //
-// The two security properties under test are `rule:security/reveal-is-explicit-and-window-local` —
+// The two security properties under test are `rule:ide/reveal-is-explicit-and-window-local` —
 // one range, this window, gone when the editor closes — and the fail direction of
-// `rule:security/redaction-ranges-come-from-the-server`: the absence of an answer conceals what
+// `rule:ide/redaction-ranges-come-from-the-server`: the absence of an answer conceals what
 // was concealed before, and only an answer changes it.
 
 import * as assert from "node:assert/strict";
@@ -73,7 +73,7 @@ describe("what the client conceals", () => {
 
 describe("what the client marks rather than conceals", () => {
   // `taintedDeclaration` is a name, and concealing a name is what
-  // `rule:security/redaction-covers-bytes-only` refuses: a black bar over `$dirty` would hide no
+  // `rule:ide/redaction-covers-bytes-only` refuses: a black bar over `$dirty` would hide no
   // bytes of any secret and make the file unreadable for the developer whose editor it is.
   function mixed(): Concealment {
     const concealment = new Concealment();
@@ -145,7 +145,7 @@ describe("what a reveal uncovers", () => {
 
   it("forgets every reveal when the editor closes", () => {
     // A reveal does not survive the document being closed and reopened, which is the whole of
-    // `rule:security/reveal-is-explicit-and-window-local`: nothing is written down, so there is
+    // `rule:ide/reveal-is-explicit-and-window-local`: nothing is written down, so there is
     // nothing for a reload to read back.
     const concealment = opened();
     concealment.reveal(URI, IN_KEY);

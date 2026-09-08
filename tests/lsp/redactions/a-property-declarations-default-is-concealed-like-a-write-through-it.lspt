@@ -1,5 +1,5 @@
 --TEST--
-a `secret` property's declared default is concealed, and so is a write through the property later — the declaration has no access entry to read a type off, so it is answered from the declared type the signature pass recorded, `rule:security/redaction-covers-bytes-only`
+a `secret` property's declared default is concealed, and so is a write through the property later — the declaration has no access entry to read a type off, so it is answered from the declared type the signature pass recorded, `rule:ide/redaction-covers-bytes-only`
 --FILE--
 <?nvs
 class Vault {

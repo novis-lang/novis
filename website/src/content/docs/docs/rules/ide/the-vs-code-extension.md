@@ -1,7 +1,7 @@
 ---
 # GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
 title: "Inside the VS Code extension"
-description: "What the extension contributes, why it builds no UI the editor already has, and how its dependencies stay honest."
+description: "What the extension contributes, why it builds no UI the editor already has, and where its clients live in the tree."
 editUrl: false
 lastUpdated: false
 tableOfContents: false
@@ -13,11 +13,11 @@ next:
   label: "PhpStorm and the debugger"
 ---
 
-<p class="nv-section-lead">What the extension contributes, why it builds no UI the editor already has, and how its dependencies stay honest.</p>
+<p class="nv-section-lead">What the extension contributes, why it builds no UI the editor already has, and where its clients live in the tree.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">8</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#tasks-carry-a-problem-matcher"><code>nvs run</code> and <code>nvs test</code> are Tasks with a <code>problemMatcher</code> over the renderer's own format, so a diagnostic is a Problems-panel entry</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-is-a-workspace-extension">The extension declares itself a workspace extension, because <code>nvs lsp</code> must be the binary next to the code</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-runs-where-the-binary-is">The extension is <code>nvs-lang.nvs</code>, language <code>nvs</code>, <code>extensionKind: [&quot;workspace&quot;]</code>, built as a <code>.vsix</code> and published nowhere</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-refuses-a-binary-it-does-not-understand">On a version mismatch at <code>initialize</code> the client says so in the status item and does not start</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-builds-no-ui-the-editor-already-has">Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — <code>FileCoverage</code>, <code>LanguageStatusItem</code>, DAP's UI, speedscope — and the extension builds none of them</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-ast-panel-shells-out-to-the-cli">The AST panel renders <code>nvs ast --json</code> for the active file, on the resilient tree by default, and never runs <code>Core\Ast</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#dependencies-are-allowlisted">The extension holds no language logic, and its <code>package.json</code> dependencies are checked against an allowlist by its own tests</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-lockfile-is-committed-and-build-output-is-not"><code>package-lock.json</code> is committed; <code>node_modules/</code>, <code>out/</code>, <code>.vscode-test/</code> and <code>*.vsix</code> are ignored</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#tasks-carry-a-problem-matcher"><code>nvs run</code> and <code>nvs test</code> are Tasks with a <code>problemMatcher</code> over the renderer's own format, so a diagnostic is a Problems-panel entry</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-is-a-workspace-extension">The extension declares itself a workspace extension, because <code>nvs lsp</code> must be the binary next to the code</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-runs-where-the-binary-is">The extension is <code>novis-lang.nvs</code>, language <code>nvs</code>, <code>extensionKind: [&quot;workspace&quot;]</code>, built as a <code>.vsix</code> and published nowhere</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-guides-an-install-and-never-bundles-one">The extension ships no <code>nvs</code> binary: a missing one is a guided install the user starts, verified against the release's own <code>SHA256SUMS</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-extension-builds-no-ui-the-editor-already-has">Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — <code>FileCoverage</code>, <code>LanguageStatusItem</code>, DAP's UI, speedscope — and the extension builds none of them</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-ast-panel-shells-out-to-the-cli">The AST panel renders <code>nvs ast --json</code> for the active file, on the resilient tree by default, and never runs <code>Core\Ast</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-lockfile-is-committed-and-build-output-is-not"><code>package-lock.json</code> is committed; <code>node_modules/</code>, <code>out/</code>, <code>.vscode-test/</code> and <code>*.vsix</code> are ignored</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="tasks-carry-a-problem-matcher">
 
@@ -63,43 +63,73 @@ identifiers asserts it.
 
 <div class="nv-rule" id="the-extension-runs-where-the-binary-is">
 
-## The extension is `nvs-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere
+## The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="designed">Designed</span>
 <a class="nv-rule-id" href="#the-extension-runs-where-the-binary-is"><code>ide/the-extension-runs-where-the-binary-is</code></a>
 </div>
 
-The extension id is `nvs-lang.nvs`, the language id is `nvs`, and `extensionKind` is `["workspace"]`. The
+The extension id is `novis-lang.nvs`, the publisher half being the GitHub organisation and the name half
+the binary's. The publisher is a Marketplace *identifier* — `vsce` holds it to
+`/^[a-z0-9][a-z0-9-]*$/i` — so the project's domain `novis-lang.org` cannot be spelled there and is the
+`homepage` instead; a dot would in any case leave `publisher.name` with no unambiguous seam.
+The language id is `nvs`, and `extensionKind` is `["workspace"]`. The
 client spawns `nvs lsp`, which has to be the binary next to the code, so a WSL distro, an SSH host and a
 devcontainer all get the remote's toolchain rather than a missing one.
 
-CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher, no listing,
-no branding; that decision is open and M4B does not close it. `editors/vscode` is a TypeScript package
-outside the Cargo workspace.
+CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher and no
+listing; that decision is open and M4B does not close it. The package does carry the branding a listing
+would need. `media/novis-logo.png` is the extension's icon and both languages' file icon, copied from
+`website/media/` because a `.vsix` holds no path out of its own directory; `displayName` is the H1 of the
+repository's `README.md`, the same home `nvs --help`'s first line reads from
+([`packaging/the-banner-states-the-build`](/docs/rules/packaging/single-file-builds/#the-banner-states-the-build "nvs --help opens with the README's own title and the version, commit and commit date of the build answering")), and the extension's own suite asserts it against that
+file rather than agreeing with it by hand. `editors/vscode` is a TypeScript package outside the Cargo
+workspace.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#the-extension-claims-nvs-only" title="The extension activates on .nvs and never claims .php"><code>ide/the-extension-claims-nvs-only</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-refuses-a-binary-it-does-not-understand" title="On a version mismatch at initialize the client says so in the status item and does not start"><code>ide/the-extension-refuses-a-binary-it-does-not-understand</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not" title="package-lock.json is committed; node_modules/, out/, .vscode-test/ and .vsix are ignored"><code>ide/the-lockfile-is-committed-and-build-output-is-not</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#editor-clients-live-under-editors" title="An editor client lives under editors/&lt;editor&gt;, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it"><code>ide/editor-clients-live-under-editors</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+The `.vsix` carries no binary either, on any platform:
+[`ide/the-extension-guides-an-install-and-never-bundles-one`](/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one "The extension ships no nvs binary: a missing one is a guided install the user starts, verified against the release's own SHA256SUMS") is how a machine without `nvs` gets one,
+and why a copy the extension installed is tried after the user's own toolchain rather than before it.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#the-extension-claims-nvs-only" title="The extension activates on .nvs and never claims .php"><code>ide/the-extension-claims-nvs-only</code></a> <a href="/docs/rules/ide/security-in-the-editor/#the-extension-refuses-a-binary-it-does-not-understand" title="On a version mismatch at initialize the client says so in the status item and does not start"><code>ide/the-extension-refuses-a-binary-it-does-not-understand</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not" title="package-lock.json is committed; node_modules/, out/, .vscode-test/ and .vsix are ignored"><code>ide/the-lockfile-is-committed-and-build-output-is-not</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#editor-clients-live-under-editors" title="An editor client lives under editors/&lt;editor&gt;, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it"><code>ide/editor-clients-live-under-editors</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one" title="The extension ships no nvs binary: a missing one is a guided install the user starts, verified against the release's own SHA256SUMS"><code>ide/the-extension-guides-an-install-and-never-bundles-one</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0155.md">record 0155</a></dd></div></dl>
 
 </div>
 
-<div class="nv-rule" id="the-extension-refuses-a-binary-it-does-not-understand">
+<div class="nv-rule" id="the-extension-guides-an-install-and-never-bundles-one">
 
-## On a version mismatch at `initialize` the client says so in the status item and does not start
+## The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="designed">Designed</span>
-<a class="nv-rule-id" href="#the-extension-refuses-a-binary-it-does-not-understand"><code>ide/the-extension-refuses-a-binary-it-does-not-understand</code></a>
+<a class="nv-rule-id" href="#the-extension-guides-an-install-and-never-bundles-one"><code>ide/the-extension-guides-an-install-and-never-bundles-one</code></a>
 </div>
 
-`nvs lsp` reports its version at `initialize`. On a mismatch with the extension's own, the
-`LanguageStatusItem` says so and the client does not start, rather than running and producing confusing
-answers.
+The extension ships no `nvs` binary of its own, and a machine without one is offered a guided install
+rather than told about `PATH`. The client resolves three candidates in order — `nvs.path`, then the
+platform's own lookup, then a copy this extension installed — and uses the first that answers.
 
-An old `nvs` earlier on `PATH` than the intended one is the single most likely support question this
-extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
-version gets a refusal and a status item, not a session.
+When none of them answers, the status item says so and two commands become the way out.
+`nvs.downloadBinary` fetches the newest release sharing the client's own `major.minor` series,
+because [`ide/the-extension-refuses-a-binary-it-does-not-understand`](/docs/rules/ide/security-in-the-editor/#the-extension-refuses-a-binary-it-does-not-understand "On a version mismatch at initialize the client says so in the status item and does not start") will refuse anything else at
+`initialize`, and a fetch that ends in a refusal is a worse first run than no offer at all.
+`nvs.openReleases` opens the release page, which is where a user who would rather check the bytes
+themselves goes — `gh attestation verify` against the Sigstore provenance every archive carries is a
+stronger proof than the extension is willing to build a second trust store to reach.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is" title="The extension is nvs-lang.nvs, language nvs, extensionKind: [workspace], built as a .vsix and published nowhere"><code>ide/the-extension-runs-where-the-binary-is</code></a> <a href="/docs/rules/ide/the-language-server/#the-server-is-synchronous" title="nvs-lsp is synchronous on lsp-server and lsp-types — a reader thread, a writer thread, one analysis thread, and no async runtime"><code>ide/the-server-is-synchronous</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+**The fetch is verified and it is never automatic.** The archive and the release's own `SHA256SUMS`
+are taken from the same release, the archive is hashed before anything is unpacked, and a mismatch
+aborts, keeps nothing and names the file that failed. Nothing reaches the network unless a user
+invoked one of the two commands: no fetch on activation, no background update check, no retry.
+
+**A managed copy is last, and it never writes `nvs.path`.** A binary the extension installed must not
+outrank a toolchain the user installed, because the server's answer is a claim about whether the code
+compiles — analysing with one `nvs` while the terminal runs another reports on a program nobody will
+run. That is the invariant `extensionKind: ["workspace"]` already protects. Writing the path into
+settings would defeat it later by other means: the day that user installs `nvs` properly, a stale
+absolute path silently keeps winning, so the copy is remembered in the extension's own storage and
+the status item names whichever candidate answered.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is" title="The extension is novis-lang.nvs, language nvs, extensionKind: [workspace], built as a .vsix and published nowhere"><code>ide/the-extension-runs-where-the-binary-is</code></a> <a href="/docs/rules/ide/security-in-the-editor/#the-extension-refuses-a-binary-it-does-not-understand" title="On a version mismatch at initialize the client says so in the status item and does not start"><code>ide/the-extension-refuses-a-binary-it-does-not-understand</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has" title="Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them"><code>ide/the-extension-builds-no-ui-the-editor-already-has</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0155.md">record 0155</a></dd></div></dl>
 
 </div>
 
@@ -160,28 +190,6 @@ panel and the compiler cannot disagree about a file's shape.
 
 </div>
 
-<div class="nv-rule" id="dependencies-are-allowlisted">
-
-## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests
-
-<div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
-<a class="nv-rule-id" href="#dependencies-are-allowlisted"><code>ide/dependencies-are-allowlisted</code></a>
-</div>
-
-The extension may hold no language logic — no parser, no formatter, no type table — and this is enforced
-rather than intended: its `package.json` `dependencies` are checked against an allowlist by its own test
-suite, so a second implementation cannot arrive as a dependency, and the reviewer is not the only thing
-standing between the repository and one.
-
-The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
-of [`security/redaction-ranges-come-from-the-server`](/docs/rules/security/redaction/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess") is a range list from the server and a decoration;
-there is nothing in it a parser would help with, and the test is unchanged by it.
-
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/testing-the-editor/#headless-gates-the-loop-the-host-run-gates-the-milestone" title="The headless suites run every iteration with no editor; the extension-host run is CI-only, under xvfb-run, with an isolated profile"><code>ide/headless-gates-the-loop-the-host-run-gates-the-milestone</code></a> <a href="/docs/rules/security/redaction/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>security/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a></dd></div></dl>
-
-</div>
-
 <div class="nv-rule" id="the-lockfile-is-committed-and-build-output-is-not">
 
 ## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored
@@ -192,13 +200,15 @@ there is nothing in it a parser would help with, and the test is unchanged by it
 </div>
 
 `.gitignore` carries `node_modules/`, `out/`, `.vscode-test/` and `*.vsix`: a session that commits
-`node_modules` is a session whose commit nobody can review.
+`node_modules` is a session whose commit nobody can review. All four are anchored under `editors/` —
+`/editors/*/out/` rather than `out/` — because the repository already has a documentation directory
+named `out`, and an unanchored pattern silently stops tracking new files in it.
 
 `package-lock.json` **is** committed, because `npm ci` is what the acceptance run uses and it requires one,
 and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI grows two
 jobs beside the ones already there — the headless suites on all three platforms and the extension-host run
 on Linux — and `ci.yml` is the count of those.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/testing-the-editor/#headless-gates-the-loop-the-host-run-gates-the-milestone" title="The headless suites run every iteration with no editor; the extension-host run is CI-only, under xvfb-run, with an isolated profile"><code>ide/headless-gates-the-loop-the-host-run-gates-the-milestone</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is" title="The extension is nvs-lang.nvs, language nvs, extensionKind: [workspace], built as a .vsix and published nowhere"><code>ide/the-extension-runs-where-the-binary-is</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/testing-the-editor/#headless-gates-the-loop-the-host-run-gates-the-milestone" title="The headless suites run every iteration with no editor; the extension-host run is CI-only, under xvfb-run, with an isolated profile"><code>ide/headless-gates-the-loop-the-host-run-gates-the-milestone</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is" title="The extension is novis-lang.nvs, language nvs, extensionKind: [workspace], built as a .vsix and published nowhere"><code>ide/the-extension-runs-where-the-binary-is</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
 
 </div>

@@ -3,7 +3,7 @@
 //! `nvs/redactions` is the one request of Novis's own in
 //! `rule:ide/the-request-set-is-closed`'s list, and it exists because the
 //! alternative is the client deciding what a secret is
-//! (`rule:security/redaction-ranges-come-from-the-server`). A
+//! (`rule:ide/redaction-ranges-come-from-the-server`). A
 //! `TextDocumentIdentifier` goes in and a list of `{range, kind}` comes back,
 //! `kind` being the open string ADR 0101 § 1 left open.
 //!
@@ -13,7 +13,7 @@
 //! to mark, and they are not the same instruction: one is drawn by default
 //! because a credential on a shared screen is an incident, and the other only
 //! where `nvs.taint.mark` asks for it
-//! (`rule:security/tainted-has-no-default-decoration`). They travel on one
+//! (`rule:ide/tainted-has-no-default-decoration`). They travel on one
 //! request because the set is closed and `kind` is the room ADR 0101 § 1 left,
 //! and on one *list* because a client that reads a field per kind must be
 //! taught a new field for every later qualifier, while a client reading kinds
@@ -48,7 +48,7 @@
 //!
 //! # Decision: a literal is attributed through the binding it is written into
 //!
-//! `rule:security/redaction-covers-bytes-only` answers a range when the literal
+//! `rule:ide/redaction-covers-bytes-only` answers a range when the literal
 //! token's static type carries `secret`. A literal's own type never does — the
 //! qualifier reaches it from the binding it flows into — and mid-edit there is
 //! often no type at all, which is exactly when a value must not flash on
@@ -104,7 +104,7 @@
 //! the type was always known and where it used to be discarded.
 //!
 //! **Everything past the editor's own decorations.**
-//! `rule:security/redaction-does-not-reach` is the list, and it is part of the
+//! `rule:ide/redaction-does-not-reach` is the list, and it is part of the
 //! decision rather than a caveat on it.
 //!
 //! # What it spends
@@ -147,12 +147,12 @@ pub const SECRET_LITERAL: &str = "secretLiteral";
 /// ADR 0101 § 4's `declaration` setting, answered: the range is the name the
 /// binding was declared under, and the client draws a glyph after it where
 /// `nvs.taint.mark` asks and nothing at all where it does not
-/// (`rule:security/tainted-has-no-default-decoration`). It is answered whatever
+/// (`rule:ide/tainted-has-no-default-decoration`). It is answered whatever
 /// that setting says, because the server holds no window's configuration and an
 /// unread range costs a client nothing.
 ///
 /// **Concealing one would be a bug**, and a visible one: a name is not a secret
-/// and `rule:security/redaction-covers-bytes-only` refuses covering it. The
+/// and `rule:ide/redaction-covers-bytes-only` refuses covering it. The
 /// client's rule is in this module's own decision above.
 pub const TAINTED_DECLARATION: &str = "taintedDeclaration";
 
@@ -169,7 +169,7 @@ pub const TAINTED_DECLARATION: &str = "taintedDeclaration";
 /// answer [`crate::semantic::for_document`] gives for the same reason. Empty
 /// means *nothing to conceal here*; a client that is sent no answer at all
 /// holds the last one it had, and the two must not be confused
-/// (`rule:security/redaction-ranges-come-from-the-server`).
+/// (`rule:ide/redaction-ranges-come-from-the-server`).
 #[must_use]
 pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Redaction> {
     let Some(loaded) = analysed

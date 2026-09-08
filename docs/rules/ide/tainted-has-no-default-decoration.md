@@ -6,7 +6,7 @@ reference rather than a literal.
 
 **The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
 a security incident, which is what buys `secret` its default
-(`rule:security/redaction-ranges-come-from-the-server`). A tainted value on a screen is not an event
+(`rule:ide/redaction-ranges-come-from-the-server`). A tainted value on a screen is not an event
 at all: `tainted` is a compile-time guarantee already enforced by refusing the sink
 (`rule:security/sink-predicate`), so marking it is teaching, and teaching does not get to override the
 user's theme.

@@ -176,7 +176,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [11 doc-comments](11-doc-comments.md) | post-parity, `rule:tooling/doc-comment-is-three-slashes` + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, `rule:ide/one-grammar-one-tree`'s other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
 | [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + `rule:php-migration/a-deprecation-is-a-refusal` | `nvs-syntax`, `nvs-diagnostics` |
-| [14 lsp-server](14-lsp-server.md) | M4B, `rule:ide/the-request-set-is-closed`+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
+| [14 lsp-server](14-lsp-server.md) | M4B, `rule:ide/the-request-set-is-closed`+5 + `rule:ide/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, `rule:ide/highlighting-is-two-layers`+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, `rule:http-server/a-session-store-answers-four-operations` + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |

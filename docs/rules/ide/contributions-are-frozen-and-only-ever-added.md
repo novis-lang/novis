@@ -4,7 +4,7 @@ contribution, and anything added later is added, never renamed.
 
 M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.lsp.enable`,
 `nvs.lsp.debounce`, `nvs.lsp.trace.server`, and — added under this rule by
-`rule:security/reveal-is-explicit-and-window-local` and `rule:security/tainted-has-no-default-decoration`
+`rule:ide/reveal-is-explicit-and-window-local` and `rule:ide/tainted-has-no-default-decoration`
 — `nvs.secrets.redact` (default `true`) and `nvs.taint.mark` (default `off`). Commands: `nvs.run`,
 `nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
 `nvs.hideSecrets`. Nothing else is contributed at M4B.

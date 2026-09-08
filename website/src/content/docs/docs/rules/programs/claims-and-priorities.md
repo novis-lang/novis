@@ -106,6 +106,12 @@ PHP", "migrate your Laravel app", or any phrasing a reader could reasonably take
 existing packages, frameworks or code run. Existing PHP does not run unconverted, and this is a rule
 about how the project speaks, not only a fact it knows.
 
+**Naming `.php` as an input a tool accepts is one of those phrasings.** The front end reads a file's
+content and never its extension, so a `.php` in a `--help` line or a manual's syntax block means only
+"this ignores the name" and is read as "this runs PHP" — and a `<?php` tag is refused with `E0229`
+whatever the file is called. [`packaging/help-text-speaks-to-its-reader`](/docs/rules/packaging/single-file-builds/#help-text-speaks-to-its-reader "A doc comment clap renders is written for the person reading --help, and cites nothing they cannot open") is the same rule at the
+one surface every user meets first.
+
 `nvs convert` is a porting aid for an application's own code, never a migration guarantee, and its
 documentation leads with what it cannot do: it cannot turn a facade into a declared method, a trait
 into interface delegation, or an active-record model into a definitely-initialized class. Its default
@@ -118,7 +124,7 @@ number standing where a claim would otherwise be.
 <p>Existing PHP packages, frameworks and code do not run, and no document may imply otherwise</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/claims-and-priorities/#audience" title="Novis is built for web applications of every kind, with command-line tooling second"><code>programs/audience</code></a> <a href="/docs/rules/programs/claims-and-priorities/#three-claims" title="Novis claims three things, and faster than PHP is not one of them"><code>programs/three-claims</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0080.md">record 0080</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0089.md">record 0089</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/claims-and-priorities/#audience" title="Novis is built for web applications of every kind, with command-line tooling second"><code>programs/audience</code></a> <a href="/docs/rules/programs/claims-and-priorities/#three-claims" title="Novis claims three things, and faster than PHP is not one of them"><code>programs/three-claims</code></a> <a href="/docs/rules/packaging/single-file-builds/#help-text-speaks-to-its-reader" title="A doc comment clap renders is written for the person reading --help, and cites nothing they cannot open"><code>packaging/help-text-speaks-to-its-reader</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0080.md">record 0080</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0089.md">record 0089</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0152.md">record 0152</a></dd></div></dl>
 
 </div>
 

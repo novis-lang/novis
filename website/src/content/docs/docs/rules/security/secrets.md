@@ -1,7 +1,7 @@
 ---
 # GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
 title: "Secrets"
-description: "A second, independent qualifier. Every sink refuses it, it crosses no boundary, and comparing two of them is constant-time."
+description: "A second, independent qualifier. Every sink refuses it, it crosses no boundary, comparing two is constant-time, and no rendering the toolchain prints…"
 editUrl: false
 lastUpdated: false
 tableOfContents: false
@@ -9,15 +9,15 @@ prev:
   link: /docs/rules/security/laundering/
   label: "Laundering"
 next:
-  link: /docs/rules/security/redaction/
-  label: "Redaction in the editor"
+  link: /docs/rules/security/extensions-and-qualifiers/
+  label: "Qualifiers across an extension"
 ---
 
-<p class="nv-section-lead">A second, independent qualifier. Every sink refuses it, it crosses no boundary, and comparing two of them is constant-time.</p>
+<p class="nv-section-lead">A second, independent qualifier. Every sink refuses it, it crosses no boundary, comparing two is constant-time, and no rendering the toolchain prints carries one in the clear.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#secret-qualifier"><code>secret</code> is a second, independent compile-time qualifier, written before <code>tainted</code> and in that order alone</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-has-no-ambient-source">Nothing grants <code>secret</code> ambiently; it appears where a developer wrote it, and at one member that is its own contract</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-propagation">A <code>secret</code> operand poisons its own axis independently of <code>tainted</code>, and a checked conversion strips it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-sinks-refuse">Every output sink refuses a <code>secret</code> value outright, and no auto-escape or neutralisation bypasses one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-crosses-no-boundary">A <code>secret</code> value is refused at the one graph copy, so it reaches neither <code>serialize</code> nor any spawn</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-comparison-is-constant-time">Comparing two <code>secret</code> values with <code>==</code> lowers to a constant-time helper, decided by the compiler</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-in-a-test-report">A <code>secret</code> operand is compared but never rendered, and no flag lifts the redaction</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#secret-qualifier"><code>secret</code> is a second, independent compile-time qualifier, written before <code>tainted</code> and in that order alone</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-has-no-ambient-source">Nothing grants <code>secret</code> ambiently; it appears where a developer wrote it, and at one member that is its own contract</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-propagation">A <code>secret</code> operand poisons its own axis independently of <code>tainted</code>, and a checked conversion strips it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-sinks-refuse">Every output sink refuses a <code>secret</code> value outright, and no auto-escape or neutralisation bypasses one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-crosses-no-boundary">A <code>secret</code> value is refused at the one graph copy, so it reaches neither <code>serialize</code> nor any spawn</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#secret-comparison-is-constant-time">Comparing two <code>secret</code> values with <code>==</code> lowers to a constant-time helper, decided by the compiler</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-in-a-test-report">A <code>secret</code> operand is compared but never rendered, and no flag lifts the redaction</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#redaction-reaches-the-tools-own-renderings">No rendering the toolchain itself produces prints a <code>secret</code> in the clear, the AST dump included</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="secret-qualifier">
 
@@ -37,7 +37,7 @@ of the same type.
 
 Like `tainted` it is a reserved keyword and a production in the type grammar, checked once and erased
 before codegen, so a `secret` value costs nothing at run time
-([`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string and bytes, spellable in any declaration and erased before codegen")).
+([`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string, bytes and a shape of them, spellable in any declaration and erased before codegen")).
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
 conflated into one. They compose for the case that matters most in practice, a submitted password,
@@ -232,5 +232,41 @@ string is not confidential and may be shown, but a fixture full of terminal esca
 to rewrite the developer's terminal from inside a failure message.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/secrets/#secret-sinks-refuse" title="Every output sink refuses a secret value outright, and no auto-escape or neutralisation bypasses one"><code>security/secret-sinks-refuse</code></a> <a href="/docs/rules/testing/writing-a-test/#failure-ledger" title="A failed assertion is a catchable Throwable and a ledger entry the test cannot erase"><code>testing/failure-ledger</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-transformations" title="Redaction, control bytes, bidi and elision are decided in the record"><code>errors/record-transformations</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-a-secret-property-is-redacted-but-still-compared.nvst"><code>tests/conformance/core/test-a-secret-property-is-redacted-but-still-compared.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst"><code>tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="redaction-reaches-the-tools-own-renderings">
+
+## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#redaction-reaches-the-tools-own-renderings"><code>security/redaction-reaches-the-tools-own-renderings</code></a>
+</div>
+
+A `secret` value may not become output, a log line, a dump or a `Throwable` message
+([`security/secret-sinks-refuse`](/docs/rules/security/secrets/#secret-sinks-refuse "Every output sink refuses a secret value outright, and no auto-escape or neutralisation bypasses one")), and the toolchain is held to the bar it enforces on everyone
+else: no command this project ships prints one in the clear. The diagnostic record already carries
+the redaction as a node kind, which is what makes plaintext, JSON and HTML renderings agree from one
+place ([`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record")).
+
+The AST dump is the surface that would otherwise disagree: a node's own scalar fields include a string
+literal's text, so anything reading the dump would render a value every other rendering redacts. A
+literal node whose static type carries `secret` emits the same fixed placeholder a dumped property
+gets, **in the JSON itself** rather than in whatever displays it, so two readers of one dump cannot
+diverge.
+
+The cost is that a frozen dump schema now has a type-dependent field value, and a reader can no longer
+assume a literal node's text is the source text.
+
+This rule is about what the toolchain **prints**, and it is enforced by the compiler for every caller.
+What an editor draws over a buffer it did not print is a separate mechanism in a separate chapter
+([`ide/redaction-ranges-come-from-the-server`](/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess")), and neither one covers for the other: the
+placeholder here holds with no editor running, and no decoration anywhere puts a value back into a
+dump this rule has already redacted.
+
+**Not on disk.** The dump emits no such placeholder.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/secrets/#secret-sinks-refuse" title="Every output sink refuses a secret value outright, and no auto-escape or neutralisation bypasses one"><code>security/secret-sinks-refuse</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-transformations" title="Redaction, control bytes, bidi and elision are decided in the record"><code>errors/record-transformations</code></a> <a href="/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>ide/redaction-ranges-come-from-the-server</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0158.md">record 0158</a></dd></div></dl>
 
 </div>

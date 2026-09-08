@@ -515,7 +515,7 @@ fn code_actions(
 ///
 /// An empty array rather than `null` for a document this server has nothing
 /// open for, and the distinction carries more here than anywhere else on
-/// [`document_symbol`]'s terms: `rule:security/redaction-ranges-come-from-the-server`
+/// [`document_symbol`]'s terms: `rule:ide/redaction-ranges-come-from-the-server`
 /// has the client hold its last answer when none arrives, so an answer of
 /// "nothing to conceal" must be an answer.
 ///

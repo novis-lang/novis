@@ -178,18 +178,6 @@
       "guardedBy": []
     },
     {
-      "id": "ide/stdout-belongs-to-the-protocol",
-      "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
-      "status": "designed",
-      "because": [
-        "0099"
-      ],
-      "seeAlso": [
-        "ide/the-server-is-synchronous"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "ide/the-request-set-is-closed",
       "title": "M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing",
       "status": "designed",
@@ -200,7 +188,7 @@
         "0137"
       ],
       "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
+        "ide/redaction-ranges-come-from-the-server",
         "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
         "ide/diagnostics-are-phase-gated",
         "ide/the-index-answers-the-cursor",
@@ -521,7 +509,7 @@
         "ide/novis-ships-names-not-colours",
         "security/tainted-qualifier",
         "security/secret-qualifier",
-        "security/tainted-has-no-default-decoration"
+        "ide/tainted-has-no-default-decoration"
       ],
       "guardedBy": []
     },
@@ -536,7 +524,7 @@
       "seeAlso": [
         "ide/highlighting-is-two-layers",
         "ide/semantic-tokens-carry-the-qualifiers",
-        "security/tainted-has-no-default-decoration"
+        "ide/tainted-has-no-default-decoration"
       ],
       "guardedBy": []
     },
@@ -606,7 +594,7 @@
       ],
       "divergesFromPhp": "the markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is `nvs fmt` over the whole file and nothing else",
       "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
+        "ide/redaction-ranges-come-from-the-server",
         "programs/first-party-framework",
         "tooling/fmt-is-never-a-diagnostic",
         "ide/one-server-two-thin-clients",
@@ -713,7 +701,7 @@
         "ide/vscode-is-the-reference-client",
         "ide/phpstorm-bridges-to-the-same-server",
         "ide/one-crate-and-one-extension-grow-in-place",
-        "security/redaction-ranges-come-from-the-server",
+        "ide/redaction-ranges-come-from-the-server",
         "tooling/fmt-is-one-canonical-style",
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
@@ -747,8 +735,8 @@
         "ide/one-server-two-thin-clients",
         "ide/nvs-is-its-own-file-type",
         "ide/every-feature-is-staged-behind-its-dependency",
-        "security/redaction-ranges-come-from-the-server",
-        "security/tainted-has-no-default-decoration",
+        "ide/redaction-ranges-come-from-the-server",
+        "ide/tainted-has-no-default-decoration",
         "ide/highlighting-is-two-layers",
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
@@ -829,8 +817,8 @@
         "0111"
       ],
       "seeAlso": [
-        "security/reveal-is-explicit-and-window-local",
-        "security/tainted-has-no-default-decoration",
+        "ide/reveal-is-explicit-and-window-local",
+        "ide/tainted-has-no-default-decoration",
         "ide/the-extension-claims-nvs-only",
         "ide/dependencies-are-allowlisted",
         "ide/check-json-is-the-diagnostic-record-as-a-document",
@@ -879,19 +867,6 @@
         "ide/editor-clients-live-under-editors",
         "ide/one-server-two-thin-clients",
         "ide/the-extension-guides-an-install-and-never-bundles-one"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "ide/the-extension-refuses-a-binary-it-does-not-understand",
-      "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
-      "status": "designed",
-      "because": [
-        "0099"
-      ],
-      "seeAlso": [
-        "ide/the-extension-runs-where-the-binary-is",
-        "ide/the-server-is-synchronous"
       ],
       "guardedBy": []
     },
@@ -945,22 +920,6 @@
       "guardedBy": []
     },
     {
-      "id": "ide/dependencies-are-allowlisted",
-      "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
-      "status": "designed",
-      "because": [
-        "0099",
-        "0101"
-      ],
-      "seeAlso": [
-        "ide/contributions-are-frozen-and-only-ever-added",
-        "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
-        "security/redaction-ranges-come-from-the-server",
-        "ide/one-server-two-thin-clients"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "ide/the-lockfile-is-committed-and-build-output-is-not",
       "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
       "status": "designed",
@@ -987,22 +946,6 @@
         "ide/nvs-is-its-own-file-type",
         "ide/the-debug-adapter-does-not-wait-for-an-editor",
         "ide/editor-clients-live-under-editors"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "ide/phpstorm-draws-no-redaction-at-m4b",
-      "title": "The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands",
-      "status": "designed",
-      "because": [
-        "0101",
-        "0099"
-      ],
-      "seeAlso": [
-        "security/redaction-ranges-come-from-the-server",
-        "security/redaction-covers-bytes-only",
-        "ide/the-request-set-is-closed",
-        "ide/phpstorm-bridges-to-the-same-server"
       ],
       "guardedBy": []
     },
@@ -1035,6 +978,147 @@
         "errors/escalation-ladder",
         "security/isolate-shares-nothing",
         "ide/every-feature-is-staged-behind-its-dependency"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/stdout-belongs-to-the-protocol",
+      "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
+      "status": "designed",
+      "because": [
+        "0099",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/the-server-is-synchronous"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/the-extension-refuses-a-binary-it-does-not-understand",
+      "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
+      "status": "designed",
+      "because": [
+        "0099",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/the-extension-runs-where-the-binary-is",
+        "ide/the-server-is-synchronous"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/dependencies-are-allowlisted",
+      "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
+      "status": "designed",
+      "because": [
+        "0099",
+        "0101",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/contributions-are-frozen-and-only-ever-added",
+        "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
+        "ide/redaction-ranges-come-from-the-server",
+        "ide/one-server-two-thin-clients"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/redaction-ranges-come-from-the-server",
+      "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
+      "status": "designed",
+      "because": [
+        "0101",
+        "0033",
+        "0016",
+        "0099",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-covers-bytes-only",
+        "ide/reveal-is-explicit-and-window-local",
+        "ide/redaction-does-not-reach"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/redaction-covers-bytes-only",
+      "title": "Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation",
+      "status": "designed",
+      "because": [
+        "0101",
+        "0040",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-ranges-come-from-the-server",
+        "security/secret-qualifier"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/reveal-is-explicit-and-window-local",
+      "title": "A reveal is per range, window-local, and does not survive the editor closing",
+      "status": "shipped",
+      "because": [
+        "0101",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-ranges-come-from-the-server",
+        "ide/redaction-does-not-reach"
+      ],
+      "guardedBy": [
+        "editors/vscode/test/client/concealment.test.ts"
+      ]
+    },
+    {
+      "id": "ide/redaction-does-not-reach",
+      "title": "What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none",
+      "status": "designed",
+      "because": [
+        "0101",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-ranges-come-from-the-server",
+        "ide/reveal-is-explicit-and-window-local"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/phpstorm-draws-no-redaction-at-m4b",
+      "title": "The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands",
+      "status": "designed",
+      "because": [
+        "0101",
+        "0099",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-ranges-come-from-the-server",
+        "ide/redaction-covers-bytes-only",
+        "ide/the-request-set-is-closed",
+        "ide/phpstorm-bridges-to-the-same-server"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "ide/tainted-has-no-default-decoration",
+      "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
+      "status": "designed",
+      "because": [
+        "0101",
+        "0099",
+        "0088",
+        "0158"
+      ],
+      "seeAlso": [
+        "ide/redaction-ranges-come-from-the-server",
+        "security/sink-predicate",
+        "security/tainted-qualifier"
       ],
       "guardedBy": []
     }

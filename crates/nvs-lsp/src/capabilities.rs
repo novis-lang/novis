@@ -214,7 +214,7 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
 /// The whole `initialize` answer for the client that sent `params`.
 ///
 /// `nvs/redactions` appears nowhere in it, and that is not an omission: it is
-/// Novis's own request (`rule:security/redaction-ranges-come-from-the-server`),
+/// Novis's own request (`rule:ide/redaction-ranges-come-from-the-server`),
 /// LSP has no capability field for one, and the client knows it is available
 /// from `serverInfo` naming this server at all.
 #[must_use]

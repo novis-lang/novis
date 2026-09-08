@@ -1,5 +1,5 @@
 --TEST--
-`secret` alone conceals: neither literal is answered as bytes to hide, because trust and confidentiality are two axes and only one of them is about what may be shown — the `tainted` name is answered as a marker instead, `rule:security/tainted-has-no-default-decoration`
+`secret` alone conceals: neither literal is answered as bytes to hide, because trust and confidentiality are two axes and only one of them is about what may be shown — the `tainted` name is answered as a marker instead, `rule:ide/tainted-has-no-default-decoration`
 --FILE--
 <?nvs
 string $plain = "hello";

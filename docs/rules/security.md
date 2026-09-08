@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*20 of 89 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -856,29 +856,6 @@ would be a one-word bypass of every rule below.
 
 <sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
 
-<a id="security-tainted-has-no-default-decoration"></a>
-
-## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
-
-`rule:security/tainted-has-no-default-decoration`
-
-`tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
-content rather than a colour, and shipping one on by default writes into someone else's editor exactly
-what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
-default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
-reference rather than a literal.
-
-**The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
-a security incident, which is what buys `secret` its default
-([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)). A tainted value on a screen is not an event
-at all: `tainted` is a compile-time guarantee already enforced by refusing the sink
-([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
-user's theme.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md).</sub>
-
 <a id="security-sink-predicate"></a>
 
 ## A `string` or `bytes` parameter is a sink when its content becomes an instruction a parser executes
@@ -1381,133 +1358,36 @@ to rewrite the developer's terminal from inside a failure message.
 
 <sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md), [0092](../decisions/0092.md).</sub>
 
-<a id="security-reveal-is-explicit-and-window-local"></a>
-
-## A reveal is per range, window-local, and does not survive the editor closing
-
-`rule:security/reveal-is-explicit-and-window-local`
-
-A reveal is per range, window-local, and dropped when the editor for that document closes. It is not
-written to workspace state and does not survive a reload.
-
-The threat model is an unattended screen, so a reveal that outlives the moment it was needed is the
-same as no redaction at all — and a user who revealed one credential to read it has not consented to
-reveal every credential in the workspace for the rest of the week.
-
-There are three ways to ask, and they divide on what they leave behind rather than on how they are
-spelled. The hover's command link and the `nvs.revealSecret` command are **held**: the range stays
-uncovered until the editor closes or `nvs.hideSecrets` runs, so each one is a decision the user made
-about one range and can be pointed at afterwards. **A cursor inside a range uncovers it and holds
-nothing** — the range is covered again the instant the cursor leaves, and nothing anywhere records
-that it was ever uncovered.
-
-The cursor is admitted because it cannot leave a screen uncovered behind the user. A held reveal
-can: it survives every scroll, edit and tab switch until the window is told otherwise, which is
-exactly the exposure the paragraph above is about. A reveal that is a function of where the caret is
-right now expires on the next arrow key, so the worst it can do is show the value the user is
-already looking at. That is a smaller surface than the two held reveals it sits beside, not a larger
-one — the reason to write it down is that it *reads* like the opposite.
-
-There is still **no automatic re-conceal on a signal**, because there is no signal: nothing reports
-that a window is being shared, recorded or projected. Anything that looked like one would be a guess
-with a security failure attached, so redaction is unconditional by default and the user is the only
-thing that turns it off.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md).</sub>
-
-<a id="security-redaction-ranges-come-from-the-server"></a>
-
-## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess  *(designed — not yet in the compiler)*
-
-`rule:security/redaction-ranges-come-from-the-server`
-
-A `secret` value is concealed in the editor by default. The language server answers a list of ranges
-and their kinds; the client draws them and knows nothing about what a secret is, because the
-alternative is the client guessing.
-
-It does **not** ride the semantic-token channel, even though the qualifier already travels there. That
-channel's contract is *names a theme styles*, and its correct degradation is to fall back to the
-underlying token type — which a security default whose failure mode is *the value becomes visible*
-cannot inherit. Two mechanisms, two contracts, and neither can silently disable the other.
-
-The fail direction is named, because mid-edit is exactly when the type is unknown. A range whose
-expression cannot be typed, but whose **binding's declared type carries `secret`**, is redacted
-anyway; the client **holds its last answer** and never clears decorations on an error, a cancellation
-or a restart. An empty answer means nothing to redact; a *missing* answer means nothing at all.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md).</sub>
-
-<a id="security-redaction-covers-bytes-only"></a>
-
-## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation  *(designed — not yet in the compiler)*
-
-`rule:security/redaction-covers-bytes-only`
-
-A range is answered when it is a string, heredoc or `bytes` literal token whose static type carries
-`secret`, or an interpolation slot inside one whose interpolated expression does. Nothing else.
-
-**Never an identifier** — a variable or property name is a name, not a secret, and concealing it hides
-no bytes while making the file unreadable for the developer whose editor it is. **Never a type
-annotation** — `secret string` is the declaration doing its job, and it is how a reader knows the
-concealment below it is deliberate rather than a rendering fault. **Never a whole line, statement or
-block**, which line-granular folding structurally cannot express anyway.
-
-The concealment is a decoration over the range with the character cells kept, so the cursor, the
-selection and every edit still address the real text. It is a rendering, not an edit: the buffer is
-the file on disk, byte for byte.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
-
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
-## Every rendering the toolchain itself produces inherits the redaction, the AST dump included  *(designed — not yet in the compiler)*
+## No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included  *(designed — not yet in the compiler)*
 
 `rule:security/redaction-reaches-the-tools-own-renderings`
 
-Every rendering the toolchain itself produces inherits the redaction, so no surface prints the
-plaintext the editor is concealing. The diagnostic record already carries it as a node kind, which is
-what makes plaintext, JSON and HTML renderings agree from one place
-([`errors/record-transformations`](errors.md#errors-record-transformations)).
+A `secret` value may not become output, a log line, a dump or a `Throwable` message
+([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), and the toolchain is held to the bar it enforces on everyone
+else: no command this project ships prints one in the clear. The diagnostic record already carries
+the redaction as a node kind, which is what makes plaintext, JSON and HTML renderings agree from one
+place ([`errors/record-transformations`](errors.md#errors-record-transformations)).
 
 The AST dump is the surface that would otherwise disagree: a node's own scalar fields include a string
-literal's text, so a panel reading it would render a secret the buffer behind it is blurring. A
+literal's text, so anything reading the dump would render a value every other rendering redacts. A
 literal node whose static type carries `secret` emits the same fixed placeholder a dumped property
-gets, **in the JSON itself** rather than in the viewer, so the command-line output and the panel
-cannot diverge.
+gets, **in the JSON itself** rather than in whatever displays it, so two readers of one dump cannot
+diverge.
 
 The cost is that a frozen dump schema now has a type-dependent field value, and a reader can no longer
 assume a literal node's text is the source text.
 
-**Not on disk.** There is no language server, and the dump emits no such placeholder.
+This rule is about what the toolchain **prints**, and it is enforced by the compiler for every caller.
+What an editor draws over a buffer it did not print is a separate mechanism in a separate chapter
+([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), and neither one covers for the other: the
+placeholder here holds with no editor running, and no decoration anywhere puts a value back into a
+dump this rule has already redacted.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md).</sub>
+**Not on disk.** The dump emits no such placeholder.
 
-<a id="security-redaction-does-not-reach"></a>
-
-## What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none  *(designed — not yet in the compiler)*
-
-`rule:security/redaction-does-not-reach`
-
-The concealment is cosmetic, and what it cannot cover is written down and shipped in the tool's own
-documentation, because a redaction trusted past its reach is worse than none.
-
-Workspace search results and quick-open previews render matching lines outside any editor, so no
-decoration applies. Diff and version-control views can be decorated, but there is no type information
-for the "before" side, so the old value of an edited secret is visible in the review of that edit. The
-minimap renders from the buffer. Any other extension's hover, lens or webview reads the document text
-directly. A copy of a concealed range copies the plaintext, and nothing may intercept the clipboard.
-And the file itself is on disk, in the working tree, and in the history the moment it is committed —
-concealing a hardcoded credential does not make it less hardcoded.
-
-This list is part of the decision, not commentary on it.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 

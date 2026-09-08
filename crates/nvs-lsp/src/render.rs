@@ -92,7 +92,7 @@ pub struct Link {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Redaction {
     /// The bytes concealed — a literal token or an interpolation slot, and
-    /// never an identifier (`rule:security/redaction-covers-bytes-only`).
+    /// never an identifier (`rule:ide/redaction-covers-bytes-only`).
     pub range: Range,
     /// Why they are concealed.
     pub kind: String,
@@ -441,7 +441,7 @@ fn ancestry(innermost: &SelectionRange) -> Vec<String> {
 }
 
 /// `L-L kind`, in lines: a folding range is line-granular, which is exactly why
-/// `rule:security/redaction-covers-bytes-only` cannot be built on one.
+/// `rule:ide/redaction-covers-bytes-only` cannot be built on one.
 fn folding_range(item: &FoldingRange) -> String {
     let kind = or_absent(item.kind.as_ref(), spelled);
     format!("{}-{} {kind}", item.start_line + 1, item.end_line + 1)

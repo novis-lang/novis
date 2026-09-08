@@ -12,7 +12,7 @@
 //
 // The concealment of `secret` values is `redactions.ts`, installed once here and told which client
 // to ask. It is on its own listeners rather than this file's, because what it draws outlives the
-// server it drew from (`rule:security/redaction-ranges-come-from-the-server`).
+// server it drew from (`rule:ide/redaction-ranges-come-from-the-server`).
 
 import {
   ConfigurationChangeEvent,
@@ -137,7 +137,7 @@ async function stop(): Promise<void> {
   const running = client;
   client = undefined;
   // What is already concealed stays concealed while nothing is answering
-  // (`rule:security/redaction-ranges-come-from-the-server`); this only says where to ask next.
+  // (`rule:ide/redaction-ranges-come-from-the-server`); this only says where to ask next.
   redactions.serve(undefined);
   await running?.stop();
 }

@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 931,
-    "shipped": 648,
-    "designed": 283,
-    "diverging": 552
+    "total": 937,
+    "shipped": 651,
+    "designed": 286,
+    "diverging": 556
   },
   "topics": [
     {
@@ -639,7 +639,7 @@
             {
               "id": "types/shape-type",
               "slug": "shape-type",
-              "title": "`{name: T}` in type position is a structural shape checked by width subtyping",
+              "title": "`{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent",
               "status": "shipped",
               "href": "/docs/rules/types/objects-and-shapes/#shape-type",
               "diverges": null
@@ -2742,9 +2742,9 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 61,
-        "shipped": 0,
-        "designed": 61,
+        "total": 67,
+        "shipped": 1,
+        "designed": 66,
         "diverging": 23
       },
       "sections": [
@@ -2832,9 +2832,9 @@
           "blurb": "Synchronous, one analysis thread, a closed request set, and diagnostics that stop at the first phase that failed.",
           "url": "/docs/rules/ide/the-language-server/",
           "counts": {
-            "total": 10,
+            "total": 9,
             "shipped": 0,
-            "designed": 10,
+            "designed": 9,
             "diverging": 1
           },
           "rules": [
@@ -2860,14 +2860,6 @@
               "title": "Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents",
               "status": "designed",
               "href": "/docs/rules/ide/the-language-server/#an-open-document-is-its-own-entry-point",
-              "diverges": null
-            },
-            {
-              "id": "ide/stdout-belongs-to-the-protocol",
-              "slug": "stdout-belongs-to-the-protocol",
-              "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
-              "status": "designed",
-              "href": "/docs/rules/ide/the-language-server/#stdout-belongs-to-the-protocol",
               "diverges": null
             },
             {
@@ -3227,12 +3219,12 @@
         {
           "slug": "the-vs-code-extension",
           "title": "Inside the VS Code extension",
-          "blurb": "What the extension contributes, why it builds no UI the editor already has, and how its dependencies stay honest.",
+          "blurb": "What the extension contributes, why it builds no UI the editor already has, and where its clients live in the tree.",
           "url": "/docs/rules/ide/the-vs-code-extension/",
           "counts": {
-            "total": 8,
+            "total": 7,
             "shipped": 0,
-            "designed": 8,
+            "designed": 7,
             "diverging": 1
           },
           "rules": [
@@ -3255,17 +3247,17 @@
             {
               "id": "ide/the-extension-runs-where-the-binary-is",
               "slug": "the-extension-runs-where-the-binary-is",
-              "title": "The extension is `nvs-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
+              "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
               "status": "designed",
               "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is",
               "diverges": null
             },
             {
-              "id": "ide/the-extension-refuses-a-binary-it-does-not-understand",
-              "slug": "the-extension-refuses-a-binary-it-does-not-understand",
-              "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
+              "id": "ide/the-extension-guides-an-install-and-never-bundles-one",
+              "slug": "the-extension-guides-an-install-and-never-bundles-one",
+              "title": "The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`",
               "status": "designed",
-              "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-refuses-a-binary-it-does-not-understand",
+              "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one",
               "diverges": null
             },
             {
@@ -3285,14 +3277,6 @@
               "diverges": null
             },
             {
-              "id": "ide/dependencies-are-allowlisted",
-              "slug": "dependencies-are-allowlisted",
-              "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
-              "status": "designed",
-              "href": "/docs/rules/ide/the-vs-code-extension/#dependencies-are-allowlisted",
-              "diverges": null
-            },
-            {
               "id": "ide/the-lockfile-is-committed-and-build-output-is-not",
               "slug": "the-lockfile-is-committed-and-build-output-is-not",
               "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
@@ -3308,9 +3292,9 @@
           "blurb": "The same server behind another editor, and a debug adapter that is complete before any debugger UI exists.",
           "url": "/docs/rules/ide/phpstorm-and-the-debugger/",
           "counts": {
-            "total": 4,
+            "total": 3,
             "shipped": 0,
-            "designed": 4,
+            "designed": 3,
             "diverging": 3
           },
           "rules": [
@@ -3321,14 +3305,6 @@
               "status": "designed",
               "href": "/docs/rules/ide/phpstorm-and-the-debugger/#phpstorm-bridges-to-the-same-server",
               "diverges": "Reformat Code runs `nvs fmt` with no PhpStorm Code Style page behind it, and PSI-level refactoring, structural search and the native debugger are absent for `.nvs`"
-            },
-            {
-              "id": "ide/phpstorm-draws-no-redaction-at-m4b",
-              "slug": "phpstorm-draws-no-redaction-at-m4b",
-              "title": "The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands",
-              "status": "designed",
-              "href": "/docs/rules/ide/phpstorm-and-the-debugger/#phpstorm-draws-no-redaction-at-m4b",
-              "diverges": null
             },
             {
               "id": "ide/the-debug-adapter-does-not-wait-for-an-editor",
@@ -3345,6 +3321,92 @@
               "status": "designed",
               "href": "/docs/rules/ide/phpstorm-and-the-debugger/#the-debugger-ui-is-as-deep-as-the-adapter",
               "diverges": "break-on-uncaught and break-on-thrown are two exception filters rather than PHP's five categories, and a spawned isolate appears as a thread rather than as a second session"
+            }
+          ]
+        },
+        {
+          "slug": "security-in-the-editor",
+          "title": "Security in the editor",
+          "blurb": "What security means once a file is open rather than running: the process on the wire, the binary the client will trust, and a secret concealed on screen. None of it is a language guarantee.",
+          "url": "/docs/rules/ide/security-in-the-editor/",
+          "counts": {
+            "total": 9,
+            "shipped": 1,
+            "designed": 8,
+            "diverging": 0
+          },
+          "rules": [
+            {
+              "id": "ide/stdout-belongs-to-the-protocol",
+              "slug": "stdout-belongs-to-the-protocol",
+              "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#stdout-belongs-to-the-protocol",
+              "diverges": null
+            },
+            {
+              "id": "ide/the-extension-refuses-a-binary-it-does-not-understand",
+              "slug": "the-extension-refuses-a-binary-it-does-not-understand",
+              "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#the-extension-refuses-a-binary-it-does-not-understand",
+              "diverges": null
+            },
+            {
+              "id": "ide/dependencies-are-allowlisted",
+              "slug": "dependencies-are-allowlisted",
+              "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#dependencies-are-allowlisted",
+              "diverges": null
+            },
+            {
+              "id": "ide/redaction-ranges-come-from-the-server",
+              "slug": "redaction-ranges-come-from-the-server",
+              "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#redaction-ranges-come-from-the-server",
+              "diverges": null
+            },
+            {
+              "id": "ide/redaction-covers-bytes-only",
+              "slug": "redaction-covers-bytes-only",
+              "title": "Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#redaction-covers-bytes-only",
+              "diverges": null
+            },
+            {
+              "id": "ide/reveal-is-explicit-and-window-local",
+              "slug": "reveal-is-explicit-and-window-local",
+              "title": "A reveal is per range, window-local, and does not survive the editor closing",
+              "status": "shipped",
+              "href": "/docs/rules/ide/security-in-the-editor/#reveal-is-explicit-and-window-local",
+              "diverges": null
+            },
+            {
+              "id": "ide/redaction-does-not-reach",
+              "slug": "redaction-does-not-reach",
+              "title": "What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#redaction-does-not-reach",
+              "diverges": null
+            },
+            {
+              "id": "ide/phpstorm-draws-no-redaction-at-m4b",
+              "slug": "phpstorm-draws-no-redaction-at-m4b",
+              "title": "The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#phpstorm-draws-no-redaction-at-m4b",
+              "diverges": null
+            },
+            {
+              "id": "ide/tainted-has-no-default-decoration",
+              "slug": "tainted-has-no-default-decoration",
+              "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
+              "status": "designed",
+              "href": "/docs/rules/ide/security-in-the-editor/#tainted-has-no-default-decoration",
+              "diverges": null
             }
           ]
         }
@@ -3838,9 +3900,9 @@
       "url": "/docs/rules/security/",
       "single": false,
       "counts": {
-        "total": 89,
+        "total": 84,
         "shipped": 68,
-        "designed": 21,
+        "designed": 16,
         "diverging": 26
       },
       "sections": [
@@ -4178,16 +4240,16 @@
           "blurb": "Everything from outside arrives `tainted`, it poisons what it touches, and a sink is any parameter a parser will execute.",
           "url": "/docs/rules/security/tainted-data/",
           "counts": {
-            "total": 11,
+            "total": 10,
             "shipped": 9,
-            "designed": 2,
+            "designed": 1,
             "diverging": 1
           },
           "rules": [
             {
               "id": "security/tainted-qualifier",
               "slug": "tainted-qualifier",
-              "title": "`tainted` is a compile-time qualifier on `string` and `bytes`, spellable in any declaration and erased before codegen",
+              "title": "`tainted` is a compile-time qualifier on `string`, `bytes` and a shape of them, spellable in any declaration and erased before codegen",
               "status": "shipped",
               "href": "/docs/rules/security/tainted-data/#tainted-qualifier",
               "diverges": "untrusted input has a type PHP has no way to spell, and a program that mixes it into a sink does not compile"
@@ -4206,14 +4268,6 @@
               "title": "A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free",
               "status": "shipped",
               "href": "/docs/rules/security/tainted-data/#taint-propagation",
-              "diverges": null
-            },
-            {
-              "id": "security/tainted-has-no-default-decoration",
-              "slug": "tainted-has-no-default-decoration",
-              "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
-              "status": "designed",
-              "href": "/docs/rules/security/tainted-data/#tainted-has-no-default-decoration",
               "diverges": null
             },
             {
@@ -4355,12 +4409,12 @@
         {
           "slug": "secrets",
           "title": "Secrets",
-          "blurb": "A second, independent qualifier. Every sink refuses it, it crosses no boundary, and comparing two of them is constant-time.",
+          "blurb": "A second, independent qualifier. Every sink refuses it, it crosses no boundary, comparing two is constant-time, and no rendering the toolchain prints carries one in the clear.",
           "url": "/docs/rules/security/secrets/",
           "counts": {
-            "total": 7,
+            "total": 8,
             "shipped": 7,
-            "designed": 0,
+            "designed": 1,
             "diverging": 3
           },
           "rules": [
@@ -4419,59 +4473,13 @@
               "status": "shipped",
               "href": "/docs/rules/security/secrets/#secret-in-a-test-report",
               "diverges": null
-            }
-          ]
-        },
-        {
-          "slug": "redaction",
-          "title": "Redaction in the editor",
-          "blurb": "A secret is concealed by default, from ranges the server decides — and what concealment cannot cover is written down.",
-          "url": "/docs/rules/security/redaction/",
-          "counts": {
-            "total": 5,
-            "shipped": 0,
-            "designed": 5,
-            "diverging": 0
-          },
-          "rules": [
-            {
-              "id": "security/reveal-is-explicit-and-window-local",
-              "slug": "reveal-is-explicit-and-window-local",
-              "title": "A reveal is per range, window-local, and does not survive the editor closing",
-              "status": "designed",
-              "href": "/docs/rules/security/redaction/#reveal-is-explicit-and-window-local",
-              "diverges": null
-            },
-            {
-              "id": "security/redaction-ranges-come-from-the-server",
-              "slug": "redaction-ranges-come-from-the-server",
-              "title": "The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess",
-              "status": "designed",
-              "href": "/docs/rules/security/redaction/#redaction-ranges-come-from-the-server",
-              "diverges": null
-            },
-            {
-              "id": "security/redaction-covers-bytes-only",
-              "slug": "redaction-covers-bytes-only",
-              "title": "Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation",
-              "status": "designed",
-              "href": "/docs/rules/security/redaction/#redaction-covers-bytes-only",
-              "diverges": null
             },
             {
               "id": "security/redaction-reaches-the-tools-own-renderings",
               "slug": "redaction-reaches-the-tools-own-renderings",
-              "title": "Every rendering the toolchain itself produces inherits the redaction, the AST dump included",
+              "title": "No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included",
               "status": "designed",
-              "href": "/docs/rules/security/redaction/#redaction-reaches-the-tools-own-renderings",
-              "diverges": null
-            },
-            {
-              "id": "security/redaction-does-not-reach",
-              "slug": "redaction-does-not-reach",
-              "title": "What the editor's concealment cannot cover is written down, because a redaction trusted past its reach is worse than none",
-              "status": "designed",
-              "href": "/docs/rules/security/redaction/#redaction-does-not-reach",
+              "href": "/docs/rules/security/secrets/#redaction-reaches-the-tools-own-renderings",
               "diverges": null
             }
           ]
@@ -4718,10 +4726,10 @@
       "url": "/docs/rules/concurrency/",
       "single": false,
       "counts": {
-        "total": 58,
+        "total": 61,
         "shipped": 49,
-        "designed": 9,
-        "diverging": 44
+        "designed": 12,
+        "diverging": 46
       },
       "sections": [
         {
@@ -5012,9 +5020,9 @@
           "blurb": "Enqueue commits with your own write. Four members, at-least-once delivery, finite attempts, and a dead letter that is kept.",
           "url": "/docs/rules/concurrency/the-job-queue/",
           "counts": {
-            "total": 9,
+            "total": 10,
             "shipped": 8,
-            "designed": 1,
+            "designed": 2,
             "diverging": 9
           },
           "rules": [
@@ -5029,10 +5037,18 @@
             {
               "id": "concurrency/queue-four-members",
               "slug": "queue-four-members",
-              "title": "`Core\\Queue` is four members, and each is asked about a job or about a queue, never about a row number",
+              "title": "`Core\\Queue`'s four request-path members are each asked about a job or about a queue, never about a row number",
               "status": "shipped",
               "href": "/docs/rules/concurrency/the-job-queue/#queue-four-members",
               "diverges": "the queue is four members of the runtime rather than a framework façade, and what `push` answers is a handle rather than an integer id"
+            },
+            {
+              "id": "concurrency/a-tag-groups-jobs-and-a-key-dedupes-them",
+              "slug": "a-tag-groups-jobs-and-a-key-dedupes-them",
+              "title": "A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites",
+              "status": "designed",
+              "href": "/docs/rules/concurrency/the-job-queue/#a-tag-groups-jobs-and-a-key-dedupes-them",
+              "diverges": null
             },
             {
               "id": "concurrency/a-job-names-a-file",
@@ -5098,10 +5114,10 @@
           "blurb": "A job is a root isolate on a recorded budget. Which process runs it is configuration, and there is no pluggable driver.",
           "url": "/docs/rules/concurrency/running-a-job/",
           "counts": {
-            "total": 7,
+            "total": 9,
             "shipped": 4,
-            "designed": 3,
-            "diverging": 7
+            "designed": 5,
+            "diverging": 9
           },
           "rules": [
             {
@@ -5111,6 +5127,14 @@
               "status": "shipped",
               "href": "/docs/rules/concurrency/running-a-job/#cancel-is-a-race-it-can-lose",
               "diverges": "cancelling is a race against a worker rather than a command, and the answer says which side won it"
+            },
+            {
+              "id": "concurrency/queue-deletion-is-explicit-and-bounded",
+              "slug": "queue-deletion-is-explicit-and-bounded",
+              "title": "A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so",
+              "status": "designed",
+              "href": "/docs/rules/concurrency/running-a-job/#queue-deletion-is-explicit-and-bounded",
+              "diverges": "removing queued work is two members of the runtime behind a capability, rather than a framework command or a raw delete against a table the runtime owns"
             },
             {
               "id": "concurrency/a-job-runs-as-a-root-isolate",
@@ -5127,6 +5151,14 @@
               "status": "designed",
               "href": "/docs/rules/concurrency/running-a-job/#who-runs-a-job-is-configuration",
               "diverges": "workers are the runtime's own and start from configuration — there is no separate daemon or process manager to install beside the server"
+            },
+            {
+              "id": "concurrency/one-process-serves-requests-schedules-and-jobs",
+              "slug": "one-process-serves-requests-schedules-and-jobs",
+              "title": "`nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three",
+              "status": "designed",
+              "href": "/docs/rules/concurrency/running-a-job/#one-process-serves-requests-schedules-and-jobs",
+              "diverges": "one process is the whole deployment — there is no process manager, no worker daemon and no cron entry beside it"
             },
             {
               "id": "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers",
@@ -6862,10 +6894,10 @@
       "url": "/docs/rules/http-server/",
       "single": false,
       "counts": {
-        "total": 63,
-        "shipped": 55,
+        "total": 64,
+        "shipped": 56,
         "designed": 8,
-        "diverging": 49
+        "diverging": 50
       },
       "sections": [
         {
@@ -7062,10 +7094,10 @@
           "blurb": "HEAD runs as GET, a preflight is answered before any code runs, and a route that never reads a body allocates nothing.",
           "url": "/docs/rules/http-server/methods-bodies-and-static-files/",
           "counts": {
-            "total": 6,
-            "shipped": 5,
+            "total": 7,
+            "shipped": 6,
             "designed": 1,
-            "diverging": 6
+            "diverging": 7
           },
           "rules": [
             {
@@ -7091,6 +7123,14 @@
               "status": "shipped",
               "href": "/docs/rules/http-server/methods-bodies-and-static-files/#the-body-is-read-on-demand-under-two-caps",
               "diverges": "`upload_max_filesize`, `post_max_size` and `$_FILES['tmp_name']` have no counterpart: there is no temp file, `Core\\Request::files()` yields streams, and a route raises its own cap before reading"
+            },
+            {
+              "id": "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
+              "slug": "buffering-readers-share-the-body-and-streaming-readers-consume-it",
+              "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/methods-bodies-and-static-files/#buffering-readers-share-the-body-and-streaming-readers-consume-it",
+              "diverges": "`$_POST` is populated before the program runs and leaves `php://input` empty for a multipart body; here nothing is read until a member asks, and which reader may follow which is stated rather than decided by `enable_post_data_reading`"
             },
             {
               "id": "http-server/static-serving-is-one-policy",
@@ -8434,10 +8474,10 @@
       "url": "/docs/rules/packaging/",
       "single": false,
       "counts": {
-        "total": 70,
-        "shipped": 30,
+        "total": 71,
+        "shipped": 31,
         "designed": 40,
-        "diverging": 41
+        "diverging": 42
       },
       "sections": [
         {
@@ -8556,10 +8596,10 @@
           "blurb": "A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph.",
           "url": "/docs/rules/packaging/single-file-builds/",
           "counts": {
-            "total": 13,
-            "shipped": 12,
+            "total": 14,
+            "shipped": 13,
             "designed": 1,
-            "diverging": 6
+            "diverging": 7
           },
           "rules": [
             {
@@ -8657,6 +8697,14 @@
               "status": "shipped",
               "href": "/docs/rules/packaging/single-file-builds/#the-cli-surface-is-novis-own",
               "diverges": "`php` carries `-i`, `-a`, `-r`, `-f` and a lowercase `-v`; `nvs` inherits none of them, spells every operation as a subcommand, and declares exactly one short flag of its own"
+            },
+            {
+              "id": "packaging/help-text-speaks-to-its-reader",
+              "slug": "help-text-speaks-to-its-reader",
+              "title": "A doc comment clap renders is written for the person reading `--help`, and cites nothing they cannot open",
+              "status": "shipped",
+              "href": "/docs/rules/packaging/single-file-builds/#help-text-speaks-to-its-reader",
+              "diverges": "`php --help` lists flags the manual explains elsewhere; `nvs --help` is the explanation, and it names no repository document, no decision record and no file extension the binary does not act on"
             },
             {
               "id": "packaging/nvs-info-is-the-one-call",

@@ -1532,7 +1532,7 @@ impl ExprTypeTable {
     /// an *access*: a property declaration is not an access, so it records no
     /// [`ExprInfo`] and there is no entry there to read a qualifier off. An
     /// editor needs one anyway — a `secret` property's default is bytes to
-    /// conceal (`rule:security/redaction-covers-bytes-only`), and it is
+    /// conceal (`rule:ide/redaction-covers-bytes-only`), and it is
     /// written at the one place in a class body that has no expression entry.
     ///
     /// Keyed by the initializer and **not** by the annotation, which is what

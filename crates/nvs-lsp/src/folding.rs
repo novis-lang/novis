@@ -323,7 +323,7 @@ impl Walk<'_> {
             end_line,
             // No columns: a client that folds whole lines ignores them, and a
             // fold is a line-granular answer here by construction — which is
-            // exactly why `rule:security/redaction-covers-bytes-only` cannot be
+            // exactly why `rule:ide/redaction-covers-bytes-only` cannot be
             // built on one.
             start_character: None,
             end_character: None,

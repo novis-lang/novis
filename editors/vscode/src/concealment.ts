@@ -1,7 +1,7 @@
 // What this window conceals, and which document each concealed range belongs to.
 //
 // The ranges arrive from the server and nothing here decides what a secret is
-// (`rule:security/redaction-ranges-come-from-the-server`): this module holds the last answer for
+// (`rule:ide/redaction-ranges-come-from-the-server`): this module holds the last answer for
 // each document and says what is drawn now. A client that worked out for itself which literal
 // carried `secret` would be a second implementation of the qualifier, which is what
 // `rule:ide/one-server-two-thin-clients` refuses.
@@ -19,10 +19,10 @@
 // conceal and a `taintedDeclaration` is a name to mark, so only the first is ever concealed, only
 // the first can be revealed, and a spelling this client has not been taught is treated as the
 // first — the direction where a client that is behind its server covers too much rather than too
-// little (`rule:security/tainted-has-no-default-decoration`).
+// little (`rule:ide/tainted-has-no-default-decoration`).
 //
 // A reveal is a fact about this window and this range, held nowhere else
-// (`rule:security/reveal-is-explicit-and-window-local`): there is no workspace state here and no
+// (`rule:ide/reveal-is-explicit-and-window-local`): there is no workspace state here and no
 // file written, so closing the editor is the end of it. Revealing one range reveals one range —
 // a second secret in the same document stays concealed, because a user who revealed a credential
 // to read it has not consented to reveal the rest of them.
@@ -44,8 +44,8 @@ export interface Range {
  *
  * `kind` is an open string (ADR 0101 § 1), and the two spellings on it are two different
  * instructions: `secretLiteral` is bytes to conceal and `taintedDeclaration` is a name to mark
- * where the user asked for a marker (`rule:security/tainted-has-no-default-decoration`). Concealing
- * the second would black out an identifier, which `rule:security/redaction-covers-bytes-only`
+ * where the user asked for a marker (`rule:ide/tainted-has-no-default-decoration`). Concealing
+ * the second would black out an identifier, which `rule:ide/redaction-covers-bytes-only`
  * refuses outright.
  */
 export interface Redaction {
@@ -59,7 +59,7 @@ export interface Redaction {
  * Matched this way round on purpose. A spelling nobody here recognises is concealed, so a later
  * qualifier the server learns before this client does covers bytes that needed no covering rather
  * than leaving bytes uncovered that did, and that is the only direction the failure may point in
- * (`rule:security/redaction-ranges-come-from-the-server`).
+ * (`rule:ide/redaction-ranges-come-from-the-server`).
  */
 const MARKERS: ReadonlySet<string> = new Set(["taintedDeclaration"]);
 
@@ -189,7 +189,7 @@ export class Concealment {
    * Drop everything held for `uri`.
    *
    * The editor for a document closing is what calls this, and it is deliberately the one thing that
-   * empties the map: `rule:security/reveal-is-explicit-and-window-local` keeps the state of a
+   * empties the map: `rule:ide/reveal-is-explicit-and-window-local` keeps the state of a
    * concealment inside the window that drew it, so nothing about it outlives the editor. The
    * reveals go with the answers: reopening the document conceals every range again.
    */

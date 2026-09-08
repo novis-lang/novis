@@ -52,11 +52,11 @@ export const chapterLeads = {
     'A throw is a checked return, not an unwind. What that costs, what happens when nothing catches it, and what a developer-facing message is made of.',
   tooling:
     'The commands around the compiler: the terminal, the formatter, doc comments, the PHP converter, and two telemetry opt-ins that are off until you say otherwise.',
-  ide: 'One resilient parse, one language server, and editor clients thin enough that neither of them holds any language logic.',
+  ide: 'One resilient parse, one language server, and editor clients thin enough that neither of them holds any language logic — plus everything security means for a file that is open in an editor rather than serving a request.',
   testing:
     'Testing is part of the language rather than a package you choose — and a feature is not finished until it has four separate proofs.',
   security:
-    'The reason Novis exists. Isolation, capabilities, and two compile-time qualifiers that keep untrusted data and secrets out of the places where they do damage.',
+    "The reason Novis exists. Isolation, capabilities, and two compile-time qualifiers that keep untrusted data and secrets out of the places where they do damage. Every rule here holds while the language is running; what an editor conceals on a screen is the editor's chapter, not this one.",
   concurrency:
     'Structured tasks, durable jobs and persistent connections, over one scheduler that never moves a running task between cores.',
   'core-api': 'What may live in `Core`, and the twenty shape rules every member of it obeys.',
@@ -348,7 +348,7 @@ export const ruleSections = {
     {
       slug: 'the-vs-code-extension',
       title: 'Inside the VS Code extension',
-      blurb: 'What the extension contributes, why it builds no UI the editor already has, and how its dependencies stay honest.',
+      blurb: 'What the extension contributes, why it builds no UI the editor already has, and where its clients live in the tree.',
       from: 'tasks-carry-a-problem-matcher',
     },
     {
@@ -356,6 +356,12 @@ export const ruleSections = {
       title: 'PhpStorm and the debugger',
       blurb: 'The same server behind another editor, and a debug adapter that is complete before any debugger UI exists.',
       from: 'phpstorm-bridges-to-the-same-server',
+    },
+    {
+      slug: 'security-in-the-editor',
+      title: 'Security in the editor',
+      blurb: 'What security means once a file is open rather than running: the process on the wire, the binary the client will trust, and a secret concealed on screen. None of it is a language guarantee.',
+      from: 'stdout-belongs-to-the-protocol',
     },
   ],
 
@@ -438,14 +444,8 @@ export const ruleSections = {
     {
       slug: 'secrets',
       title: 'Secrets',
-      blurb: 'A second, independent qualifier. Every sink refuses it, it crosses no boundary, and comparing two of them is constant-time.',
+      blurb: 'A second, independent qualifier. Every sink refuses it, it crosses no boundary, comparing two is constant-time, and no rendering the toolchain prints carries one in the clear.',
       from: 'secret-qualifier',
-    },
-    {
-      slug: 'redaction',
-      title: 'Redaction in the editor',
-      blurb: 'A secret is concealed by default, from ranges the server decides — and what concealment cannot cover is written down.',
-      from: 'reveal-is-explicit-and-window-local',
     },
     {
       slug: 'extensions-and-qualifiers',

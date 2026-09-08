@@ -2,7 +2,7 @@
 and formatting are implemented. An editor client is a thin adapter: it starts the server or the
 formatter, translates its own editor's events into LSP requests, and renders what comes back. It
 decides nothing about the language — not what a name resolves to, not where a line breaks, not even
-which range is a `secret` (`rule:security/redaction-ranges-come-from-the-server`).
+which range is a `secret` (`rule:ide/redaction-ranges-come-from-the-server`).
 
 The reason is the same one that gives every fact one home in the documentation, applied to executable
 behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a

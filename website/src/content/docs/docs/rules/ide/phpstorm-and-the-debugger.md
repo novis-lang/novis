@@ -9,15 +9,15 @@ prev:
   link: /docs/rules/ide/the-vs-code-extension/
   label: "Inside the VS Code extension"
 next:
-  link: /docs/rules/testing/
-  label: "Testing"
+  link: /docs/rules/ide/security-in-the-editor/
+  label: "Security in the editor"
 ---
 
 <p class="nv-section-lead">The same server behind another editor, and a debug adapter that is complete before any debugger UI exists.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">4</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">4</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">3</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">3</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#phpstorm-bridges-to-the-same-server">PhpStorm drives the same <code>nvs lsp</code> and <code>nvs fmt</code> through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#phpstorm-draws-no-redaction-at-m4b">The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-debug-adapter-does-not-wait-for-an-editor"><code>nvs dap</code> is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a <code>launch.json</code> schema, and PhpStorm's stays deferred</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-debugger-ui-is-as-deep-as-the-adapter">The debugger UI is only as deep as the capabilities <code>nvs dap</code> reports, so the adapter's capability list is the debugger's scope</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#phpstorm-bridges-to-the-same-server">PhpStorm drives the same <code>nvs lsp</code> and <code>nvs fmt</code> through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-debug-adapter-does-not-wait-for-an-editor"><code>nvs dap</code> is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a <code>launch.json</code> schema, and PhpStorm's stays deferred</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-debugger-ui-is-as-deep-as-the-adapter">The debugger UI is only as deep as the capabilities <code>nvs dap</code> reports, so the adapter's capability list is the debugger's scope</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="phpstorm-bridges-to-the-same-server">
 
@@ -52,28 +52,6 @@ explicit decision if usage justifies it — kept open, not silently skipped, and
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#nvs-is-its-own-file-type" title=".nvs is registered as its own language in every editor, activates nothing on .php, and is never handed to a PHP plugin"><code>ide/nvs-is-its-own-file-type</code></a> <a href="/docs/rules/ide/phpstorm-and-the-debugger/#the-debug-adapter-does-not-wait-for-an-editor" title="nvs dap is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a launch.json schema, and PhpStorm's stays deferred"><code>ide/the-debug-adapter-does-not-wait-for-an-editor</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#editor-clients-live-under-editors" title="An editor client lives under editors/&lt;editor&gt;, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it"><code>ide/editor-clients-live-under-editors</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0016.md">record 0016</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
-
-</div>
-
-<div class="nv-rule" id="phpstorm-draws-no-redaction-at-m4b">
-
-## The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands
-
-<div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
-<a class="nv-rule-id" href="#phpstorm-draws-no-redaction-at-m4b"><code>ide/phpstorm-draws-no-redaction-at-m4b</code></a>
-</div>
-
-`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
-whenever it is built — the range computation is shared, per
-[`security/redaction-ranges-come-from-the-server`](/docs/rules/security/redaction/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"). What is not shared is the drawing: an editor-side
-decoration is per-editor work with no common half.
-
-The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. That is a decision rather
-than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
-due when its plugin is.
-
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/redaction/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>security/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/security/redaction/#redaction-covers-bytes-only" title="Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation"><code>security/redaction-covers-bytes-only</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a> <a href="/docs/rules/ide/phpstorm-and-the-debugger/#phpstorm-bridges-to-the-same-server" title="PhpStorm drives the same nvs lsp and nvs fmt through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so"><code>ide/phpstorm-bridges-to-the-same-server</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
 
 </div>
 
