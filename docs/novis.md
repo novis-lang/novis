@@ -3212,6 +3212,7 @@ generic names a class may implement:
 |---|---|
 | `Comparable` | — |
 | `Stringable` | — |
+| `Parses` | — |
 | `PropertyObserver` | — |
 | `Iterable` | T |
 | `Iterator` | T |

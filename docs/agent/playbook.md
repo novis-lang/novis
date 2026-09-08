@@ -1345,6 +1345,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and because `goal-switch.py` carries the *live* file's checks forward, a stale source is invisible
   until something reinstalls it. Use `diff --strip-trailing-cr` before believing either file, and put
   an amendment to a check into both in the same commit. [until: reviewed 2026-09-08]
+- **A `loop-goal.toml` check naming a refusal can be asking for the refusal itself, not for one more
+  name under it.** Stage 2's `a_program_declaring_its_own_interface_named_parses_is_refused` reads as a
+  new case of a settled rule, but `nvs check` accepted `interface Stringable {}` and `class Throwable {}`
+  alike — neither compiler-owned roster was refused anywhere, because every resolver short-circuits on
+  those names before the symbol table and nothing ever looked at the declaration. Probe the precedent
+  with `target/debug/nvs.exe check` on a two-line file before budgeting the slice as a one-line
+  addition. [until: reviewed 2026-09-08]
 
 ## Running things
 
@@ -1477,12 +1484,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `CoreTy::Union`'s doc says "legal in either direction" outright. One `grep -n 'fn [a-z_]*('
   registry.rs` over the test names settles it; designing around a constraint that is not there costs
   a member's whole surface. [until: reviewed 2026-09-06]
-- **Adding a row to `nvs_hir::errors::TREE` fails a test in `nvs-ir`, and the message names neither
-  the tree nor the class you added.** Spec § 10's exception tree is restated as a hard-coded label
-  list in `lower/tests.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`, so
-  the failure is a bare `left: [...]`/`right: [...]` diff in `-p nvs-ir --lib`. A new § 10 class
-  owes the `TREE` row, `nvs_runtime::ThrownClass`'s variant, its `name()` arm, its `ALL` entry, that
-  assertion, and the spec's own tree drawing. [until: reviewed 2026-09-06]
+- **Adding a row to either compiler-owned roster — `nvs_hir::errors::TREE` or
+  `nvs_hir::interfaces::RESERVED` — fails a test in `nvs-ir`, and the message names neither the roster
+  nor the name you added.** Both are restated as one hard-coded, alphabetically sorted label list in
+  `lower/tests.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`, so the failure
+  is a bare `left: [...]`/`right: [...]` diff in `-p nvs-ir --lib`. A new § 10 class owes the `TREE`
+  row, `nvs_runtime::ThrownClass`'s variant, its `name()` arm, its `ALL` entry, that assertion, and the
+  spec's own tree drawing; a new global interface owes the `RESERVED` row and that same assertion.
+  [until: reviewed 2026-09-08]
 - **`Value::as_str_bytes` and `Value::as_text` make the *same* tag check, so a `from_utf8` after the
   first can never catch anything.** Both go through `Value::str_ptr`, which answers for `Tag::Str`
   alone, so a `bytes` argument reaches neither, and a defence a later rule made unreachable reads
