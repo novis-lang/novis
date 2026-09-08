@@ -21327,10 +21327,14 @@ others are the protocol's own names and every theme already styles them.
 
 #### Concealed secrets
 
-`nvs/redactions` takes a document and answers the ranges an editor must not show — the literals and
-interpolation slots that flow into a `secret` binding, each with its kind (`secretLiteral`). The
-server decides this, never the client: a client that matched `password` against a variable name
-would be a second, weaker definition of what a secret is.
+`nvs/redactions` takes a document and answers one list of ranges, each with its kind. The
+`secretLiteral` ranges are the ones an editor must not show — the literals and interpolation slots
+that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
+name of each declaration whose type carries `tainted`, marked with a glyph and never concealed, and
+only where `nvs.taint.mark` asks for it. A credential on a shared screen is an incident; a tainted
+value on one is not, and the marker is teaching rather than a default. The server decides both,
+never the client: a client that matched `password` against a variable name would be a second, weaker
+definition of what a secret is.
 
 A value is concealed because of where it is *written to*, not because of what it looks like. A
 literal has no qualifier of its own; the binding it is assigned into carries `secret`, and that is

@@ -2,59 +2,54 @@
 
 ## State
 
-**Goal 15 stage 6 draws and reveals.** The client conceals every range `nvs lsp` answers for
-`nvs/redactions` and uncovers them one at a time. `editors/vscode/src/concealment.ts` holds the
-window's state and imports no `vscode`; `src/redactions.ts` is the decoration, the ask and the two
-commands' bodies; `nvs.revealSecret` and `nvs.hideSecrets` are registered at
-`editors/vscode/src/extension.ts:68`. The headless tier is 155 passing and 0 failing over four
-suites — `client:` is the new one, over the pure state machine — and `npm run lint` is clean.
+**Goal 15 stage 6 is done.** `nvs/redactions` answers two kinds on one list —
+`secretLiteral`, bytes to conceal, and `taintedDeclaration`, the name of a local whose type carries
+`tainted` — and the client conceals the first, marks the second only where `nvs.taint.mark` asks,
+and conceals any spelling it has not been taught. The one-list decision and the walk are
+`crates/nvs-lsp/src/redactions.rs`'s module doc; the client's partition is
+`editors/vscode/src/concealment.ts`'s `MARKERS`. Headless is 158 passing over four suites, the
+`tests/lsp/redactions/` tree is 6 cases, `npm run lint` is clean.
 
-**The concealment outlives the server that answered it.** Only an answer replaces what is held, so
-an error, a cancellation, a version refusal or a restart leaves the bar exactly where it was;
-`Concealment.hold` is the only writer and `forget`, on the editor closing, the only eraser. That is
-`rule:security/redaction-ranges-come-from-the-server`'s fail direction, and `concealment.ts`'s
-module doc is where it is written down rather than here.
+**ADR 0101 § 4 asks for a codicon and the API does not offer one.** An inline decoration attachment
+takes `contentText` or an image path and never both, and only the text takes a `ThemeColor`, so the
+glyph is a themed BMP character. That trade is recorded in `editors/vscode/README.md` §
+*Decided here*, which is where the goal's *Standing decisions* put a decision too small for a
+record.
 
-**Stage 6's third item is server work, not client work.** Nothing the client receives says where a
-`tainted` declaration or a sink is; the playbook bullet under *Writing Novis itself* carries the two
-anchors and the one route that is open. `nvs.taint.mark` is `off` and draws nothing, which is what
-the milestone asks of the default.
+**`nvs.taint.mark = sink` marks what `declaration` marks.** No kind answers a sink's argument
+positions, because `rule:security/sink-predicate`'s classification is not on the member rows yet and
+ADR 0101 § *Open questions* leaves whether that value is built at all open. The gap is stated in
+`crates/nvs-lsp/src/redactions.rs` § *What it does not reach*, beside the parameter and property
+declarations the marker also cannot see.
 
 ## Next group
 
-**Stage 6: where a `tainted` marker's ranges come from** — one file set:
-`crates/nvs-lsp/src/redactions.rs`, `crates/nvs-lsp/src/server.rs`, `tests/lsp/redactions/` and
-`editors/vscode/src/redactions.ts`. The client half is written and waiting; what is missing is an
-answer to draw from, and the request that would carry it already exists.
+**Stage 9: the reference chapter's last heading** — one file set:
+`docs/reference/tools/40-editor.md`, `docs/examples/`, `tests/hostile/` and the generated
+`docs/novis.md`. The dossier roster is derived from `#` headings, so the feature the acceptance
+check names does not exist until the heading is written; then it owes what `POLICY["tool"]` owes.
 
-- [ ] **A second kind on the one request** — a constant beside `SECRET_LITERAL` at
-      `crates/nvs-lsp/src/redactions.rs:112`, answered from the walk under it, so a marker's ranges
-      arrive on the request that is already there rather than on a new one.
-      `rule:ide/the-request-set-is-closed`, and ADR 0101 § 1 is now in this stage's
-      `[context] adrs`. Decide there whether the answer stays one list or splits by kind.
-- [ ] **An `.lspt` case freezing what it answers** — beside
-      `tests/lsp/redactions/a-secret-literal-and-an-interpolation-slot-are-concealed.lspt:1`, over
-      the binding shape `tests/lsp/semantic/a-tainted-and-a-secret-binding-carry-their-qualifier-at-every-use.lspt:6`
-      writes, so the marker and the concealment are frozen by one corpus.
-      `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
-- [ ] **The glyph, only if asked** — `nvs.taint.mark` read where `nvs.secrets.redact` is read at
-      `editors/vscode/src/redactions.ts:157`, drawing a themed icon at `declaration` and nothing at
-      all at `off`; the colour is a `ThemeColor` and never a literal, the way the concealment bar at
-      `editors/vscode/src/redactions.ts:99` already is.
-      `rule:security/tainted-has-no-default-decoration`.
+- [ ] **The chapter gains `# The VS Code extension`** — a third `#` heading beside
+      `docs/reference/tools/40-editor.md:8`'s `# nvs lsp` and `docs/reference/tools/40-editor.md:119`'s
+      `# nvs lsp-test`, written for a reader who has never seen this repository: what the extension
+      is, what it does not do, and the settings and commands it contributes.
+      `rule:ide/vscode-is-the-reference-client`. Then `python tools/reference.py --no-examples`,
+      because `docs/novis.md` is generated and its check is the stage's second one.
+- [ ] **The three proofs that heading then owes** — one test, one example, one hostile program and
+      no perf figure, which is `tools/dossier.py:250`'s `POLICY["tool"]` row and
+      `rule:testing/four-proofs`. `python tools/dossier.py --id
+      'tools:editor/the-vs-code-extension'` prints where each goes once the heading exists, and
+      `tools:editor`'s other two features are the shape to copy.
+- [ ] **The gate, once** — `python tools/dossier.py --only tools:editor/the-vs-code-extension
+      --gate` at `docs/agent/loop-goal.toml:5364`, which today refuses with *not on the roster*
+      rather than with a missing proof.
 
 ## Backlog
 
-- `semanticTokenScopes` for `tainted` and `secret` is still uncontributed, and no rule names the
-  scopes to map them to: `rule:ide/novis-ships-names-not-colours` requires the mapping and
-  `rule:ide/highlighting-is-two-layers` specifies none. A gap in the rule, and the goal's *Colour is
-  specified, not designed* says a session may not close it by choosing.
-- Three of the six frozen commands are contributed but unregistered — `nvs.run`, `nvs.test` and
-  `nvs.showAst`, all stage 7's.
-- Stage 7's Tasks and problem matcher, and stage 8's `.vsix` and CI, are untouched.
-- `nvs.lsp.debounce` reaches no server: nothing is sent in `initializationOptions` and the server
-  reads none.
-- Stage 9's `python tools/dossier.py --only tools:editor/the-vs-code-extension --gate` is the
-  earliest red acceptance check and nothing has been written for it yet.
-- `docs/agent/loop-goal.toml`'s `[context] modules` names `editors/vscode/src/**`, which matches no
-  Rust module.
+- The `sink` value of `nvs.taint.mark` needs a third kind and `rule:security/sink-predicate`'s
+  classification first — ADR 0101 § *Open questions* owns whether it is built.
+- A parameter's and a property's declaration carry no marker; the gap is
+  `crates/nvs-lsp/src/redactions.rs` § *What it does not reach* and it is a `nvs-types` change.
+- Stage 7 is untouched: Tasks with a `problemMatcher`, and the AST panel's redaction obligation
+  (`docs/agent/loop-goal.md` § *Stage 7*).
+- Stage 8's extension-host suite is CI's alone and never run here (goal § *Standing decisions*).

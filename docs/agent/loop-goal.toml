@@ -188,7 +188,9 @@ rules = ["security/redaction-ranges-come-from-the-server", "security/redaction-c
          "ide/the-request-set-is-closed", "ide/semantic-tokens-carry-the-qualifiers"]
 # §1 is the wire shape of `nvs/redactions`, and the `kind` field's open string is the only place a
 # `tainted` marker can come from: the request set is closed, so there is no second request to add.
-adrs = ["0101 §1", "0101 §3"]
+# §4 is what that kind must answer — `nvs.taint.mark`'s three values and what each one marks — which
+# §1 does not say and no rule spells out either.
+adrs = ["0101 §1", "0101 §3", "0101 §4"]
 
 [context.stage.7]
 rules = ["ide/tasks-carry-a-problem-matcher", "ide/the-ast-panel-shells-out-to-the-cli",

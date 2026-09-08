@@ -4985,12 +4985,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   out of it and not spans. So a modifier read off `declared_ty` at a property declaration is always zero
   and fails no build. Read it off the access's own `ExprInfo::Property` entry instead, the way
   `nvs_lsp::semantic`'s `qualifiers_recorded` does. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
-- **The VS Code client cannot decorate `tainted` from what it already receives.** The token legend
-  at `crates/nvs-lsp/src/capabilities.rs:66` carries `tainted` at every *use* and declares no
-  `declaration` modifier, and `rule:ide/the-request-set-is-closed` admits no second request to ask
-  with. The open route is another `kind` on `nvs/redactions`' answer, which ADR 0101 § 1 leaves room
-  for: add it beside `crates/nvs-lsp/src/redactions.rs:112`.
-  [until: exists crates/nvs-lsp/src/redactions.rs:TAINTED]
+- **A second `kind` on `nvs/redactions` is a change in three files, and the two that are not the
+  server fail quietly.** The client conceals every kind it is handed, so a marker spelling added to
+  `crates/nvs-lsp/src/redactions.rs` alone bars an identifier until
+  `editors/vscode/src/concealment.ts`'s `MARKERS` has been taught it, and
+  `docs/reference/tools/40-editor.md` names the kinds in prose, so `docs/novis.md` goes stale under
+  a check nobody edited. Write all three, then `python tools/reference.py --no-examples`.
+  [until: gone editors/vscode/src/concealment.ts:const MARKERS]
 
 ## Divergences and refusals already pinned
 
