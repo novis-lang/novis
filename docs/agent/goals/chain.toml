@@ -415,9 +415,9 @@ preflight = "docker"
 # Last on the chain because nothing depends on it: goal 15 shipped an extension that works for
 # people who already have `nvs`, and this goal only widens who those people are. It is on the
 # chain at all because the dead end it removes -- install the extension, get told about `PATH`,
-# and stop -- is the first thing a new user meets, and `rule:ide/the-extension-refuses-a-binary-
-# it-does-not-understand`'s version mismatch ends the same way. ADR 0155 is its whole design and
-# landed before it.
+# and stop -- is the first thing a new user meets, and the version mismatch of
+# `rule:ide/the-extension-refuses-a-binary-it-does-not-understand` ends the same way. ADR 0155 is
+# its whole design and landed before it.
 [[goal]]
 name = "33 editor-install"
 md = "docs/agent/goals/33-editor-install.md"
