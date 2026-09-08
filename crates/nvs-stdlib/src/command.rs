@@ -1274,6 +1274,47 @@ mod tests {
         );
     }
 
+    /// § 6's `decimal`, on the side a command line fills: a written word
+    /// becomes `rule:types/decimal`'s exact number, so nothing declared
+    /// `decimal` reaches a handler as the text somebody typed, and a word that
+    /// is not one is a usage error rather than a throw.
+    ///
+    /// The grammar is `nvs_runtime::decimal`'s and never a second one written
+    /// here, which is what the exponent asserts: a hand-written digit check
+    /// passes every other line of this test and fails that one.
+    #[test]
+    fn a_decimal_command_argument_is_converted_and_no_longer_unconverted() {
+        let row = Command {
+            name: "charge".to_owned(),
+            about: None,
+            handler: "Billing::charge".to_owned(),
+            args: vec![CommandArg {
+                param: "amount".to_owned(),
+                spellings: vec![],
+                about: None,
+                conv: ArgConv::Decimal,
+                default: None,
+            }],
+        };
+        // The value and its scale, not the digits: `19.90` is not `19.9`, and
+        // an integral word is a decimal too.
+        let values = matched(&row, &["19.90".to_owned()]).expect("a decimal word converts");
+        assert_eq!(values[0].as_decimal(), Decimal::parse("19.90"));
+        assert_eq!(values[0].as_text(), None, "the word does not survive");
+        release(values);
+        let integral = matched(&row, &["7".to_owned()]).expect("a decimal word converts");
+        assert_eq!(integral[0].as_decimal(), Decimal::parse("7"));
+        release(integral);
+        let exponent = matched(&row, &["1e3".to_owned()]).expect("a decimal word converts");
+        assert_eq!(exponent[0].as_decimal(), Decimal::parse("1e3"));
+        release(exponent);
+
+        assert_eq!(
+            matched(&row, &["19.90usd".to_owned()]).unwrap_err(),
+            "`amount` takes an exact decimal number, and `19.90usd` is not one"
+        );
+    }
+
     /// § 3's union of literal types, as the closed set a word is narrowed to:
     /// every member converts to its own word, and anything else is a **usage**
     /// error naming every value that would have been accepted — a command line
