@@ -1,0 +1,10 @@
+<?nvs
+// an ordinary line comment
+/// documents the class below
+//// a divider, not documentation
+# an ordinary line comment too
+/* a block comment
+   over two lines */
+#[Route("/orders")]
+class Orders {}
+?>

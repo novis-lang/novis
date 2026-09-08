@@ -1,0 +1,7 @@
+<!doctype html>
+<h1>Total</h1>
+<?nvs
+$total = 1;
+?>
+<p class="<?= $total ?>">done</p>
+<footer>bye</footer>
