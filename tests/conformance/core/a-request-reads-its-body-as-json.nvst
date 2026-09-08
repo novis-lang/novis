@@ -1,0 +1,37 @@
+--TEST--
+`Core\Request::json()` reads the request body as one JSON document, carrying `Core\Json::decode`'s `{maxDepth?}` bag and consulting no `Content-Type` `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--HEADERS--
+Content-Type: text/plain
+--POST_RAW--
+{"name":"ada","tags":[1,2],"ok":true}
+--FILE--
+<?nvs
+// The member is `Core\Json::decode` over the body's octets and nothing else,
+// so the document it answers re-encodes to what the peer sent.
+echo Core\Json::encode(Core\Request::json()), "\n";
+
+// The peer declared `text/plain` and the body was read as JSON regardless:
+// what a peer wrote in a header is not what decides what a body is, which is
+// `post()`'s rule already. A member that gated on the type would have thrown
+// above rather than printing the document.
+echo "the declared type is not consulted\n";
+
+// The bag is `decode`'s own, counted `decode`'s way: a scalar document is
+// depth 1, so the list under `tags` sits at 3 and a cap of 2 refuses this
+// document. The refusal is a `ParseError`, the same class a malformed body
+// raises, because both are the peer's document failing to be what it must be.
+try {
+    Core\Request::json({maxDepth: 2});
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "too deep\n";
+}
+
+// And the cap is the call's, not the request's: the octets are still the ones
+// the peer sent, so the same body at the default depth answers as before.
+echo Core\Json::encode(Core\Request::json()), "\n";
+--EXPECT--
+{"name":"ada","tags":[1,2],"ok":true}
+the declared type is not consulted
+too deep
+{"name":"ada","tags":[1,2],"ok":true}

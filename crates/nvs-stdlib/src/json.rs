@@ -336,7 +336,11 @@ const ENCODE_OPTIONS: &[CoreOption] = &[
 ];
 
 /// `Core\Json::decode`'s `{maxDepth?: uint}` — see [`DEFAULT_MAX_DEPTH`].
-const DECODE_OPTIONS: &[CoreOption] = &[CoreOption {
+///
+/// `pub(crate)` because `Core\Request::json` reads a document out of a request
+/// body and carries the same bag: one default for the depth of a JSON document,
+/// wherever the octets came from.
+pub(crate) const DECODE_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "maxDepth",
     ty: CoreTy::Uint,
     default: Const::Uint(DEFAULT_MAX_DEPTH),
@@ -385,8 +389,13 @@ pub const DEPTH_CEILING: u64 = 1024;
 const _: () = assert!(DEFAULT_MAX_DEPTH < DEPTH_CEILING);
 const _: () = assert!(DEPTH_CEILING < u32::MAX as u64);
 
-/// The `maxDepth` option, checked.
-fn max_depth(value: &Value) -> Result<u32, Fault> {
+/// The `maxDepth` option, checked, for the member `who` names.
+///
+/// The member is a parameter because [`DECODE_OPTIONS`] is carried by every
+/// reader of a JSON document, including `Core\Request::json`, and a refusal
+/// that named this class regardless would send a program looking at a call it
+/// did not write.
+pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
     // Unreachable from source: `maxDepth` is a `CoreTy::Uint` option in
     // `DECODE_OPTIONS` below, so `{maxDepth: $m}` over a `mixed` is `E0401:
     // expected uint, found mixed` at the checker and the bag a call that
@@ -394,7 +403,7 @@ fn max_depth(value: &Value) -> Result<u32, Fault> {
     // refusal underneath is the reachable half, and it throws.
     let asked = value.as_uint().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Json::decode expected {:?} for the `maxDepth` option, got tag {}",
+            "{who} expected {:?} for the `maxDepth` option, got tag {}",
             Tag::Uint,
             value.tag_byte()
         ))
@@ -402,14 +411,14 @@ fn max_depth(value: &Value) -> Result<u32, Fault> {
     if asked == 0 || asked > DEPTH_CEILING {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
-            format!("Core\\Json::decode(): a `maxDepth` of {asked} is outside 1..={DEPTH_CEILING}"),
+            format!("{who}(): a `maxDepth` of {asked} is outside 1..={DEPTH_CEILING}"),
         ));
     }
     // The `1..=DEPTH_CEILING` refusal above is the boundary and it throws; this
     // is its post-condition and is unreachable from source, since a value that
     // got past it is at most 1024 and every `u64` that small is a `u32`.
     u32::try_from(asked)
-        .map_err(|_| Fault::fatal("Core\\Json::decode(): a checked `maxDepth` always fits a `u32`"))
+        .map_err(|_| Fault::fatal(format!("{who}(): a checked `maxDepth` always fits a `u32`")))
 }
 
 // ============================================================================
@@ -889,7 +898,7 @@ nvs_runtime::nvs_helper! {
     /// `decodeAs<T>` is (gap 2).
     fn nvs_core_json_decode(_ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
-        let max = max_depth(&args[1])?;
+        let max = max_depth(&args[1], "Core\\Json::decode")?;
         read(text, max).map_err(|why| {
             // `rule:core-classes/derive-reports-every-field`'s last sentence: a malformed document records one
             // issue, so a `catch (ParseError $e)` reads the same shape whether
@@ -933,7 +942,7 @@ nvs_runtime::nvs_helper! {
             "internal error: `Core\\Json::decodeAs` was called with no list flag in argument 1",
         ))?;
         let text = text_of(&args[2], "decodeAs")?;
-        let max = max_depth(&args[3])?;
+        let max = max_depth(&args[3], "Core\\Json::decodeAs")?;
         #[expect(
             unsafe_code,
             reason = "the descriptor came out of a `ClassDescConst` the compiled \

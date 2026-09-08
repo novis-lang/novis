@@ -4,19 +4,22 @@
 //!
 //! # What is here, and what is not
 //!
-//! Eleven of
+//! Twelve of
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
-//! sixteen members: `method`, `isHead`, `path` and `query` — the request *line*,
-//! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
-//! `header`, `headers` and `cookie`, the fields that arrived with it, and
-//! `body`, `bodyStream`, `files` and `post`, the four members here that read
-//! what arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
+//! seventeen members: `method`, `isHead`, `path` and `query` — the request
+//! *line*, and the one fact reporting a `HEAD` as a `Get` would otherwise lose
+//! — `header`, `headers` and `cookie`, the fields that arrived with it, and
+//! `body`, `bodyStream`, `files`, `post` and `json`, the five members here that
+//! read what arrived **after** all of those — the same
+//! [`nvs_runtime::RequestBody`]
 //! pulled to its end into one value, walked a chunk at a time, walked as the
 //! parts a `multipart/form-data` body declares
 //! (`rule:http-server/an-upload-is-received-only-through-files`
-//! , the parse itself being [`crate::multipart`]'s), or read to its end as
-//! the form it submitted (§ 2, and `post` is the one of the four that reads
-//! either the octets or a parse another reader left behind — [`claim_body`]).
+//! , the parse itself being [`crate::multipart`]'s), read to its end as
+//! the form it submitted (§ 2, and `post` is the one of the five that reads
+//! either the octets or a parse another reader left behind — [`claim_body`]),
+//! or decoded as the one JSON document those octets spell, which is
+//! [`crate::json`]'s reader over this module's hold.
 //! `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
 //! a different thing:
@@ -52,13 +55,13 @@
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
 //!
-//! # Four members read the body, and what one leaves decides who may follow
+//! # Five members read the body, and what one leaves decides who may follow
 //!
 //! `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
-//! splits them by what they leave behind rather than by name. `body` and `post`
-//! **buffer**: they keep what they read — the octets, or over a multipart body
-//! the fields alone — so a reader that needs what is held is answered out of
-//! it, in any order and any number of times. `bodyStream` and `files`
+//! splits them by what they leave behind rather than by name. `body`, `post`
+//! and `json` **buffer**: they keep what they read — the octets, or over a
+//! multipart body the fields alone — so a reader that needs what is held is
+//! answered out of it, in any order and any number of times. `bodyStream` and `files`
 //! **stream**: they hand the octets to the program as they arrive, keep none of
 //! them, and so are the only reader of the body they read. Left unenforced, the
 //! reader after a streaming one would answer *plausibly* — an empty string, or
@@ -72,7 +75,11 @@
 //! refusal. **Each member says what it needs of the body rather than which kind
 //! it is** — [`nvs_runtime::BodyNeed`] — because the kinds are not fixed per
 //! member: `post` consumes the wire where it is the first reader and consumes
-//! nothing where a hold is already filled. The claim is taken where the reading
+//! nothing where a hold is already filled. What `json` needs is what `body`
+//! needs, so it says so and the matrix answers the rest; it decodes what the
+//! hold carries, per call, and the `{maxDepth?}` bag is therefore the call's
+//! rather than the request's.
+//! The claim is taken where the reading
 //! is **named** — `bodyStream()` claims when the walk is built, long before an
 //! `advance()` moves a byte — so a program that names a reading nothing may
 //! follow is refused whether or not it walked either, and one that names a
@@ -181,7 +188,9 @@
 //! value a `string` *or* a nested array, and `nvs_types` has no `tainted
 //! array<T>` — the qualifier axes are defined over `string` and `bytes`. So a
 //! program checks the answer out with `as`, and what it lands in is a plain
-//! `string`. That is the same hole `Core\Uri::parseQuery` already has and is
+//! `string`. `post` and `json` answer `mixed` for the same reason and are the
+//! same hole: a decoded JSON document is that same nested array, so the tainted
+//! array that closes one closes all three. That is the same hole `Core\Uri::parseQuery` already has and is
 //! not new here, but it is worth naming at the one member most likely to be the
 //! source of an injection: `Core\Request::header` and `::cookie`, which answer
 //! a `tainted string` directly, do carry it.
@@ -277,6 +286,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_request_body",
             doc: Some(&BODY_DOC),
+        },
+        CoreMethod {
+            name: "json",
+            names: &[],
+            params: &[CoreTy::Options(crate::json::DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_request_json",
+            doc: Some(&JSON_DOC),
         },
         CoreMethod {
             name: "bodyStream",
@@ -467,6 +485,46 @@ const BODY_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "This program is not answering a request, or this request's body has already \
                    been read by `bodyStream` or `files` — the three are exclusive on one request.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
+                   are never held: the refusal happens at the chunk that would cross it.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the length \
+                   it declared.",
+        },
+    ],
+};
+
+/// `Core\Request::json`'s reference card — `rule:core-api/reference-card`.
+const JSON_DOC: MethodDoc = MethodDoc {
+    short: "The request body read as one JSON document — `Core\\Json::decode` over the octets \
+            `body` answers, carrying the same `{maxDepth?}` bag and the same default of 512.",
+    params: &[ParamDoc {
+        name: "maxDepth",
+        desc: "How deep the document may nest before it is refused, counted PHP's way: a scalar \
+               document is depth 1.",
+        shape: &[],
+    }],
+    ret: "The decoded document — arrays and scalars, in the shape the peer sent, exactly as \
+          `Core\\Json::decode` builds it. The strings in it are a peer's bytes, so they carry \
+          `body`'s qualifier the way `post`'s fields do.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `bodyStream` or `files` — those two hand the octets over as they \
+                   arrive and keep none of them. A `maxDepth` outside 1..=1024 is the other one.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not one whole JSON document at that depth — which includes a body \
+                   the peer never sent and an empty one, because `mixed` cannot tell \"no body\" \
+                   from the document `null`. What the request declared as its `Content-Type` is \
+                   not consulted either way.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1170,6 +1228,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
+        "nvs_core_request_json" => (nvs_core_request_json as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
         "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
@@ -1972,6 +2031,76 @@ nvs_runtime::nvs_helper! {
         claim_body(ctx, "body", BodyNeed::Octets)?;
         Ok(Value::str(NvsStr::new(held_octets(ctx, "body")?)))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::json({maxDepth?: uint}): mixed` — `Core\Json::decode`
+    /// over the octets [`nvs_core_request_body`] answers, carrying that
+    /// member's `{maxDepth?}` bag and its default.
+    ///
+    /// **A member rather than the composition it looks like.**
+    /// `Core\Json::decode(Core\Request::body())` reads the same document and
+    /// cannot take the *claim*: it is two members, so it is `body()`'s claim,
+    /// and a program that wanted the JSON reading to be refused after a
+    /// streamed body would have written the refusal itself. Taking the claim
+    /// under its own name is what makes this member worth the surface, and it
+    /// is the argument `post()` was admitted on.
+    ///
+    /// **`Content-Type` is not consulted**, on `post()`'s reasoning: what a
+    /// peer wrote in a header is not what decides what a body is. A
+    /// mislabelled but valid document is read and a malformed one throws —
+    /// `rule:errors/ambiguous-input-refused` refuses ambiguity, not
+    /// mislabelling.
+    ///
+    /// **What it spends:** the body's own bytes for the rest of the request,
+    /// which is [`nvs_core_request_body`]'s hold and shared with it, plus the
+    /// decoded value this call hands back. Both are bounded by
+    /// [`REQUEST_BODY`] and both are O(in-flight).
+    fn nvs_core_request_json(ctx, args: [1]) {
+        // In `body`'s order, and for `body`'s reasons: the request first, so
+        // "no request arrived" stays a different fact from what the body says.
+        inbound_of(ctx, "json")?;
+        // Before the claim, because a `maxDepth` this member will refuse is a
+        // defect in the program and taking the body first would spend a
+        // reading on a call that was never going to answer.
+        let max = crate::json::max_depth(&args[0], "Core\\Request::json")?;
+        // What this member needs is the octets, exactly as `body` needs them:
+        // it holds them, so another buffering reader may follow it, and a
+        // streaming reader ahead of it is refused.
+        claim_body(ctx, "json", BodyNeed::Octets)?;
+        let octets = held_octets(ctx, "json")?;
+        decoded_body(octets, max, "json")
+    }
+}
+
+/// `octets` as the one JSON document they spell, for `member`.
+///
+/// # Errors
+///
+/// `ParseError` where they spell no such document: a body that is not UTF-8,
+/// one that holds something other than a single document at `max`, and an
+/// absent or empty one. That last is a refusal rather than `null` because
+/// `mixed` cannot tell "the peer sent no body" from a body holding the
+/// document `null`, and the two must not answer alike; `LogicError` is not
+/// available for it either, since a peer must never be able to make a program
+/// report its own defect.
+fn decoded_body(octets: &[u8], max: u32, member: &str) -> Result<Value, Fault> {
+    // `crate::json`'s shape, because this is that member's failure reached
+    // through a different door: one issue for a malformed document, so a
+    // `catch (ParseError $e)` reads the same whichever door it came through.
+    let refused = |why: &str| {
+        let message = format!("Core\\Request::{member}(): {why}");
+        let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    };
+    if octets.is_empty() {
+        return Err(refused(
+            "the request carried no body, and no bytes are not the document `null`",
+        ));
+    }
+    let text = std::str::from_utf8(octets)
+        .map_err(|_| refused("the body is not UTF-8, so it is not a JSON document"))?;
+    crate::json::read(text, max).map_err(|why| refused(&why.to_string()))
 }
 
 /// This request's octets, held on the carrier: pulled off the wire by the
@@ -2881,13 +3010,13 @@ mod tests {
         nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
-        nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_method,
-        nvs_core_request_mount, nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
-        nvs_core_request_part_content, nvs_core_request_part_content_advance,
-        nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
-        nvs_core_request_part_content_type, nvs_core_request_part_filename,
-        nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
-        nvs_core_request_post,
+        nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_json,
+        nvs_core_request_method, nvs_core_request_mount, nvs_core_request_mount_captures,
+        nvs_core_request_mount_prefix, nvs_core_request_part_content,
+        nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
+        nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
+        nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
+        nvs_core_request_part_save_to, nvs_core_request_post,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -4881,6 +5010,18 @@ mod tests {
         Ok(read)
     }
 
+    /// `Core\Request::json()` on `ctx` at the default depth.
+    ///
+    /// The bag is passed by hand because a compiled call site is what fills in
+    /// a `Const::Uint` default, and there is no call site here.
+    fn read_json(ctx: &mut Ctx) -> Result<Value, i32> {
+        nvs_runtime::call(
+            nvs_core_request_json,
+            ctx,
+            &[Value::uint(crate::json::DEFAULT_MAX_DEPTH)],
+        )
+    }
+
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
     /// buffering half: a reader that keeps what it read leaves a hold, and the
     /// next reader answers out of that hold rather than off a wire that is
@@ -4977,6 +5118,64 @@ mod tests {
             read_body(&mut bodiless).expect("and an empty body is held like any other"),
             Vec::<u8>::new(),
             "\"the peer sent nothing\" is an answer this member repeats rather than withdraws"
+        );
+    }
+
+    /// An absent body and an empty one are one fact — the peer sent no bytes —
+    /// and no bytes are not a JSON document, so `json` refuses both with the
+    /// `ParseError` a malformed body raises.
+    ///
+    /// `null` is the answer it must never give: `mixed` cannot tell "no body"
+    /// from a body holding the document `null`, so answering one for the other
+    /// is the ambiguity `rule:errors/ambiguous-input-refused` exists to refuse.
+    /// `LogicError` is the other wrong class and the worse one — a peer that
+    /// sends nothing would then be making this program report its own defect.
+    #[test]
+    fn an_absent_or_empty_body_is_a_parse_error_for_json() {
+        let mut bodiless = answering(None);
+        assert!(
+            read_json(&mut bodiless).is_err(),
+            "a request that carried no body carries no document either"
+        );
+
+        let mut empty = answering(Some(Chunks::of(&[&b""[..]])));
+        assert!(
+            read_json(&mut empty).is_err(),
+            "and a body of no bytes is the same fact arriving the other way"
+        );
+        assert_eq!(
+            read_body(&mut empty).expect("the refusal is the decode, not a claim on the body"),
+            Vec::<u8>::new(),
+            "which is where the two members part: the octets are answerable and \
+             the document is not"
+        );
+    }
+
+    /// The declared `Content-Type` is not consulted, in either direction.
+    ///
+    /// `post()`'s reasoning, inherited: what a peer wrote in a header is not
+    /// what decides what a body is. Asked both ways round because a gate on
+    /// the type fails only one of them — a mislabelled but valid document
+    /// would be unreadable, and a malformed one wearing the right label would
+    /// still have to throw.
+    #[test]
+    fn json_ignores_the_content_type_the_peer_declared() {
+        let mut mislabelled = uploading("text/plain", Some(Chunks::of(&[&b"{\"n\":1}"[..]])));
+        let document =
+            read_json(&mut mislabelled).expect("a document is read whatever the peer called it");
+        assert!(
+            document.array_ptr().is_some(),
+            "a JSON object decodes to the one array type, as `Core\\Json::decode` builds it"
+        );
+        dropped(document);
+
+        let mut labelled = uploading(
+            "application/json",
+            Some(Chunks::of(&[&b"not a document"[..]])),
+        );
+        assert!(
+            read_json(&mut labelled).is_err(),
+            "and the header makes no document out of bytes that are not one"
         );
     }
 

@@ -1,0 +1,37 @@
+--TEST--
+A body that is not one whole JSON document is a `ParseError` from `Core\Request::json()`, and a body the peer never sent is the same refusal rather than `null` `rule:errors/ambiguous-input-refused`
+--HEADERS--
+Content-Type: application/json
+--POST_RAW--
+{"name": "ada"
+--FILE--
+<?nvs
+// The peer declared `application/json` and sent something else: the class is
+// `ParseError`, which spec § 10 puts under `RuntimeError` as "input did not
+// match a format this code declared", and it is what a handler maps to 400.
+// It is never a `LogicError`, because a peer must not be able to make a
+// program report its own defect.
+try {
+    Core\Request::json();
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed rejected\n";
+}
+
+// The refusal is the reading, not a claim on the body: the reader that copies
+// the octets out still answers them, so a handler can log what arrived. The
+// `--POST_RAW--` section's own closing newline is part of the body the peer
+// sent, so this line writes no second one.
+echo Core\Request::body();
+
+// And every later call refuses the same way, off the same held octets.
+try {
+    Core\Request::json();
+    echo "not reached\n";
+} catch (ParseError $again) {
+    echo "still rejected\n";
+}
+--EXPECT--
+malformed rejected
+{"name": "ada"
+still rejected

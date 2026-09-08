@@ -1,0 +1,27 @@
+--TEST--
+`Core\Request::json()` answers the same document on every call and leaves the octets held, so `body()` and `post()` follow it in either order `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+--POST_RAW--
+{ "title" : "Q3 report" }
+--FILE--
+<?nvs
+// A buffering reader keeps what it read, so the second call is not a second
+// reading of the wire. A member that pulled again would find the wire drained
+// and report a document the peer never sent; one that refused its own second
+// call would raise a `LogicError` about a question with an answer in memory.
+echo Core\Json::encode(Core\Request::json()), "\n";
+echo Core\Json::encode(Core\Request::json()), "\n";
+
+// What is held is the octets, not the decode: the spacing the peer wrote is
+// still there for the reader that copies bytes out, and re-encoding the
+// document is what dropped it above. The `--POST_RAW--` section's own closing
+// newline is part of the body the peer sent, so this line writes no second one.
+echo Core\Request::body();
+
+// And the hold belongs to the request rather than to the member that filled
+// it, so the reading that follows a `body()` is the same document again.
+echo Core\Json::encode(Core\Request::json()), "\n";
+--EXPECT--
+{"title":"Q3 report"}
+{"title":"Q3 report"}
+{ "title" : "Q3 report" }
+{"title":"Q3 report"}
