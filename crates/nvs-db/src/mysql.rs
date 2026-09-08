@@ -278,7 +278,7 @@ pub(crate) const REQUIRED_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIEN
 /// server built without TLS for a threat that transport does not have —
 /// [`MyStream`] owns that argument in full.
 #[cfg(unix)]
-const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
+pub(crate) const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
     REQUIRED_CAPABILITIES.difference(CapabilityFlags::CLIENT_SSL);
 
 /// The endpoint a socket `host` names on this driver, which is the path an
@@ -792,9 +792,13 @@ fn codec_failed(error: PacketCodecError) -> io::Error {
 /// without are kept.
 #[derive(Debug)]
 pub(crate) struct Greeting {
-    /// The capability bits the server claims, already checked against
-    /// [`REQUIRED_CAPABILITIES`].
-    capabilities: CapabilityFlags,
+    /// The capability bits the server claims, already checked against what the
+    /// transport asks of them — [`REQUIRED_CAPABILITIES`] where there is a
+    /// network and `REQUIRED_OVER_A_SOCKET` where there is not. A socket arm
+    /// takes `CLIENT_SSL` back out of this afterwards, because nothing is
+    /// upgraded there and the handshake response offers back what it reads
+    /// here.
+    pub(crate) capabilities: CapabilityFlags,
     /// The extended capability bits the server claims, which are MariaDB's own
     /// and which a MySQL server leaves as the zero filler they sit in —
     /// [`agreed_extended`] is the one reader.
@@ -4883,6 +4887,149 @@ mod tests {
             let refused = crate::conn::socket_endpoint("/run/mysqld/mysqld.sock")
                 .expect_err("a build with no `AF_UNIX` transport has no socket to open");
             assert_eq!(refused.kind(), io::ErrorKind::Unsupported);
+        }
+    }
+
+    /// [`MyStream`]: the transport is settled before the greeting is read, so
+    /// what a *server* said is answered the same way over either of them.
+    ///
+    /// The refusal a server sends **instead of** a greeting is the one exchange
+    /// a plaintext script can drive over both arms: [`read_greeting`] answers an
+    /// `0xFF` packet before it compares capabilities and before the in-band
+    /// upgrade, so the TCP arm reaches it with no certificate anywhere. The two
+    /// arms do not ask for the same capabilities — TLS is in one set and not the
+    /// other — and this is the case that says the difference stops there.
+    ///
+    /// Asserted as agreement, over every driver framed on [`Wire`], and
+    /// **counted** rather than read off one line, so a driver whose socket arm
+    /// grew an error path of its own fails here while its own case still
+    /// passes. [`crate::pg`] is outside the sweep by design: over TCP its
+    /// refusal arrives inside TLS, which is `PgStream`'s whole argument, and
+    /// TDS has no socket arm to disagree over.
+    #[test]
+    fn a_driver_answers_the_same_over_either_transport() {
+        #[cfg(unix)]
+        {
+            use std::io::Write as _;
+
+            /// MariaDB's target beside [`target`]'s, so the sweep asks each
+            /// driver its own question with its own type.
+            fn maria_target() -> crate::MariaTarget<'static> {
+                crate::MariaTarget {
+                    host: "db.example.internal",
+                    user: "novis",
+                    password: PASSWORD,
+                    database: "shop",
+                    tls_ca_file: None,
+                    time_zone: 0,
+                    statement_cache: crate::sql::DEFAULT_STATEMENT_CACHE,
+                }
+            }
+
+            // The layout a refusal takes where a greeting was due: the
+            // capabilities are not negotiated yet, so there is no `SQLSTATE` in
+            // it and `read_greeting` reads it under an empty set.
+            let mut body = vec![0xFF];
+            body.extend_from_slice(&1045u16.to_le_bytes());
+            body.extend_from_slice(b"Access denied for user 'novis'");
+            let refusal = packet(0, &body);
+
+            type Dial = fn(crate::conn::Endpoint) -> io::Error;
+            let drivers: [(&str, Dial); 2] = [
+                ("mysql", |endpoint| {
+                    crate::MySqlConn::connect(endpoint, &target(), None)
+                        .expect_err("a server that refused before greeting is not a connection")
+                }),
+                ("mariadb", |endpoint| {
+                    crate::MariaConn::connect(endpoint, &maria_target(), None)
+                        .expect_err("a server that refused before greeting is not a connection")
+                }),
+            ];
+
+            let mut agreed = 0;
+            for (driver, dial) in drivers {
+                let listening = std::net::TcpListener::bind("127.0.0.1:0")
+                    .expect("the OS refused a loopback port");
+                let address = listening
+                    .local_addr()
+                    .expect("a bound listener has an address");
+                let script = refusal.clone();
+                let server = std::thread::spawn(move || {
+                    let (mut accepted, _) = listening.accept().expect("the driver dials");
+                    let _ = accepted.write_all(&script);
+                });
+                let over_tcp = dial(crate::conn::Endpoint::Tcp(address));
+                server.join().expect("the fake server runs to completion");
+
+                let mut path = std::env::temp_dir();
+                path.push(format!(
+                    "nvs-{driver}-{}-either-transport.sock",
+                    std::process::id()
+                ));
+                let _ = std::fs::remove_file(&path);
+                let listening =
+                    std::os::unix::net::UnixListener::bind(&path).expect("the OS refused the path");
+                let script = refusal.clone();
+                let server = std::thread::spawn(move || {
+                    let (mut accepted, _) = listening.accept().expect("the driver dials");
+                    let _ = accepted.write_all(&script);
+                });
+                let over_socket = dial(crate::conn::Endpoint::Socket(path.clone()));
+                server.join().expect("the fake server runs to completion");
+                let _ = std::fs::remove_file(&path);
+
+                assert_eq!(
+                    over_tcp.kind(),
+                    over_socket.kind(),
+                    "{driver} read one refusal as two kinds"
+                );
+                assert_eq!(
+                    over_tcp.to_string(),
+                    over_socket.to_string(),
+                    "{driver} worded one refusal two ways"
+                );
+                let said_over_tcp = ServerError::of(&over_tcp).expect("the server worded this one");
+                let said_over_socket =
+                    ServerError::of(&over_socket).expect("the server worded this one");
+                assert_eq!(
+                    (
+                        said_over_tcp.kind,
+                        said_over_tcp.driver_code,
+                        said_over_tcp.backend
+                    ),
+                    (
+                        said_over_socket.kind,
+                        said_over_socket.driver_code,
+                        said_over_socket.backend
+                    ),
+                    "{driver} normalised one refusal two ways"
+                );
+                agreed += 1;
+            }
+
+            assert_eq!(
+                agreed, 2,
+                "both drivers framed on `Wire` answer over either transport"
+            );
+        }
+
+        #[cfg(not(unix))]
+        {
+            // One transport, and the drivers agree about that too: a build with
+            // no `AF_UNIX` transport refuses a socket `host` rather than
+            // reading it as loopback, and both spellings of `socket_endpoint`
+            // reach `crate::conn`'s one refusal to do it.
+            for refused in [
+                super::socket_endpoint("/run/mysqld/mysqld.sock", super::DEFAULT_PORT),
+                crate::pg::socket_endpoint("/run/postgresql", 5432),
+            ] {
+                assert_eq!(
+                    refused
+                        .expect_err("a build with no `AF_UNIX` transport has no socket to open")
+                        .kind(),
+                    io::ErrorKind::Unsupported
+                );
+            }
         }
     }
 

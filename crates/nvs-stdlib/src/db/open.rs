@@ -401,10 +401,20 @@ pub(crate) fn open_named(
                 let target = nvs_db::MariaTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                let address =
-                    address_of(target.host, block.port, nvs_db::maria::DEFAULT_PORT, name)?;
-                let conn = nvs_db::MariaConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(&address, &err))?;
+                // `nvs_db::mysql::socket_endpoint` on a MariaDB block, because
+                // the spelling is the thing being shared and it is MySQL's: a
+                // MariaDB socket file is named by whoever configured the
+                // server, so `rule:core-classes/db-unix-socket-path` opens the
+                // path as written here too, and a second identical function
+                // under this driver's name would be a copy to keep in step.
+                let endpoint = endpoint_of(
+                    target.host,
+                    block.port,
+                    nvs_db::maria::DEFAULT_PORT,
+                    nvs_db::mysql::socket_endpoint,
+                )?;
+                let conn = nvs_db::MariaConn::connect(endpoint.clone(), &target, deadline)
+                    .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MariaDb(conn)
             }
             Some(nvs_db::Driver::SqlServer) => {

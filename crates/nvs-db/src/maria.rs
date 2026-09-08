@@ -51,17 +51,22 @@
 
 use std::cell::Cell;
 use std::io;
-use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Instant;
 
+#[cfg(unix)]
+use mysql_common::constants::CapabilityFlags;
 use mysql_common::constants::MariadbCapabilities;
 use mysql_common::packets::AuthPlugin;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
+#[cfg(unix)]
+use nvs_host::net::NvsUnix;
 use nvs_host::tls::NvsTls;
 
-use crate::conn::{BlockError, DbErrorKind, Driver, MariaConn, State, written_value};
+use crate::conn::{BlockError, DbErrorKind, Driver, Endpoint, MariaConn, State, written_value};
+#[cfg(unix)]
+use crate::mysql::REQUIRED_OVER_A_SOCKET;
 use crate::mysql::{Backend, Login, MyStream, REQUIRED_CAPABILITIES, Wire};
 use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 
@@ -328,17 +333,25 @@ impl MariaConn {
     /// Opens a verified, authenticated connection to one MariaDB server.
     ///
     /// [`crate::MySqlConn::connect`]'s sequence — that method's doc and
-    /// [`crate::mysql`]'s module doc own every step of it — with two things
-    /// substituted: the wire is framed [`on`](Wire::on) [`MARIADB`], so a
-    /// refusal anywhere in the handshake carries this module's [`kind_of`] and
-    /// says `mariadb`; and the auth loop runs with [`plugin_or_refuse`]'s
-    /// roster, which is where MariaDB's `client_ed25519` becomes answerable and
-    /// MySQL's `caching_sha2_password` becomes a refusal.
+    /// [`crate::mysql`]'s module doc own every step of it, including which
+    /// transport an [`Endpoint`] names and why the greeting over a socket asks
+    /// for less — with two things substituted: the wire is framed
+    /// [`on`](Wire::on) [`MARIADB`], so a refusal anywhere in the handshake
+    /// carries this module's [`kind_of`] and says `mariadb`; and the auth loop
+    /// runs with [`plugin_or_refuse`]'s roster, which is where MariaDB's
+    /// `client_ed25519` becomes answerable and MySQL's `caching_sha2_password`
+    /// becomes a refusal.
     ///
-    /// `addr` is where to connect and `target.host` is the name the certificate
-    /// must be valid for; they are separate because the address was resolved by
-    /// whoever checked the `db.connect` capability, and a driver that resolved
-    /// the name again would be connecting somewhere nobody approved.
+    /// A socket endpoint is **opened as written**, as MySQL's is:
+    /// `rule:core-classes/db-unix-socket-path` puts both drivers on the socket
+    /// *file*, which has no naming convention for anything to derive a name
+    /// from, so nothing here rewrites the path.
+    ///
+    /// A TCP endpoint is where to connect and `target.host` is the name the
+    /// certificate must be valid for; they are separate because the address was
+    /// resolved by whoever checked the `db.connect` capability, and a driver
+    /// that resolved the name again would be connecting somewhere nobody
+    /// approved.
     ///
     /// # Errors
     ///
@@ -350,29 +363,59 @@ impl MariaConn {
     /// `tls_ca_file` that holds no certificate — `TimedOut` when the deadline
     /// passes, and whatever the socket or the TLS handshake itself reported.
     pub fn connect(
-        addr: SocketAddr,
+        endpoint: impl Into<Endpoint>,
         target: &MariaTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<MariaConn> {
-        let mut tcp = match deadline {
-            Some(at) => {
-                NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
+        let (mut wire, greeting) = match endpoint.into() {
+            Endpoint::Tcp(address) => {
+                let mut tcp = match deadline {
+                    Some(at) => NvsTcp::connect_timeout(
+                        address,
+                        at.saturating_duration_since(Instant::now()),
+                    )?,
+                    None => NvsTcp::connect(address)?,
+                };
+                tcp.set_deadline(deadline);
+
+                let mut plain = Wire::on(&MARIADB, tcp);
+                let greeting = crate::mysql::read_greeting(&mut plain, REQUIRED_CAPABILITIES)?;
+                crate::mysql::request_tls(&mut plain, &greeting)?;
+
+                // Whatever is still buffered arrived in the clear and is carried
+                // across with the codec: the greeting is the only thing a server
+                // may say before the upgrade, and `read_greeting` took it.
+                let wire = plain.upgrade(|tcp| match target.tls_ca_file {
+                    Some(bundle) => {
+                        NvsTls::over_bundle(tcp, target.host, bundle).map(MyStream::Tls)
+                    }
+                    None => NvsTls::over(tcp, target.host).map(MyStream::Tls),
+                })?;
+                (wire, greeting)
             }
-            None => NvsTcp::connect(addr)?,
+            #[cfg(unix)]
+            Endpoint::Socket(path) => {
+                let mut local = match deadline {
+                    Some(at) => NvsUnix::connect_timeout(
+                        path,
+                        at.saturating_duration_since(Instant::now()),
+                    )?,
+                    None => NvsUnix::connect(path)?,
+                };
+                local.set_deadline(deadline);
+
+                let mut plain = Wire::on(&MARIADB, local);
+                let mut greeting = crate::mysql::read_greeting(&mut plain, REQUIRED_OVER_A_SOCKET)?;
+                // Nothing is upgraded on this arm, so the handshake response
+                // must not claim `CLIENT_SSL`: `authenticate` offers back
+                // whatever the greeting said the server has, and a client that
+                // claims TLS and then does not send it is a wire the server
+                // stops reading.
+                greeting.capabilities.remove(CapabilityFlags::CLIENT_SSL);
+                let wire = plain.upgrade(|local| Ok(MyStream::Local(local)))?;
+                (wire, greeting)
+            }
         };
-        tcp.set_deadline(deadline);
-
-        let mut plain = Wire::on(&MARIADB, tcp);
-        let greeting = crate::mysql::read_greeting(&mut plain, REQUIRED_CAPABILITIES)?;
-        crate::mysql::request_tls(&mut plain, &greeting)?;
-
-        // Whatever is still buffered arrived in the clear and is carried across
-        // with the codec: the greeting is the only thing a server may say
-        // before the upgrade, and `read_greeting` took it.
-        let mut wire = plain.upgrade(|tcp| match target.tls_ca_file {
-            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle).map(MyStream::Tls),
-            None => NvsTls::over(tcp, target.host).map(MyStream::Tls),
-        })?;
 
         let login = Login {
             user: target.user,
