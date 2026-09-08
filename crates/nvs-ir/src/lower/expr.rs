@@ -3801,20 +3801,29 @@ impl<'a> Lowering<'a> {
         // the table, so this reads it and is done. Everything below — the
         // hook question, the declaring class, the label — is a class
         // receiver's problem and none of it applies.
-        // `ExprInfo::ShapeProperty::guarded` is the one field this does not
-        // read. `InstKind::SlotGet` has one absence answer — the throw — where
-        // `InstKind::ArrayGet` carries an `AbsentKey`, so a guarded read of an
-        // optional field lowers to the same fetch an unguarded one does and
-        // absence throws through it. The checker has already typed that read
-        // `?T`, so what closes this is the instruction and its runtime entry
-        // point, not another bit in the table.
-        if let Some(ExprInfo::ShapeProperty { name, slot, ty, .. }) = self.exprs.lookup(expr.span) {
+        // `ExprInfo::ShapeProperty::guarded` is an `AbsentKey` at this end.
+        // The checker marks a read it found under a `??`, an `isset` or an
+        // `empty` and typed `?T`; that read takes the `null`-answering entry
+        // point, and every other one throws on a name the concrete class does
+        // not carry.
+        if let Some(ExprInfo::ShapeProperty {
+            name,
+            slot,
+            ty,
+            guarded,
+        }) = self.exprs.lookup(expr.span)
+        {
+            let absent = if *guarded {
+                AbsentKey::Null
+            } else {
+                AbsentKey::Throws
+            };
             let field = ShapeField {
                 name: name.clone(),
                 slot: *slot,
                 ty: *ty,
             };
-            return self.lower_shape_property_access(object, &field, nullsafe, env, cur);
+            return self.lower_shape_property_access(object, &field, absent, nullsafe, env, cur);
         }
         // `rule:types/property-key-access`'s `$obj->$key`, the one access whose member name is not
         // in this table at all: it arrives as a value when the statement runs,
@@ -4161,11 +4170,19 @@ impl<'a> Lowering<'a> {
         &mut self,
         object: &Expr,
         field: &ShapeField,
+        absent: AbsentKey,
         nullsafe: bool,
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let field_ty = lower_checked_ty(field.ty, self.checked_types);
+        // A guarded read has no declared type to answer with, the field being
+        // the one the shape does not prove present, so it takes the
+        // representation the guarded subscript takes — and that is the `?T`
+        // the checker has already given the expression.
+        let field_ty = match absent {
+            AbsentKey::Throws => lower_checked_ty(field.ty, self.checked_types),
+            AbsentKey::Null => Ty::Tagged,
+        };
         let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Erased, env, cur);
@@ -4180,6 +4197,7 @@ impl<'a> Lowering<'a> {
                 object: object_v,
                 field: field.name.clone(),
                 slot: field.slot,
+                absent,
             },
             env,
         );

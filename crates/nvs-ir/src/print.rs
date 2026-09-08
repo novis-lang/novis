@@ -220,7 +220,17 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             object,
             field,
             slot,
-        } => format!("slot.get v{}, {field} @{slot}", object.index()),
+            absent,
+        } => {
+            // Only the guarded read is spelled out, exactly as `array.get`
+            // does it below: an unqualified `slot.get` is the one written in
+            // source, which throws.
+            let suffix = match absent {
+                AbsentKey::Throws => "",
+                AbsentKey::Null => ".ornull",
+            };
+            format!("slot.get{suffix} v{}, {field} @{slot}", object.index())
+        }
         InstKind::SlotSet {
             object,
             field,

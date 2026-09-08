@@ -637,8 +637,9 @@ impl Emitter<'_, '_> {
                 object,
                 field,
                 slot,
+                absent,
             } => {
-                return self.emit_slot_get(cur, inst, *object, field, *slot);
+                return self.emit_slot_get(cur, inst, *object, field, *slot, *absent);
             }
             InstKind::SlotSet {
                 object,
@@ -2488,6 +2489,12 @@ impl Emitter<'_, '_> {
     /// The borrow is [`Self::emit_field_get`]'s unchanged: the runtime copies
     /// the slot's value into `out` without retaining, so the consumer inserts
     /// the retain if it keeps it.
+    ///
+    /// **`absent` picks the symbol and nothing else.** The guarded read's
+    /// entry point takes the same arguments and answers the same status — it
+    /// differs only in what a missing name does — so it is one other name
+    /// over the one `RuntimeSig`, and no second emission. `nvs_ir::AbsentKey`
+    /// owns which read gets which.
     fn emit_slot_get(
         &mut self,
         cur: Block,
@@ -2495,6 +2502,7 @@ impl Emitter<'_, '_> {
         object: ValueId,
         field: &str,
         slot: u32,
+        absent: AbsentKey,
     ) -> Result<Block, CodegenError> {
         let (name, len) = self.emit_bytes(field.as_bytes())?;
         let hint = self.b.ins().iconst(types::I64, i64::from(slot));
@@ -2507,7 +2515,11 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let callee = self.runtime_ref("nvs_object_slot_get", RuntimeSig::SlotGet)?;
+        let symbol = match absent {
+            AbsentKey::Throws => "nvs_object_slot_get",
+            AbsentKey::Null => "nvs_object_slot_optional_get",
+        };
+        let callee = self.runtime_ref(symbol, RuntimeSig::SlotGet)?;
         let call = self
             .b
             .ins()

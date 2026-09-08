@@ -715,12 +715,26 @@ pub enum InstKind {
     /// shape is the overwhelmingly common case, and where it holds, the
     /// runtime's lookup is one name comparison rather than a scan.
     ///
-    /// **Fallible.** A name the concrete class does not carry is a catchable
-    /// throw (§ 4), so this is emitted through
-    /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
-    /// edge like any call. Unreachable through a receiver whose static shape
-    /// lists the field, which is every receiver the checker records one for —
-    /// it is the erased half of § 4 that can reach it.
+    /// **What an absent field answers is [`AbsentKey`]**, the same enum
+    /// [`InstKind::ArrayGet`] carries one storage kind along. Under
+    /// [`AbsentKey::Throws`] — every read written outside a guard — a name
+    /// the concrete class does not carry is § 4's catchable throw, and the
+    /// result is the field's own representation. Under [`AbsentKey::Null`] —
+    /// a read under a `??`, an `isset` or an `empty`, which is the only way
+    /// `rule:types/shape-type`'s optional field is reachable without one — it
+    /// answers `null`, and the result is [`Ty::Tagged`] however narrow the
+    /// field's declared type is. `nvs-codegen` picks
+    /// `nvs_runtime::nvs_object_slot_get` or
+    /// `nvs_runtime::nvs_object_slot_optional_get` off this field; the two
+    /// take the same arguments, so one `RuntimeSig` covers both.
+    ///
+    /// **Fallible either way**, so both are emitted through
+    /// `crate::lower::Lowering::emit_fallible` and carry `rule:errors/propagation`'s error
+    /// edge like any call: the two refusals that are not about presence — a
+    /// receiver that is not an object, and a slot that was never written —
+    /// throw under both answers. A field the receiver's static shape lists as
+    /// *required* reaches neither, being proven present; it is the erased
+    /// half of § 4 and the optional field that arrive here.
     ///
     /// **The receiver may be a [`Ty::Tagged`], and the runtime checks its
     /// tag.** `rule:types/conversion`'s `mixed` is an erased receiver like a plain
@@ -745,6 +759,9 @@ pub enum InstKind {
         /// plain `object` with no static shape to take a position from. See
         /// this variant's own docs.
         slot: u32,
+        /// What this read answers when the receiver's concrete class carries
+        /// no field of that name.
+        absent: AbsentKey,
     },
     /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
     /// `rule:types/erased-member-access`'s other paragraph: one call to
@@ -1509,25 +1526,30 @@ pub enum TestedClass {
     Descriptor(ValueId),
 }
 
-/// What an [`InstKind::ArrayGet`] answers when its key names no entry.
+/// What an [`InstKind::ArrayGet`] or an [`InstKind::SlotGet`] answers when the
+/// name it is keyed on names nothing.
 ///
 /// Two answers rather than one because PHP has two: a bare `$a["k"]` warns
 /// and yields `null` (Novis throws instead — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11), while
 /// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
-/// and must produce the default. The guard is recognized in `nvs_types`,
-/// which records it on the subscript's own
-/// `nvs_types::expr_table::ExprInfo::Index` entry, because whether a read sits
-/// under a `??` is a question about the expression tree that this crate would
-/// otherwise have to re-derive.
+/// and must produce the default. `rule:types/shape-type`'s optional field asks
+/// the identical question of an object: `{a?: string}` proves the type and not
+/// the presence, so `$p->a` throws and `$p->a ?? "d"` must not — which is why
+/// one enum serves both instructions rather than each growing its own bit.
+/// The guard is recognized in `nvs_types`, which records it on the access's
+/// own `nvs_types::expr_table::ExprInfo::Index` or `ExprInfo::ShapeProperty`
+/// entry, because whether a read sits under a `??` is a question about the
+/// expression tree that this crate would otherwise have to re-derive.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AbsentKey {
-    /// Throw. The read is fallible and carries an error edge, and its result
-    /// is the element's own representation.
+    /// Throw. The read carries `rule:errors/propagation`'s error edge, and its
+    /// result is the element's or the field's own representation.
     Throws,
-    /// Answer `null`. The read is infallible and its result is
-    /// [`crate::ty::Ty::Tagged`] — "the element, or `null`" is a nullable
-    /// however narrow the array's element type is — which is exactly what the
-    /// `??` above it tests.
+    /// Answer `null`. The result is [`crate::ty::Ty::Tagged`] — "the element,
+    /// or `null`" is a nullable however narrow the declared type is — which is
+    /// exactly what the `??` above it tests. An [`InstKind::ArrayGet`] under
+    /// this answer is infallible; an [`InstKind::SlotGet`] still is not, its
+    /// receiver's tag being a second question this one does not cover.
     Null,
 }
 
