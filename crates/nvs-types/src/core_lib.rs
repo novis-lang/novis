@@ -28,7 +28,7 @@
 //!   member of it can be reached.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR};
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES};
 use nvs_stdlib::registry::{CLASSES, Const, CoreTy, OPTIONS_NAME, Qual};
 use rustc_hash::FxHashMap;
 
@@ -82,6 +82,15 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         // none (`nvs_hir::interfaces::RESERVED`).
         if nvs_stdlib::registry::implements_comparable(class.name) {
             table.seed_implements(qname.clone(), QName::parse(COMPARABLE), Vec::new());
+        }
+        // `rule:expressions/try-parse`'s pair, read as `Parses` on exactly the
+        // same terms: `nvs_stdlib::registry::implements_parses` asks the rows
+        // because a `Core` class has no `implements` clause to write, and this
+        // is the one place the edge a binding site names the interface at gets
+        // written. No arguments — `Parses` takes none
+        // (`nvs_hir::interfaces::RESERVED`).
+        if nvs_stdlib::registry::implements_parses(class.name) {
+            table.seed_implements(qname.clone(), QName::parse(PARSES), Vec::new());
         }
         // The one thing a `Core` class says about a hierarchy, and it says it
         // to `foreach`: `nvs_stdlib::registry::ITERABLES` is the roster, and a
@@ -1893,6 +1902,42 @@ mod tests {
             )
             .is_none(),
             "a namespace class is not a `foreach` subject"
+        );
+    }
+
+    /// `rule:expressions/try-parse`'s pair seeded as `Parses`, on the terms
+    /// `Comparable` set: a `Core` class writes no `implements` clause, so
+    /// `nvs_stdlib::registry::implements_parses` reads the rows and the edge is
+    /// written here. What a binding site asks for is this edge and nothing
+    /// else, so a class the predicate stops answering for stops being nameable
+    /// there — which is why both halves are asserted.
+    #[test]
+    fn a_core_class_carrying_the_whole_parse_pair_implements_parses() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+        let graph = ClassGraph::default();
+
+        assert_eq!(
+            crate::signatures::resolve_interface_args(
+                &QName::parse(r"Core\Uuid"),
+                &QName::parse(PARSES),
+                &table,
+                &graph
+            ),
+            Some(Vec::new()),
+            "`Core\\Uuid` carries the pair, and `Parses` takes no type parameters"
+        );
+        assert!(
+            crate::signatures::resolve_interface_args(
+                &QName::parse(r"Core\Uri"),
+                &QName::parse(PARSES),
+                &table,
+                &graph
+            )
+            .is_none(),
+            "`Core\\Uri` carries a `parse`/`tryParse` pair that refuses a `tainted` argument, so \
+             it is not an implementor — `nvs_stdlib::registry::implements_parses` owns why"
         );
     }
 
