@@ -42,12 +42,11 @@
 > the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 9 stages 5-7 are whole: `nvs schema` and `nvs queue migrate` converge from
-> the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
-> `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows;
-> `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
-> `Isolate`**, whole: mounts, statics, admission ceiling, proxy walk, the two `Core` request types,
-> routing, captures and a class mount.
+> **Open now:** **Goal 9 stages 5-7 whole**: `nvs schema` and `nvs queue migrate` converge.
+> **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**: `queryAs<T>`, § 6's convert,
+> §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows; `Core\Uri` answers `bytes`; `nvs
+> check` reads grants. **`nvs-server` runs h1 as goal 2's `Isolate`**, whole: mounts, statics,
+> admission ceiling, proxy walk, the two `Core` request types, routing, captures and a class mount.
 > **`rule:http-server/a-session-store-answers-four-operations`'s session is whole**: shared or db,
 > `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's ticker fires**: a root
 > isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§ 6-7 land**: `afterResponse`
@@ -64,7 +63,8 @@
 > 10k cold compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
 > lands.** **`Core\Cldr` is whole.** Conformance 1592, differential 276, migration 100%; valgrind
 > green, arrays too. Serve: 2.78x php-cgi.  **The store publishes** gated diagnostics; nine,
-> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed.
+> `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed, editor
+> chapter proved.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
