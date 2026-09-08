@@ -5413,9 +5413,12 @@ stage = "2 the sections"
 name = "conformance (a case that answers a request)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/a-request-reads-the-body-a-post-raw-section-sent.nvst",
-  "tests/conformance/core/a-request-reads-a-field-a-post-section-sent.nvst",
-  "tests/conformance/core/a-request-reads-a-header-and-a-cookie-a-section-sent.nvst",
+  # The corpus named each case for the claim it pins rather than for the section that carries it. The
+  # body half is a case of its own, and the drafted field case and header-and-cookie case are one case
+  # asking four members for what four sections wrote -- which is the shape that fails when a member
+  # grows its own spelling of a field name, where two cases split apart would each still read right.
+  "tests/conformance/core/a-raw-request-body-reaches-the-program-verbatim.nvst",
+  "tests/conformance/core/request-sections-reach-the-program-they-describe.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
