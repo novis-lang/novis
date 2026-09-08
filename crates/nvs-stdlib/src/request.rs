@@ -15,8 +15,8 @@
 //! parts a `multipart/form-data` body declares
 //! (`rule:http-server/an-upload-is-received-only-through-files`
 //! , the parse itself being [`crate::multipart`]'s), or read to its end as
-//! the form it submitted (§ 2, and `post` is the one of the four that joins
-//! another's reading rather than claiming against it — [`claim_form`]).
+//! the form it submitted (§ 2, and `post` is the one of the four that reads
+//! either the octets or a parse another reader left behind — [`claim_body`]).
 //! `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
 //! a different thing:
@@ -52,24 +52,31 @@
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
 //!
-//! # Three members read the body, and the request records which one did
+//! # Four members read the body, and what one leaves decides who may follow
 //!
-//! Spec § 15 makes `body`, `bodyStream` and `files` exclusive on one request:
-//! whichever is called first has consumed the stream, so a later read of any of
-//! them is a program bug rather than a small answer. Left unenforced, the
-//! second of them would answer *plausibly* — an empty string, or a walk that
-//! yields nothing — because that is all an exhausted stream can say, and a
-//! program would read it as "the peer sent nothing" about bytes it had already
-//! been handed.
+//! `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+//! splits them by what they leave behind rather than by name. `body` and `post`
+//! **buffer**: they keep what they read — the octets, or over a multipart body
+//! the fields alone — so a reader that needs what is held is answered out of
+//! it, in any order and any number of times. `bodyStream` and `files`
+//! **stream**: they hand the octets to the program as they arrive, keep none of
+//! them, and so are the only reader of the body they read. Left unenforced, the
+//! reader after a streaming one would answer *plausibly* — an empty string, or
+//! a walk that yields nothing — because that is all an exhausted stream can
+//! say, and a program would read it as "the peer sent nothing" about bytes it
+//! had already been handed.
 //!
 //! The record is [`nvs_runtime::Inbound::claim_body`] and not a field here,
 //! because what is exclusive is the *request*: that carrier's own doc argues
 //! for the shape, and [`claim_body`] below is only this class's wording of the
-//! refusal. The claim is taken where the reading is **named** — `bodyStream()`
-//! claims when the walk is built, long before an `advance()` moves a byte — so
-//! a program that names two readings is refused whether or not it walked
-//! either, and a program that names one is never refused its second chunk.
-//! `files` joins the same call when it lands.
+//! refusal. **Each member says what it needs of the body rather than which kind
+//! it is** — [`nvs_runtime::BodyNeed`] — because the kinds are not fixed per
+//! member: `post` consumes the wire where it is the first reader and consumes
+//! nothing where a hold is already filled. The claim is taken where the reading
+//! is **named** — `bodyStream()` claims when the walk is built, long before an
+//! `advance()` moves a byte — so a program that names a reading nothing may
+//! follow is refused whether or not it walked either, and one that names a
+//! reading it may is never refused its second call.
 //!
 //! # Where a verb becomes a case
 //!
@@ -179,7 +186,7 @@
 //! source of an injection: `Core\Request::header` and `::cookie`, which answer
 //! a `tainted string` directly, do carry it.
 
-use nvs_runtime::{Ctx, Fault, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{BodyNeed, Ctx, Fault, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -1187,13 +1194,18 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// Claims this request's body for `member`, or spec § 15's refusal naming the
-/// member that already read it.
+/// Claims this request's body for `member`, which needs `need` of it, or
+/// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
+/// refusal naming the member that read it first.
 ///
 /// One function for the same reason [`inbound_of`] is one: what the readers
 /// share is the rule, and [`nvs_runtime::Inbound::claim_body`] is where it
 /// lives — this is only the wording, and a second copy of the wording is how
-/// two members would come to describe one rule differently.
+/// two members would come to describe one rule differently. **One function for
+/// `post` as well**, which used to have its own: the outcomes that made it
+/// different — joining a `files` walk, and its own second call — are what the
+/// carrier answers now from what each member needs, so a second claim here
+/// would be that matrix written twice.
 ///
 /// **The claim is taken where the reading is named, not where a byte moves.**
 /// `bodyStream` claims when the walk is built and pulls a chunk per `advance()`
@@ -1202,79 +1214,32 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// # Errors
 ///
-/// `LogicError` where another of the three members has already read the body.
-fn claim_body(ctx: &mut Ctx, member: &'static str) -> Result<(), Fault> {
+/// `LogicError` where a member has already read the body and what it left
+/// behind is not what `need` asks for.
+fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(), Fault> {
     let claimed = ctx
         .inbound_mut()
         .expect("the caller reads the request before it claims the body")
-        .claim_body(member);
+        .claim_body(member, need);
     // No case can reach this: a `.nvst` program answers no request, so
     // `inbound_of` refuses both readers before either reaches the claim.
-    // Asserted by `a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`.
+    // Asserted by `a_streaming_reader_refuses_every_later_reader`.
     claimed.map_err(|first| {
         Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "Core\\Request::{member}(): this request's body has already been read by \
-                 `Core\\Request::{first}()`. Spec § 15 makes `body`, `bodyStream` and `files` \
-                 exclusive on one request, because each of them consumes the stream the other two \
-                 would read — so this is refused rather than answered empty, which is all an \
-                 exhausted stream could say. `post` is the one reading that joins another: it \
-                 reads the fields a `files` walk buffers"
+                 `Core\\Request::{first}()`, and what it left behind is not what this member \
+                 needs. `bodyStream()` and `files()` stream the body: they hand the octets over \
+                 as they arrive, keep none of them, and so are the only reader of the body they \
+                 read. `body()` and `post()` buffer it: they keep what they read — the octets, or \
+                 over a multipart body the fields alone — so a reader that needs what one of them \
+                 held may follow it, in any order. This is refused rather than answered empty, \
+                 because an empty answer here would say the peer sent nothing about bytes this \
+                 program has already been handed"
             ),
         )
     })
-}
-
-/// Which reading of the body `Core\Request::post()` is making — see
-/// [`claim_form`].
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Reading {
-    /// Nothing had read the body; `post` has taken the claim.
-    First,
-    /// `files()` holds the claim, and this reading joins its walk.
-    Joining,
-    /// `post` itself holds the claim: this is a second call on one request.
-    Again,
-}
-
-/// [`claim_body`] as `Core\Request::post()` makes it, which is the same rule
-/// with two of its outcomes moved.
-///
-/// `files` moves from the refusals to the joins, because what the two members
-/// read is not the same stream twice: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s non-file parts are
-/// buffered by that walk on its way past, so `post` reads what `files` set
-/// aside rather than the bytes `files` yielded. `body` and `bodyStream` hand
-/// the body over uninterpreted and leave nothing behind, so both still refuse.
-/// And `post` itself is not a second reading at all — the first call held what
-/// it read, and every later one re-parses that.
-///
-/// # Errors
-///
-/// `LogicError` where `body` or `bodyStream` has already read this body.
-fn claim_form(ctx: &mut Ctx) -> Result<Reading, Fault> {
-    let claimed = ctx
-        .inbound_mut()
-        .expect("the caller reads the request before it claims the body")
-        .claim_body("post");
-    match claimed {
-        Ok(()) => Ok(Reading::First),
-        Err("files") => Ok(Reading::Joining),
-        Err("post") => Ok(Reading::Again),
-        // No case can reach this: a `.nvst` program answers no request, so
-        // `inbound_of` refuses both readers before either reaches the claim.
-        // Asserted by `a_form_is_refused_to_a_body_that_was_handed_over_whole`.
-        Err(first) => Err(Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "Core\\Request::post(): this request's body has already been read by \
-                 `Core\\Request::{first}()`, which hands the bytes over uninterpreted and leaves \
-                 no form fields behind — so there is nothing left here to read them out of. A \
-                 program that wants both parses what it was handed. `files` is the one reading \
-                 `post` joins, because that walk buffers the non-file parts on its way past"
-            ),
-        )),
-    }
 }
 
 /// The whole form this request submitted, parsed afresh on every call.
@@ -1286,13 +1251,16 @@ fn claim_form(ctx: &mut Ctx) -> Result<Reading, Fault> {
 ///
 /// # Errors
 ///
-/// [`claim_form`]'s refusal, a body that is not the multipart one it declared
+/// [`claim_body`]'s refusal, a body that is not the multipart one it declared
 /// or that did not arrive whole, and a urlencoded field whose escapes decode to
 /// octets that are not UTF-8.
 fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> {
-    let reading = claim_form(ctx)?;
+    // `post` needs the octets or a parse of them, and either is something a
+    // buffering reader ahead of it may already have left — which is why this is
+    // the one reader whose need is two things.
+    claim_body(ctx, "post", BodyNeed::OctetsOrParse)?;
     match declared.filter(|value| crate::multipart::is_multipart(value)) {
-        Some(declared) => multipart_form(ctx, &declared, reading),
+        Some(declared) => multipart_form(ctx, &declared),
         None => urlencoded_form(ctx),
     }
 }
@@ -1303,8 +1271,22 @@ fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> 
 /// The drain is what makes *every* field answerable rather than the ones that
 /// happened to arrive before the part a `files()` walk stopped on, and it is
 /// idempotent: a parse already at its end walks nothing.
-fn multipart_form(ctx: &mut Ctx, declared: &[u8], reading: Reading) -> Result<NvsArray, Fault> {
-    if reading == Reading::First {
+///
+/// **The parse is built only where the request has none**, which is the whole
+/// of what this member has to decide. A `files()` walk and an earlier `post()`
+/// each leave one behind, and either is the parse this reading continues —
+/// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+/// makes them one reading of one body rather than two of the same. Which
+/// octets drive it is not decided here either: a `post()` that follows
+/// `body()` reads the hold that reader filled and one that follows nothing
+/// reads the wire, and [`nvs_runtime::Inbound::parts_mut`] is where a carrier
+/// holding both facts answers it.
+fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
+    if !ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the form")
+        .has_parts()
+    {
         // No case can reach this: a `.nvst` program answers no request, so it
         // carries no `Content-Type` to declare a body with. Asserted by
         // `a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named`.
@@ -1328,13 +1310,13 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], reading: Reading) -> Result<Nv
     // No parse, or no body at all: a request that submitted no form, which is
     // an empty answer rather than a refusal — `files()`'s own reading of the
     // same two cases.
-    let Some((parse, body)) = inbound.parts_mut() else {
+    let Some((parse, mut body)) = inbound.parts_mut() else {
         return Ok(out);
     };
     let parse = parse
         .downcast_mut::<crate::multipart::Multipart>()
         .expect("`files()` and `post()` hold one parse between them, and it is this one");
-    if let Err(why) = parse.drain(body) {
+    if let Err(why) = parse.drain(&mut body) {
         // No case can reach either of these, for `files()`'s reason: a `.nvst`
         // program holds no parse to walk and no connection to fail under one.
         let (class, what) = if parse.failed_on_the_wire() {
@@ -1368,33 +1350,18 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], reading: Reading) -> Result<Nv
 /// holds no value of the program's — [`nvs_runtime::Inbound::hold_body`] owns
 /// that argument.
 ///
-/// **Whether to pull is asked of the hold, not of [`Reading`].** The two
-/// answered alike while `post()` was the only member that buffered a body;
+/// **Whether to pull is asked of the hold**, by [`held_octets`], and never of
+/// which reading this is: a hold somebody else filled is one this member reads
+/// rather than one it pulls again off an exhausted wire, and after
 /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
-/// admits others, and a hold somebody else filled is one this member reads
-/// rather than one it pulls again off an exhausted wire.
+/// the reader that filled it may be any of the four.
 ///
 /// It does not check the content type. A body that declares nothing, or
 /// declares something else, is still read the way `$_POST` reads one, because
 /// what a peer wrote in a header is not what decides whether a form is a form —
 /// and a body that is not one parses to no fields rather than to a refusal.
 fn urlencoded_form(ctx: &mut Ctx) -> Result<NvsArray, Fault> {
-    if ctx
-        .inbound()
-        .expect("the caller reads the request before it reads the form")
-        .held_body()
-        .is_none()
-    {
-        let whole = whole_body(ctx, "post")?;
-        ctx.inbound_mut()
-            .expect("the caller reads the request before it reads the form")
-            .hold_body(whole.into_boxed_slice());
-    }
-    let held = ctx
-        .inbound()
-        .expect("the caller reads the request before it reads the form")
-        .held_body()
-        .expect("the branch above holds the body before the first read of it");
+    let held = held_octets(ctx, "post")?;
     // Refused rather than repaired, under ADR 0095: a urlencoded body is
     // percent-escaped ASCII by construction, so a raw octet outside UTF-8 in
     // one is a body that is not what it claims to be — and lossily replacing it
@@ -1402,7 +1369,7 @@ fn urlencoded_form(ctx: &mut Ctx) -> Result<NvsArray, Fault> {
     //
     // No case can reach this: a `.nvst` program answers no request, so it has
     // no body to send octets in. Asserted by
-    // `a_form_is_refused_to_a_body_that_was_handed_over_whole`.
+    // `a_body_that_is_not_text_holds_no_urlencoded_form`.
     let held = std::str::from_utf8(held).map_err(|_| {
         Fault::thrown_as(
             ThrownClass::Parse,
@@ -1982,21 +1949,66 @@ nvs_runtime::nvs_helper! {
     /// doubling against bytes that actually arrived, and a lie costs what it
     /// delivers.
     ///
-    /// **What it spends:** the body's own bytes twice at the peak — the buffer
-    /// they arrive in, plus the [`NvsStr`] copied out of it — and nothing at all
-    /// once the call returns. Both are bounded by [`REQUEST_BODY`] and both are
-    /// O(in-flight).
+    /// **It answers the same octets on every call**, and on a call following
+    /// any other buffering reader: the first pull holds the body on the request
+    /// ([`held_octets`]) and every reading after that is a copy out of the
+    /// hold. `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// is why — a member that refused its own second call would be reporting a
+    /// program bug about a question that has an answer sitting in memory.
+    ///
+    /// **What it spends:** the body's own bytes for the rest of the request,
+    /// plus the [`NvsStr`] copied out of them per call. The hold is what the
+    /// rule above buys with them; both are bounded by [`REQUEST_BODY`] and both
+    /// are O(in-flight).
     fn nvs_core_request_body(ctx, _args: [0]) {
         // Asked before the body is, so the module doc's two facts stay apart:
         // "the request sent nothing" is the empty answer below, and "no request
         // arrived" is this throw.
         inbound_of(ctx, "body")?;
-        // Before the first pull, and before the empty answer below: a second
-        // reading is refused whether or not this request carried any bytes,
-        // because what spec § 15 makes exclusive is the reading.
-        claim_body(ctx, "body")?;
-        Ok(Value::str(NvsStr::new(&whole_body(ctx, "body")?)))
+        // Before the first pull, and before the empty answer below: what this
+        // member needs is the octets, so a streaming reader ahead of it refuses
+        // here whether or not this request carried any bytes, while a buffering
+        // one is a hold to answer out of.
+        claim_body(ctx, "body", BodyNeed::Octets)?;
+        Ok(Value::str(NvsStr::new(held_octets(ctx, "body")?)))
     }
+}
+
+/// This request's octets, held on the carrier: pulled off the wire by the
+/// first buffering reader that needs them, and answered out of the hold to
+/// every reader after it.
+///
+/// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
+/// buffering half, in the one place the members that need the octets share.
+/// `body()` copies a string out of them and the urlencoded half of `post()`
+/// parses them, and each has to be able to follow the other and answer the same
+/// bytes — which is a fact about the *request*, so the hold is
+/// [`nvs_runtime::Inbound`]'s and not this module's. That carrier's `held`
+/// field owns why it keeps the bytes rather than a parse of them.
+///
+/// The caller owes the claim: this reads, and says nothing about who may.
+///
+/// # Errors
+///
+/// [`whole_body`]'s, and on the first reading only — a hold is inside
+/// [`REQUEST_BODY`] already and arrived whole by the fact that it is here.
+fn held_octets<'a>(ctx: &'a mut Ctx, member: &str) -> Result<&'a [u8], Fault> {
+    if ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the body")
+        .held_body()
+        .is_none()
+    {
+        let whole = whole_body(ctx, member)?;
+        ctx.inbound_mut()
+            .expect("the caller reads the request before it reads the body")
+            .hold_body(whole.into_boxed_slice());
+    }
+    Ok(ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the body")
+        .held_body()
+        .expect("the branch above holds the body before the first read of it"))
 }
 
 /// This request's body, pulled to its end into one buffer under
@@ -2075,8 +2087,10 @@ nvs_runtime::nvs_helper! {
         inbound_of(ctx, "bodyStream")?;
         // The claim is here rather than in `advance()`, which is where the
         // bytes move: naming the walk is the reading, and a program that named
-        // two of them and walked neither has still written the bug § 15 refuses.
-        claim_body(ctx, "bodyStream")?;
+        // two readings and walked neither has still written the bug the rule
+        // refuses. What this member needs is the wire itself, so it must be the
+        // first reader and it is the last.
+        claim_body(ctx, "bodyStream", BodyNeed::Wire)?;
         Ok(crate::instance::build(&BODY_STREAM, [Value::null()]))
     }
 }
@@ -2217,8 +2231,10 @@ nvs_runtime::nvs_helper! {
         // the first thing that happens *to* the request.
         let declared = joined_field(inbound_of(ctx, "files")?, b"content-type");
         // The claim is here rather than at the first part, for `bodyStream`'s
-        // reason: naming the walk is the reading.
-        claim_body(ctx, "files")?;
+        // reason: naming the walk is the reading. The wire is what it needs —
+        // the file parts are streamed past rather than held, so this walk can
+        // only be the first reader of the body.
+        claim_body(ctx, "files", BodyNeed::Wire)?;
         if let Some(declared) = declared.filter(|value| crate::multipart::is_multipart(value)) {
             // No case can reach this: a `.nvst` program answers no request, so
             // it carries no `Content-Type` to declare a body with. Asserted by
@@ -2312,11 +2328,11 @@ fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
         // No parse, or no body at all: both are a request with no file parts in
         // it, which is an empty walk rather than a refusal.
         None => None,
-        Some((parse, body)) => {
+        Some((parse, mut body)) => {
             let parse = parse
                 .downcast_mut::<crate::multipart::Multipart>()
                 .expect("`files()` is the only member that holds a parse, and it holds this one");
-            match parse.next_part(body) {
+            match parse.next_part(&mut body) {
                 Ok(head) => head.map(|head| (head, parse.opened())),
                 Err(why) => {
                     // No case can reach either of these: a `.nvst` program
@@ -2468,7 +2484,7 @@ fn part_ordinal(value: Value, member: &'static str) -> Result<u64, Fault> {
         })
 }
 
-/// The parse of this request's body and the body it reads, borrowed together
+/// The parse of this request's body and the octets it reads, borrowed together
 /// and **only** while the part stamped `ordinal` is the one the walk is on.
 ///
 /// The one place `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only while this part is the iterator's
@@ -2492,7 +2508,7 @@ fn part_parse<'ctx>(
 ) -> Result<
     Option<(
         &'ctx mut crate::multipart::Multipart,
-        &'ctx mut (dyn nvs_runtime::RequestBody + 'static),
+        nvs_runtime::BodySource<'ctx>,
     )>,
     Fault,
 > {
@@ -2601,7 +2617,7 @@ fn part_content_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
         .expect("`content()` builds this walk with the ordinal it read off the part");
     let pulled = match part_parse(ctx, ordinal, "content")? {
         None => None,
-        Some((parse, body)) => match parse.next_chunk(body) {
+        Some((parse, mut body)) => match parse.next_chunk(&mut body) {
             Ok(chunk) => chunk.map(NvsStr::new),
             Err(why) => {
                 // No case can reach this: a `.nvst` program answers no request,
@@ -2740,11 +2756,11 @@ fn part_read_all(
 ) -> Result<Vec<u8>, Fault> {
     let (bound, named) = bound;
     let mut whole: Vec<u8> = Vec::new();
-    let Some((parse, body)) = part_parse(ctx, ordinal, "readAll")? else {
+    let Some((parse, mut body)) = part_parse(ctx, ordinal, "readAll")? else {
         return Ok(whole);
     };
     loop {
-        match parse.next_chunk(body) {
+        match parse.next_chunk(&mut body) {
             Ok(None) => return Ok(whole),
             Ok(Some(chunk)) => {
                 if whole.len().saturating_add(chunk.len()) > bound {
@@ -4722,13 +4738,13 @@ mod tests {
     /// what `post()` answers — **including the one written after the file**,
     /// which is the position the member is built around.
     ///
-    /// Two halves, because the claim differs on each side. With `files()`
-    /// holding the reading, `post` joins it; with nothing holding it, `post`
-    /// takes it and draining to the last field is what consumed the uploads —
-    /// so `files()` afterwards is refused rather than answered empty, which is
-    /// all a drained walk could say.
+    /// Two halves, because what the request holds differs on each side. With a
+    /// `files()` walk ahead of it, `post` reads the parse that walk left; with
+    /// nothing ahead of it, `post` builds the parse and draining to the last
+    /// field is what consumed the uploads — so `files()` afterwards is refused
+    /// rather than answered empty, which is all a drained walk could say.
     #[test]
-    fn a_non_file_part_is_buffered_into_post() {
+    fn post_reads_the_fields_a_files_walk_buffered() {
         let mut walked = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
         let files = nvs_runtime::call(nvs_core_request_files, &mut walked, &[])
             .expect("a request that declared a multipart body can be walked");
@@ -4853,27 +4869,133 @@ mod tests {
         );
     }
 
-    /// `post` refuses after `body` and after `bodyStream`, and joins after
-    /// `files` — spec § 15's exclusivity with the one exception `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
-    /// creates, asserted on both sides because either half alone reads as
-    /// correct.
+    /// `Core\Request::body()` on `ctx` as bytes, with the answer released the
+    /// way a compiled call site releases it.
+    fn read_body(ctx: &mut Ctx) -> Result<Vec<u8>, i32> {
+        let answered = nvs_runtime::call(nvs_core_request_body, ctx, &[])?;
+        let read = answered
+            .as_text()
+            .map(|text| text.as_bytes().to_vec())
+            .expect("`body()` answers a string");
+        dropped(answered);
+        Ok(read)
+    }
+
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
+    /// buffering half: a reader that keeps what it read leaves a hold, and the
+    /// next reader answers out of that hold rather than off a wire that is
+    /// drained by then. Asked in both directions and over both kinds of body,
+    /// because a member that answered out of its own memory would pass the
+    /// direction it was written for and fail the other.
     ///
-    /// A member that simply never claimed would pass the joining half; one that
-    /// claimed like the other three would pass the refusing half.
+    /// **The multipart direction is the one that could pass by accident.**
+    /// `post()` after `body()` finds a wire with nothing left on it, so a
+    /// member that parsed the wire regardless would answer a form with no
+    /// fields in it — a plausible empty answer about fields the peer did send,
+    /// which is the failure this whole rule is written against. What makes it
+    /// answer is that the parse reads the hold, which is
+    /// [`nvs_runtime::Inbound::parts_mut`]'s choice and not this member's.
     #[test]
-    fn a_form_is_refused_to_a_body_that_was_handed_over_whole() {
-        let mut handed = uploading(
+    fn a_buffering_reader_may_follow_another_buffering_reader() {
+        let mut whole_then_form = uploading(
             "application/x-www-form-urlencoded",
             Some(Chunks::of(&[b"title=Q3+report"])),
         );
-        let whole = nvs_runtime::call(nvs_core_request_body, &mut handed, &[])
-            .expect("a request that carried a body can be read whole");
-        dropped(whole);
-        assert!(
-            posted(&mut handed, "title").is_err(),
-            "`body` hands the bytes over uninterpreted and leaves no fields behind"
+        assert_eq!(
+            read_body(&mut whole_then_form).expect("a request that carried a body can be read"),
+            b"title=Q3+report".to_vec(),
+            "the first reader pulls the body off the wire"
+        );
+        assert_eq!(
+            field(&mut whole_then_form, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "and `post` after it parses the octets that reading held"
         );
 
+        let mut form_then_whole = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"title=Q3+report"])),
+        );
+        assert_eq!(
+            field(&mut form_then_whole, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "the same two readings the other way round: `post` is the one that pulls"
+        );
+        assert_eq!(
+            read_body(&mut form_then_whole).expect("a buffering reader may follow another"),
+            b"title=Q3+report".to_vec(),
+            "and `body` answers the octets rather than the form they parsed to"
+        );
+
+        let mut parted = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
+        let whole = read_body(&mut parted).expect("a multipart body is a body like any other");
+        assert!(
+            whole.ends_with(b"--X--\r\n"),
+            "`body` hands a multipart body over uninterpreted, closing delimiter and all"
+        );
+        assert_eq!(
+            field(&mut parted, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "and `post` parses the hold, where parsing the drained wire would answer nothing"
+        );
+        let after = posted(&mut parted, "notes").expect("this form is readable");
+        assert!(
+            after.array_ptr().is_some(),
+            "to the closing delimiter, so the field written after the file is answered too"
+        );
+        dropped(after);
+    }
+
+    /// `body()` is idempotent, which is the buffering half asked of one member
+    /// against itself — the case a claim that refused every second reading got
+    /// wrong while the members that read a body were three.
+    ///
+    /// The bodiless request is what says the rule is about the *reading*: the
+    /// second call answers the same empty string rather than refusing, and a
+    /// member that reported "already read" there would be refusing a program
+    /// the one answer that is certainly true.
+    #[test]
+    fn body_answers_the_same_octets_on_every_call() {
+        let mut twice = answering(Some(Chunks::of(&[
+            &b"a body"[..],
+            &b" that arrived in two chunks"[..],
+        ])));
+        let first = read_body(&mut twice).expect("a request that carried a body can be read");
+        assert_eq!(first, b"a body that arrived in two chunks".to_vec());
+        assert_eq!(
+            read_body(&mut twice).expect("a reader that held what it read may read it again"),
+            first,
+            "the second call answers out of the hold, and the wire is not pulled twice"
+        );
+
+        let mut bodiless = answering(None);
+        assert_eq!(
+            read_body(&mut bodiless).expect("a request that carried no body is still a request"),
+            Vec::<u8>::new()
+        );
+        assert_eq!(
+            read_body(&mut bodiless).expect("and an empty body is held like any other"),
+            Vec::<u8>::new(),
+            "\"the peer sent nothing\" is an answer this member repeats rather than withdraws"
+        );
+    }
+
+    /// The streaming half: a reader that hands the octets over as they arrive
+    /// keeps none of them, so it is the only reader of the body it read and
+    /// every later one is refused rather than answered empty.
+    ///
+    /// Asked of each of the four members after `bodyStream`, including
+    /// `bodyStream` itself, because what is refused is not a *kind* — the
+    /// buffering readers may follow each other all day, and it is the streamed
+    /// body that has nothing left in it.
+    ///
+    /// A `files()` walk is the same reader with the one difference
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes: it
+    /// buffers the non-file fields on its way past, so `post` after it reads
+    /// those — [`post_reads_the_fields_a_files_walk_buffered`] — while `body`
+    /// is refused, the hold carrying the fields and never the octets.
+    #[test]
+    fn a_streaming_reader_refuses_every_later_reader() {
         let mut streamed = uploading(
             "application/x-www-form-urlencoded",
             Some(Chunks::of(&[b"title=Q3+report"])),
@@ -4883,27 +5005,49 @@ mod tests {
         dropped(chunks);
         assert!(
             posted(&mut streamed, "title").is_err(),
-            "and naming that walk is the reading, whether or not a chunk was pulled"
+            "naming that walk is the reading, whether or not a chunk was pulled"
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut streamed, &[]).is_err(),
+            "and the octets are gone, so the reader that copies them out is refused"
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_files, &mut streamed, &[]).is_err(),
+            "as is the other reader that needs the wire"
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_body_stream, &mut streamed, &[]).is_err(),
+            "including a second walk of its own, which is a later reader like any other"
         );
 
-        let mut walking = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
+        let mut walking = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
         let files = nvs_runtime::call(nvs_core_request_files, &mut walking, &[])
             .expect("a request that declared a multipart body can be walked");
         dropped(files);
-        assert_eq!(
-            field(&mut walking, "title").as_deref(),
-            Some(&b"Q3 report"[..]),
-            "`files` is the one reading `post` joins, because that walk sets the fields aside"
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut walking, &[]).is_err(),
+            "what a walk holds is the fields it buffered, so the whole-body reader is refused"
         );
+        assert!(
+            nvs_runtime::call(nvs_core_request_body_stream, &mut walking, &[]).is_err(),
+            "and the wire it walked is not there to be walked again"
+        );
+    }
 
+    /// A urlencoded body is percent-escaped ASCII by construction, so a raw
+    /// octet outside UTF-8 in one is a body that is not what it claims to be —
+    /// refused whole under `rule:errors/ambiguous-input-refused` rather than
+    /// repaired into a field the peer never sent.
+    #[test]
+    fn a_body_that_is_not_text_holds_no_urlencoded_form() {
         let mut binary = uploading(
             "application/x-www-form-urlencoded",
             Some(Chunks::of(&[b"title=\xff\xfe"])),
         );
         assert!(
             posted(&mut binary, "title").is_err(),
-            "a body that is not text holds no urlencoded form, and `rule:errors/ambiguous-input-refused` refuses it rather \
-             than replacing the octets it cannot read"
+            "a body that is not text holds no urlencoded form, and replacing the octets it \
+             cannot read would answer a field that was never sent"
         );
     }
 }
