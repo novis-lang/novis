@@ -3657,6 +3657,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the diff reads as two identical lines refused because the `%A` above absorbed the caret excerpt and
   left the leading space to the literal. Copy each `= help:`/`= note:` line out of the runner's actual
   half per error block rather than writing one and repeating it. [until: reviewed 2026-09-06]
+- **A compiled `parse`'s throw reaches a test as `Fault::Pending`, not `Fault::Thrown`, and its
+  sentence is on the context.** `call_static` leaves the implementor's message pending rather than
+  building a fault around it, so an arm matching `Fault::Thrown(_, said)` — what the *engine's own*
+  refusals look like one arm along — panics on a refusal that worked. Match `Fault::Pending(_)` and
+  read `ctx.take_pending()`, as `crate::command`'s `parse_each` does. [until: reviewed 2026-09-08]
 
 ## Splitting a file that got too big
 

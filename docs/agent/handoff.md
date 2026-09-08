@@ -2,59 +2,53 @@
 
 ## State
 
-**Goal 19 — stage 3 is closed.** All eight names its two `cargo-named` checks list exist and pass:
-six in `crates/nvs-types/tests/` (`cargo test -p nvs-types --test routes --test commands`) and two
-in `crates/nvs-stdlib/src/registry.rs`'s test module. The predicate is asserted from both ends — a
-user class reaches a capture, a `#[Query]` and a command argument by implementing `Parses`, a class
-without the interface is refused with the fix named in the help, and `Core\Uuid` reaches the same
-roster through the same bit rather than through an arm matching its name.
+**Goal 19 — stage 4's `cargo-named` check is green, in the two crates it is actually split across.**
+Nothing about the arm needed writing: `crates/nvs-runtime/src/routes.rs:450` already crossed a
+`Parses` capture as its class and text, `crates/nvs-stdlib/src/router.rs:1065` already converted one
+at the binding site, and `crates/nvs-stdlib/src/command.rs:539` already converted a `decimal`
+argument. What was missing was the tests, and **two of the five names could not live in
+`nvs-runtime` at all** — `capture_value` and `parse_each` are one crate above the tables, because
+only a binding site holds the armed class table a compiled `parse` is reached through. The check is
+now two blocks: `-p nvs-runtime` for the match, `-p nvs-stdlib` for the binding site, with the stage
+comment saying why the split is the decision rather than a filing accident.
 
-**Stage 5's reference pages are done** (`docs/reference/lang/50-classes.md`,
-`docs/reference/lang/90-attributes.md`, `docs/novis.md` regenerated). **Stage 4 is what is left
-before them**, and part of it is already on disk: `crates/nvs-runtime/src/routes.rs:450` converts a
-`Parses` capture and `:456` a `decimal` one. `crates/nvs-runtime/src/commands.rs:158`'s
-`ArgConv::Unconverted` is that module's gap 1 and is the command side's remaining half.
-
-**One stage-4 check name states the answer this goal's § *Standing decisions* settled the other
-way** — see the first item below. It is a name to amend, not work to do.
+**Stage 4's other check and every stage 5 artefact are already on disk** — the three `.nvst` cases
+under `tests/conformance/core/`, `examples/parses.nvs` with its `.nvsr` request, and both OpenAPI
+tests at `crates/nvs-cli/tests/openapi.rs:518`. `python tools/verify.py` is 8 of 8 green. So the
+next acceptance run is what says whether anything is left, and the group below is written to be
+checked rather than built.
 
 **Still open and not this stage's:** `tryParse` is unreachable on a user implementor, nothing binds
 a `#[Query]` parameter, and a class-typed `#[Query]` cannot carry a default (`E0451` wants a literal
-of the declared type).
+of the declared type) — which is why stage 5's fixture reads its two `tag` lines by hand.
 
 ## Next group
 
-**Stage 4: the runtime arm — one file set: `docs/agent/loop-goal.toml`,
-`crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/commands.rs`.** The five names are
-`docs/agent/loop-goal.toml:5904`'s `cargo-named` list, verbatim once the first item has amended one
-of them.
+**Stage 5: the proofs — one file set: `docs/agent/loop-goal.toml`, `examples/parses.nvsr`,
+`crates/nvs-cli/tests/openapi.rs`.** Every artefact exists, so each item below is a run-and-read
+first and a repair only if it is red.
 
-- [ ] **The check name that contradicts the goal** — `docs/agent/loop-goal.toml:5905` reads
-      `a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value`, and
-      `rule:security/route-capture-is-laundered-by-its-type` says the opposite for this class of
-      capture: a `Parses` class matches on **shape** and its refusal is a `400` over a route that
-      did match, because the matcher runs at the door with no program installed. Rename it to what
-      the rule says, then copy `docs/agent/loop-goal.toml` over `docs/agent/goals/19-parses.toml` —
-      they are byte-identical by construction.
-- [ ] **The route half** — `a_parses_capture_converts_the_segment_before_the_handler_is_reached`,
-      the renamed refusal test and `a_decimal_capture_is_converted_and_no_longer_unconverted`, in
-      the test module at `crates/nvs-runtime/src/routes.rs:655`. The arms they read are
-      `crates/nvs-runtime/src/routes.rs:450` and `:456`; the module doc at
-      `crates/nvs-runtime/src/routes.rs:38` owns why this walk performs no `parse`.
-- [ ] **The command half** — `a_parses_command_argument_is_converted_and_a_refusal_is_a_usage_error`
-      and `a_decimal_command_argument_is_converted_and_no_longer_unconverted`, over
-      `crates/nvs-runtime/src/commands.rs:158`'s `ArgConv::Unconverted`, which is that module's own
-      gap 1 and the only half of stage 4 that is a change to the conversion rather than a test over
-      one. `crates/nvs-runtime/src/commands.rs:119` is where the two sides' different failure
-      directions are already written down.
+- [ ] **The program leg, run rather than assumed** — `docs/agent/loop-goal.toml:5951` is the
+      `stage = "5 the proofs"` fixture, and its `want` list is five lines the leg must print.
+      `target/debug/nvs.exe run --request examples/parses.nvsr` is the whole check; the comment
+      above it says `nvs run` installs the route table and matches nothing against it, so the
+      fixture takes the door's walk itself. `rule:security/route-capture-is-laundered-by-its-type`
+      is what its last two lines pin — a class's refusal is a `400`, a `Core\Uuid` the router
+      refuses is no match.
+- [ ] **The OpenAPI pair** — `crates/nvs-cli/tests/openapi.rs:518`'s
+      `a_parses_capture_is_a_string_schema` and `core_uuid_keeps_its_named_format_over_that_schema`,
+      against the arm at `crates/nvs-cli/src/openapi.rs:386`. The goal's § *Standing decisions*
+      settles the shape and is not to be re-derived: a `Parses` class answers `{"type": "string"}`
+      and `Core\Uuid` keeps its `format: uuid`, because a named format is a documentation hint over
+      a conversion rather than a conversion rule.
+- [ ] **The stage's four remaining blocks** — `docs/agent/loop-goal.toml:5972`, `:5982` and `:5995`
+      are the `nvs-stdlib` gates, the reference regeneration and the rest of stage 5. They are
+      whole-suite gates rather than new work, so read the driver's report before opening anything.
 
 ## Backlog
 
-- Stage 4's `nvs-suite` check names three `.nvst` cases that exist on disk; run them before writing
-  runtime tests — `docs/agent/loop-goal.toml:5911`.
-- Stage 5's `examples/parses.nvs` and `examples/parses.nvsr` do not exist —
-  `docs/agent/loop-goal.toml:5926`.
-- Stage 5's two `-p nvs-cli` OpenAPI tests — `docs/agent/loop-goal.toml:5947`.
-- `tryParse` is unreachable on a user implementor — `docs/agent/playbook.md` has the shape.
-- Nothing binds a `#[Query]` parameter at run time — stage 5's `exact` check reads its two `tag`
-  lines by hand for exactly this reason.
+- `#[Query]` binds nothing yet; a class-typed one cannot carry a default (`E0451`) — `rule:routing/a-bad-query-value-is-a-400` says the query half is not shipped.
+- `tryParse` is unreachable on a user implementor — `rule:expressions/try-parse`, and `nvs_types::layout` enters no method for an interface default.
+- An enum *subset* is still `ArgConv::Unconverted` — `crates/nvs-runtime/src/commands.rs`'s known gap 1, and not this goal's.
+- A capture at an enum still hands its segment text over — `rule:routing/a-capture-narrows-to-a-closed-set`'s last paragraph.
+- This clone has no `core.hooksPath` set; `verify.py` says so every run — `docs/setup.md`.
