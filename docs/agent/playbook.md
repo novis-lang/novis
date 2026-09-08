@@ -1285,6 +1285,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `pub fn set_field`, and the `impl` block's name is not part of the token. Ask for the bare name
   (`@set_field`), or `--locate set_field`, and read the `impl` off the anchor.
   [until: reviewed 2026-09-08]
+- **A `splice.py` OLD block typed out of a `peek.py` window can carry the wrong
+  indentation, and the miss reports as a stale anchor.** `peek.py` prints a line-number
+  gutter ahead of the source, so leading spaces counted off the screen include however many
+  the gutter took — a block eight spaces deep in the file arrives twelve deep in the patch
+  and matches nothing that is there. Anchor on the shortest unique run of lines rather than
+  on a whole comment, or read the exact region back before typing one; the refusal names the
+  first character that diverged, which is the tell that it is the indentation and not the
+  words. [until: reviewed 2026-09-08]
 
 ## Running things
 

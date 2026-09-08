@@ -2,54 +2,53 @@
 
 ## State
 
-**Goal 16 — a body is read once, and JSON is one of the ways to read it. Stage 4's members are
-whole**: all five unit tests its check names exist and pass, and its six `tests/conformance/core/`
-cases are on disk. Stage 1 is goal 15's whole list; stage 5 is untouched.
+**Goal 16 — a body is read once, and JSON is one of the ways to read it. Stage 4 is closed**:
+both members are whole, their five unit tests and six `tests/conformance/core/` cases pass, and
+the qualifier refusal `rule:security/derived-codec-qualifiers` asks for now exists and is pinned.
+Stage 1 is goal 15's whole list; **stage 5 is the only open one**, and it is what the driver's
+acceptance check has been failing on: `examples/json-body.nvs` does not exist yet.
 
-**`jsonAs<T>()` has a `T` to be tested against now.** `crates/nvs-stdlib/src/request.rs:5207`'s
-`reading_class` builds a class carrying a derived JSON codec out of the three pieces the runtime
-exposes — `ClassTable::define`, `set_codec`, `set_methods` — with a native constructor of the ABI a
-compiled one has, because `nvs_runtime::construct` faults on a class with no `CONSTRUCTOR` row.
+**`E0810` is the call-site refusal.** `crates/nvs-diagnostics/src/lib.rs:3248` declares it;
+`crates/nvs-types/src/derive.rs:@check_decode_sites` is the pass, run from
+`crates/nvs-types/src/check.rs:222` beside `check_row_sites` and for its reason — the class a
+call writes is routinely declared in a file the walk has not reached. A site is recorded at
+`crates/nvs-types/src/expr/args.rs:1487`, which is the one place a written class and the member
+that asked for it are both in hand.
 
-**Stage 4's last artefact is a reject case whose refusal does not exist yet.**
-`rule:security/derived-codec-qualifiers` puts the qualifier question at the call site that decodes,
-and nothing asks it: a `Core\Request::jsonAs<Author>()` over an `Author` declaring a plain
-`public string $name` compiles today and reaches run time. `Core\Json::decodeAs` needs no such pass —
-its `$json` parameter is plain `string`, so a tainted argument is already `E0401` at the argument —
-which is why this one is `jsonAs`'s alone and narrow.
+**What it walks, which is wider than the written class.** Every `#[Json\Derive]` field the
+document reaches: the written class's own, and those of every deriving class its fields name,
+with an array unwrapped to its element type. One report per property however many sites decode
+into it, because the fix is one `tainted` on one declaration. `secret` never reaches it —
+`derive.rs`'s `codec_field` refuses a `secret` property where it is declared.
 
-**The driver's `c1e0e69e5` was read and kept**: it makes `nvs lsp` accept the `--stdio` a language
-client appends unasked, and adds the two `editors/vscode` protocol tests over it. `verify.py` runs
-that suite, so this session's run is the verification it never had.
+**`Core\Json::decodeAs` deliberately gets no site**: its `$json` parameter is a plain `string`,
+so a tainted document is already `E0401` where it is passed. `args.rs:1474`'s comment is the home
+of that split.
 
 ## Next group
 
-**Stage 4: the call-site qualifier refusal, and the reject case that pins it** — one file set:
-`crates/nvs-types/src/derive.rs`, `crates/nvs-types/src/check.rs`,
-`crates/nvs-diagnostics/src/lib.rs`.
+**Stage 5: the proofs — the runnable fixture** — one file set: `examples/`,
+`crates/nvs-test/src/request.rs`, `tools/reference.py`.
 
-- [ ] **A diagnostic for a `T` whose text fields are unqualified**, declared after
-      `crates/nvs-diagnostics/src/lib.rs:3225`'s `E_CALLABLE_CALL_ARITY` — the `E08xx` band, next
-      free `E0810`. It names the property, not the call, and its help is "write `tainted` on it".
-      `rule:security/derived-codec-qualifiers`.
-- [ ] **The pass**, beside `crates/nvs-types/src/derive.rs:608`'s `check_row_sites` and run from
-      `crates/nvs-types/src/check.rs:213` the same way: every `CodecTy::Str` field of the class a
-      `Core\Request::jsonAs<T>` wrote must declare `tainted`, since the body is the peer's bytes.
-      The site list is `crates/nvs-types/src/lib.rs:458`'s shape and the class comes from
-      `crates/nvs-types/src/expr/args.rs:1456`'s `written_class_of`; the module-doc gap 3 at
-      `crates/nvs-types/src/derive.rs:82` is the paragraph this widens, so rewrite it.
-      `rule:security/derived-codec-qualifiers`.
-- [ ] **`tests/conformance/reject/a-json-body-hydrated-into-an-unqualified-type-is-refused.nvst`**,
-      the last case `docs/agent/loop-goal.toml:5497`'s stage-4 suite names.
-      `tests/conformance/core/a-request-hydrates-its-body-into-a-declared-type.nvst` is the accepted
-      twin — the same class with `tainted string $name` — so the reject case is that file with the
-      qualifier dropped and an `--EXPECTF-ERROR--` section.
+- [ ] **`examples/json-body.nvs`, printing `docs/agent/loop-goal.toml:5521`'s six `want` lines
+      in order** — the leg runs it under `nvs run --request`, so a body's own facts are
+      assertable here rather than narrated. `crates/nvs-test/src/request.rs:1` owns the request
+      file's format and `docs/agent/loop-goal.toml:5515` is the check itself; the four `Core`
+      calls it needs are `json`, `jsonAs`, `method` and `body`, all landed.
+- [ ] **The two `ParseError` lines and the content-type one are the same program's `catch`
+      arms** — an absent and an empty body are both `ParseError` and a mislabelled but valid
+      document is read, per the goal's § *Standing decisions*;
+      `tests/conformance/core/a-malformed-json-body-is-a-parse-error.nvst:1` already pins the
+      first of the three and is the shape the fixture prints around.
+- [ ] **Regenerate the one-file reference so `json` and `jsonAs`'s cards are in it** —
+      `python tools/reference.py --check` is `docs/agent/loop-goal.toml:5532`'s check and
+      `tools/reference.py:708` is the generator; it is generated from `nvs meta --json` and never
+      edited, so a stale card fails there rather than in `nvs-stdlib`.
 
 ## Backlog
 
-- `examples/json-body.nvs` — stage 5's runnable fixture, six `want` lines at
-  `docs/agent/loop-goal.toml:5517`, run under `nvs run --request`.
-- `python tools/reference.py --check` — stage 5's one-file reference, regenerated from
-  `nvs meta --json` after two new `Core\Request` rows (`docs/agent/loop-goal.toml:5534`).
-- Goal 16's spec § 15 roster and exclusivity sentence, per the goal's standing decision on which
-  documents this goal may amend.
+- `rule:security/derived-codec-qualifiers`' declaration half (a `secret` property on a deriving
+  class) is landed in `derive.rs`; nothing else of the rule is open.
+- A `Core\Db\…::queryAs<T>` gets no qualifier pass: a row is not a peer's document, and
+  `derive.rs:@db_reachable`'s comment says § 6 makes every text column tainted on the way out.
+- `docs/agent/carried-gaps.md` owns anything that must outlive this goal.

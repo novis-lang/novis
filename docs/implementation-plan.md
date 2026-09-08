@@ -62,7 +62,7 @@
 > unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is
 > guarded**: `never` never `stat`s, one window one check, a swap publishes, § 3a picks `validate`,
 > 10k cold compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
-> lands.** **`Core\Cldr` is whole.** Conformance 1602, differential 276, migration 100%; valgrind
+> lands.** **`Core\Cldr` is whole.** Conformance 1603, differential 276, migration 100%; valgrind
 > green, arrays too. Serve: 2.78x php-cgi.  **The store publishes** gated diagnostics; nine,
 > `nvs/redactions`, two fixes, a silent stdout; 189 cases, matrix full, reparse timed.
 >
