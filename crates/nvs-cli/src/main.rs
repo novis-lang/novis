@@ -450,6 +450,14 @@ enum Command {
         /// The case files and directories to run.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
+        /// Print the request × construct matrix instead of the summary line.
+        ///
+        /// Coverage is inferred from the node each case's question landed on
+        /// and never declared by the case, so the matrix is a reading of the
+        /// corpus rather than a list anyone maintains.
+        // `rule:ide/lspt-coverage-is-inferred`.
+        #[arg(long)]
+        coverage: bool,
     },
     /// Print build, host and third-party licensing information.
     ///
@@ -900,15 +908,20 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        Command::LspTest { paths } => {
+        Command::LspTest { paths, coverage } => {
             // The report is this terminal program's own output, which is where
             // a `.lspt` summary belongs: `rule:ide/stdout-belongs-to-the-protocol` gives stdout to
             // the protocol only in the process `nvs lsp` runs, and this is not
             // that process — `nvs_lsp::suite` writes to the sink it is handed
             // and names none.
             let mut out = std::io::stdout().lock();
-            match nvs_lsp::suite::run(&paths, &mut out) {
-                Ok(summary) if summary.is_success() => ExitCode::SUCCESS,
+            let report = if coverage {
+                nvs_lsp::suite::Report::Coverage
+            } else {
+                nvs_lsp::suite::Report::Summary
+            };
+            match nvs_lsp::suite::run(&paths, &mut out, report) {
+                Ok(outcome) if outcome.summary.is_success() => ExitCode::SUCCESS,
                 Ok(_) => ExitCode::FAILURE,
                 Err(error) => {
                     eprintln!("error: {error}");
