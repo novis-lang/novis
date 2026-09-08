@@ -102,6 +102,103 @@ fn an_object_literal_missing_a_shapes_field_is_diagnosed() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
+// `rule:types/shape-type`: the mismatch prints both shapes whole, so the key
+// that is actually at fault is named in a `help:` line rather than left for the
+// reader to diff out. Same code, because it is the same mistake.
+
+#[test]
+fn a_shape_literal_missing_a_required_key_names_the_key() {
+    let diags = check_in_method(r#"({age: int, name: string}) $p = {name: "x"};"#);
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .expect("the mismatch is still reported");
+    assert!(diag.notes.iter().any(|n| n.contains("`age`")), "{diag:?}");
+}
+
+#[test]
+fn a_shape_literal_missing_two_required_keys_names_both() {
+    let diags = check_in_method("({x: int, y: int, z: int}) $p = {y: 2};");
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .expect("the mismatch is still reported");
+    assert!(
+        diag.notes
+            .iter()
+            .any(|n| n.contains("`x`") && n.contains("`z`") && !n.contains("`y`")),
+        "{diag:?}"
+    );
+}
+
+#[test]
+fn a_source_field_that_is_itself_optional_is_named_as_missing() {
+    // The source carries the key and still cannot supply it: `{x?: int}` is not
+    // proven to hold an `x`, which is `shape_satisfied`'s rule and not a second
+    // one written for the message.
+    let diags = check_in_method("({x?: int}) $a = {x: 1};\n({x: int}) $b = $a;");
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .expect("the mismatch is still reported");
+    assert!(diag.notes.iter().any(|n| n.contains("`x`")), "{diag:?}");
+}
+
+#[test]
+fn a_field_present_at_the_wrong_type_names_no_missing_key() {
+    // The help line is not noise: nothing is absent here, so nothing is named
+    // and the two printed shapes are the whole diagnosis.
+    let diags = check_in_method(r#"({x: int}) $p = {x: "s"};"#);
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .expect("the mismatch is still reported");
+    assert!(
+        !diag.notes.iter().any(|n| n.contains("required here")),
+        "{diag:?}"
+    );
+}
+
+#[test]
+fn a_parenthesized_group_reports_one_mismatch_and_not_two() {
+    // One mistake is one diagnostic: the group's arm re-enters `check_expr`, so
+    // the report belongs to the inner expression's span and the enclosing group
+    // adds nothing. Asked of a shape and of a scalar, because the rule is
+    // `check_expr`'s and not the shape arm's.
+    let shape = check_in_method(r#"({age: int, name: string}) $p = ({name: "x"});"#);
+    assert_eq!(
+        shape
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .count(),
+        1,
+        "{shape:?}"
+    );
+    let scalar = check_in_method(r#"int $x = ("s");"#);
+    assert_eq!(
+        scalar
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .count(),
+        1,
+        "{scalar:?}"
+    );
+}
+
+#[test]
+fn a_class_missing_a_shapes_field_names_the_field() {
+    // A declared property is always present, so a class source answers presence
+    // alone — and the absent one is named the same way a shape's is.
+    let diags = check_src(
+        "<?nvs\nclass Foo {\n  public int $x = 0;\n}\nclass T {\n  function m(): void {\n    ({x: int, y: int}) $p = new Foo();\n  }\n}\n",
+    );
+    let diag = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+        .expect("the mismatch is still reported");
+    assert!(diag.notes.iter().any(|n| n.contains("`y`")), "{diag:?}");
+}
+
 #[test]
 fn an_object_literal_with_a_mismatched_field_type_is_diagnosed() {
     let diags = check_in_method(r#"({x: int}) $p = {x: "s"};"#);

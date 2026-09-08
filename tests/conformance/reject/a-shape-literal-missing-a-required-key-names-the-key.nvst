@@ -1,0 +1,41 @@
+--TEST--
+a value that does not fit a shape has the absent key named for it rather than the two shapes printed for it to diff, one key or several, and a parenthesised group reports the same mistake once — `rule:types/shape-type`, `rule:types/unions-and-mixed`
+--FILE--
+<?nvs
+// `rule:types/shape-type` checks a shape structurally, so a source that does
+// not fit it has failed on one named key rather than on being the wrong kind
+// of thing. The mismatch prints both shapes; the help line says which key.
+({age: int, name: string}) $one = {name: "x"};
+
+// Two absent keys are named together, in the target shape's own order.
+({x: int, y: int, z: int}) $two = {y: 2};
+
+// A field present at the wrong type has nothing absent, so nothing is named
+// and the two printed shapes are the whole diagnosis.
+({x: int}) $typed = {x: "s"};
+
+// The parentheses add nothing to the mistake, so they add no second report.
+({age: int, name: string}) $group = ({name: "x"});
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{age: int, name: string}`, found `{name: string}`
+  --> case.nvs:5:35
+%A
+  = help: `age` is required here, and this value does not supply it
+%A
+error[E0401]: expected `{x: int, y: int, z: int}`, found `{y: int}`
+  --> case.nvs:8:35
+%A
+  = help: these keys are required here, and this value supplies none of them: `x`, `z`
+%A
+error[E0401]: expected `{x: int}`, found `{x: string}`
+   --> case.nvs:12:21
+%A
+error[E0401]: expected `{age: int, name: string}`, found `{name: string}`
+   --> case.nvs:15:38
+%A
+   = help: `age` is required here, and this value does not supply it
+%A
+error: aborting due to 4 errors
