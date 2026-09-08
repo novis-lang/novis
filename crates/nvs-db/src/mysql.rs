@@ -281,6 +281,25 @@ pub(crate) const REQUIRED_CAPABILITIES: CapabilityFlags = CapabilityFlags::CLIEN
 const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
     REQUIRED_CAPABILITIES.difference(CapabilityFlags::CLIENT_SSL);
 
+/// The endpoint a socket `host` names on this driver, which is the path an
+/// operator wrote and nothing derived from it.
+///
+/// `rule:core-classes/db-unix-socket-path`: a MySQL socket file has no naming
+/// convention to derive one from, so `port` is taken and ignored. It is taken
+/// at all because [`crate::pg::socket_endpoint`] needs it — the door that
+/// admits a configured socket holds one of these per driver as a single
+/// function pointer, and that is where the difference between the two
+/// spellings is visible.
+///
+/// # Errors
+///
+/// `Unsupported` on a build with no `AF_UNIX` transport, which is
+/// [`crate::conn::socket_endpoint`]'s refusal rather than a second wording of
+/// it.
+pub fn socket_endpoint(path: &str, _port: u16) -> io::Result<Endpoint> {
+    crate::conn::socket_endpoint(path)
+}
+
 /// The socket underneath a MySQL or MariaDB connection: TLS over TCP, or a
 /// Unix-domain socket carrying the protocol in the clear.
 ///
@@ -298,7 +317,9 @@ const REQUIRED_OVER_A_SOCKET: CapabilityFlags =
 /// TCP arm, which is the one with a network in it, and a server chooses neither:
 /// the transport is decided before the greeting is read.
 ///
-/// The local arm is `#[cfg(unix)]`, as [`crate::conn::Endpoint::Socket`] is, so
+/// The local arm is `#[cfg(unix)]`, as [`crate::conn::Endpoint`]'s socket arm
+/// is — a link to the variant itself would be unresolvable on the build where
+/// it does not exist, which is exactly the property being described — so
 /// this match is exhaustive on both platforms with no arm that exists only to
 /// refuse.
 pub enum MyStream {
@@ -434,7 +455,8 @@ impl<'a> MySqlTarget<'a> {
     ///
     /// The address is not here, for the reason [`MySqlTarget`] gives: `host` is
     /// the name the certificate is checked against, and resolving it to a
-    /// [`SocketAddr`] belongs to whoever checked the `db.connect` capability.
+    /// [`std::net::SocketAddr`] belongs to whoever checked the `db.connect`
+    /// capability.
     ///
     /// § 1's `statement_cache` goes through [`statement_cache_for`], the reader
     /// PostgreSQL's block goes through, so a block sized for either driver is

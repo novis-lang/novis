@@ -325,17 +325,28 @@ pub(crate) fn open_named(
     // home. `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
     // is why the settings path further down takes a pinned address and never a
     // path — this is the door an operator's own configuration comes through.
-    let endpoint_of = |host: &str, port: Option<u16>, default_port: u16| {
-        if nvs_db::is_socket_host(host) {
-            return nvs_db::socket_endpoint(host).map_err(|why| {
-                Fault::thrown_as(
-                    ThrownClass::Io,
-                    format!("{named}: `[db.{name}]` names a socket that cannot be opened: {why}"),
-                )
-            });
-        }
-        address_of(host, port, default_port, name).map(nvs_db::Endpoint::Tcp)
-    };
+    // `socket` is the driver's own spelling of a path — MySQL's file as written,
+    // PostgreSQL's `<directory>/.s.PGSQL.<port>` — because
+    // `rule:core-classes/db-unix-socket-path` is one piece of protocol trivia
+    // per driver and each keeps its own. The port an arm passes is the one it
+    // would have dialled.
+    let endpoint_of =
+        |host: &str,
+         port: Option<u16>,
+         default_port: u16,
+         socket: fn(&str, u16) -> std::io::Result<nvs_db::Endpoint>| {
+            if nvs_db::is_socket_host(host) {
+                return socket(host, port.unwrap_or(default_port)).map_err(|why| {
+                    Fault::thrown_as(
+                        ThrownClass::Io,
+                        format!(
+                            "{named}: `[db.{name}]` names a socket that cannot be opened: {why}"
+                        ),
+                    )
+                });
+            }
+            address_of(host, port, default_port, name).map(nvs_db::Endpoint::Tcp)
+        };
     let written = block.driver.as_deref().unwrap_or("");
     let driver = nvs_db::Driver::from_config_name(written);
     let opened = match pooled {
@@ -376,7 +387,12 @@ pub(crate) fn open_named(
                 let target = nvs_db::MySqlTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                let endpoint = endpoint_of(target.host, block.port, nvs_db::mysql::DEFAULT_PORT)?;
+                let endpoint = endpoint_of(
+                    target.host,
+                    block.port,
+                    nvs_db::mysql::DEFAULT_PORT,
+                    nvs_db::mysql::socket_endpoint,
+                )?;
                 let conn = nvs_db::MySqlConn::connect(endpoint.clone(), &target, deadline)
                     .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::MySql(conn)
@@ -404,9 +420,14 @@ pub(crate) fn open_named(
                 let target = nvs_db::PgTarget::resolve(block).map_err(|refused| {
                     Fault::thrown(format!("{named}: {}", refused.refusal(name)))
                 })?;
-                let address = address_of(target.host, block.port, nvs_db::pg::DEFAULT_PORT, name)?;
-                let conn = nvs_db::PgConn::connect(address, &target, deadline)
-                    .map_err(|err| opening(&address, &err))?;
+                let endpoint = endpoint_of(
+                    target.host,
+                    block.port,
+                    nvs_db::pg::DEFAULT_PORT,
+                    nvs_db::pg::socket_endpoint,
+                )?;
+                let conn = nvs_db::PgConn::connect(endpoint.clone(), &target, deadline)
+                    .map_err(|err| opening(&endpoint, &err))?;
                 nvs_db::Connection::Postgres(conn)
             }
         },

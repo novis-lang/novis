@@ -121,7 +121,6 @@
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::io::{self, Read, Write};
-use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Instant;
 
@@ -129,6 +128,8 @@ use bytes::BytesMut;
 use fallible_iterator::FallibleIterator;
 use nvs_config::tree::Database;
 use nvs_host::net::NvsTcp;
+#[cfg(unix)]
+use nvs_host::net::NvsUnix;
 use nvs_host::tls::NvsTls;
 use nvs_runtime::{Decimal, NvsArray, NvsStr, Tag, Value};
 use postgres_protocol::authentication::sasl::{ChannelBinding, ScramSha256};
@@ -136,7 +137,7 @@ use postgres_protocol::message::{backend, frontend};
 use postgres_protocol::{IsNull, Oid};
 
 use crate::conn::{
-    BlockError, ColumnType, DbErrorKind, Driver, Isolation, PgConn, ServerError, State,
+    BlockError, ColumnType, DbErrorKind, Driver, Endpoint, Isolation, PgConn, ServerError, State,
     written_value,
 };
 use crate::span::QuerySpan;
@@ -254,10 +255,13 @@ impl<'a> PgTarget<'a> {
     ///
     /// The address is not here. § 3 pre-approves an operator-written endpoint
     /// and `rule:http-server/allow-url-pins-the-address` pins
-    /// it, so `host`'s resolution to a [`SocketAddr`] belongs to whoever
-    /// checked the `db.connect` capability, and [`PgConn::connect`] takes that
-    /// address beside this target. What is here is the name the certificate is
-    /// checked against, which is the written `host` and never a reverse lookup.
+    /// it, so `host`'s resolution to a [`std::net::SocketAddr`] belongs to
+    /// whoever checked the `db.connect` capability, and [`PgConn::connect`]
+    /// takes the [`Endpoint`] that came out of it beside this target. What is
+    /// here is the name the certificate is checked against, which is the
+    /// written `host` and never a reverse lookup — and a `host` that is a
+    /// socket directory names no certificate at all, which is `PgStream`'s
+    /// local arm.
     ///
     /// # Errors
     ///
@@ -347,13 +351,142 @@ pub struct CancelKey {
     pub secret_key: i32,
 }
 
+/// The socket underneath a PostgreSQL connection: TLS over TCP, or a
+/// Unix-domain socket carrying the protocol in the clear.
+///
+/// [`crate::conn::Endpoint`]'s two transports, arriving here as the two things a
+/// [`Wire`] can be framed over. The message framing has no opinion about which
+/// it is, which is why this is a stream and not a second codec, and
+/// [`crate::mysql::MyStream`] is the same type under the other driver.
+///
+/// **There is no TLS over the local arm, and that is not a downgrade a server
+/// can ask for.** A path reaches this driver only where an operator wrote one
+/// into root-owned configuration
+/// (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`), it
+/// names no host for a certificate to be valid for, and the bytes never leave
+/// the machine — the socket's own file permissions are the boundary TLS would
+/// otherwise be standing in for. § 3's in-band upgrade is still mandatory on the
+/// TCP arm, which is the one with a network in it, and the transport is decided
+/// before the first message goes out rather than negotiated.
+///
+/// The local arm is `#[cfg(unix)]`, as [`crate::conn::Endpoint`]'s socket arm
+/// is, so this match is exhaustive on both platforms with no arm that exists
+/// only to refuse.
+pub enum PgStream {
+    /// A server that named a host, reached over TCP and upgraded in band.
+    Tls(NvsTls<NvsTcp>),
+    /// A server that named a directory, reached over the socket file
+    /// [`socket_endpoint`] derived from it.
+    #[cfg(unix)]
+    Local(NvsUnix),
+}
+
+impl Read for PgStream {
+    /// Whatever has arrived, from whichever socket this is.
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Self::Tls(stream) => stream.read(buf),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for PgStream {
+    /// As much of `buf` as the socket took.
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Tls(stream) => stream.write(buf),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.write(buf),
+        }
+    }
+
+    /// Pushes what is held, which on the TLS arm is a record not yet sealed.
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Tls(stream) => stream.flush(),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.flush(),
+        }
+    }
+}
+
+impl std::fmt::Debug for PgStream {
+    /// Which transport this is, and nothing about the socket: a `rustls` session
+    /// holds key material and a buffered message is one request's data, which is
+    /// [`Wire`]'s own `Debug` and its reason.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tls(_) => f.write_str("PgStream::Tls"),
+            #[cfg(unix)]
+            Self::Local(_) => f.write_str("PgStream::Local"),
+        }
+    }
+}
+
+impl nvs_host::net::Deadline for PgStream {
+    /// Bounds every wait on this connection, whichever socket carries it.
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tls(stream) => stream.set_deadline(at),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.set_deadline(at),
+        }
+    }
+
+    fn deadline(&self) -> Option<Instant> {
+        match self {
+            Self::Tls(stream) => stream.deadline(),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.deadline(),
+        }
+    }
+}
+
+/// The path a `[db.<name>] host` naming a **directory** means, which is the
+/// socket PostgreSQL's own engine binds inside it.
+///
+/// `rule:core-classes/db-unix-socket-path`: `/var/run/postgresql` with
+/// `port = 5432` is `/var/run/postgresql/.s.PGSQL.5432`, because that is what
+/// libpq, `psql` and PDO take, and the string an operator's deployment already
+/// holds is the directory. The port is part of the *name* here rather than of
+/// an address — one server per port, and a machine running two engines has two
+/// files in one directory — which is why this takes it where
+/// [`crate::conn::socket_endpoint`], the as-written spelling
+/// [`crate::mysql`] uses, does not.
+///
+/// # Errors
+///
+/// Nothing on this platform; the signature is the one
+/// [`crate::conn::socket_endpoint`]'s refusal needs on a build with no
+/// `AF_UNIX` transport, which this delegates to rather than wording a second
+/// time.
+#[cfg(unix)]
+pub fn socket_endpoint(directory: &str, port: u16) -> io::Result<crate::conn::Endpoint> {
+    let mut path = std::path::PathBuf::from(directory);
+    path.push(format!(".s.PGSQL.{port}"));
+    Ok(crate::conn::Endpoint::Socket(path))
+}
+
+/// The refusal a build with no `AF_UNIX` transport answers a socket directory
+/// with — [`crate::conn::socket_endpoint`]'s, wording it once for every driver.
+///
+/// # Errors
+///
+/// `Unsupported`, always.
+#[cfg(not(unix))]
+pub fn socket_endpoint(directory: &str, _port: u16) -> io::Result<crate::conn::Endpoint> {
+    crate::conn::socket_endpoint(directory)
+}
+
 /// A PostgreSQL connection's stream, and what has been read off it.
 ///
 /// Generic in the stream so the exchanges above can be asserted against a
 /// server that answers rather than a socket; a real connection's wire is the
-/// `NvsTls<NvsTcp>` the default names, and nothing constructs any other outside
+/// [`PgStream`] the default names, and nothing constructs any other outside
 /// this module's tests.
-pub(crate) struct Wire<S: Read + Write = NvsTls<NvsTcp>> {
+pub(crate) struct Wire<S: Read + Write = PgStream> {
     stream: S,
     inbox: BytesMut,
 }
@@ -463,7 +596,13 @@ impl<S: Read + Write> Wire<S> {
 }
 
 impl PgConn {
-    /// Opens a connection: TCP, § 3's in-band upgrade, TLS, then SASL.
+    /// Opens a connection: the transport [`Endpoint`] names, § 3's in-band
+    /// upgrade where there is a network to upgrade, then SASL.
+    ///
+    /// A socket endpoint is **dialled as it stands**: the directory an operator
+    /// wrote became `<directory>/.s.PGSQL.<port>` in [`socket_endpoint`], which
+    /// is where `rule:core-classes/db-unix-socket-path`'s derivation lives, so
+    /// nothing here rewrites a path either.
     ///
     /// `deadline` bounds the whole of that and not one leg of it — the connect,
     /// the handshake and every authentication round trip share one clock,
@@ -483,24 +622,44 @@ impl PgConn {
     /// refusal the *server* worded — a wrong password, a database that does not
     /// exist — carries its own `SQLSTATE` and message.
     pub fn connect(
-        addr: SocketAddr,
+        endpoint: impl Into<Endpoint>,
         target: &PgTarget<'_>,
         deadline: Option<Instant>,
     ) -> io::Result<PgConn> {
-        let mut tcp = match deadline {
-            Some(at) => {
-                NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
-            }
-            None => NvsTcp::connect(addr)?,
-        };
-        tcp.set_deadline(deadline);
+        let stream = match endpoint.into() {
+            Endpoint::Tcp(addr) => {
+                let mut tcp = match deadline {
+                    Some(at) => {
+                        NvsTcp::connect_timeout(addr, at.saturating_duration_since(Instant::now()))?
+                    }
+                    None => NvsTcp::connect(addr)?,
+                };
+                tcp.set_deadline(deadline);
 
-        request_tls(&mut tcp)?;
-        let session = match target.tls_ca_file {
-            Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle)?,
-            None => NvsTls::over(tcp, target.host)?,
+                request_tls(&mut tcp)?;
+                PgStream::Tls(match target.tls_ca_file {
+                    Some(bundle) => NvsTls::over_bundle(tcp, target.host, bundle)?,
+                    None => NvsTls::over(tcp, target.host)?,
+                })
+            }
+            // Nothing is upgraded on this arm, so no `SSLRequest` goes out:
+            // asking for TLS over a socket that never leaves the machine would
+            // refuse every engine built without it, for a threat this transport
+            // does not have — `PgStream` owns that argument in full.
+            #[cfg(unix)]
+            Endpoint::Socket(path) => {
+                let mut local = match deadline {
+                    Some(at) => NvsUnix::connect_timeout(
+                        path,
+                        at.saturating_duration_since(Instant::now()),
+                    )?,
+                    None => NvsUnix::connect(path)?,
+                };
+                local.set_deadline(deadline);
+                PgStream::Local(local)
+            }
         };
-        let mut wire = Wire::new(session);
+        let mut wire = Wire::new(stream);
         let cancel = authenticate(&mut wire, target)?;
 
         Ok(PgConn {
@@ -792,7 +951,7 @@ impl Drop for PgConn {
 ///
 /// Free and generic in the stream rather than written inside [`Drop`] for the
 /// reason every other sequence in this module is: `PgConn`'s wire is a
-/// `Wire<NvsTls<NvsTcp>>`, which no unit test can build, so what a *destroyed*
+/// `Wire<PgStream>`, which no unit test can build, so what a *destroyed*
 /// connection puts on the wire would otherwise be unassertable without a socket
 /// and a certificate. `a_failed_reset_destroys_the_connection_rather_than_returning_it`
 /// is what asserts it.
@@ -2433,7 +2592,7 @@ pub(crate) struct PgCursor {
 /// Generic in the stream for the same reason [`Wire`] is: the sequencing below
 /// is then assertable against a scripted server, with no socket and no
 /// certificate. A connection's own rows are always over the default.
-pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
+pub struct PgRows<'a, S: Read + Write = PgStream> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
     /// Everything about this stream that is not the borrow — [`PgCursor`] owns
@@ -3788,6 +3947,68 @@ mod tests {
             database: Some("novis_test".to_owned()),
             time_zone: Some("+02:00".to_owned()),
             ..Database::default()
+        }
+    }
+
+    /// `rule:core-classes/db-unix-socket-path`: a `host` naming a **directory**
+    /// becomes the socket PostgreSQL's own engine binds inside it,
+    /// `<directory>/.s.PGSQL.<port>`, which is what libpq, `psql` and PDO take.
+    ///
+    /// Asserted against **where the dial landed** rather than against a
+    /// completed handshake: a unit test has no PostgreSQL server, and the
+    /// derivation is what is under test, so a listener bound at the derived
+    /// name that accepts once and hangs up answers that question and nothing
+    /// else. A driver that dialled the directory, or that hardcoded 5432, would
+    /// find nothing bound and the accept would never happen — which is why the
+    /// port here is not the default one.
+    #[test]
+    fn a_postgres_socket_directory_becomes_the_engines_own_name() {
+        #[cfg(unix)]
+        {
+            let mut directory = std::env::temp_dir();
+            directory.push(format!("nvs-pg-{}-sockets", std::process::id()));
+            let _ = std::fs::remove_dir_all(&directory);
+            std::fs::create_dir_all(&directory).expect("the OS refused the directory");
+            let written = directory.to_str().expect("a temporary path is UTF-8");
+
+            let super::Endpoint::Socket(derived) = super::socket_endpoint(written, 5433)
+                .expect("a build with `AF_UNIX` derives rather than refuses")
+            else {
+                panic!("a directory is a socket endpoint and never a TCP one");
+            };
+            assert_eq!(
+                derived,
+                directory.join(".s.PGSQL.5433"),
+                "the engine's own name is the directory plus the port, and the \
+                 port is part of the name rather than of an address"
+            );
+
+            let listener =
+                std::os::unix::net::UnixListener::bind(&derived).expect("the OS refused the path");
+            let server = std::thread::spawn(move || listener.accept().is_ok());
+
+            let opened = PgConn::connect(
+                super::Endpoint::Socket(derived.clone()),
+                &target("hunter2"),
+                None,
+            );
+
+            assert!(
+                server.join().expect("the fake server runs to completion"),
+                "the driver did not dial the name derived from the directory"
+            );
+            assert!(
+                opened.is_err(),
+                "a server that hung up before the startup answer is not a connection"
+            );
+            let _ = std::fs::remove_dir_all(&directory);
+        }
+
+        #[cfg(not(unix))]
+        {
+            let refused = super::socket_endpoint("/var/run/postgresql", 5433)
+                .expect_err("a build with no `AF_UNIX` transport has no socket to derive");
+            assert_eq!(refused.kind(), io::ErrorKind::Unsupported);
         }
     }
 
@@ -5601,7 +5822,7 @@ mod tests {
     /// write one here.
     ///
     /// The two are asserted apart because `PgConn`'s `wire` is a
-    /// `Wire<NvsTls<NvsTcp>>` — no unit test can build one, so no unit test can
+    /// `Wire<PgStream>` — no unit test can build one, so no unit test can
     /// call `reset` and watch the real drop. `nvs_stdlib`'s `warm_connection`
     /// is where they meet in a running program: `postgres.reset().ok()`, whose
     /// `None` is both an empty pool and a connection that has just been closed.
