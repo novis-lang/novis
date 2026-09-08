@@ -3,7 +3,7 @@
 //!
 //! [`nvs_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place all five — `Comparable`, `Stringable`, `PropertyObserver`,
+//! place all six — `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
 //! `Iterable<T>` and `Iterator<T>` — become member signatures, in exactly the
 //! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
@@ -35,13 +35,21 @@
 //! ([`crate::expr::operators`]), where both operands' static types are in
 //! hand, and never by this parameter.
 //!
-//! # Every member is bodiless, and that is what makes them dispatch
+//! # Every member but one is bodiless, and that is what makes them dispatch
 //!
-//! No interface on the roster declares a default (`rule:classes/interface-default-methods`), so
-//! [`MethodSig::has_body`] is false throughout. That is not bookkeeping: a
-//! call resolving to a bodiless declaration has no compiled function to name,
-//! so it dispatches on the receiver's runtime class — which is precisely what
-//! driving a cursor whose concrete class the loop never knows requires.
+//! [`MethodSig::has_body`] is false for every member here except
+//! `Parses::tryParse`. That is not bookkeeping: a call resolving to a bodiless
+//! declaration has no compiled function to name, so it dispatches on the
+//! receiver's runtime class — which is precisely what driving a cursor whose
+//! concrete class the loop never knows requires.
+//!
+//! `tryParse` is the one `rule:classes/interface-default-methods` default on
+//! the roster, and `rule:expressions/try-parse` is why: `tryParse` **is**
+//! `parse` with the throw caught, so an interface that required both members
+//! would hand every implementor the two-implementations-of-one-predicate
+//! failure that rule exists to forbid. Carrying it as a default makes the
+//! drift unwritable rather than discouraged, and [`crate::conformance`] then
+//! owes nothing for it.
 //!
 //! # Conformance is checked, and this is what asked for it
 //!
@@ -54,14 +62,14 @@
 //! which it always should have.
 
 use nvs_hir::QName;
-use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PROPERTY_OBSERVER, STRINGABLE};
+use nvs_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, PARSES, PROPERTY_OBSERVER, STRINGABLE};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds `Comparable`, `Stringable`, `PropertyObserver`, `Iterable<T>` and
-/// `Iterator<T>` to `table`.
+/// Adds `Comparable`, `Stringable`, `Parses`, `PropertyObserver`,
+/// `Iterable<T>` and `Iterator<T>` to `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
 /// [`crate::error_lib::seed`], at the head of
@@ -88,6 +96,42 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         [("toString".to_owned(), bodiless(&[], Vec::new(), string_ty))]
             .into_iter()
             .collect(),
+    );
+
+    // `Parses`, written as `nvs_hir::interfaces::PARSES`'s doc spells it:
+    // `parse(tainted string $s): static` required, `tryParse(tainted string
+    // $s): ?static` carried as a default. The text at every binding site
+    // arrived from outside the process, so the contract says `tainted` rather
+    // than letting each implementor discover it (0024 § 1); the object it
+    // answers carries no taint, because taint is a property of `string` and
+    // `bytes` and not of a class (`rule:security/tainted-qualifier`).
+    let parses = interner.class(QName::parse(PARSES));
+    let tainted_string_ty = interner.tainted_string();
+    let null_ty = interner.null();
+    let maybe_parses = interner.make_union([parses, null_ty]);
+    let mut parse = bodiless(&["s"], vec![tainted_string_ty], parses);
+    // `static` interns to the declaring class exactly as `crate::lower` interns
+    // a written one, and `returns_static` is the bit that makes `Slug::parse`
+    // answer `Slug` at the call site — see `MethodSig::returns_static`.
+    parse.is_static = true;
+    parse.returns_static = true;
+    // `?static` is deliberately *not* `returns_static`
+    // ([`crate::signatures::writes_static_return`] owns why), so the nullable is
+    // interned over the interface's own class and a call site substitutes
+    // nothing into it. `has_body` is what makes an implementor owe nothing for
+    // this member and free to override it anyway.
+    let mut try_parse = bodiless(&["s"], vec![tainted_string_ty], maybe_parses);
+    try_parse.is_static = true;
+    try_parse.has_body = true;
+    table.seed_class(
+        QName::parse(PARSES),
+        FxHashMap::default(),
+        [
+            ("parse".to_owned(), parse),
+            ("tryParse".to_owned(), try_parse),
+        ]
+        .into_iter()
+        .collect(),
     );
 
     // `rule:classes/property-observer`'s pair, written exactly as that section spells it. `$value`
@@ -154,8 +198,11 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
     interner.type_var(*name)
 }
 
-/// One interface method declared without a default — see this module's docs
-/// for why every member here is one.
+/// One interface method in the shape most of this roster's members take: an
+/// instance member, declared without a default, answering a type of its own
+/// rather than the called class. `Parses`' pair starts here too and flips the
+/// three bits it differs in, which keeps the fields nothing varies in — the
+/// visibility, the empty `param_quals`, the absent defaults — written once.
 ///
 /// `names` is the parameter list the interface's own ADR writes, one per
 /// entry of `params`: being callable by name is `rule:core-api/shape-rules` R2's rule for
@@ -181,6 +228,7 @@ fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig
         // `rule:iteration/concrete-generic-implements`'s two interfaces answer `T` and `bool`, never the
         // called class — see `MethodSig::returns_static`.
         returns_static: false,
+        // Overridden for `Parses`, whose pair is `public static`.
         is_static: false,
         interface_private: false,
         visibility: nvs_syntax::ast::Visibility::Public,

@@ -210,9 +210,12 @@ pub fn build_class_layouts(
     // source, but `$x instanceof Stringable` needs a descriptor to point at
     // and `class S implements Stringable` needs the edge to it in `conforms`,
     // which `collect_conforms` only keeps for a label the table has an entry
-    // for. Both lists are empty: an interface declares no property, and every
-    // member on these four is bodiless (`crate::iter_lib`), so there is no
-    // code for a descriptor's method table to name.
+    // for. Both lists are empty: an interface declares no property, and no
+    // member on the roster has code for a descriptor's method table to name —
+    // every one but `Parses::tryParse` is bodiless (`crate::iter_lib`), and
+    // that default is a signature the checker resolves against rather than a
+    // compiled function, so a class inheriting it inherits nothing to enter
+    // here.
     for (name, _) in nvs_hir::interfaces::RESERVED {
         own.insert(QName::parse(name), Vec::new());
         own_methods.insert(QName::parse(name), Vec::new());
