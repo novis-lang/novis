@@ -1,0 +1,30 @@
+--TEST--
+a forwarded header from an untrusted peer is not believed, and is still readable `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` `rule:security/tainted-sources`
+--CLIENT_IP--
+203.0.113.7
+--HEADERS--
+X-Forwarded-For: 198.51.100.9
+X-Forwarded-Proto: https
+Host: example.test
+--FILE--
+<?nvs
+// `[server] trusted_proxies` defaults to empty, and empty means these two lines
+// were never read: the request below states what the walk settled on, which is
+// the peer's own address over the connection's own scheme. A member that
+// re-read the headers would answer `198.51.100.9` and `https` here.
+echo Core\Request::clientIp() ?? "none", "\n";
+echo Core\Request::scheme(), "\n";
+// They are still readable, `tainted`, for an application that wants to decide
+// for itself: the rule withholds belief, not the bytes.
+echo Core\Request::header("x-forwarded-for") ?? "none", "\n";
+echo Core\Request::header("x-forwarded-proto") ?? "none", "\n";
+// The authority is the `Host` line and nothing forwarded, there being no
+// `X-Forwarded-Host` read anywhere — deriving an origin from one is
+// host-header injection.
+echo Core\Request::host() ?? "none", "\n";
+--EXPECT--
+203.0.113.7
+http
+198.51.100.9
+https
+example.test

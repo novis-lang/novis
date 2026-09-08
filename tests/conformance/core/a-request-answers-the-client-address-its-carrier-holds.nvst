@@ -1,0 +1,25 @@
+--TEST--
+a request answers the client address its carrier holds `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` `rule:security/tainted-sources`
+--CLIENT_IP--
+203.0.113.7
+--SCHEME--
+https
+--HEADERS--
+Host: example.test
+--FILE--
+<?nvs
+// `--CLIENT_IP--` is the address the trusted-proxy walk settled on, which a
+// case states outright because it is an answer rather than a header: a served
+// request reaches the same carrier field through
+// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk at
+// the door, and nothing a program can call re-derives it.
+echo Core\Request::clientIp() ?? "none", "\n";
+// The three arrive together, one walk having answered the first two: a carrier
+// holding half a peer would answer one of them for this request and one for
+// whatever set the other.
+echo Core\Request::scheme(), "\n";
+echo Core\Request::host() ?? "none", "\n";
+--EXPECT--
+203.0.113.7
+https
+example.test

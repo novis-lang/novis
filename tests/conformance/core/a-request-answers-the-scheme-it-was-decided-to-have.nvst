@@ -1,0 +1,28 @@
+--TEST--
+a request answers the scheme it was decided to have, and null where it had no peer to name `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` `rule:errors/ambiguous-input-refused`
+--SCHEME--
+https
+--GET--
+page=2
+--FILE--
+<?nvs
+// A request that named a scheme and no other peer fact. `https` is a claim only
+// the door can make — a connection that was not itself TLS reads it from a
+// trusted proxy or not at all — so the answer is never derived from anything
+// this program can see.
+echo Core\Request::scheme(), "\n";
+// `null` is an answer and not a hole waiting to be filled: a peer with no
+// address to report and a request that named no authority are both facts, and
+// `""` or `"0.0.0.0"` for either is the repair
+// `rule:errors/ambiguous-input-refused` forbids.
+echo Core\Request::clientIp() ?? "none", "\n";
+echo Core\Request::host() ?? "none", "\n";
+// The request is still a request: the query it carried reads back as usual, so
+// the two nulls above are answers about the peer rather than a program running
+// with nothing inbound.
+echo Core\Request::query("page") as string, "\n";
+--EXPECT--
+https
+none
+none
+2
