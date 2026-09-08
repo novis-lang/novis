@@ -80,6 +80,7 @@ pub mod secret;
 pub mod server;
 pub mod session;
 pub mod snapshot;
+pub mod store;
 pub mod tree;
 pub mod trust;
 pub mod value;

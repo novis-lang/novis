@@ -3309,6 +3309,22 @@ pub mod code {
     /// authentication failure at the far end, which is the bug this code
     /// exists to make loud.
     pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007");
+    /// The configuration names a shared store and grants nothing that may
+    /// reach it: `[cache.shared] url` is set and `cache.shared` is not
+    /// granted, so `Core\Cache::shared()` and `Core\RateLimit::consume` would
+    /// both be refused at the door.
+    /// `rule:config/cache-shared-is-the-grant-over-the-configured-store` is
+    /// what makes that pair legible at boot — the two keys are in the same
+    /// file, so the deployment that granted `net.connect` for its store's host
+    /// hears about it while an operator is reading output rather than on the
+    /// first request that touches the tier.
+    ///
+    /// An advisory and not a refusal, because the pair is not wrong on its
+    /// own: a fleet may share one `nvs.toml` between an application that uses
+    /// the tier and one that does not, and the second is a program with
+    /// nothing to fix. What it may not be is *silent*, since the failure it
+    /// otherwise produces arrives one deploy later and names only the member.
+    pub const W_STORE_CONFIGURED_UNGRANTED: Code = Code::new("W1008");
 }
 
 #[cfg(test)]

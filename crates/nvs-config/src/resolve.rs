@@ -204,8 +204,9 @@ pub struct Resolved {
     /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
-    /// What the tree is only *advised* about — § 7's readable secret file (`W1005`) and its
-    /// credential with an edge space (`W1007`). A
+    /// What the tree is only *advised* about — § 7's readable secret file (`W1005`), its
+    /// credential with an edge space (`W1007`), and a configured store no capability may reach
+    /// (`W1008`, [`crate::store::advise`]). A
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,
@@ -335,6 +336,14 @@ pub fn resolve(
     // wrong value never reports itself at run time — a per-core session store forgets people rather
     // than failing — so the merged tree is the last moment anything can say so.
     crate::session::validate(&resolved.config, &origins)?;
+    // `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s pair, beside the store
+    // question above and after the `[capabilities]` the merge settled: a `[cache.shared] url` with
+    // no `cache.shared` grant names a store nothing may open, which is knowable here and otherwise
+    // not until the first request that touches the tier. An advisory rather than a refusal, so it
+    // joins the warnings instead of returning — `W1008`'s own doc is why.
+    resolved
+        .warnings
+        .extend(crate::store::advise(&resolved.config, &origins));
     // `rule:observability/metrics-and-trace-blocks-are-system`'s two exporters, over the merged tree for the log check's reason and with the
     // same shape of failure as the session one: both blocks are `System`, so what is in force is
     // what this boot read, and a sink nobody can spell exports nothing while looking exactly like a
