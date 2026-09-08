@@ -1293,6 +1293,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   on a whole comment, or read the exact region back before typing one; the refusal names the
   first character that diverged, which is the tell that it is the indentation and not the
   words. [until: reviewed 2026-09-08]
+- **A `loop-goal.toml` fixture check can name `want` lines only a *leg argument* can produce, and the
+  missing half is the check's `args`, not the program.** A check whose comment says it "runs under
+  `nvs run --request`" while passing no `--request` leaves the fixture printing a refusal forever,
+  which reads exactly like unwritten work. `python tools/loop.py --list` prints each fixture's whole
+  argv: read that before believing a `want` cannot be produced, and fix
+  `docs/agent/goals/<goal>.toml` too. [until: reviewed 2026-09-08]
 
 ## Running things
 
