@@ -2,56 +2,53 @@
 
 ## State
 
-**Goal 16 — a body is read once, and JSON is one of the ways to read it. Every stage is on disk.**
-Stage 5's three parts landed this session: the fixture, the reference page and the leak run. The next
-acceptance sweep is expected to close the goal; nothing here is waiting on a decision.
+**Goal 16 — a body is read once, and JSON is one of the ways to read it. Stage 5's pages are on disk.**
+`Core\Request` had a hand-written page and none of the three classes it hands out did.
+`docs/reference/core/Request-BodyStream.md`, `Request-Files.md` and `Request-Part.md` are written and
+`docs/novis.md` is regenerated around them; `python tools/reference.py` reports 289 of 289 examples hold.
+Nothing here is waiting on a decision.
 
-**The fixture is two files.** `examples/json-body.nvs` prints the check's six `want` lines under
-`nvs run --request examples/json-body.nvsr`, and the request file — the format
-`crates/nvs-test/src/request.rs:1` owns — is now named in the check's `args`
-(`docs/agent/loop-goal.toml:5518`, mirrored into `docs/agent/goals/16-request-json.toml`). Without it
-the first line is `rule:security/request-state-throws-in-an-isolate` refusing.
+**The acceptance check red since session 0002 was a name, not missing work.** The check asked for
+`a_non_file_part_is_buffered_into_post`; the claim is pinned by
+`post_reads_the_fields_a_files_walk_buffered` (`crates/nvs-stdlib/src/request.rs:5062`), over a body whose
+last field is written *after* the upload, with the walk's own side at
+`a_files_walk_yields_the_file_parts_and_drains_what_it_passes` (`crates/nvs-stdlib/src/request.rs:4140`).
+Both copies of the check — `docs/agent/loop-goal.toml` and `docs/agent/goals/16-request-json.toml` — now
+name the test that exists. This is the playbook's "a drafted name describes the claim, which is usually
+already pinned under the name the corpus took", one file type over.
 
-**What one program cannot show is a second body.** One request carries one, so the fixture's two
-`ParseError` lines run `Core\Json::decode` over octets it holds; the wire half is
-`tests/conformance/core/a-malformed-json-body-is-a-parse-error.nvst` and `nvs-stdlib`'s
-`an_absent_or_empty_body_is_a_parse_error_for_json`. A body cannot be handed to `decode` at all —
-its `$json` is a plain `string`, so that call is `E0401`.
-
-**The leak run is green.** `tools/leak-check.sh` now takes `--request <file>` before the fixture list,
-because `loop.py`'s whole-suite sweep runs a fixture with no arguments and so never opens the hold at
-`crates/nvs-runtime/src/ctx/inbound.rs:331` — the document `json()` leaves beside the octets. Under
-valgrind in WSL, that fixture reports 0 failures.
-
-**`docs/reference/core/Request.md` is written and `docs/novis.md` regenerated around it**;
-`python tools/reference.py --check` is green, and the `json`/`jsonAs` cards were already in it.
+**Two `Core\Request` classes still render from their reference cards alone**, which is the state the three
+pages above replaced: `Core\Request\Mount` and `Core\Request\PartContent`. That is the next group.
 
 ## Next group
 
-**Stage 5: the pages the body rule's other readers have none of** — one file set:
+**Stage 5: the two `Core\Request` classes still rendering from cards alone** — one file set:
 `docs/reference/core/`, `docs/novis.md`, `crates/nvs-stdlib/src/request.rs`.
 
-- [ ] **`docs/reference/core/Request-BodyStream.md`** — the streaming half of
-      `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`, which
-      `Request.md` names and no page introduces; the class is
-      `crates/nvs-stdlib/src/request.rs:825` and `docs/reference/README.md:97` is the fence grammar.
-      A page's `nvs` example is run by `tools/reference.py:21` as a bare `nvs run`, so a member that
-      needs a request goes in an `nvs skip` fence with a runnable refusal beside it, as `Request.md`
-      does.
-- [ ] **`docs/reference/core/Request-Files.md` and `Request-Part.md`** — the upload walk and the part
-      it yields, `crates/nvs-stdlib/src/request.rs:882` and `crates/nvs-stdlib/src/request.rs:930`;
-      `rule:http-server/a-part-is-consumed-in-one-of-three-ways` is what the pair has to say, and
-      `examples/upload.nvs:36` is the shape already proven.
-- [ ] **Regenerate and prove them in one call** — `python tools/reference.py` writes `docs/novis.md`
-      and runs every example; `--examples-only --only Request` (`tools/reference.py:7`) runs just
-      these while writing them.
+- [ ] **`docs/reference/core/Request-Mount.md`** — where the router put this request and what a mount is
+      not: `rule:http-server/a-mount-carries-no-policy` and `rule:http-server/a-mount-table-expands-at-boot`
+      are the two rules, the class is `crates/nvs-stdlib/src/request.rs:773` and its `captures` card is
+      `crates/nvs-stdlib/src/request.rs:813` — one compiled program at many prefixes learning which tenant
+      it answers for. `docs/reference/README.md:97` is the fence grammar, and a member needing a request
+      goes in an `nvs skip` fence with the runnable `LogicError` refusal beside it, as the three pages
+      landed this session do.
+- [ ] **`docs/reference/core/Request-PartContent.md`** — the chunk walk `Core\Request\Part::content()`
+      answers, which `Request-Part.md` names and no page introduces: the class is
+      `crates/nvs-stdlib/src/request.rs:1260`, its second slot is the part ordinal the walk is checked
+      against, and `rule:http-server/a-part-is-consumed-in-one-of-three-ways` is what makes it one of the
+      three. Its shape is `Request-BodyStream.md`'s, one level down.
+- [ ] **Regenerate and prove them in one call** — `python tools/reference.py` writes `docs/novis.md` and
+      runs every example; what it reads a page for is `tools/reference.py:21` and the fence it runs is
+      `docs/reference/README.md:97`. The pages and the regeneration land in one commit, because a page
+      whose class is not yet in `docs/novis.md` fails `reference.py --check` on its own.
 
 ## Backlog
 
-- `docs/reference/core/` has no `Session.md` either, and `Core\Session` is the other request-scoped
-  class whose members refuse outside one.
-- `rule:security/derived-codec-qualifiers`' declaration half is landed in `nvs-types`' `derive.rs`;
-  nothing else of the rule is open.
-- A `Core\Db\…::queryAs<T>` gets no qualifier pass: a row is not a peer's document, and
-  `derive.rs:@db_reachable`'s comment says § 6 makes every text column tainted on the way out.
-- `docs/agent/carried-gaps.md` owns anything that must outlive this goal.
+- `docs/agent/goals/34-workspace-index.*` and `35-editor-surfaces.*` landed unverified as `f4198b8d3`
+  (the driver's wip commit) and `a422c7269` amends them; nothing has run `plan.py --check` over the chain
+  since. Owner: `docs/agent/goals/chain.toml`.
+- `[limits] upload_total` is a constant in `crates/nvs-server/src/body.rs:61`, not an `nvs_config` row;
+  `Request-Files.md` says so in one clause and will need editing when the configuration slice lands.
+  Owner: `rule:http-server/request-body-and-upload-total-are-two-caps`.
+- No page for `Core\Router\Match`'s siblings was checked this session; `docs/reference/core/` is complete
+  for `Core\Request` after the group above. Owner: `docs/reference/README.md`.

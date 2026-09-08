@@ -3628,8 +3628,11 @@ tests = [
   "there_is_no_temp_path_and_no_move_uploaded_file",
   # § 3 -- one part, three consumers, and each of them spends it.
   "a_part_is_consumed_by_read_all_by_iteration_or_by_save_to",
-  # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller.
-  "a_non_file_part_is_buffered_into_post",
+  # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller. The
+  # corpus pins that under the member that reads it back, over a body whose last field is written after
+  # the upload; the walk's own case, `a_files_walk_yields_the_file_parts_and_drains_what_it_passes`,
+  # asserts the same split from the other side.
+  "post_reads_the_fields_a_files_walk_buffered",
   # §§ 3, 6-8 -- exclusive with body and with files on one request, which `claim_body` decides
   # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:1194`).
   "body_stream_is_exclusive_with_body_and_with_files",
