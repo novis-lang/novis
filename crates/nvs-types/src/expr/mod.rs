@@ -105,6 +105,13 @@ pub fn type_is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// found (or, for an array literal checked against a target, declared) to
 /// have. Reports `E_TYPE_MISMATCH` when `expected` is given and not
 /// satisfied.
+///
+/// A parenthesised group reports nothing of its own: [`infer`]'s `Paren` arm
+/// re-enters here with the same `expected`, so by the time this returns the
+/// group's inner expression has already had the whole of this function applied
+/// to it — the refusal below, and the callable one above it — at its own,
+/// narrower span. Repeating either here is one mistake reported twice, a column
+/// apart, which is what `Door::a(({name: "x"}))` used to print.
 pub(crate) fn check_expr(
     expr: &Expr,
     expected: Option<TypeId>,
@@ -114,7 +121,9 @@ pub(crate) fn check_expr(
     env: &mut Env<'_>,
 ) -> TypeId {
     let actual = infer(expr, expected, live, scope, ctx, env);
-    if let Some(expected_id) = expected {
+    if let Some(expected_id) = expected
+        && !matches!(expr.kind, ExprKind::Paren(_))
+    {
         // A written signature is a callable position like the bare type is
         // (`rule:types/callable-signature`), so a value that is not a closure
         // at all gets `rule:types/callable-is-a-closure`'s own refusal at
