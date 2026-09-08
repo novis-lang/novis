@@ -426,6 +426,34 @@ handoff = "docs/agent/goals/33-editor-install.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
 
+# M10's editor layer, in the half that needs nothing built first. `nvs fmt`, `nvs dap`, the profiler and
+# `nvs ext` do not exist, so format-on-save, the debugger, the profile view and the extension commands are
+# not here and are not stubbed -- `rule:ide/every-feature-is-staged-behind-its-dependency` is the whole
+# reason the milestone splits this way rather than waiting for all four. This entry is the server half:
+# one workspace symbol index and the five features that are each a query against it, plus the three
+# requests that need no index and the completion arms the rules already admit. It is first of the two
+# because the editor half reads it.
+[[goal]]
+name = "34 workspace-index"
+md = "docs/agent/goals/34-workspace-index.md"
+toml = "docs/agent/goals/34-workspace-index.toml"
+handoff = "docs/agent/goals/34-workspace-index.handoff.md"
+milestone = "M10"
+preflight = "docker"
+
+# The editor half, and the two CLI surfaces it queries. Split from goal 34 rather than run with it
+# because the two share no file set -- one is a Rust crate and a protocol, the other is TypeScript over a
+# command line -- and a stalled index should not hold up a `problemMatcher` that is two lines of regex
+# over a rendering that has existed since M0. It also closes goal 15's three contributed-and-unanswered
+# command ids, which `rule:ide/contributions-are-frozen-and-only-ever-added` will not let anyone delete.
+[[goal]]
+name = "35 editor-surfaces"
+md = "docs/agent/goals/35-editor-surfaces.md"
+toml = "docs/agent/goals/35-editor-surfaces.toml"
+handoff = "docs/agent/goals/35-editor-surfaces.handoff.md"
+milestone = "M10"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
