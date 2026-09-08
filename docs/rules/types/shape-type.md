@@ -11,6 +11,10 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
 - **Width subtyping**: a source with extra fields still satisfies the shape, so an already-shaped
   value never needs re-wrapping because a caller cares about two of its five fields.
 - **Field types** are ordinary assignability; a shape gets no variance rule of its own.
+- **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
+  with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
+  they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one
+  does not.
 - Plain `object` is the fully erased form, and every shape type is a subtype of it
   (`rule:types/object-top`).
 - A shape is a type *expression*, so `rule:types/type-alias` names one for free.
@@ -20,7 +24,14 @@ Two unrelated named classes sharing field names and types are interchangeable wh
 used — that is exactly what delivers "no shape needs declaring anywhere for two sides to agree" — and
 it applies to this type family alone. Interface satisfaction stays as nominal as it was.
 
-A field named by the shape and reached through it is proven present, so the read cannot fail; the
-fetch is still name-keyed rather than a fixed offset, because two concrete objects satisfying one
-shape may lay their fields out differently. A name the shape does not list is erased
+A **required** field named by the shape and reached through it is proven present, so the read cannot
+fail; the fetch is still name-keyed rather than a fixed offset, because two concrete objects
+satisfying one shape may lay their fields out differently. A name the shape does not list is erased
 (`rule:types/erased-member-access`).
+
+An **optional** field is the middle case: the shape proves its type and not its presence, so the read
+answers the declared `T` and an absent key is that same rule's checked, catchable throw — the answer
+an absent array key already gives, with `??` and `isset` as the spellings that ask without throwing.
+The read is deliberately **not** widened to `?T`: optionality and nullability are separate questions
+(`rule:core-api/required-optional-and-nullable`), and one language does not answer "the key may be
+absent" two different ways in two containers.
