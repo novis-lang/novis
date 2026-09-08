@@ -1,0 +1,9 @@
+--TEST--
+a literal is a value and not a name, so the cursor inside one reaches nothing to document and nothing to type, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+echo "he<|>llo";
+--REQUEST--
+hover
+--EXPECT--
+none

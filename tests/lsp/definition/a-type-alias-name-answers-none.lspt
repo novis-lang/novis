@@ -1,0 +1,9 @@
+--TEST--
+a type alias declares a name for a type rather than a reference to one, and its own name answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+type I<|>d = uint;
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,14 @@
+--TEST--
+a static call is resolved by the checker like any other, so the cursor in one answers where the method it named was written, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function reset(): void {}
+}
+
+Counter::re<|>set();
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:28

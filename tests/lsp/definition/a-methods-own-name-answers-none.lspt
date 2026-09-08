@@ -1,0 +1,15 @@
+--TEST--
+a method's own declaration answers `none` where a call to it answers this very line, because the resolution a jump reads is the checker's and a declaration is not a call, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class User
+{
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,13 @@
+--TEST--
+a case's own declaration answers `none` where `Status::Draft` written as a read answers the enum, the jump being from a reference and never from the line declaring it, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

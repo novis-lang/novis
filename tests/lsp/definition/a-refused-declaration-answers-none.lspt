@@ -1,0 +1,12 @@
+--TEST--
+a member the grammar refused is still a node the cursor lands in, and it answers `none` rather than jumping to the class around it, `rule:ide/one-grammar-one-tree`
+--FILE--
+<?nvs
+class User
+{
+    va<|>r $total = 1;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

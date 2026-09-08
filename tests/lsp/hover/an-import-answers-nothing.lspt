@@ -1,0 +1,11 @@
+--TEST--
+an import is a name the resolver applies rather than an expression the checker recorded, so the cursor in one answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+hover
+--EXPECT--
+none

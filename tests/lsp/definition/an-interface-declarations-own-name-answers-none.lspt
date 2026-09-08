@@ -1,0 +1,12 @@
+--TEST--
+an interface's own name answers `none`, a jump to it starting at the `implements` clause or the call that resolved through it, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

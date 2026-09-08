@@ -1,0 +1,10 @@
+--TEST--
+a bare constant read carries neither a declaration hover can follow nor a type the checker recorded on it, so it answers nothing rather than a guess, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+const LIMIT = 10;
+echo LI<|>MIT;
+--REQUEST--
+hover
+--EXPECT--
+none

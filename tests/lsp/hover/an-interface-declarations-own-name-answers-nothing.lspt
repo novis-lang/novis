@@ -1,0 +1,13 @@
+--TEST--
+an interface's own name answers nothing, the run above it being what a class naming it in `implements` would document, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// What answers a greeting.
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+--REQUEST--
+hover
+--EXPECT--
+none

@@ -1,0 +1,13 @@
+--TEST--
+an enum's own name answers `none` on the same terms a class's does: it is the target of a jump rather than the start of one, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+enum Sta<|>tus: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

@@ -1,0 +1,11 @@
+--TEST--
+an import is a name the resolver applies to the names under it rather than a reference of its own, so the cursor in one answers `none`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+us<|>e App\User;
+
+var $u = new User();
+--REQUEST--
+definition
+--EXPECT--
+none

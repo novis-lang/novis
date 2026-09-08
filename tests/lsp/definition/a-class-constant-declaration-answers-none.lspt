@@ -1,0 +1,12 @@
+--TEST--
+a class constant's declaration names no other declaration, so the cursor on it answers `none` where a read of it answers the class, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+--REQUEST--
+definition
+--EXPECT--
+none

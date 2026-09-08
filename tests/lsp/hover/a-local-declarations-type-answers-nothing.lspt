@@ -1,0 +1,10 @@
+--TEST--
+a written type is a property of the declaration and never a node of its own, so a cursor inside one is inside the declaration, which answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+stri<|>ng $name = "hi";
+echo $name;
+--REQUEST--
+hover
+--EXPECT--
+none

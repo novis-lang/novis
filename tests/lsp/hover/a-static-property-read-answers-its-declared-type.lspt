@@ -1,0 +1,19 @@
+--TEST--
+a static property read carries its type the way an instance one does, so nothing documented it and the declared type is what is left, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Counter
+{
+    public static int $count = 0;
+
+    public function total(): int
+    {
+        return self::$co<|>unt;
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+int
+```

@@ -1,0 +1,16 @@
+--TEST--
+a `///` run is answered where the name it documents is written as a reference, so the declaration's own name answers nothing — hover reads the checker's table and a declaration records no expression there, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// Someone a request is about.
+class Us<|>er
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->name;
+--REQUEST--
+hover
+--EXPECT--
+none

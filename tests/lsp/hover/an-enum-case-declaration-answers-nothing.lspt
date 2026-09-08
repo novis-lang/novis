@@ -1,0 +1,14 @@
+--TEST--
+a case's own declaration answers nothing where `Status::Draft` written as a read answers the enum's run, because the run is reached through the name a reference resolved to, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+/// Where a request got to.
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+--REQUEST--
+hover
+--EXPECT--
+none

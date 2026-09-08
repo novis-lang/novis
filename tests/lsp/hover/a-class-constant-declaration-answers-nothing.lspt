@@ -1,0 +1,12 @@
+--TEST--
+a class constant's declaration is a member and not a read, so the cursor on the name it declares reaches no recorded expression and answers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+--REQUEST--
+hover
+--EXPECT--
+none
