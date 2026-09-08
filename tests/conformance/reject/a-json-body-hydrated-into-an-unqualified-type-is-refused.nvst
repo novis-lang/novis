@@ -1,0 +1,67 @@
+--TEST--
+A JSON body hydrated into a `T` whose text fields are unqualified is refused at the call that decodes, for the written class and for the classes its fields name `rule:security/derived-codec-qualifiers`, `rule:security/tainted-qualifier`
+--HEADERS--
+Content-Type: application/json
+--POST_RAW--
+{"title":"ada","author":{"name":"ada"},"tags":["one"]}
+--FILE--
+<?nvs
+// `rule:security/derived-codec-qualifiers`: a derived decoder assigns a peer's
+// octets straight into the declared property types, so a field that receives
+// them is the one that declares them. The codec cannot ask that question — the
+// same class is legitimate over a document the program built itself — so it is
+// asked at the call that decodes, and reported at the declaration, which is
+// where the `tainted` is written.
+#[Core\Json\Derive]
+class Author {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+#[Core\Json\Derive]
+class Post {
+    // The accepted side of the bound, named beside the refused ones: `tainted`
+    // on the declaration is the whole of what the rule asks for, and no issue
+    // below is about this property.
+    public tainted string $title;
+    // A field naming another deriving class is filled out of the same document,
+    // so its own text fields receive the same octets and answer for them the
+    // same way.
+    public Author $author;
+    // A list decodes element by element into the declared element type, so a
+    // list of text is where the qualifier is written for its elements.
+    public array<string> $tags;
+    // Only `string` and `bytes` carry a qualifier at all, so a number reaches
+    // none of this — the refusal is about text and says so by leaving this one
+    // alone.
+    public int $reads;
+
+    public function constructor(
+        tainted string $title,
+        Author $author,
+        array<string> $tags,
+        int $reads,
+    ) {
+        $this->title = $title;
+        $this->author = $author;
+        $this->tags = $tags;
+        $this->reads = $reads;
+    }
+}
+
+// One call, and every property the document reaches is answered for it: the
+// site is what makes the octets a peer's, and the whole codec is what receives
+// them.
+Post $post = Core\Request::jsonAs<Post>();
+echo $post->title, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Author::$name` is declared `string`, and a decoded request body is tainted
+%A
+error[E0810]: `Post::$tags` is declared `array<string>`, and a decoded request body is tainted
+%A
+error: aborting due to 2 errors
