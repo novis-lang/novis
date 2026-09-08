@@ -175,7 +175,7 @@ Conventions the whole file uses:
 - C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, --php, exit status, exit code, .nvs, .php, shebang, cache, single-file executable, bundle, php -l, php -i, php -r, phpunit, composer, phpdbg)*
 - C.2 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.3 [Coming from PHP: every difference, and what to write instead](#tools-php-differences) — the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in *(PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, instanceof, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP)*
-- C.4 [The editor: nvs lsp and nvs lsp-test](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — and `nvs lsp-test`, the suite that freezes an editor answer as text *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage)*
+- C.4 [The editor: nvs lsp, nvs lsp-test and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation)*
 
 ### Part D — Coming from PHP
 
@@ -21234,9 +21234,9 @@ E0211
 ```
 
 <a id="tools-editor"></a>
-## C.4 The editor: nvs lsp and nvs lsp-test
+## C.4 The editor: nvs lsp, nvs lsp-test and the VS Code extension
 
-Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage
+Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation
 
 ### nvs lsp
 
@@ -21433,6 +21433,113 @@ request has actually been asked about. Coverage is read off the node each case's
 on and is never declared by the case, so the matrix is a reading of the corpus rather than a list
 somebody maintains — and a case added to a directory counts the moment it is written, with nothing
 to register.
+
+### The VS Code extension
+
+    editors/vscode
+
+The reference client, and what a person installs to write Novis in VS Code. It colours a `.nvs` file
+the moment the file opens, starts `nvs lsp` behind it, and shows what that server answers. It is
+built into an installable `.vsix` and is on no marketplace, so installing it means being handed that
+file rather than searching for a listing.
+
+It holds no knowledge of the language. Every diagnostic, completion, hover, definition and semantic
+colour it shows arrived over the protocol from the server described above; its own source starts a
+process, reads settings and draws. A second answer to what a name means — one written here, in
+TypeScript, beside the compiler's — would be a thing to keep in step forever and would be the wrong
+one first.
+
+#### What it claims
+
+`.nvs`, and nothing else. It wakes on a Novis document and stays asleep in a window without one. It
+does not claim `.php`, though the compiler reads that dialect: the file type belongs to whichever PHP
+extension a person already has, and losing a quiet fight over it looks like Novis being broken rather
+than like two extensions disagreeing.
+
+A second language is registered for `.nvst` and `.lspt` — the two case formats above — coloured and
+nothing more, so a case reads as the program inside it. No server is started for one.
+
+#### Colour arrives twice
+
+A TextMate grammar ships in the extension and colours what a regular expression can see: keywords,
+strings, comments, type positions, the `<?nvs ?>` and `<?= ?>` openers and the HTML around them. That
+is what makes a file legible before any process has started. Semantic tokens from the server land on
+top once it answers, correcting the places only a parse can decide — which of two identically spelled
+names is a class, which is a parameter, which value carries `secret`.
+
+Both layers ship *names*, never colours. Every scope is a standard TextMate name suffixed `.nvs`,
+every token type is one of LSP's own, and the extension contributes no theme and no colour
+customization of any kind. Your theme keeps its opinions about what a keyword looks like. The two
+modifiers Novis adds are not in LSP's legend and cannot be, so a theme that has never heard of
+`tainted` styles the token underneath it — the value is coloured as the variable it is, rather than
+as nothing.
+
+#### The settings it contributes
+
+| Setting | Default | What it does |
+|---|---|---|
+| `nvs.path` | `""` | absolute path to the `nvs` binary. Empty means look it up on `PATH` |
+| `nvs.lsp.enable` | `true` | whether to run the server at all. Off leaves the TextMate colour and nothing else |
+| `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
+| `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
+| `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
+| `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
+
+Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
+already running. The rest are read where they are used and take effect on the next redraw.
+
+#### The commands it contributes
+
+Every one is under the **Novis** category in the command palette.
+
+| Command | Title | What it does |
+|---|---|---|
+| `nvs.restartServer` | Restart Language Server | stops the server and starts it again, which is also what clicking the status item does |
+| `nvs.revealSecret` | Reveal Secret | uncovers the one concealed range under the cursor, in this window |
+| `nvs.hideSecrets` | Hide Secrets | conceals every range revealed in this window again |
+| `nvs.run` | Run File | contributed and not yet answered |
+| `nvs.test` | Run Tests | contributed and not yet answered |
+| `nvs.showAst` | Show AST | contributed and not yet answered |
+
+#### Which binary answered, and which it refuses
+
+The status item on a Novis document names the server: starting, the version that is answering, or
+why nothing is. It is the editor's own language-status surface rather than a bar item of Novis's
+making, so it sits where every other language's does.
+
+The client refuses a server outside its own `major.minor` series. It learns the version at
+`initialize`, because that is where a language server reports one and there is nowhere earlier to
+read it from; a binary from another series is stopped there and is never handed a document, a
+request or the editor's attention. The extension and `nvs` ship from one commit, so the versions
+agree unless a `nvs.path` points somewhere else on purpose.
+
+#### Concealed values, on this side of the wire
+
+`nvs/redactions` decides the ranges; this client draws them. A `secretLiteral` range is covered by a
+bar — a decoration and not an edit, so the buffer is still the file on disk byte for byte and the
+cursor, the selection and every edit address the real text. Hovering one offers the reveal, which
+uncovers that range alone: a second secret on the same line stays covered, the reveal is this
+window's and not the file's, and nothing is written down, so closing the editor ends it.
+
+A `taintedDeclaration` range is the opposite instruction and is never concealed — it is a name to
+mark, and only where `nvs.taint.mark` asks. The client conceals any range kind it does not recognise
+rather than showing it, so a server that grows a third kind cannot leak one through an older client.
+
+#### What it does not do
+
+No language logic, which is the rule the whole client is shaped by: no parser, no formatter and no
+table of what a construct means. What it may depend on is an allowlist, and a test enforces the list
+rather than a reviewer.
+
+No UI of its own where the editor already has one. Server health is the language-status item, and
+the surfaces still to come are the same bargain — coverage through VS Code's own Testing API, a
+profile handed to a viewer that reads the open format, a debugger that is DAP's existing interface.
+None of them is a panel Novis builds and maintains.
+
+Three commands are contributed and not yet answered — `nvs.run`, `nvs.test` and `nvs.showAst`. The
+identifiers are frozen so a keybinding written against one keeps working when the surface behind it
+lands; invoking one before then does nothing. `nvs.lsp.debounce` is frozen the same way and for the
+same reason: nothing reads it yet, so every edit is analysed as it arrives.
 
 # Part D — Coming from PHP
 
