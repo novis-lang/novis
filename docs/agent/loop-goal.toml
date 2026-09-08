@@ -98,6 +98,8 @@ modules = [
   "crates/nvs-test/src/request.rs",
   # Seeding the checker's signature table with `Core`.
   "crates/nvs-types/src/core_lib.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/extension.ts",
 ]
 
 # The rule ids this goal's prose cites, then the records that are a readable map of a
