@@ -550,9 +550,13 @@ things change.
   bounded at depth 32 with a diagnostic, so a pathological type cannot make checking superlinear.
 - The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
   compiler owns; a call site may write a type argument only for a compiler-owned member that declares
-  one it cannot infer. User-written generic functions and classes are not part of this.
+  one it cannot infer, and that door is a roster of three — `Core\Json::decodeAs<T>`,
+  `Core\Request::jsonAs<T>` and `Core\Db`'s `queryAs<T>`. What may be written there is a class, an
+  inline shape ([`types/shape-type`](types.md#types-shape-type)), or an `array<…>` of either where the source is a list;
+  anything else is refused where it is written. User-written generic functions and classes are not
+  part of this.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md), [0159](../decisions/0159.md).</sub>
 
 <a id="types-array-combination"></a>
 

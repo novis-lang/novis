@@ -3609,6 +3609,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   through the `.nvsr` *file* instead, whose one reader is `inbound_from` in
   `crates/nvs-cli/src/main.rs`, and names the other writer where the derivation is duplicated.
   [until: gone crates/nvs-test/Cargo.toml:No dependencies on purpose]
+- **A `-p nvs-stdlib` test that hydrates an *inline shape* has to build both halves of the contract
+  itself, and nothing in the crate builds either.** The `ShapeCodec` comes from
+  `nvs_runtime::ClassTable::define_shape_codec` and the shape's `ClassDesc` is a constructor-less class
+  whose name starts `$shape{`, so the class fixtures under `crates/nvs-stdlib/src/request.rs` are a model
+  for the `Ctx` and for nothing else. Budget the scaffold before the tests, and put the fields in sorted
+  field-name order, since a field's index is its slot and its `param` alike.
+  [until: exists crates/nvs-stdlib/src/arr.rs:shapeAs]
 
 ## Splitting a file that got too big
 

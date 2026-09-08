@@ -1559,14 +1559,18 @@ pub(crate) fn written_class_of(
         Diagnostic::error(
             code::E_TYPE_ARG_NOT_A_CLASS,
             format!(
-                "`{owner}::{method}` builds a class or a list of one, and `{found}` is neither"
+                "`{owner}::{method}` builds a class or an inline shape, or a list of one, and \
+                 `{found}` is none of those"
             ),
         )
         .with_primary(span, format!("`{found}` written here"))
         .with_help(
-            "`rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so the type argument names the \
-             class to construct — write a class carrying the deriving attribute its format \
-             asks for, or `array<C>` of one for a document that is a JSON array",
+            "`rule:types/arrays`: a written type argument names the thing to build — a class \
+             carrying the deriving attribute its format asks for, so hydrating is an ordinary \
+             `new` (`rule:core-classes/derive-field-list`), or an inline shape such as \
+             `{id: uint, name: string}`, which declares its own fields where it is written \
+             (`rule:types/shape-type`). `array<…>` of either is the form for a source that is a \
+             list",
         ),
     );
     None

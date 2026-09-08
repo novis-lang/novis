@@ -2,55 +2,61 @@
 
 ## State
 
-**Goal 18, stages 1 and 2 are complete; stage 3's hydration walk is landed and the two members that
-already had a type-argument door use it.** `Core\Json::decodeAs<{n: int}>("…")` and
-`Core\Request::jsonAs<{…}>()` hydrate an inline shape today: the walk reads slot 2's
-`nvs_runtime::ShapeCodec` with `Value::as_shape_codec`, and where it is `Some` the field list, the
-nested-class lookup and the build door all come from the contract instead of the descriptor.
-`crates/nvs-stdlib/src/json.rs`'s module doc § *A shape is a second contract, not a second walk* is
-that fork's home, and `decode_field`'s own doc owns the two answers a shape gives differently — an
-absent optional key is `Value::unset()`, and a `?T` field is `as ?T`
-(`rule:expressions/nullable-conversion`), which answers `null` where a class contract would report an
-issue. Everything else is one walk and one collected `ParseError`.
+**Goal 18, stages 1 and 2 are complete, and stage 3's hydration walk plus its type-argument door are
+landed.** `Core\Json::decodeAs<{n: int}>("…")` and `Core\Request::jsonAs<{…}>()` hydrate an inline shape
+today: the walk reads slot 2's `nvs_runtime::ShapeCodec` with `Value::as_shape_codec`, and where it is
+`Some` the field list, the nested-class lookup and the build door all come from the contract instead of
+the descriptor. `crates/nvs-stdlib/src/json.rs`'s module doc § *A shape is a second contract, not a
+second walk* is that fork's home, and `decode_field`'s own doc owns the two answers a shape gives
+differently.
 
-**No rule changed and no ABI changed**, so ADR 0159 is still unopened: the three leading constants
-landed last session and this one only read the third. `Core\Json::encode` now skips a never-written
-slot when it spells a shape, so a hydrated `{s?: string}` round-trips as an absent key rather than
-refusing.
+**The door now says so out loud.** `E0465`'s message and help name the inline shape beside the class, and
+`rule:types/arrays`'s type-argument-door sentence names the three members that have the door and the
+three things that may be written at it. ADR 0159 is the record behind that — it is the goal's authorized
+number, and it is now spent, so a further rule change in this goal has no record left to hang on.
 
-**What stage 3 still owes is the member itself** — `Core\Arr::shapeAs<T>` — and the door's diagnostic,
-which still says a class is the only thing a type argument may name. The failing acceptance check
+**What stage 3 still owes is the member itself** — `Core\Arr::shapeAs<T>`. The failing acceptance check
 (`examples/input-shapes.nvs`) is stage 5's fixture, an unwritten artefact rather than a regression.
 
 ## Next group
 
-**Stage 3: the converter member, and the door it comes through** — one file set:
-`crates/nvs-stdlib/src/arr.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-types/src/expr/args.rs`. The diagnostic is first because it is independent and cheap; the
-member is last because the coverage gate fails the moment a registry row has no conformance case.
+**Stage 3: the converter member** — one file set: `crates/nvs-stdlib/src/arr.rs`,
+`crates/nvs-stdlib/src/registry.rs`. The five edits and the tests are one slice, because the coverage
+gate fails the moment a registry row has no conformance case; the test scaffold is a slice of its own
+only if it grows past the fixture below.
 
-- [ ] **`E_TYPE_ARG_NOT_A_CLASS` still says a class is the only answer** — the message and help at
-      `crates/nvs-types/src/expr/args.rs:1560` were written when a type argument was a class or an
-      `array<C>` of one, and the arm above them (`crates/nvs-types/src/expr/args.rs:1546`) accepts an
-      inline shape for every row of `WRITTEN_CLASS_MEMBERS`. Amend both, and with them
-      `rule:types/arrays`'s type-argument-door sentence, which loop-goal.md § *Stage 3* item 1 says
-      names three members rather than two.
-- [ ] **`Core\Arr::shapeAs<T>` — the row, the card, the `address()` arm, the roster entry and three
-      cases** — `crates/nvs-stdlib/src/arr.rs:92` is the class, `crates/nvs-stdlib/src/arr.rs:2161`
-      the `address()` arm, and `crates/nvs-stdlib/src/registry.rs:2389` is `WRITTEN_CLASS_MEMBERS`,
-      which is the whole of what opens the type-argument door for a member. The body is one call —
-      `crate::json::hydrate(ctx, class, shape, document, list, "Core\\Arr::shapeAs")` over the
-      subject itself, since the document that walk takes is an `NvsArray` and an `array<mixed>`
-      already is one, so nothing is decoded on the way in. `args: [N]` is three more than the row's
-      arity. loop-goal.md § *Stage 3* items 2 to 4 are the specification, and
-      `tests/conformance/core/json-decodes-into-an-inline-shape.nvst` is the question set to vary
-      rather than repeat.
+- [ ] **The scaffold a shape test needs, in `crates/nvs-stdlib/src/arr.rs`'s test module** — a
+      `-p nvs-stdlib` test cannot borrow one from anywhere: nothing in the crate builds a
+      `nvs_runtime::ShapeCodec` today. Both halves come off the `ClassTable` —
+      `crates/nvs-runtime/src/object.rs:1335` is `define_shape_codec(fields, classes)`, which takes one
+      `nvs_types::CodecField` per field in **sorted field-name order** and one `*const ClassDesc` per
+      field (null where the field names no class), and the shape's own `ClassDesc` is an ordinary
+      definition whose name starts `$shape{` (`crates/nvs-runtime/src/object.rs:777`) with one slot per
+      field and **no constructor** — `crates/nvs-stdlib/src/json.rs:1563`'s `build_shape` writes slots
+      directly, which is why. `crates/nvs-stdlib/src/request.rs:5542` is the nearest existing fixture, and
+      it builds a *class*, so it is a model for the `Ctx` half only.
+- [ ] **`Core\Arr::shapeAs<T>` — the row, the card, the `address()` arm, the roster entry and the cases**
+      — `crates/nvs-stdlib/src/arr.rs:92` is the class, `crates/nvs-stdlib/src/arr.rs:2161` the
+      `address()` arm, and `crates/nvs-stdlib/src/registry.rs:2389` is `WRITTEN_CLASS_MEMBERS`, which is
+      the whole of what opens the type-argument door. Row: `names: &["a"]`,
+      `params: &[CoreTy::Array(&CoreTy::Mixed)]`, `return_ty: CoreTy::Written("T")`, so the helper is
+      `args: [4]` — three more than the row's arity. The body reads slots 0/1/2 exactly as
+      `crates/nvs-stdlib/src/request.rs:2384` does, calls `crate::json::check_codec` first, then
+      `crate::json::hydrate(ctx, class, shape, document, list, "Core\\Arr::shapeAs")`
+      (`crates/nvs-stdlib/src/json.rs:1239`) — and **`args[3]` must be retained before it is passed**,
+      because `hydrate` releases the document it is handed and the subject is the caller's array, not one
+      this member built. loop-goal.md § *Stage 3* items 2 to 4 are the specification, the seven test
+      names in `docs/agent/loop-goal.toml:5746` are the question set, and
+      `tests/conformance/core/json-decodes-into-an-inline-shape.nvst` is the case to vary rather than
+      repeat.
+- [ ] **`rule:types/arrays`'s roster gains its fourth member** once the row lands —
+      `docs/rules/types/arrays.md:42` names three today. No new record: ADR 0159 § 2 decides that the
+      roster is the compiler's table and a member joining it is a row, not a decision. Re-render with
+      `python tools/rules.py --render`.
 
 ## Backlog
 
 - Stage 4's two wrappers, `postAs<T>` and `queryAs<T>` — loop-goal.md § *Stage 4*.
 - Stage 5's fixture `examples/input-shapes.nvs`, which is the failing acceptance check — loop-goal.md.
-- `Core\Db\Row`'s hydration has no shape door at all (`crates/nvs-stdlib/src/db/row.rs:122`); it is a
-  second walk over a row rather than a document, and nothing has asked it for one yet.
-- An inline shape reached as a *field* of another shape or class is still `CodecTy::Opaque` —
-  `crates/nvs-stdlib/src/json.rs`'s known gap 2 and `nvs_types::derive::codec_ty` own it.
+- Spec §§ 6 and 15's rosters still do not list `shapeAs` — loop-goal.md § *Standing decisions*.
+- `docs/reference/core/Arr.md`, if that page exists, owes `shapeAs` a paragraph — playbook, *Tooling*.

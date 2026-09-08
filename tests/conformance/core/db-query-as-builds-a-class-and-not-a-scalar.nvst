@@ -34,6 +34,6 @@ var $rows = $db->queryAs<int>("select id from people", []);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0465]: `Core\Db\Connection::queryAs` builds a class or a list of one, and `int` is neither
+error[E0465]: `Core\Db\Connection::queryAs` builds a class or an inline shape, or a list of one, and `int` is none of those
 %A
 error: aborting due to 1 error
