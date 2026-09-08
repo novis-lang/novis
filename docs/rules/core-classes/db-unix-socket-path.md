@@ -11,8 +11,10 @@ database.
 
 The cost is one piece of protocol trivia per driver, encoded where that driver's trivia belongs.
 
-**MariaDB is the one still owing this.** `crates/nvs-db/src/mysql.rs` opens the socket file as
-written and `crates/nvs-db/src/pg.rs` derives the engine's own name in its `socket_endpoint`, both
-over the second arm of `crate::conn::Endpoint` — the address-or-path a driver's `connect` takes;
-`crates/nvs-db/src/tds/mod.rs` refuses a path in `TdsTarget::resolve`, as `BlockError`'s
-`NoSocketTransport`. `crates/nvs-db/src/maria.rs` still takes an address.
+Each driver's answer lives with that driver. `crates/nvs-db/src/mysql.rs` and
+`crates/nvs-db/src/maria.rs` open the socket file as written, through one `socket_endpoint` rather
+than two identical ones; `crates/nvs-db/src/pg.rs` derives the engine's own name in its own. All
+three dial over the second arm of `crate::conn::Endpoint` — the address-or-path a driver's `connect`
+takes — and answer a server the same way over either, which is what
+`a_driver_answers_the_same_over_either_transport` asserts. `crates/nvs-db/src/tds/mod.rs` refuses a
+path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
