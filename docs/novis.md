@@ -16130,7 +16130,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, clientIp, scheme, host, route, mount
+Keywords: $_GET, $_POST, $_COOKIE, $_FILES, $_SERVER, $_REQUEST, superglobal, filter_input, getallheaders, php://input, file_get_contents, json_decode, request body, form fields, multipart, upload, HEAD, request method, method, isHead, path, query, queryAs, header, headers, cookie, body, json, jsonAs, bodyStream, files, post, postAs, clientIp, scheme, host, route, mount
 
 `Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. There are no
@@ -16139,9 +16139,10 @@ into one lookup, has no replacement of any kind. Every member throws `LogicError
 not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
 rather than answering empty.
 
-**The body is read once, and every reader is one of two kinds.** `body()`, `post()`, `json()` and
-`jsonAs<T>()` **buffer**: the first of them fills the request's hold, bounded by `[limits] request_body`,
-and any of the four may follow any other in any order and answer the same octets. `bodyStream()` and
+**The body is read once, and every reader is one of two kinds.** `body()`, `post()`, `postAs<T>()`,
+`json()` and `jsonAs<T>()` **buffer**: the first of them fills the request's hold, bounded by
+`[limits] request_body`, and any of the five may follow any other in any order and answer the same
+octets. `bodyStream()` and
 `files()` **stream**: they hand the octets over as they arrive, keep none, and so consume the body — a
 reader after one of those is refused, naming the member that consumed it. That refusal is a defect in
 the program, never something a peer can provoke.
@@ -16152,6 +16153,15 @@ the shape it expects instead of walking an array. Neither consults the `Content-
 declared — a header is what a peer wrote, not what a body is — and both throw `ParseError` on a
 document that is malformed, too deep, or absent altogether. `json()` keeps what it decoded and
 `jsonAs<T>()` hydrates per call, so writing to what a second call answered leaves the first alone.
+
+`queryAs<T>()` and `postAs<T>()` are that idea over the parameters rather than the body: each reads what
+`query()` and `post()` parse as the type written at the call site — an inline shape, `{page: uint}`, or a
+class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
+type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
+only way a program reaches it: there is no `query(): array<mixed>` and no `$_GET`. Called with
+`{name: "filter"}`, the subject is the one bracket-named subtree under that name. A field that is absent,
+or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
+failed at its own path — so a form reports the whole list rather than the first item of it.
 
 Everything a peer chose is `tainted`, including the path, every header and the body, so it reaches a
 sink only through a launderer named for that sink — `echo` escapes for HTML on its own. A class hydrated
@@ -16200,6 +16210,7 @@ no request here
 | [`Core\Request::isHead`](#core-core-request-ishead) | `isHead(): bool` |
 | [`Core\Request::path`](#core-core-request-path) | `path(): tainted string` |
 | [`Core\Request::query`](#core-core-request-query) | `query(string $name): mixed` |
+| [`Core\Request::queryAs`](#core-core-request-queryas) | `queryAs<T>({name?: string}): T` |
 | [`Core\Request::header`](#core-core-request-header) | `header(string $name): ?tainted string` |
 | [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
@@ -16209,6 +16220,7 @@ no request here
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 | [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
+| [`Core\Request::postAs`](#core-core-request-postas) | `postAs<T>({name?: string}): T` |
 | [`Core\Request::clientIp`](#core-core-request-clientip) | `clientIp(): ?tainted string` |
 | [`Core\Request::scheme`](#core-core-request-scheme) | `scheme(): tainted string` |
 | [`Core\Request::host`](#core-core-request-host) | `host(): ?tainted string` |
@@ -16270,6 +16282,23 @@ One query-string parameter by name, read with PHP's bracket convention — the s
 **Returns** `mixed` — The parameter's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the query carried no such name. Check it out with `as`, which throws on input the type does not fit rather than quietly yielding zero.
 
 **Throws** `LogicError` — This program is not answering a request, or the query string holds percent escapes that decode to octets that are not UTF-8.
+
+<a id="core-core-request-queryas"></a>
+#### `Core\Request::queryAs`
+
+```nvs skip
+Core\Request::queryAs<T>({name?: string}): T
+```
+
+The query string read as the type `T` written at the call site — `Core\Arr::shapeAs` over what `query` parses, converting each named field with `as`; with no `name` the whole parameter set is the subject, and with one it is the subtree that name reaches.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{name: …}` | `string` (default `null`, neutral) | The parameter whose nested value is read, under `query`'s bracket convention and without brackets. Omitted, the whole query string is read instead. |
+
+**Returns** `T` — A new `T` whose every field is the declared type, or — for an `array<T>` — one per entry. Nothing of it is kept: every call parses the query string again, so two callers are never handed the same object.
+
+**Throws** `LogicError` — This program is not answering a request, the query string holds percent escapes that decode to octets that are not UTF-8, or `T` is a class carrying no `#[Json\Derive]` codec to read it against.; `ParseError` — A field `T` requires is absent, or holds a value `as` refuses for its declared type, or the named subtree is not a set of fields at all. Every field that failed is one issue on the error, at its own dotted path, so a form shows the whole list rather than the first item of it.
 
 <a id="core-core-request-header"></a>
 #### `Core\Request::header`
@@ -16407,6 +16436,23 @@ One submitted form field by name, read with PHP's bracket convention — the sam
 **Returns** `mixed` — The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the form carried no such name. Reading the body to its end is what this member does, so on a `multipart/form-data` request it is called **after** the `files()` walk, never before: the uploads are drained on the way to the last field.
 
 **Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — those two hand the bytes over uninterpreted and leave no fields behind. A body `files` is walking is the one case this member joins rather than refuses.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one, or what arrived is not the body it declared, or a urlencoded field holds percent escapes that decode to octets that are not UTF-8.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-postas"></a>
+#### `Core\Request::postAs`
+
+```nvs skip
+Core\Request::postAs<T>({name?: string}): T
+```
+
+The submitted form read as the type `T` written at the call site — `Core\Arr::shapeAs` over what `post` parses, converting each named field with `as`; with no `name` the whole form is the subject, and with one it is the subtree that name reaches.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{name: …}` | `string` (default `null`, neutral) | The field whose nested value is read, under `post`'s bracket convention and without brackets. Omitted, the whole form is read instead. |
+
+**Returns** `T` — A new `T` whose every field is the declared type, or — for an `array<T>` — one per entry. Reading the body to its end is what this member does, exactly as `post` does, so on a `multipart/form-data` request it is called **after** the `files()` walk. Nothing of it is kept: every call reads the form again, so two callers are never handed the same object.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream`, or `T` is a class carrying no `#[Json\Derive]` codec to read the form against.; `ParseError` — The body is not the form it declared — `post`'s three refusals, unchanged — or a field `T` requires is absent, or holds a value `as` refuses for its declared type, or the named subtree is not a set of fields at all. Every field that failed is one issue on the error, at its own dotted path.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
 
 <a id="core-core-request-clientip"></a>
 #### `Core\Request::clientIp`

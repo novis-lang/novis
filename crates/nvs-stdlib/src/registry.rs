@@ -2390,6 +2390,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Arr", "shapeAs"),
     (r"Core\Json", "decodeAs"),
     (r"Core\Request", "jsonAs"),
+    (r"Core\Request", "queryAs"),
+    (r"Core\Request", "postAs"),
     (r"Core\Db\Connection", "queryAs"),
     (r"Core\Db\Transaction", "queryAs"),
 ];

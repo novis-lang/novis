@@ -1075,7 +1075,8 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
 originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
-- `Core\Request`: `method`, `path`, `query`, `post`, `body`, `json`, `jsonAs`, `bodyStream`, `header`, `headers`, `cookie`,
+- `Core\Request`: `method`, `path`, `query`, `queryAs`, `post`, `postAs`, `body`, `json`, `jsonAs`, `bodyStream`,
+  `header`, `headers`, `cookie`,
   `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
   **removed** and `mount(): Request\Mount` answers what was removed — a `prefix(): string` and that mount's
@@ -1102,8 +1103,14 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   body that is absent or empty is a `ParseError` like a malformed one, because `mixed` cannot tell
   "no body" from the document `null`. `jsonAs<T>({maxDepth?: uint}): T` is `Core\Json::decodeAs` over
   those same octets, refusing the same bodies for the same reasons; it keeps nothing of what it
-  built, so every call hydrates a fresh `T` and two callers are never handed one object. `body`,
-  `post`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow one another;
+  built, so every call hydrates a fresh `T` and two callers are never handed one object.
+  `queryAs<T>({name?: string}): T` and `postAs<T>({name?: string}): T` are `Core\Arr::shapeAs` over what
+  `query` and `post` parse: with no `name` the whole parameter set is the subject — the only way a program
+  reaches it, since neither `$_GET` nor `$_POST` has a public array spelling here — and with one it is the
+  subtree that name reaches under the bracket convention. Each field converts with `as`, so a form's text
+  fits a declared `int`, and a key `T` does not name is left behind. `body`,
+  `post`, `postAs`, `json` and `jsonAs` are **buffering** readers, which keep what they read and so may follow
+  one another;
   `bodyStream` and `files` are **streaming** readers, each of which consumes the body and may only be the
   first reader of it, which is why a `post()` reading the fields a walk buffered is ordinary rather than
   an exception

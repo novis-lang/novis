@@ -249,6 +249,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&QUERY_DOC),
         },
         CoreMethod {
+            name: "queryAs",
+            names: &[],
+            params: &[CoreTy::Options(SHAPE_NAME_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_request_query_as",
+            doc: Some(&QUERY_AS_DOC),
+        },
+        CoreMethod {
             name: "header",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -328,6 +337,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_request_post",
             doc: Some(&POST_DOC),
+        },
+        CoreMethod {
+            name: "postAs",
+            names: &[],
+            params: &[CoreTy::Options(SHAPE_NAME_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "nvs_core_request_post_as",
+            doc: Some(&POST_AS_DOC),
         },
         CoreMethod {
             name: "clientIp",
@@ -450,6 +468,52 @@ const QUERY_DOC: MethodDoc = MethodDoc {
         desc: "This program is not answering a request, or the query string holds percent \
                escapes that decode to octets that are not UTF-8.",
     }],
+};
+
+/// The bag [`nvs_core_request_query_as`] and [`nvs_core_request_post_as`]
+/// share: which subtree of the parameters is read, and nothing else.
+///
+/// One bag for both because the two members differ in *which* set they parsed,
+/// never in what a name means over it — `crate::uri::place`'s bracket
+/// convention is one walk, so the option that indexes into its answer is one
+/// option. The default is [`Const::Null`] rather than `""`, because the empty
+/// name is one `place` already skips and a member cannot then tell "the whole
+/// set" from "the field with no name".
+const SHAPE_NAME_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "name",
+    ty: CoreTy::Text(Qual::Neutral),
+    default: Const::Null,
+}];
+
+/// `Core\Request::queryAs`'s reference card — `rule:core-api/reference-card`.
+const QUERY_AS_DOC: MethodDoc = MethodDoc {
+    short: "The query string read as the type `T` written at the call site — `Core\\Arr::shapeAs` \
+            over what `query` parses, converting each named field with `as`; with no `name` the \
+            whole parameter set is the subject, and with one it is the subtree that name reaches.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The parameter whose nested value is read, under `query`'s bracket convention and \
+               without brackets. Omitted, the whole query string is read instead.",
+        shape: &[],
+    }],
+    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
+          entry. Nothing of it is kept: every call parses the query string again, so two callers \
+          are never handed the same object.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, the query string holds percent \
+                   escapes that decode to octets that are not UTF-8, or `T` is a class carrying \
+                   no `#[Json\\Derive]` codec to read it against.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "A field `T` requires is absent, or holds a value `as` refuses for its declared \
+                   type, or the named subtree is not a set of fields at all. Every field that \
+                   failed is one issue on the error, at its own dotted path, so a form shows the \
+                   whole list rather than the first item of it.",
+        },
+    ],
 };
 
 /// `Core\Request::header`'s reference card — `rule:core-api/reference-card`.
@@ -692,6 +756,44 @@ const POST_DOC: MethodDoc = MethodDoc {
             desc: "The request declared a `multipart/form-data` body and then did not say how to \
                    read one, or what arrived is not the body it declared, or a urlencoded field \
                    holds percent escapes that decode to octets that are not UTF-8.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the \
+                   length it declared.",
+        },
+    ],
+};
+
+/// `Core\Request::postAs`'s reference card — `rule:core-api/reference-card`.
+const POST_AS_DOC: MethodDoc = MethodDoc {
+    short: "The submitted form read as the type `T` written at the call site — `Core\\Arr::shapeAs` \
+            over what `post` parses, converting each named field with `as`; with no `name` the \
+            whole form is the subject, and with one it is the subtree that name reaches.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field whose nested value is read, under `post`'s bracket convention and \
+               without brackets. Omitted, the whole form is read instead.",
+        shape: &[],
+    }],
+    ret: "A new `T` whose every field is the declared type, or — for an `array<T>` — one per \
+          entry. Reading the body to its end is what this member does, exactly as `post` does, so \
+          on a `multipart/form-data` request it is called **after** the `files()` walk. Nothing of \
+          it is kept: every call reads the form again, so two callers are never handed the same \
+          object.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `body` or `bodyStream`, or `T` is a class carrying no \
+                   `#[Json\\Derive]` codec to read the form against.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The body is not the form it declared — `post`'s three refusals, unchanged — or \
+                   a field `T` requires is absent, or holds a value `as` refuses for its declared \
+                   type, or the named subtree is not a set of fields at all. Every field that \
+                   failed is one issue on the error, at its own dotted path.",
         },
         ErrorDoc {
             error: "IOError",
@@ -1347,6 +1449,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
+        "nvs_core_request_query_as" => (nvs_core_request_query_as as *const ()).cast(),
         "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
         "nvs_core_request_client_ip" => (nvs_core_request_client_ip as *const ()).cast(),
         "nvs_core_request_scheme" => (nvs_core_request_scheme as *const ()).cast(),
@@ -1359,6 +1462,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
         "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
+        "nvs_core_request_post_as" => (nvs_core_request_post_as as *const ()).cast(),
         "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
         "nvs_core_request_part_filename" => (nvs_core_request_part_filename as *const ()).cast(),
         "nvs_core_request_part_content_type" => {
@@ -1430,24 +1534,32 @@ fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(),
 
 /// The whole form this request submitted, parsed afresh on every call.
 ///
-/// `Core\Request::post()`'s reading, split out so that member reads as the one
-/// question it answers. What it costs per call is [`nvs_core_request_post`]'s
-/// own doc, and it is `Core\Request::query`'s cost over a body instead of a
-/// query string.
+/// `Core\Request::post()`'s reading and `postAs()`'s, split out so each member
+/// reads as the one question it answers. What it costs per call is
+/// [`nvs_core_request_post`]'s own doc, and it is `Core\Request::query`'s cost
+/// over a body instead of a query string.
+///
+/// `member` is the caller's own name, and every refusal below carries it: two
+/// members read one form, and a program that called `postAs` must not be sent
+/// looking at a `post` it never wrote.
 ///
 /// # Errors
 ///
 /// [`claim_body`]'s refusal, a body that is not the multipart one it declared
 /// or that did not arrive whole, and a urlencoded field whose escapes decode to
 /// octets that are not UTF-8.
-fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> {
-    // `post` needs the octets or a parse of them, and either is something a
-    // buffering reader ahead of it may already have left — which is why this is
-    // the one reader whose need is two things.
-    claim_body(ctx, "post", BodyNeed::OctetsOrParse)?;
+fn form_of(
+    ctx: &mut Ctx,
+    declared: Option<Vec<u8>>,
+    member: &'static str,
+) -> Result<NvsArray, Fault> {
+    // A form reader needs the octets or a parse of them, and either is
+    // something a buffering reader ahead of it may already have left — which is
+    // why this is the one reading whose need is two things.
+    claim_body(ctx, member, BodyNeed::OctetsOrParse)?;
     match declared.filter(|value| crate::multipart::is_multipart(value)) {
-        Some(declared) => multipart_form(ctx, &declared),
-        None => urlencoded_form(ctx),
+        Some(declared) => multipart_form(ctx, &declared, member),
+        None => urlencoded_form(ctx, member),
     }
 }
 
@@ -1467,7 +1579,7 @@ fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> 
 /// `body()` reads the hold that reader filled and one that follows nothing
 /// reads the wire, and [`nvs_runtime::Inbound::parts_mut`] is where a carrier
 /// holding both facts answers it.
-fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
+fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Result<NvsArray, Fault> {
     if !ctx
         .inbound()
         .expect("the caller reads the request before it reads the form")
@@ -1480,8 +1592,8 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
             Fault::thrown_as(
                 ThrownClass::Parse,
                 format!(
-                    "Core\\Request::post(): this request declared a multipart body and then did \
-                     not say how to read one — {why}"
+                    "Core\\Request::{member}(): this request declared a multipart body and then \
+                     did not say how to read one — {why}"
                 ),
             )
         })?;
@@ -1501,7 +1613,7 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
     };
     let parse = parse
         .downcast_mut::<crate::multipart::Multipart>()
-        .expect("`files()` and `post()` hold one parse between them, and it is this one");
+        .expect("the form readers hold one parse between them, and it is this one");
     if let Err(why) = parse.drain(&mut body) {
         // No case can reach either of these, for `files()`'s reason: a `.nvst`
         // program holds no parse to walk and no connection to fail under one.
@@ -1515,7 +1627,7 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
         };
         return Err(Fault::thrown_as(
             class,
-            format!("Core\\Request::post(): {what} — {why}"),
+            format!("Core\\Request::{member}(): {what} — {why}"),
         ));
     }
     for (name, value) in parse.fields() {
@@ -1546,8 +1658,8 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8]) -> Result<NvsArray, Fault> {
 /// declares something else, is still read the way `$_POST` reads one, because
 /// what a peer wrote in a header is not what decides whether a form is a form —
 /// and a body that is not one parses to no fields rather than to a refusal.
-fn urlencoded_form(ctx: &mut Ctx) -> Result<NvsArray, Fault> {
-    let held = held_octets(ctx, "post")?;
+fn urlencoded_form(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Fault> {
+    let held = held_octets(ctx, member)?;
     // Refused rather than repaired, under ADR 0095: a urlencoded body is
     // percent-escaped ASCII by construction, so a raw octet outside UTF-8 in
     // one is a body that is not what it claims to be — and lossily replacing it
@@ -1559,12 +1671,14 @@ fn urlencoded_form(ctx: &mut Ctx) -> Result<NvsArray, Fault> {
     let held = std::str::from_utf8(held).map_err(|_| {
         Fault::thrown_as(
             ThrownClass::Parse,
-            "Core\\Request::post(): this request's body is not text, so it holds no urlencoded \
-             form to read. A body that is not a form is read with `body()` or `bodyStream()`"
-                .to_owned(),
+            format!(
+                "Core\\Request::{member}(): this request's body is not text, so it holds no \
+                 urlencoded form to read. A body that is not a form is read with `body()` or \
+                 `bodyStream()`"
+            ),
         )
     })?;
-    crate::uri::parse_query(held, "post", crate::uri::Values::Text)
+    crate::uri::parse_query(held, member, crate::uri::Values::Text)
 }
 
 /// The request this context is answering, or `rule:security/request-state-throws-in-an-isolate`'s refusal.
@@ -1957,6 +2071,86 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Request::queryAs<T>({name?: string}): T` — the query string read
+    /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
+    /// array [`nvs_core_request_query`] indexes into.
+    ///
+    /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
+    /// not values — [`nvs_core_request_json_as`] states that ABI in full and
+    /// `crate::registry::WRITTEN_CLASS_MEMBERS` is the roster that opens it. So
+    /// the arity here is three more than the registry row's.
+    ///
+    /// **One member reads both**, on `rule:core-api/shape-rules` R15: with no
+    /// `name` the subject is the whole parameter set, and with one it is the
+    /// subtree that name reaches under [`crate::uri::place`]'s bracket
+    /// convention. That is one signature with an optional argument rather than
+    /// two members, and it opens no public `query(): array<mixed>` — the whole
+    /// set is reachable only through a declared shape.
+    ///
+    /// **What it spends:** [`nvs_core_request_query`]'s parse, plus the
+    /// instances this call hands back and nothing kept between calls. Both are
+    /// O(in-flight).
+    fn nvs_core_request_query_as(ctx, args: [4]) {
+        // In `jsonAs`'s order: the request first, so "no request arrived" stays
+        // a different fact from what the query string says.
+        inbound_of(ctx, "queryAs")?;
+        // Unreachable from source, because arguments 0 to 2 are not a program's
+        // values: `nvs_ir::lower` writes all three out of the type argument at
+        // the call site, and a call naming none is `E0442` before any of this
+        // runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::queryAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::queryAs` was called with no list flag in argument 1",
+        ))?;
+        // The zero word where the call site wrote a class, whose own contract is
+        // on the descriptor above.
+        let shape = args[2].as_shape_codec();
+        // Asked before the parse, on `jsonAs`'s reasoning: a `T` that carries no
+        // field list is a defect in the program, and saying so must not spend a
+        // reading of what arrived.
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call and every object made \
+                      from it"
+        )]
+        unsafe {
+            crate::json::check_codec(class, shape, "Core\\Request::queryAs")?;
+        }
+        let parsed = crate::uri::parse_query(
+            inbound_of(ctx, "queryAs")?.query(),
+            "queryAs",
+            crate::uri::Values::Text,
+        )?;
+        let subject = shaped_subject(parsed, &args[3]);
+        #[expect(
+            unsafe_code,
+            reason = "the same descriptor, still owned by the compiled unit"
+        )]
+        unsafe {
+            crate::json::hydrate(
+                ctx,
+                class,
+                shape,
+                subject,
+                list,
+                // A query string's values are text whatever they mean, so each
+                // field converts through `rule:types/conversion`'s table rather
+                // than being matched against a wire type it never carried —
+                // `crate::json::Reading` owns the fork.
+                crate::json::Reading::Values,
+                "Core\\Request::queryAs",
+            )
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Request::post(string $name): mixed` — spec § 15's submitted-form
     /// reader, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
     ///
@@ -2000,7 +2194,7 @@ nvs_runtime::nvs_helper! {
         // Read before the claim, because it borrows the carrier immutably and
         // reading a header has no effect on the body.
         let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
-        let parsed = form_of(ctx, declared)?;
+        let parsed = form_of(ctx, declared, "post")?;
         let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
         // `query`'s reason, and its wording: `get` borrows rather than retains
         // and `parsed` releases everything it holds when it drops at the end of
@@ -2016,6 +2210,115 @@ nvs_runtime::nvs_helper! {
         }
         Ok(answer)
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::postAs<T>({name?: string}): T` — the submitted form read
+    /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
+    /// array [`nvs_core_request_post`] indexes into.
+    ///
+    /// [`nvs_core_request_query_as`]'s member over a body instead of a query
+    /// string, down to the bracket convention and the ABI its first three
+    /// arguments carry, and differing in the two things `post` differs from
+    /// `query` in: the form has to be read off the body, so this claims the
+    /// body as a buffering reader and drains a multipart walk to its end.
+    ///
+    /// **What it spends:** [`nvs_core_request_post`]'s parse, which for a
+    /// urlencoded body holds that body's own bytes until the request ends, plus
+    /// the instances this call hands back and nothing kept between calls. Both
+    /// are bounded by [`REQUEST_BODY`] and both are O(in-flight).
+    fn nvs_core_request_post_as(ctx, args: [4]) {
+        // In `post`'s order, which is `jsonAs`'s: the request first, so "no
+        // request arrived" stays a different fact from what the body says, and
+        // the header read borrows the carrier immutably before anything claims
+        // it.
+        let declared = joined_field(inbound_of(ctx, "postAs")?, b"content-type");
+        // Unreachable from source, because arguments 0 to 2 are not a program's
+        // values: `nvs_ir::lower` writes all three out of the type argument at
+        // the call site, and a call naming none is `E0442` before any of this
+        // runs.
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::postAs` was called with no class in argument 0",
+        ))?;
+        // Unreachable from source for the same reason and refused by the same
+        // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
+        // descriptor, so a call that has one has the other.
+        let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Request::postAs` was called with no list flag in argument 1",
+        ))?;
+        // The zero word where the call site wrote a class, whose own contract is
+        // on the descriptor above.
+        let shape = args[2].as_shape_codec();
+        // Before the body is read, on `jsonAs`'s reasoning: a `T` that carries
+        // no field list is a defect in the program, and saying so must not spend
+        // a reading of the body.
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call and every object made \
+                      from it"
+        )]
+        unsafe {
+            crate::json::check_codec(class, shape, "Core\\Request::postAs")?;
+        }
+        let parsed = form_of(ctx, declared, "postAs")?;
+        let subject = shaped_subject(parsed, &args[3]);
+        #[expect(
+            unsafe_code,
+            reason = "the same descriptor, still owned by the compiled unit"
+        )]
+        unsafe {
+            crate::json::hydrate(
+                ctx,
+                class,
+                shape,
+                subject,
+                list,
+                // A form's fields are text whatever they mean, so each one
+                // converts through `rule:types/conversion`'s table rather than
+                // being matched against a wire type it never carried —
+                // `crate::json::Reading` owns the fork.
+                crate::json::Reading::Values,
+                "Core\\Request::postAs",
+            )
+        }
+    }
+}
+
+/// The array a shaped read hydrates: the whole parsed set, or the one subtree
+/// [`SHAPE_NAME_OPTIONS`]'s `name` reaches into it.
+///
+/// [`nvs_core_request_query_as`] and [`nvs_core_request_post_as`] answer that
+/// option here rather than each their own way, because the two differ in which
+/// set they parsed and in nothing after it. A name the set does not carry
+/// answers `null`, which is not a set of fields and is refused as one, so "the
+/// subtree is absent" and "the subtree is something else" are one refusal
+/// rather than two spellings of the same fact.
+///
+/// The answer is **owned**, which is what `crate::json::hydrate` takes: the
+/// whole-set reading hands over the array itself, and the named one retains the
+/// value it found before `parsed` drops and releases everything it holds.
+fn shaped_subject(parsed: NvsArray, name: &Value) -> Value {
+    // Unreachable from source at any other tag: `name` is a `CoreTy::Text`
+    // option, so `E0401` refuses anything that is not a `string` at the call
+    // site, and a call that omits it passes `SHAPE_NAME_OPTIONS`'s `Const::Null`
+    // default — which is this arm.
+    let Some(name) = name.as_text() else {
+        return Value::array(parsed);
+    };
+    let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
+    // `post`'s reading of the same borrow: `get` borrows rather than retains and
+    // `parsed` releases every value it holds when it drops at the end of this
+    // function, so the one being handed on needs a reference of its own.
+    #[expect(
+        unsafe_code,
+        reason = "the payload is live: `parsed` still holds its own reference \
+                  to it at this point and is dropped after"
+    )]
+    unsafe {
+        answer.retain();
+    }
+    answer
 }
 
 nvs_runtime::nvs_helper! {
