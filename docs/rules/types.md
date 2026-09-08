@@ -550,8 +550,9 @@ things change.
   bounded at depth 32 with a diagnostic, so a pathological type cannot make checking superlinear.
 - The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
   compiler owns; a call site may write a type argument only for a compiler-owned member that declares
-  one it cannot infer, and that door is a roster of three — `Core\Json::decodeAs<T>`,
-  `Core\Request::jsonAs<T>` and `Core\Db`'s `queryAs<T>`. What may be written there is a class, an
+  one it cannot infer, and that door is a roster of four — `Core\Arr::shapeAs<T>`,
+  `Core\Json::decodeAs<T>`, `Core\Request::jsonAs<T>` and `Core\Db`'s `queryAs<T>`. What may be
+  written there is a class, an
   inline shape ([`types/shape-type`](types.md#types-shape-type)), or an `array<…>` of either where the source is a list;
   anything else is refused where it is written. User-written generic functions and classes are not
   part of this.
