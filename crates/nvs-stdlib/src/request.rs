@@ -3696,12 +3696,12 @@ mod tests {
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
         nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
-        nvs_core_request_post, scheme_text,
+        nvs_core_request_post, nvs_core_request_post_as, nvs_core_request_query_as, scheme_text,
     };
     use crate::router::METHOD;
     use nvs_runtime::{
         CONSTRUCTOR, ClassDesc, ClassTable, CodecField, CodecTy, Ctx, Inbound, MethodRow, NvsFn,
-        NvsObj, OK, RequestBody, Scheme, Value,
+        NvsObj, OK, RequestBody, Scheme, ShapeCodec, Value,
     };
     use std::net::IpAddr;
 
@@ -6295,5 +6295,356 @@ mod tests {
             "a body that is not text holds no urlencoded form, and replacing the octets it \
              cannot read would answer a field that was never sent"
         );
+    }
+
+    /// The shape both request wrappers hydrate into here — `n: int` and
+    /// `title: string`, in the slot order a written shape's fields take.
+    ///
+    /// A shape rather than a named class, because that is what a request call
+    /// site writes: `postAs<{n: int, title: string}>()` resolves to a
+    /// synthesized descriptor and the [`ShapeCodec`] beside it. A shape
+    /// declares no constructor, so unlike [`reading_class`] there is no
+    /// `set_methods` — `crate::json` writes a shape's slots directly rather
+    /// than reaching [`nvs_runtime::construct`].
+    ///
+    /// **`n` is `int` on purpose.** A form carries text and nothing else, so a
+    /// non-text field is what separates the two readings `crate::json::Reading`
+    /// forks between: `Reading::Values` converts per field through
+    /// `rule:types/conversion`'s table, and the wire reading would refuse the
+    /// same field for not being a number already.
+    ///
+    /// The table is leaked because a descriptor's address is its identity and
+    /// it must outlive every instance made from it, which is [`reading_class`]'s
+    /// obligation for the same reason.
+    fn submitted_shape() -> (*const ClassDesc, *const ShapeCodec) {
+        let names = ["n", "title"];
+        let mut table = ClassTable::new();
+        // `nvs_runtime::ClassDesc::is_shape` reads exactly this prefix, and `$`
+        // cannot start a Novis identifier, so no declared class collides.
+        let id = table.define(format!("$shape{{{}}}", names.join(",")), &names, &[]);
+        let codec = vec![
+            CodecField {
+                key: "n".to_owned(),
+                slot: 0,
+                param: 0,
+                ty: CodecTy::Int,
+                element: None,
+                class: None,
+                cases: None,
+                nullable: false,
+                required: true,
+            },
+            CodecField {
+                key: "title".to_owned(),
+                slot: 1,
+                param: 1,
+                ty: CodecTy::Str,
+                element: None,
+                class: None,
+                cases: None,
+                nullable: false,
+                required: true,
+            },
+        ];
+        // One entry per field, null throughout: neither of these names a class,
+        // which is the only thing the vector is read for.
+        let classes = vec![std::ptr::null(); codec.len()];
+        let shape = table.define_shape_codec(codec, classes);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(id), shape)
+    }
+
+    /// `Core\Request::postAs<T>({name?: string})` at the ABI a compiled call
+    /// site gives it: [`crate::registry::WRITTEN_CLASS_MEMBERS`] writes the
+    /// descriptor, the `array<...>` flag and the wire contract ahead of the one
+    /// declared option, so the helper's arity is three more than the row's.
+    ///
+    /// `name` is built and released here, the way [`posted`] does it: an
+    /// argument is borrowed by the member and freed by the call site.
+    fn read_post_as(
+        ctx: &mut Ctx,
+        shape: (*const ClassDesc, *const ShapeCodec),
+        name: Option<&str>,
+    ) -> Result<Value, i32> {
+        shaped_read(nvs_core_request_post_as, ctx, shape, name)
+    }
+
+    /// [`read_post_as`]'s member over the query string instead of the body, at
+    /// the same ABI, because the two differ in which set they parsed and in
+    /// nothing after it.
+    fn read_query_as(
+        ctx: &mut Ctx,
+        shape: (*const ClassDesc, *const ShapeCodec),
+        name: Option<&str>,
+    ) -> Result<Value, i32> {
+        shaped_read(nvs_core_request_query_as, ctx, shape, name)
+    }
+
+    /// What the two above share, written once so a difference between them is
+    /// the member and never the driver.
+    fn shaped_read(
+        member: NvsFn,
+        ctx: &mut Ctx,
+        shape: (*const ClassDesc, *const ShapeCodec),
+        name: Option<&str>,
+    ) -> Result<Value, i32> {
+        let named = name.map_or_else(Value::null, |name| {
+            Value::str(nvs_runtime::NvsStr::new(name.as_bytes()))
+        });
+        let answered = nvs_runtime::call(
+            member,
+            ctx,
+            &[
+                Value::class_desc(shape.0),
+                Value::bool(false),
+                Value::shape_codec(shape.1),
+                named,
+            ],
+        );
+        if name.is_some() {
+            dropped(named);
+        }
+        answered
+    }
+
+    /// The two fields of an instance [`submitted_shape`] describes, read back
+    /// as an assertion wants them and borrowed rather than taken: the caller
+    /// still owns the reference it passed in.
+    #[expect(
+        unsafe_code,
+        reason = "the value is an instance this frame holds a reference to, so \
+                  the handles borrowed from it cannot outlive the allocation"
+    )]
+    fn submitted(instance: Value) -> (i64, String) {
+        let object = std::mem::ManuallyDrop::new(unsafe {
+            NvsObj::from_raw(
+                instance
+                    .obj_ptr()
+                    .expect("a shaped read answers an instance of the shape it was given"),
+            )
+        });
+        let n = object
+            .field(0)
+            .as_int()
+            .expect("`n` is declared `int`, so the hydration produced one");
+        let title = object.field(1);
+        let title = title
+            .as_str_bytes()
+            .expect("`title` is declared `string`, so the hydration produced one");
+        (
+            n,
+            String::from_utf8(title.to_vec()).expect("a test's own literals are UTF-8"),
+        )
+    }
+
+    /// A context answering a `GET` whose request line carried `query` and
+    /// nothing else — [`uploading`]'s counterpart for the member that reads
+    /// what is above the body rather than what is in it.
+    fn asking(query: &str) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_inbound(Inbound::new("GET", "/", query));
+        ctx
+    }
+
+    /// A submitted form read as the type the call site wrote: every field the
+    /// shape names is filled from the form field of that name, converted where
+    /// the shape asked for something a form cannot carry.
+    ///
+    /// `n` is the half that could not pass by accident. The body says `n=7` and
+    /// means the three bytes `"7"`, so a field reaching an `int` is
+    /// `crate::json::Reading::Values` converting it through
+    /// `rule:types/conversion`'s table — the fork `postAs` picks over the wire
+    /// reading `jsonAs` picks, and the one thing the member adds to
+    /// `Core\Arr::shapeAs` beyond finding the array.
+    ///
+    /// The form also carries a field the shape does not name, which the
+    /// hydration walks past: that is `Core\Arr::shapeAs`'s rule and
+    /// `a_key_the_shape_does_not_name_is_left_behind` is where it is pinned, so
+    /// what this asserts is only that reading a form through the boundary does
+    /// not acquire a stricter one.
+    #[test]
+    fn post_as_hydrates_the_whole_form_into_the_shape_it_was_given() {
+        let shape = submitted_shape();
+        let mut ctx = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"n=7&title=report&unnamed=sent+anyway"])),
+        );
+
+        let instance = read_post_as(&mut ctx, shape, None)
+            .expect("a form carrying every field the shape requires hydrates");
+        assert_eq!(
+            submitted(instance),
+            (7, "report".to_owned()),
+            "each field is filled from the form field of its own name, the `int` one \
+             through the conversion table"
+        );
+        dropped(instance);
+    }
+
+    /// The `name` option reads one bracket subtree instead of the whole
+    /// parameter set — `rule:core-api/shape-rules` R15's one signature rather
+    /// than a second member.
+    ///
+    /// The form carries `n` and `title` **twice**: once at the top level and
+    /// once under `user`, with different values. A member that ignored the name
+    /// and hydrated the whole set would answer plausibly — two filled fields of
+    /// the right types — so the values are what separates the two readings, and
+    /// the subtree's are the ones asserted.
+    #[test]
+    fn post_as_with_a_name_hydrates_one_bracket_subtree() {
+        let shape = submitted_shape();
+        let mut ctx = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[
+                b"n=1&title=whole&user[n]=7&user[title]=subtree",
+            ])),
+        );
+
+        let instance = read_post_as(&mut ctx, shape, Some("user"))
+            .expect("the named subtree is a set of fields, so it hydrates like any other");
+        assert_eq!(
+            submitted(instance),
+            (7, "subtree".to_owned()),
+            "the fields under `user[...]` are what the name reached, and the top-level \
+             pair of the same names is not what was asked for"
+        );
+        dropped(instance);
+    }
+
+    /// `queryAs` is the same member over the query string, so the assertion is
+    /// that the two **agree** rather than what either one answered.
+    ///
+    /// One text is put on the wire twice — once as a request line's query and
+    /// once as a urlencoded body — and both readings are asked for the same
+    /// shape. A wrapper that grew its own parse, its own bracket walk or its
+    /// own conversion fork would still look right on its own line and fail
+    /// here, which is what a second copy of the first test could not see.
+    #[test]
+    fn query_as_reads_the_query_string_the_same_way() {
+        let shape = submitted_shape();
+        let submission = "n=7&title=report&user[n]=1&user[title]=subtree";
+
+        let mut queried = asking(submission);
+        let mut posted_to = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[submission.as_bytes()])),
+        );
+
+        let from_query = read_query_as(&mut queried, shape, None)
+            .expect("the query string holds every field the shape requires");
+        let from_body =
+            read_post_as(&mut posted_to, shape, None).expect("and so does the same text as a body");
+        assert_eq!(
+            submitted(from_query),
+            submitted(from_body),
+            "one text read two ways answers one set of fields"
+        );
+        dropped(from_query);
+        dropped(from_body);
+
+        let mut queried_subtree = asking(submission);
+        let named = read_query_as(&mut queried_subtree, shape, Some("user"))
+            .expect("the query string's bracket convention is the form's");
+        assert_eq!(
+            submitted(named),
+            (1, "subtree".to_owned()),
+            "down to the name reaching one subtree, which is `crate::uri::place`'s walk \
+             and not either member's"
+        );
+        dropped(named);
+    }
+
+    /// `postAs` is a buffering reader under
+    /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`,
+    /// so it may follow another one and another one may follow it.
+    ///
+    /// Asked in both directions, as
+    /// [`a_buffering_reader_may_follow_another_buffering_reader`] is and for
+    /// its reason: the member answers out of the hold the first reader left,
+    /// which is [`nvs_runtime::Inbound`]'s choice and not this member's, and a
+    /// member reading its own memory instead would pass the direction it was
+    /// written for and fail the other. The direction that could pass by
+    /// accident is the second — `post()` after `postAs` finds a wire with
+    /// nothing left on it, and a parse of that wire answers a form with no
+    /// fields in it rather than failing.
+    #[test]
+    fn post_as_may_follow_another_buffering_reader() {
+        let shape = submitted_shape();
+
+        let mut octets_first = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"n=7&title=report"])),
+        );
+        assert_eq!(
+            read_body(&mut octets_first).expect("a request that carried a body can be read"),
+            b"n=7&title=report".to_vec(),
+            "the first reader pulls the body off the wire and keeps it"
+        );
+        let after_octets = read_post_as(&mut octets_first, shape, None)
+            .expect("and the shaped read parses the held octets rather than the drained wire");
+        assert_eq!(submitted(after_octets), (7, "report".to_owned()));
+        dropped(after_octets);
+
+        let mut shaped_first = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"n=7&title=report"])),
+        );
+        let hydrated = read_post_as(&mut shaped_first, shape, None)
+            .expect("the shaped read is the one that pulls the body this time");
+        assert_eq!(submitted(hydrated), (7, "report".to_owned()));
+        dropped(hydrated);
+        assert_eq!(
+            field(&mut shaped_first, "title").as_deref(),
+            Some(&b"report"[..]),
+            "and the field reader after it answers the fields the peer sent, not the \
+             empty form a re-parse of the drained wire would find"
+        );
+    }
+
+    /// The streaming half of the same rule: a reader that handed the octets
+    /// over as they arrived kept none of them, so `postAs` is **refused** after
+    /// it rather than answered out of a drained wire.
+    ///
+    /// This is the failure the whole rule is written against, and the shaped
+    /// read is where it would be least visible. A member that parsed the wire
+    /// regardless would find a form with no fields in it and then fail for a
+    /// second reason — a required field is missing — which reads as the peer
+    /// having sent an incomplete form rather than as this program having
+    /// already spent the body. So the refusal is asserted where the shape is
+    /// satisfiable, which is what separates the two.
+    ///
+    /// `queryAs` is asked the same question and **answers**, because the rule
+    /// is about the body and the query string was never on the wire the walk
+    /// consumed. A claim written over the member rather than over what it reads
+    /// would refuse both.
+    #[test]
+    fn post_as_refuses_after_a_streaming_reader_has_consumed_the_body() {
+        let shape = submitted_shape();
+        // Built here rather than by [`uploading`], because the second half
+        // needs a query string on the request line as well as a body under it.
+        let mut inbound = Inbound::new("POST", "/", "n=1&title=query");
+        inbound.push_header("content-type", b"application/x-www-form-urlencoded");
+        inbound.set_body(Box::new(Chunks::of(&[b"n=7&title=report"])));
+        let mut streamed = Ctx::buffered();
+        streamed.set_inbound(inbound);
+
+        let chunks = nvs_runtime::call(nvs_core_request_body_stream, &mut streamed, &[])
+            .expect("naming the walk cannot fail on a request that carried a body");
+        dropped(chunks);
+
+        assert!(
+            read_post_as(&mut streamed, shape, None).is_err(),
+            "the body is gone, so the form it carried is refused rather than hydrated \
+             out of nothing"
+        );
+
+        let from_query = read_query_as(&mut streamed, shape, None)
+            .expect("the query string is not the body, and no walk consumed it");
+        assert_eq!(
+            submitted(from_query),
+            (1, "query".to_owned()),
+            "so the member reading it answers the request line the peer sent"
+        );
+        dropped(from_query);
     }
 }
