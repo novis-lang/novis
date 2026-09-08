@@ -32,10 +32,10 @@
 /// Every compiler-declared global interface, as `(name, type-parameter
 /// names)`.
 ///
-/// `Comparable` (`rule:classes/comparable`)
-/// and `Stringable`
-/// (`rule:classes/stringable`) take none; `Iterable` and `Iterator`
-/// (`rule:iteration/two-interfaces`) each
+/// `Comparable` (`rule:classes/comparable`),
+/// `Stringable`
+/// (`rule:classes/stringable`) and `Parses` take none; `Iterable` and
+/// `Iterator` (`rule:iteration/two-interfaces`) each
 /// take one. `PropertyObserver`
 /// (`rule:classes/property-observer`) takes none
 /// either: it is a contract an ordinary class implements, not a `Core` domain
@@ -44,6 +44,7 @@
 pub const RESERVED: &[(&str, &[&str])] = &[
     ("Comparable", &[]),
     ("Stringable", &[]),
+    ("Parses", &[]),
     ("PropertyObserver", &[]),
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
@@ -56,6 +57,19 @@ pub const COMPARABLE: &str = "Comparable";
 /// `rule:classes/stringable`'s `Stringable` — what an object owes to be converted to
 /// `string`, via its sole member `toString(): string`.
 pub const STRINGABLE: &str = "Stringable";
+
+/// `Parses` — what a class owes to be built from a piece of text, via its one
+/// required member `parse(tainted string $s): static`. Its `tryParse` twin is
+/// a default body on the interface rather than a second required member, so
+/// `rule:expressions/try-parse`'s single implementation of "is this text a
+/// `T`" stays single.
+///
+/// This is what a binding site asks a class for instead of naming one: a route
+/// capture, a `#[Query]`, a command argument and a command option all build a
+/// value out of text that arrived from outside the process, and all of them
+/// are laundered by the conversion rather than by the class
+/// (`rule:security/route-capture-is-laundered-by-its-type`).
+pub const PARSES: &str = "Parses";
 
 /// `rule:classes/property-observer`'s `PropertyObserver` — what a class implements to be told of
 /// every read and write of every property it declares, through
@@ -102,10 +116,20 @@ mod tests {
     }
 
     #[test]
-    fn the_three_non_generic_interfaces_take_none() {
+    fn the_non_generic_interfaces_take_none() {
         assert_eq!(type_params("Comparable"), Some(&[][..]));
         assert_eq!(type_params("Stringable"), Some(&[][..]));
         assert_eq!(type_params(PROPERTY_OBSERVER), Some(&[][..]));
+    }
+
+    /// `Parses` is asked of a class by name at a binding site and never
+    /// applied to a type argument: the text an implementor is built from is
+    /// `string` at every one of those sites, so there is nothing for a
+    /// parameter to stand for.
+    #[test]
+    fn parses_is_a_reserved_interface_taking_no_type_arguments() {
+        assert!(is_reserved_interface(PARSES));
+        assert_eq!(type_params(PARSES), Some(&[][..]));
     }
 
     #[test]

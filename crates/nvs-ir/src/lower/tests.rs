@@ -3068,6 +3068,7 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "Iterator",
             "LogicError",
             "ParseError",
+            "Parses",
             "PropertyObserver",
             "RecursionError",
             "RuntimeError",
