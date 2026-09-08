@@ -159,7 +159,12 @@ rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
 
 [context.stage.3]
 rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",
-         "types/duration-literal", "types/object-top"]
+         "types/duration-literal", "types/object-top",
+         # The grammar colours what the lexer accepts, so the three rules deciding which
+         # spellings it accepts are the ones a family is written against: one open tag in one
+         # case, three slashes and no more to document with.
+         "statements/nvs-is-the-only-open-tag", "classes/reserved-spellings-are-lower-case",
+         "tooling/doc-comment-is-three-slashes"]
 adrs = ["0099 §4"]
 
 [context.stage.4]
