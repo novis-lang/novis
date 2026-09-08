@@ -213,9 +213,10 @@ is refused at the door. Plus:
   `rule:expressions/try-parse` (the `tryParse` shape is now a contract and its three conditions are what the interface
   encodes), `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-query-parameter-is-declared-like-a-capture` and `rule:routing/a-capture-narrows-to-a-closed-set` (the type roster's last entry becomes a predicate), and
   novis.md's two prose rosters.
-- **What this spends**, per `rule:programs/memory-priority`'s ledger: nothing at run
-  time that the roster did not already spend. A capture's conversion was a match arm and stays one; the
-  arm now carries a class pointer the compiled table already holds. No allocation per request that
-  `CaptureConv::Unconverted` did not make, and one fewer — a `Parses` capture that refuses never builds
-  the `String` a matched capture holds. At compile time it is one structural query per class per binding
-  site, memoized in the signature table `Comparable` is already asked of.
+- **What this spends**, per `rule:programs/memory-priority`'s ledger: on the command side, nothing at
+  run time that the roster did not already spend — a conversion that was a match arm stays one, and the
+  arm now carries a class pointer the compiled table already holds. On the route side a `Parses`
+  capture costs one `call_static` into the program per such capture, on the matched route and nowhere
+  else: the walk itself is unchanged, a request that matches nothing pays nothing, and a segment the
+  class refuses never builds the `String` a bound capture holds. At compile time it is one structural
+  query per class per binding site, memoized in the signature table `Comparable` is already asked of.

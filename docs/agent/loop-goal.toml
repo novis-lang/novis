@@ -209,9 +209,12 @@ plan = ["Open now", "Blocking"]
 rules = ["expressions/try-parse", "core-api/reserved-namespace"]
 adrs = ["0066 §3a", "0066 §3"]
 
-# The roster the predicate replaces.
+# The roster the predicate replaces, and the two rules the route side's settlement moves.
 [context.stage.4]
-rules = ["routing/a-capture-narrows-to-a-closed-set"]
+rules = [
+  "routing/a-capture-narrows-to-a-closed-set",
+  "routing/a-bad-query-value-is-a-400",
+]
 adrs = ["0077 §3", "0102 §3", "0102 §5"]
 
 [valgrind]
