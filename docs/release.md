@@ -46,10 +46,11 @@ Then set `main` as the default branch in **Settings → General → Default bran
 refuses to run on any other ref, so a release cut from a topic branch is impossible rather than
 discouraged.
 
-`Cargo.toml`'s `repository` and `homepage` still say `nvs-lang/nvs`. Fix them when you move: they
-are what `tools/release.py` builds commit links from when it runs outside CI. Inside CI the runner
-supplies the real one, so a stale value there produces correct release notes and wrong local
-previews — the worst kind of stale, because nothing fails.
+`Cargo.toml`'s `repository` is `novis-lang/novis` and its `homepage` is `novis-lang.org`.
+`tools/release.py` builds commit links from the first of those when it runs outside CI; inside CI the
+runner supplies the real one, which is why a stale value there produces correct release notes and
+wrong local previews — the worst kind of stale, because nothing fails. Change either only alongside
+the repository actually moving.
 
 ### 2. Workflow permissions default to read
 
