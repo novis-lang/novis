@@ -115,11 +115,11 @@ Conventions the whole file uses:
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Request`](#core-core-request) | the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted` |
-| [`Core\Request\Mount`](#core-core-request-mount) |  |
+| [`Core\Request\Mount`](#core-core-request-mount) | the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) | the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time |
 | [`Core\Request\Files`](#core-core-request-files) | the uploads a request carries, as a walk over its parts — `$_FILES` and `move_uploaded_file` replaced by a stream that touches no temporary directory |
 | [`Core\Request\Part`](#core-core-request-part) | one uploaded part — what it declared about itself, and the three ways to spend its bytes |
-| [`Core\Request\PartContent`](#core-core-request-partcontent) |  |
+| [`Core\Request\PartContent`](#core-core-request-partcontent) | one uploaded part's bytes as a walk over its chunks — `Core\Request\Part::content()`'s answer, holding one chunk at a time and valid only while its part is the current one |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Session`](#core-core-session) |  |
 | [`Core\Socket`](#core-core-socket) |  |
@@ -16416,7 +16416,64 @@ Which mount is serving this request: the prefix the server took off the path bef
 <a id="core-core-request-mount"></a>
 ### `Core\Request\Mount`
 
-Keywords: prefix, captures
+Keywords: SCRIPT_NAME, PATH_INFO, base path, base URL, RewriteBase, subdirectory install, sub-folder deployment, virtual host, multi-tenant, subdomain routing, $_SERVER['REQUEST_URI'], prefix, captures
+
+`Core\Request\Mount` is what `Core\Request::mount()` answers with, and it holds two facts about the door
+this request arrived at: `prefix()` is what the server took off the front of the path before
+`Core\Request::path()` answered it, and `captures()` are the glob captures of the mount row that took the
+request, in order — `{1}` is `captures[0]`. One member answers the pair because a request holding one
+mount's prefix and another mount's captures is a bug the shape rules out.
+
+**It is never `null`**, where `Core\Request::route()` is. Every request that reached a program reached it
+*through* a mount, so a door that strips nothing and holds no glob answers `""` and an empty array rather
+than an absence — there is no case to write for "served without a mount". With no request in front of it
+at all, naming it refuses the way every reader of `Core\Request` does.
+
+**A mount says where a request arrives and which file answers it, and nothing else.** Its key set is
+closed — `prefix`, `host`, `scan`, `entry`, `origin` — and carries no mode, no limits and no capabilities;
+what the code answering the request *may do* is the `[[app]]` block's, keyed on the entry file path. The
+two usually cover the same tree, and reading one for the other is the mistake this split exists to
+prevent: what you learn here is routing, never policy.
+
+**The table expands at boot, not per request.** A `scan` glob is resolved against the disk once at
+startup — and again on `nvs ctl reload`, in development also under hot reload's revalidation — into
+ordinary mounts whose paths were each checked to lie inside `[server] root`. So a prefix reaching a
+program is a row an operator wrote, and no path is ever derived from a URL at request time.
+
+That is why the prefix is plain text and **the captures are `tainted`**: which row answers is the peer's
+choice, and a capture is exactly what a multi-tenant program keys its data by. A capture reaching a query
+or a path launders the way anything else off a request does. Nothing here is cached — both facts live on
+the inbound request and this class is a reading of them — so a read costs one instance and one array of
+the mount's own captures, a handful of values against a glob's one or two.
+
+```nvs skip
+<?nvs
+// Served by a mount that scans `*/public/index.nvs` under `[server] root` and
+// mounts each match at `/{1}`, so `/acme/orders` arrives here as `/orders`.
+Core\Request\Mount $mount = Core\Request::mount();
+tainted string $tenant = $mount->captures()[0];
+
+echo "serving ", $tenant, " under ", $mount->prefix(), "\n";
+```
+
+A program therefore never derives its own base path from the request target, and `Core\Router::url`
+prepends the prefix on the way back out, so the same compiled route table serves at `/ModuleA`, at
+`/{1}` or at `/` with no recompile. `$_SERVER['SCRIPT_NAME']`, `PATH_INFO` and the `RewriteBase` guessing
+that goes with them have nothing left to describe. Without a request, the class is unreachable in the
+ordinary way:
+
+```nvs
+<?nvs
+try {
+    Core\Request::mount();
+    echo "not reached\n";
+} catch (LogicError $none) {
+    echo "nothing was mounted here\n";
+}
+```
+```output
+nothing was mounted here
+```
 
 | Member | Signature |
 |---|---|
@@ -16741,7 +16798,61 @@ Writes this part straight to `$path`, holding one chunk at a time — the path 9
 <a id="core-core-request-partcontent"></a>
 ### `Core\Request\PartContent`
 
-Keywords: 
+Keywords: streaming upload, chunk, fread, stream_get_contents, multipart/form-data, large file upload, memory_limit, Iterable bytes, tmp_name, move_uploaded_file, 
+
+`Core\Request\PartContent` is what `Core\Request\Part::content()` answers with: an `Iterable<tainted
+bytes>` that a `foreach` walks once over one uploaded part. It has no members — the walk is everything it
+does — and it holds nothing but the chunk the loop body is looking at, so a part far larger than the
+machine's memory passes through a program that never has more than one chunk of it resident. It is the
+reading for an upload that must never be whole in memory, and `readAll` and `saveTo` are both written
+over it: those two are the bounded and the on-disk answers to the same question, and this is the one
+where the program decides what to keep.
+
+**A part is a position in a body, and this walk is only valid while it is the current one.** The `files()`
+parse moves whether or not this walk is what moved it, so the part the walk was named on is remembered
+and checked on every pull: once the loop over `files()` has advanced, a pull here refuses with
+`LogicError` rather than handing back a later part's bytes. That is a defect in the program — a name kept
+past the iteration that opened the next part — and never something a peer can provoke.
+
+**A chunk boundary is the wire's, and carries no meaning.** It is where the octets happened to arrive, so
+a program that needs lines, records or frames finds them across chunks; nothing here aligns a chunk to
+anything the sender wrote. The walk is empty for a part that carried no bytes, which is an ordinary thing
+for a form to send.
+
+Every chunk is `tainted bytes`, like everything else a peer chose, so it reaches a sink only through a
+launderer named for that sink — and the filename the part carries is tainted too, which is why a path is
+built rather than concatenated. Where the destination is simply disk, `saveTo` is the shorter spelling of
+this loop and bounds itself; reach for `content()` when the bytes are being counted, hashed, decoded or
+forwarded rather than stored.
+
+```nvs skip
+<?nvs
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    int $seen = 0;
+    foreach ($part->content() as tainted bytes $chunk) {
+        $seen = $seen + Core\Bytes::length($chunk);
+    }
+    echo $part->name(), ": ", $seen, " bytes\n";
+}
+```
+
+Beyond the `LogicError` above, the walk carries the failures the body itself has: `IOError` where the
+connection failed underneath it or the peer stopped short of the closing boundary, and `ParseError` where
+what arrived is not the multipart body the request declared. Reaching the walk at all needs a request in
+front of it, and without one the entry to it refuses the way every member of `Core\Request` does:
+
+```nvs
+<?nvs
+try {
+    Core\Request::files();
+    echo "not reached\n";
+} catch (LogicError $none) {
+    echo "no request here\n";
+}
+```
+```output
+no request here
+```
 
 | Member | Signature |
 |---|---|
