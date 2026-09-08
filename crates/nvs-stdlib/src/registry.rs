@@ -3385,6 +3385,90 @@ mod tests {
         }
     }
 
+    /// [`implements_parses`] at the one class that satisfies it, and at every
+    /// class carrying neither half of the pair — the ordinary bound beside
+    /// [`the_parses_roster_is_the_classes_carrying_the_whole_pair`]'s two near
+    /// misses, which are the classes carrying half of it.
+    #[test]
+    fn implements_parses_is_true_for_core_uuid_and_false_for_a_class_without_both_members() {
+        assert!(implements_parses(crate::uuid::NAME));
+
+        // Swept rather than named, because which class carries neither member
+        // is the roster's business and changes without this question changing:
+        // a class with no `parse` and no `tryParse` has nothing for either name
+        // comparison to find, whatever else it declares.
+        for class in CLASSES {
+            let half = class
+                .methods
+                .iter()
+                .any(|member| member.name == "parse" || member.name == "tryParse");
+            assert!(
+                half || !implements_parses(class.name),
+                "`{}` carries neither half of the pair and is not an implementor",
+                class.name
+            );
+        }
+
+        // A name the roster does not carry answers `false` rather than
+        // panicking. The predicate is asked by a binding site about whatever
+        // type a parameter declared, which is most often a user's class and not
+        // a `Core` one at all — that answer comes from the other table
+        // (`nvs_types::commands`' `reaches_parses`), and this one has to hand it
+        // over rather than assume the name is its own.
+        assert!(!implements_parses(r"App\Models\Slug"));
+        assert!(!implements_parses("Parses"));
+    }
+
+    /// The half of the pair the interface is read through: `tryParse` **is**
+    /// `parse` with the throw caught, so it reads that same one text and
+    /// answers the nullable of its own class. A nullable over anything else is
+    /// a different pair — asserted as the shape the rows carry rather than by
+    /// restating [`implements_parses`]' own match arms.
+    #[test]
+    fn implements_parses_requires_try_parse_to_answer_the_nullable_self() {
+        let uuid = CLASSES
+            .iter()
+            .find(|class| class.name == crate::uuid::NAME)
+            .expect("`Core\\Uuid` is on the roster");
+        let try_parse = uuid
+            .methods
+            .iter()
+            .find(|member| member.name == "tryParse")
+            .expect("the pair's second half");
+        assert!(
+            matches!(try_parse.params, [CoreTy::Text(Qual::Neutral)])
+                && try_parse.defaults.is_empty(),
+            "the same one text `parse` reads, with nothing beside it"
+        );
+        assert!(
+            matches!(
+                try_parse.return_ty,
+                CoreTy::Nullable(CoreTy::Instance(answered)) if *answered == crate::uuid::NAME
+            ),
+            "the nullable of its own class, which is what makes it `parse` with the throw caught"
+        );
+
+        // The sweep one row cannot make: no class anywhere on the roster
+        // carries a `tryParse` answering the nullable of *another* class, so
+        // the predicate never has to choose between two readings of the pair,
+        // and a member that grew one fails here before it reaches a binding
+        // site.
+        for class in CLASSES {
+            for member in class.methods {
+                assert!(
+                    member.name != "tryParse"
+                        || matches!(
+                            member.return_ty,
+                            CoreTy::Nullable(CoreTy::Instance(answered))
+                                if *answered == class.name
+                        ),
+                    "`{}::tryParse` answers something other than the nullable of its own class",
+                    class.name
+                );
+            }
+        }
+    }
+
     /// [`implements_parses`]' answer over the whole roster rather than at the
     /// one class that satisfies it. A member grown beside the pair, a `parse`
     /// reclassified, or a `tryParse` whose nullable stops naming its own class
