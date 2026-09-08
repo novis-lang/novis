@@ -69,6 +69,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import written  # noqa: E402  -- after the path insert that makes it importable
+
 OPEN, MID, CLOSE = "<<<<<<< OLD", "=======", ">>>>>>> NEW"
 FILE_MARK = "--- "
 
@@ -234,6 +238,9 @@ def main(argv):
 
     for target in order:
         Path(target).write_text(staged[target], encoding="utf-8", newline="")
+    # A patch is the one edit that leaves no trace on the session's event stream -- the driver
+    # sees `Bash python tools/splice.py`, not the files it reached. `written.py` owns why.
+    written.record(*order)
     per = {t: sum(1 for b in blocks if b[0] == t) for t in order}
     sys.stdout.write(
         f"splice.py: {len(blocks)} block(s) spliced into {len(order)} file(s)\n"

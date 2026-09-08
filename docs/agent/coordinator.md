@@ -65,7 +65,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
 | `.loop/chain.json` | Which entry of the chain is installed, as a bare position and nothing else. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
-| `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves a clean tree. |
+| `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths it swept, the paths it `left` for whoever else is working in this tree, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves nothing of its own behind. |
+| `.loop/written.txt` | The tracked files the session's own tools reported writing, appended by [`written.py`](../../tools/written.py) and truncated before every session. It is half of how the sweep tells the session's work from a person's — the event stream names what `Write` and `Edit` touched, and this names what `splice.py` and `reference.py` touched behind a `Bash` call that mentions no path at all. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
@@ -227,6 +228,15 @@ Nothing landed was ever lost to this, before or after: every session commits its
 costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
 records the uncommitted paths and why, and `orient.py` puts them in front of the next session instead of
 letting them read as the tree it was supposed to start from.
+
+**The sweep takes the session's paths and nothing else.** This working tree is shared with whoever is
+using the machine, and a sweep that staged everything dirty committed their open files under a
+`wip(loop)` subject naming a session that never opened them. So a path is swept only when something
+watched the session write it — the event stream for `Write` and `Edit`, `.loop/written.txt` for the
+tools that write behind a `Bash` call — and a sweep with nothing of its own to take makes no commit at
+all. The failure mode is deliberately the visible one: a stray file left dirty and named in `left`,
+rather than a person's afternoon inside a commit addressed to a machine. `loop.SessionFiles` is the
+home for how the two watchers divide the work, and for the one gap they leave.
 
 ## The acceptance test
 

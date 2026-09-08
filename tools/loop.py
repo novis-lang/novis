@@ -58,6 +58,7 @@ except ModuleNotFoundError:  # Python < 3.11
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
+import written  # noqa: E402  -- same directory; how a tool reports what it wrote, and why
 
 ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
@@ -79,6 +80,9 @@ RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
 LIMIT = RUNDIR / "limit.json"
 INTERRUPTED = RUNDIR / "interrupted.json"
+#: Paths the session's own tools reported writing, appended by `written.py` and truncated before
+#: every session. Read by `SessionFiles`, which is where what it is for is written down.
+WRITTEN = RUNDIR / "written.txt"
 CHAINSTATE = RUNDIR / "chain.json"
 RUNEND = RUNDIR / "run-end.json"
 DOCGATE = RUNDIR / "doc-gate.json"
@@ -1291,6 +1295,10 @@ class Renderer:
                     # Two small file reads, on the one thread that already knows the session did
                     # something. A slice committed since the last call moves the goal row.
                     SLICES.poll()
+                    # The other thing this block is evidence of: if the session ends without a
+                    # wrap, a write here is how the sweep tells its own edit to an already-dirty
+                    # file from a person's.
+                    TOUCH.note(b.get("name"), b.get("input"))
                     self.tool_input(b.get("input"))
 
         elif kind == "user":
@@ -3029,6 +3037,135 @@ class SliceWatch:
 SLICES = SliceWatch()
 
 
+def dirty_entries():
+    """`(status, path)` for every path `git status` calls dirty.
+
+    `-z` rather than the default spelling: a path holding a space or a byte outside ASCII comes
+    back quoted otherwise, and `git add` on the quoted form stages nothing. A rename contributes
+    both of its paths, because staging one and not the other leaves the tree dirty either way.
+
+    Not through `git()`, which strips its output. A record is `XY<space><path>` and `Y` alone is
+    set for a change that is not staged, so the first record of an ordinary dirty tree begins
+    with a space -- stripping it shifts that one record by a character and the path comes back
+    with its first letter missing."""
+    try:
+        out = subprocess.run(["git", "status", "--porcelain", "-z"], cwd=ROOT,
+                             capture_output=True, encoding="utf-8", check=True).stdout
+    except (subprocess.CalledProcessError, OSError):
+        return []
+    fields = [f for f in out.split("\0") if f]
+    entries, i = [], 0
+    while i < len(fields):
+        field, i = fields[i], i + 1
+        if len(field) < 4:
+            continue
+        code, path = field[:2], field[3:]
+        entries.append((code, path))
+        if ("R" in code or "C" in code) and i < len(fields):
+            entries.append((code, fields[i]))
+            i += 1
+    return entries
+
+
+def repo_path(text):
+    """A tool call's `file_path` in the spelling `git status` uses: repo-relative, forward slashes.
+
+    Sessions are handed absolute paths and post them back that way -- `D:\\mwl\\crates\\...` on
+    this machine -- so comparing one against `git status` output raw matches nothing at all."""
+    try:
+        return Path(text).resolve().relative_to(ROOT).as_posix()
+    except (ValueError, OSError):
+        return str(text).replace("\\", "/").lstrip("./")
+
+
+class SessionFiles:
+    """Which dirty paths the SESSION wrote, so the sweep can leave the rest of the tree alone.
+
+    `mark_interrupted` commits what a session left behind, and it used to stage the whole tree.
+    That is right for a tree only the loop touches and wrong for the one this repository has: a
+    person edits `docs/` while the loop runs, and every session ending without a wrap swept their
+    work into a `wip(loop)` commit naming a session that never opened those files.
+
+    **A path is the session's only if something watched it being written.** Not "it is dirty and
+    nobody else claimed it" -- the sweep takes what it can name and leaves everything else, so the
+    failure mode is a stray file still sitting in the tree, which is visible, rather than a
+    person's afternoon inside a commit addressed to a machine.
+
+    Two things do the watching, and between them they cover every write this repository permits:
+
+    - **The event stream.** `note` reads the target off every write tool as the block goes past.
+    - **`written.py`.** `splice.py` and `reference.py` write files nothing on the stream names --
+      a patch reaches any number of targets behind one `Bash`, and `docs/novis.md` is regenerated
+      under `verify.py` with no tool call mentioning it at all. Both report what they wrote.
+
+    A shell that carries content into the tree by itself is outside both, and is also the first
+    rule in `AGENTS.md`: an edit that Write and Edit cannot express goes through `splice.py`. So
+    the uncovered case is a broken rule, and the sweep leaving that file dirty is how it surfaces.
+
+    Read tools are deliberately not recorded. Sessions grep `chain.toml` and read the plan
+    constantly, and a set counting reads would re-claim every file a person has open.
+
+    A subagent's writes are the one real gap: the parent stream carries its prompt, not its edits,
+    and `collect_subagents` reads its transcript only after the sweep has run. Sessions almost
+    never spawn one, and what it leaves behind is reported as left rather than lost."""
+
+    #: Tools that write. `Bash` is deliberately absent: its command can write anything at all, and
+    #: `written.py` is how the tools it runs answer for themselves instead of being guessed at.
+    WRITES = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.written: set[str] = set()
+
+    def start(self, carry=False):
+        """A session is about to launch: forget the last one's paths and empty the tool ledger.
+
+        `carry` keeps both across the one launch that is not a new session -- a dropped stream
+        rejoined with `claude --resume`, whose first half wrote files that are sitting dirty in
+        the tree right now. Clearing there would hand the session its own work back as a
+        stranger's, and the sweep at the end of the resumed half would refuse to take it."""
+        with self.lock:
+            if carry:
+                return
+            self.written = set()
+        try:
+            WRITTEN.write_text("", encoding="utf-8", newline="\n")
+        except OSError:
+            pass
+
+    def note(self, name, args):
+        """One `tool_use` block, as it streams past the renderer."""
+        if str(name) not in self.WRITES or not isinstance(args, dict):
+            return
+        for key in ("file_path", "notebook_path"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                with self.lock:
+                    self.written.add(repo_path(value))
+
+    def paths(self):
+        """Everything either watcher saw, the stream's set unioned with the tools' own ledger."""
+        with self.lock:
+            seen = set(self.written)
+        try:
+            seen |= {ln.strip() for ln in WRITTEN.read_text(encoding="utf-8").split("\n")
+                     if ln.strip()}
+        except OSError:
+            pass
+        return seen
+
+    def split(self, entries):
+        """`(ours, theirs)` over `dirty_entries()` output, each side in the order it arrived."""
+        seen = self.paths()
+        ours, theirs = [], []
+        for code, path in entries:
+            (ours if path in seen else theirs).append((code, path))
+        return ours, theirs
+
+
+TOUCH = SessionFiles()
+
+
 # --------------------------------------------------------------------------------- chain
 
 
@@ -3848,11 +3985,24 @@ def mark_interrupted(index, why=None):
     it out of the pack and continues from a commit rather than from a diff. The next session to
     end clean deletes it.
 
+    **It sweeps the session's own paths and nothing else.** `TOUCH` splits the dirty tree into what
+    something watched this session write and what it did not, and the second half is left exactly
+    where it is: the loop shares this working tree with a person, and staging everything meant a
+    session that had finished all of its slices still committed whatever that person had open. A
+    sweep with nothing of its own to take is the same as a clean exit -- no commit at all, and the
+    interruption cleared.
+
     `why` is a `RateLimit`, a sentence, or nothing at all -- the things that cut a session off,
     in the order the driver can explain them."""
-    dirty = [ln for ln in git("status", "--porcelain").split("\n") if ln.strip()]
-    if not dirty:
+    entries = dirty_entries()
+    ours, theirs = TOUCH.split(entries)
+    dirty = [f"{code} {path}" for code, path in ours]
+    left = [f"{code} {path}" for code, path in theirs]
+    if not ours:
         INTERRUPTED.unlink(missing_ok=True)
+        if left:
+            say(f"   the tree holds {len(left)} path(s) this session never wrote -- left alone",
+                C.GRAY)
         return 0
 
     said = (why.describe() if isinstance(why, RateLimit)
@@ -3865,18 +4015,28 @@ def mark_interrupted(index, why=None):
             f"tree at that moment, committed by the driver rather than left for the next one to\n"
             f"find as an unexplained diff. It has NOT been through `verify.py`.\n"
             f"\n"
-            f"`.loop/interrupted.json` names this commit; `orient.py` puts it at the top of the\n"
+            + (f"{len(left)} other path(s) were dirty before this session launched and are NOT\n"
+               f"in this commit -- they are somebody else's work and are still in the tree.\n"
+               f"\n" if left else "")
+            + f"`.loop/interrupted.json` names this commit; `orient.py` puts it at the top of the\n"
             f"next session's pack. Continue it, amend it or revert it -- but read it first.\n")
     before = git("rev-parse", "HEAD")
-    # `-A`, because the point is a clean tree and a half-swept one is the same bug. Untracked
-    # files included: a new module or `.nvst` case is exactly what a mid-slice session has.
-    git("add", "-A")
+    # By path, never `-A`: everything this session did not write belongs to whoever is working in
+    # the tree beside it. Untracked paths are named the same way -- a new module or `.nvst` case
+    # is exactly what a mid-slice session has, and `git add` on the path stages it.
+    paths = [path for _, path in ours]
+    git("add", "--", *paths)
     msg = RUNDIR / "sweep-msg.txt"
     try:
         msg.write_text(body, encoding="utf-8", newline="\n")
+        # `--only`, so the commit is these paths whatever else the index holds: a person working
+        # in the tree beside the loop may have staged their own edit, and a bare `git commit`
+        # would take it. The `add` above is still needed -- `--only` reaches a path git is not
+        # yet tracking only once something has put it in the index.
+        #
         # `--no-verify` is never used here: the commit-msg hook's rule applies to this message
         # like any other, and this one has no trailer for it to catch.
-        git("commit", "-F", str(msg))
+        git("commit", "-F", str(msg), "--only", "--", *paths)
     except OSError:
         pass
     finally:
@@ -3887,15 +4047,19 @@ def mark_interrupted(index, why=None):
     committed = bool(swept) and swept != before
     if not committed:
         # Leave the tree as it was found rather than staged-but-uncommitted, which is the same
-        # bug this function exists to remove, one level down.
-        git("reset")
+        # bug this function exists to remove, one level down. By path again: an unqualified
+        # `git reset` here would unstage a person's own staged work along with it.
+        git("reset", "--", *paths)
         say("   the unfinished slice could NOT be committed -- it is still in the tree, "
             "uncommitted, and .loop/interrupted.json says so", C.YELLOW)
 
     try:
         INTERRUPTED.write_text(
             json.dumps({"session": index, "when": f"{datetime.now():%Y-%m-%d %H:%M:%S}",
-                        "why": said, "head": swept, "swept": committed, "files": dirty}, indent=1),
+                        "why": said, "head": swept, "swept": committed, "files": dirty,
+                        # What the sweep declined to take, so a tree that is still dirty after one
+                        # is explained on disk rather than looking like a half-finished sweep.
+                        "left": left}, indent=1),
             encoding="utf-8", newline="\n",
         )
     except OSError:
@@ -3997,6 +4161,11 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
     proc = subprocess.Popen(
         cmd,
         cwd=ROOT,
+        # The one thing this environment carries that the driver's does not: where a tool the
+        # session runs reports the files it wrote. Set here and nowhere else, so the same tool
+        # run by hand in another terminal -- while this session is in flight -- reports nothing
+        # and its edits stay the person's own. `written.py` owns the convention.
+        env={**os.environ, written.ENV: str(WRITTEN)},
         # Always a pipe, pack or no pack. Inheriting this driver's stdin would hand the console to
         # the child, and the console is where `r` and `s` are typed -- a session started without a
         # pack would silently eat them. Closed immediately when there is nothing to send: the
@@ -4811,6 +4980,9 @@ def drive(opts, goal, chain):
         # Consumed here whatever happens below, so a launch can only ever rejoin a transcript the
         # branch that set it chose: every other path leaves this empty and starts a fresh session.
         rejoined, resume_from = resume_from, ""
+        # Here rather than beside `SLICES.start` above, because this is the line that knows
+        # whether a new session is starting or a dropped one is being picked back up.
+        TOUCH.start(carry=bool(rejoined))
         cli_exit, log, session_id, limit, api_error, dropped = run_session(
             run_id, index, prompt_text, opts, renderer, resume=rejoined)
         step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "

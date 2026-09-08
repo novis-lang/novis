@@ -46,6 +46,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import written  # noqa: E402  -- after the path insert that makes it importable
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "novis.md"
 SOURCES = ROOT / "docs" / "reference"
@@ -730,6 +734,9 @@ def main() -> int:
     else:
         if text != current:
             OUT.write_text(text, encoding="utf-8", newline="\n")
+            # Nothing a session does names this file, and `verify.py` runs this tool in every
+            # session: without the note, the loop's sweep reads it as somebody else's edit.
+            written.record(OUT)
             print(f"reference.py: wrote {OUT.relative_to(ROOT).as_posix()} "
                   f"({len(text.encode('utf-8')) // 1024} KB, {text.count(chr(10))} lines)")
         else:
