@@ -5267,13 +5267,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-cli/src/main.rs` before pricing such a slice, and decide the bridge's answer for the new
   arm in that slice rather than from the build.
   [until: gone crates/nvs-cli/src/main.rs:nvs_types::commands::ArgConv::]
-- **A global interface's *default* method is in no implementor's method table, so
-  `nvs_runtime::call_static` answers `Ok(None)` for it.** `nvs_hir::interfaces::RESERVED` has no
-  source declaration, so `crates/nvs-types/src/layout.rs:219` enters an empty method list per entry
-  and `flatten_methods` inherits nothing — `Parses::tryParse` reads as a member in `iter_lib` and is
-  reachable only through the checker. Call the *required* member and catch the throw yourself; a
-  `Class::tryParse` label comes back `Ok(None)`, which reads as a missing class.
-  [until: gone crates/nvs-types/src/layout.rs:no member on the roster has code for a descriptor's method table to name]
+- **A route row's rendered type cannot tell a class from an enum, so a reader that must branch on the
+  *kind* of type needs the row to say which.** `TypeInterner::describe` renders `Ty::Class(q, [])` and
+  `Ty::Enum(q, _)` as the same bare qualified name, and `closed_set` answers `None` for both, so
+  neither thing `RouteParam` carried discriminated them. Compute the answer where the interner is
+  still alive and carry it on the row; `crates/nvs-types/src/routes.rs`'s `RouteParam::parses` is the
+  shape. [until: reviewed 2026-09-08]
 
 ## Divergences and refusals already pinned
 

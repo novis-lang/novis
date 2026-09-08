@@ -2,66 +2,56 @@
 
 ## State
 
-**Goal 19 — a class a string names, at one contract. Stage 4 is closed on the command side, and the
-route side is decided but not written.** The tree is green (`verify.py`, 8 of 8).
+**Goal 19 — a class a string names, at one contract. Stage 5 has landed on the document side; the
+binding site is what the goal still owes.** The tree is green (`verify.py`, 8 of 8).
 
-**A command argument now converts through its class's own `parse`.**
-`nvs_runtime::commands::ArgConv::Parses(String)` carries the label, `nvs-stdlib`'s `parse_each`
-(`crates/nvs-stdlib/src/command.rs:636`) calls it through `nvs_runtime::call_static` — the same
-route `Core\Command::run` already takes to the handler — and a throw becomes the usage page's
-sentence, carrying what the class said. `Refused` (`:616`) is why: a word the class refused is a
-page, an engine fault is returned unchanged. Two `-p nvs-stdlib --lib` cases pin both.
+**The generated API document answers a capture at a `Parses` class with a bare `{"type": "string"}`.**
+`crates/nvs-cli/src/openapi.rs:390`'s arm is it, and it sits *below* the `Core\Uuid` name arm on
+purpose: `Core\Uuid` implements the same contract, so a rule reading the contract alone would drop
+`format: uuid` from the one type the engine ships. The `schema` function's doc comment is the home of
+why a class may not name its own format.
 
-**`ArgConv::Parses`'s doc comment is the one home of where a conversion path may reach a compiled
-`parse`.** Read it before touching either table. Its three findings: the reach is `call_static` and
-needs an armed class table; the member is `parse` and never `tryParse` (see the playbook bullet);
-and `CaptureConv` has no such arm because a match runs at the door.
+**The row is what tells a class from an enum, because the rendering cannot.**
+`crates/nvs-types/src/routes.rs`'s `RouteParam::parses` is a sixth field, set at both builders — the
+capture walk and the `#[Query]` walk — from `crate::commands::is_parses_class`, which is
+`converts_from_string`'s class arm asked on its own. An enum keeps the empty schema, because its case
+spellings are `Core\Router::match`'s to decide and are not decided yet; a union of literal types keeps
+its bare `enum` with no `type` beside it, which `openapi.rs`'s existing doc owns.
 
-**The route side is settled, by the user, and the goal file carries it.** A program's `parse` does
-not run inside matching: the router narrows on the conversions it reads natively — `int`, `uint`,
-`decimal`, `CaptureConv::Uuid` at `crates/nvs-runtime/src/routes.rs:418`, and a closed set — where a
-refused segment is no match and then a `404`, and a capture typed as any other `Parses` class matches
-on shape and converts at the binding site, where a segment the class refuses is a `400`. The reason
-is that matching runs at the door with no program installed
-(`crates/nvs-server/src/route.rs:85` holds no `Ctx`, `crates/nvs-cli/src/runner.rs:504` matches
-before `unit.install_in(ctx)`), so arming a class table ahead of it would put an implementor's
-`parse` over every request URL ahead of anything that rate-limits it — the priority-1 objection
-`rule:routing/a-capture-narrows-to-a-closed-set` already makes to a regex, which a `parse` body
-exceeds. `docs/agent/goals/19-parses.md` § *Standing decisions* is the home of it, including what it
-costs; `crates/nvs-cli/src/main.rs:1413`'s `Core\Uuid` name arm stays, because it answers what the
-router reads and not what may stand in a capture.
-
-**What the settlement leaves owing**, and none of it is in the next group: the binding site itself
-(`crates/nvs-runtime/src/routes.rs` gap 3), the class-typed exception in
+**What the goal still owes**, all of it in the next group: the binding site
+(`crates/nvs-runtime/src/routes.rs:76`, gap 3), the class-typed exception in
 `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-bad-query-value-is-a-400`,
-and ADR 0160 — the rules and the record being one commit, and that commit being the one that writes
-the binding site. `docs/novis.md:14048`'s "a path whose capture will not convert is claimed by
-nobody" is a `Core\Router::methodsFor` sentence that goes stale the same day.
+ADR 0160 — the rules and the record being one commit, and that commit being the one that writes the
+binding site — and `examples/parses.nvs`, which is stage 5's `exact` check and the acceptance failure
+the driver has been reporting. `docs/novis.md:14048`'s "a path whose capture will not convert is
+claimed by nobody" goes stale the same day.
 
 ## Next group
 
-**Stage 5: the proofs, the half the settlement does not touch** — one file set:
-`crates/nvs-cli/src/openapi.rs`, `crates/nvs-cli/tests/openapi.rs`.
+**Stage 5: the binding site, and the fixture that proves it** — one file set:
+`crates/nvs-runtime/src/routes.rs`, `crates/nvs-runtime/src/commands.rs`,
+`crates/nvs-stdlib/src/router.rs`, `examples/parses.nvs`.
 
-- [ ] **A `Parses` capture's schema is a bare `{"type": "string"}`** —
-      `crates/nvs-cli/src/openapi.rs:372` is the `Core\Uuid` arm and `:356` the function; every
-      other implementor answers the same string with no `format`, which is the goal's standing
-      decision that a named format is a documentation hint over the schema and not a conversion
-      rule. `rule:attributes/api-adds-and-cannot-contradict` is what the document owes.
-- [ ] **The two named checks** — `crates/nvs-cli/tests/openapi.rs:502` is where they append:
-      `a_parses_capture_is_a_string_schema` and `core_uuid_keeps_its_named_format_over_that_schema`,
-      spelled exactly as `docs/agent/loop-goal.toml:5936` names them. The second is the *agreement*
-      shape: the
-      one class with a format keeps it while the roster around it widens.
+- [ ] **A capture typed at a `Parses` class converts at the binding site, and a segment the class
+      refuses is a `400`** — `crates/nvs-runtime/src/routes.rs:76` is gap 3, which states what is
+      missing and what is settled; `crates/nvs-runtime/src/commands.rs:122` is `ArgConv::Parses`, the
+      one home of what reaching a compiled `parse` costs and the route this must copy; and
+      `crates/nvs-stdlib/src/router.rs:1015` is where a `Param` crosses to the program today. The rule
+      edits to `rule:security/route-capture-is-laundered-by-its-type` and
+      `rule:routing/a-bad-query-value-is-a-400`, and ADR 0160 behind them, are **this same commit** —
+      the goal's § *Standing decisions* says so, and `conventions.md` § *A decision record* is why.
+- [ ] **`examples/parses.nvs`, stage 5's `exact` check** — five `want` lines under `nvs run --request`,
+      the last two pinning that a class refuses in a different place than the router does.
+      `crates/nvs-cli/tests/fixtures/api/parses.nvs` is a compiling `implements Parses` class to copy
+      the shape from; `crates/nvs-runtime/src/routes.rs:424` is the native `Core\Uuid` arm whose
+      refusal is the `404` half.
 
 ## Backlog
 
-- The blocked decision above — its home is the goal's one record, `docs/decisions/0160.md`.
-- `examples/parses.nvs` (`loop-goal.toml:5919`) — blocked on the same answer; its fourth `want` line
-  is the one that moves under (b).
-- ADR 0160, the goal's one record — owes the settlement, stage 3's `ArgConv::Uuid` →
-  `ArgConv::Parses` widening, the `Core\Uuid` reclassification, the `Core\Uri` exclusion,
-  `rule:core-api/reserved-namespace` and stage 2's `E0404`.
-- The route-side conversion site, once the answer lands — `crates/nvs-runtime/src/routes.rs` gap 3.
-- A subset of an enum's cases is still `ArgConv::Unconverted` — `crates/nvs-runtime/src/commands.rs`
-  gap 1, untouched by this goal.
+- ADR 0160 is the one number this goal may open — `docs/decisions/`, next free re-checked at the file.
+- `docs/novis.md:14048`'s `Core\Router::methodsFor` sentence, stale the day the binding site lands.
+- The `[context] rules` manifest in `docs/agent/loop-goal.toml` is missing
+  `attributes/api-adds-and-cannot-contradict`, which stage 5's own item names as what the document
+  owes; add it before the next document slice.
+- `crates/nvs-cli/tests/fixtures/api/` is not enumerated by anything, so a new fixture there costs no
+  registration — `docs/agent/handoff.md` is the wrong home for that if it recurs.

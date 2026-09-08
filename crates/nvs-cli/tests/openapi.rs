@@ -500,3 +500,58 @@ fn an_apis_four_values_reach_the_operation_and_nothing_else() {
         "with no example, since nothing wrote one:\n{bare}"
     );
 }
+
+// -------------------------------------------------------------------------
+// § 1's type list at its last entry: a class a segment reaches through its own
+// `parse`. The two tests are one bound asserted on both sides — what a class
+// answers, and what the one class the engine ships answers over it.
+
+/// A capture declared at a `Parses` class is the string its `parse` is given
+/// and nothing narrower: the contract says the text either parses or does not,
+/// never which texts do, so there is no set to publish. The `#[Query]` key
+/// beside it is the same answer by the same walk
+/// (`rule:routing/a-query-parameter-is-declared-like-a-capture`), which is what
+/// holds the *second* row builder to the first — a class and an enum render
+/// alike, so a row that did not say which would leave both of these the empty
+/// schema, meaning *any string, or any number, or any object*.
+#[test]
+fn a_parses_capture_is_a_string_schema() {
+    let (doc, err, ok) = build(&fixture("parses"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let params = &document["paths"]["/posts/{slug}"]["get"]["parameters"];
+
+    assert_eq!(
+        params[0],
+        serde_json::json!({
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"},
+        }),
+        "a capture at a class built from text is a bare string:\n{doc}"
+    );
+    assert_eq!(
+        params[1]["schema"],
+        serde_json::json!({"type": "string"}),
+        "and a `#[Query]` key at that class is the same schema:\n{doc}"
+    );
+}
+
+/// `Core\Uuid` implements that same contract, so a document written off the
+/// contract alone would drop `format: uuid` from the type the engine ships. The
+/// format is a documentation hint over the string schema every implementor
+/// answers, registered by the JSON Schema dialect for a type this binary owns —
+/// not a conversion rule, and not something a class may declare for itself.
+#[test]
+fn core_uuid_keeps_its_named_format_over_that_schema() {
+    let (doc, err, ok) = build(&fixture("parses"));
+    assert!(ok, "the fixture compiles: {err}");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+
+    assert_eq!(
+        document["paths"]["/posts/by-id/{id}"]["get"]["parameters"][0]["schema"],
+        serde_json::json!({"type": "string", "format": "uuid"}),
+        "the engine's own class keeps its format over the bare string:\n{doc}"
+    );
+}

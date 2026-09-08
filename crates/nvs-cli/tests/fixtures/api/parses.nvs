@@ -1,0 +1,36 @@
+<?nvs
+// A capture at a class built from text, beside the one class the engine ships
+// at that contract. The document tells them apart and the type rendering
+// cannot: `Slug` and an enum are both a qualified name by the time the emitter
+// reads a row, so `RouteParam::parses` is what this fixture exercises.
+//
+// `parse` answers `new static()` and checks nothing, deliberately: what the
+// class does with the text is the binding site's business, and this fixture is
+// only asked what the *document* says about a segment declared at it.
+
+class Slug implements Parses
+{
+    public static function parse(tainted string $s): static
+    {
+        return new static();
+    }
+}
+
+class Posts
+{
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Slug $slug, #[Core\Query] Slug $related): string
+    {
+        return "one post";
+    }
+
+    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function byId(Core\Uuid $id): string
+    {
+        return "one post";
+    }
+}
+
+echo "GET /posts/hello-world -> Posts::show", "\n";
