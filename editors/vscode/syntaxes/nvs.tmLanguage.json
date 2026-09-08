@@ -46,10 +46,14 @@
       "patterns": [{ "include": "text.html.basic" }]
     },
     "code": {
-      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below these two: a rule that colours a keyword or a type has no way to know it is inside a comment, so whatever consumes comments has to be offered the position first.",
+      "comment": "Code mode itself. The remaining construct families of rule:ide/highlighting-is-two-layers land here, one slice each, and every one of them goes below the first three: a rule that colours a keyword or a type has no way to know it is inside a comment or a string literal, so whatever consumes those has to be offered the position first. The contextual spellings go above the reserved table for the same reason in miniature — `spawn script` has to be read before `spawn` can be read as anything.",
       "patterns": [
         { "include": "#attribute" },
-        { "include": "#comments" }
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#contextual-keywords" },
+        { "include": "#keywords" },
+        { "include": "#numbers" }
       ]
     },
     "attribute": {
@@ -73,6 +77,172 @@
         { "name": "comment.line.number-sign.nvs", "match": "#(?!\\[).*$" },
         { "name": "comment.block.nvs", "begin": "/\\*", "end": "\\*/" }
       ]
+    },
+    "keywords": {
+      "comment": "The whole reserved table at crates/nvs-syntax/src/token.rs:424, matched exactly and in lower case only, because crates/nvs-syntax/src/lexer.rs:650 looks a name up as it is written: `IF` is an identifier and a legal class name (rule:classes/reserved-spellings-are-lower-case), so no pattern here may be case-insensitive. The two lookbehinds are the one place this grammar knows more than the lexer: `$obj->list` and `Order::class` lex as keyword tokens there too, but the name after `->` or `::` is a member rather than a construct, and layer two is what colours it as one. The qualifiers `tainted` and `secret` are ordinary modifiers here — that a value carries one at its use site is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
+      "patterns": [
+        {
+          "name": "keyword.control.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:break|case|catch|continue|default|do|elseif|else|finally|foreach|for|goto|if|match|return|switch|throw|try|while|yield)\\b"
+        },
+        {
+          "name": "keyword.operator.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:and|as|instanceof|is|or|xor)\\b"
+        },
+        {
+          "name": "keyword.other.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:autoload|clone|declare|die|echo|empty|eval|exit|extract|global|include_once|include|isset|list|namespace|new|print|require_once|require|settype|unset|use)\\b"
+        },
+        {
+          "name": "storage.type.class.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:class|enum|interface|trait)\\b"
+        },
+        {
+          "name": "storage.type.function.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:function|fn)\\b"
+        },
+        {
+          "name": "storage.type.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:array|bool|bytes|callable|const|decimal|float|int|iterable|let|mixed|never|object|string|uint|var|void)\\b"
+        },
+        {
+          "name": "storage.modifier.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:abstract|extends|final|implements|inout|insteadof|lateinit|private|protected|public|readonly|secret|static|tainted)\\b"
+        },
+        {
+          "name": "constant.language.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:false|null|true)\\b"
+        },
+        {
+          "name": "variable.language.nvs",
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:parent|self)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "comment": "A duration is offered before the number it opens with, because rule:types/duration-literal makes `1h30m` one token rather than three and a grammar that colours `1h` alone says the opposite. The chain of optional groups is that rule's whole grammar: the units are lower case, strictly descending and each at most once, so `30m1h`, `1h1h` and `30S` are refused by the pattern itself and colour as the plain integer they start with — rule:ide/rejected-syntax-gets-no-colour, applied to a literal the lexer will report. The trailing guard is what forces the run to be consumed whole, and the leading one keeps `0x1d`'s `1d` and `1.5s`'s `5s` from being read as durations inside a literal that is not one.",
+      "patterns": [
+        {
+          "name": "constant.numeric.nvs",
+          "match": "(?<![\\w.$])(?=\\d)(?:\\d[\\d_]*w)?(?:\\d[\\d_]*d)?(?:\\d[\\d_]*h)?(?:\\d[\\d_]*m)?(?:\\d[\\d_]*s)?(?:\\d[\\d_]*ms)?(?:\\d[\\d_]*us)?(?:\\d[\\d_]*ns)?(?![\\w.])"
+        },
+        { "name": "constant.numeric.nvs", "match": "(?<![\\w.$])0[xX][0-9A-Fa-f_]+\\b" },
+        { "name": "constant.numeric.nvs", "match": "(?<![\\w.$])0[oO][0-7_]+\\b" },
+        { "name": "constant.numeric.nvs", "match": "(?<![\\w.$])0[bB][01_]+\\b" },
+        {
+          "comment": "crates/nvs-syntax/src/lexer.rs:695: a digit run takes `_` anywhere inside it, a trailing `.` alone already makes a float, and an exponent needs a digit after its sign or it is not one.",
+          "name": "constant.numeric.nvs",
+          "match": "(?<![\\w.$])\\d[\\d_]*(?:\\.[\\d_]*)?(?:[eE][-+]?\\d[\\d_]*)?"
+        }
+      ]
+    },
+    "contextual-keywords": {
+      "comment": "The spellings crates/nvs-syntax/src/parser/mod.rs:609 recognises by text, one position at a time. Each of them lexes as an ordinary identifier, so a method may already be called `type` or `get`, and every pattern here carries the neighbouring token that makes the spelling a construct: `spawn` on its own is a name expression (crates/nvs-syntax/src/parser/expr.rs:1451) and only `spawn script` is not. Where the neighbour is too far away for a regex to see it, the word is left uncoloured rather than guessed at — `with`, whose `spawn script` path stands between it and anything anchoring, is the one that is.",
+      "patterns": [
+        {
+          "match": "(?<![$\\w])(spawn)\\s+(script)\\b",
+          "captures": {
+            "1": { "name": "keyword.control.nvs" },
+            "2": { "name": "keyword.control.nvs" }
+          }
+        },
+        {
+          "comment": "`private(set)` narrows a visibility rather than opening a hook: crates/nvs-syntax/src/parser/decl.rs:155.",
+          "match": "(?<![$\\w])(public|private|protected)\\s*\\(\\s*(set)\\s*\\)",
+          "captures": {
+            "1": { "name": "storage.modifier.nvs" },
+            "2": { "name": "keyword.other.nvs" }
+          }
+        },
+        { "name": "keyword.control.nvs", "match": "(?<![$\\w])await\\b(?=\\s+[$\\\\A-Za-z_])" },
+        {
+          "name": "storage.type.nvs",
+          "match": "(?<![$\\w])type\\b(?=\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=)"
+        },
+        { "name": "keyword.other.nvs", "match": "(?<![$\\w])by\\b(?=\\s+\\$)" },
+        { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:from|discover)\\b(?=\\s*['\"$])" },
+        { "name": "keyword.other.nvs", "match": "(?<![$\\w])(?:get|set)\\b(?=\\s*(?:\\{|=>))" }
+      ]
+    },
+    "strings": {
+      "comment": "Every string literal, and the one bit that separates them: whether it interpolates. crates/nvs-syntax/src/lexer.rs:1194 decides it from the header's quote alone — a nowdoc `<<<'LABEL'` and a single-quoted string carry no interpolation, a heredoc `<<<LABEL` or `<<<\"LABEL\"` and a double-quoted string carry both spellings of it. The nowdoc is offered first, and the heredoc's own header refuses a `'` as well, so neither the ordering nor the pattern alone is what keeps them apart.",
+      "patterns": [
+        { "include": "#nowdoc" },
+        { "include": "#heredoc" },
+        { "include": "#single-quoted" },
+        { "include": "#double-quoted" }
+      ]
+    },
+    "single-quoted": {
+      "comment": "crates/nvs-syntax/src/lexer.rs:803: `\\\\` and `\\'` are the only escapes here and every other backslash is a backslash, so a `\\n` in one of these is two characters. Colouring it as an escape would claim a newline the literal does not hold.",
+      "name": "string.quoted.single.nvs",
+      "begin": "'",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.nvs" } },
+      "end": "'",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.nvs" } },
+      "patterns": [{ "name": "constant.character.escape.nvs", "match": "\\\\['\\\\]" }]
+    },
+    "double-quoted": {
+      "name": "string.quoted.double.nvs",
+      "begin": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.nvs" } },
+      "end": "\"",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.nvs" } },
+      "patterns": [{ "include": "#escape" }, { "include": "#interpolation" }]
+    },
+    "heredoc": {
+      "comment": "The header crates/nvs-syntax/src/lexer.rs:1113 accepts: optional horizontal space after `<<<`, then the label — bare or in double quotes — alone on the rest of its line, and the same label closing it at the start of a line, indented as far as the author likes and needing nothing after it. The quote is captured so the pattern requires the same one on both sides, which is also what makes it refuse the `'` a nowdoc opens with.",
+      "name": "string.unquoted.heredoc.nvs",
+      "begin": "(<<<[ \\t]*(\"|)([A-Za-z_][A-Za-z0-9_]*)\\2)[ \\t]*$",
+      "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },
+      "end": "^[ \\t]*(\\3)(?![A-Za-z0-9_])",
+      "endCaptures": { "1": { "name": "punctuation.definition.string.end.nvs" } },
+      "patterns": [{ "include": "#escape" }, { "include": "#interpolation" }]
+    },
+    "nowdoc": {
+      "comment": "The same header with the one quote that turns interpolation off, so the body carries no patterns at all: a `$name` in a nowdoc is the text it looks like, and neither an escape nor an interpolation slot may colour inside it.",
+      "name": "string.unquoted.nowdoc.nvs",
+      "begin": "(<<<[ \\t]*'([A-Za-z_][A-Za-z0-9_]*)')[ \\t]*$",
+      "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },
+      "end": "^[ \\t]*(\\2)(?![A-Za-z0-9_])",
+      "endCaptures": { "1": { "name": "punctuation.definition.string.end.nvs" } }
+    },
+    "escape": {
+      "comment": "Exactly the spellings crates/nvs-types/src/string_lit.rs:231 decodes and no others: a `\\q` is a backslash and a `q`, so colouring it would claim the backslash disappears. `\\u{...}` is the one that can be malformed rather than merely literal — crates/nvs-syntax/src/lexer.rs:1312 reports E_INVALID_ESCAPE for it — so a broken one is marked invalid instead of being left as text, which is rule:ide/rejected-syntax-gets-no-colour reaching inside a literal. The valid pattern is offered first, so a well-formed escape is never the invalid one.",
+      "patterns": [
+        {
+          "name": "constant.character.escape.nvs",
+          "match": "\\\\(?:[nrtvef\"$\\\\]|[0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u\\{[0-9A-Fa-f]+\\})"
+        },
+        { "name": "invalid.illegal.escape.nvs", "match": "\\\\u\\{[0-9A-Fa-f]*\\}?" }
+      ]
+    },
+    "interpolation": {
+      "comment": "The two spellings crates/nvs-syntax/src/lexer.rs:1260 recognises and nothing else: `{$` opens a slot holding an expression, and a `$` followed by an identifier-start opens the simple one. PHP's third spelling `${name}` is not one of them, so it stays the literal text it is rather than being coloured as a variable Novis will not read there.",
+      "patterns": [
+        { "include": "#complex-interpolation" },
+        { "include": "#simple-interpolation" }
+      ]
+    },
+    "complex-interpolation": {
+      "comment": "`{$…}` holds an expression, so its body is `#code` — which is also what stops a `}` inside a nested string from closing the slot early.",
+      "name": "meta.embedded.line.nvs",
+      "begin": "(\\{)(?=\\$)",
+      "beginCaptures": { "1": { "name": "punctuation.section.embedded.begin.nvs" } },
+      "end": "(\\})",
+      "endCaptures": { "1": { "name": "punctuation.section.embedded.end.nvs" } },
+      "patterns": [{ "include": "#code" }]
+    },
+    "simple-interpolation": {
+      "comment": "PHP's simple syntax, in the shape crates/nvs-syntax/src/lexer.rs:1344 reads it: `$name`, one level of `->prop`, or one `[offset]` whose offset is a bareword, digits or another variable. Anything deeper needs `{$…}`, so `$a->b->c` colours `$a->b` and leaves `->c` as the literal text the runtime will read there.",
+      "match": "(\\$[A-Za-z_][A-Za-z0-9_]*)(?:(->)([A-Za-z_][A-Za-z0-9_]*)|\\[(?:(-?[A-Za-z0-9_]+)|(\\$[A-Za-z_][A-Za-z0-9_]*))\\])?",
+      "captures": {
+        "1": { "name": "variable.other.nvs" },
+        "2": { "name": "punctuation.accessor.nvs" },
+        "3": { "name": "variable.other.property.nvs" },
+        "4": { "name": "constant.other.nvs" },
+        "5": { "name": "variable.other.nvs" }
+      }
     }
   }
 }

@@ -46,7 +46,9 @@ describe("the openers, and the HTML around them", () => {
   });
 
   it("reads what is between them as code", () => {
-    assert.ok(span(spans, "$total = 1;").scopes.includes(CODE));
+    for (const text of ["$total = ", "1"]) {
+      assert.ok(span(spans, text).scopes.includes(CODE), `${text} is not code`);
+    }
   });
 
   it("reads what is outside them as not code", () => {
@@ -82,7 +84,7 @@ describe("the tags that open code mode and are wrong doing it", () => {
     assert.ok(found.scopes.includes(INVALID), `${found.scopes}`);
     assert.equal(found.scopes.includes(BEGIN), false, "<?php is coloured like a valid opener");
     assert.ok(found.scopes.includes(CODE), "<?php does not open code mode");
-    assert.ok(span(spans, "$legacy = 2;").scopes.includes(CODE));
+    assert.ok(span(spans, "$legacy = ").scopes.includes(CODE));
   });
 
   it("marks a miscased <?NVS invalid and still opens code mode", () => {
@@ -91,7 +93,7 @@ describe("the tags that open code mode and are wrong doing it", () => {
     const found = span(spans, "<?NVS");
     assert.ok(found.scopes.includes(INVALID), `${found.scopes}`);
     assert.equal(found.scopes.includes(BEGIN), false, "<?NVS is coloured like a valid opener");
-    assert.ok(span(spans, "$total = 1;").scopes.includes(CODE));
+    assert.ok(span(spans, "$total = ").scopes.includes(CODE));
   });
 
   it("reads <?phpx as the text it is", () => {
@@ -113,7 +115,7 @@ describe("a file that opens with #!", () => {
   it("reads line one as a comment and continues in code mode", () => {
     const shebang = span(spans, "#!/usr/bin/env nvs");
     assert.ok(shebang.scopes.includes("comment.line.number-sign.shebang.nvs"), `${shebang.scopes}`);
-    assert.ok(span(spans, "$total = 1;").scopes.includes(CODE));
+    assert.ok(span(spans, "$total = ").scopes.includes(CODE));
   });
 
   it("switches to text mode on ?> like any other code block", () => {

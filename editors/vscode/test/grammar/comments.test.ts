@@ -67,7 +67,8 @@ describe("the attribute that is not a # comment", () => {
   });
 
   it("colours no part of the attribute as a comment", () => {
-    for (const text of ["#[", "Route(\"/orders\")", "]"]) {
+    // The argument is a string literal now, so the body reads as four spans rather than one.
+    for (const text of ["#[", "Route(", "/orders", ")", "]"]) {
       const found = span(spans, text);
       assert.deepEqual(commentScopes(found), [], `${text} is coloured as a comment`);
       assert.ok(found.scopes.includes(ATTRIBUTE), `${text} is outside the attribute`);
@@ -76,6 +77,6 @@ describe("the attribute that is not a # comment", () => {
 
   it("ends the attribute rather than running to the end of the line", () => {
     // The failure this catches is the whole rest of the file joining the attribute.
-    assert.equal(span(spans, "class Orders {}").scopes.includes(ATTRIBUTE), false);
+    assert.equal(span(spans, "class").scopes.includes(ATTRIBUTE), false);
   });
 });
