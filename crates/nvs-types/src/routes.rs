@@ -467,9 +467,10 @@ pub enum ParamIn {
 /// value binds by, where it arrives from, whether it may be absent, the
 /// declared type rendered by [`crate::TypeInterner::describe`], and — where
 /// that type is one — `rule:routing/a-capture-narrows-to-a-closed-set`
-/// 's closed set of values it admits. Those are the five things
+/// 's closed set of values it admits, and whether that type is a class a
+/// segment reaches through its own `parse`. Those are the six things
 /// `rule:routing/api-document-is-generated-from-the-route-table`
-/// 's document is built out of — the last of them is that section's
+/// 's document is built out of — the closed set is that section's
 /// *Enumerations* row, `enum: [en, de, fr]` — and nothing else. A rendered type
 /// rather than a `TypeId` because the interner that would answer it is dropped
 /// with the checking pass, and because the emitter's whole use of a type is to
@@ -501,6 +502,15 @@ pub struct RouteParam {
     /// reason exactly. An enum-case member contributes nothing and takes the
     /// whole set with it — see [`closed_set`], which owns why.
     pub allowed: Option<Vec<String>>,
+    /// `true` where the declared type is a class a segment reaches through its
+    /// own `parse` — `rule:expressions/try-parse`'s pair read as `Parses`, which
+    /// is [`crate::commands::is_parses_class`]'s question.
+    ///
+    /// Carried rather than derived for [`Self::ty`]'s reason and one more: a
+    /// class and an enum render *identically*, as the qualified name, so a
+    /// reader holding the rendering cannot tell the type whose wire form is a
+    /// bare string from the one whose case spellings are still undecided.
+    pub parses: bool,
 }
 
 /// Every route the program declares, in the order they were walked — file by
@@ -1664,6 +1674,7 @@ fn check_captures(
             required: !matches!(capture, Capture::Optional(_)),
             ty: None,
             allowed: None,
+            parses: false,
         });
         let Some((index, param)) = m
             .params
@@ -1710,9 +1721,11 @@ fn check_captures(
         };
         let described = env.interner.describe(ty);
         let allowed = closed_set(ty, env);
+        let parses = crate::commands::is_parses_class(ty, env);
         if let Some(row) = params.last_mut() {
             row.ty = Some(described.clone());
             row.allowed = allowed;
+            row.parses = parses;
         }
         let admitted = match capture {
             // The one row the shared roster does not answer for: nothing about
@@ -1845,6 +1858,7 @@ fn query_params(
             required: param.default.is_none(),
             ty: declared.map(|ty| env.interner.describe(ty)),
             allowed: declared.and_then(|ty| closed_set(ty, env)),
+            parses: declared.is_some_and(|ty| crate::commands::is_parses_class(ty, env)),
         });
     }
     keys

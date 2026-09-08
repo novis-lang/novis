@@ -230,7 +230,10 @@ fn responses(row: &Route) -> Value {
     success.insert("description".to_owned(), json!("success"));
     if !matches!(returns, None | Some("void")) {
         let mut media = Map::new();
-        media.insert("schema".to_owned(), schema(returns, None));
+        // `false`: a return type is a body the codec encodes, not a segment a
+        // `parse` is given, so a class here is the class-body gap this module
+        // records and never a string.
+        media.insert("schema".to_owned(), schema(returns, None, false));
         // § 2's `example` sits beside the schema it is an example of, which is
         // 3.1's own place for one. A handler answering with nothing has no
         // media type to hang it on, so an example written there reaches no
@@ -321,7 +324,7 @@ fn parameter(param: &RouteParam) -> Value {
             ParamIn::Query => "query",
         },
         "required": param.required,
-        "schema": schema(param.ty.as_deref(), param.allowed.as_deref()),
+        "schema": schema(param.ty.as_deref(), param.allowed.as_deref(), param.parses),
     })
 }
 
@@ -353,7 +356,18 @@ fn parameter(param: &RouteParam) -> Value {
 /// deciding a *JSON* type the row does not carry, in the module whose whole
 /// premise is that it decides nothing; and no `"type"` is emitted beside the set
 /// for the same reason, JSON Schema taking the type from the members.
-fn schema(ty: Option<&str>, allowed: Option<&[String]>) -> Value {
+///
+/// `parses` is [`RouteParam::parses`], and it is what a class-typed capture is
+/// read from rather than its name: `describe` renders a class and an enum the
+/// same way, as the qualified name, so the row has to say which. Every
+/// implementor answers the bare `{"type": "string"}` its `parse` is given, and
+/// the one arm above that says more is a format the *engine* registers for a
+/// type it ships — a class declaring its own is a feature this module does not
+/// have, and guessing one from a name would be the contradiction
+/// `rule:attributes/api-adds-and-cannot-contradict` forbids. An enum keeps the
+/// empty schema for the other half of the same reason: its case spellings are
+/// `Core\Router::match`'s to decide and are not decided yet.
+fn schema(ty: Option<&str>, allowed: Option<&[String]>, parses: bool) -> Value {
     let mut rendered = match ty {
         Some("bool") => json!({"type": "boolean"}),
         Some("int") => json!({"type": "integer"}),
@@ -370,6 +384,10 @@ fn schema(ty: Option<&str>, allowed: Option<&[String]>) -> Value {
         // `nvs_stdlib::uuid::NAME` as `describe` renders it — matched as text
         // like every arm above, because this crate depends on `nvs-types` alone.
         Some(r"Core\Uuid") => json!({"type": "string", "format": "uuid"}),
+        // Every other class a capture may stand at: the text its `parse` is
+        // given, and nothing narrower, because the contract says the text
+        // either parses or does not and never which texts do.
+        _ if parses => json!({"type": "string"}),
         _ => json!({}),
     };
     if let (Some(values), Some(object)) = (allowed, rendered.as_object_mut()) {

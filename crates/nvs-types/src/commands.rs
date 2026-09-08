@@ -815,6 +815,18 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
     }
 }
 
+/// [`converts_from_string`]'s class arm, asked on its own: whether a segment or
+/// an argument's text reaches `ty` through that class's own `parse`.
+///
+/// The route table's rows carry the answer because nothing downstream can
+/// derive it — [`crate::TypeInterner::describe`] renders a class and an enum
+/// identically, as the qualified name and nothing else, so a reader holding the
+/// rendering alone cannot tell a class built from text from an enum whose case
+/// spellings are `Core\Router::match`'s to decide.
+pub(crate) fn is_parses_class(ty: TypeId, env: &Env<'_>) -> bool {
+    matches!(env.interner.get(ty), Ty::Class(name, _) if reaches_parses(name, env))
+}
+
 /// Whether `qname` implements `Parses` — **two tables, because a `Core` class
 /// declares nothing**, which is the arrangement
 /// `crate::expr::operators`'s own `Comparable` question is already read
