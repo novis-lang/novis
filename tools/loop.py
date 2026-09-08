@@ -4506,8 +4506,12 @@ def run_cli():
         for c in (goal.catch_up_checks + goal.program_floor
                   + goal.cargo_checks + goal.program_checks):
             if "file" in c:
-                extra = " ".join(c.get("args", []))
-                say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
+                # The argv `program_check` actually builds, in its order and behind its subcommand:
+                # a check's own `args` go *ahead* of the fixture, so a line printed the other way
+                # round names a command nothing runs -- and this is the line a session reads to
+                # decide whether a `want` is producible at all.
+                argv = " ".join(["run", *c.get("args", []), c["file"]])
+                say(f"  [{c.get('stage', '?')}] {c['kind']:<10} nvs {argv}")
                 continue
             if c["kind"] == "command":
                 memo = "  (memoized against the tree)" if c.get("memoize") else ""
