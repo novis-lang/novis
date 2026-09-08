@@ -1,7 +1,7 @@
-# Goal 36 -- The memory ceiling stops a single operation
+# Goal 36 -- Every resource ceiling stops the request that breaks it
 # The acceptance test, as data.
 #
-# `36-memory-ceiling.md` is the prose. One home each.
+# `36-resource-ceilings.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -13,25 +13,29 @@ files = [
 [context]
 
 modules = [
-  # The counters, and the module doc that already records this gap as a known one -- including the
-  # two candidate fixes and why the pointer one has a soundness question under it.
-  "crates/nvs-runtime/src/budget.rs",
   # `Ctx`'s hot line: which words compiled code loads inline, the offsets its own tests pin, and
-  # `deadline` -- the out-of-line shared word stage 2 copies in every respect.
+  # `deadline` -- the out-of-line word a non-owning thread writes, which stages 2 and 3 both copy.
   "crates/nvs-runtime/src/ctx/mod.rs",
-  # The poll's slow path and its memory branch, which is written and unreachable today.
+  # The poll's slow path. Its CPU arm and its memory arm are both written and both unreachable.
   "crates/nvs-runtime/src/ctx/safepoint.rs",
-  # `refresh_limits` -- the one place a ceiling is computed, and so the one place stage 3 arms.
+  # The counters, and the module doc that already records the memory half as a known gap.
+  "crates/nvs-runtime/src/budget.rs",
+  # `refresh_limits` -- the one place a ceiling is computed, and so the one place stage 4 arms.
   "crates/nvs-runtime/src/ctx/limits.rs",
-  # `run_helper`'s pre-body check and `affordable`'s "not a budget" paragraph: the seam that works
-  # today, and the comment stage 3 rewrites.
+  # `run_helper`'s pre-body check, `bounded_loop`'s deadline poll, and `affordable`'s "not a budget"
+  # paragraph: the seams that work today, and the comment stage 4 rewrites.
   "crates/nvs-runtime/src/abi.rs",
   # `nvs_str_append`'s in-place and grow paths, `try_alloc_uninit`, `IMMORTAL_REFCOUNT`, and the
   # block comment above the primitives that argues they cannot fail because allocation aborts.
   "crates/nvs-runtime/src/string.rs",
   # `nvs_array_next_slot`'s doc comment -- foreach walks a snapshot and a body write separates,
-  # which is the whole of why stage 4's refusal must be a complete no-op.
+  # which is the whole of why stage 5's refusal must be a complete no-op.
   "crates/nvs-runtime/src/array.rs",
+  # One thread for the process, one entry per core, already waking on an interval: stage 3's sampler
+  # goes here rather than in a thread of its own.
+  "crates/nvs-host/src/watchdog.rs",
+  # The local tier: a `thread_local` that outlives a request, which is stage 6's first bracket.
+  "crates/nvs-stdlib/src/cache.rs",
   # The poll's emit site, `ctx_p`'s binding in the ABI entry block, and the runtime signatures the
   # ctx-less primitives share.
   "crates/nvs-codegen/src/emit.rs",
@@ -46,7 +50,7 @@ modules = [
 rules = [
   # What a resource-limit breach owes: a FATAL, tier 1's handler, and never a `catch`.
   "errors/on-limit",
-  # Why the abort is the bug rather than the fallback, and what a change that spends memory owes.
+  # Why an abort is the bug rather than the fallback, and what a change that spends memory owes.
   "programs/memory-priority",
   # One ceiling per tree, and why the poll word is the tree's rather than each context's.
   "security/isolate-shares-nothing",
@@ -54,7 +58,13 @@ rules = [
 
 adrs = []
 
-shapes = ["A commit message", "A decision record", "A rule fragment", "A `.nvst` test case", "A code comment"]
+shapes = [
+  "A commit message",
+  "A decision record",
+  "A rule fragment",
+  "A `.nvst` test case",
+  "A code comment",
+]
 
 milestones = ["M6:verify"]
 
@@ -86,16 +96,29 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `36-memory-ceiling.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `36-resource-ceilings.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
 # The poll's cost class, and why an instruction count is the headline and a timer is not.
 rules = ["testing/perf-two-mechanisms"]
 
-[context.stage.4]
+[context.stage.3]
+# What a helper owes a deadline it cannot otherwise reach, and the two rules that own what happens to
+# a core that stops turning -- neither of which this stage changes.
+rules = [
+  "http-server/time-is-bounded-inside-a-helper",
+  "http-server/a-wedged-core-is-detected-by-its-deadline",
+  "http-server/a-wedged-core-is-shed-never-killed",
+]
+
+[context.stage.5]
 # Why a primitive may not unwind, which is what forces the degenerate return.
 rules = ["errors/helper-abi", "errors/propagation"]
+
+[context.stage.7]
+# The shape stage 7's new fragment copies: bound the input, not the output.
+rules = ["core-classes/regex-two-tiers"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
@@ -114,16 +137,18 @@ memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- the two cases that say nothing notices. Both run red the day they are written; the loop
-# one goes green at stage 3 and the single-operation one at stage 4. Goal prose stage 0.
+# Stage 0 -- the three cases that say nothing notices. All red the day they are written; the CPU one
+# goes green at stage 3, the loop one at stage 4, the single-operation one at stage 5.
+# Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "nvs-suite"
 stage = "0 the catch-up"
-name = "a breach is noticed without a member call, and before the allocation it asked for"
+name = "a runaway is stopped whether it allocates, calls or does neither"
 args = ["test", "tests/conformance/error/"]
 cases = [
+  "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst",
   "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
   "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
 ]
@@ -156,12 +181,47 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the allocator publishes, which bounds a loop. Goal prose stage 3.
+# Stage 3 -- the clock. The sampler rides the watchdog thread; both halves of what it raises are
+# polled by code that already exists. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the allocator publishes"
+stage = "3 the clock"
+name = "a thread's own cpu time is sampled, and a slow wait is not a runaway"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_thread_cpu_clock_advances_with_work_and_not_with_waiting",
+  "a_core_past_its_cpu_ceiling_is_flagged_within_one_interval",
+  "a_core_parked_on_io_past_the_same_wall_time_is_not_flagged",
+  "a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the clock"
+name = "both poll sites act on the flag the sampler raises"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_raised_cpu_flag_stops_compiled_code_at_its_next_back_edge",
+  "a_raised_cpu_flag_stops_a_bounded_loop_inside_a_member",
+  "the_limit_handler_runs_once_and_is_not_re_entered_when_it_overruns",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the clock"
+name = "a loop that allocates nothing is stopped by the cpu ceiling"
+args = ["test", "tests/conformance/error/"]
+cases = ["tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the allocator publishes, which bounds a loop. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the allocator publishes"
 name = "a growing allocation past the ceiling raises the flag, and an uncapped request arms nothing"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -173,19 +233,19 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the allocator publishes"
+stage = "4 the allocator publishes"
 name = "a loop that calls nothing is stopped at its own back edge"
 args = ["test", "tests/conformance/error/"]
 cases = ["tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the value allocators refuse, which bounds one operation. The cursor test is the one that
-# says the degenerate return is sound rather than merely cheap. Goal prose stage 4.
+# Stage 5 -- the value allocators refuse, which bounds one operation. The cursor test is what says the
+# degenerate return is sound rather than merely cheap. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the refusal"
+stage = "5 the refusal"
 name = "a refused allocation never happens, and every string path is fallible"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -198,7 +258,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the refusal"
+stage = "5 the refusal"
 name = "a refused array write neither writes nor separates, so a live cursor still walks its snapshot"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -207,30 +267,58 @@ tests = [
   "an_array_append_past_the_ceiling_refuses_through_the_status_it_already_has",
 ]
 
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the budget is the request's own. The cross-request case is the one an attacker reaches
+# through `Core\Cache::local`. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 whose bytes they are"
+name = "freeing what an earlier request allocated buys no headroom"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_request_that_frees_inherited_memory_gains_no_ceiling",
+  "a_detached_bracket_moves_the_process_counter_and_not_the_request_reading",
+  "a_bracket_restores_on_unwind_as_well_as_on_return",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 whose bytes they are"
+name = "every cross-request store is bracketed, the local cache tier first"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_cache_write_is_charged_to_the_process_and_not_to_the_request",
+  "an_eviction_from_a_later_request_lowers_no_ceiling",
+  "a_cache_entry_still_counts_against_the_local_tier_max_size",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the records and the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
 [[check]]
 kind = "nvs-suite"
-stage = "4 the refusal"
-name = "both stage 0 cases are green, and the tree still is"
+stage = "7 the record"
+name = "all three stage 0 cases are green, and the tree still is"
 args = ["test", "tests/conformance/"]
 cases = [
+  "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst",
   "tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst",
   "tests/conformance/error/one-operation-past-the-ceiling-is-refused-before-it-allocates.nvst",
   "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
   "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst",
 ]
 
-# ---------------------------------------------------------------------------------------------------
-# Stage 5 -- the record, and the rulebook it adds to. Goal prose stage 5.
-# ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the record"
-name = "the rulebook validates and the decision summary owes nothing"
+stage = "7 the record"
+name = "the rulebook validates, including the fragment this goal adds"
 argv = ["python", "tools/rules.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "5 the record"
+stage = "7 the record"
 name = "every record this goal opened is complete and cited"
 argv = ["python", "tools/decisions.py", "--check"]

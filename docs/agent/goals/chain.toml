@@ -455,19 +455,20 @@ milestone = "M10"
 preflight = "docker"
 
 # The chain's first correctness item since goal 21, and it sits ahead of the dossier because a
-# proof written over an unenforced ceiling proves the wrong thing. M6 reported `[limits] memory`
-# done on a ladder that is correct once something notices a breach -- and nothing notices one in a
-# program that calls no member, so the acceptance line *memory/CPU caps terminate runaway scripts
-# as a FATAL* has never held for a loop over runtime primitives. It is placed after the editor
-# goals rather than before them because it is priority 1 against their priority 4: a runaway
-# request ends at `handle_alloc_error`, which aborts the worker and every other request on it, and
-# that is request isolation rather than fairness. Its keystone was measured before the goal was
-# written, so what is left is publication and refusal rather than a design search.
+# proof written over an unenforced ceiling proves the wrong thing. M6 reported `[limits]` done on
+# a ladder that is correct once something notices a breach, and for two of its ceilings nothing
+# ever does: `[limits] cpu_time` is a number no timer reads, so `while (true) {}` retires a core
+# for the life of the process, and `[limits] memory` is polled at a site a loop over runtime
+# primitives never reaches, so `$a .= $a` ends at an abort that takes every other request on the
+# worker with it. Both are priority 1 against the editor goals' priority 4 -- request isolation
+# rather than fairness -- which is why the goal is placed after them and not behind the dossier.
+# One keystone serves both and is already measured: a poll word a non-owning thread can write,
+# which is what a CPU sampler and the allocator each need to publish into.
 [[goal]]
-name = "36 memory-ceiling"
-md = "docs/agent/goals/36-memory-ceiling.md"
-toml = "docs/agent/goals/36-memory-ceiling.toml"
-handoff = "docs/agent/goals/36-memory-ceiling.handoff.md"
+name = "36 resource-ceilings"
+md = "docs/agent/goals/36-resource-ceilings.md"
+toml = "docs/agent/goals/36-resource-ceilings.toml"
+handoff = "docs/agent/goals/36-resource-ceilings.handoff.md"
 milestone = "M6"
 preflight = "docker"
 
