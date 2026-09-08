@@ -263,9 +263,27 @@ pub struct Inbound {
     /// `post('description')` on a request would otherwise read an exhausted
     /// supplier and answer `null` for a field the peer sent; and a buffering
     /// reader following another would find the same nothing. The first of them
-    /// fills this, and every later one answers out of it. A multipart body
-    /// needs nothing here — [`Self::parts`] already holds `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s
-    /// buffered fields, which is the same fact stored where that parse put it.
+    /// fills this, and every later one answers out of it.
+    ///
+    /// **A multipart body fills this only where a buffering reader read it
+    /// first**, and that first reading decides which hold the request has.
+    /// `post()` and `files()` parse the wire as it arrives, buffering
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s
+    /// non-file fields into [`Self::parts`] and streaming past the rest — the
+    /// only reading a body `[limits] upload_total` large has, since that rule
+    /// charges the fields against `request_body` and the file parts against
+    /// no cap this crate could apply here. So the hold either of them leaves
+    /// is the decoded fields, and `body()` after one is refused on the
+    /// sentence `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
+    /// already carries for a walk: that hold has the fields and never the raw
+    /// octets. `body()`, `json()` and `jsonAs()` fill *this* instead, under
+    /// `request_body` like any other buffering reader, and a `post()`
+    /// following one parses these octets rather than the wire they came off,
+    /// which is drained by then and would answer a form with no fields in it.
+    /// It reads them **in place** — a [`RequestBody`] over this slice, the
+    /// shape [`Self::set_buffered_body`] already hands over — and in bounded
+    /// pieces rather than one chunk, because `nvs_stdlib::multipart` holds a
+    /// whole chunk in its own buffer and would otherwise hold the body twice.
     ///
     /// The bytes rather than the parsed array, so that this crate holds no
     /// value of the program's and nothing here has a reference to release when

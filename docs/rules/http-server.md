@@ -398,7 +398,7 @@ A request body is read either by a **buffering** reader — `Core\Request::body(
 | Reader | Kind | Keeps |
 |---|---|---|
 | `body()` | buffering | the octets |
-| `post()` | buffering | the octets, and the fields it decoded from them |
+| `post()` | buffering | the octets and the fields it decoded — over a multipart body, the fields alone |
 | `json()` | buffering | the octets, and the `Value` it decoded |
 | `jsonAs<T>()` | buffering | the octets |
 | `bodyStream()` | streaming | nothing |
@@ -407,6 +407,8 @@ A request body is read either by a **buffering** reader — `Core\Request::body(
 A reader that arrives after the body was consumed throws `LogicError` naming the member that consumed it. It is refused rather than answered empty, because an empty answer from an exhausted stream is indistinguishable from a body that was empty, and that is the ambiguity [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) exists to refuse. The refusal is a defect in the program, never something a peer can provoke.
 
 **`post()` after `files()` is this rule rather than an exception to it.** A `files()` walk streams the file parts and buffers everything else: a multipart form's non-file fields are held as the walk passes them ([`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename)), charged against `request_body` like any other buffered body, and `post()` answers out of that hold. It drains whatever the walk did not reach before answering, so it reports every field rather than the ones that arrived ahead of the part the walk stopped on — which is why a handler that wants the uploads takes `files()` first. `body()` after a walk is still refused: the hold carries the decoded fields, never the raw octets.
+
+**A multipart body's hold is whichever reader filled it, and only one of the two kinds can hold the octets.** `post()` and `files()` parse such a body off the wire as it arrives, so what they leave behind is the buffered fields and `body()` after either is refused for the reason above. `body()`, `json()` and `jsonAs<T>()` hold the octets instead, under `request_body`, and a `post()` following one parses *those* rather than the wire, which is drained by then and would answer a form with no fields in it. Any of the four still follows any other; what the order changes is only which hold the request has. This is the two caps of [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps) doing what they say rather than a case being carved out: a multipart body larger than `request_body` is read by `post()` and `files()`, which never hold one whole, and refused to `body()`, which does.
 
 `json()` keeps its decoded `Value` because `Core\Json::decode` produces only arrays and scalars, and an array is copy-on-write, so a second caller can be handed a refcount bump safely. `jsonAs<T>()` keeps nothing beyond the octets and decodes per call, because `decodeAs` builds objects and two callers must never be handed the same one. **What this spends**, per [`programs/memory-priority`](programs.md#programs-memory-priority): the held octets, at most `[limits] request_body` per in-flight request — already `post()`'s bill before this rule — plus one decoded value for a request that called `json()`. Both are freed with the request, so the cost is O(in-flight) and never O(requests served).
 
