@@ -1245,6 +1245,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   fake it green and the loop's `want` list stays red until each suite is real. Add one by creating
   `test/<name>/*.test.ts` — nothing registers it elsewhere.
   [until: gone editors/vscode/scripts/headless.mjs:ORDER]
+- **An anchor copied out of `peek.py`'s output carries its line-number gutter, so its indentation is
+  wrong.** The gutter is the number right-aligned in a fixed width and then two spaces, which reads
+  as part of the indent, and `splice.py` refused a block that wanted ten leading spaces where the file
+  has eight — reporting a divergence eighteen lines above the anchor, because the first candidate it
+  found was a shallower line with the same opening brace. Take the depth from a line whose nesting you
+  already know, or read the exact bytes with `sed -n 'A,Bp' <file> | cat -A`, before writing the OLD
+  block. [until: reviewed 2026-09-08]
 
 ## Running things
 
@@ -3456,6 +3463,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   uncoloured code now sees that run in pieces — one pattern moved assertions in four files. Before
   adding a pattern to `#code`, grep the other `*.test.ts` for a span text holding a `$`, a `->` or a
   name the new rule will claim. [until: reviewed 2026-09-08]
+- **A word the TextMate grammar leaves alone is not its own span, so a test cannot fetch it by its
+  text.** `vscode-textmate` emits one span per run of identically-scoped bytes, so an uncoloured name
+  is swallowed into the plain run around it — ` DEFAULT = Currency` is one span — and
+  `spans.filter((s) => s.text === "Currency")` finds the coloured occurrence alone. Assert a negative
+  as an absence (`filter(…).length === 0`) or against the whole run the way `names.test.ts`'s
+  `plain(" Base {")` does, never by expecting an uncoloured span to exist.
+  [until: gone editors/vscode/test/grammar/tokenize.ts]
 
 ## Splitting a file that got too big
 

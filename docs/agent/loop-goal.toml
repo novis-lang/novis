@@ -160,6 +160,10 @@ rules = ["ide/nvs-is-its-own-file-type", "ide/the-extension-claims-nvs-only",
 [context.stage.3]
 rules = ["ide/highlighting-is-two-layers", "ide/rejected-syntax-gets-no-colour",
          "types/duration-literal", "types/object-top",
+         # The type slots are the family with the most surface, and neither of the two rules that
+         # bound it can be inferred from the one that lists them: which positions carry a written
+         # type, and which spellings a type expression has once a position is known.
+         "types/declaration", "types/grammar",
          # The grammar colours what the lexer accepts, so the three rules deciding which
          # spellings it accepts are the ones a family is written against: one open tag in one
          # case, three slashes and no more to document with.
