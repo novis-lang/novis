@@ -54,6 +54,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | 17 | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
+| `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | 17 | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
 | `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
 | `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
 | `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | 24 | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |

@@ -1327,6 +1327,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `did not run` can mean *named differently* rather than *not written*. `tools/loop.py:2358` is the
   matcher: grep the crate for what the name *describes*, then rename that test rather than landing a
   twin beside it. [until: reviewed 2026-09-08]
+- **A goal stage's `[[check]]` block can be green before any of that stage's work exists, because it
+  names gates that already pass.** Goal 17's stage 4 checks five `nvs-stdlib` roster gates that hold on
+  every tree, so the driver's acceptance can report the goal green while that stage's deliverable — a
+  rule fragment and a spec row — is unwritten. Where a stage's deliverable is documentation, read the
+  stage's own prose in `loop-goal.md` before believing its checks: they are a floor, not the
+  specification. [until: reviewed 2026-09-08]
 
 ## Running things
 

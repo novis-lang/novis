@@ -2,46 +2,45 @@
 
 ## State
 
-**Goal 17, stage 3 is landed whole.** `Core\Request::clientIp()`, `scheme()` and `host()` are
-registered, carded, answered and `tainted`; the `.nvst` → `.nvsr` → carrier path carries
-`--CLIENT_IP--` and `--SCHEME--`; and the two `nvs-server` tests the stage's acceptance list names
-now assert the seam directly — `crates/nvs-server/src/serve.rs:3285` builds the walk's `Origin` and
-puts it on an `Inbound`, without a listener, a thread or a program in between.
+**Goal 17, stage 2 is closed.** Every name the stage's three checks ask for now runs and passes:
+`crates/nvs-runtime/src/ctx/inbound.rs`'s test module carries `a_spec_becomes_an_inbound_with_every_field_it_named`,
+`a_form_field_encodes_urlencoded_and_sets_its_content_type`, `a_json_field_encodes_the_value_and_sets_its_content_type`,
+`a_files_field_builds_a_multipart_body_with_a_boundary` and `a_cookies_field_becomes_one_cookie_header`,
+and the sixth name is a prefix of `two_body_spellings_in_one_spec_are_refused_naming_both`, which a
+`cargo-named` check matches as a substring. The stage's other two checks were already on disk —
+`crates/nvs-cli/src/main.rs:2032` and `crates/nvs-test/src/case.rs:1171`.
 
-**Stage 2's filing is fixed.** `the_request_sections_build_an_inbound_spec` was filed under
-`-p nvs-test`, which has no dependencies on purpose and can never name `InboundSpec`. It is now a
-`-p nvs-cli` check and a unit test in the binary, over a new `inbound_of`
-(`crates/nvs-cli/src/main.rs:1422`) that `inbound_from` delegates to — `nvs-cli` has no library
-target, so the seam is reachable only from inside it.
+**Stages 1 and 3 were green before this session and stage 4's check is green without stage 4's work.**
+`docs/agent/loop-goal.toml:5642` names five `nvs-stdlib` gates that hold on every tree, so the driver's
+acceptance can now report the whole goal green while stage 4's deliverable is unwritten. That gap is
+this session's next group and is recorded in [carried-gaps.md](carried-gaps.md) so it survives a goal
+switch.
 
-**Stage 2's remaining red is five names, not five features.** Every behaviour its check asks about is
-already asserted in `crates/nvs-runtime/src/ctx/inbound.rs`'s test module except the JSON body, and
-no other check pins the names those tests currently carry.
+`python tools/verify.py` is 8 of 8 green at this commit — 3616 tests, conformance 1607, differential 276.
 
 ## Next group
 
-**Stage 2: the builder's acceptance names** — one file set:
-`crates/nvs-runtime/src/ctx/inbound.rs`.
+**Stage 4: the signature, frozen** — one file set: `docs/rules/testing/`, `docs/spec/01-core-library.md`.
 
-- [ ] **`a_spec_becomes_an_inbound_with_every_field_it_named`** — rename and widen
-      `a_spec_carries_its_query_its_cookies_its_host_and_its_peer` at
-      `crates/nvs-runtime/src/ctx/inbound.rs:2250` so it asks every field `InboundSpec::build`
-      writes (`crates/nvs-runtime/src/ctx/inbound.rs:1245`), the method and path included.
-      `rule:testing/in-process-request` is the rule.
-- [ ] **`a_form_field_encodes_urlencoded_and_sets_its_content_type`** and
-      **`a_files_field_builds_a_multipart_body_with_a_boundary`** — the same two assertions under the
-      names the check gives, at `crates/nvs-runtime/src/ctx/inbound.rs:2120` and
-      `crates/nvs-runtime/src/ctx/inbound.rs:2154`.
-- [ ] **`a_json_field_encodes_the_value_and_sets_its_content_type`** — the one with no test at all;
-      `SpecBody`'s JSON spelling is at `crates/nvs-runtime/src/ctx/inbound.rs:1060` and its encode is
-      what `build` calls at `crates/nvs-runtime/src/ctx/inbound.rs:1274`.
-- [ ] **`a_cookies_field_becomes_one_cookie_header`** — the join and the field a written `cookie`
-      line suppresses, at `crates/nvs-runtime/src/ctx/inbound.rs:1266`.
+- [ ] **The rule carries `Core\Test::request`'s signature** — `docs/rules/testing/in-process-request.md:8`
+      states two response readings where goal prose stage 4 item 1 asks for the shape: the options bag,
+      the mutual-exclusion rule over the four body spellings, and `Core\Test\Response`'s roster
+      (`status`, `header`, `headers`, `body`, `cookies`, `json()`, `jsonAs<T>()`). It gains the shape and
+      nothing else — dispatch, `tainted` bodies and `#[Test(server:)]` keep saying what they say.
+      `rule:testing/in-process-request` is the rule; `python tools/rules.py --render` after the edit, and
+      the goal opens no ADR number for it.
+- [ ] **Spec § 13's `Core\Test` row becomes a § 15-shaped bullet** — `docs/spec/01-core-library.md:999`
+      is one English cell holding the whole roster; the class, its members one by one and the ADR, with
+      `Core\Test\Response` getting a row of its own. This does **not** bring it under the coverage gate:
+      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:583` excludes §§ 13/16/17 on purpose.
+- [ ] **Strike the row this pair closes** — `docs/agent/carried-gaps.md:57` is the entry, and the
+      contract two headings above it says an entry leaves exactly one way.
 
 ## Backlog
 
-- `__Host-`/`__Secure-` cookies still ignore the scheme on read, though the carrier now holds it —
-  `crates/nvs-stdlib/src/request.rs:@cookie_of`'s doc names it as this module's known gap.
-- Stage 4 is the signature frozen; every test its check names already passes under `-p nvs-stdlib`.
-- `docs/reference/core/Request.md` is hand-written prose and says nothing of the three new members;
-  `tools/reference.py --check` does not ask it to.
+- `docs/agent/carried-gaps.md:56` still names `Core\Request::clientIp`/`host`/`scheme` under owner 17;
+  stage 3 landed all three, so check `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`
+  and strike what is done — the row's other half, `Response::html`/`sendFile`, is not stage 2–4's.
+- `Core\Test\Response`'s `header`, `headers`, `cookies`, `json()` and `jsonAs<T>()` are documented by
+  stage 4 and registered by nothing; `crates/nvs-stdlib/src/test.rs:1137` holds the two that exist.
+  Registering them is outside this goal, which asks for the signature and not the members.
