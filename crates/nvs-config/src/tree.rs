@@ -257,6 +257,8 @@ pub struct Capabilities {
     pub db: Option<CapDb>,
     /// `mail.send` (`rule:programs/framework-core-half`).
     pub mail: Option<CapMail>,
+    /// `cache.shared` (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
+    pub cache: Option<CapCache>,
 }
 
 /// The `script.*` grants.
@@ -486,6 +488,16 @@ pub struct CapMail {
     /// Which `[mail.<name>]` blocks a program may send through, by name — never by host, for
     /// [`crate::Cap::MailSend`]'s reason.
     pub send: Option<Setting>,
+}
+
+/// The `cache.*` grants.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapCache {
+    /// Whether this program may reach the coherent tier — the store `[cache.shared] url` names,
+    /// whichever address or socket that is. Unscoped, for [`crate::Cap::CacheShared`]'s reason:
+    /// a deployment has one shared store, so there is nothing to name here.
+    pub shared: Option<Setting>,
 }
 
 /// One `[mail.<name>]` block — `rule:programs/framework-core-half`'s operator-named SMTP endpoint, whose shape is

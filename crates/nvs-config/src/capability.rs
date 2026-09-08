@@ -93,6 +93,17 @@ pub enum Cap {
     /// the authority that granted this capability, so it is pre-approved and is not additionally
     /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.
     MailSend,
+    /// `cache.shared` — whether this program may reach the coherent cache tier
+    /// (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
+    ///
+    /// Asked at [`Scope::Unscoped`], which is the whole of what makes it a different grant from
+    /// [`NetConnect`](Self::NetConnect): the store is the one `[cache.shared] url` names, and it is
+    /// named by an operator in root-owned configuration, so [`MailSend`](Self::MailSend)'s reasoning
+    /// above applies unchanged and is not restated here. Unscoped rather than named because a
+    /// deployment has one shared store — a scope with one possible value would read as a choice
+    /// nobody made — and so moving that store between a container, a loopback daemon and a socket
+    /// changes one block and no program's grant list.
+    CacheShared,
 }
 
 /// What a capability is being asked *about* — the second half of § 1's question.
@@ -195,6 +206,7 @@ impl Cap {
         Self::DbOpen,
         Self::DbSchema,
         Self::MailSend,
+        Self::CacheShared,
     ];
 
     /// The name `nvs.toml` grants it under, which is also the name a refusal prints — the operator
@@ -213,6 +225,7 @@ impl Cap {
             Self::DbOpen => "db.open",
             Self::DbSchema => "db.schema",
             Self::MailSend => "mail.send",
+            Self::CacheShared => "cache.shared",
         }
     }
 
@@ -264,6 +277,7 @@ impl Cap {
             Self::DbOpen => caps.db.as_ref()?.open.as_ref(),
             Self::DbSchema => caps.db.as_ref()?.schema.as_ref(),
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
+            Self::CacheShared => caps.cache.as_ref()?.shared.as_ref(),
         }
     }
 
@@ -285,6 +299,7 @@ impl Cap {
             Self::DbOpen => caps.db.as_mut()?.open.as_mut(),
             Self::DbSchema => caps.db.as_mut()?.schema.as_mut(),
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
+            Self::CacheShared => caps.cache.as_mut()?.shared.as_mut(),
         }
     }
 }
@@ -398,6 +413,25 @@ impl Capabilities {
             Grant::Nothing => false,
             Grant::Everything => true,
             Grant::These(list) => host_granted(cap, list, host),
+        }
+    }
+
+    /// [`allows`](Self::allows) for a grant that has nothing to be asked *about*, and the second
+    /// form of the question a caller with no filesystem in front of it can ask.
+    ///
+    /// [`Scope::Unscoped`] never reaches [`Files`] for [`allows_host`](Self::allows_host)'s
+    /// reason: there is no argument to canonicalize, so any grant an operator wrote is the whole
+    /// answer. The caller with none is the boot — [`crate::store::advise`] reads this out of the
+    /// merged tree to report `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s
+    /// pair, long before there is a request or a resolver.
+    #[must_use]
+    pub fn allows_unscoped(&self, cap: Cap) -> bool {
+        let Some(setting) = cap.grant(self) else {
+            return false;
+        };
+        match grant_of(setting) {
+            Grant::Nothing => false,
+            Grant::Everything | Grant::These(_) => true,
         }
     }
 
