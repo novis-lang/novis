@@ -138,6 +138,43 @@
 //!   `nvs-runtime` ABI question (M9 freezes that surface) and not a lowering
 //!   one. Nothing depends on the copy happening, so it can be taken away
 //!   without changing an observable.
+//! - **A shape's wire contract is a constant of the call site, never of its
+//!   class.** A member handed an inline shape as its type argument —
+//!   `Core\Arr::shapeAs<{n: int}>` — needs the per-field wire types
+//!   `nvs_runtime::CodecField` carries, exactly as `Json::decodeAs<User>`
+//!   needs `User`'s. The descriptor those would hang on is shared:
+//!   `lower::shape_class_label` keys a shape class on its sorted field
+//!   *names* alone, so `{n: int}` and `{n: string}` are one class and one
+//!   `nvs_runtime::ClassDesc`; and a shape class is synthesized in this crate
+//!   rather than laid out in `nvs_types::layout`, so [`lower::lower_file`]'s
+//!   codec join has no slot order to run one against either. The list
+//!   therefore rides *beside* the descriptor as its own constant of the call —
+//!   `nvs_runtime::ShapeCodec`, owned by the unit's class table and addressed
+//!   the way [`ir::InstKind::ClassDescConst`] addresses a descriptor — and
+//!   `nvs_runtime::ClassDesc::codec` stays the answer for a class and only for
+//!   a class. `rule:types/shape-type` is the type this carries, and
+//!   `rule:core-api/required-optional-and-nullable`'s three columns are what
+//!   each field of it says.
+//!   **What was refused is a class keyed on names *and* types.** That is the
+//!   cheaper edit — the field list goes back onto the descriptor and
+//!   `nvs_types::derive`'s existing recording path works untouched — and it
+//!   spends a guarantee two other crates already rest on: `nvs_stdlib::json`'s
+//!   encoder spells a shape slot by slot *because* one class cannot name a
+//!   per-field type, and `nvs_stdlib::task`'s `all` builds its result with its
+//!   argument's own descriptor because one field set is one class on both
+//!   sides. Two descriptors for one field set turns each of those into a
+//!   question about which spelling the unit met first. Encoding the contract
+//!   as ordinary Novis values the call site builds was refused on the third
+//!   priority instead: it is an allocation and a parse per call for a fact the
+//!   checker already knows.
+//!   The consequence a widening contributor must hold: **a call site whose
+//!   type argument names a shape registers that shape's class itself.**
+//!   `lower::Lowering::lower_object_literal` synthesizes one only where a
+//!   literal is *written*, so a unit that hydrates a `{n: int}` it never
+//!   spells has no `$shape{n}` for the descriptor constant to resolve to.
+//!   What this spends, per `rule:programs/memory-priority`: one table per
+//!   distinct written shape in the program, O(distinct types) like every other
+//!   interned descriptor and never O(requests served).
 //!
 //! # Known gaps
 //!

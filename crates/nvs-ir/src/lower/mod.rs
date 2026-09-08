@@ -2954,6 +2954,10 @@ fn shape_fills(
 /// Keyed on the sorted field names alone, so two literals with the same
 /// fields share one class whatever their field *types* are: a class carries
 /// slot names, not slot types, and both sides count slots the same way.
+///
+/// So a wire contract, which is per-field types and nothing else, is not this
+/// class's to carry — the crate's module docs own where it rides instead, and
+/// why widening this label to name the types was refused.
 pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
     format!("$shape{{{}}}", sorted_fields.join(","))
 }
