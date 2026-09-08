@@ -5541,15 +5541,27 @@ tests = [
   "two_body_spellings_in_one_spec_are_refused",
 ]
 
-# One home, proved rather than asserted: goal 16's sections build a spec now, not an `Inbound`.
+# ADR 0095 again, at the section that writes the body: two spellings in one case are refused where
+# they are written. `nvs-test` has no dependencies on purpose, so this is the whole of what it can ask
+# about the builder -- the crossing itself is the check below.
 [[check]]
 kind = "cargo-named"
 stage = "2 the builder"
-name = "nvs-test (the sections go through the builder)"
+name = "nvs-test (two body spellings in one case)"
 args = ["test", "-p", "nvs-test"]
 tests = [
-  "the_request_sections_build_an_inbound_spec",
   "a_post_and_a_post_raw_section_together_are_a_parse_error",
+]
+
+# One home, proved rather than asserted: goal 16's sections build a spec now, not an `Inbound`. Filed
+# on `nvs-cli` because that is the crate naming both sides -- `inbound_of` in `crates/nvs-cli/src/main.rs`.
+[[check]]
+kind = "cargo-named"
+stage = "2 the builder"
+name = "nvs-cli (the sections go through the builder)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "the_request_sections_build_an_inbound_spec",
 ]
 
 # ---------------------------------------------------------------------------------------------------

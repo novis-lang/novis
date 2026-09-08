@@ -1421,7 +1421,17 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
 /// the two share fires only for a file written by hand that omitted one.
 fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> {
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
-    let wire = nvs_test::request::read(&text)?;
+    inbound_of(&text)
+}
+
+/// The crossing itself, over the file's text rather than its path.
+///
+/// Split from [`inbound_from`], which opens a file and decides nothing, because
+/// this is the whole of what this binary decides here — and because the crate
+/// has no library target, so the seam is reachable from a test only from inside
+/// the binary.
+fn inbound_of(text: &str) -> Result<nvs_runtime::Inbound, String> {
+    let wire = nvs_test::request::read(text)?;
     let mut spec = nvs_runtime::InboundSpec::new(&wire.method, &wire.path);
     spec.set_query(&wire.query);
     for (name, value) in &wire.headers {
@@ -1987,4 +1997,86 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
         .render_all(diags.iter(), map, &mut out)
         .expect("rendering to an in-memory buffer cannot fail");
     eprint!("{}", String::from_utf8_lossy(&out));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::inbound_of;
+
+    /// One field line off the carrier, as text, so the assertions below read as
+    /// the case's own lines.
+    fn field(inbound: &nvs_runtime::Inbound, name: &str) -> Option<String> {
+        inbound
+            .headers()
+            .find(|(field, _)| *field == name)
+            .map(|(_, value)| String::from_utf8_lossy(value).into_owned())
+    }
+
+    /// A case's request sections become a carrier through
+    /// [`nvs_runtime::InboundSpec`], and every section it wrote is answerable
+    /// off the result.
+    ///
+    /// The whole crossing in one call, because this is the only place it is
+    /// visible: `nvs_test::case::parse` reads the sections, `request::render`
+    /// writes the file a runner would leave beside the case, and
+    /// [`inbound_of`] builds it. It is asked here rather than in `nvs-test`,
+    /// which has no dependencies on purpose and so can never name the builder,
+    /// and rather than through the built binary, which would report a program's
+    /// output instead of the carrier's fields.
+    ///
+    /// The two the file *states* — the peer's address and the scheme — are
+    /// asserted beside the two the body *derives*, since a builder that filled
+    /// a carrier in itself would have had to derive the second pair a second
+    /// time and could disagree with the renderer about it.
+    #[test]
+    fn the_request_sections_build_an_inbound_spec() {
+        let case = nvs_test::case::parse(
+            std::path::Path::new("sections.nvst"),
+            "--TEST--\nevery request section at once\n--FILE--\n<?nvs\necho 1;\n\
+             --GET--\nq=novis\n--POST--\nname=ada\n--COOKIE--\nsid=abc123\n\
+             --HEADERS--\nAccept: application/json\n--CLIENT_IP--\n203.0.113.9\n\
+             --SCHEME--\nhttps\n--EXPECT--\n1\n",
+        )
+        .expect("the case parses");
+        let request = case.request.as_ref().expect("the case describes a request");
+        let inbound = inbound_of(&nvs_test::request::render(request)).expect("the file reads back");
+
+        assert_eq!(inbound.method(), "POST", "a case with a body sends one");
+        assert_eq!(inbound.path(), "/");
+        assert_eq!(inbound.query(), "q=novis", "`--GET--` is the query string");
+        assert_eq!(
+            field(&inbound, "accept").as_deref(),
+            Some("application/json"),
+            "`--HEADERS--` arrives lower-cased, which is how a served request carries a field"
+        );
+        assert_eq!(
+            field(&inbound, "cookie").as_deref(),
+            Some("sid=abc123"),
+            "`--COOKIE--` is what the case describes and one field line is how it travels"
+        );
+        assert_eq!(
+            field(&inbound, "content-type").as_deref(),
+            Some("application/x-www-form-urlencoded"),
+            "`--POST--` says what it encodes to by being pairs"
+        );
+        assert_eq!(
+            field(&inbound, "content-length").as_deref(),
+            Some("8"),
+            "and the octets say how many of them there are"
+        );
+        assert!(
+            inbound.has_body(),
+            "the body reaches the carrier as a body, not as a field line"
+        );
+        assert_eq!(
+            inbound.client(),
+            Some("203.0.113.9".parse().expect("a literal address")),
+            "`--CLIENT_IP--` is the address the walk settled on, stated rather than derived"
+        );
+        assert_eq!(
+            inbound.scheme(),
+            nvs_runtime::Scheme::Https,
+            "`--SCHEME--` is a claim only a section can make"
+        );
+    }
 }
