@@ -12,6 +12,18 @@ Absence is `null` — `first`, `last`, `find`, `keyOf`, `min` over an empty arra
 answers a `uint`. `$a + $b` does not compile: it is `underlay`; `array_merge` is `overlay` over
 maps and `appendAll` over lists.
 
+`shapeAs<T>` is the one member that answers something other than an array. It reads its subject as the
+type written at the call site — an inline shape, `{name: string, score: int}`, or a class carrying
+`#[Core\Json\Derive]` — converting every named field with `as` and leaving every key the type does not
+name behind, so a form carrying a CSRF token does not break a handler reading two fields out of it.
+That is the whole story for loose input: an `array<T>` is homogeneous and there is no per-key-typed
+one, so a form, a query string or a decoded document is converted **once, at the boundary**, where a
+failure is still a `400` — and nothing downstream is left holding a `mixed` to check. A field that is
+absent, or that holds a value `as` refuses for its declared type, throws `ParseError` carrying every
+field that failed at its own dotted path, rather than the first of them. `{name?: T}` marks a key that
+may be absent, and `??` and `isset` read one without throwing. `Core\Request::queryAs` and `postAs`
+are this member over what a request carried.
+
 ```nvs
 <?nvs
 array<int> $scores = ["ada" => 92, "bo" => 67, "cy" => 85, "di" => 74];
@@ -30,6 +42,8 @@ echo Core\Json::encode(Core\Arr::values($evens)), " ", Core\Arr::contains($evens
 var $byLength = Core\Arr::groupBy(["fig", "pear", "kiwi", "plum"], fn(string $w): int => Core\Str::length($w) as int);
 echo Core\Json::encode($byLength), "\n";
 echo Core\Json::encode($scores), "\n";
+var $entry = Core\Arr::shapeAs<{name: string, score: int, note?: string}>(["name" => "ada", "score" => "92", "csrf" => "t0ken"]);
+echo $entry->name, " ", $entry->score as string, " ", $entry->note ?? "no note", "\n";
 ```
 ```output
 {"ada":92,"cy":85,"di":74}
@@ -41,4 +55,5 @@ ada:92 bo:67 cy:85 di:74
 [2,4,6,8,10] yes
 {"3":["fig"],"4":{"1":"pear","2":"kiwi","3":"plum"}}
 {"ada":92,"bo":67,"cy":85,"di":74}
+ada 92 no note
 ```
