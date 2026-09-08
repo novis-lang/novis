@@ -241,3 +241,171 @@ fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
          patch release is a real answer too — say which it is beside the name."
     );
 }
+
+/// Every crate that brings a task scheduler with it, by its crates.io name.
+///
+/// This is the *scheduler* half of the async ecosystem and deliberately not the
+/// `Future` half: `futures-core`, `futures-util` and `async-trait` are traits
+/// and combinators, they run nothing, and `wasmtime` already resolves two of
+/// them. `futures-executor` is on the list because it is the one crate in that
+/// family that does run tasks.
+const ASYNC_RUNTIMES: &[&str] = &[
+    "actix-rt",
+    "async-executor",
+    "async-global-executor",
+    "async-io",
+    "async-std",
+    "compio",
+    "embassy-executor",
+    "futures-executor",
+    "glommio",
+    "may",
+    "monoio",
+    "smol",
+    "tokio",
+];
+
+/// Whether a package name is one of those or a crate in one's family, since
+/// `tokio-util` and `async-std-*` are the same dependency under a longer name.
+fn is_async_runtime(name: &str) -> bool {
+    ASYNC_RUNTIMES.iter().any(|runtime| {
+        name == *runtime
+            || name
+                .strip_prefix(runtime)
+                .is_some_and(|rest| rest.starts_with('-'))
+    })
+}
+
+/// Whether a manifest section's entries are dependencies.
+///
+/// `[dev-dependencies]` and `[target.'cfg(unix)'.dependencies]` are as much a
+/// route into the binary as `[dependencies]` is, and `[patch.crates-io]` is one
+/// that names a crate without depending on it.
+fn declares_dependencies(section: &str) -> bool {
+    section
+        .rsplit('.')
+        .next()
+        .unwrap_or(section)
+        .ends_with("dependencies")
+        || section.starts_with("patch.")
+        || section == "replace"
+}
+
+#[test]
+fn the_workspace_has_no_async_runtime() {
+    // The test above is `tokio` in depth, because `tokio` is the name actually
+    // in this graph. This one is the family, and it is what
+    // `rule:concurrency/one-scheduler` asks for: what that rule refuses is a
+    // *second scheduler*, not one crate's name, so a move to `smol` or
+    // `glommio` would satisfy every assertion above while taking away the whole
+    // thing they protect. Both halves are needed — a manifest of ours asking
+    // for one is the line to catch first, and the lock file is where a rename
+    // or a transitive edge reaches the binary with no line to grep.
+    let manifests = manifest_code();
+    let mut ours: BTreeSet<String> = BTreeSet::new();
+    let mut asked: Vec<String> = Vec::new();
+
+    let mut file = PathBuf::new();
+    let mut section = String::new();
+    for (path, line, code) in &manifests {
+        if *path != file {
+            file.clone_from(path);
+            section.clear();
+        }
+        let at = format!("{}:{line}: {code}", path.display());
+
+        if code.starts_with('[') && code.ends_with(']') {
+            section = code
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .to_string();
+            // `[dependencies.tokio]` names its dependency in the header itself.
+            if let Some((outer, name)) = section.rsplit_once('.')
+                && declares_dependencies(outer)
+                && is_async_runtime(name)
+            {
+                asked.push(at);
+            }
+            continue;
+        }
+
+        let Some((key, value)) = code.split_once('=') else {
+            continue;
+        };
+        if section == "package" && key.trim() == "name" {
+            ours.insert(value.trim().trim_matches('"').to_string());
+        }
+        // `tokio = "1"` and `tokio.workspace = true` are the same request.
+        let named = key.trim().split('.').next().unwrap_or_default();
+        if declares_dependencies(&section) && is_async_runtime(named) {
+            asked.push(at.clone());
+        }
+        // A rename keeps the crate's real name in a `package = "…"` value, so
+        // every quoted word on a line carrying one is read as a name too.
+        if code.contains("package") && code.split('"').skip(1).step_by(2).any(is_async_runtime) {
+            asked.push(at);
+        }
+    }
+
+    assert!(
+        asked.is_empty(),
+        "a manifest in this repository asks for an async runtime:\n  {}\nThis binary has one \
+         scheduler and it is `nvs-host`'s coroutines — `rule:concurrency/one-scheduler`. A crate \
+         that brings an executor, a reactor or a `spawn` with it brings a second concurrency model \
+         beside them, so a capability that genuinely needs one is a `BLOCKED` naming the \
+         capability rather than a name added to `ASYNC_RUNTIMES`' exceptions.",
+        asked.join("\n  ")
+    );
+    assert!(
+        ours.len() > 10,
+        "found only {} `[package] name` line(s) across this repository's manifests — this walk \
+         stopped reading them rather than the tree losing its crates",
+        ours.len()
+    );
+
+    let packages = locked_packages();
+
+    let linked: Vec<&str> = packages
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| is_async_runtime(name))
+        .collect();
+    assert_eq!(
+        linked,
+        ["tokio"],
+        "the lock file resolves an async runtime beside `hyper`'s `tokio`, which the test above \
+         argues line by line: under `sync` alone it is a channel library rather than a runtime. A \
+         second name here is a second scheduler in the binary whichever crate asked for it, so \
+         what changes is that dependency."
+    );
+
+    let members = packages
+        .iter()
+        .filter(|(name, _)| ours.contains(name))
+        .count();
+    assert!(
+        members > 10,
+        "only {members} of this repository's crates are in the lock file. `benches/abi-probe` and \
+         `fuzz/` are their own workspaces and are expected to be missing; the rest are not, and \
+         without them the next assertion checks nothing."
+    );
+
+    let reached: Vec<String> = packages
+        .iter()
+        .filter(|(name, _)| ours.contains(name))
+        .flat_map(|(name, dependencies)| {
+            dependencies
+                .iter()
+                .filter(|dependency| is_async_runtime(dependency))
+                .map(move |dependency| format!("{name} -> {dependency}"))
+        })
+        .collect();
+    assert!(
+        reached.is_empty(),
+        "a crate of ours resolved to an async runtime in the lock file:\n  {}\nThe manifest walk \
+         above missed it, which means it arrived under a spelling that walk does not read — a \
+         rename, or a table it does not treat as a dependency table. Fix the dependency first and \
+         then teach `declares_dependencies` the spelling, so the cheap half keeps catching this.",
+        reached.join("\n  ")
+    );
+}
