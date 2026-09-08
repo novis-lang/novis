@@ -5892,19 +5892,42 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the runtime arm, closing runtime gap 2 and commands gap 1. Goal prose stage 4.
+# Stage 4 -- the runtime arm, in the two crates it is split across. Goal prose stage 4.
+#
+# The split is the decision, not a filing accident: the matcher converts what it reads natively and a
+# `Parses` capture converts at its binding site, so `nvs-runtime` owns the match and `nvs-stdlib` owns
+# the armed class table a compiled `parse` is reached through. A `-p nvs-runtime` check cannot host
+# either binding-site name -- `capture_value` and `parse_each` are both one crate above the tables.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
 stage = "4 the runtime arm"
-name = "nvs-runtime (a capture and an argument are converted, not handed over)"
+name = "nvs-runtime (the table carries the class and converts what it reads natively)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
+  # The matcher's half, and the priority-1 decision `rule:security/route-capture-is-laundered-by-its-type`
+  # records: a `Parses` capture matches on shape and this walk converts nothing.
+  "a_parses_capture_matches_on_shape_and_crosses_as_the_class_and_its_text",
+  # `decimal` is converted and no longer `CaptureConv::Unconverted`. The name is the landed test's,
+  # which states the same claim with its refused half named -- a check does not rename green work.
+  "a_decimal_capture_converts_and_refuses_what_is_not_one",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the runtime arm"
+name = "nvs-stdlib (a capture and an argument are converted at the binding site)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # The route half: `nvs_stdlib::router`'s `capture_value`, where the decode and the class's own
+  # `parse` run in that order, and where a segment the class refuses is a matched bad value.
   "a_parses_capture_converts_the_segment_before_the_handler_is_reached",
-  "a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value",
-  "a_decimal_capture_is_converted_and_no_longer_unconverted",
-  "a_parses_command_argument_is_converted_and_a_refusal_is_a_usage_error",
+  "a_segment_the_class_refuses_is_a_matched_bad_value_rather_than_no_match",
+  # The command half, as two names rather than one: a conjunction reports one open item where there
+  # are two, and these two claims -- the conversion, and the refusal being a usage error -- differ.
+  "a_parses_argument_becomes_what_the_classs_own_parse_answered",
+  "a_parse_that_refuses_is_a_usage_sentence_carrying_what_the_class_said",
   "a_decimal_command_argument_is_converted_and_no_longer_unconverted",
 ]
 
