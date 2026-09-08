@@ -2,21 +2,21 @@
 // `secret`, and a glyph after the name of a `tainted` declaration where the user asked for one.
 //
 // Two decorations because the two kinds are two instructions, not two colours of one. The blur is on
-// by default and unconditional (`rule:security/redaction-ranges-come-from-the-server`); the glyph is
+// by default and unconditional (`rule:ide/redaction-ranges-come-from-the-server`); the glyph is
 // drawn only where `nvs.taint.mark` is not `off`, because a marker is added content and shipping one
 // by default would write into someone else's editor
-// (`rule:security/tainted-has-no-default-decoration`). Which range is which is the server's answer
+// (`rule:ide/tainted-has-no-default-decoration`). Which range is which is the server's answer
 // and `concealment.ts`'s partition of it — nothing here reads the source text.
 //
 // The request is Novis's own and the only one that is (`rule:ide/the-request-set-is-closed`); its
 // spelling and its answer's shape live in `crates/nvs-lsp/src/redactions.rs`, and this file is the
 // half that renders them. It reads no source text and matches no literal — which literal carries
 // `secret` is a question with one answer and the server holds it
-// (`rule:security/redaction-ranges-come-from-the-server`).
+// (`rule:ide/redaction-ranges-come-from-the-server`).
 //
 // What is drawn is a decoration and not an edit. The buffer is the file on disk byte for byte, and
 // the character cells stay where they were, so the cursor, the selection and every edit still
-// address the real text (`rule:security/redaction-covers-bytes-only`).
+// address the real text (`rule:ide/redaction-covers-bytes-only`).
 //
 // A reveal is one range, and there are three ways to ask for one. Two are explicit and are held in
 // `concealment.ts`, where no `vscode` import reaches them: the hover's command link and the palette
@@ -73,7 +73,7 @@ const REVEAL = "nvs.revealSecret";
 //
 // It is a **weaker** concealment than an opaque fill and that is the trade this constant is:
 // the smear is a convolution, so a recording of the screen carries more of the value than a fill
-// would, and a short low-entropy literal keeps its shape. `rule:security/redaction-does-not-reach`
+// would, and a short low-entropy literal keeps its shape. `rule:ide/redaction-does-not-reach`
 // is where the reach of the whole mechanism is written down, this included.
 const BLUR = "10px";
 
@@ -106,7 +106,7 @@ export function install(context: ExtensionContext): void {
     window.onDidChangeActiveTextEditor((editor) => shown(editor === undefined ? [] : [editor])),
     // A cursor moving in or out of a concealed range changes what is drawn, because a range with
     // the cursor inside it is uncovered for exactly as long as that is true
-    // (`rule:security/reveal-is-explicit-and-window-local`). This fires on every cursor move and
+    // (`rule:ide/reveal-is-explicit-and-window-local`). This fires on every cursor move and
     // `draw` is O(ranges held for the visible documents), which is the count the server answered
     // for one file — small enough to redo rather than to track a delta against.
     window.onDidChangeTextEditorSelection(() => draw()),
@@ -122,7 +122,7 @@ export function install(context: ExtensionContext): void {
  * The client every ask goes to, or `undefined` while none is running.
  *
  * A server that stops leaves the concealment on screen untouched. That is the whole of
- * `rule:security/redaction-ranges-come-from-the-server`'s fail direction: a missing answer means
+ * `rule:ide/redaction-ranges-come-from-the-server`'s fail direction: a missing answer means
  * nothing at all, so a restart, a crash or a version refusal must not be the thing that uncovers
  * the bytes.
  */
@@ -148,13 +148,12 @@ export function serve(client: LanguageClient | undefined): void {
  * `rule:ide/novis-ships-names-not-colours` is met by having nothing to ship rather than by naming a
  * theme key.
  *
- * **A blur bleeds past the box it is drawn in, and `clip-path` is what cuts it back.** The smear
- * reaches about its own radius past the range, over the punctuation and the identifier either side,
- * which reads as damage to the line rather than as one concealed value. Clipping is the containment
- * this box can take: `overflow` does not apply to a non-replaced inline element, and the
- * `display: inline-block` that would make it apply moves the character cells, which is the one
- * thing this decoration may not do. `clip-path` clips the *filtered* result — filters are applied
- * before clipping in the rendering order — and changes no layout at all.
+ * **The blur bleeds past the range by roughly its own radius, and nothing here cuts it back.**
+ * `overflow` does not apply to a non-replaced inline box, and the `display: inline-block` that
+ * would make it apply moves the character cells — the one thing this decoration may not do. Adding
+ * `clip-path: inset(0)` to this same string does not work either: it takes the blur off entirely
+ * rather than trimming it, so the value renders sharp. Anything tried here has to be looked at in a
+ * running editor, because no tier in this repository draws a decoration.
  *
  * Drawn without a background for a separate reason: a fill behind it would have a hard edge the
  * smear does not, and the two together read as a box with a blurred label in it rather than as text
@@ -162,7 +161,7 @@ export function serve(client: LanguageClient | undefined): void {
  */
 function bar(): TextEditorDecorationType {
   return window.createTextEditorDecorationType({
-    textDecoration: `none; filter: blur(${BLUR}); clip-path: inset(0)`,
+    textDecoration: `none; filter: blur(${BLUR})`,
     // A character typed against either edge is outside the concealed range until the server says
     // otherwise, which is the direction that cannot draw over bytes nobody answered for.
     rangeBehavior: DecorationRangeBehavior.ClosedClosed,
@@ -317,7 +316,7 @@ function hover(uri: string, at: Where): MarkdownString {
 /**
  * Reveal one concealed range: the one `where` names, or the one under the cursor.
  *
- * One range and not a document's worth (`rule:security/reveal-is-explicit-and-window-local`), and
+ * One range and not a document's worth (`rule:ide/reveal-is-explicit-and-window-local`), and
  * nothing is written down — the state is `concealment.ts`'s, in this process, and closing the
  * editor is the end of it.
  */
