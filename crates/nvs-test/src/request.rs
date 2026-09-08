@@ -50,6 +50,14 @@
 //! carries (`nvs_runtime::Inbound`'s names come off `hyper`, already
 //! normalised), so a case cannot pin one shape here and meet the other in
 //! production.
+//!
+//! Those three derivations are `nvs_runtime::InboundSpec`'s as well, and the
+//! duplication is this crate's price for having no dependencies (the manifest
+//! says why): a request that never crosses a file is built by that type
+//! directly, and one that crosses this one is written out here and read back
+//! into it. The two agree on the rule that keeps them from fighting — a field
+//! written by hand is never written a second time — so a file that already
+//! carries one of the three is carried through the spec untouched.
 
 use crate::case::{Body, Request};
 use crate::section;

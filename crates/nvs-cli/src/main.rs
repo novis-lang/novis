@@ -1410,17 +1410,27 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
 /// names arrive lower-cased from there, which is the shape a served request
 /// carries them in — a case that pinned `Accept` here would meet `accept` in
 /// production.
+///
+/// **It goes through [`nvs_runtime::InboundSpec`] rather than filling a carrier
+/// in itself**, which is that type's whole reason: a request nobody sent
+/// becomes an `Inbound` in one place, so what a `.nvst` case's request carries
+/// and what a `Core\Test::request` bag builds cannot answer differently. The
+/// body is the raw spelling because the file holds the octets as they would go
+/// on the wire, already typed by whatever `content-type` line it carries — and
+/// a field the file wrote is a field the spec leaves alone, so the derivation
+/// the two share fires only for a file written by hand that omitted one.
 fn inbound_from(path: &std::path::Path) -> Result<nvs_runtime::Inbound, String> {
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let wire = nvs_test::request::read(&text)?;
-    let mut inbound = nvs_runtime::Inbound::new(&wire.method, &wire.path, &wire.query);
+    let mut spec = nvs_runtime::InboundSpec::new(&wire.method, &wire.path);
+    spec.set_query(&wire.query);
     for (name, value) in &wire.headers {
-        inbound.push_header(name, value.as_bytes());
+        spec.push_header(name, value.as_bytes());
     }
     if let Some(body) = wire.body {
-        inbound.set_buffered_body(body.into_bytes());
+        spec.set_body(nvs_runtime::SpecBody::Raw(body.into_bytes()))?;
     }
-    Ok(inbound)
+    Ok(spec.build())
 }
 
 fn run_run(
