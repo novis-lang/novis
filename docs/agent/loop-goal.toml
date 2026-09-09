@@ -179,6 +179,12 @@ rules = ["core-api/tier-roster"]
 [context.stage.2]
 rules = ["config/net-local-is-named-and-not-on-the-roster", "core-api/tier-placement", "security/a-path-is-not-a-url", "security/net-address-policy"]
 
+[context.stage.3]
+# ADR 0148 § 12 is what `Core\Os` is *not*: a request's memory. The stage that builds the class
+# cannot tell why `memoryUsage` is absent without it, and the base manifest carries neither section.
+rules = ["core-api/tier-roster", "security/capability-check-at-the-door", "testing/capability-closure-test"]
+adrs = ["0148 §11", "0148 §12"]
+
 [context.stage.4]
 rules = ["concurrency/a-drain-closes-a-connection-cleanly", "core-api/tier-roster"]
 
@@ -6171,8 +6177,12 @@ kind = "cargo-named"
 stage = "3 os"
 name = "nvs-stdlib (Core\\Os answers the host)"
 args = ["test", "-p", "nvs-stdlib"]
+# `memory_usage` was this list's fourth name until ADR 0148 § 12 moved a request's held bytes to
+# `Core\Budget` and left `Core\Os` the *process's* resident set. The spec's § 16 row, the migration
+# table and `migration-members-outstanding.txt` all say `residentBytes`, so the name here follows
+# them rather than pinning a member three homes agree does not exist.
 tests = [
-  "pid_hostname_cpu_count_memory_usage_and_load_average_all_answer",
+  "pid_hostname_cpu_count_resident_bytes_and_load_average_all_answer",
   "cpu_count_answers_the_number_serve_fans_out_over",
   "load_average_throws_on_windows_with_a_message_naming_the_platform",
   "no_core_os_member_is_a_sink_or_carries_tainted",

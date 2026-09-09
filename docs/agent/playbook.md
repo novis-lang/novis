@@ -1370,6 +1370,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the two halves are one relation and a frozen record cannot grow a new entry. Cite background
   records in the fragment's prose, and keep `because` to the records that created or amended the
   rule. [until: reviewed 2026-09-09]
+- **A `cargo-named` check's *test name* can carry a member spelling a later ADR renamed, and
+  writing that member is the wrong repair.** Goal 24 asked for
+  `..._memory_usage_..._all_answer` after ADR 0148 § 12 had moved held bytes to `Core\Budget`,
+  leaving `Core\Os::residentBytes`. A check name is drafted before its stage runs, so when the
+  spec row, the migration table and the outstanding file all disagree with it, amend the name.
+  [until: reviewed 2026-09-09]
 
 ## Running things
 
@@ -1900,14 +1906,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `(class, member, answer)` whose answer contains `tainted`, so a new one is a bare `left`/`right`
   set diff in `-p nvs-types --lib`. A qualified return owes that entry and the prose above it —
   grep `nvs-types` for the qualifier before writing the row. [until: reviewed 2026-09-09]
-- **`verify.py` has no Unix leg, so a `#[cfg(unix)]` branch written on this box is never compiled
-  before CI sees it.** `Core\Net`'s two local doors are `cfg`-split — the Windows halves refuse with
-  a `RuntimeError` — and a typo in the half this machine cannot build would have passed every check
-  here and failed on the hosted runners. `wsl.exe -- bash -lc "cd /mnt/d/mwl &&
-  CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo check -p nvs-stdlib -p nvs-host"` compiles the
-  other side in seconds against that leg's warm target directory; run it before the wrap whenever a
-  slice writes a `cfg(unix)` or `cfg(not(unix))` body.
-  [until: gone tools/verify.py:a Unix leg]
 
 ## Writing a test case
 

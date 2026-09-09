@@ -150,6 +150,7 @@ Conventions the whole file uses:
 | [`Core\Net\Listener`](#core-core-net-listener) |  |
 | [`Core\Net\Datagram`](#core-core-net-datagram) |  |
 | [`Core\Net\Datagram\Message`](#core-core-net-datagram-message) |  |
+| [`Core\Os`](#core-core-os) |  |
 | [`Core\Cache`](#core-core-cache) |  |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
@@ -18992,6 +18993,82 @@ The port this datagram came from, which is where a reply goes.
 
 **Returns** `uint` — The sender's port, 1 to 65535.
 
+<a id="core-core-os"></a>
+### `Core\Os`
+
+Keywords: pid, hostname, cpuCount, residentBytes, loadAverage
+
+| Member | Signature |
+|---|---|
+| [`Core\Os::pid`](#core-core-os-pid) | `pid(): uint` |
+| [`Core\Os::hostname`](#core-core-os-hostname) | `hostname(): string` |
+| [`Core\Os::cpuCount`](#core-core-os-cpucount) | `cpuCount(): uint` |
+| [`Core\Os::residentBytes`](#core-core-os-residentbytes) | `residentBytes(): uint` |
+| [`Core\Os::loadAverage`](#core-core-os-loadaverage) | `loadAverage(): array<float>` |
+
+<a id="core-core-os-pid"></a>
+#### `Core\Os::pid`
+
+```nvs skip
+Core\Os::pid(): uint
+```
+
+This process's identifier, as the operating system numbers it — `getmypid`. It is the whole process's and not this request's, so two requests served by one process read the same number.
+
+**Returns** `uint` — The process identifier.
+
+<a id="core-core-os-hostname"></a>
+#### `Core\Os::hostname`
+
+```nvs skip
+Core\Os::hostname(): string
+```
+
+The name of the host this process runs on — `gethostname`, and the one field of `php_uname` a program usually wanted. Nothing is resolved and no network is reached: this is the name the host holds for itself.
+
+**Returns** `string` — The host's own name.
+
+**Throws** `RuntimeError` — The operating system would not answer, or answered a name that is not UTF-8.
+
+<a id="core-core-os-cpucount"></a>
+#### `Core\Os::cpuCount`
+
+```nvs skip
+Core\Os::cpuCount(): uint
+```
+
+How many cores this process may actually run on, which is the number the server fans its workers out over. An affinity mask or a container quota narrows it, so a program in a two-CPU cgroup on a 96-core host reads 2.
+
+**Returns** `uint` — The core count, at least 1.
+
+**Throws** `RuntimeError` — The operating system would not say how many cores this process may use.
+
+<a id="core-core-os-residentbytes"></a>
+#### `Core\Os::residentBytes`
+
+```nvs skip
+Core\Os::residentBytes(): uint
+```
+
+The bytes of this **process's** resident set at its high-water mark — `getrusage`'s `ru_maxrss`, and the peak working set on Windows. A *request's* memory is `Core\Budget`'s and never this: this figure covers every request the process has served and only ever grows.
+
+**Returns** `uint` — The process's resident bytes.
+
+**Throws** `RuntimeError` — The operating system would not report this process's memory.
+
+<a id="core-core-os-loadaverage"></a>
+#### `Core\Os::loadAverage`
+
+```nvs skip
+Core\Os::loadAverage(): array<float>
+```
+
+The kernel's load average over one, five and fifteen minutes — `sys_getloadavg`. The three figures count runnable processes rather than a percentage, so a number above `cpuCount()` is a queue and not an error.
+
+**Returns** `array<float>` — Three floats, in the order one, five, fifteen.
+
+**Throws** `RuntimeError` — This platform keeps no load average. Windows is the one that does not, and the message names it.
+
 <a id="core-core-cache"></a>
 ### `Core\Cache`
 
@@ -22929,6 +23006,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
 | `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling (`rule:config/reloadability-is-its-own-field`); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
 | `dl` | dropped | nothing is loaded into the process at run time (`rule:security/closed-doors`) |
+| `php_uname` | member | `Core\Os::hostname` and the rest of `Core\Os`'s host facts — one member per fact, never one string to take apart (R11) |
 | `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
 | `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
 | `file_get_contents` | member | `Core\IO::read` for bytes, `Core\IO::readText` where the file is text in a known charset. A URL is not a path (`rule:security/a-path-is-not-a-url`); fetching one is `Core\Http\Client` |
@@ -23088,6 +23166,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `escapeshellarg` | dropped | **nothing to escape.** A command is a program plus an argument vector, so the quoting rules this function encodes — different on Windows, different again inside `cmd.exe` — have no input |
 | `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct `rule:core-classes/process-is-argv-only` exists to remove |
 | `proc_nice` | dropped | scheduling priority is the operator's, set where the process is started. A request that can renice its own runtime can starve every other request on the core |
+| `getmypid` | member | `Core\Os::pid` |
 | `getmyuid` | dropped | the account the process runs as is a deployment fact, and a program that branches on it is configuring itself from the environment instead of from `nvs.toml` |
 | `getmygid` | dropped | same |
 | `get_current_user` | dropped | same |
@@ -23264,6 +23343,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gethostbyname` | dropped | it resolves a name to an address the program then connects to by hand, which is the half of DNS rebinding an application can least afford to own. Resolution happens inside the outbound door, which connects to the address it resolved (`rule:http-server/allow-url-pins-the-address`) |
 | `gethostbynamel` | dropped | the same, as a list, and the same gap |
 | `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
+| `gethostname` | member | `Core\Os::hostname` — the host's own name is a process fact, not a lookup ([01 § 15](spec/01-core-library.md)) |
 | `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
 | `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways (`rule:core-api/shape-rules` R17) |
 | `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` (`rule:core-api/five-placements`) |

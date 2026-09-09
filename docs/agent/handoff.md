@@ -2,63 +2,60 @@
 
 ## State
 
-**Goal 24 — stage 2 is closed. All five `Core\Net` entry points are on disk**, and the three
-stage-2 `cargo-named` checks (nvs-config, nvs-host, nvs-stdlib's five names) are green.
-`Core\Net::connectLocal` and `Core\Net::listenLocal` ask `net.local` at `Scope::Path`, one grant
-governing both ends (`rule:config/net-local-is-named-and-not-on-the-roster`, now `shipped`).
+**Goal 24 — stage 3 is closed.** `Core\Os` is on disk with all five of the spec's § 16 facts —
+`pid`, `hostname`, `cpuCount`, `residentBytes`, `loadAverage` — and the stage-3 `cargo-named`
+check's four `-p nvs-stdlib` names are green. `examples/os-facts.nvs` runs, and three `.nvst` cases
+ask each member a different question.
 
-`Connected` and `Bound` are enums over two transports rather than newtypes, so one
-`Core\Net\Stream` and one `Core\Net\Listener` serve both — a match and not a `dyn`, so the parking
-path takes no vtable. `nvs_host::NvsAcceptor<L: Accepting>` is the generic accepting half behind
-them: `NvsListener` is its TCP alias (no caller changed) and `NvsUnixListener` its Unix one.
+**The syscalls are `nvs_runtime::os`'s, not this class's.** ADR 0118 § 2 forbids `nvs-stdlib` from
+reaching the operating system itself and `nvs_stdlib_reaches_the_os_only_through_the_gate` holds it
+there, so `crates/nvs-runtime/src/os.rs` is the platform half — the same move `terminal.rs` already
+made. The root `Cargo.toml` gained one `windows-sys` feature for it, `Win32_System_ProcessStatus`.
 
-Two decisions this landed, both recorded in `crates/nvs-stdlib/src/net.rs`'s module doc § *one
-handle class per shape, two transports inside it*: `Core\Net\Listener::port` **throws** for a
-listener bound at a path rather than answering `?uint` every TCP caller would unwrap, and a build
-with no `AF_UNIX` transport refuses both local doors *after* the grant is asked, so an ungranted
-program learns nothing about the host.
+Two decisions this landed, both recorded in `crates/nvs-stdlib/src/os.rs`'s module doc.
+**`Core\Os` has no row in `registry::CAPABILITIES` at all** rather than five `None` rows: a class is
+capability-bearing in that table's reading the moment any row names it, so five `None`s would claim
+this class is a door. `Core\Path` is the precedent the closure test's own doc names. And
+**`residentBytes` is a high-water mark** — `getrusage`'s `ru_maxrss`, the peak working set on
+Windows — which is the reading ADR 0148 § 12 names, so it only ever grows and is never a request's
+held bytes.
 
-Windows cannot compile the `cfg(unix)` half at all and `verify.py` has no Unix leg — the playbook's
-new bullet under *Running things* is how this session checked it. Nothing is blocked.
+Stage 5 is part done: `§16 Core\Os` and the three `Core\Os::*` migration keys are struck, because a
+line naming a registered class fails the same test as a missing one. Nothing is blocked.
 
 ## Next group
 
-**Stage 3: `Core\Os`, five facts about the host** — one file set: `crates/nvs-stdlib/src/os.rs`
-(new), `crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/src/registry.rs`, `examples/os-facts.nvs`.
+**Stage 4: `Core\Signal`, graceful shutdown and nothing else** — one file set:
+`crates/nvs-stdlib/src/signal.rs` (new), `crates/nvs-stdlib/src/lib.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/drain.rs`.
 
-- [ ] **`Core\Os` does not exist in the tree — the class, its five members, and its registration.**
-      `rule:core-api/tier-roster` places it (ADR 0051 § 3, "`Core\Os` (`posix`, minus fork)") and
-      `docs/decisions/0148.md` is the settled design the goal's § *Standing decisions* says this
-      stage builds rather than decides; `python tools/brief.py --where os` finds anything else that
-      owns a member. Five edits per member, `docs/agent/conventions.md` § *A `Core` member*: the
-      module goes in the list at `crates/nvs-stdlib/src/lib.rs:188` (alphabetical), the class in the
-      roster beside `crate::net::CLASS` at `crates/nvs-stdlib/src/registry.rs:1705`, and its
-      capability rows — probably all `None`, since reading this host's own facts reaches nothing —
-      at `crates/nvs-stdlib/src/registry.rs:2036`. `crates/nvs-stdlib/src/net.rs:842` is the
-      neighbour to copy a handle-free class's shape from.
-- [ ] **The four `-p nvs-stdlib` names the stage-3 check wants**, listed at
-      `docs/agent/loop-goal.toml:6174`: `pid_hostname_cpu_count_memory_usage_and_load_average_all_answer`,
-      `cpu_count_answers_the_number_serve_fans_out_over`,
-      `load_average_throws_on_windows_with_a_message_naming_the_platform` and
-      `no_core_os_member_is_a_sink_or_carries_tainted`. The third names the platform split, so the
-      member is `cfg`-split like the local doors at `crates/nvs-stdlib/src/net.rs:1420` — and the
-      playbook's new *Running things* bullet is how to compile the other half.
-- [ ] **`examples/os-facts.nvs`**, the acceptance fixture listed at `docs/agent/loop-goal.toml:10`
-      and the check the driver has been failing on. Its output is frozen once written, so nothing
-      in it may print a number this host decides — a load average or a pid in the expected output
-      is a fixture that passes only here. `examples/net-echo.nvs` is stage 2's and shows the shape.
+- [ ] **The class, its members and its registration.** `rule:core-api/tier-roster` places it
+      (ADR 0051 § 3, "leaving only a narrow `Core\Signal` for graceful shutdown") and the goal's
+      § Stage 4 is the surface: a handler for the terminating signals, no `kill`, no `alarm`, no
+      signal number as an integer. Five edits per member, `docs/agent/conventions.md` § *A `Core`
+      member*: the module joins the list at `crates/nvs-stdlib/src/lib.rs:237` and the address chain
+      at `crates/nvs-stdlib/src/lib.rs:390`, the class the roster at
+      `crates/nvs-stdlib/src/registry.rs:1730`. `crates/nvs-stdlib/src/os.rs:53` is the neighbour to
+      copy a handle-free class's shape from, and it is also the answer to whether this one owes
+      capability rows — read its module doc's second section before writing any.
+- [ ] **The handler enters the drain that exists rather than a second state machine.**
+      `rule:concurrency/a-drain-closes-a-connection-cleanly` is the machine;
+      `crates/nvs-runtime/src/drain.rs:81` is `Drain::begin` and `:98` the process-wide reader
+      `Core\Server::isDraining` already answers from. The delivery sets a flag a safepoint reads —
+      `crates/nvs-runtime/src/ctx/safepoint.rs:173` is `nvs_safepoint`, which already polls for
+      cancellation and is where a second flag belongs.
+- [ ] **The three `-p nvs-stdlib` names the stage-4 check wants**, listed at
+      `docs/agent/loop-goal.toml:6200`. They are the specification for the shape: a handler at a
+      safepoint and never in a signal context, one drain rather than two, and no job-control
+      surface.
 
 ## Backlog
 
-- Stage 4 `Core\Signal` — graceful shutdown and nothing else, per `docs/decisions/0148.md`.
-- Stage 5 — `every_part_two_spec_class_is_registered` and `every_migration_member_is_registered`,
-  then the two `nvs-suite` trees (`docs/agent/loop-goal.toml:6200`).
-- `docs/spec/01-core-library.md` § 16 has a roster row for `Core\Net` and no member table, so
-  nothing in this class is covered by `spec_registry_coverage.rs`. Not a gate today.
-- `examples/net-echo.nvs` demonstrates the TCP half only; a local-socket line would run on Unix
-  alone, so the fixture stays TCP on purpose.
-- **`cargo clippy -- -D warnings` is red on the Unix leg and green here**, in `nvs-db`: two
-  `large_enum_variant` errors on the connection enums that carry `Local(NvsUnix)`
-  (`crates/nvs-db/src/pg.rs:381`, `crates/nvs-db/src/mysql.rs:330`), whose variant only exists
-  under `cfg(unix)`. Not this session's — nothing here touches `nvs-db` — and `verify.py` cannot
-  see it. Boxing the `Tls` variant is what the lint asks for.
+- Stage 5's remaining strikes: `§16 Core\Net` and `§16 Core\Signal`, and the `socket_*`,
+  `stream_socket_*`, `fsockopen`, `posix_*` and `pcntl_*` migration keys —
+  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
+- Stage 6: `Core\Budget`'s three numbers and the recorded peak — ADR 0148 §§ 11-15, now reachable
+  from the goal's `[context.stage.3]` overlay and owed a `[context.stage.6]` one.
+- `Core\Os::loadAverage` has no `.nvst` case pinning its Windows message, because a frozen
+  expectation cannot hold on both platforms; `load_average_throws_on_windows_with_a_message_naming_the_platform`
+  is what asserts it instead.
