@@ -15,7 +15,6 @@
 
 §16 Core\Metrics   # unowned
 §16 Core\Signature # 29
-§16 Core\Budget    # 24
 §17 Core\Compress  # 25
 §17 Core\Mime      # 25
 §17 Core\Xml       # 26

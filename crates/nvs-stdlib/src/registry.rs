@@ -1509,6 +1509,13 @@ pub const CLASSES: &[CoreClass] = &[
     // and [`crate::signal`]'s module doc is the home of why it holds no reading
     // of the drain of its own.
     crate::signal::CLASS,
+    // § 16's other class that needs no request in hand, and the last of this
+    // run of them: `Core\Budget`, which answers what *this* request holds
+    // rather than what the process does. `rule:observability/memory-is-three-numbers-on-core-budget` is the roster —
+    // three readings, no `$real_usage` boolean — and [`crate::budget`]'s module
+    // doc owns why the peak is recorded by the allocator rather than sampled
+    // here, and why the process's own memory stays on `Core\Os`.
+    crate::budget::CLASS,
     // § 15's second request-facing class, and the one every value that came
     // from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
     // `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —

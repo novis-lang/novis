@@ -188,6 +188,7 @@
 pub mod arr;
 mod ast;
 mod attributes;
+mod budget;
 mod bus;
 mod bytes;
 mod cache;
@@ -357,6 +358,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| arr::address(symbol))
         .or_else(|| ast::address(symbol))
         .or_else(|| attributes::address(symbol))
+        .or_else(|| budget::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| cache::address(symbol))
         .or_else(|| cap::address(symbol))

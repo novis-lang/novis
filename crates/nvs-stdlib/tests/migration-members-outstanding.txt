@@ -16,12 +16,6 @@
 # with no Novis answer is a `dropped` or an `open` row in that table, not a
 # `member` row with a spelling nothing backs.
 
-# `Core\Budget` is the request's own budget, specified and unwritten -- the three
-# numbers `memory_get_usage` and `memory_get_peak_usage` are pointed at.
-Core\Budget::memoryHeld    # 24
-Core\Budget::memoryLimit   # 24
-Core\Budget::memoryPeak    # 24
-
 # `Core\Process` is registered and `run` is on it; `spawn` -- the streaming half
 # `proc_open` and `popen` are pointed at -- is not, and no entry on the chain
 # builds it.
