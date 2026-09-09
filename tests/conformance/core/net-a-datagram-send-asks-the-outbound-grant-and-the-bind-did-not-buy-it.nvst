@@ -1,0 +1,40 @@
+--TEST--
+a deployment that granted `net.listen` may bind a datagram socket and wait on it, and every send is still refused by name — `rule:security/net-listen-is-a-separate-grant-from-net-connect` and `rule:security/net-address-policy`
+--FILE--
+<?nvs
+// A datagram socket asks its two grants at two different moments, and this case
+// is the gap between them. The bind is granted, so the socket opens.
+var $socket = Core\Net::bindDatagram("127.0.0.1", 0);
+echo "bound: ", ($socket->port() > 0) as string, "\n";
+
+// And the bind bought nothing outbound. There is no connect on this transport
+// to have asked at, so the question lands at the send — which is the only place
+// a datagram's address is written at all.
+try {
+    $socket->send("127.0.0.1", 9, "ping" as bytes, 5s);
+    echo "sent it", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A receive asks nothing, and this is how that is visible rather than merely
+// claimed: it gets as far as waiting, so what ends the call is the bound
+// running out and not a refusal. A member that asked the outbound grant here
+// would throw a `RuntimeError` before any clock started.
+try {
+    var $message = $socket->receive(64, 50ms);
+    echo "received: ", $message->payload() as string, " from ", $message->host(), ":", $message->port() as string, "\n";
+} catch (TimeoutError $late) {
+    echo "waited, then gave up", "\n";
+}
+
+$socket->close();
+--FILE nvs.toml--
+# `net.listen` and nothing else — the widest inbound grant a deployment can
+# write, buying no way to reach anything.
+[capabilities.net]
+listen = true
+--EXPECT--
+bound: 1
+Core\Net\Datagram::send needs the capability `net.connect` for 127.0.0.1, which is not granted
+waited, then gave up

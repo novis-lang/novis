@@ -1,0 +1,61 @@
+--TEST--
+a bound datagram socket, a message that carries the endpoint it came from, and a reply addressed with what that message answered — `rule:core-classes/net-one-api-three-transports` and `rule:security/net-address-policy`
+--FILE--
+<?nvs
+// The whole of `Core\Net`'s datagram third, in the order a program meets it.
+// Two sockets in one task and nothing deadlocks, which is a property of
+// datagrams rather than of luck: a send does not wait for a receiver, so the
+// message is already queued by the time the receive asks for it.
+var $client = Core\Net::bindDatagram("127.0.0.1", 0);
+var $server = Core\Net::bindDatagram("127.0.0.1", 0);
+
+// There is no connect here and no accept. A datagram socket is bound and never
+// connected, so `port` is how a program learns where it can be reached, and the
+// address it sends to is named at the send instead.
+echo "bound: ", ($client->port() > 0 && $server->port() > 0) as string, "\n";
+
+echo "sent: ", $client->send("127.0.0.1", $server->port(), "ping" as bytes, 5s) as string, "\n";
+
+// What arrives is what was sent, whole, carrying the endpoint it came from —
+// and the sender is asserted against a port the case never wrote down, so a
+// member answering its own socket's address would read plausibly and fail here.
+var $heard = $server->receive(64, 5s);
+echo "heard: ", $heard->payload() as string, "\n";
+echo "from: ", $heard->host(), " ", ($heard->port() == $client->port()) as string, "\n";
+
+// The reply, addressed with nothing but what the message answered. This is what
+// `host` being a plain `string` buys: `send`'s host is a sink, so an answer
+// carrying a qualifier could not be handed back to it at all, and a datagram
+// socket that cannot reply is most of a datagram socket missing.
+$server->send($heard->host(), $heard->port(), "pong" as bytes, 5s);
+var $back = $client->receive(64, 5s);
+echo "back: ", $back->payload() as string, "\n";
+
+// Closing gives the port and the reactor registration back, and a second close
+// throws rather than succeeding quietly: a key is never reused, so this can
+// only be the same handle twice.
+$client->close();
+$server->close();
+try {
+    $server->close();
+    echo "closed twice", "\n";
+} catch (RuntimeError $gone) {
+    echo $gone->message, "\n";
+}
+--FILE nvs.toml--
+# Three keys, exactly as the TCP round trip needs them: binding and reaching out
+# are separate powers, and the loopback address this program supplies is one
+# `rule:security/net-address-policy` denies by default. `listen = true` rather
+# than an endpoint literal, because the program asks for port `0` and there is
+# no endpoint a reviewer could have written down in advance.
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+bound: 1
+sent: 4
+heard: ping
+from: 127.0.0.1 1
+back: pong
+Core\Net\Datagram::close: this handle is closed

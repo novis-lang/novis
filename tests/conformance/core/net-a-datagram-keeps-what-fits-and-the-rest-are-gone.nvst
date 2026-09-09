@@ -1,0 +1,55 @@
+--TEST--
+a receive keeps `$max` octets of a datagram and the remainder is gone rather than waiting, which is the whole of what a datagram is not a stream — `rule:core-classes/net-one-api-three-transports`
+--FILE--
+<?nvs
+// Both sides of one bound, named together. A message that fits arrives whole,
+// a message one octet longer is cut — and a member that ignored its ceiling and
+// a member that cut every message would each read right on one of these lines
+// alone.
+var $sender = Core\Net::bindDatagram("127.0.0.1", 0);
+var $target = Core\Net::bindDatagram("127.0.0.1", 0);
+uint $port = $target->port();
+
+$sender->send("127.0.0.1", $port, "12345678" as bytes, 5s);
+var $whole = $target->receive(8, 5s);
+echo "whole: ", $whole->payload() as string, "\n";
+
+// The octet that did not fit is *gone*. What asserts that rather than merely
+// stating it is the marker sent behind it: if a datagram left a remainder the
+// way a stream does, this is the receive the tail would arrive on, and the
+// marker would come back one call later than it does.
+$sender->send("127.0.0.1", $port, "123456789" as bytes, 5s);
+$sender->send("127.0.0.1", $port, "marker" as bytes, 5s);
+var $cut = $target->receive(8, 5s);
+echo "cut: ", $cut->payload() as string, "\n";
+var $next = $target->receive(64, 5s);
+echo "next: ", $next->payload() as string, "\n";
+
+// And a short answer is not a short *message*: `$max` above the length answers
+// what was sent and nothing is padded to the ceiling.
+$sender->send("127.0.0.1", $port, "ok" as bytes, 5s);
+var $small = $target->receive(64, 5s);
+echo "small: ", Core\Bytes::length($small->payload()) as string, "\n";
+
+// Every one of those messages came off the same socket, so every one names the
+// same endpoint — asked as agreement between two messages rather than as a
+// value, since the port is different on every run.
+echo "one sender: ", ($cut->host() == $next->host() && $cut->port() == $next->port()) as string, "\n";
+echo "and it is the sender: ", ($next->port() == $sender->port()) as string, "\n";
+
+$sender->close();
+$target->close();
+--FILE nvs.toml--
+# The round-trip case's grant, unchanged: what this case varies is the argument
+# a member is given, not what the deployment allows.
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+whole: 12345678
+cut: 12345678
+next: marker
+small: 2
+one sender: 1
+and it is the sender: 1
