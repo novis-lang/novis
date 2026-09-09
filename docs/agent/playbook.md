@@ -5421,6 +5421,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   red locally. Hand the kernel a buffer no datagram can overflow and make the `$max` cut in the
   member — `nvs_stdlib::net`'s `DATAGRAM_CEILING` is that shape.
   [until: reviewed 2026-09-09]
+- **A new `Core` member with a bare `CoreTy::Bytes` or `CoreTy::Str` parameter fails a gate that
+  offers the wrong fix.** `every_member_parameter_carries_a_qualifier_classification` prints your
+  row as a line to paste into `UNCLASSIFIED`, which is a freeze of the rows written before the
+  classification existed and not a list to join. Classify instead —
+  `CoreTy::Blob(Qual::Contagious)` for a member that reshapes octets and learns nothing about where
+  they came from, and it is accepted inside a `CoreTy::Union` member too.
+  [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

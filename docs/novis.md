@@ -143,6 +143,7 @@ Conventions the whole file uses:
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Html`](#core-core-html) |  |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
+| [`Core\Compress`](#core-core-compress) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
@@ -18527,6 +18528,52 @@ Keywords:
 | Member | Signature |
 |---|---|
 
+<a id="core-core-compress"></a>
+### `Core\Compress`
+
+Keywords: compress, decompress
+
+| Member | Signature |
+|---|---|
+| [`Core\Compress::compress`](#core-core-compress-compress) | `compress(bytes\|string $data, Core\Codec $codec): bytes` |
+| [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(bytes $data, Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
+
+<a id="core-core-compress-compress"></a>
+#### `Core\Compress::compress`
+
+```nvs skip
+Core\Compress::compress(bytes|string $data, Core\Codec $codec): bytes
+```
+
+Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode` at once — the format is a case of `Core\Codec` rather than a third of a function's name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes\|string` | The octets to compress; a `string` is read as its UTF-8 bytes. |
+| `$codec` | `Core\Codec` | The format to write. `Core\Codec::Gzip` is the one to reach for when the result crosses a wire. |
+
+**Returns** `bytes` — The compressed frame, as octets. Compressing is never refused for size: the output of a compressor is bounded by its input.
+
+<a id="core-core-compress-decompress"></a>
+#### `Core\Compress::decompress`
+
+```nvs skip
+Core\Compress::decompress(bytes $data, Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
+```
+
+Decompresses `$data` under `$codec`, **under a bound that cannot be switched off** — replacing `gzdecode`, `gzuncompress`, `gzinflate` and `zlib_decode`, whose `$max_length` was optional and defaulted to unlimited.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` | The compressed frame. Tainted in, tainted out: decompressing tells you nothing about what the octets are safe for. |
+| `$codec` | `Core\Codec` | The format `$data` is in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
+| `$maxBytes` | `uint` (default `67108864`) | The most output this call will produce, in octets. A call may ask for less than `[limits] max_decompressed` and never for more; `0` is a bound of zero and not a spelling for unbounded. |
+| `$maxRatio` | `uint` (default `1000`) | The most output per octet of input. The second half of the same bound: a bomb is small on the wire, so a byte ceiling alone is a ceiling a small request can still reach. |
+
+**Returns** `bytes` — The decompressed octets, never a truncation — a decompression that would pass either bound throws instead of answering the prefix it had reached.
+
+**Throws** `ParseError` — `$data` is not a well-formed frame of `$codec`, or the output would pass either half of the bound. Never an `IOError`: a hostile archive and a full disk are different questions.
+
 <a id="core-core-http"></a>
 ### `Core\Http`
 
@@ -20819,6 +20866,19 @@ The algorithm a `Core\Hash` member computes — every one PHP's `hash()` names t
 | `Core\Digest::Crc32c` | CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with. |
 | `Core\Digest::Blake3` | BLAKE3, 32 octets — the fastest here and the one PHP cannot compute; outside `StrongDigest` because it is keyed natively rather than through HMAC. |
 
+<a id="enum-core-codec"></a>
+#### `Core\Codec`
+
+The format a `Core\Compress` member reads or writes. The first three are one deflate stream under three different headers, which is what PHP spelled as three function names; the last two are the other two `Content-Encoding` formats in use.
+
+| Case | Meaning |
+|---|---|
+| `Core\Codec::Gzip` | RFC 1952 — a deflate stream under a gzip header, PHP's `gzencode` and `Content-Encoding: gzip`. |
+| `Core\Codec::Zlib` | RFC 1950 — the same stream under a zlib header, PHP's `gzcompress` and what `Content-Encoding: deflate` names on the wire. |
+| `Core\Codec::Deflate` | RFC 1951 — the stream with no header at all, PHP's `gzdeflate`. |
+| `Core\Codec::Brotli` | RFC 7932, `Content-Encoding: br`. |
+| `Core\Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
+
 <a id="enum-core-log-level"></a>
 #### `Core\Log\Level`
 
@@ -21578,6 +21638,8 @@ ceiling.
 | `fatal_reserve_memory` | size | the slice of `memory` kept back for the limit handler (`Core\Fatal::onLimit`); not raisable, no ceiling |
 | `fatal_reserve_time` | duration | the slice of `cpu_time` kept back for the same handler |
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
+| `max_decompressed` | size | the most one `Core\Compress` or `Core\Zip` decompression may produce (default 64M); not raisable, and `false` does not remove it |
+| `max_decompression_ratio` | count | the other half of the same bound — output per octet of input (default 1000). A call asks for less through its own arguments and never for more |
 
 `[limits.hard]` takes the first five keys only. Breaching a limit is **not an exception**: nothing
 in the program can `catch` it. The request is stopped, the handler registered with
@@ -21970,6 +22032,8 @@ long-running host — at a reload, or only at boot.
 | `limits.fatal_reserve_memory` | operator only — a request cannot change it | at reload |
 | `limits.fatal_reserve_time` | operator only — a request cannot change it | at reload |
 | `limits.max_script_depth` | operator only — a request cannot change it | at reload |
+| `limits.max_decompressed` | operator only — a request cannot change it | at reload |
+| `limits.max_decompression_ratio` | operator only — a request cannot change it | at reload |
 | `mode.default` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `mode.ceiling` | operator only — a request cannot change it | at reload |
 | `capabilities` | a request may only narrow it | at reload |

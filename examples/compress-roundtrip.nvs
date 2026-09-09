@@ -1,0 +1,76 @@
+<?nvs
+// Five codecs behind one pair of members, and a bound the program cannot
+// switch off.
+//
+// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Compress` in Tier 0 for
+// one reason: what a compressed input can do to a server is *policy*, and
+// policy must be non-optional. [ADR 0166](/docs/decisions/0166.md) is that
+// policy — `rule:core-classes/decompression-bound` — and this file is what it
+// looks like from a program.
+//
+// **Nothing here asks a capability.** Compressing octets a program is already
+// holding reaches no file, no socket and no other request, so there is nothing
+// to grant and this runs under a deployment that grants nothing at all.
+
+// The format is a case of `Core\Codec` and never a string. That is the same
+// decision `Core\Crypto` makes about cipher names and `Core\Hash` about
+// digests: a misspelling is a compile error rather than a run-time `false`.
+string $document = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 96);
+bytes $payload = $document as bytes;
+
+array<Core\Codec> $codecs = [
+    Core\Codec::Gzip,
+    Core\Codec::Zlib,
+    Core\Codec::Deflate,
+    Core\Codec::Brotli,
+    Core\Codec::Zstd,
+];
+
+// One document through every case. What is printed is the property rather than
+// the sizes, because the exact frame length is each library's business and
+// changes with a version of it.
+int $exact = 0;
+foreach ($codecs as Core\Codec $codec) {
+    bytes $frame = Core\Compress::compress($payload, $codec);
+    bytes $back = Core\Compress::decompress($frame, $codec);
+    if (Core\Hash::equals($back, $payload)) {
+        $exact = $exact + 1;
+    }
+}
+echo "codecs round-tripping exactly: ", $exact, "\n";
+
+// The three deflate-based cases are one algorithm under three headers, which is
+// why PHP needed `gzencode`, `gzcompress` and `gzdeflate` for it. Here the
+// difference is which case you name, and naming the wrong one is refused rather
+// than guessed at — nothing sniffs a header.
+bytes $gzip = Core\Compress::compress($payload, Core\Codec::Gzip);
+try {
+    Core\Compress::decompress($gzip, Core\Codec::Zlib);
+    echo "a gzip frame read as zlib\n";
+} catch (ParseError $wrong) {
+    echo "a frame is read under the case it was written by, or not at all\n";
+}
+
+// The bound. `$maxBytes` and `$maxRatio` are *asks*: a call may want less than
+// the operator's `[limits] max_decompressed` and never more, and there is no
+// value for either that means "no bound". A decompression that would pass one
+// throws — it never answers the prefix it had reached, because a truncated
+// decompression that looks like success is the bug this class exists to stop.
+bytes $compressible = Core\Str::repeat("A", 65536) as bytes;
+bytes $bomb = Core\Compress::compress($compressible, Core\Codec::Gzip);
+echo "a 64 KiB run compresses to under 512 octets: ",
+    Core\Bytes::length($bomb) < 512 ? "yes" : "no",
+    "\n";
+
+try {
+    Core\Compress::decompress($bomb, Core\Codec::Gzip, 4096);
+    echo "the bound did not hold\n";
+} catch (ParseError $refused) {
+    echo "asking for 4 KiB of a 64 KiB expansion: refused\n";
+}
+
+// And the same frame under a bound that fits reads whole. The refusal above is
+// the policy, not the decoder failing.
+echo "under a bound that fits: ",
+    Core\Bytes::length(Core\Compress::decompress($bomb, Core\Codec::Gzip, 65536)),
+    " octets\n";

@@ -1,0 +1,48 @@
+--TEST--
+`Core\Compress` is one API over every codec case, and each direction is the other's inverse — spec § 17, `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// One payload through every case, counted rather than read off a line: a codec
+// that answers plausibly on its own row still fails the count. The payload is
+// English text repeated, which every one of the five compresses and none of
+// them compresses to nothing.
+string $text = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 64);
+bytes $payload = $text as bytes;
+array<Core\Codec> $codecs = [
+    Core\Codec::Gzip,
+    Core\Codec::Zlib,
+    Core\Codec::Deflate,
+    Core\Codec::Brotli,
+    Core\Codec::Zstd,
+];
+
+int $same = 0;
+int $smaller = 0;
+foreach ($codecs as Core\Codec $codec) {
+    bytes $frame = Core\Compress::compress($payload, $codec);
+    if (Core\Bytes::length($frame) < Core\Bytes::length($payload)) {
+        $smaller = $smaller + 1;
+    }
+    if (Core\Hash::equals(Core\Compress::decompress($frame, $codec), $payload)) {
+        $same = $same + 1;
+    }
+}
+echo "round trips: ", $same, "\n";
+echo "smaller than the input: ", $smaller, "\n";
+
+// `rule:types/conversion`: a `string` is already a valid byte sequence, so the
+// member takes one and answers the same frame the octets would have.
+bytes $fromText = Core\Compress::compress($text, Core\Codec::Gzip);
+echo Core\Hash::equals(Core\Compress::decompress($fromText, Core\Codec::Gzip), $payload)
+    ? "text agrees"
+    : "text differs", "\n";
+
+// The empty input is a frame like any other, and decompresses back to nothing
+// rather than being refused as too small to be one.
+bytes $empty = Core\Compress::compress("", Core\Codec::Zstd);
+echo "empty: ", Core\Bytes::length(Core\Compress::decompress($empty, Core\Codec::Zstd)), "\n";
+--EXPECT--
+round trips: 5
+smaller than the input: 5
+text agrees
+empty: 0

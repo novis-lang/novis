@@ -1,0 +1,58 @@
+--TEST--
+Nothing is sniffed: a frame decompressed under a case it was not written by is refused as malformed, and by a `ParseError` rather than an `IOError` — spec § 17
+--FILE--
+<?nvs
+// The codec is an argument and never a guess. A member that sniffed the header
+// would decompress this correctly and quietly disagree with what the program
+// said the bytes were, which is how a format confusion starts.
+bytes $payload = Core\Str::repeat("hello compressed world\n", 32) as bytes;
+bytes $gzip = Core\Compress::compress($payload, Core\Codec::Gzip);
+
+try {
+    Core\Compress::decompress($gzip, Core\Codec::Zstd);
+    echo "a gzip frame passed as zstd\n";
+} catch (ParseError $wrong) {
+    echo "refused as zstd\n";
+}
+
+// A zlib header and a gzip header wrap the same deflate stream, which is what
+// made PHP spell one algorithm three ways — and they are still different
+// formats, so neither reads the other.
+try {
+    Core\Compress::decompress($gzip, Core\Codec::Zlib);
+    echo "a gzip frame passed as zlib\n";
+} catch (ParseError $header) {
+    echo "refused as zlib\n";
+}
+
+// Octets that are no frame at all take the same path, and the message says so
+// rather than reporting a failed read.
+try {
+    Core\Compress::decompress("not a frame at all" as bytes, Core\Codec::Brotli);
+    echo "arbitrary octets passed as brotli\n";
+} catch (ParseError $junk) {
+    echo $junk->message, "\n";
+}
+
+// A truncated frame is the same answer: the decoder ran out of input, which is
+// a malformed document and not a bound.
+bytes $cut = Core\Bytes::slice($gzip, 0, 12);
+try {
+    Core\Compress::decompress($cut, Core\Codec::Gzip);
+    echo "a truncated frame passed\n";
+} catch (ParseError $short) {
+    echo "refused as truncated\n";
+}
+
+// And the one that is neither: the same frame under its own case still reads.
+echo "own case: ",
+    Core\Hash::equals(Core\Compress::decompress($gzip, Core\Codec::Gzip), $payload)
+        ? "reads"
+        : "differs",
+    "\n";
+--EXPECT--
+refused as zstd
+refused as zlib
+Core\Compress::decompress(): not a well-formed `Core\Codec::Brotli` frame: Invalid Data
+refused as truncated
+own case: reads

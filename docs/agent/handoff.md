@@ -2,45 +2,67 @@
 
 ## State
 
-**Goal 25 — `Core\Compress`, `Core\Mime` and `Core\Zip` — has just started; nothing of it has landed
-yet.** Goal 24's whole list is this goal's Stage 1 floor.
+**Goal 25's Stage 2 has landed whole: `Core\Compress` is registered, implemented, bounded and
+pinned.** `compress` and `decompress` are the whole-buffer pair, `Core\Codec` is **five** cases and
+not four — the migration table's `gzencode`/`gzcompress`/`gzdeflate` rows name three distinct byte
+formats over one deflate stream — and the incremental half (`deflate_init`, `deflate_add`,
+`inflate_init`) is `crates/nvs-stdlib/src/compress.rs`'s known gap 1 rather than an open question.
 
-**They are M8's, not M9's**, and that correction is why this entry exists.
-`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`'s header said "the four in § 17 are the
-document and archive formats M9 carries"; [m9.md](../plan/m9.md) is the extension system — `.nvsx`
-loading, the WIT world, the capability bridge — and carries none of them, while
-`rule:core-api/tier-roster` puts all three at Tier 0.
+**The bound is `rule:core-classes/decompression-bound`, opened as ADR 0166** — the one ADR number
+this goal authorised. Two numbers, `[limits] max_decompressed` (64 MiB) and
+`[limits] max_decompression_ratio` (1000:1), both `System`-class, both clamping a call's own
+`$maxBytes`/`$maxRatio` downward only, and neither with a spelling for "off": `false` reads as the
+shipped default. A breach is a `ParseError` naming the rule, never an `IOError`.
 
-All three are Tier 0 for one reason: what a compressed or archived input can do to a server is
-**policy**, and policy must be non-optional. `Core\Zip` is Core "despite passing test 5" for exactly
-this — a sandboxed decoder gets the memory cap for free and the traversal rules not at all.
+**Stage 0's § 17 rows are done for two of the three classes** — `Core\Compress` and `Core\Zip` now
+carry the surface and the ADR; `Core\Mime`'s row is still one line with no ADR. **Stage 5's first
+strike is already spent**: `every_part_two_spec_class_is_registered` refuses a line naming a
+registered class, so `§17 Core\Compress` left
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` with the class rather than at the
+end of the goal — and Stage 3 and Stage 4 each owe theirs the same way. The migration table's
+`zlib` rows are still Stage 5's. Dependencies are `flate2`, `brotli` and `ruzstd`, all pure Rust,
+notice regenerated.
 
 ## Next group
 
-**Stage 2: `Core\Compress`, and the bound** — one file set: the new `crates/nvs-stdlib/src/compress.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-config/src/tree.rs`.
+**Stage 3: `Core\Mime`, magic bytes and no rule interpreter** — one file set: the new
+`crates/nvs-stdlib/src/mime.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/lib.rs`. `crates/nvs-stdlib/src/compress.rs` is the shape to copy for all
+three: a class const, an enum const, a `MethodDoc` per row, an `address` arm, and a `#[cfg(test)]`
+module holding the acceptance names.
 
-- [ ] **Four codecs, one API** — gzip, deflate, brotli, zstd. The codec is an **enum**, never a string;
-      there is no `compress($data, "gzip")` for the same reason there is no cipher-name-as-string.
-- [ ] **The bound is a parameter with a default, not an option that can be `null`** — a ratio and an
-      absolute output ceiling, both. Exceeding either throws; a truncated decompression that looks like
-      success is the bug the class exists to prevent. `[limits]` gives the default; a call may lower it
-      and never raise it past the configured ceiling.
-- [ ] **Dependencies picked under `rule:packaging/a-c-dependency-answers-two-questions`** — pure Rust for all four, no audited-C exception, and
-      each owes `python tools/gen-attribution.py`.
-- [ ] **Decide streaming-or-whole-buffer in the module doc.** The `Core\Xml` precedent is that a tree
-      and a stream are different jobs stated as such; that sentence is either written here or
-      explicitly does not apply.
+- [ ] **Detection is from magic bytes and never from a file extension**
+      (`rule:core-api/tier-roster`'s § 17 row; a type read off an extension is a type an attacker
+      chose). A fixed table this crate carries, not libmagic's rule language. Register the class at
+      `crates/nvs-stdlib/src/registry.rs:1695`, beside `crate::compress::CLASS`, and the module at
+      `crates/nvs-stdlib/src/lib.rs:203` and `crates/nvs-stdlib/src/lib.rs:370`. Test:
+      `a_type_is_detected_from_magic_bytes_and_never_from_a_file_extension`.
+- [ ] **The answer is a closed enum plus an `Unknown`, never a free string**, so a caller cannot
+      compare against a spelling that never occurs — the same decision `Core\Codec` makes at
+      `crates/nvs-stdlib/src/compress.rs:83`, whose ordinals-are-ABI note applies here too. Register
+      it beside `crate::compress::CODEC` at `crates/nvs-stdlib/src/registry.rs:2389`. Test:
+      `the_answer_is_a_closed_enum_plus_unknown_and_never_a_free_string`.
+- [ ] **Detection launders nothing** (`rule:security/launderers-are-sink-named`): bytes that detect
+      as `image/png` are still `tainted`, so the subject parameter is
+      `CoreTy::Blob(Qual::Contagious)` — `crates/nvs-stdlib/src/compress.rs:138` is the worked
+      example — and the sentence goes in the member's own reference card, which is where a caller
+      will read it. Test: `detected_bytes_are_still_tainted_because_detection_is_not_a_launderer`.
+- [ ] **Three `.nvst` cases, and the strike in the same slice.**
+      `conformance_coverage.rs`'s floor is three cases per member, and its error-path gate wants
+      every `Fault::` site either reached by a case or declared "unreachable from source" within
+      eight lines above it. `§17 Core\Mime` leaves
+      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:18` in the slice that
+      registers the class, not at Stage 5: `every_part_two_spec_class_is_registered` fails on a
+      line naming a class that is registered now.
 
 ## Backlog
 
-- **Stage 3 (`Core\Mime`)** is a magic-byte table this crate carries — never libmagic's rule language
-  and never a file extension, because a type detected from an extension is a type an attacker chose.
-  The answer is a closed enum plus "unknown". **Detection is not a laundering** and that sentence goes
-  in the member's own doc card, because it is the thing a caller will get wrong.
-- **Stage 4 (`Core\Zip`)** is where the policy lives: traversing, absolute and symlink entries refused
-  at *read* time so a program cannot opt out by extracting entries itself; the bomb is stage 2's bound
-  applied per entry and across the archive. The proofs are the four attacks, each refused by a
-  diagnostic that names the rule rather than by a failed file operation.
-- **The server still compresses nothing** (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). This goal gives a *program* a compressor and
-  puts none in the response path.
+- Stage 4, `Core\Zip`: four hostile archives, four refusals, and the bound above applied per entry
+  *and* across the archive — ADR 0166 § 6 says it gets no second rule (`docs/agent/loop-goal.md`).
+- Stage 5: strike `§17 Core\Compress`, `§17 Core\Mime` and `§17 Core\Zip` from
+  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, and answer the migration table's
+  `zlib`, `fileinfo` and `zip` rows (`docs/spec/02-php-migration.md`).
+- `Core\Compress`'s incremental half — `Core\Compress\Stream`, shaped like `Core\Hash\Stream` —
+  is known gap 1 in `crates/nvs-stdlib/src/compress.rs`, and no goal carries it yet.
+- `python tools/records.py --check` reports four records missing `modifies: []`; 0163, 0164 and 0165
+  are another goal's and were left alone.
