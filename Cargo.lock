@@ -2101,6 +2101,7 @@ dependencies = [
  "insta",
  "nvs-diagnostics",
  "nvs-hir",
+ "nvs-render",
  "nvs-syntax",
  "nvs-types",
  "rustc-hash",
