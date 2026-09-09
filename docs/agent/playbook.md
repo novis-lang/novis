@@ -1418,6 +1418,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which owe `python tools/reference.py --no-examples` for `docs/novis.md` in the same commit. Budget
   the pass as the slice itself, and price any design that leaves `$e->message` alone against it
   before choosing. [until: reviewed 2026-09-09]
+- **A decision record's `changes:` block needs `modifies:` spelled out even when the record modifies
+  nothing.** `conventions.md` § *A decision record* shows both keys under one example that uses both, so
+  a record creating two rules and editing none reads complete without the second — and then
+  `tools/records.py --check` answers `changes: has no modifies: list`. Write `modifies: []` in the same
+  keystroke as `creates:`, and run `records.py --check` beside `rules.py --render` rather than after it.
+  [until: reviewed 2026-09-09]
 
 ## Running things
 
