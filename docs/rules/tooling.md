@@ -3,7 +3,7 @@
 
 # Tooling
 
-*36 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*40 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -982,8 +982,9 @@ every renderer consumes it:
 
 ```
                       ┌─ tools/reference.py  → docs/novis.md
-nvs meta --json ──────┼─ website sync:core    → core.json → MDX
-                      └─ nvs doc              → Markdown pages
+                      ├─ website sync:core    → core.json → MDX
+nvs meta --json ──────┼─ nvs doc              → Markdown pages
+                      └─ nvs agent            → the primer, the index, one card
 ```
 
 Nothing re-derives documentation from source, and no renderer is authoritative for content. The `Core`
@@ -996,7 +997,11 @@ Two renderers already sit on the `Core` half — the one-file reference and the 
 neither reads a Rust file to find a description. A third source of truth for user declarations would be
 exactly the duplication that shape exists to avoid.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
+The fourth arm answers a coding agent rather than a reader ([`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary)),
+and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
+the binary that compiles a program is the binary that documents it.
+
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-meta-json"></a>
 
@@ -1023,7 +1028,7 @@ succeed by printing nothing. A consumer ignores fields it does not know, so a fi
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
 never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
 
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md).</sub>
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-meta-json-takes-a-program"></a>
 
@@ -1050,6 +1055,106 @@ The no-argument form must emit byte-identical output before and after the argume
 one input added to one document, never a fork.
 
 <sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
+
+<a id="tooling-an-agent-asks-the-binary"></a>
+
+## `nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface  *(designed — not yet in the compiler)*
+
+`rule:tooling/an-agent-asks-the-binary`
+
+`nvs agent` is the surface a coding agent reads the language through, and it is four commands that
+answer from the registry the binary already carries: `primer` prints the short document that makes an
+agent productive, `index` prints one line per member, `find <query>` prints the index lines matching a
+query, and `show <symbol>` prints one member's card. Nothing is written to disk and nothing is cached,
+so the binary that compiles a program is the binary that answers for it and an answer can never
+describe a version that is not installed.
+
+All four render `nvs meta --json`'s document and decide nothing ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)),
+which makes them a fourth consumer rather than a fifth source of truth. `find` is a command rather than
+an instruction to grep the index, because a namespaced name loses its backslash to the shell before
+`grep` sees it and the empty result that follows is indistinguishable from a name the language does not
+have.
+
+The protocol is three calls and a check: read `primer` once, `find` a name, `show` its card, then
+`nvs check`. A diagnostic is the cheapest documentation the system has — it is read only by the agent
+that got something wrong — so the check loop is part of the surface rather than an alternative to it.
+
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`tooling/an-adapter-carries-protocol-and-never-language`](tooling.md#tooling-an-adapter-carries-protocol-and-never-language). Decided in [0167](../decisions/0167.md).</sub>
+
+<a id="tooling-the-index-is-one-line-per-member"></a>
+
+## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on  *(designed — not yet in the compiler)*
+
+`rule:tooling/the-index-is-one-line-per-member`
+
+`nvs agent index` prints exactly one line for every member the registry holds, and one for every enum,
+exception and attribute beside them. It is derived at the call and kept nowhere
+([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s shape), so a member that lands owes its line at once and no list is
+ever stale.
+
+Completeness is the property the command exists to have. An agent that greps a complete list learns
+something from an empty result — that the name it guessed does not exist — and learns nothing at all
+from an empty result over a list that merely happens not to mention it. That is why the index is
+enumerated from the registry rather than written, and why the guard is a member-for-member
+correspondence rather than a count.
+
+A line carries the member's signature in the spec's own spelling and the capability the call is gated
+on, written after it in brackets: `Core\IO::read(string $path): string  [fs.read]`. The capability is
+joined from [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)'s one table at render time, never
+copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather
+than reshaping it. So an agent learns the gate from the name of the thing it is about to call, which is
+where every arm of `0167`'s investigation was stopped.
+
+A line carries no behaviour: what `header: true` does to a row is the card's answer, which is what
+`show` is for.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door). Decided in [0167](../decisions/0167.md).</sub>
+
+<a id="tooling-a-primer-claim-is-executed"></a>
+
+## The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it  *(designed — not yet in the compiler)*
+
+`rule:tooling/a-primer-claim-is-executed`
+
+Every claim the primer makes is proven against the compiler that ships with it: each spelling it states
+as refused is fed to `nvs check` and must be refused, and each example in it is run and must print what
+the primer says it prints. This is the discipline `docs/novis.md`'s examples already hold, applied to
+the one document that is read by someone who has nothing else.
+
+The primer is generated — from marked sections of the reference chapters, those chapters' front matter,
+and the registry — so it cannot drift from the language, and a section that stops being true stops being
+rendered rather than becoming a lie. What it carries is fixed by what an agent gets wrong without it:
+the lookup protocol, one complete worked program with every shape annotated, the capability model and
+the smallest `nvs.toml` that grants a file read, the refusal table, and the chapter map.
+
+The refusal table is the highest-value part and the reason the order puts it late rather than first: a
+model's prior for a language that reads like PHP is confident and wrong, so what Novis refuses and what
+to write instead is worth more per byte than what Novis has. Its budget is a low four figures of tokens,
+and it is met by what the primer selects — never by trimming what a selected section says.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member). Decided in [0167](../decisions/0167.md).</sub>
+
+<a id="tooling-an-adapter-carries-protocol-and-never-language"></a>
+
+## `nvs agent init` writes one pointer per harness, and no adapter ever states a language fact  *(designed — not yet in the compiler)*
+
+`rule:tooling/an-adapter-carries-protocol-and-never-language`
+
+`nvs agent init` installs the surface into a project by writing one pointer per harness — an `AGENTS.md`
+stanza, which is harness-neutral, and beside it an adapter for each harness that is present, such as a
+Claude Code skill at `.claude/skills/novis/SKILL.md`. Each names the four `nvs agent` commands and the
+`nvs check` loop.
+
+**No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
+fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
+read by an agent that has no way to know it is old — which is the failure the whole surface is arranged
+to avoid. An adapter says where to ask; the binary answers.
+
+That is what keeps the adapter list open. Another harness is another short pointer file, adding one
+decides nothing and reopens nothing, and none of them can disagree with the language, because none of
+them says anything about it.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-convert-php-front-end"></a>
 

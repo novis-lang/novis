@@ -3,8 +3,9 @@ every renderer consumes it:
 
 ```
                       ┌─ tools/reference.py  → docs/novis.md
-nvs meta --json ──────┼─ website sync:core    → core.json → MDX
-                      └─ nvs doc              → Markdown pages
+                      ├─ website sync:core    → core.json → MDX
+nvs meta --json ──────┼─ nvs doc              → Markdown pages
+                      └─ nvs agent            → the primer, the index, one card
 ```
 
 Nothing re-derives documentation from source, and no renderer is authoritative for content. The `Core`
@@ -16,3 +17,7 @@ than through a second pipeline beside it, and the renderer shipped in the binary
 Two renderers already sit on the `Core` half — the one-file reference and the website's core data — and
 neither reads a Rust file to find a description. A third source of truth for user declarations would be
 exactly the duplication that shape exists to avoid.
+
+The fourth arm answers a coding agent rather than a reader (`rule:tooling/an-agent-asks-the-binary`),
+and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
+the binary that compiles a program is the binary that documents it.
