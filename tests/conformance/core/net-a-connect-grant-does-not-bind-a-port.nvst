@@ -1,0 +1,38 @@
+--TEST--
+a deployment granted `net.connect` may not bind, the refusal names the endpoint it asked for, and a bind takes an address literal rather than a name — `rule:security/net-listen-is-a-separate-grant-from-net-connect`
+--FILE--
+<?nvs
+// The other direction of the same split. This deployment may reach the
+// loopback host — the address policy exception is written for it and the host
+// is granted by name — and it still may not open a port there.
+try {
+    Core\Net::listen("127.0.0.1", 8080);
+    echo "bound it", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The refusal above names the endpoint rather than the address, because
+// `net.listen`'s entries are `address:port` literals matched exactly: what a
+// bind risks is occupying a port another service expects, and that is a
+// question about the pair.
+//
+// And a bind resolves nothing. A hostname is refused where it is written
+// rather than looked up, since a name answering two addresses could not be the
+// one endpoint an operator granted.
+try {
+    Core\Net::listen("localhost", 8080);
+    echo "bound it", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# `net.connect` and its address exception, and no `net.listen` at all — the
+# widest outbound grant a deployment can write for this host, buying nothing
+# inbound.
+[capabilities.net]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+Core\Net::listen needs the capability `net.listen` for 127.0.0.1:8080, which is not granted
+Core\Net::listen: `localhost` is not an address literal — a bind names an endpoint, and a hostname is not one

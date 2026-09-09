@@ -1,0 +1,50 @@
+--TEST--
+`Core\Net\Stream::read` answers no more than `$max` and leaves the remainder on the socket, so a short answer is the ordinary case rather than a failure — `rule:core-classes/net-one-api-three-transports`
+--FILE--
+<?nvs
+// `$max` is a ceiling on one read, not a length to fill: a socket reports what
+// arrived. This case asserts both sides of that at once — the first read stops
+// at `$max` with octets still waiting, and the loop after it collects exactly
+// the rest, so a member that ignored its ceiling and a member that threw the
+// remainder away both fail here while looking right on either line alone.
+var $door = Core\Net::listen("127.0.0.1", 0);
+var $client = Core\Net::connect("127.0.0.1", $door->port(), 5s);
+var $served = $door->accept(5s);
+
+$client->write("abcdefgh" as bytes, 5s);
+
+// Eight octets went out in one write, so eight are waiting; what makes this
+// line the ceiling claim is that three come back and not eight.
+tainted bytes $first = $served->read(3, 5s);
+echo "first: ", $first as string, "\n";
+
+// And the remainder is still there — counted rather than compared, because
+// nothing here may assume the operating system hands the last five over in one
+// answer. That is exactly what a member returning what arrived is not allowed
+// to promise, so a case that read one answer and compared it would be pinning
+// the platform rather than the member.
+uint $rest = 0;
+while ($rest < 5) {
+    $rest = $rest + Core\Bytes::length($served->read(16, 5s));
+}
+echo "rest: ", $rest as string, "\n";
+
+// `write` is bounded the same way and answers the count, so a caller with more
+// to send than the socket will take loops on that number rather than being
+// held inside one call for as long as the peer chooses.
+echo "wrote: ", $served->write("ok" as bytes, 5s) as string, "\n";
+
+$served->close();
+$client->close();
+$door->close();
+--FILE nvs.toml--
+# The round-trip case's grant, unchanged: what this case varies is the member's
+# arguments, not what the deployment allows.
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+first: abc
+rest: 5
+wrote: 2

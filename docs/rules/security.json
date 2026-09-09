@@ -641,7 +641,10 @@
         "security/capability-roster-is-closed",
         "core-classes/net-one-api-three-transports"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/net-a-listen-grant-does-not-reach-a-host.nvst",
+        "tests/conformance/core/net-a-connect-grant-does-not-bind-a-port.nvst"
+      ]
     },
     {
       "id": "security/the-policy-lives-in-the-capability",

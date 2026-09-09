@@ -809,7 +809,11 @@
         "concurrency/one-scheduler",
         "core-classes/net-udp-carries-no-reliability-layer"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/net-a-tcp-echo-round-trips-over-the-reactor.nvst",
+        "tests/conformance/core/net-a-closed-socket-refuses-every-member-that-needs-it.nvst",
+        "tests/conformance/core/net-a-read-is-bounded-by-its-max-and-leaves-the-rest.nvst"
+      ]
     },
     {
       "id": "core-classes/net-a-socket-does-not-outlive-its-request",

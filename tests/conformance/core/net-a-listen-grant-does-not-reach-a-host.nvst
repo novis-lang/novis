@@ -1,0 +1,32 @@
+--TEST--
+a deployment granted `net.listen` may bind and still may not dial, and the refusal names the grant it is missing — `rule:security/net-listen-is-a-separate-grant-from-net-connect`
+--FILE--
+<?nvs
+// Which capability an opening asks is decided by what the program is *doing*,
+// not by the transport it does it over — so the bind below succeeds under a
+// grant that buys the dial after it nothing at all. A `net.listen` that widened
+// `net.connect` would make every program that serves a port a program that may
+// reach anywhere, which is the direction this split exists to close.
+var $door = Core\Net::listen("127.0.0.1", 0);
+echo "bound: ", ($door->port() > 0) as string, "\n";
+
+// Its own port, and still refused: the grant is asked of the host and this
+// deployment granted no host. That the address is one the program could
+// plainly already reach is the point — authority here is not derived from
+// reachability.
+try {
+    Core\Net::connect("127.0.0.1", $door->port(), 1s);
+    echo "reached it", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+$door->close();
+--FILE nvs.toml--
+# One key. `net.connect` is absent, which is `rule:security/capability-roster-is-closed`'s
+# deny-by-default: a grant that is not written is not held.
+[capabilities.net]
+listen = true
+--EXPECT--
+bound: 1
+Core\Net::connect needs the capability `net.connect` for 127.0.0.1, which is not granted

@@ -1,0 +1,41 @@
+--TEST--
+a closed `Core\Net` handle refuses every member of its class, and closing twice is refused rather than ignored — `rule:core-classes/net-one-api-three-transports` and `rule:errors/on-uncaught-throw`
+--FILE--
+<?nvs
+// The boundary the happy path never reaches. A socket closes with the request
+// that opened it, and a program may close one earlier — after which the key
+// its handle carries names an empty slot. Every member of both classes then
+// answers the same way, and a `RuntimeError` rather than an `IOError`: nothing
+// about the socket went wrong, the program asked a question of something it
+// had already given up.
+var $door = Core\Net::listen("127.0.0.1", 0);
+var $client = Core\Net::connect("127.0.0.1", $door->port(), 5s);
+var $served = $door->accept(5s);
+
+$served->close();
+$client->close();
+$door->close();
+
+try { $served->read(4, 1s); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+try { $served->write("x" as bytes, 1s); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+try { $client->close(); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+try { $door->accept(1s); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+try { $door->port(); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+
+// A key is never reused within a request, so a second `close` can only be the
+// same handle twice — which is a mistake worth naming rather than a no-op.
+try { $door->close(); } catch (RuntimeError $e) { echo $e->message, "\n"; }
+--FILE nvs.toml--
+# The same grant the round-trip case writes, because this case has to *open*
+# the sockets before it can close them.
+[capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+--EXPECT--
+Core\Net\Stream::read: this handle is closed
+Core\Net\Stream::write: this handle is closed
+Core\Net\Stream::close: this handle is closed
+Core\Net\Listener::accept: this handle is closed
+Core\Net\Listener::port: this handle is closed
+Core\Net\Listener::close: this handle is closed
