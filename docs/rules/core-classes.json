@@ -801,7 +801,7 @@
     {
       "id": "core-classes/net-one-api-three-transports",
       "title": "`Core\\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0162"],
       "seeAlso": [
         "security/net-listen-is-a-separate-grant-from-net-connect",
@@ -812,7 +812,8 @@
       "guardedBy": [
         "tests/conformance/core/net-a-tcp-echo-round-trips-over-the-reactor.nvst",
         "tests/conformance/core/net-a-closed-socket-refuses-every-member-that-needs-it.nvst",
-        "tests/conformance/core/net-a-read-is-bounded-by-its-max-and-leaves-the-rest.nvst"
+        "tests/conformance/core/net-a-read-is-bounded-by-its-max-and-leaves-the-rest.nvst",
+        "tests/conformance/core/net-no-door-reads-a-transport-out-of-its-argument.nvst"
       ]
     },
     {

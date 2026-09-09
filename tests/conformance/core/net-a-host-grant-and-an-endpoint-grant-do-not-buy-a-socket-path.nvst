@@ -1,0 +1,33 @@
+--TEST--
+a deployment granted `net.connect` and `net.listen` may still not open a socket path, because `net.local` is a third grant neither of them widens — `rule:config/net-local-is-named-and-not-on-the-roster`
+--FILE--
+<?nvs
+// The grant follows what the program is doing, not the transport it does it
+// over — and a path is the one target `net.connect` cannot answer for, because
+// that grant's whole character is the address policy it carries and a path has
+// no address for the policy to read. Granting both network capabilities
+// therefore buys a local socket nothing at all.
+try {
+    Core\Net::connectLocal("/run/novis/app.sock", 1s);
+    echo "connected", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The same reading at the other end: `net.listen` is a grant over an endpoint,
+// and a path is not one. A bind here asks the third grant like the dial above.
+try {
+    Core\Net::listenLocal("/run/novis/app.sock");
+    echo "bound", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# Both network grants, wide open, and no `local` key — which is
+# `rule:security/capability-roster-is-closed`'s deny-by-default for the third.
+[capabilities.net]
+connect = true
+listen = true
+--EXPECT--
+Core\Net::connectLocal needs the capability `net.local` for /run/novis/app.sock, which is not granted
+Core\Net::listenLocal needs the capability `net.local` for /run/novis/app.sock, which is not granted

@@ -3,7 +3,7 @@
 
 # Configuration
 
-*13 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -1731,7 +1731,7 @@ does not run, because the difference is invisible in exactly the review that wou
 
 <a id="config-net-local-is-named-and-not-on-the-roster"></a>
 
-## A program-supplied socket path needs `net.local`, a path-scoped grant carrying no address policy and governing both ends  *(designed — not yet in the compiler)*
+## A program-supplied socket path needs `net.local`, a path-scoped grant carrying no address policy and governing both ends
 
 `rule:config/net-local-is-named-and-not-on-the-roster`
 

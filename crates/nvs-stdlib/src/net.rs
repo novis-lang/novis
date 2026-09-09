@@ -2,11 +2,33 @@
 //! surface, over the runtime's own reactor and nothing else.
 //!
 //! Spec § 16's one class replacing `socket_*`, `stream_socket_*` and
-//! `fsockopen`. What is here is the TCP half — an outbound connection, a
-//! listening socket, and the accept on the listener that is a member rather
-//! than a sixth way in — and the bound datagram socket beside it. The two
-//! Unix-domain entry points are the same rule's remaining two and are not on
-//! disk.
+//! `fsockopen`. All five entry points are here — an outbound TCP connection, a
+//! listening TCP socket, a bound datagram socket, an outbound Unix-domain
+//! connection and a listening Unix-domain one — with the accept on the listener
+//! a member rather than a sixth way in.
+//!
+//! # Decision: one handle class per shape, two transports inside it
+//!
+//! A connection is a `Core\Net\Stream` whether it was dialled over TCP or over
+//! a socket path, and a listener is a `Core\Net\Listener` the same way:
+//! `rule:core-classes/net-one-api-three-transports` gives the connected
+//! transports one `Read` and one `Write`, so [`Connected`] and [`Bound`] carry
+//! a variant per transport rather than the surface carrying a class per
+//! transport. What a program picked is decided at the door and never read back
+//! out of an argument.
+//!
+//! A build with no `AF_UNIX` transport — Windows, where `mio` carries none —
+//! answers both local doors with a `RuntimeError` saying so, *after* the grant
+//! has been asked. The order is deliberate: a member that reported "no
+//! transport" to an ungranted program would answer a question about this host
+//! that the program was not authorized to ask.
+//!
+//! `Core\Net\Listener::port` is the one member the second transport reaches
+//! without an answer, and it throws rather than inventing one: a socket bound
+//! at a path has no port, and the program that bound it holds the path already.
+//! A `?uint` would make every TCP caller unwrap a `null` for a case it cannot
+//! reach, which is the shape `rule:core-api/shape-rules` R5 keeps for a value
+//! that is genuinely sometimes absent.
 //!
 //! # Decision: the surface is members, not spellings of one member
 //!
@@ -99,6 +121,8 @@ use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_host::{NvsListener, NvsTcp, NvsUdp};
+#[cfg(unix)]
+use nvs_host::{NvsUnix, NvsUnixListener};
 use nvs_runtime::{Ctx, Fault, HeldSocket, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -170,8 +194,8 @@ const DATAGRAM_CEILING: usize = 64 * 1024;
 const WITHIN: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
 /// Spec § 16's `Core\Net` —
-/// `rule:core-classes/net-one-api-three-transports`'s first three entry points
-/// of five, with the two Unix-domain ones still to land.
+/// `rule:core-classes/net-one-api-three-transports`'s five entry points, each
+/// saying in its name what it opens.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -212,6 +236,34 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(DATAGRAM_NAME),
             symbol: "nvs_core_net_bind_datagram",
             doc: Some(&BIND_DATAGRAM_DOC),
+        },
+        CoreMethod {
+            name: "connectLocal",
+            names: &["path", "within"],
+            // `connect`'s classification over the other transport: a socket
+            // path is where this program's traffic goes, so a tainted one is
+            // the same sink a tainted host is
+            // (`rule:security/outbound-url-is-a-sink`). That it is a path and
+            // not a host is what makes it a second member rather than a wider
+            // first one — `rule:security/a-path-is-not-a-url` holding by
+            // construction.
+            params: &[CoreTy::Text(Qual::Sink), WITHIN],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STREAM_NAME),
+            symbol: "nvs_core_net_connect_local",
+            doc: Some(&CONNECT_LOCAL_DOC),
+        },
+        CoreMethod {
+            name: "listenLocal",
+            names: &["path"],
+            // `listen`'s classification over the other transport: the path
+            // decides who on this host can reach the program, and a tainted one
+            // is how a surface its operator never chose gets exposed.
+            params: &[CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(LISTENER_NAME),
+            symbol: "nvs_core_net_listen_local",
+            doc: Some(&LISTEN_LOCAL_DOC),
         },
     ],
     instance: &[],
@@ -331,6 +383,72 @@ const BIND_DATAGRAM_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The operating system refused the bind — the port is taken, or the address is \
                    not one of this host's.",
+        },
+    ],
+};
+
+/// `Core\Net::connectLocal`'s reference card — `rule:core-api/reference-card`.
+const CONNECT_LOCAL_DOC: MethodDoc = MethodDoc {
+    short: "Connects to the Unix-domain socket bound at `$path`, parking on the runtime's reactor \
+            while the connect is in flight. Needs `net.local` for that path, which is a grant of \
+            its own: `net.connect` never covers a path, and carries no policy that could read one.",
+    params: &[
+        ParamDoc {
+            name: "path",
+            desc: "An absolute path to a bound socket. It is never read as a host and never as a \
+                   URL — this is the member that takes a path, and no other one does.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "within",
+            desc: "How long to wait for the connect. It bounds this call alone, and a local \
+                   connect waits at all only when the listener's backlog is full.",
+            shape: &[],
+        },
+    ],
+    ret: "A connected `Core\\Net\\Stream`, closed with this request if the program does not close \
+          it first.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `net.local` for this path, or this build has \
+                   no Unix-domain transport.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "The connect was still in flight after `$within`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system refused the path — nothing is bound there, no permission, \
+                   or a name too long for the platform.",
+        },
+    ],
+};
+
+/// `Core\Net::listenLocal`'s reference card — `rule:core-api/reference-card`.
+const LISTEN_LOCAL_DOC: MethodDoc = MethodDoc {
+    short: "Binds a listening Unix-domain socket at `$path`, creating it. Needs `net.local` for \
+            that path: the grant governs both ends, because a socket a program creates is one \
+            whatever finds it on this host may speak to.",
+    params: &[ParamDoc {
+        name: "path",
+        desc: "An absolute path the socket is created at. It must not exist yet, and it is not \
+               removed when the socket closes — the name may by then be something else's.",
+        shape: &[],
+    }],
+    ret: "A bound `Core\\Net\\Listener`, closed with this request if the program does not close it \
+          first. Its `port` throws: a socket bound at a path has none.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `net.local` for this path, or this build has \
+                   no Unix-domain transport.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system refused the path — it exists already, the directory does \
+                   not, or there is no permission to create it.",
         },
     ],
 };
@@ -538,7 +656,8 @@ const LISTENER_PORT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
-            desc: "This handle is closed.",
+            desc: "This handle is closed, or it is a listener `Core\\Net::listenLocal` bound at a \
+                   path, which has no port at all.",
         },
         ErrorDoc {
             error: "IOError",
@@ -822,6 +941,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_net_connect" => (nvs_core_net_connect as *const ()).cast(),
         "nvs_core_net_listen" => (nvs_core_net_listen as *const ()).cast(),
         "nvs_core_net_bind_datagram" => (nvs_core_net_bind_datagram as *const ()).cast(),
+        "nvs_core_net_connect_local" => (nvs_core_net_connect_local as *const ()).cast(),
+        "nvs_core_net_listen_local" => (nvs_core_net_listen_local as *const ()).cast(),
         "nvs_core_net_stream_read" => (nvs_core_net_stream_read as *const ()).cast(),
         "nvs_core_net_stream_write" => (nvs_core_net_stream_write as *const ()).cast(),
         "nvs_core_net_stream_close" => (nvs_core_net_stream_close as *const ()).cast(),
@@ -839,15 +960,69 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// A connected socket, in the shape the request's table holds.
+/// A connected socket, in the shape the request's table holds — over TCP or
+/// over a socket path, which is one class to the program either way.
 ///
-/// A newtype rather than an impl on [`NvsTcp`] itself: neither that type nor
-/// [`HeldSocket`] is this crate's, so the impl has to be written on something
-/// local. What it buys back is that the two handle classes are two types here,
-/// so a listener's key read as a stream's fails the downcast instead of
-/// answering.
+/// A type of this crate's rather than an impl on [`NvsTcp`]: neither that type
+/// nor [`HeldSocket`] is local here, so the impl has to be written on something
+/// that is. What it buys back is that the handle classes are distinct types, so
+/// a listener's key read as a stream's fails the downcast instead of answering.
+///
+/// An enum and not a `dyn Read + Write`, for the reason `nvs_host::net`'s docs
+/// § *One type over the source* give for a generic: the parking path takes no
+/// vtable, and a socket costs exactly what it did
+/// (`rule:programs/memory-priority`). This module's first decision is why the
+/// two transports are one class at all.
 #[derive(Debug)]
-struct Connected(NvsTcp);
+enum Connected {
+    /// A TCP connection — [`nvs_core_net_connect`]'s, or one an accept took off
+    /// a listening port.
+    Tcp(NvsTcp),
+    /// A Unix-domain connection — [`nvs_core_net_connect_local`]'s, or one an
+    /// accept took off a local listener.
+    #[cfg(unix)]
+    Local(NvsUnix),
+}
+
+impl Connected {
+    /// Bounds the next wait on this socket by `at`, or lifts the bound —
+    /// `nvs_host`'s `NvsStream::set_deadline`, over whichever transport this is.
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tcp(stream) => stream.set_deadline(at),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.set_deadline(at),
+        }
+    }
+}
+
+impl Read for Connected {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.read(buffer),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.read(buffer),
+        }
+    }
+}
+
+impl Write for Connected {
+    fn write(&mut self, payload: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.write(payload),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.write(payload),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.flush(),
+            #[cfg(unix)]
+            Self::Local(stream) => stream.flush(),
+        }
+    }
+}
 
 impl HeldSocket for Connected {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -856,9 +1031,63 @@ impl HeldSocket for Connected {
 }
 
 /// A bound listening socket, in the shape the request's table holds —
-/// [`Connected`]'s twin, and the home of why it is a newtype.
+/// [`Connected`]'s twin, over the same two transports and for its reasons.
 #[derive(Debug)]
-struct Bound(NvsListener);
+enum Bound {
+    /// A listening TCP port — [`nvs_core_net_listen`]'s.
+    Tcp(NvsListener),
+    /// A listening Unix-domain socket — [`nvs_core_net_listen_local`]'s.
+    #[cfg(unix)]
+    Local(NvsUnixListener),
+}
+
+impl Bound {
+    /// Bounds the next wait on this listener by `at`, or lifts the bound.
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        match self {
+            Self::Tcp(listener) => listener.set_deadline(at),
+            #[cfg(unix)]
+            Self::Local(listener) => listener.set_deadline(at),
+        }
+    }
+
+    /// The next connection, in the transport this listener is bound over.
+    ///
+    /// The peer is dropped rather than answered: what a program does with an
+    /// accepted connection is read and write it, and the address it arrived
+    /// from is the one member `rule:core-api/shape-rules` R5 would have this
+    /// class answer only if a caller could do something with it.
+    ///
+    /// # Errors
+    ///
+    /// The platform's, `TimedOut` included once the deadline above has passed.
+    fn accept(&mut self) -> std::io::Result<Connected> {
+        match self {
+            Self::Tcp(listener) => listener
+                .accept()
+                .map(|(stream, _peer)| Connected::Tcp(stream)),
+            #[cfg(unix)]
+            Self::Local(listener) => listener
+                .accept()
+                .map(|(stream, _peer)| Connected::Local(stream)),
+        }
+    }
+
+    /// The port this listener is bound to, or `None` for one bound at a path,
+    /// which has no port — this module's first decision is why that is a
+    /// refusal at the member and not a `null`.
+    ///
+    /// # Errors
+    ///
+    /// The platform's answer for a socket it no longer holds.
+    fn port(&self) -> std::io::Result<Option<u16>> {
+        match self {
+            Self::Tcp(listener) => listener.local_addr().map(|bound| Some(bound.port())),
+            #[cfg(unix)]
+            Self::Local(_) => Ok(None),
+        }
+    }
+}
 
 impl HeldSocket for Bound {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -983,13 +1212,12 @@ fn already_closed(class: &CoreClass, member: &str) -> Fault {
 /// [`Fault::fatal`] for a key that names a listener — the two classes are
 /// distinct types in the request's one table, so that is a paste error here
 /// rather than anything a program can write.
-fn stream_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut NvsTcp, Fault> {
+fn stream_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut Connected, Fault> {
     let held = ctx
         .open_socket_mut(key)
         .ok_or_else(|| already_closed(&STREAM, member))?;
     held.as_any_mut()
         .downcast_mut::<Connected>()
-        .map(|connected| &mut connected.0)
         .ok_or_else(|| {
             Fault::fatal(format!(
                 "{STREAM_NAME}::{member} found a listener at its key"
@@ -999,18 +1227,15 @@ fn stream_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut Nvs
 
 /// The listening socket `key` names, borrowed for one call — [`stream_of`]'s
 /// twin, with its errors.
-fn listener_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut NvsListener, Fault> {
+fn listener_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut Bound, Fault> {
     let held = ctx
         .open_socket_mut(key)
         .ok_or_else(|| already_closed(&LISTENER, member))?;
-    held.as_any_mut()
-        .downcast_mut::<Bound>()
-        .map(|bound| &mut bound.0)
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "{LISTENER_NAME}::{member} found a connection at its key"
-            ))
-        })
+    held.as_any_mut().downcast_mut::<Bound>().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{LISTENER_NAME}::{member} found a connection at its key"
+        ))
+    })
 }
 
 /// The datagram socket `key` names, borrowed for one call — [`stream_of`]'s
@@ -1104,7 +1329,7 @@ nvs_runtime::nvs_helper! {
         let address = nvs_runtime::capability::pin_host(ctx, host, MEMBER)?;
         let socket = NvsTcp::connect_timeout(SocketAddr::new(address, port), bound)
             .map_err(|err| failed(MEMBER, &err))?;
-        Ok(handle(ctx, &STREAM, Box::new(Connected(socket))))
+        Ok(handle(ctx, &STREAM, Box::new(Connected::Tcp(socket))))
     }
 }
 
@@ -1142,8 +1367,142 @@ nvs_runtime::nvs_helper! {
         let endpoint = SocketAddr::new(address, port);
         nvs_runtime::capability::require(ctx, Cap::NetListen, Scope::Endpoint(endpoint), MEMBER)?;
         let socket = NvsListener::bind(endpoint).map_err(|err| failed(MEMBER, &err))?;
-        Ok(handle(ctx, &LISTENER, Box::new(Bound(socket))))
+        Ok(handle(ctx, &LISTENER, Box::new(Bound::Tcp(socket))))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net::connectLocal(string $path, Core\Time\Duration $within): Core\Net\Stream`
+    /// — replacing `stream_socket_client`'s `unix://` half and `socket_connect`
+    /// over `AF_UNIX`.
+    ///
+    /// **`net.local` and not `net.connect`**, asked at `Scope::Path` under
+    /// `rule:security/path-scope-canonicalise-then-prefix`:
+    /// `rule:config/net-local-is-named-and-not-on-the-roster` is the grant, and
+    /// it is separate because `net.connect` carries an address policy and a
+    /// path has no address for that policy to read. A grant of one kind
+    /// covering entries of two would be one name carrying two guarantees.
+    ///
+    /// It is a **separate member** and not `connect` widened. Nothing here
+    /// reads its argument to decide a transport, so
+    /// `rule:security/a-path-is-not-a-url` holds by construction rather than by
+    /// a check — and `Core\Net::connect` still refuses a path outright, since
+    /// its door cannot authorize one.
+    ///
+    /// The grant is asked **before** the transport is looked for, so a build
+    /// with no `AF_UNIX` answers an ungranted program with the missing grant
+    /// and not with a fact about this host.
+    fn nvs_core_net_connect_local(ctx, args: [2]) {
+        const MEMBER: &str = r"Core\Net::connectLocal";
+
+        let path = text(&args[0], MEMBER, "path")?;
+        let bound = within(args, 1, MEMBER)?;
+        nvs_runtime::capability::require(
+            ctx,
+            Cap::NetLocal,
+            Scope::Path(std::path::Path::new(path)),
+            MEMBER,
+        )?;
+        let socket = local_connection(path, bound, MEMBER)?;
+        Ok(handle(ctx, &STREAM, Box::new(socket)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net::listenLocal(string $path): Core\Net\Listener` — replacing
+    /// `stream_socket_server`'s `unix://` half.
+    ///
+    /// **The same grant as [`nvs_core_net_connect_local`]**, and that is the
+    /// rule rather than a convenience:
+    /// `rule:config/net-local-is-named-and-not-on-the-roster` governs both ends
+    /// of a path, because a socket a program creates is one that whatever else
+    /// on this host finds it may speak to, and a path the operator did not
+    /// write down is one they cannot have intended.
+    ///
+    /// **This member takes no bound**, for [`nvs_core_net_listen`]'s reason: a
+    /// bind either succeeds or is refused on the spot. Waiting for a connection
+    /// is `Core\Net\Listener::accept`, which takes its own.
+    fn nvs_core_net_listen_local(ctx, args: [1]) {
+        const MEMBER: &str = r"Core\Net::listenLocal";
+
+        let path = text(&args[0], MEMBER, "path")?;
+        nvs_runtime::capability::require(
+            ctx,
+            Cap::NetLocal,
+            Scope::Path(std::path::Path::new(path)),
+            MEMBER,
+        )?;
+        let socket = local_listener(path, MEMBER)?;
+        Ok(handle(ctx, &LISTENER, Box::new(socket)))
+    }
+}
+
+/// The local connection at `path`, waited out under `bound`.
+///
+/// A `cfg` split and not a run-time check, because there is nothing to check at
+/// run time: `mio` carries no `AF_UNIX` transport on Windows, so a local socket
+/// cannot be parked on this runtime's reactor there at all. `nvs_host::net`'s
+/// `NvsUnix` is the home of why a type that compiles and cannot be polled is
+/// worse than a name that is not there.
+///
+/// # Errors
+///
+/// The platform's, as [`failed`] shapes it — nothing bound at the path, no
+/// permission, a name too long — or [`no_local_transport`] where there is no
+/// transport to open one over.
+#[cfg(unix)]
+fn local_connection(path: &str, bound: Duration, member: &str) -> Result<Connected, Fault> {
+    NvsUnix::connect_timeout(path, bound)
+        .map(Connected::Local)
+        .map_err(|err| failed(member, &err))
+}
+
+/// [`local_connection`] where the platform has no Unix-domain transport.
+///
+/// # Errors
+///
+/// Always [`no_local_transport`], which is that whole answer.
+#[cfg(not(unix))]
+fn local_connection(_path: &str, _bound: Duration, member: &str) -> Result<Connected, Fault> {
+    Err(no_local_transport(member))
+}
+
+/// The listening socket bound at `path` — [`local_connection`]'s twin, and the
+/// home of why the split is a `cfg` is that function's doc.
+///
+/// # Errors
+///
+/// The platform's, as [`failed`] shapes it — the path exists, its directory
+/// does not, no permission — or [`no_local_transport`].
+#[cfg(unix)]
+fn local_listener(path: &str, member: &str) -> Result<Bound, Fault> {
+    NvsUnixListener::bind(path)
+        .map(Bound::Local)
+        .map_err(|err| failed(member, &err))
+}
+
+/// [`local_listener`] where the platform has no Unix-domain transport.
+///
+/// # Errors
+///
+/// Always [`no_local_transport`].
+#[cfg(not(unix))]
+fn local_listener(_path: &str, member: &str) -> Result<Bound, Fault> {
+    Err(no_local_transport(member))
+}
+
+/// What both local doors answer on a build with no `AF_UNIX` transport.
+///
+/// A `RuntimeError` and not an `IOError` for [`already_closed`]'s reason:
+/// nothing about a socket went wrong, because there was no socket to open — the
+/// program asked this build for something it does not carry.
+#[cfg(not(unix))]
+fn no_local_transport(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "{member}: this build has no Unix-domain transport, so there is no socket path it could \
+         open — a program that needs a local transport on every platform reaches loopback with \
+         `Core\\Net::connect`"
+    ))
 }
 
 nvs_runtime::nvs_helper! {
@@ -1263,8 +1622,8 @@ nvs_runtime::nvs_helper! {
         listener.set_deadline(Some(Instant::now() + bound));
         let outcome = listener.accept();
         listener.set_deadline(None);
-        let (socket, _peer) = outcome.map_err(|err| failed(MEMBER, &err))?;
-        Ok(handle(ctx, &STREAM, Box::new(Connected(socket))))
+        let socket = outcome.map_err(|err| failed(MEMBER, &err))?;
+        Ok(handle(ctx, &STREAM, Box::new(socket)))
     }
 }
 
@@ -1278,13 +1637,23 @@ nvs_runtime::nvs_helper! {
     /// answered beside it — the program wrote that itself, and a member
     /// answering what its own caller passed in is the shape
     /// `rule:core-api/shape-rules` R5 refuses.
+    ///
+    /// A listener `Core\Net::listenLocal` bound is the one this cannot answer,
+    /// and it throws: a socket at a path has no port, and this module's first
+    /// decision is why that is a refusal rather than a nullable answer every
+    /// TCP caller would carry.
     fn nvs_core_net_listener_port(ctx, args: [1]) {
         const MEMBER: &str = r"Core\Net\Listener::port";
 
         let key = key_of(args[0], &LISTENER, "port")?;
         let listener = listener_of(ctx, key, "port")?;
-        let bound = listener.local_addr().map_err(|err| failed(MEMBER, &err))?;
-        Ok(Value::uint(u64::from(bound.port())))
+        match listener.port().map_err(|err| failed(MEMBER, &err))? {
+            Some(port) => Ok(Value::uint(u64::from(port))),
+            None => Err(Fault::thrown(format!(
+                "{MEMBER}: this listener is bound at a socket path, which has no port — a local \
+                 socket is reached by the path the program passed to `Core\\Net::listenLocal`"
+            ))),
+        }
     }
 }
 
@@ -1512,9 +1881,10 @@ mod tests {
     use super::{
         CLASS, DATAGRAM, DATAGRAM_NAME, LISTENER, LISTENER_NAME, MESSAGE, MESSAGE_NAME, NAME,
         STREAM, STREAM_NAME, nvs_core_net_bind_datagram, nvs_core_net_connect,
-        nvs_core_net_datagram_close, nvs_core_net_datagram_port, nvs_core_net_datagram_receive,
-        nvs_core_net_datagram_send, nvs_core_net_listen, nvs_core_net_message_host,
-        nvs_core_net_message_payload, nvs_core_net_message_port,
+        nvs_core_net_connect_local, nvs_core_net_datagram_close, nvs_core_net_datagram_port,
+        nvs_core_net_datagram_receive, nvs_core_net_datagram_send, nvs_core_net_listen,
+        nvs_core_net_listen_local, nvs_core_net_message_host, nvs_core_net_message_payload,
+        nvs_core_net_message_port,
     };
     use nvs_runtime::{Ctx, NvsStr, Value};
 
@@ -1793,5 +2163,176 @@ mod tests {
         assert_eq!(DATAGRAM.name, DATAGRAM_NAME);
         assert_eq!(MESSAGE.name, MESSAGE_NAME);
         assert_eq!(CLASS.name, NAME);
+    }
+
+    /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
+    /// and `rule:config/net-local-is-named-and-not-on-the-roster`: a socket
+    /// path a *program* supplied is refused at every door that takes a host or
+    /// an endpoint, and the two doors that do take a path ask `net.local` for
+    /// it — which neither network grant buys.
+    ///
+    /// Asked of every door as agreement rather than of one member at a time: a
+    /// member that grew its own reading of a path would still look right on its
+    /// own line. What the first assertion also pins is that the sentence the
+    /// outbound door gives has **one home**,
+    /// `nvs_runtime::capability::pinned_address`, which is the call
+    /// `Core\Db::open`'s program-supplied target is refused by as well.
+    #[test]
+    fn a_program_supplied_unix_path_is_refused_as_a_target_at_every_door() {
+        const PATH: &str = "/run/novis/app.sock";
+        const GRANTED: &str = "[capabilities.net]\nconnect = true\nlisten = true\n";
+
+        // Takes a host, and a host carries no separator: refused in front of
+        // the resolution, so the answer is the same whether or not anything is
+        // bound at the path.
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(GRANTED));
+        let args = [
+            Value::str(NvsStr::new(PATH.as_bytes())),
+            Value::uint(80),
+            a_second(),
+        ];
+        nvs_runtime::call(nvs_core_net_connect, &mut ctx, &args)
+            .expect_err("the widest `net.connect` authorizes no path");
+        let by_connect = ctx.pending().expect("a message").into_owned();
+        released(args);
+        assert!(
+            by_connect.contains("net.local") && by_connect.contains(PATH),
+            "the refusal names the path and the grant that does answer one: {by_connect}"
+        );
+
+        let by_door = nvs_runtime::capability::pinned_address(&ctx, PATH, r"Core\Net::connect")
+            .expect_err("the door refuses a path whichever member reached it");
+        let nvs_runtime::Fault::Thrown(class, by_door) = by_door else {
+            panic!("a path refusal is catchable — `rule:security/denial-is-a-runtime-error`");
+        };
+        assert_eq!(class, nvs_runtime::ThrownClass::Runtime);
+        assert_eq!(
+            by_connect, by_door,
+            "the sentence is the shared door's own, so there is no second copy to keep in step"
+        );
+
+        // Takes an endpoint, which is parsed and never resolved. A path is not
+        // one, and that is answered before any grant is consulted.
+        for door in [nvs_core_net_listen, nvs_core_net_bind_datagram] {
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(GRANTED));
+            let args = [Value::str(NvsStr::new(PATH.as_bytes())), Value::uint(0)];
+            nvs_runtime::call(door, &mut ctx, &args).expect_err("a path is not an endpoint");
+            let refused = ctx.pending().expect("a message").into_owned();
+            released(args);
+            assert!(
+                refused.contains("is not an address literal") && refused.contains(PATH),
+                "a bind names an endpoint, and says so of what it was handed: {refused}"
+            );
+        }
+
+        // And the two that take a path ask the grant that governs one — at both
+        // ends, since binding a path is granted exactly as connecting to one is.
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(GRANTED));
+        let args = [Value::str(NvsStr::new(PATH.as_bytes())), a_second()];
+        nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
+            .expect_err("`net.connect` does not widen to admit a path");
+        let by_local = ctx.pending().expect("a message").into_owned();
+        released(args);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(GRANTED));
+        let args = [Value::str(NvsStr::new(PATH.as_bytes()))];
+        nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
+            .expect_err("and `net.listen` does not widen to admit one either");
+        let by_bind = ctx.pending().expect("a message").into_owned();
+        released(args);
+        for refused in [&by_local, &by_bind] {
+            assert!(
+                refused.contains("net.local") && refused.contains(PATH),
+                "both ends name the one grant a path has, and the path: {refused}"
+            );
+        }
+
+        // The declaration says the same thing, which is what a review reads.
+        let asked = |member: &str| {
+            crate::registry::CAPABILITIES
+                .iter()
+                .find(|(class, name, _)| *class == NAME && *name == member)
+                .map(|(_, _, cap)| *cap)
+                .expect("every member of a capability-bearing class has a row")
+        };
+        assert_eq!(asked("connectLocal"), Some(nvs_config::Cap::NetLocal));
+        assert_eq!(asked("listenLocal"), Some(nvs_config::Cap::NetLocal));
+    }
+
+    /// `rule:security/a-path-is-not-a-url`: no door reads a scheme prefix, so
+    /// `unix:`, `tcp:` and `php:` are ordinary text inside whatever argument
+    /// they arrived in.
+    ///
+    /// The evidence is that the whole string survives into every refusal,
+    /// scheme and all: a door that dispatched on the prefix would have consumed
+    /// it, and one that stripped it would be answering about a target the
+    /// program did not name. Asked of all five doors at once, as agreement.
+    #[test]
+    fn no_door_dispatches_on_a_url_scheme() {
+        const GRANTED: &str = "[capabilities.net]\nconnect = true\nlisten = true\n";
+
+        for written in [
+            "unix:/run/novis/app.sock",
+            "tcp://127.0.0.1:80",
+            "php://filter/read=convert.base64-encode/resource=/etc/passwd",
+        ] {
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(GRANTED));
+            let args = [
+                Value::str(NvsStr::new(written.as_bytes())),
+                Value::uint(80),
+                a_second(),
+            ];
+            nvs_runtime::call(nvs_core_net_connect, &mut ctx, &args)
+                .expect_err("a scheme is not a transport selector and this is not a host");
+            let refused = ctx.pending().expect("a message").into_owned();
+            released(args);
+            assert!(
+                refused.contains(written),
+                "the outbound door names what it was handed, whole: {refused}"
+            );
+
+            for door in [nvs_core_net_listen, nvs_core_net_bind_datagram] {
+                let mut ctx = Ctx::buffered();
+                ctx.set_config(crate::tests::granting(GRANTED));
+                let args = [Value::str(NvsStr::new(written.as_bytes())), Value::uint(0)];
+                nvs_runtime::call(door, &mut ctx, &args)
+                    .expect_err("an endpoint is parsed, and a URL does not parse as one");
+                let refused = ctx.pending().expect("a message").into_owned();
+                released(args);
+                assert!(
+                    refused.contains("is not an address literal") && refused.contains(written),
+                    "a bind reads its argument as one address and nothing else: {refused}"
+                );
+            }
+
+            // The two path doors are the ones that could plausibly strip a
+            // scheme, and do not: the grant is asked about the whole string.
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(GRANTED));
+            let args = [Value::str(NvsStr::new(written.as_bytes())), a_second()];
+            nvs_runtime::call(nvs_core_net_connect_local, &mut ctx, &args)
+                .expect_err("no grant here covers a path");
+            let by_local = ctx.pending().expect("a message").into_owned();
+            released(args);
+
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(GRANTED));
+            let args = [Value::str(NvsStr::new(written.as_bytes()))];
+            nvs_runtime::call(nvs_core_net_listen_local, &mut ctx, &args)
+                .expect_err("nor at the other end");
+            let by_bind = ctx.pending().expect("a message").into_owned();
+            released(args);
+            for refused in [&by_local, &by_bind] {
+                assert!(
+                    refused.contains(written),
+                    "the path is the argument as written, scheme included: {refused}"
+                );
+            }
+        }
     }
 }

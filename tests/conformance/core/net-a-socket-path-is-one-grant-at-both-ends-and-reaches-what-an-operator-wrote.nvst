@@ -1,0 +1,33 @@
+--TEST--
+`net.local` is one grant over both ends of a socket path and reaches only the paths an operator wrote down — `rule:config/net-local-is-named-and-not-on-the-roster`
+--FILE--
+<?nvs
+// One grant governs both ends. A program that may create a socket at a path is
+// a program that whatever else on this host finds it may speak to, so binding
+// one is granted exactly as connecting to one is — and both doors below name
+// the same capability when they are refused.
+//
+// What they are refused over is the path: this deployment granted one, and it
+// is not the one the program asks for. A path-scoped grant reaches what an
+// operator wrote and nothing beside it, which is why the refusal prints the
+// path it was asked about rather than the grant's entry.
+try {
+    Core\Net::connectLocal("/run/novis/other.sock", 1s);
+    echo "connected", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Net::listenLocal("/run/novis/other.sock");
+    echo "bound", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# One entry, and not the path the program asks for.
+[capabilities.net]
+local = ["/run/novis/app.sock"]
+--EXPECT--
+Core\Net::connectLocal needs the capability `net.local` for /run/novis/other.sock, which is not granted
+Core\Net::listenLocal needs the capability `net.local` for /run/novis/other.sock, which is not granted

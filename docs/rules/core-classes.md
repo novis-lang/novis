@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*28 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
+*27 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1882,7 +1882,7 @@ compare bytes ends up comparing nothing.
 
 <a id="core-classes-net-one-api-three-transports"></a>
 
-## `Core\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor  *(designed — not yet in the compiler)*
+## `Core\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor
 
 `rule:core-classes/net-one-api-three-transports`
 

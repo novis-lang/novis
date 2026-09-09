@@ -2041,6 +2041,22 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "bindDatagram",
         Some(nvs_config::Cap::NetListen),
     ),
+    // `rule:config/net-local-is-named-and-not-on-the-roster`: a program-supplied
+    // socket path is `net.local` at **both** ends, which is why these two rows
+    // name one grant between them. It is not `net.connect` widened to admit a
+    // path — that grant's character is the address policy it carries, and a path
+    // has no address for the policy to read — and it is not `net.listen` for the
+    // bind, because the question a path asks is which path, not which endpoint.
+    (
+        crate::net::NAME,
+        "connectLocal",
+        Some(nvs_config::Cap::NetLocal),
+    ),
+    (
+        crate::net::NAME,
+        "listenLocal",
+        Some(nvs_config::Cap::NetLocal),
+    ),
     // `Core\Net\Stream`'s and `Core\Net\Listener`'s members need no grant of
     // their own, and these `None` rows are the declaration that says so —
     // `Core\IO\File`'s rows one class over are the same reading. The socket was

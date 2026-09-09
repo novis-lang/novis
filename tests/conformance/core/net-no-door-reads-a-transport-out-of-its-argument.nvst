@@ -1,0 +1,68 @@
+--TEST--
+one string is asked of all five `Core\Net` doors and no door reads a scheme or a separator out of it to pick a transport — `rule:security/a-path-is-not-a-url`, `rule:core-classes/net-one-api-three-transports`
+--FILE--
+<?nvs
+// `unix:` is not a selector here and neither is the slash after it. Which
+// transport a door opens is decided by which door it is, so the five members
+// below refuse one string five different ways — each for the reason its own
+// argument type gives, and none of them by inspecting the text for a prefix.
+// A registry of schemes is what turns one file-read bug into a remote one, and
+// there is nothing here for such a registry to hook into.
+var $written = "unix:/run/novis/app.sock";
+
+// Takes a host. A separator is the whole test: no hostname and no address
+// literal carries one, so this is refused in front of the resolution rather
+// than resolved and then denied.
+try {
+    Core\Net::connect($written, 80, 1s);
+    echo "connected", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// Takes an endpoint, which is parsed and never resolved: a grant names one
+// endpoint, and this string is not one.
+try {
+    Core\Net::listen($written, 0);
+    echo "bound", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The third transport agrees with the second, because a bind is a bind
+// whatever is bound at it.
+try {
+    Core\Net::bindDatagram($written, 0);
+    echo "bound a datagram socket", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The two that do take a path take it as a path — scheme and all, which is why
+// the grant they ask is asked about the whole string. This deployment granted
+// them nothing, so what comes back names the capability and not the transport.
+try {
+    Core\Net::connectLocal($written, 1s);
+    echo "connected locally", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Net::listenLocal($written);
+    echo "bound locally", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# Both network grants, so the first three doors are refused by what they read
+# rather than by what they are missing.
+[capabilities.net]
+connect = true
+listen = true
+--EXPECT--
+Core\Net::connect refuses `unix:/run/novis/app.sock`: a socket path is not something this door can authorize, since the address policy `net.connect` carries has no address to read — the grant that answers a socket path is `net.local`, and it is asked by the member that takes a path rather than by this one, which takes a host
+Core\Net::listen: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
+Core\Net::bindDatagram: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
+Core\Net::connectLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted
+Core\Net::listenLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted

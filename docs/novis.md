@@ -18658,13 +18658,15 @@ The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_
 <a id="core-core-net"></a>
 ### `Core\Net`
 
-Keywords: connect, listen, bindDatagram
+Keywords: connect, listen, bindDatagram, connectLocal, listenLocal
 
 | Member | Signature |
 |---|---|
 | [`Core\Net::connect`](#core-core-net-connect) | `connect(string $host, uint $port, Core\Time\Duration $within): Core\Net\Stream` |
 | [`Core\Net::listen`](#core-core-net-listen) | `listen(string $address, uint $port): Core\Net\Listener` |
 | [`Core\Net::bindDatagram`](#core-core-net-binddatagram) | `bindDatagram(string $address, uint $port): Core\Net\Datagram` |
+| [`Core\Net::connectLocal`](#core-core-net-connectlocal) | `connectLocal(string $path, Core\Time\Duration $within): Core\Net\Stream` |
+| [`Core\Net::listenLocal`](#core-core-net-listenlocal) | `listenLocal(string $path): Core\Net\Listener` |
 
 <a id="core-core-net-connect"></a>
 #### `Core\Net::connect`
@@ -18720,6 +18722,41 @@ Binds a datagram socket to `$address` on `$port`. Needs `net.listen` for that ex
 **Returns** `Core\Net\Datagram` — A bound `Core\Net\Datagram`, closed with this request if the program does not close it first.
 
 **Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
+
+<a id="core-core-net-connectlocal"></a>
+#### `Core\Net::connectLocal`
+
+```nvs skip
+Core\Net::connectLocal(string $path, Core\Time\Duration $within): Core\Net\Stream
+```
+
+Connects to the Unix-domain socket bound at `$path`, parking on the runtime's reactor while the connect is in flight. Needs `net.local` for that path, which is a grant of its own: `net.connect` never covers a path, and carries no policy that could read one.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | An absolute path to a bound socket. It is never read as a host and never as a URL — this is the member that takes a path, and no other one does. |
+| `$within` | `Core\Time\Duration` | How long to wait for the connect. It bounds this call alone, and a local connect waits at all only when the listener's backlog is full. |
+
+**Returns** `Core\Net\Stream` — A connected `Core\Net\Stream`, closed with this request if the program does not close it first.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.local` for this path, or this build has no Unix-domain transport.; `TimeoutError` — The connect was still in flight after `$within`.; `IOError` — The operating system refused the path — nothing is bound there, no permission, or a name too long for the platform.
+
+<a id="core-core-net-listenlocal"></a>
+#### `Core\Net::listenLocal`
+
+```nvs skip
+Core\Net::listenLocal(string $path): Core\Net\Listener
+```
+
+Binds a listening Unix-domain socket at `$path`, creating it. Needs `net.local` for that path: the grant governs both ends, because a socket a program creates is one whatever finds it on this host may speak to.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | An absolute path the socket is created at. It must not exist yet, and it is not removed when the socket closes — the name may by then be something else's. |
+
+**Returns** `Core\Net\Listener` — A bound `Core\Net\Listener`, closed with this request if the program does not close it first. Its `port` throws: a socket bound at a path has none.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.local` for this path, or this build has no Unix-domain transport.; `IOError` — The operating system refused the path — it exists already, the directory does not, or there is no permission to create it.
 
 <a id="core-core-net-stream"></a>
 ### `Core\Net\Stream`
@@ -18820,7 +18857,7 @@ The port this listener is bound to, which is how a program that asked for `0` le
 
 **Returns** `uint` — The bound port, 1 to 65535.
 
-**Throws** `RuntimeError` — This handle is closed.; `IOError` — The operating system would not answer for this socket.
+**Throws** `RuntimeError` — This handle is closed, or it is a listener `Core\Net::listenLocal` bound at a path, which has no port at all.; `IOError` — The operating system would not answer for this socket.
 
 <a id="core-core-net-listener-close"></a>
 #### `Core\Net\Listener->close`
