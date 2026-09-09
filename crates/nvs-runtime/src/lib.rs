@@ -281,6 +281,7 @@ pub mod release;
 pub mod routes;
 pub mod script;
 pub mod sequence;
+pub mod source;
 mod string;
 pub mod sweep;
 pub mod terminal;

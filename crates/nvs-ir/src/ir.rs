@@ -4,6 +4,7 @@
 //! known gaps.
 
 use nvs_diagnostics::Span;
+use nvs_render::Source;
 
 use crate::ids::{BlockId, EdgeId, StmtId, ValueId};
 use crate::ty::Ty;
@@ -554,6 +555,34 @@ pub enum InstKind {
         /// The [`Program::shape_codecs`] entry this names, by its
         /// [`ShapeCodec::key`].
         shape: Option<String>,
+    },
+    /// Where a producer was called — `rule:errors/a-record-names-where-it-was-produced`'s
+    /// file, one-based line and enclosing `Class::member`, carried to the
+    /// producer as `nvs_runtime::source::encode`'s bytes baked into the unit's
+    /// own data section.
+    ///
+    /// One address, reached the way [`InstKind::ShapeCodecConst`] reaches a
+    /// codec's table and produced at [`crate::ty::Ty::ClassDesc`] for that
+    /// variant's reason exactly — an engine-owned address in the same slot
+    /// spelling, a `Tag::Null` byte over a pointer, not refcounted, zero
+    /// meaning "none". The blob is self-describing, so no second operand
+    /// carries a length: a producer takes the fixed
+    /// `rule:errors/propagation` signature, where every slot has to be spelled
+    /// in an ABI rather than added at a call.
+    ///
+    /// `lower::Lowering::source` is the one derivation of what this holds, and
+    /// the backtrace label beside it renders off that same one — two spellings
+    /// of "where" that agree today is what the rule exists to rule out.
+    ///
+    /// `None` is a producer reached with no call site to name — the thunk a
+    /// callable reference synthesizes, whose record is produced wherever that
+    /// callable is later invoked and not where it was written. It emits the
+    /// zero word, which `nvs_runtime::source` reads as "none" and the envelope
+    /// omits rather than rendering empty, exactly as
+    /// [`InstKind::ShapeCodecConst`]'s own `None` does.
+    SourceConst {
+        /// The datum, exactly as `lower::Lowering::source` built it.
+        source: Option<Source>,
     },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
     /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a

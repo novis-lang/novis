@@ -608,6 +608,20 @@ impl Emitter<'_, '_> {
                 let codec = self.shape_codec_const(shape.as_deref())?;
                 self.define(inst, codec)?;
             }
+            InstKind::SourceConst { source } => {
+                // One address and no length beside it: the blob
+                // `nvs_runtime::source` lays out carries its own, so a producer
+                // spends one slot of `rule:errors/propagation`'s fixed
+                // signature rather than two. Baked per call site, into a
+                // read-only section the unit owns for its whole life — and the
+                // zero word where the call site is not known, which is
+                // `Self::shape_codec_const`'s answer to the same question.
+                let carrier = match source {
+                    Some(source) => self.emit_bytes(&nvs_runtime::source::encode(source))?.0,
+                    None => self.b.ins().iconst(types::I64, 0),
+                };
+                self.define(inst, carrier)?;
+            }
             InstKind::ClassDescOf { object } => {
                 let (object, _) = self.value(*object)?;
                 let offset = i32::try_from(nvs_runtime::OBJ_CLASS_OFFSET)
