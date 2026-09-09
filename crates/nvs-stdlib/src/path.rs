@@ -442,15 +442,15 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// **`drive.is_some()` implies `absolute`** — [`split_drive`] only recognizes
 /// a drive that a separator follows, which is this module's gap 2.
 #[derive(Debug)]
-struct Parts<'a> {
+pub(crate) struct Parts<'a> {
     /// The `C:` of `C:\log`, without its separator, or `None` for a path that
     /// names no drive.
-    drive: Option<&'a str>,
+    pub(crate) drive: Option<&'a str>,
     /// Whether the path begins at a root — a separator, or a drive's.
-    absolute: bool,
+    pub(crate) absolute: bool,
     /// Every component, in order, with empty ones dropped: a repeated
     /// separator names nothing, and neither does a trailing one.
-    components: Vec<&'a str>,
+    pub(crate) components: Vec<&'a str>,
 }
 
 /// Either separator, on every platform — spec § 8's acceptance rule, which is
@@ -479,7 +479,7 @@ fn split_drive(path: &str) -> Option<(&str, &str)> {
 
 /// Takes one path apart. Total: every string is a path, including the empty
 /// one, which is no drive, not absolute and no components.
-fn parse(path: &str) -> Parts<'_> {
+pub(crate) fn parse(path: &str) -> Parts<'_> {
     let (drive, rest) = match split_drive(path) {
         Some((drive, rest)) => (Some(drive), rest),
         None => (None, path),

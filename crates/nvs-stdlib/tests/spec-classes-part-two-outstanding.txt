@@ -16,4 +16,3 @@
 §16 Core\Metrics   # unowned
 §16 Core\Signature # 29
 §17 Core\Xml       # 26
-§17 Core\Zip       # 25

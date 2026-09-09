@@ -1699,6 +1699,13 @@ pub const CLASSES: &[CoreClass] = &[
     // signatures — [`crate::mime`] owns why that is not libmagic's rule
     // language, and why nothing here reads a file name.
     crate::mime::CLASS,
+    // § 17's archive class, beside the codec class whose bound it applies and
+    // the detection class it sits between in that section. Tier 0 for the
+    // reason both of those are: a `../` entry, an absolute-path entry, a
+    // symlink entry and a bomb are what an archive is *allowed* to contain,
+    // which is policy — and [`crate::zip`] owns why the refusals live in the
+    // reader rather than in an extraction a caller can decline to use.
+    crate::zip::CLASS,
     // `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
     // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own

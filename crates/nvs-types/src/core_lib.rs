@@ -1237,7 +1237,7 @@ mod tests {
     /// dialled in, and `Core\Request::body` is the same octets one layer up.
     /// It answers `bytes` rather than `string` because a socket carries octets
     /// and `rule:types/bytes` makes `string` valid UTF-8 by construction.
-    /// The newest is `Core\Net\Datagram\Message::payload`, which is that row
+    /// After it comes `Core\Net\Datagram\Message::payload`, which is that row
     /// over the transport that has no connection: octets off a datagram socket
     /// are if anything less accountable, since nothing established who the
     /// sender was before they arrived. Its two siblings `host()` and `port()`
@@ -1248,6 +1248,14 @@ mod tests {
     /// grant `send` asks of every address it is handed
     /// (`rule:security/net-address-policy`), and `nvs_stdlib::net`'s module doc
     /// is the home of that reading.
+    /// The newest two are `Core\Zip`'s, and they are the roster read over a
+    /// *container* rather than over a wire: an archive's entry names and an
+    /// entry's octets were written by whoever built the archive, so both are
+    /// qualified whatever the archive's own type was — which is the reading
+    /// `Core\Jwt::verify`'s claims get, since a literal archive in a test is no
+    /// safer than a downloaded one. `Core\Mime::detect` is deliberately absent
+    /// beside them, and that is the same test read the other way: it answers a
+    /// case of a closed enum, and a case carries no octet of its subject.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1354,6 +1362,8 @@ mod tests {
                     "text",
                     "null|tainted string".to_owned(),
                 ),
+                (r"Core\Zip", "entries", "array<tainted string>".to_owned(),),
+                (r"Core\Zip", "read", "tainted bytes".to_owned()),
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
              verified claim, an outbound reply's body, the two environment \
@@ -1363,8 +1373,8 @@ mod tests {
              declarations one of its uploaded parts made, the bytes of that part held \
              whole, the two readers of the captures the matched route filled, the captures \
              of the mount serving the request, the two payloads a connection's peer \
-             sent, what a socket the program opened itself read back, and what one \
-             datagram carried. \
+             sent, what a socket the program opened itself read back, what one \
+             datagram carried, and the names and octets read out of an archive. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \

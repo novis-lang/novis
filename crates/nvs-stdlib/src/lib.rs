@@ -281,6 +281,7 @@ mod totp;
 pub mod uri;
 pub mod uuid;
 mod validate;
+mod zip;
 
 /// `rule:core-classes/derive-attribute`'s derived-codec field list, re-exported from where it is
 /// *consumed*.
@@ -401,6 +402,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| process::address(symbol))
         .or_else(|| program::address(symbol))
         .or_else(|| queue::address(symbol))
+        .or_else(|| zip::address(symbol))
         .or_else(|| random::address(symbol))
         .or_else(|| ratelimit::address(symbol))
         .or_else(|| reflect::address(symbol))

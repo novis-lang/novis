@@ -334,7 +334,7 @@ impl Bound {
 
     /// The output ceiling for an input of `input` octets — the two numbers
     /// resolved into the one comparison a decode makes.
-    fn output_ceiling(self, input: usize) -> u64 {
+    pub(crate) fn output_ceiling(self, input: usize) -> u64 {
         let by_ratio = u64::try_from(input)
             .unwrap_or(u64::MAX)
             .saturating_mul(self.ratio);
