@@ -274,6 +274,7 @@ pub mod identity;
 pub mod inproc;
 pub mod logfile;
 pub mod object;
+pub mod os;
 pub mod peer;
 pub mod pool;
 pub mod release;

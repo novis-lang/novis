@@ -194,6 +194,10 @@ windows-sys = { version = "0.61", features = [
     # the entries it accounts for. `crates/nvs-config/src/trust.rs` is the one caller.
     "Win32_System_SystemServices",
     "Win32_System_Threading",
+    # `K32GetProcessMemoryInfo`: `Core\Os::residentBytes` is ADR 0148 § 12's `ru_maxrss`, and the
+    # peak working set is what Windows keeps in its place. `crates/nvs-runtime/src/os.rs` is the one
+    # caller, and it takes the `kernel32` entry point so that no import library is added with it.
+    "Win32_System_ProcessStatus",
     # `CreateNamedPipeW`: ADR 0078 § 3's control endpoint is a named pipe on Windows, created with
     # a security descriptor of its own so that "mode 0600" holds where there is no mode.
     # `crates/nvs-config/src/control.rs` is the one caller.
