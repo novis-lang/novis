@@ -1,0 +1,77 @@
+--TEST--
+`Core\Json::encode` ends a cycle at the first repeat on the path and names the chain that closed it, while a value merely held twice is written twice and depth alone ends nothing — `rule:classes/an-encoder-ends-a-cycle-by-identity`, spec § 6
+--FILE--
+<?nvs
+use Core\Json;
+
+#[Core\Json\Derive]
+class Node {
+    public function constructor(public string $name, public ?Node $next) {}
+}
+
+#[Core\Json\Derive]
+class Tree {
+    public function constructor(public string $name, public array<Tree> $kids) {}
+}
+
+#[Core\Json\Derive]
+class Pair {
+    public function constructor(public Node $left, public Node $right) {}
+}
+
+// The identities carried are the ancestor chain and never everything seen: one
+// object two properties both hold is shared rather than cyclic, and a format
+// with no way to spell sharing has no answer but to write it out twice.
+Node $one = new Node("one", null);
+echo Json::encode(new Pair($one, $one)), "\n";
+
+// The first repeat on the current path ends the walk, and what the message
+// names is the property chain that closed it rather than a count of levels.
+Node $self = new Node("self", null);
+$self->next = $self;
+try {
+    var $writtenSelf = Json::encode($self);
+    echo "not refused=", $writtenSelf, "\n";
+} catch (LogicError $direct) {
+    echo $direct->message, "\n";
+}
+
+Node $a = new Node("a", null);
+Node $b = new Node("b", null);
+$a->next = $b;
+$b->next = $a;
+try {
+    var $writtenMutual = Json::encode($a);
+    echo "not refused=", $writtenMutual, "\n";
+} catch (LogicError $mutual) {
+    echo $mutual->message, "\n";
+}
+
+// A cycle closing through an array names the element's position, spelled as a
+// decode's own dotted issue path is.
+Tree $root = new Tree("root", []);
+$root->kids = [$root];
+try {
+    var $writtenRoot = Json::encode($root);
+    echo "not refused=", $writtenRoot, "\n";
+} catch (LogicError $viaList) {
+    echo $viaList->message, "\n";
+}
+
+// The other side: depth alone refuses nothing. A chain far longer than any
+// cycle here, holding a distinct object at every level, is written out whole —
+// what ends a walk is the repeat and never the length, which is the difference
+// the depth counter alone could not tell.
+Node $deep = new Node("leaf", null);
+int $built = 0;
+while ($built < 100) {
+    $deep = new Node("n", $deep);
+    $built = $built + 1;
+}
+echo "deep=", $built, " len=", Core\Str::length(Json::encode($deep)), "\n";
+--EXPECT--
+{"left":{"name":"one","next":null},"right":{"name":"one","next":null}}
+Core\Json::encode(): a value that holds itself has no JSON encoding — `next` is a value it is already inside
+Core\Json::encode(): a value that holds itself has no JSON encoding — `next.next` is a value it is already inside
+Core\Json::encode(): a value that holds itself has no JSON encoding — `kids.0` is a value it is already inside
+deep=100 len=2027

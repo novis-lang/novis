@@ -2,8 +2,9 @@
 //! § 6, over `serde_json`.
 //!
 //! That section is authoritative for every signature; what belongs here is the
-//! crate choice, the two shapes JSON has that Novis does not, and the three
-//! places this module refuses input the C `json_decode` would have accepted.
+//! crate choice, the two shapes JSON has that Novis does not, and the places
+//! this module refuses a value the C `json_encode`/`json_decode` would have
+//! degraded instead.
 //!
 //! # The crate, and why this one
 //!
@@ -39,24 +40,37 @@
 //! **What it spends:** one extra `String` the size of the document, on the
 //! `{escapeUnicode: true}` path only — an option a call has to ask for.
 //!
-//! # The three refusals
+//! # The refusals
 //!
 //! Each is `rule:core-api/shape-rules` R4
 //! ("failure throws") applied where PHP's `json_encode`/`json_decode` returned
 //! a degraded value instead:
 //!
-//! 1. **Nesting past `maxDepth` throws**, and the cap is on by default at
-//!    [`DEFAULT_MAX_DEPTH`] rather than opt-in — nesting is the one JSON input
-//!    that costs unbounded work before any value exists. [`DEPTH_CEILING`] is
-//!    the hard bound a call cannot raise past, because the parse recurses.
-//! 2. **An integer literal too large for `int` throws**, rather than
-//!    degrading to `float`: silent precision loss on a wire format is the bug
-//!    `JSON_BIGINT_AS_STRING` exists to work around. Gap 1 below owns how far
-//!    that reaches.
-//! 3. **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
-//!    `Infinity`; PHP's `json_encode` fails too, but only if
-//!    `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
-//!    here.
+//! * **Nesting past `maxDepth` throws**, and the cap is on by default at
+//!   [`DEFAULT_MAX_DEPTH`] rather than opt-in — nesting is the one JSON input
+//!   that costs unbounded work before any value exists. [`DEPTH_CEILING`] is
+//!   the hard bound a call cannot raise past, because the parse recurses. What
+//!   it bounds is structure that is legal and merely deep: a value that
+//!   encloses itself is refused by the entry below before this one can be
+//!   reached, so the two failures name themselves rather than both reading as
+//!   nesting.
+//! * **A value the walk is already inside throws**, naming the dotted chain of
+//!   keys that closed the cycle —
+//!   `rule:classes/an-encoder-ends-a-cycle-by-identity`, carried by
+//!   [`Encodable`]'s ancestor frames. The chain is what encloses the value and
+//!   not everything already written, so an object two properties both hold is
+//!   written out twice: JSON can express repetition and not sharing. Nothing
+//!   is substituted into the document to stand for the cycle, because this
+//!   document is somebody else's contract rather than our own diagnostic
+//!   format — [ADR 0164](/docs/decisions/0164.md).
+//! * **An integer literal too large for `int` throws**, rather than
+//!   degrading to `float`: silent precision loss on a wire format is the bug
+//!   `JSON_BIGINT_AS_STRING` exists to work around. Gap 1 below owns how far
+//!   that reaches.
+//! * **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
+//!   `Infinity`; PHP's `json_encode` fails too, but only if
+//!   `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
+//!   here.
 //!
 //! # A shape is a second contract, not a second walk
 //!
@@ -141,7 +155,16 @@
 //!    encloses it.** A `decodeAs<array<C>>` reports `2.name`, a nested class's
 //!    field `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s dotted path, built by [`path_of`] out of a prefix each nesting
 //!    extends by one segment.
-//! 7. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
+//! 7. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
+//!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
+//!    nested deeply enough runs the thread's stack out well before the ceiling
+//!    is reached — an abort, not a throw. What the refusal above took away is
+//!    the half of that a program reaches by accident: a value holding itself
+//!    ends at its first repeat instead of descending until something stops it.
+//!    What is left is a document that is legal and merely very deep, and
+//!    closing it means either an explicit stack in the walk or a cap read from
+//!    the space the platform actually has.
+//! 8. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
 //!    is a duplicate of [`Decode`] with every body replaced by `Ok(())`, and
@@ -457,21 +480,61 @@ pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
 // Encoding
 // ============================================================================
 
-/// One Novis value being written as JSON, at a known nesting level.
+/// One Novis value being written as JSON, at a known nesting level and inside
+/// a known chain of ancestors.
 ///
 /// `Copy`, and holding the [`Value`] by value rather than by reference: a
 /// `Value` is sixteen bytes the caller owns for the length of the call, and
 /// every array this walks into is reached through a *borrowed* handle
 /// ([`crate::arr::borrowed`]) that takes no reference of its own.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Encodable {
+pub(crate) struct Encodable<'a> {
     value: Value,
     /// This value's own nesting level, counted as [`DEFAULT_MAX_DEPTH`]
     /// counts: the document is 1.
     depth: u32,
+    /// The step that reached this value, and `None` for the document: the
+    /// segment it contributes to [`Encodable::path`].
+    step: Option<Step<'a>>,
+    /// The objects and arrays this value is inside, innermost first, which is
+    /// what `rule:classes/an-encoder-ends-a-cycle-by-identity` decides a cycle
+    /// by.
+    ancestors: Option<&'a Ancestor<'a>>,
 }
 
-impl Encodable {
+/// One object or array the walk is currently inside.
+///
+/// A borrowed cons list rather than a set or a `Vec`: a frame lives in the
+/// stack frame of the arm that walked into it, which lasts exactly as long as
+/// that value's elements are being written, so the encoder allocates nothing
+/// for this. The chain is the path from the document down rather than
+/// everything seen, so the membership test is linear in the nesting level —
+/// bounded by [`DEPTH_CEILING`], which the arms check first.
+#[derive(Clone, Copy, Debug)]
+struct Ancestor<'a> {
+    /// The allocation's address, which is a live value's identity. An object
+    /// and an array are distinct allocations, so one `usize` answers for both.
+    id: usize,
+    /// The step that reached this frame, and `None` for the document.
+    step: Option<Step<'a>>,
+    /// The frame one level further out.
+    outer: Option<&'a Ancestor<'a>>,
+}
+
+/// One segment of the chain from the document to a value.
+///
+/// A key borrowed from the descriptor or the array rather than an owned
+/// `String`, and a position held as the number it is, so walking into an
+/// element costs no allocation on a path no message ever asks for.
+#[derive(Clone, Copy, Debug)]
+enum Step<'a> {
+    /// An object's wire key, a shape's field name, or a non-list array's key.
+    Key(&'a str),
+    /// A list element's position.
+    Index(usize),
+}
+
+impl<'a> Encodable<'a> {
     /// A whole document — the value at the top level, which is where
     /// [`DEFAULT_MAX_DEPTH`] counts from.
     ///
@@ -483,19 +546,87 @@ impl Encodable {
     /// argument is. One encoder, so a `float` or a nested array cannot be
     /// spelled two ways depending on which member wrote it.
     pub(crate) fn document(value: Value) -> Self {
-        Self { value, depth: 1 }
+        Self {
+            value,
+            depth: 1,
+            step: None,
+            ancestors: None,
+        }
     }
 
-    /// This value's elements, one level deeper.
-    fn child(self, value: Value) -> Self {
+    /// One of this value's elements, one level deeper and one frame further in.
+    fn child(self, inside: &'a Ancestor<'a>, step: Step<'a>, value: Value) -> Self {
         Self {
             value,
             depth: self.depth + 1,
+            step: Some(step),
+            ancestors: Some(inside),
         }
+    }
+
+    /// This value as the frame its own elements are inside, identified by the
+    /// address of the allocation the arm is about to walk.
+    fn frame(self, id: usize) -> Ancestor<'a> {
+        Ancestor {
+            id,
+            step: self.step,
+            outer: self.ancestors,
+        }
+    }
+
+    /// The refusal `rule:classes/an-encoder-ends-a-cycle-by-identity` asks for
+    /// when the allocation at `id` is one this walk is already inside, and
+    /// `None` when it is not.
+    ///
+    /// The test is against the ancestor chain and never against everything
+    /// already written: an object two properties both hold is shared rather
+    /// than cyclic, and a format that cannot express sharing has no answer but
+    /// to write it twice. Only a repeat on the current path is a walk that
+    /// would not end, and it ends here — named by the chain that closed it,
+    /// with no marker invented in a document somebody else's reader parses.
+    fn cycle<E: serde::ser::Error>(self, id: usize) -> Option<E> {
+        let mut outer = self.ancestors;
+        while let Some(frame) = outer {
+            if frame.id == id {
+                return Some(E::custom(format!(
+                    "a value that holds itself has no JSON encoding — `{}` is a value \
+                     it is already inside",
+                    self.path()
+                )));
+            }
+            outer = frame.outer;
+        }
+        None
+    }
+
+    /// The dotted chain of keys and positions from the document to this value,
+    /// spelled as a decode's issue path is ([`path_of`]).
+    fn path(self) -> String {
+        use std::fmt::Write as _;
+
+        let mut steps = vec![self.step];
+        let mut outer = self.ancestors;
+        while let Some(frame) = outer {
+            steps.push(frame.step);
+            outer = frame.outer;
+        }
+        let mut path = String::new();
+        for step in steps.into_iter().rev().flatten() {
+            if !path.is_empty() {
+                path.push('.');
+            }
+            match step {
+                Step::Key(key) => path.push_str(key),
+                Step::Index(at) => {
+                    write!(path, "{at}").expect("writing a usize into a String never fails");
+                }
+            }
+        }
+        path
     }
 }
 
-impl Serialize for Encodable {
+impl Serialize for Encodable<'_> {
     fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
         match self.value.tag() {
             Some(Tag::Null) => ser.serialize_unit(),
@@ -548,7 +679,7 @@ impl Serialize for Encodable {
     }
 }
 
-impl Encodable {
+impl Encodable<'_> {
     /// This value's string payload as UTF-8.
     ///
     /// `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and [`Tag::Bytes`] is
@@ -590,6 +721,16 @@ impl Encodable {
             .value
             .obj_ptr()
             .ok_or_else(|| S::Error::custom("a `Tag::Object` value is always an object"))?;
+        // Before a field is read, so the walk turns back at the first repeat
+        // rather than at the ceiling above —
+        // `rule:classes/an-encoder-ends-a-cycle-by-identity`. An instance is
+        // the half of the graph that can close a cycle at all: a property
+        // holds a reference, where an array entry holds a copy.
+        let id = ptr as usize;
+        if let Some(cycle) = self.cycle(id) {
+            return Err(cycle);
+        }
+        let inside = self.frame(id);
         #[expect(
             unsafe_code,
             reason = "the value owns a reference to a live allocation, so it is live \
@@ -629,7 +770,7 @@ impl Encodable {
                 let name = desc
                     .field_name(slot)
                     .ok_or_else(|| S::Error::custom("a slot below the field count is named"))?;
-                map.serialize_entry(name, &self.child(held))?;
+                map.serialize_entry(name, &self.child(&inside, Step::Key(name), held))?;
             }
             return map.end();
         }
@@ -646,7 +787,10 @@ impl Encodable {
             // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is: the
             // object holds the reference for the length of this call and
             // nothing here hands the value on to Novis code.
-            map.serialize_entry(&field.key, &self.child(object.field(field.slot)))?;
+            map.serialize_entry(
+                &field.key,
+                &self.child(&inside, Step::Key(&field.key), object.field(field.slot)),
+            )?;
         }
         map.end()
     }
@@ -670,6 +814,17 @@ impl Encodable {
             .value
             .array_ptr()
             .ok_or_else(|| S::Error::custom("a `Tag::Array` value is always an array"))?;
+        // An array is copied where an object is referenced, so this arm alone
+        // cannot close a cycle — but the allocation copy-on-write shares is
+        // reachable from an object that is inside it, and then the walk does
+        // not end. What the ancestor chain answers is that walk, not the
+        // language's value semantics: an address repeating on the current path
+        // is a descent with no bottom whichever tag it wears.
+        let id = ptr as usize;
+        if let Some(cycle) = self.cycle(id) {
+            return Err(cycle);
+        }
+        let inside = self.frame(id);
         let array = crate::arr::borrowed(ptr);
 
         let mut list = true;
@@ -693,12 +848,14 @@ impl Encodable {
         if list {
             let mut seq = ser.serialize_seq(Some(array.count()))?;
             let mut from = 0usize;
+            let mut at = 0usize;
             while let Some(slot) = array.next_slot(from) {
                 let value = array
                     .value_at(slot)
                     .expect("next_slot only names live entries");
-                seq.serialize_element(&self.child(value))?;
+                seq.serialize_element(&self.child(&inside, Step::Index(at), value))?;
                 from = slot + 1;
+                at += 1;
             }
             return seq.end();
         }
@@ -715,7 +872,7 @@ impl Encodable {
             let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
                 S::Error::custom("an array key that is not UTF-8 has no JSON encoding")
             })?;
-            map.serialize_entry(name, &self.child(value))?;
+            map.serialize_entry(name, &self.child(&inside, Step::Key(name), value))?;
             from = slot + 1;
         }
         map.end()
