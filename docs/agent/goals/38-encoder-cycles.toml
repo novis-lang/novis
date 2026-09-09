@@ -1,0 +1,197 @@
+# Goal 38 -- An encoder ends a cycle where it closes, and every walk that can meet one is audited
+# The acceptance test, as data.
+#
+# `38-encoder-cycles.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # goal-switch.py unions the previous goal's list into this one. This goal writes no
+  # `examples/*.nvs` fixture of its own: what it proves is a refusal and a duplication, and both are
+  # asserted from `.nvst` cases and from Rust rather than from a program's frozen output.
+]
+
+[context]
+
+modules = [
+  # The encoder. `Encodable` and its `depth`, the two walk arms that guard `DEPTH_CEILING`, and the
+  # absence of any identity anywhere in it -- which is the whole of what this goal changes.
+  "crates/nvs-stdlib/src/json.rs",
+  # The walk that already has the property, and the shape to match rather than reinvent: cycle-safe,
+  # identity-carrying, one implementation serving both of its carriers.
+  "crates/nvs-runtime/src/graph.rs",
+  # `Core\Serialize`, which reaches the property through the graph copy and is therefore *not* in
+  # this goal's stage 3 -- read once so that stays a fact rather than an assumption.
+  "crates/nvs-stdlib/src/serialize.rs",
+  # `Node::Cycle` and `Node::Object.id` -- the record model's answer, which assigns an identity to
+  # every object so sharing and cycles both survive. This is the answer an encoder must NOT copy,
+  # and the file is here so the difference is read rather than remembered.
+  "crates/nvs-render/src/lib.rs",
+  # Stage 3's three walkers. Each is opened to answer one question -- can this reach an object graph
+  # at all -- and the answer is written down either way.
+  "crates/nvs-stdlib/src/csv.rs",
+  "crates/nvs-stdlib/src/uri.rs",
+  "crates/nvs-stdlib/src/encoding.rs",
+  # The case that already proves the graph copy's cycle-safety end to end: the shape stage 2's own
+  # cases are written to, so a new case matches the tree instead of inventing a second style.
+  "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst",
+]
+
+# The rules every stage of this goal works inside.
+rules = [
+  # This goal's own rule: what it ships, and the sentence stage 4 flips to `shipped`.
+  "classes/an-encoder-ends-a-cycle-by-identity",
+  # The walk that already holds the property for its two carriers, and whose closing argument --
+  # two implementations that agree today is the failure that costs -- is why this goal exists.
+  "classes/graph-copy",
+  # The record model's answer, which resolves a repeat to an identity so a rendering can reference
+  # it. The one place an encoder must deliberately differ, and § 2 of the record says why.
+  "errors/record-transformations",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A `.nvst` test case",
+  "A rule fragment",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `38-encoder-cycles.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the keystone"` labels, which may group several prose stages
+# under one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+# The record that argues the keystone: ancestors rather than a seen-set, a refusal rather than a
+# marker in the document, and the depth cap left where it is. All three are pre-authorized, so a
+# session meeting them decides nothing.
+[context.stage.2]
+adrs = ["0164"]
+
+# The audit answers one question per file and writes the answer down either way. `Core\Serialize`'s
+# exemption is a rule rather than a judgement call, which is why the rule is named here too.
+[context.stage.3]
+rules = ["classes/serialize-is-a-closed-format"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its floor's, not this goal's own: nothing here touches a database, and the daemon is needed because
+# goal 25's acceptance list -- carried in as stage 1 -- reaches the driver suites that do.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-config"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. The three properties that must hold together: a cycle is refused where it
+# closes, a shared-but-acyclic graph still encodes, and a merely deep document still meets the cap.
+# Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the keystone"
+name = "a cycle is refused at the property that closes it, and the message names the path"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "an_object_that_holds_itself_is_refused_at_the_property_that_closes_the_cycle",
+  "the_refusal_names_the_property_chain_rather_than_a_count_of_levels",
+  "a_cycle_that_closes_through_an_array_is_refused_at_the_same_place",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the keystone"
+name = "shared structure is written twice, and the depth cap still bounds a merely deep document"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "one_object_held_by_two_properties_is_written_twice_rather_than_refused",
+  "a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the keystone"
+name = "the conformance tree, including this goal's two cases"
+args = ["test", "tests/conformance/"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the other walkers. The check is that an answer exists per file, not that the answer is
+# yes: a walker that cannot reach an object graph is a finding, not a gap. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the audit"
+name = "every stdlib walker that can reach an object graph ends a cycle the same way"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_encoder_that_reaches_an_object_graph_refuses_a_cycle_rather_than_recursing",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the rulebook. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "the rulebook validates, and the rule this goal ships is no longer designed"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "every generated chapter is current with the fragment and its topic entry"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "the record and the rulebook still agree on what this decision created"
+argv = ["python", "tools/decisions.py", "--check"]

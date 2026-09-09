@@ -3,7 +3,7 @@
 
 # Testing
 
-*10 of 48 rules below are **designed** rather than shipped, and are marked where they appear.*
+*15 of 53 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -750,6 +750,156 @@ agrees with **itself** under different codegen, and a probe-attached run and an 
 both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
+
+<a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
+
+## `[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on  *(designed — not yet in the compiler)*
+
+`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`
+
+`[debug] store` decides whether debug records are persisted at all, is off by default, and can only
+subtract — no run mode, no log level and no other directive turns it on.
+
+It is deliberately not a reading of the run mode and deliberately not a level threshold. `[log] level`
+is a legitimate operational dial whose production default is `Info` and which a tree may legally
+raise to chase a bug; if the debug stream rode it, that ordinary action would silently begin
+persisting complete typed dumps of request data. **A reasonable operational dial must not double as a
+data-exposure switch.**
+
+So this is a second gate read together with every ceiling already in force, and off wherever either
+says off. [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive)'s reconnaissance argument does not weaken because a
+second key said yes, and a tree that writes no `[debug]` block gets no debug stream at all.
+
+With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
+the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug-probes) already pays and nothing further.
+
+<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level). Decided in [0163](../decisions/0163.md).</sub>
+
+<a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
+
+## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — not yet in the compiler)*
+
+`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`
+
+A debug record reaches the service by being written to a file the writing core owns alone, never over
+a socket, and the service reads a spool file only once it has been sealed.
+
+The application therefore opens no listener and makes no outbound connection for this: there is
+nothing on the request path but a buffered append to an already-open descriptor, which is cheaper
+than a socket write rather than more expensive. It is never `fsync`ed per record — that, and only
+that, is what would make this cost milliseconds. Nothing is lost while the service is stopped,
+because the files are simply still there when it starts.
+
+**One file per writer, sealed by an atomic rename** at a size or an age, whichever comes first. Per
+writer because the server accepts per core, and `O_APPEND` gives an atomic offset bump and not an
+atomic large write, so a shared file would tear records that a dumped object tree easily makes large
+enough to tear. Sealed by rename because a reader then never has to ask whether a file is still being
+written. Deleted after ingest, so this stream needs no rotation of its own. A file a crash left
+unsealed and untouched for longer than any live writer would take is swept by the same pass.
+
+The seal interval is the latency between a dump and its appearing, which is what buys everything
+above.
+
+<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0163](../decisions/0163.md).</sub>
+
+<a id="testing-the-ingester-runs-whether-or-not-anyone-is-looking"></a>
+
+## The ingester owns every write to the index and runs without a browser, and the viewer only ever reads  *(designed — not yet in the compiler)*
+
+`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`
+
+The ingester owns every write to the index and runs from the moment the service starts, whether or
+not a browser has ever connected; the viewer is a reader that never opens a log file, parses a line
+or scans a directory.
+
+That split is both the performance argument and the correctness one. The viewer's worst case is a
+bounded indexed query, so no enormous or corrupt file can reach the UI; and draining the spool is not
+an effect of somebody having a tab open. Putting the ingester inside the application process is
+refused: it would put directory scanning and index writes on the request path, in every deployment,
+to save a hop that costs nothing.
+
+**Two ingest modes.** A spool file is read whole, inserted, and deleted. The application's own log is
+read from a checkpoint, inserted, and never touched — the checkpoint keyed on the file's identity
+plus its offset plus a hash of its first line, because a path misses a rotation and an identity alone
+misses identity reuse and truncation in place. Every record carries a **dedupe key** under a unique
+index and inserts ignoring conflicts, so re-ingesting anything is harmless: the writer's id and
+sequence for a spool record, the file identity and byte offset for a tailed one.
+
+The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
+dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
+what licenses running it in its fastest mode and makes a corrupt index a cache miss to discard rather
+than a failure to resolve.
+
+**The viewer is pushed a watermark, not records** — a monotonic sequence published after each
+committed batch, with the browser fetching the delta through the same query path it uses for
+everything else. One rendering path serves live and historical data, a backgrounded tab cannot make
+the ingester buffer, and a browser that was closed needs no replay buffer. That sequence, not a
+record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
+to a garbage timestamp in a corrupt file.
+
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write). Decided in [0163](../decisions/0163.md).</sub>
+
+<a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
+
+## A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops  *(designed — not yet in the compiler)*
+
+`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`
+
+A malformed line becomes a record that says so and an unreadable file is quarantined under a backoff,
+so nothing on disk can stop the ingester.
+
+Line length is capped, and past the cap the line is truncated, marked, and skipped to the next
+newline. A corrupt file is often one enormous line with no newline in it, and reading it whole is how
+a log tailer dies.
+
+A line that will not parse is kept as an `unparseable` record carrying its file, its offset and its
+truncated bytes, and is shown. Dropping it silently would leave a viewer quietly disagreeing with
+what is on disk, which is worse than an ugly row. Invalid UTF-8 is a lossy conversion with a flag,
+never an error.
+
+A file that fails at the file level — permissions, an IO error, a mount that went away — is
+quarantined with its error and a retry-after, never retried hot, and listed in the UI, so a file that
+stopped being read says so instead of merely not appearing. Other files keep flowing.
+
+Work is bounded per source per pass and sources are taken in turn, so one enormous file cannot starve
+the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
+deletes a spool file whose batch did not commit.
+
+<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0163](../decisions/0163.md).</sub>
+
+<a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
+
+## The viewer renders the correlated request stream and hands every artifact with an existing viewer to it  *(designed — not yet in the compiler)*
+
+`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`
+
+The viewer renders the correlated request stream and the log, and every artifact that an existing
+tool already renders is handed to that tool rather than drawn.
+
+A profile is handed to speedscope in the format [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export)
+already commits to, and a coverage report to whatever reads Clover or lcov. A coverage **heatmap**
+over source is drawn, because that is a per-line background over text rather than a viewer. This is
+[`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)'s test applied rather than set aside:
+where a renderer exists, feed it. The live, correlated request stream is the one thing here that has
+no incumbent in any ecosystem, which is the whole of the exception.
+
+The boundary is written as a rule rather than left as an intention because the failure mode of an
+in-house dashboard is that it slowly grows a second copy of every tool the project deliberately did
+not build.
+
+**The request is the primary object.** The main view lists requests — route, status, duration, query
+count, dump count — and one opens to its own timeline; the flat filterable stream is the second view,
+not the front page. The correlation key is the trace id every request already carries
+([`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request)), so it costs nothing to derive. In
+development the response also carries that id in a header so the viewer can move from the call being
+looked at to its timeline; in production it does not, being a correlation and fingerprinting leak.
+
+The value tree the browser receives is already finite — [`errors/record-transformations`](errors.md#errors-record-transformations) bounded
+it with elision and resolved every repeat to an identity before it was written — so a repeat renders
+as a link to the node it names and expansion needs no fetch. Children are built from data already
+loaded.
+
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0163](../decisions/0163.md).</sub>
 
 <a id="testing-bench-counters"></a>
 

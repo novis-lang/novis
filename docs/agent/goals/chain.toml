@@ -300,6 +300,19 @@ handoff = "docs/agent/goals/25-formats.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# It sits in front of goal 26 because `Core\Xml` is the next encoder that will be written and does
+# not exist yet: `rule:classes/an-encoder-ends-a-cycle-by-identity` landing after it would make
+# the rule a retrofit of the very encoder it exists to bind. Nothing ahead of it is a dependency
+# -- the encoder it fixes is on disk and the record that argues the fix is already accepted -- so
+# it is placed by what comes next rather than by what it needs.
+[[goal]]
+name = "38 encoder-cycles"
+md = "docs/agent/goals/38-encoder-cycles.md"
+toml = "docs/agent/goals/38-encoder-cycles.toml"
+handoff = "docs/agent/goals/38-encoder-cycles.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
 # The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
 # and `rule:core-classes/html-parsing`'s WHATWG parser both wait on `Core\Xml`'s tree, and `rule:core-classes/html-parsing` is titled
 # *Unscheduled, and lands with `Core\Xml`* -- three gaps, one tree, one goal. It is last of the

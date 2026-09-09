@@ -3,7 +3,7 @@
 
 # Classes
 
-*1 of 37 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 38 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -854,6 +854,36 @@ other allocation-heavy call has. What it costs is foreign data: PHP's open wire 
 at all.
 
 <sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+
+<a id="classes-an-encoder-ends-a-cycle-by-identity"></a>
+
+## Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap  *(designed — not yet in the compiler)*
+
+`rule:classes/an-encoder-ends-a-cycle-by-identity`
+
+Every encoder that walks a value graph carries the identity of the objects on the path from the root
+to the value it is writing, and the first value it meets twice ends the walk there — refused, naming
+the property chain that closed the cycle, never recursing until a depth cap stops it.
+
+The set is the **ancestor chain, not everything already seen**, because the two answer different
+questions. One object held by two properties is shared rather than cyclic, and it encodes: a format
+with no way to express sharing writes it out twice, which is the only answer available. Only a repeat
+on the current path is a cycle. This is the one place an encoder's answer differs from a record's,
+where [`errors/record-transformations`](errors.md#errors-record-transformations) gives every object an identity precisely so that sharing
+and cycles both survive into the rendering.
+
+**No marker is invented in the document.** A record rendering may emit a reference because its
+consumer is our own tooling; an encoder producing somebody else's payload may not, because a
+Novis-specific key would make the served shape disagree with the published contract. So a cyclic
+graph has no encoding, and the program is told so with the path in the message rather than with a
+count of levels.
+
+The depth cap stays and bounds what this does not: a structure that is acyclic and simply deeper than
+any encoder should walk. After this rule the two failures are distinguishable, which is what was
+wrong with reporting a cycle as nesting. `Core\Serialize` reaches the same property through
+[`classes/graph-copy`](classes.md#classes-graph-copy)'s walk rather than through this rule.
+
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0164](../decisions/0164.md).</sub>
 
 <a id="classes-no-class-alias"></a>
 
