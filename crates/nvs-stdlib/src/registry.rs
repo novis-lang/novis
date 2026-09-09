@@ -1699,6 +1699,12 @@ pub const CLASSES: &[CoreClass] = &[
     // parse. Beside its class rather than in spec § order for `Core\Html`'s own
     // reason: this is the value the section's first two rows both answer with.
     crate::xml::NODE,
+    // The other door onto that family: § 17's stream half, beside the tree half
+    // rather than in spec order because the two are one subsystem in two
+    // shapes. `rule:core-classes/xml-tree-and-stream` is why it is a class of
+    // its own and not a mode on the row above — the family is shared and no
+    // operation is, so which shape a program uses is settled at the door.
+    crate::xml::READER,
     // § 17's codec class, beside `Core\Html` because that is the section both
     // are rows of. Tier 0 for a reason that is not the other three's:
     // `rule:core-classes/decompression-bound`'s bound is policy, and a policy

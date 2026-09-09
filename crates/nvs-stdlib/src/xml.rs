@@ -27,11 +27,22 @@
 //! two shapes of the same subsystem coexist", so it is not read as an exception
 //! to `rule:core-api/one-paradigm-per-operation`. [`nvs_core_xml_parse`] is the
 //! tree half: it reads the whole document and answers a value a program can
-//! walk in any order and any number of times. The streaming reader and writer
-//! that replace `XMLReader` and `XMLWriter` hold one window instead, and **no
-//! operation is available through both** — a program picks the shape that fits
-//! how much of the document it needs at once, and pays for that shape only.
-//! This paragraph is the split's one statement; no member card re-argues it.
+//! walk in any order and any number of times. [`nvs_core_xml_reader`] is the
+//! stream half: it answers a walk that holds one node at a time, so a document
+//! a program does not want to materialise is read by asking for the next node
+//! until there is none. **No operation is available through both** — the two
+//! doors share the node family and nothing else, so what a shape costs stays a
+//! property of the door a program came in through, and a program picks the one
+//! that fits how much of the document it needs at once. This paragraph is the
+//! split's one statement; no member card re-argues it.
+//!
+//! Two things a walk deliberately does not carry, resolved toward the narrower
+//! surface and recorded here because this is where the split is stated. A walk
+//! never answers a `Document` node: that kind is a tree's root, and a reader
+//! answers what it has read past rather than something holding the rest. And a
+//! closing tag is not a node either, so [`nvs_core_xml_reader_depth`] is how a
+//! program tells where an element ended — a depth no greater than an earlier
+//! one means everything opened since has closed.
 //!
 //! # What a parse refuses, by construction
 //!
@@ -66,12 +77,20 @@
 //! while it builds — a Rust tree of owned strings, dropped before the member
 //! returns.
 //!
+//! Per streaming walk: the document's own text, held as the caller handed it
+//! over rather than copied, plus the node [`nvs_core_xml_reader_read`] last
+//! answered and the names of the elements open around it — [`DEPTH_CEILING`]
+//! of them at the very most. What a walk *builds* is one node, so reading a
+//! document ten times larger costs the reader the same, which is the property
+//! `rule:core-classes/xml-tree-and-stream` names and
+//! `the_reader_holds_one_window_rather_than_the_document` measures.
+//!
 //! # Known gaps
 //!
-//! 1. **The stream is not here.** The reader and writer the section above
-//!    describes are unwritten, and until they are, a program that outgrows the
-//!    tree has nowhere to go. The family they answer with is [`Kind`] and no
-//!    second vocabulary.
+//! 1. **The writer is not here.** The reader is ([`READER`]), so a program that
+//!    outgrows the tree can read a document a node at a time; writing one back
+//!    out a node at a time is what is missing, and until it lands the stream
+//!    half of § 17 reads and does not write.
 //! 2. **Nothing serialises.** A tree can be walked and not written back out, so
 //!    `Core\Html::sanitize`'s parse-walk-serialise round trip has two of its
 //!    three steps.
@@ -85,7 +104,7 @@
 //!    it does. Dropping them would be a guess about which whitespace mattered,
 //!    which `rule:errors/ambiguous-input-refused` is the general answer to.
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -107,19 +126,37 @@ pub(crate) const NODE_NAME: &str = r"Core\Xml\Node";
 /// position that carries one.
 pub(crate) const KIND_NAME: &str = r"Core\Xml\NodeKind";
 
-/// `Core\Xml`'s registry rows — the tree half of § 17, which is the parse and
-/// nothing else. The streaming half is this module's known gap 1.
+/// `Core\Xml\Reader`'s fully-qualified name, for [`READER`] and for the return
+/// position that carries one.
+pub(crate) const READER_NAME: &str = r"Core\Xml\Reader";
+
+/// `Core\Xml`'s registry rows — § 17's two front doors, one per shape: the
+/// parse that materialises a whole document, and the reader that walks one a
+/// node at a time. They answer the same family and share no operation, which is
+/// `rule:core-classes/xml-tree-and-stream` and the paragraph in the module doc
+/// above. The writer is this module's known gap 1.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "parse",
-        names: &["document"],
-        params: &[CoreTy::Text(Qual::Neutral)],
-        defaults: &[],
-        return_ty: CoreTy::Instance(NODE_NAME),
-        symbol: "nvs_core_xml_parse",
-        doc: Some(&PARSE_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "parse",
+            names: &["document"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NODE_NAME),
+            symbol: "nvs_core_xml_parse",
+            doc: Some(&PARSE_DOC),
+        },
+        CoreMethod {
+            name: "reader",
+            names: &["document"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(READER_NAME),
+            symbol: "nvs_core_xml_reader",
+            doc: Some(&READER_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -335,6 +372,104 @@ const KIND_ENUM_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// `Core\Xml\Reader`'s registry rows — the stream half of § 17, which is a walk
+/// over a document and nothing else.
+///
+/// Two members, and the tree's are not among them: `read` advances the walk and
+/// answers what it read, and `depth` says how deeply nested that was. That
+/// disjointness is `rule:core-classes/xml-tree-and-stream` — the family is
+/// shared, the operations are not — and it is why this is a second class rather
+/// than a mode on [`CLASS`].
+pub(crate) const READER: CoreClass = CoreClass {
+    name: READER_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "read",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(NODE_NAME)),
+            symbol: "nvs_core_xml_reader_read",
+            doc: Some(&READ_DOC),
+        },
+        CoreMethod {
+            name: "depth",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_xml_reader_depth",
+            doc: Some(&DEPTH_DOC),
+        },
+    ],
+    slots: &["document", "cursor", "depth", "stack", "open", "rooted"],
+    constants: &[],
+};
+
+/// `Core\Xml::reader`'s reference card — `rule:core-api/reference-card`.
+const READER_DOC: MethodDoc = MethodDoc {
+    short: "Opens a walk over `$document` that holds one node at a time — replacing `XMLReader`. \
+            A document a program does not want to materialise is read by asking for the next node \
+            until there is none, and what the walk itself holds does not grow with how much of \
+            the document is left. Nothing is read here: the first `read` is what reaches the \
+            document's first character.",
+    params: &[ParamDoc {
+        name: "document",
+        desc: "The document text, held as it was handed over rather than copied and read forward \
+               from as the walk goes. No entity is resolved from anywhere, exactly as `parse` \
+               resolves none.",
+        shape: &[],
+    }],
+    ret: "A reader positioned before the first node.",
+    errors: &[],
+};
+
+/// `Core\Xml\Reader::read`'s reference card — `rule:core-api/reference-card`.
+const READ_DOC: MethodDoc = MethodDoc {
+    short: "The next node of the walk, or `null` at the end of the document — the one operation \
+            that advances a reader. An element arrives when its opening tag is read, carrying its \
+            name and its attributes and no children, because nothing inside it has been read yet; \
+            what is inside arrives as the nodes that follow. A closing tag is not a node, so \
+            `depth` is how a program tells where one element ended and the next began.",
+    params: &[],
+    ret: "The node just read, of the family a parsed tree is made of — every kind but `Document`, \
+          which is a tree's root and a walk has none. `null` once the document is finished, and \
+          every string a node carries is `tainted`.",
+    errors: &[ErrorDoc {
+        error: "ParseError",
+        desc: "The document is not well-formed where the walk has reached — the same refusals \
+               `parse` makes, reported when a node reaches them rather than before the first node \
+               is answered. The walk does not advance past one, so asking again reports the same \
+               sentence.",
+    }],
+};
+
+/// `Core\Xml\Reader::depth`'s reference card — `rule:core-api/reference-card`.
+const DEPTH_DOC: MethodDoc = MethodDoc {
+    short: "How many elements are open around the node `read` last answered: `0` for the root \
+            element and for anything written beside it, one more for each element it is nested \
+            inside. This is the structure a walk carries, since a closing tag is not a node — a \
+            depth no greater than an earlier one means every element opened since has closed.",
+    params: &[],
+    ret: "The depth of the node last answered, and `0` both before the first `read` and after the \
+          one that answered `null`.",
+    errors: &[],
+};
+
+/// [`READER`]'s slots, in declaration order.
+const DOCUMENT_SLOT: usize = 0;
+/// See [`DOCUMENT_SLOT`].
+const CURSOR_SLOT: usize = 1;
+/// See [`DOCUMENT_SLOT`].
+const DEPTH_SLOT: usize = 2;
+/// See [`DOCUMENT_SLOT`].
+const STACK_SLOT: usize = 3;
+/// See [`DOCUMENT_SLOT`].
+const OPEN_SLOT: usize = 4;
+/// See [`DOCUMENT_SLOT`].
+const ROOTED_SLOT: usize = 5;
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -345,6 +480,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_xml_node_text" => (nvs_core_xml_node_text as *const ()).cast(),
         "nvs_core_xml_node_attributes" => (nvs_core_xml_node_attributes as *const ()).cast(),
         "nvs_core_xml_node_children" => (nvs_core_xml_node_children as *const ()).cast(),
+        "nvs_core_xml_reader" => (nvs_core_xml_reader as *const ()).cast(),
+        "nvs_core_xml_reader_read" => (nvs_core_xml_reader_read as *const ()).cast(),
+        "nvs_core_xml_reader_depth" => (nvs_core_xml_reader_depth as *const ()).cast(),
         _ => return None,
     })
 }
@@ -511,10 +649,72 @@ struct Reader<'a> {
     pos: usize,
 }
 
+/// The names of the elements a streaming walk has open, over the slots that
+/// hold them.
+///
+/// A stack in a Novis array rather than a Rust `Vec`, because a `Core`
+/// instance's state is values Novis can already hold ([`crate::instance`]) and
+/// a walk's position has to survive between two `read` calls. A pop leaves the
+/// entry where it is and moves [`Self::depth`] instead, so the array grows to
+/// the deepest the document reached and never past it: the next push overwrites
+/// what a deeper element left behind. [`DEPTH_CEILING`] bounds that, which is
+/// what makes the stack O(deepest) rather than O(document).
+struct Open<'a> {
+    /// The open names, of which the first [`Self::depth`] are live.
+    names: &'a mut NvsArray,
+    /// How many elements are open.
+    depth: usize,
+}
+
+impl Open<'_> {
+    /// How deeply nested whatever is read next will be.
+    fn depth(&self) -> usize {
+        self.depth
+    }
+
+    /// The name of the innermost open element, or `None` outside the root.
+    fn innermost(&self) -> Option<String> {
+        let at = i64::try_from(self.depth.checked_sub(1)?).ok()?;
+        Some(self.names.get_index(at)?.as_text()?.to_owned())
+    }
+
+    /// Opens `name`.
+    ///
+    /// The write cannot move the array: the reader owns the only reference to
+    /// its own stack, since no member hands it out, so
+    /// [`NvsArray::set_index`]'s copy-on-write separation never fires and the
+    /// handle stays the one the slot names.
+    fn push(&mut self, name: &str) {
+        let at = i64::try_from(self.depth).expect("`DEPTH_CEILING` is far under `i64::MAX`");
+        self.names
+            .set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+        self.depth += 1;
+    }
+
+    /// Closes the innermost open element and answers the name it opened as, or
+    /// `None` where nothing is open.
+    fn pop(&mut self) -> Option<String> {
+        let name = self.innermost()?;
+        self.depth -= 1;
+        Some(name)
+    }
+}
+
 impl<'a> Reader<'a> {
     /// A reader positioned at the start of `src`.
     fn new(src: &'a str) -> Self {
         Self { src, pos: 0 }
+    }
+
+    /// A reader positioned `pos` bytes into `src` — a streaming walk resuming
+    /// where the call before it stopped, where [`Self::new`] is the
+    /// whole-document entry.
+    fn at(src: &'a str, pos: usize) -> Self {
+        debug_assert!(
+            src.is_char_boundary(pos),
+            "a cursor this module wrote is where one of its own reads stopped"
+        );
+        Self { src, pos }
     }
 
     /// What has not been read yet.
@@ -909,6 +1109,117 @@ impl<'a> Reader<'a> {
         }
     }
 
+    /// The next node of a streaming walk and how deeply nested it is, or `None`
+    /// at the end of the document.
+    ///
+    /// The grammar [`Self::document`] and [`Self::tree`] accept, read one node
+    /// at a time: `open` is the stack `tree` keeps on the Rust stack, living in
+    /// the reader's own slots instead so that it survives between calls, and
+    /// `rooted` is `document`'s own flag. A closing tag is not a node, so this
+    /// walks past one rather than answering it, and the depth it answers is the
+    /// node's own — the count of elements open *around* it, before an opening
+    /// tag pushes its own.
+    ///
+    /// # Errors
+    ///
+    /// Every refusal [`Self::document`] makes, reported when the walk reaches
+    /// it rather than before the first node is answered.
+    fn step(
+        &mut self,
+        open: &mut Open<'_>,
+        rooted: &mut bool,
+    ) -> Result<Option<(Parsed, usize)>, String> {
+        if self.pos == 0 {
+            self.declaration()?;
+        }
+        loop {
+            // Outside the root element, whitespace is not content — the one
+            // place the two differ, and `document`'s own rule.
+            if open.depth() == 0 {
+                self.skip_space();
+            }
+            let rest = self.rest();
+            if rest.is_empty() {
+                if let Some(name) = open.innermost() {
+                    return Err(format!("`<{name}>` is never closed"));
+                }
+                if !*rooted {
+                    return Err("a document needs a root element".to_owned());
+                }
+                return Ok(None);
+            }
+            if rest.starts_with("</") {
+                let Some(opened) = ({
+                    self.pos += "</".len();
+                    let name = self.name("a closing tag")?;
+                    self.skip_space();
+                    if !self.eat(">") {
+                        return Err(format!("`</{name}` is never closed"));
+                    }
+                    open.pop().map(|opened| (opened, name))
+                }) else {
+                    return Err(format!(
+                        "`{}` closes an element nothing opened",
+                        self.here()
+                    ));
+                };
+                let (opened, name) = opened;
+                if opened != name {
+                    return Err(format!(
+                        "`<{opened}>` is closed by `</{name}>`, and an element closes as what it \
+                         opened as"
+                    ));
+                }
+                continue;
+            }
+            let depth = open.depth();
+            if rest.starts_with("<!--") {
+                return Ok(Some((self.comment()?, depth)));
+            }
+            if rest.starts_with("<!DOCTYPE") {
+                return Err(DOCTYPE_REFUSAL.to_owned());
+            }
+            if rest.starts_with("<![CDATA[") && depth > 0 {
+                return Ok(Some((self.cdata()?, depth)));
+            }
+            if rest.starts_with("<!") && depth > 0 {
+                return Err(format!(
+                    "`{}` is not something a document may hold",
+                    self.here()
+                ));
+            }
+            if rest.starts_with("<?") {
+                return Ok(Some((self.processing_instruction()?, depth)));
+            }
+            if rest.starts_with('<') {
+                if depth == 0 && *rooted {
+                    return Err(
+                        "a document has one root element, and this is a second one".to_owned()
+                    );
+                }
+                let (node, closed) = self.start_tag()?;
+                *rooted = true;
+                if !closed {
+                    if depth >= DEPTH_CEILING {
+                        return Err(format!(
+                            "elements nest deeper than {DEPTH_CEILING}, which is as deep as a \
+                             document may be"
+                        ));
+                    }
+                    open.push(&node.name);
+                }
+                return Ok(Some((node, depth)));
+            }
+            if depth == 0 {
+                return Err(format!(
+                    "`{}` is character data outside the root element",
+                    self.here()
+                ));
+            }
+            return Ok(Some((self.chardata()?, depth)));
+        }
+    }
+
     /// The whole document, prolog and trailer included.
     ///
     /// # Errors
@@ -1023,6 +1334,90 @@ fn held(receiver: Value, index: usize, member: &str) -> Result<Value, Fault> {
     Ok(value)
 }
 
+/// A count of this module's own, as the `uint` a slot holds.
+fn counted(count: usize) -> Value {
+    Value::uint(u64::try_from(count).expect("a count taken off a document is under `u64::MAX`"))
+}
+
+/// Slot `index` of a reader, as the count it holds.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for a slot holding anything else, which only a bug in this
+/// module can produce: a reader's slots are written by [`nvs_core_xml_reader`]
+/// and by [`read`] and by nothing else.
+fn count_slot(receiver: *mut ObjHeader, index: usize, member: &str) -> Result<usize, Fault> {
+    let held = crate::instance::slot(receiver, index);
+    held.as_uint()
+        .and_then(|count| usize::try_from(count).ok())
+        .ok_or_else(|| wrong_slot(member, index, held))
+}
+
+/// The fault for a reader slot holding something [`read`] did not write there.
+fn wrong_slot(member: &str, index: usize, held: Value) -> Fault {
+    Fault::fatal(format!(
+        "{READER_NAME}::{member} found tag {} in its `{}` slot",
+        held.tag_byte(),
+        READER.slots[index]
+    ))
+}
+
+/// [`nvs_core_xml_reader_read`]'s body: one step of a walk, over the slots that
+/// hold its position.
+///
+/// A reader's whole state is those slots — the document's own text, a cursor
+/// into it, the stack of open names, and the two counts — so it is an ordinary
+/// `Core` value with no native allocation behind it and nothing to free when it
+/// is released. What this builds per call is one node.
+///
+/// # Errors
+///
+/// A `ParseError` for a document that is not well-formed where the walk has
+/// reached, and a `Fault::fatal` for a slot this module wrote wrong. A refusal
+/// writes no slot at all, so asking again reads from the same place and reports
+/// the same sentence rather than skipping the node it refused.
+fn read(receiver: Value) -> Result<Value, Fault> {
+    let object = crate::instance::receiver(receiver, &READER, "read")?;
+    let held = crate::instance::slot(object, DOCUMENT_SLOT);
+    let document = held
+        .as_text()
+        .ok_or_else(|| wrong_slot("read", DOCUMENT_SLOT, held))?;
+    let held = crate::instance::slot(object, ROOTED_SLOT);
+    let mut rooted = held
+        .as_bool()
+        .ok_or_else(|| wrong_slot("read", ROOTED_SLOT, held))?;
+    let held = crate::instance::slot(object, STACK_SLOT);
+    let stack = held
+        .array_ptr()
+        .ok_or_else(|| wrong_slot("read", STACK_SLOT, held))?;
+    let mut stack = crate::arr::borrowed(stack);
+    let mut open = Open {
+        names: &mut stack,
+        depth: count_slot(object, OPEN_SLOT, "read")?,
+    };
+
+    let mut scan = Reader::at(document, count_slot(object, CURSOR_SLOT, "read")?);
+    let stepped = scan.step(&mut open, &mut rooted).map_err(|why| {
+        Fault::thrown_as(
+            ThrownClass::Parse,
+            // The sentence is the reader's and the period is here, exactly as
+            // the parse's is, so no message has to remember to end like one.
+            format!("{READER_NAME}::read(): {why}."),
+        )
+    })?;
+    let depth = open.depth();
+
+    crate::instance::set_slot(object, CURSOR_SLOT, counted(scan.pos));
+    crate::instance::set_slot(object, OPEN_SLOT, counted(depth));
+    crate::instance::set_slot(object, ROOTED_SLOT, Value::bool(rooted));
+    let Some((node, at)) = stepped else {
+        crate::instance::set_slot(object, DEPTH_SLOT, counted(0));
+        return Ok(Value::null());
+    };
+    crate::instance::set_slot(object, DEPTH_SLOT, counted(at));
+    Ok(instance_of(node))
+}
+
 // ============================================================================
 // The members
 // ============================================================================
@@ -1098,6 +1493,67 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Xml::reader(string $document): Core\Xml\Reader` — replacing
+    /// `XMLReader::xml` and `xml_parser_create`.
+    ///
+    /// Nothing is read here. The reader holds the document's own text, a cursor
+    /// at its start, an empty stack and the two counts, and the first
+    /// [`nvs_core_xml_reader_read`] is what reaches the first character —
+    /// which is why a malformed document is refused by the walk rather than by
+    /// this.
+    fn nvs_core_xml_reader(_ctx, args: [1]) {
+        // unreachable from source: the parameter is `CoreTy::Text`, so anything
+        // that is not a `string` is `E0401` at the call site.
+        if args[0].as_text().is_none() {
+            return Err(Fault::fatal(format!(
+                "Core\\Xml::reader expected a `string`, got tag {}",
+                args[0].tag_byte()
+            )));
+        }
+        let document = args[0];
+        #[expect(
+            unsafe_code,
+            reason = "the argument is borrowed from the caller's frame, so the \
+                      slot that outlives this call needs a reference of its own"
+        )]
+        unsafe {
+            document.retain();
+        }
+        Ok(crate::instance::build(
+            &READER,
+            [
+                document,
+                counted(0),
+                counted(0),
+                Value::array(NvsArray::new()),
+                counted(0),
+                Value::bool(false),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$reader->read(): ?Core\Xml\Node` — the next node of the walk, or `null`
+    /// at the end of the document.
+    fn nvs_core_xml_reader_read(_ctx, args: [1]) {
+        read(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$reader->depth(): uint` — how deeply nested the node
+    /// [`nvs_core_xml_reader_read`] last answered was.
+    ///
+    /// A slot read, like every member on a node: the walk wrote the depth when
+    /// it answered, so there is nothing here to recompute and nothing to fail.
+    fn nvs_core_xml_reader_depth(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &READER, "depth")?;
+        Ok(crate::instance::slot(receiver, DEPTH_SLOT))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, NvsStr, OutputSink, Tag, Value, call};
@@ -1106,7 +1562,7 @@ mod tests {
         ATTRIBUTES_SLOT, CHILDREN_SLOT, CLASS, DOCTYPE_REFUSAL, KIND, KIND_NAME, KIND_SLOT, Kind,
         NAME, NAME_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, parse,
     };
-    use crate::registry::{CLASSES, CoreTy, Qual};
+    use crate::registry::{CLASSES, CoreClass, CoreTy, Qual};
 
     /// A kind's name, read out of the registered roster rather than out of a
     /// second table here — so a walk asserted below is asserted against the
@@ -1221,23 +1677,27 @@ mod tests {
             );
         }
 
-        // The other half of "rather than a flag": the signature has nowhere to
-        // put one. A single parameter, no defaults, so there is no argument a
-        // caller could pass and no default a deployment could have changed.
-        assert_eq!(
-            CLASS.methods.len(),
-            1,
-            "the tree half is the parse and nothing else"
-        );
-        assert_eq!(
-            CLASS.methods[0].params.len(),
-            1,
-            "`Core\\Xml::parse` takes the document and nothing else"
-        );
-        assert!(
-            CLASS.methods[0].defaults.is_empty(),
-            "a default is a setting once there is a parameter to hang it on"
-        );
+        // The other half of "rather than a flag": no signature on this class
+        // has anywhere to put one. Every door takes the document's text and
+        // nothing else, with no defaults, so there is no argument a caller
+        // could pass and no default a deployment could have changed — and the
+        // sweep is over the rows rather than over the parse alone, because a
+        // flag added to the stream would resolve entities just as thoroughly.
+        for member in CLASS.methods {
+            assert!(
+                member
+                    .params
+                    .iter()
+                    .all(|param| matches!(param, CoreTy::Text(Qual::Neutral))),
+                "`Core\\Xml::{}` takes something that is not document text, which is where a \
+                 setting would go",
+                member.name
+            );
+            assert!(
+                member.defaults.is_empty(),
+                "a default is a setting once there is a parameter to hang it on"
+            );
+        }
     }
 
     /// A document type declaration stops at its own token, whatever it names.
@@ -1549,5 +2009,266 @@ mod tests {
                 from = at + 1;
             }
         }
+    }
+
+    /// Releases the one reference this test module owns to `value`.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "a member answers with a reference of its own, and a test that keeps none \
+                      has to give it back"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The stream answers the tree's own node family, one node per call, in
+    /// document order.
+    ///
+    /// `rule:core-classes/xml-tree-and-stream`: the two shapes share the
+    /// vocabulary and share no operation, so what is worth asserting is that
+    /// they **agree** — one document asked of both, and the walk sees the nodes
+    /// the tree holds, in the order the tree holds them. A stream that grew a
+    /// kind of its own, or that answered a subtree where the tree answers a
+    /// node, fails here rather than in a program. The document is
+    /// `element_text_comment_processing_instruction_and_document_are_the_whole_family`'s,
+    /// so the family reached is that test's roster and not a second one.
+    #[test]
+    fn the_reader_answers_stage_twos_node_family_one_node_at_a_time() {
+        const DOCUMENT: &str =
+            "<?xml version=\"1.0\"?><!--a--><?work do?><a k=\"v\">t<b/><![CDATA[c]]></a>";
+
+        let mut expected = Vec::new();
+        walk(
+            &parse(DOCUMENT).expect("a well-formed document holding every kind"),
+            &mut expected,
+        );
+        // The document node is the tree's root, and a walk has no root: a
+        // reader answers what it has read past rather than something that holds
+        // the rest.
+        assert_eq!(expected.remove(0), "Document::");
+
+        let source = Value::str(NvsStr::new(DOCUMENT.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source])
+            .expect("a reader reads nothing until it is asked");
+        let mut seen = Vec::new();
+        let mut depths = Vec::new();
+        loop {
+            let node = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                .expect("that document is well-formed");
+            if node.tag() == Some(Tag::Null) {
+                break;
+            }
+            let object = node.obj_ptr().expect("a node is an object");
+            let at = usize::try_from(
+                crate::instance::slot(object, KIND_SLOT)
+                    .as_int()
+                    .expect("a node's kind is its case's ordinal"),
+            )
+            .expect("a case's integer is its own index");
+            let text = |slot| {
+                crate::instance::slot(object, slot)
+                    .as_text()
+                    .expect("a node's name and text are text")
+                    .to_owned()
+            };
+            seen.push(format!(
+                "{}:{}:{}",
+                KIND.cases[at].0,
+                text(NAME_SLOT),
+                text(TEXT_SLOT)
+            ));
+
+            // One node, never a subtree: an element arrives when its opening
+            // tag is read, so nothing inside it has been read yet.
+            let children = crate::instance::slot(object, CHILDREN_SLOT);
+            let children =
+                crate::arr::borrowed(children.array_ptr().expect("a node holds its own array"));
+            assert!(
+                children.is_empty(),
+                "a walk answers one node and not what is under it"
+            );
+
+            depths.push(
+                call(super::nvs_core_xml_reader_depth, &mut ctx, &[reader])
+                    .expect("a depth is a slot read")
+                    .as_uint()
+                    .expect("a depth is a count"),
+            );
+            dropped(node);
+        }
+
+        assert_eq!(
+            seen, expected,
+            "the walk and the tree see the same nodes, in the same order"
+        );
+        assert_eq!(
+            depths,
+            vec![0, 0, 0, 1, 1, 1],
+            "the comment, the instruction and the root element are written at the top of the \
+             document, and the root's own content one deeper"
+        );
+
+        // The end of a document is a state and not a refusal, so asking again
+        // answers it again — and the depth goes with the node that is no longer
+        // there.
+        let ended = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+            .expect("the end of a document is not a refusal");
+        assert_eq!(ended.tag(), Some(Tag::Null));
+        assert_eq!(
+            call(super::nvs_core_xml_reader_depth, &mut ctx, &[reader])
+                .expect("a depth is a slot read")
+                .as_uint(),
+            Some(0),
+            "no node, no depth"
+        );
+
+        dropped(reader);
+        dropped(source);
+    }
+
+    /// The two shapes share the node family and share no operation.
+    ///
+    /// `rule:core-classes/xml-tree-and-stream` is written as a disjointness,
+    /// and the mistake it forbids is a concrete one: `XMLReader` grew `name`,
+    /// `value` and `getAttribute` beside the DOM's, so a program reading a
+    /// document through the stream learned a second vocabulary for the same
+    /// questions and the memory story stopped being a property of the door it
+    /// came in through. So no class of the stream half may declare a member the
+    /// family declares — a walk reads a node through the value it was answered
+    /// with — and none of them may answer a *list* of nodes, which is a
+    /// materialised subtree wearing the stream's name.
+    ///
+    /// The stream half is read off the registry rather than listed here, so a
+    /// class registered under `Core\Xml\` beside the family joins this sweep by
+    /// existing.
+    #[test]
+    fn no_operation_is_available_through_both_the_tree_and_the_stream() {
+        let stream: Vec<&'static CoreClass> = CLASSES
+            .iter()
+            .filter(|class| class.name.starts_with(r"Core\Xml\") && class.name != NODE_NAME)
+            .collect();
+        assert!(
+            !stream.is_empty(),
+            "the stream half of § 17 is registered, so there is something to be disjoint from"
+        );
+
+        for class in &stream {
+            for member in class.members() {
+                assert!(
+                    !NODE.members().any(|shared| shared.name == member.name),
+                    "{}::{} is a member the node family already declares, so one question has \
+                     two spellings and which shape a program picked stopped being invisible",
+                    class.name,
+                    member.name
+                );
+                assert!(
+                    !matches!(member.return_ty, CoreTy::Array(CoreTy::Instance(_))),
+                    "{}::{} answers a list of instances, which is a materialised subtree \
+                     answered through the door that exists not to materialise one",
+                    class.name,
+                    member.name
+                );
+            }
+        }
+
+        // The doors themselves: every row on `Core\Xml` opens exactly one of
+        // the two shapes, and both shapes have one. A row answering something
+        // that is neither is a third shape nobody decided on.
+        let mut opened: Vec<&str> = Vec::new();
+        for member in CLASS.methods {
+            let shape = match member.return_ty {
+                CoreTy::Instance(name) if name == NODE_NAME => "tree",
+                CoreTy::Instance(name) if stream.iter().any(|class| class.name == name) => "stream",
+                _ => panic!(
+                    "`Core\\Xml::{}` answers neither the tree nor the stream",
+                    member.name
+                ),
+            };
+            opened.push(shape);
+        }
+        assert!(
+            opened.contains(&"tree") && opened.contains(&"stream"),
+            "§ 17 is two shapes and both are reachable: {opened:?}"
+        );
+    }
+
+    /// A walk's own footprint is one node, and not the document.
+    ///
+    /// `rule:core-classes/xml-tree-and-stream`'s defining property for the
+    /// stream half, measured rather than described: the same walk over a
+    /// document ten times larger holds no more, where materialising it holds
+    /// ten times as much. `nvs_runtime::budget`'s counters are per thread, so
+    /// this reads what this test allocated and nothing another test is doing
+    /// beside it; the baseline is taken with the document's own text already
+    /// allocated, because what is being asked is what each *shape* adds for a
+    /// program that already has the bytes.
+    #[test]
+    fn the_reader_holds_one_window_rather_than_the_document() {
+        /// A document of `items` sibling elements, each carrying an attribute,
+        /// a child element and text — three nodes a tree holds and three a walk
+        /// sees one at a time.
+        fn document(items: usize) -> String {
+            let mut out = String::from("<order>");
+            for _ in 0..items {
+                out.push_str("<item sku=\"a\"><name>widget</name></item>");
+            }
+            out.push_str("</order>");
+            out
+        }
+
+        /// What materialising `text` holds, and the most a walk over it holds
+        /// at any one moment.
+        fn cost(text: &str) -> (isize, isize) {
+            let source = Value::str(NvsStr::new(text.as_bytes()));
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let base = nvs_runtime::budget::live_bytes();
+
+            let tree = call(super::nvs_core_xml_parse, &mut ctx, &[source])
+                .expect("the document is well-formed");
+            let materialised = nvs_runtime::budget::live_bytes() - base;
+            dropped(tree);
+
+            let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source])
+                .expect("a reader reads nothing until it is asked");
+            let mut peak = 0isize;
+            loop {
+                let node = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                    .expect("the document is well-formed");
+                if node.tag() == Some(Tag::Null) {
+                    break;
+                }
+                peak = peak.max(nvs_runtime::budget::live_bytes() - base);
+                dropped(node);
+            }
+            dropped(reader);
+            dropped(source);
+            (materialised, peak)
+        }
+
+        // The first document through either shape pays for what this core
+        // builds once and keeps — the leaked class descriptors among it — so it
+        // is measured and thrown away rather than charged to a document.
+        let _warm = cost(&document(2));
+        let (small_tree, small_walk) = cost(&document(8));
+        let (large_tree, large_walk) = cost(&document(80));
+
+        assert!(
+            large_tree > small_tree * 5,
+            "a tree is proportional to the document: {small_tree} bytes for the small one, \
+             {large_tree} for the one ten times its size"
+        );
+        assert!(
+            large_walk <= small_walk + 1024,
+            "a walk holds one window, so ten times the document costs it nothing more: \
+             {small_walk} bytes against {large_walk}"
+        );
+        assert!(
+            large_walk * 8 < large_tree,
+            "the two shapes are different jobs rather than two spellings of one: the walk held \
+             {large_walk} bytes where the tree held {large_tree}"
+        );
     }
 }
