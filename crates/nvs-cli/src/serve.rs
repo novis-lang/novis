@@ -1101,10 +1101,16 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 
 #[cfg(test)]
 mod tests {
-    use super::{Listen, SocketAddr, addresses, bind_all, handles_for, sweep_orphans, workers_for};
+    use super::{
+        Compiler, Ctx, Isolate, Listen, Output, OutputSink, SocketAddr, TaskRoot, Value, addresses,
+        bind_all, handles_for, sweep_orphans, workers_for,
+    };
     use std::collections::BTreeMap;
     use std::num::NonZeroUsize;
     use std::path::PathBuf;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
 
     fn tcp(written: &str) -> Listen {
         Listen::Tcp(written.parse::<SocketAddr>().expect("a literal address"))
@@ -1394,5 +1400,186 @@ mod tests {
         let refused = workers_for(&config_of("[server]\nworkers = 0\n"), &origins)
             .expect_err("a server with no core to accept on was started");
         assert_eq!(refused.code, Some(nvs_diagnostics::code::E_NO_WORKERS));
+    }
+
+    /// How many requests one core serves in one arm of the measurement below.
+    /// Enough that an arm lasts milliseconds rather than microseconds, since an
+    /// arm shorter than the noise around it measures the noise, and no more than
+    /// that, because the arm is paid for `ROUNDS` times on each side.
+    const PER_CORE: usize = 400;
+
+    /// The entry every request in that measurement runs, whose whole body is a
+    /// bounded arithmetic loop: work a core does *itself*, with no syscall in it
+    /// for the kernel to serialise the fleet on and nothing echoed for a sink to
+    /// order. The loop's length is what puts one request far enough above the cost
+    /// of spawning its task that an arm measures serving rather than scheduling.
+    fn an_entry_that_costs_a_request() -> PathBuf {
+        const SPINS: usize = 20_000;
+        let dir = std::env::temp_dir().join(format!("nvs-serve-scale-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a directory to write the entry in");
+        let path = dir.join("entry.nvs");
+        std::fs::write(
+            &path,
+            format!(
+                "<?nvs\nint $total = 0;\nint $i = 0;\n\
+                 while ($i < {SPINS}) {{ $total = $total + $i; $i = $i + 1; }}\n\
+                 return $total;\n"
+            ),
+        )
+        .expect("the entry is writable");
+        path
+    }
+
+    /// One arm: a worker pinned to each of `cpus`, each serving [`PER_CORE`]
+    /// requests off the one shared compiler, and how long the fleet took over the
+    /// requests **alone** — every queue is spawned before the barrier and the
+    /// clock starts after it, so [`nvs_host::Worker::spawn`] and the front end are
+    /// both outside what is timed.
+    ///
+    /// A request here is what [`super::serve_on_worker`]'s handler does per
+    /// request either side of `hyper`: the fleet's one `Arc<Compiler>` read for
+    /// the unit, and that unit run as `rule:security/isolate-shares-nothing`'s
+    /// isolate on this core's own scheduler.
+    ///
+    /// The ratio does not rest on the pinning, which is a best effort the OS may
+    /// refuse ([`nvs_host::Worker::pinned`]): a worker is one thread and so is
+    /// worth at most one core's throughput either way, which is what makes the
+    /// one-core side of that ratio a floor rather than a hope.
+    fn requests_on(cpus: &[nvs_host::CpuId], compiler: &Arc<Compiler>, path: &str) -> Duration {
+        let answered = Arc::new(AtomicUsize::new(0));
+        let ready = Arc::new(std::sync::Barrier::new(cpus.len() + 1));
+        let mut running = Vec::with_capacity(cpus.len());
+        for cpu in cpus {
+            let compiler = Arc::clone(compiler);
+            let answered = Arc::clone(&answered);
+            let ready = Arc::clone(&ready);
+            let path = path.to_owned();
+            running.push(
+                nvs_host::Worker::spawn(*cpu, move |sched| {
+                    for _ in 0..PER_CORE {
+                        let compiler = Arc::clone(&compiler);
+                        let answered = Arc::clone(&answered);
+                        let path = path.clone();
+                        sched.spawn(
+                            Ctx::new(OutputSink::Buffer(Vec::new())),
+                            TaskRoot::Request,
+                            move |ctx| {
+                                let (program, _routes) =
+                                    compiler.compiled(&path).expect("the entry compiles");
+                                let done = Isolate::new(program, Value::null(), Output::Capture)
+                                    .run(ctx)
+                                    .expect("a null argument crosses");
+                                if done.ok {
+                                    answered.fetch_add(1, Ordering::Relaxed);
+                                }
+                            },
+                        );
+                    }
+                    // Every worker's whole queue exists before any worker takes a
+                    // turn of one, so the fleet serves together rather than one
+                    // core finishing while the last is still spawning.
+                    ready.wait();
+                    sched.run();
+                })
+                .expect("the platform started a worker"),
+            );
+        }
+        ready.wait();
+        let started = Instant::now();
+        for worker in running {
+            worker.join().expect("a worker ended in a panic");
+        }
+        let took = started.elapsed();
+        // Every request, answered by an isolate that ran to its end — which is
+        // both halves of what an arm has to be true of before its duration means
+        // anything, since a fleet that skipped its queue is the fastest of all.
+        assert_eq!(
+            answered.load(Ordering::Relaxed),
+            cpus.len() * PER_CORE,
+            "a request was not answered by an isolate that ran to its end"
+        );
+        took
+    }
+
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core` as a number:
+    /// the fan-out exists to serve more requests per second than one core can, and
+    /// one that does not is a fan-out to delete rather than to keep and explain.
+    ///
+    /// **The margin is named here as [`SCALES_BY`] and the assertion is against
+    /// it**, because "faster" with no floor under it passes on noise. Four times is
+    /// the ideal and nothing reaches it: `nvs_host::cpus` enumerates *logical*
+    /// CPUs, so the four cores this asks for are two physical ones on any machine
+    /// that pairs them — and a second thread on a core already saturated with
+    /// arithmetic adds a fraction of a core rather than one — while a box doing
+    /// something else at the time lends less again. The floor is therefore not set
+    /// near the ideal but where it stays true of the *worst* honest machine: four
+    /// hyperthreads on two cores, under load, is what `1.5` leaves room for.
+    ///
+    /// What it has to separate that from is a fan-out that does not scale at all —
+    /// a lock every request takes, a compile per core, one core accepting for the
+    /// fleet — and every one of those lands at or under `1.0`, which is the gap the
+    /// number sits in. It is a floor and not a target: the tree's own per-request
+    /// cost is what decides how far above it a given run lands, and closing that
+    /// distance is a perf question this test does not answer.
+    ///
+    /// **What the arms measure** is [`requests_on`]'s doc: every per-request cost
+    /// above the socket. Not the accept and not the message parse, because driving
+    /// those takes a client, and a loopback client fast enough not to be the
+    /// bottleneck is a second fleet — the test would be measuring itself. That
+    /// every core accepts on its own handle rather than through one is
+    /// `one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle`'s
+    /// claim, and this is the other half of it.
+    ///
+    /// **The arms are the best of `ROUNDS`, interleaved**, which is what makes this
+    /// survive a box under load: noise only ever makes a run slower, so the
+    /// shortest of several is the least contaminated estimate of each side, and
+    /// interleaving keeps a slow patch of the machine from landing on one side of
+    /// the ratio alone.
+    #[test]
+    fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
+        const CORES: usize = 4;
+        const ROUNDS: usize = 3;
+        /// Four cores serve at least half again the requests per second one
+        /// serves. The paragraph above is why the floor is here and not at four.
+        const SCALES_BY: f64 = 1.5;
+
+        let cpus = nvs_host::cpus();
+        if cpus.len() < CORES {
+            // Fewer logical CPUs than the claim is about. There is nothing to
+            // measure here rather than something to assert against a smaller
+            // number: a ratio this machine cannot reach is not this fan-out's
+            // failure, and `run` itself cycles the cores it was given.
+            return;
+        }
+        let entry = an_entry_that_costs_a_request();
+        let path = entry.to_string_lossy().into_owned();
+        // The `[opcache]` defaults on purpose, which is the warm server this is
+        // about: a compiler written to re-hash the file on every resolve would put
+        // a `stat` in every request and measure the filesystem instead. The one
+        // compile is warmed here, so no arm carries it and both sides read the same
+        // published unit.
+        let compiler = Arc::new(Compiler::new(&nvs_config::Config::default()));
+        let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
+        drop(warm);
+
+        let alone = [cpus[0]];
+        let fleet = &cpus[..CORES];
+        let mut one_core = Duration::MAX;
+        let mut four_cores = Duration::MAX;
+        for _ in 0..ROUNDS {
+            one_core = one_core.min(requests_on(&alone, &compiler, &path));
+            four_cores = four_cores.min(requests_on(fleet, &compiler, &path));
+        }
+
+        // Requests per second, four cores over one: each side served `PER_CORE` per
+        // core, so the fleet's throughput is `CORES` times its own arm's rate.
+        let scaled = CORES as f64 * one_core.as_secs_f64() / four_cores.as_secs_f64();
+        assert!(
+            scaled >= SCALES_BY,
+            "four cores served {scaled:.2}× one core's requests per second, under the {SCALES_BY}× \
+             this test names: {PER_CORE} requests on one core took {one_core:?}, and {} on four \
+             took {four_cores:?}",
+            CORES * PER_CORE
+        );
     }
 }
