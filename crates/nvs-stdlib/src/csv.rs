@@ -99,6 +99,15 @@
 //! keys ignored, which is what makes `format(parse($t, {header: true}),
 //! {header: $names})` a round trip rather than a rekeying.
 //!
+//! `rule:classes/an-encoder-ends-a-cycle-by-identity` has nothing to carry
+//! here, because this writer cannot reach an object graph at all: its walk is
+//! exactly two levels and neither level recurses — [`nvs_core_csv_format`]
+//! walks the rows, [`write_record`] walks one record's cells, and a cell is
+//! required to be a `string` by its tag alone, which reads no member and
+//! renders no object. There is therefore no path from the root long enough to
+//! meet a value twice, and a value that is not a field is refused where it
+//! sits rather than descended into.
+//!
 //! # What it spends
 //!
 //! `parse` holds one output buffer the size of its input for the whole call,
