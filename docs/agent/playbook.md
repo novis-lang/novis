@@ -3786,6 +3786,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `--EXPECT--` can be written for that refusal at all. Assert depth with a chain small enough to
   encode; `crates/nvs-stdlib/src/json.rs`'s known gap 7 owns the rest.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
+- **A test that *encodes* at `DEPTH_CEILING` overflows the default test-thread stack, where the
+  decode twin at the same depth passes.** `Encodable` recurses through `serde_json`'s serializer,
+  whose frames are fatter than the visitor's, so `a_document_at_the_ceiling_decodes` says nothing
+  about the encode half — `crates/nvs-stdlib/src/json.rs`'s gap 7 is that difference. Build the
+  document inside a `std::thread::Builder::new().stack_size(…)` thread and return the message out
+  of it rather than a value, since a refcount is a per-thread fact.
+  [until: gone crates/nvs-stdlib/src/json.rs:real bound is the native stack]
 
 ## Splitting a file that got too big
 

@@ -2,53 +2,47 @@
 
 ## State
 
-**Goal 38 — an encoder ends a cycle where it closes. Stage 2's *implementation* landed and its *tests*
-did not:** `Core\Json::encode` carries the ancestor chain and refuses at the first repeat
-(`crates/nvs-stdlib/src/json.rs:726`), but none of the five test names stage 2's checks list exists
-anywhere under `crates/` — grepped, not inferred. That is the goal's earliest red check, and it is
-unwritten work rather than a regression. Goal 25's whole list remains this goal's stage 1 floor and is
-untouched.
+**Goal 38 — an encoder ends a cycle where it closes. Stage 2's two `cargo-named` checks are green.**
+The five tests they name are in `crates/nvs-stdlib/src/json.rs`'s test module, over the object
+fixture that module had never had: `holder_class` defines a class with a `mixed` codec and leaks its
+table, `instance` builds one, `set_property` writes a slot through a handle rebuilt from the value's
+own address, and `encoded` is the walk without the member's option bag. The encoder itself needed no
+change — it already carried the ancestor chain (`crates/nvs-stdlib/src/json.rs:726`, and the array
+arm's own guard at `:824`).
 
-**Stage 3 is complete.** Each of the three walkers was audited and none can reach an object graph, so
-each took one paragraph in its own module doc and nothing else, which is what the goal's § *Standing
-decisions* asks for that outcome. `Core\Csv::format` walks exactly two non-recursive levels and
-requires a `string` at the leaf; `Core\Uri::buildQuery` descends into arrays alone and hands an object
-whole to `scalar_text`; no `Core\Encoding` member takes a container at all.
+Stage 2's third check is the whole conformance tree, and this goal's case is already on disk:
+`tests/conformance/core/json-encode-ends-a-cycle-at-the-first-repeat-and-names-its-path.nvst` states
+the cycle, the shared value and the depth bound in one case.
 
-The design is settled by [0164](../decisions/0164.md) and its § *Standing decisions* — the set is the
-ancestor chain, the answer is a throw with no marker in the document, the depth cap stays. Stage 3
-decided nothing and opened no ADR.
+**Stage 3's check is red, and "stage 3 is complete" was true of the audit alone.** The audit landed
+as a paragraph in each walker's module doc, but `docs/agent/loop-goal.toml:6365` names a test
+`every_encoder_that_reaches_an_object_graph_refuses_a_cycle_rather_than_recursing`, which exists
+nowhere under `crates/` — grepped, not inferred. Stage 4 is untouched:
+`rule:classes/an-encoder-ends-a-cycle-by-identity` is still `designed`.
+
+**The encode walk's frame budget is not the depth cap.** Encoding at `DEPTH_CEILING` needs more stack
+than a test thread is given by default, which is that module's own gap 7 rather than anything this
+goal decided; the deep test spawns a thread that sizes its own stack and the playbook holds the trap.
 
 ## Next group
 
-**Stage 2: the keystone's five tests, which nothing on disk holds** — one file set:
-`crates/nvs-stdlib/src/json.rs`'s test module. The encoder already behaves the way these pin it to;
-what is missing is the pinning. That module is decode-only today and has **no object fixture**, so the
-first item builds one — the playbook's `-p nvs-stdlib` bullets under *Writing a test case* own how a
-class table is installed and what a compiled class needs.
+**Stage 3 then stage 4: the audit's own test, then the rulebook** — one file set:
+`crates/nvs-stdlib/src/json.rs`'s test module and `docs/rules/classes*`.
 
-- [ ] **The object fixture, and the three refusal tests** — `crates/nvs-stdlib/src/json.rs:2499` is
-      the module; the refusal is raised at `crates/nvs-stdlib/src/json.rs:726` and its message built
-      at `crates/nvs-stdlib/src/json.rs:587`. The names are exact, from
-      `docs/agent/loop-goal.toml:6327`:
-      `an_object_that_holds_itself_is_refused_at_the_property_that_closes_the_cycle`,
-      `the_refusal_names_the_property_chain_rather_than_a_count_of_levels`, and
-      `a_cycle_that_closes_through_an_array_is_refused_at_the_same_place`, which lands on the array
-      arm's guard at `crates/nvs-stdlib/src/json.rs:817`.
+- [ ] **The audit's agreement test** — `crates/nvs-stdlib/src/json.rs:2576` is the fixture the test
+      builds on, and the name is exact, from `docs/agent/loop-goal.toml:6365`:
+      `every_encoder_that_reaches_an_object_graph_refuses_a_cycle_rather_than_recursing`. That
+      check's stage comment is the specification — *an answer exists per file, not that the answer
+      is yes* — so what it asserts is the audit's finding: the one walker that reaches an object
+      graph refuses a cycle, and the others are handed a leaf they refuse by type.
       `rule:classes/an-encoder-ends-a-cycle-by-identity`.
-- [ ] **The two bounds that must *not* be refused as cycles** — same module,
-      `crates/nvs-stdlib/src/json.rs:2499`, checked by `docs/agent/loop-goal.toml:6344`:
-      `one_object_held_by_two_properties_is_written_twice_rather_than_refused` pins the
-      ancestor-chain-not-everything-seen half of the rule, and
-      `a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle` pins the depth guard at
-      `crates/nvs-stdlib/src/json.rs:808` still reporting depth.
-- [ ] **This goal's two conformance cases** — `docs/agent/loop-goal.toml:6354` names the check and not
-      the file names. `tests/conformance/core/` is flat with a subsystem prefix, so read the
-      neighbours before choosing one; a cycle here is a runtime throw, so neither case is an
-      `--EXPECTF-ERROR--`.
+- [ ] **The rule stops being `designed`** — `docs/rules/classes.json:525` is the entry, and stage 4's
+      three checks are `python tools/rules.py --check`, `--render --check` and `python
+      tools/decisions.py --gate`. Its `guardedBy` owes the conformance case named in `## State` and
+      the tests landed this session; the fragment's prose already states the shipped rule.
 
 ## Backlog
 
-- An acyclic document deeper than the native stack on the encode side — `crates/nvs-stdlib/src/json.rs`
-  known gap 7 owns it, and nothing schedules it.
-- `Core\Csv` has no streaming half — `crates/nvs-stdlib/src/csv.rs` known gap 1, waiting on `Core\IO`.
+- Stage 2's `nvs-suite` check passes on the tree, but nothing re-reads whether the goal wanted a
+  *second* conformance case — `docs/agent/loop-goal.toml:6354`.
+- `Core\Json::encode`'s frame budget at the ceiling, `crates/nvs-stdlib/src/json.rs`'s gap 7.
