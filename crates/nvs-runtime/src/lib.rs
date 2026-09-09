@@ -332,8 +332,8 @@ pub use closure::{
 pub use ctx::{
     AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP,
     CARRIER_TEXT_SLOT, Ctx, CurrentStack, DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DebugFlags,
-    DeclaredHeader, ErrorClass, FaultSite, HOLD_PIECE, HOT_LINE_BYTES, HeldConnection, HeldValue,
-    Inbound, InboundSpec, Limit, LogChannel, OutputSink, RequestBody, SAFEPOINT_OFFSET,
+    DeclaredHeader, ErrorClass, FaultSite, HOLD_PIECE, HOT_LINE_BYTES, HeldConnection, HeldSocket,
+    HeldValue, Inbound, InboundSpec, Limit, LogChannel, OutputSink, RequestBody, SAFEPOINT_OFFSET,
     STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET, SafepointFlags, Scheme,
     Session, SnapshotMismatch, SpecBody, SpecPart, SseSlot, TraceEvent, TraceKind, Upgrade,
     UpgradeSlot, is_carrier, nvs_probe_call_enter, nvs_probe_call_exit, nvs_probe_stmt,

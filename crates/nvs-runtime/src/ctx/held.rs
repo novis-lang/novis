@@ -1,9 +1,9 @@
 //! What a request holds open, and gives back when it ends.
 //!
-//! Started scripts, open files and open connections: a table of handles each,
-//! where a member takes one out and hands back a key, so that a value in Novis
-//! code is a number rather than a pointer and a handle awaited twice reads an
-//! empty slot rather than another request's resource.
+//! Started scripts, open files, open sockets and open connections: a table of
+//! handles each, where a member takes one out and hands back a key, so that a
+//! value in Novis code is a number rather than a pointer and a handle awaited
+//! twice reads an empty slot rather than another request's resource.
 //!
 //! And one thing that is not a handle at all — the temporary directories
 //! `rule:core-classes/temporary-dir-sweep` has the runtime delete when the script ends. It is here for the second
@@ -11,11 +11,12 @@
 //! to one, but the request gives them back when it ends exactly as it gives back
 //! every table above. [`Ctx::track_temporary_dir`] is the one writer.
 //!
-//! [`HeldConnection`] is the trait that lets this crate hold a
-//! `rule:core-classes/db-drivers-are-an-enum`
-//! driver's connection without depending on the driver — the dependency runs
-//! the other way, so the field is a `dyn Trait` and the only method on it is
-//! the downcast a holder needs to get its own type back.
+//! [`HeldConnection`] and [`HeldSocket`] are the two traits that let this crate
+//! hold something it may not name: a
+//! `rule:core-classes/db-drivers-are-an-enum` driver's connection, and
+//! `nvs-host`'s parking socket. Both dependencies run the other way, so each
+//! field is a `dyn Trait` and the only method on either is the downcast a
+//! holder needs to get its own type back.
 
 use super::*;
 
@@ -63,6 +64,25 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     fn is_poolable(&self) -> bool {
         false
     }
+}
+
+/// A socket a request is holding open — `nvs-host`'s parking stream or its
+/// listening half, and the seam that lets a [`Ctx`] hold one without naming it.
+///
+/// Declared here for [`HeldConnection`]'s reason, which is the same edge run
+/// the same way: `nvs-host` depends on this crate, so a field typed
+/// `nvs_host::NvsTcp` would close a cycle. And the table has to live here
+/// because this is the crate that learns when a request ends, which is when
+/// `rule:core-classes/net-one-api-three-transports`'s socket lifetime says
+/// every socket the request opened is closed.
+///
+/// The one method is the downcast a holder needs to get its own type back,
+/// which `dyn Trait` cannot do on its own. Nothing in this crate calls it —
+/// what this crate wants from a socket is that it is dropped with the request,
+/// which is [`Drop`]'s job and needs no method at all.
+pub trait HeldSocket: std::fmt::Debug + std::any::Any {
+    /// This socket as the concrete type the crate that opened it knows it by.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 /// One connection a request has open: how it is reached again within the
@@ -170,6 +190,65 @@ impl Ctx {
     pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_files.get_mut(index)?.take()
+    }
+
+    /// Files an open socket against this request and answers the key that
+    /// reads it back — what a `Core\Net\Stream`'s or `Core\Net\Listener`'s one
+    /// slot holds.
+    ///
+    /// The same shape and the same reasoning as [`Ctx::hold_open_file`], which
+    /// is where *why* a `Core` handle is a key into a request-owned table is
+    /// argued. What this adds is
+    /// `rule:core-classes/net-one-api-three-transports`'s lifetime: a socket
+    /// closes with the request that opened it, so the table is the request's
+    /// and the reactor registration a socket holds is released when this
+    /// [`Ctx`] goes. There is no pool, because a connection that outlived its
+    /// request would be cross-request state
+    /// (`rule:security/no-cross-request-state`).
+    ///
+    /// One table for both classes rather than one each: what differs between a
+    /// connected stream and a listening socket is the type behind the trait
+    /// object, which [`HeldSocket::as_any_mut`] hands back at the member that
+    /// knows which it asked for. A key names one socket whichever it is, so a
+    /// stream's key read as a listener's is a fatal in this crate's caller
+    /// rather than a slot that answers plausibly.
+    ///
+    /// **What it spends:** one `Option<Box<dyn HeldSocket>>` — a pointer pair
+    /// — per socket this request opened, *including* the ones it has since
+    /// closed, because a key is never reused. That is [`Ctx::hold_open_file`]'s
+    /// trade for [`Ctx::hold_open_file`]'s reason: a stale handle reads an
+    /// empty slot and throws, where a recycled key would address whatever
+    /// socket the same slot now holds.
+    pub fn hold_open_socket(&mut self, socket: Box<dyn HeldSocket>) -> u64 {
+        self.open_sockets.push(Some(socket));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.open_sockets.len() as u64
+    }
+
+    /// The socket `key` names, borrowed for one read, write or accept, or
+    /// `None` once it has been closed or if it was never this request's.
+    ///
+    /// [`Ctx::open_connection_mut`]'s shape and its one difference for the same
+    /// reason: what comes back is the trait object, because the socket types
+    /// are `nvs-host`'s and that crate depends on this one. The caller
+    /// downcasts through [`HeldSocket::as_any_mut`].
+    pub fn open_socket_mut(&mut self, key: u64) -> Option<&mut dyn HeldSocket> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_sockets.get_mut(index)?.as_deref_mut()
+    }
+
+    /// Takes the socket `key` names back out, or `None` when it has already
+    /// been taken — a `close` of a handle a previous `close` consumed.
+    ///
+    /// Dropping what comes back is what closes the descriptor and gives its
+    /// reactor registration back, which is why `close` takes rather than marks:
+    /// a socket is scarce in the way a descriptor is, and a request that opens
+    /// many and closes each as it finishes holds one at a time.
+    #[must_use]
+    pub fn take_open_socket(&mut self, key: u64) -> Option<Box<dyn HeldSocket>> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.open_sockets.get_mut(index)?.take()
     }
 
     /// Files an open database connection against this request and answers the

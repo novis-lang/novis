@@ -1003,6 +1003,10 @@ pub struct Ctx {
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
+    /// The sockets this request has opened and not yet closed, by the key its
+    /// `Core\Net\Stream` or `Core\Net\Listener` carries — see
+    /// [`Ctx::hold_open_socket`].
+    open_sockets: Vec<Option<Box<dyn HeldSocket>>>,
     /// The database connections this request has opened, each with the
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
