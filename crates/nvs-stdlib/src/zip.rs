@@ -36,43 +36,64 @@
 //! and `rule:core-classes/decompression-bound` is stated once for both
 //! classes. What is local here is only the read loop, so a refusal can say
 //! `Core\Zip` and name the entry it stopped at; the numbers it compares
-//! against are [`Bound::within`]'s and the operator's `[limits]`.
+//! against are [`Bound::within`]'s and the operator's `[limits]`. Charging it
+//! *across* the archive as well as per entry is [`Budget`], which hands each
+//! entry a bound whose ceiling is what the archive has left — the same
+//! arithmetic one level up rather than a second rule for the level above.
 //!
-//! **Every refusal is a `ParseError` and never an `IOError`.** A hostile
+//! **Extraction resolves before it creates, one level at a time.** Every
+//! directory [`extract`](CLASS) needs is created and then resolved, and the
+//! resolution is compared against the destination before anything is created
+//! inside it — so a link planted between two entries is found at the level it
+//! sits at and refused, rather than followed. That order is
+//! `rule:security/path-scope-canonicalise-then-prefix`'s and is the opposite of
+//! checking the name the archive wrote, which is a comparison against a string
+//! the filesystem was never asked about. The file itself is created
+//! exclusively: an entry whose name is already taken refuses rather than
+//! overwriting, because what is already there may be a link somebody else wrote
+//! and following it is the escape this paragraph exists to stop.
+//!
+//! **An extraction that refuses part way leaves what it had already written**,
+//! and says so rather than pretending to unwind. The refusals that are about
+//! the archive all happen in [`directory`] before a directory is created, so
+//! what can stop a call mid-way is the bound running out or the disk refusing —
+//! and both leave a caller who has to decide what to do with a partial
+//! destination. Removing files to undo a failed call is the one thing a class
+//! this defensive should not be doing on its own: the destination is the
+//! program's, an unwind is a second walk over paths that may have changed
+//! again, and a caller that wants an all-or-nothing extraction has one — an
+//! empty directory of its own to extract into.
+//!
+//! **Every refusal about the archive is a `ParseError` and never an `IOError`.** A hostile
 //! archive and a failing disk are different questions, and a caller that
 //! cannot tell them apart retries the one it should have refused.
 //!
 //! **What this spends** (`rule:programs/memory-priority`): one entry's output
 //! at a time, bounded by the ceiling above and attributable to the request
-//! that asked for it. The central directory is walked into a `Vec` of entries
+//! that asked for it. An extraction holds one entry and not the archive, for
+//! the same reason. The central directory is walked into a `Vec` of entries
 //! whose size is the archive's own entry count; nothing holds the decompressed
 //! archive.
 //!
 //! # Known gaps
 //!
-//! 1. **Extraction to a destination is not written.** `extract` is where the
-//!    bound is charged *across* the archive as well as per entry — an archive
-//!    whose entries are each within it and whose total is not is the same
-//!    attack one level up — and where a destination is checked after path
-//!    resolution rather than before, so a symlink that appears during the
-//!    extraction cannot win the race. Until it lands, a program reads entries
-//!    one at a time and writes them itself, and the three refusals above still
-//!    hold because they happen in the reader.
-//! 2. **Zip64 is not read.** An archive over 4 GiB, or with more than 65535
+//! 1. **Zip64 is not read.** An archive over 4 GiB, or with more than 65535
 //!    entries, records its sizes in a zip64 extra field and writes
 //!    `0xFFFFFFFF` in the field this reads; such an archive is refused as
 //!    malformed rather than misread. The bound is measured rather than taken
 //!    from a header, so nothing here trusts the claimed size either way.
-//! 3. **An entry's CRC is not checked.** A deflate stream that has been
-//!    corrupted fails to decode and is refused; a stored entry that has been
-//!    corrupted is answered as it stands. This class exists for what an
-//!    archive is *allowed* to do rather than for whether it survived a disk,
-//!    and the check belongs with `extract`, which is where a corrupt entry
-//!    would otherwise reach a file.
+//! 2. **An entry's CRC is not checked**, by `read` or by `extract`. A deflate
+//!    stream that has been corrupted fails to decode and is refused; a stored
+//!    entry that has been corrupted is answered, and written, as it stands.
+//!    This class exists for what an archive is *allowed* to do rather than for
+//!    whether it survived a disk, and a corrupt entry reaching a file is a
+//!    question about the disk it came off rather than about the archive's
+//!    policy.
 
-use std::io::Read as _;
+use std::io::{Read as _, Write as _};
+use std::path::{Path, PathBuf};
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 
 use crate::compress::{Bound, DEFAULT_MAX_BYTES, DEFAULT_MAX_RATIO};
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -84,6 +105,10 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc,
 /// `Core\Zip`'s fully-qualified name, written once so the registry row and
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Zip";
+
+/// `Core\Zip::extract`'s member name, as the capability doors and their
+/// refusals both spell it.
+const EXTRACT: &str = r"Core\Zip::extract";
 
 /// `Core\Zip`'s registry rows — the listing and the read, both of them through
 /// the one reader that judges an entry before a program sees it.
@@ -115,6 +140,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::TaintedBytes,
             symbol: "nvs_core_zip_read",
             doc: Some(&READ_DOC),
+        },
+        CoreMethod {
+            name: "extract",
+            names: &["archive", "destination", "maxBytes", "maxRatio"],
+            params: &[
+                CoreTy::Blob(Qual::Neutral),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Uint,
+                CoreTy::Uint,
+            ],
+            defaults: &[
+                Const::Uint(DEFAULT_MAX_BYTES),
+                Const::Uint(DEFAULT_MAX_RATIO),
+            ],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_zip_extract",
+            doc: Some(&EXTRACT_DOC),
         },
     ],
     instance: &[],
@@ -189,12 +231,72 @@ const READ_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Zip::extract`'s reference card — `rule:core-api/reference-card`.
+const EXTRACT_DOC: MethodDoc = MethodDoc {
+    short: "Writes an archive's entries under `$destination` and answers how many files it wrote — \
+            replacing `ZipArchive::extractTo`, which wrote whatever names it had been handed. The \
+            archive is judged whole before an octet is written, and every directory is created and \
+            then resolved and proved to be under the destination before anything is created inside \
+            it.",
+    params: &[
+        ParamDoc {
+            name: "archive",
+            desc: "The archive's octets, judged by the same reader `entries` uses: a hostile entry \
+                   anywhere in it refuses this call before it writes anything at all.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "destination",
+            desc: "The directory to write under, created if it is not there. `fs.write` is shown \
+                   for it and `fs.read` as well, because resolving a name is reading the \
+                   directories above it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxBytes",
+            desc: "The most output this call will produce **across the whole archive**, in octets, \
+                   and not a per-entry allowance: an archive whose entries are each within it and \
+                   whose total is not is the same attack one level up. A call may ask for less \
+                   than `[limits] max_decompressed` and never for more.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxRatio",
+            desc: "The most output per octet of an entry's compressed size. This half is per \
+                   entry, because a ratio is a property of the stream being decoded.",
+            shape: &[],
+        },
+    ],
+    ret: "The number of files written. A directory entry is created and not counted, since what a \
+          caller compares against is the number of files it now has.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "Everything `entries` refuses, plus an entry whose output would pass either half \
+                   of the bound — per entry or across the archive, which is one rule.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`fs.read` or `fs.write` is not granted for the destination, or a directory \
+                   under it resolved to somewhere outside it, which is a link that appeared while \
+                   the extraction was running.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The creation or the write itself failed: a name an entry asked for is already \
+                   taken, since a file is created exclusively rather than overwritten, or the disk \
+                   refused. Never a refusal this class made — those name the rule.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_zip_entries" => (nvs_core_zip_entries as *const ()).cast(),
         "nvs_core_zip_read" => (nvs_core_zip_read as *const ()).cast(),
+        "nvs_core_zip_extract" => (nvs_core_zip_extract as *const ()).cast(),
         _ => return None,
     })
 }
@@ -403,44 +505,141 @@ fn frame<'a>(archive: &'a [u8], entry: &Entry) -> Result<&'a [u8], Fault> {
         .ok_or_else(|| malformed("an entry's data runs past the end of the archive"))
 }
 
-/// One entry's octets, decompressed under `bound`.
+/// One archive's share of the bound, spent as its entries are decompressed.
 ///
-/// The bound is applied **while** the output grows rather than to the size the
-/// entry's own header claims, which is the difference between refusing a bomb
-/// and surviving one: the decoder is driven as a `Read` and stopped one octet
-/// past the ceiling, so a hostile entry costs the ceiling and never the
-/// gigabyte it declared.
-pub(crate) fn contents(archive: &[u8], entry: &Entry, bound: Bound) -> Result<Vec<u8>, Fault> {
-    let frame = frame(archive, entry)?;
-    let ceiling = bound.output_ceiling(frame.len());
-    let out = match entry.method {
-        STORED => frame.to_vec(),
-        DEFLATE => {
-            let mut out = Vec::new();
-            flate2::read::DeflateDecoder::new(frame)
-                .take(ceiling.saturating_add(1))
-                .read_to_end(&mut out)
-                .map_err(|_| malformed_entry(&entry.name))?;
-            out
+/// `rule:core-classes/decompression-bound` is one rule with two halves, and
+/// this type is the second of them: an archive whose entries are each within
+/// the bound and whose total is not is the same attack one level up. So what an
+/// entry decompresses under is not the bound the call named but a [`Bound`]
+/// whose `bytes` is what the archive has left, which keeps the comparison
+/// [`Bound::output_ceiling`]'s and leaves no second piece of arithmetic to hold
+/// in step with the first.
+///
+/// Only the octet ceiling is spent. The ratio is a property of the entry being
+/// read rather than of the archive, and an archive of many small well-compressed
+/// entries is not the attack — the octets it lands on the machine are.
+///
+/// Every decompression this module does goes through [`Budget::read`], so there
+/// is no route by which an entry is read without being charged for.
+pub(crate) struct Budget {
+    /// The bound the call runs under: what it asked for, lowered to the
+    /// operator's `[limits]`.
+    bound: Bound,
+    /// What is left of `bound.bytes` once the entries already read are paid
+    /// for.
+    left: u64,
+}
+
+impl Budget {
+    /// The whole of `bound`, with nothing of it spent.
+    pub(crate) fn new(bound: Bound) -> Self {
+        Self {
+            bound,
+            left: bound.bytes,
         }
-        other => {
-            return Err(refuses_entry(
-                &format!(
-                    "it is compressed by method {other}, and this class reads stored and deflate"
-                ),
-                &entry.name,
-            ));
-        }
-    };
-    if out.len() as u64 > ceiling {
-        return Err(over_bound(&entry.name, frame.len(), bound, ceiling));
     }
-    Ok(out)
+
+    /// One entry's octets, decompressed under what the archive has left and
+    /// charged against it.
+    ///
+    /// The bound is applied **while** the output grows rather than to the size
+    /// the entry's own header claims, which is the difference between refusing
+    /// a bomb and surviving one: the decoder is driven as a `Read` and stopped
+    /// one octet past the ceiling, so a hostile entry costs the ceiling and
+    /// never the gigabyte it declared.
+    pub(crate) fn read(&mut self, archive: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
+        let frame = frame(archive, entry)?;
+        let ceiling = Bound {
+            bytes: self.left,
+            ..self.bound
+        }
+        .output_ceiling(frame.len());
+        let out = match entry.method {
+            STORED => frame.to_vec(),
+            DEFLATE => {
+                let mut out = Vec::new();
+                flate2::read::DeflateDecoder::new(frame)
+                    .take(ceiling.saturating_add(1))
+                    .read_to_end(&mut out)
+                    .map_err(|_| malformed_entry(&entry.name))?;
+                out
+            }
+            other => {
+                return Err(refuses_entry(
+                    &format!(
+                        "it is compressed by method {other}, and this class reads stored and \
+                         deflate"
+                    ),
+                    &entry.name,
+                ));
+            }
+        };
+        if out.len() as u64 > ceiling {
+            return Err(over_bound(&entry.name, frame.len(), self, ceiling));
+        }
+        self.left = self.left.saturating_sub(out.len() as u64);
+        Ok(out)
+    }
+}
+
+/// The path one entry is written to, with every directory above it created and
+/// proved to be inside `root` — or `None` for a directory entry, which is
+/// created and has nothing to write.
+///
+/// **One level at a time, resolved after each one.** A directory is created
+/// only inside a parent whose own resolution has already been compared against
+/// `root`, so a link planted while the extraction is running is caught by the
+/// resolution of the level it sits at, before anything is created beneath it.
+/// Reading the name first and creating the whole chain afterwards is the order
+/// that loses this race.
+///
+/// The components are [`crate::path::parse`]'s, which is the grammar
+/// [`refuse_hostile`] judged the name under; splitting the name a second way
+/// here is how the two end up disagreeing about what a component is.
+fn place(ctx: &Ctx, root: &Path, entry: &Entry) -> Result<Option<PathBuf>, Fault> {
+    let is_dir = entry.name.ends_with('/');
+    let components = crate::path::parse(&entry.name).components;
+    let mut at = root.to_path_buf();
+    for (index, part) in components.iter().enumerate() {
+        if index + 1 == components.len() && !is_dir {
+            return Ok(Some(at.join(part)));
+        }
+        at.push(part);
+        nvs_runtime::capability::create_dir(ctx, &at, EXTRACT)?;
+        at = nvs_runtime::capability::canonicalize(ctx, &at, EXTRACT)?;
+        if !at.starts_with(root) {
+            return Err(escapes(&entry.name, &at));
+        }
+    }
+    Ok(None)
 }
 
 // ============================================================================
 // The refusals
 // ============================================================================
+
+/// The refusal for a directory under the destination that resolved to
+/// somewhere else.
+///
+/// A `RuntimeError` rather than a `ParseError`, and the split is the honest
+/// one: nothing about the archive is wrong here. What changed is the disk — a
+/// link appeared under the destination while the extraction was running — so
+/// the caller's question is about its own filesystem rather than about the
+/// octets it was handed.
+fn escapes(name: &str, resolved: &Path) -> Fault {
+    // no case can reach this: a conformance case cannot plant a link under the
+    // destination between two entries of one call, and creating one at all
+    // needs a privilege the Windows leg may not have. The `#[test]`
+    // `extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it`
+    // asserts it instead, on the hosts that allow the link.
+    Fault::thrown(format!(
+        "Core\\Zip::extract(): a directory this archive asked for resolved outside the \
+         destination, and the extraction stopped there: \"{name}\" resolves to \"{}\" \
+         (rule:security/path-scope-canonicalise-then-prefix). Each level is resolved and compared \
+         before anything is created inside it, so nothing of this entry reached the disk.",
+        resolved.display()
+    ))
+}
 
 /// The refusal for octets that are not a zip archive, or not one this reader
 /// can walk.
@@ -501,15 +700,25 @@ fn refuses_entry(what: &str, name: &str) -> Fault {
 
 /// The refusal for an entry whose output passes the bound.
 ///
-/// It names which half stopped it and what the other half was, for
-/// [`crate::compress`]'s reason: the first question a caller asks is whether to
-/// lower its own argument or ask the operator about `[limits]`, and only one of
-/// those two is ever the answer.
-fn over_bound(name: &str, input: usize, bound: Bound, ceiling: u64) -> Fault {
-    let half = if ceiling == bound.bytes {
-        format!("the {} octet ceiling", bound.bytes)
+/// It names what stopped it — the ratio, the ceiling, or what the archive had
+/// left of the ceiling — for [`crate::compress`]'s reason: the first question a
+/// caller asks is whether to lower its own argument or ask the operator about
+/// `[limits]`, and only one of those two is ever the answer. An archive that
+/// ran out part way says so rather than naming the remainder alone, which would
+/// read as a ceiling nobody configured.
+fn over_bound(name: &str, input: usize, budget: &Budget, ceiling: u64) -> Fault {
+    let half = if ceiling < budget.left {
+        format!(
+            "the {}:1 ratio over {input} octets of input",
+            budget.bound.ratio
+        )
+    } else if budget.left == budget.bound.bytes {
+        format!("the {} octet ceiling", budget.bound.bytes)
     } else {
-        format!("the {}:1 ratio over {input} octets of input", bound.ratio)
+        format!(
+            "the {} octets this archive had left of its {} octet ceiling",
+            budget.left, budget.bound.bytes
+        )
     };
     Fault::thrown_as(
         ThrownClass::Parse,
@@ -616,7 +825,62 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
-        Ok(Value::bytes(NvsStr::new(&contents(archive, entry, bound)?)))
+        Ok(Value::bytes(NvsStr::new(
+            &Budget::new(bound).read(archive, entry)?,
+        )))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Zip::extract(bytes $archive, string $destination,
+    /// uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` — replacing
+    /// `ZipArchive::extractTo`.
+    ///
+    /// The order is the whole member: the archive is judged first, so a hostile
+    /// entry refuses before any file exists; the destination is created and
+    /// resolved once; and then each entry is placed by [`place`], which
+    /// resolves every level before it creates anything inside it. The bound is
+    /// one [`Budget`] for the whole call, so what a later entry decompresses
+    /// under is what the archive has left.
+    fn nvs_core_zip_extract(ctx, args: [4]) {
+        let archive = archive_of(args, "extract")?;
+        // unreachable from source: the parameter is `CoreTy::Text`, so anything
+        // that is not a `string` is `E0401` at the call site.
+        let Some(destination) = args[1].as_str_bytes() else {
+            return Err(Fault::fatal(format!(
+                "Core\\Zip expected a `string` destination, got tag {}",
+                args[1].tag_byte()
+            )));
+        };
+        let asked = Bound {
+            bytes: uint_of(args, 2, "`$maxBytes`")?,
+            ratio: uint_of(args, 3, "`$maxRatio`")?,
+        };
+        let mut budget = Budget::new(Bound::ceiling(ctx).within(asked));
+
+        // Before the destination is even created: an archive that is refused
+        // leaves nothing behind, which is what makes "the refusal is the
+        // archive's rather than the extraction's" true of this member too.
+        let entries = directory(archive)?;
+
+        let named = PathBuf::from(String::from_utf8_lossy(destination).into_owned());
+        nvs_runtime::capability::create_dir(ctx, &named, EXTRACT)?;
+        let root = nvs_runtime::capability::canonicalize(ctx, &named, EXTRACT)?;
+
+        let mut written = 0_u64;
+        for entry in &entries {
+            let Some(target) = place(ctx, &root, entry)? else {
+                continue;
+            };
+            let octets = budget.read(archive, entry)?;
+            // Exclusively: a name already taken refuses rather than being
+            // followed, and what is already there may be a link.
+            let mut file = nvs_runtime::capability::create(ctx, &target, false, EXTRACT)?;
+            file.write_all(&octets)
+                .map_err(|err| nvs_runtime::capability::io_failure(EXTRACT, &target, &err))?;
+            written += 1;
+        }
+        Ok(Value::uint(written))
     }
 }
 
@@ -771,7 +1035,9 @@ mod tests {
             ["notes/one.txt", "notes/two.txt"]
         );
         assert_eq!(
-            contents(&raw, &entries[1], ROOMY).expect("a stored entry reads"),
+            Budget::new(ROOMY)
+                .read(&raw, &entries[1])
+                .expect("a stored entry reads"),
             b"second"
         );
     }
@@ -884,24 +1150,26 @@ mod tests {
         assert!(message.contains("the archive names it twice"), "{message}");
     }
 
-    /// The bomb half, per entry: `Core\Compress`'s bound and not a second one.
+    /// The bomb, both halves of the one rule: `Core\Compress`'s bound charged
+    /// per entry, and the same bound charged across the whole archive.
     ///
-    /// Asserted on both sides of the boundary, so a reader that stops one octet
-    /// early — or one that applies the bound to the size the header claimed
-    /// rather than to what came out — fails rather than printing plausibly.
+    /// Each half is asserted on both sides of its boundary, so a reader that
+    /// stops one octet early — or one that applies the bound to the size a
+    /// header claimed rather than to what came out, or that gives every entry
+    /// the whole ceiling again — fails rather than printing plausibly.
     #[test]
-    fn an_entry_decompressing_past_the_bound_is_refused_rather_than_truncated() {
+    fn a_decompression_bomb_is_refused_by_stage_twos_bound_per_entry_and_across_the_archive() {
+        // Per entry, on both sides of the boundary: one octet past the ceiling
+        // is refused and the ceiling itself reads, so a reader that stops one
+        // entry early fails here rather than looking right.
         let raw = archive(&[Written::plain("big.txt", &"A".repeat(4096))]);
         let entries = directory(&raw).expect("the archive reads");
 
-        let refused = contents(
-            &raw,
-            &entries[0],
-            Bound {
-                bytes: 4095,
-                ratio: 1 << 20,
-            },
-        )
+        let refused = Budget::new(Bound {
+            bytes: 4095,
+            ratio: 1 << 20,
+        })
+        .read(&raw, &entries[0])
         .expect_err("an entry past the ceiling is refused");
         let message = refusal(refused);
         assert!(message.contains("the 4095 octet ceiling"), "{message}");
@@ -911,16 +1179,66 @@ mod tests {
         );
 
         assert_eq!(
-            contents(
-                &raw,
-                &entries[0],
-                Bound {
-                    bytes: 4096,
-                    ratio: 1 << 20
-                }
-            )
+            Budget::new(Bound {
+                bytes: 4096,
+                ratio: 1 << 20
+            })
+            .read(&raw, &entries[0])
             .expect("an entry at the ceiling reads")
             .len(),
+            4096
+        );
+
+        // And across the archive: two entries each within a 6000 octet ceiling
+        // whose total is not, which is the same attack one level up.
+        let raw = archive(&[
+            Written::plain("one", &"A".repeat(4096)),
+            Written::plain("two", &"B".repeat(4096)),
+        ]);
+        let entries = directory(&raw).expect("the archive reads");
+        let mut budget = Budget::new(Bound {
+            bytes: 6000,
+            ratio: 1 << 20,
+        });
+        assert_eq!(
+            budget
+                .read(&raw, &entries[0])
+                .expect("the first entry is within the ceiling")
+                .len(),
+            4096
+        );
+        let message = refusal(
+            budget
+                .read(&raw, &entries[1])
+                .expect_err("the archive's total passes the ceiling"),
+        );
+        assert!(
+            message.contains("this archive had left of its 6000 octet ceiling"),
+            "{message}"
+        );
+        assert!(
+            message.contains("rule:core-classes/decompression-bound"),
+            "{message}"
+        );
+
+        // What is charged is the octets read and not the entry count: the same
+        // two entries under a ceiling their total fits both read.
+        let mut roomy = Budget::new(Bound {
+            bytes: 8192,
+            ratio: 1 << 20,
+        });
+        assert_eq!(
+            roomy
+                .read(&raw, &entries[0])
+                .expect("the first reads")
+                .len(),
+            4096
+        );
+        assert_eq!(
+            roomy
+                .read(&raw, &entries[1])
+                .expect("the second reads")
+                .len(),
             4096
         );
     }
@@ -961,5 +1279,130 @@ mod tests {
             message.contains("not a well-formed zip archive"),
             "{message}"
         );
+    }
+
+    /// A directory of this test's own under the host's temporary directory,
+    /// removed first so a run that failed half way does not decide the next
+    /// one's answer.
+    fn temp_root(what: &str) -> PathBuf {
+        let at = std::env::temp_dir().join(format!("nvs-zip-{what}-{}", std::process::id()));
+        std::fs::remove_dir_all(&at).ok();
+        at
+    }
+
+    /// A symlink at `link` pointing at the directory `target`, or `None` where
+    /// the host will not make one.
+    #[cfg(unix)]
+    fn link_dir(target: &Path, link: &Path) -> Option<()> {
+        std::os::unix::fs::symlink(target, link).ok()
+    }
+
+    /// See the `unix` twin. Windows needs `SeCreateSymbolicLinkPrivilege` or
+    /// developer mode for this, and answers `None` without it.
+    #[cfg(windows)]
+    fn link_dir(target: &Path, link: &Path) -> Option<()> {
+        std::os::windows::fs::symlink_dir(target, link).ok()
+    }
+
+    /// A context granting `fs.read` and `fs.write` under `root` and nothing
+    /// else, with the roots canonicalized the way a real snapshot's are — a
+    /// root still spelled the way this file typed it compares against the wrong
+    /// thing.
+    fn granting(root: &Path) -> Ctx {
+        let spelled = root.to_string_lossy().into_owned();
+        let mut caps = nvs_config::tree::Capabilities {
+            fs: Some(nvs_config::tree::CapFs {
+                read: Some(nvs_config::tree::Setting::List(vec![spelled.clone()])),
+                write: Some(nvs_config::tree::Setting::List(vec![spelled])),
+            }),
+            ..nvs_config::tree::Capabilities::default()
+        };
+        caps.canonicalize(&nvs_config::resolve::Disk);
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(std::sync::Arc::new(nvs_config::Snapshot {
+            config: nvs_config::tree::Config {
+                capabilities: Some(caps),
+                ..nvs_config::tree::Config::default()
+            },
+            ..nvs_config::Snapshot::default()
+        }));
+        ctx
+    }
+
+    /// The extraction's own half of
+    /// `rule:security/path-scope-canonicalise-then-prefix`: a link that appears
+    /// under the destination while the extraction is running is caught by the
+    /// resolution of the level it sits at, and refused before anything is
+    /// created inside it.
+    ///
+    /// **The grant is wider than the destination on purpose** — the whole
+    /// temporary root, so the destination and the directory the link points at
+    /// are both inside it. A grant narrowed to the destination refuses this at
+    /// the door instead, which is the capability half of the same rule and is
+    /// `crates/nvs-stdlib/tests/capability.rs`'s; what this asserts is the half
+    /// that still has to hold once a program has been granted a tree.
+    ///
+    /// Creating a symlink on Windows needs a privilege the host may not have,
+    /// and there is no fake to put in its place here: the door resolves through
+    /// `nvs_config::resolve::Disk` and takes no resolver. So the case does the
+    /// real thing where the platform allows it and says why it could not where
+    /// it does not — the loop's WSL leg runs it either way.
+    #[test]
+    #[expect(
+        clippy::print_stderr,
+        reason = "a host that will not make a symlink has to say so, or the half that did not \
+                  run is a silent pass"
+    )]
+    fn extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it() {
+        let root = temp_root("escape");
+        let dest = root.join("dest");
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&dest).expect("the destination is this test's to create");
+        std::fs::create_dir_all(&outside).expect("the sibling is this test's to create");
+        if link_dir(&outside, &dest.join("notes")).is_none() {
+            eprintln!(
+                "extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it: \
+                 this host does not allow creating a symlink, so the link half did not run"
+            );
+            std::fs::remove_dir_all(&root).ok();
+            return;
+        }
+
+        let ctx = granting(&root);
+        let raw = archive(&[Written::plain("notes/one.txt", "first")]);
+        let entries = directory(&raw).expect("the archive reads");
+        let resolved = nvs_runtime::capability::canonicalize(&ctx, &dest, EXTRACT)
+            .expect("the destination resolves");
+
+        let refused = place(&ctx, &resolved, &entries[0])
+            .expect_err("a level resolving outside the destination is refused");
+        let message = match refused {
+            Fault::Thrown(ThrownClass::Runtime, message) => message.to_string(),
+            Fault::Thrown(class, message) => panic!(
+                "an escape is a `RuntimeError` — the disk changed, not the archive — not \
+                 {class:?}: {message}"
+            ),
+            _ => panic!("an escape is a throw a program can catch"),
+        };
+        assert!(
+            message.contains("resolved outside the destination"),
+            "{message}"
+        );
+        assert!(
+            message.contains("rule:security/path-scope-canonicalise-then-prefix"),
+            "{message}"
+        );
+
+        // And it refused *before* creating anything: the link's target is as
+        // empty as it was, which is the whole claim — a check after the
+        // creation would have written the file and then complained.
+        assert!(
+            std::fs::read_dir(&outside)
+                .expect("the sibling is still there")
+                .next()
+                .is_none(),
+            "nothing is created outside the destination"
+        );
+        std::fs::remove_dir_all(&root).ok();
     }
 }

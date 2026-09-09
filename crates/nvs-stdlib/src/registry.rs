@@ -2255,6 +2255,16 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // a path, and `nvs_runtime::capability::exists`' own doc is where that
     // reading is argued.
     (crate::storage::NAME, "list", Some(nvs_config::Cap::FsRead)),
+    // `Core\Zip` is a door because one of its three members writes files, and
+    // the other two then declare what they reach, which is nothing: an archive
+    // is octets a program already holds, so listing it and reading one entry
+    // out of it touch no path at all. `extract` declares `fs.write` for the
+    // effect it has, and shows `fs.read` at the same door for the destination
+    // as well, because resolving a name is reading the directories above it —
+    // the reading this table's own `within` row already takes.
+    (crate::zip::NAME, "entries", None),
+    (crate::zip::NAME, "read", None),
+    (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsWrite)),
 ];
 
 /// `rule:expressions/nullable-conversion`
