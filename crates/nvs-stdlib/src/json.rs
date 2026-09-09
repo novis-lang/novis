@@ -2497,6 +2497,8 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::{ClassDesc, ClassTable, CodecField};
+
     use super::*;
 
     /// A helper that releases what it built, for a test that only wants the
@@ -2554,5 +2556,222 @@ mod tests {
         // Outside the BMP, so a surrogate pair — which is the only escape a
         // JSON `\u` can spell.
         assert_eq!(escape_non_ascii("\"\u{1f600}\""), "\"\\ud83d\\ude00\"");
+    }
+
+    /// One Novis value as the JSON document `Core\Json::encode($v)` writes,
+    /// with the member's option bag and `Fault` wrapping left out: what these
+    /// tests ask about is the walk and the message it produces.
+    fn encoded(value: Value) -> Result<String, String> {
+        serde_json::to_string(&Encodable::document(value)).map_err(|why| why.to_string())
+    }
+
+    /// A class whose slots are `fields`, each carrying a `mixed` wire key of
+    /// its own name — the smallest thing [`Encodable::serialize_object`] will
+    /// walk, since a class with an empty codec is refused before a field is
+    /// read.
+    ///
+    /// The table is leaked because a [`ClassDesc`]'s *address* is its identity
+    /// and has to outlive every instance made from it; `crate::request`'s
+    /// `reading_class` leaks its own for that reason.
+    fn holder_class(name: &str, fields: &[&str]) -> *const ClassDesc {
+        let mut table = ClassTable::new();
+        let id = table.define(name, fields, &[]);
+        let codec: Vec<CodecField> = fields
+            .iter()
+            .enumerate()
+            .map(|(slot, key)| CodecField {
+                key: (*key).to_owned(),
+                slot,
+                param: slot,
+                ty: CodecTy::Mixed,
+                element: None,
+                class: None,
+                cases: None,
+                nullable: true,
+                required: true,
+            })
+            .collect();
+        // One entry per field, null throughout: the encoder reads a field's key
+        // and slot and never its class, so nothing here resolves one.
+        let classes = vec![std::ptr::null(); codec.len()];
+        table.set_codec(id, codec, fields.len(), classes);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// An instance of `class` with every slot null, as the value holding the
+    /// only reference to it.
+    fn instance(class: *const ClassDesc) -> Value {
+        #[expect(
+            unsafe_code,
+            reason = "`holder_class` leaks the table, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(class) };
+        Value::object(object)
+    }
+
+    /// Writes `held` into `object`'s `slot`, taking over its reference.
+    ///
+    /// A cycle is built value-first and property-second, so the handle has to
+    /// be rebuilt from the value's own address. It is never dropped, exactly as
+    /// the encoder's is: the value still owns that reference.
+    fn set_property(object: Value, slot: usize, held: Value) {
+        let ptr = object
+            .obj_ptr()
+            .expect("a `Tag::Object` value is always an object");
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, and the \
+                      rebuilt handle is never dropped, so nothing is released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+        object.set_field(slot, held);
+    }
+
+    /// `rule:classes/an-encoder-ends-a-cycle-by-identity`: the walk turns back
+    /// at the first value it is already inside, and the refusal names the
+    /// property that closed it rather than the depth it would have reached.
+    #[test]
+    fn an_object_that_holds_itself_is_refused_at_the_property_that_closes_the_cycle() {
+        let holder = instance(holder_class("Holder", &["self"]));
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            holder.retain();
+        }
+        set_property(holder, 0, holder);
+
+        let why = encoded(holder).expect_err("a value that holds itself has no JSON encoding");
+        assert!(why.contains("`self`"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+
+        // Nothing can drop a cycle, so the property holding the object is
+        // cleared before the last reference to it goes.
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            holder.release();
+        }
+    }
+
+    /// The message is the chain of keys from the document to the value that
+    /// closed the cycle — the thing a program can go and look at — and never
+    /// the level count a depth cap would have reported.
+    #[test]
+    fn the_refusal_names_the_property_chain_rather_than_a_count_of_levels() {
+        let outer = instance(holder_class("Outer", &["child"]));
+        let inner = instance(holder_class("Inner", &["back"]));
+        #[expect(unsafe_code, reason = "`inner`'s property owns a second reference")]
+        unsafe {
+            outer.retain();
+        }
+        set_property(inner, 0, outer);
+        set_property(outer, 0, inner);
+
+        let why = encoded(outer).expect_err("a two-object cycle has no JSON encoding");
+        assert!(why.contains("`child.back`"), "{why}");
+        assert!(!why.contains("levels"), "{why}");
+
+        set_property(inner, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            outer.release();
+        }
+    }
+
+    /// An array is copied where an object is referenced, so this cycle needs
+    /// both: the allocation copy-on-write shares is reachable from an object
+    /// inside it, and the walk ends at the array arm's own guard.
+    #[test]
+    fn a_cycle_that_closes_through_an_array_is_refused_at_the_same_place() {
+        let holder = instance(holder_class("Row", &["items"]));
+        let mut list = NvsArray::new();
+        // The array takes over the reference `instance` handed back.
+        list.set(NvsStr::new(b"0"), holder);
+        let document = Value::array(list);
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            document.retain();
+        }
+        set_property(holder, 0, document);
+
+        let why = encoded(document).expect_err("an array inside itself has no JSON encoding");
+        assert!(why.contains("`0.items`"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            document.release();
+        }
+    }
+
+    /// The set is the ancestor chain and never everything seen, so one object
+    /// two properties hold is shared rather than cyclic — and JSON, which has
+    /// no way to express sharing, writes it twice.
+    #[test]
+    fn one_object_held_by_two_properties_is_written_twice_rather_than_refused() {
+        let pair = instance(holder_class("Pair", &["left", "right"]));
+        let leaf = instance(holder_class("Leaf", &["n"]));
+        set_property(leaf, 0, Value::int(7));
+        #[expect(unsafe_code, reason = "the second property owns a second reference")]
+        unsafe {
+            leaf.retain();
+        }
+        set_property(pair, 0, leaf);
+        set_property(pair, 1, leaf);
+
+        assert_eq!(
+            encoded(pair).expect("a shared value is not a cycle"),
+            r#"{"left":{"n":7},"right":{"n":7}}"#
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame holds the only reference to the pair"
+        )]
+        unsafe {
+            pair.release();
+        }
+    }
+
+    /// The depth cap still bounds what the ancestor chain does not: a document
+    /// that is acyclic and merely deeper than any encoder should walk is
+    /// refused as nesting, and never reported as a cycle.
+    ///
+    /// On a thread that sizes its own stack, because what the ceiling bounds is
+    /// *nesting* while the frames the walk spends are the serializer's and the
+    /// profile's — this module's gap 7 owns that difference, and what this test
+    /// pins is the message rather than a frame budget. Every value is built and
+    /// released inside that thread: a refcount is a per-thread fact.
+    #[test]
+    fn a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle() {
+        let walk = std::thread::Builder::new()
+            .stack_size(16 << 20)
+            .spawn(|| {
+                let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
+                let mut value = Value::int(1);
+                for _ in 0..depth {
+                    let mut level = NvsArray::new();
+                    level.set(NvsStr::new(b"0"), value);
+                    value = Value::array(level);
+                }
+                let why =
+                    encoded(value).expect_err("a document past the ceiling has no JSON encoding");
+                #[expect(unsafe_code, reason = "this frame holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                why
+            })
+            .expect("a test thread is spawnable");
+
+        let why = walk.join().expect("the walk refuses rather than panicking");
+        assert!(
+            why.contains(&format!("nested past {DEPTH_CEILING} levels")),
+            "{why}"
+        );
+        assert!(!why.contains("already inside"), "{why}");
     }
 }
