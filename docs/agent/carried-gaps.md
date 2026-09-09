@@ -71,11 +71,12 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Four entries.**
+Nobody's, and each is a scheduling question rather than a session's. **Five entries.**
 The six that stood here before were made reachable as goals 23–28, and spec § 17's four classes — filed
 under an M9 that carries the extension system and none of them — are goals 25 and 26 now. The two that
 came back are the contract's second rule in plain sight: an owner that went green without closing its
-gap is struck, not renamed.
+gap is struck, not renamed. The last is the other way a gap arrives unowned: a rule answered in full,
+by code that no key reaches.
 
 - **`Core\Metrics`** — spec § 16's class, filed as goal 6's item 19 and left behind by it.
   `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
@@ -102,6 +103,14 @@ gap is struck, not renamed.
   has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
   the docs migration's sweep (unit C8), which could record it and not write it.
   [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
+- **A WebSocket connection's bounds are finite and configurable by nobody.**
+  `rule:concurrency/connection-bounds-are-finite` asks for finite rather than for configurable, so
+  `nvs-server`'s `bounds` answers it in full and every number is a constant: an operator who wants a
+  different idle, lifetime, frame size or open-connection ceiling rebuilds. It is unowned rather than
+  goal 37's because that goal closes keys that parse and reach no reader, and these are readers no key
+  reaches — `nvs_config::tree::Server` has no field for any of them, so the audit cannot see them.
+  `crates/nvs-server/src/bounds.rs` § *Known gap*, which names where the keys belong.
+  [until: gone crates/nvs-server/src/bounds.rs:Known gap: none of these has a]
 
 ## What is *not* on either list
 
