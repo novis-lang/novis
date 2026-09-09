@@ -1722,6 +1722,12 @@ pub const CLASSES: &[CoreClass] = &[
     // from, as one object because Novis has neither out-parameters nor tuples
     // and `stream_socket_recvfrom`'s row has to be answered by something.
     crate::net::MESSAGE,
+    // § 16's other half: what the host itself is, as five facts about the
+    // process asking rather than about anything it can reach. It is the one
+    // class in this stretch with no row in [`CAPABILITIES`], and
+    // [`crate::os`]'s module doc is the home of why declaring `None` five times
+    // would have been the wrong claim rather than a cautious one.
+    crate::os::CLASS,
     // `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
     // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
     // state, and the one place a value outlives the request that made it.

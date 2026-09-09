@@ -22,13 +22,6 @@ Core\Budget::memoryHeld    # 24
 Core\Budget::memoryLimit   # 24
 Core\Budget::memoryPeak    # 24
 
-# `Core\Os` has no module in this crate at all -- `php_uname`, `gethostname`,
-# `getrusage` and `getmypid` are pointed at a class that is specified and
-# unwritten.
-Core\Os::hostname          # 24
-Core\Os::pid               # 24
-Core\Os::residentBytes     # 24
-
 # `Core\Process` is registered and `run` is on it; `spawn` -- the streaming half
 # `proc_open` and `popen` are pointed at -- is not, and no entry on the chain
 # builds it.

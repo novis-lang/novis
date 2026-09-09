@@ -234,6 +234,7 @@ mod net;
 mod objmap;
 mod objset;
 mod ordering;
+mod os;
 mod out;
 mod password;
 pub mod path;
@@ -386,6 +387,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| net::address(symbol))
         .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))
+        .or_else(|| os::address(symbol))
         .or_else(|| out::address(symbol))
         .or_else(|| password::address(symbol))
         .or_else(|| path::address(symbol))
