@@ -100,6 +100,12 @@ modules = [
   "crates/nvs-cli/src/info.rs",
   # Stage 4 -- the drain state machine a `Core\Signal` handler enters rather than duplicating.
   "crates/nvs-server/src/control.rs",
+  # `nvs-cli`'s half of `nvs_runtime::script`: the path a `spawn script` wrote, compiled into a
+  # `Program` an isolate can run.
+  "crates/nvs-cli/src/script.rs",
+  # The typed block tree one configuration file deserializes into: every block an ADR states, with
+  # its own fields, and an unknown key refused.
+  "crates/nvs-config/src/tree.rs",
 ]
 
 # 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
