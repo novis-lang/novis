@@ -3,7 +3,7 @@
 
 # Classes
 
-*2 of 38 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 38 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -857,7 +857,7 @@ at all.
 
 <a id="classes-an-encoder-ends-a-cycle-by-identity"></a>
 
-## Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap  *(designed — not yet in the compiler)*
+## Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap
 
 `rule:classes/an-encoder-ends-a-cycle-by-identity`
 
