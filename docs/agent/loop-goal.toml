@@ -110,6 +110,9 @@ modules = [
   "crates/nvs-config/src/server.rs",
   # Stage 4 -- the in-flight ceiling's relaxed atomic, already written for a fleet.
   "crates/nvs-server/src/bounds.rs",
+  # The typed block tree one configuration file deserializes into: every block an ADR states, with
+  # its own fields, and an unknown key refused.
+  "crates/nvs-config/src/tree.rs",
 ]
 
 # 0017 is the swap the shared unit must keep working; 0006 is what an isolate may share; 0061 is the
