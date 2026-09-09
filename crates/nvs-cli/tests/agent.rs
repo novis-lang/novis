@@ -47,6 +47,120 @@ fn index() -> Vec<String> {
     out.lines().map(str::to_owned).collect()
 }
 
+/// Everything `nvs agent primer` printed.
+fn primer() -> String {
+    let (out, _, ok) = agent(&["primer"]);
+    assert!(ok, "`nvs agent primer` succeeds");
+    out
+}
+
+/// One chapter of the reference, read from the tree the binary embedded it
+/// from — which is what makes the marking test a guard rather than a copy of
+/// what the marking happens to be today.
+fn chapter(relative: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/reference")
+        .join(relative);
+    std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{} is readable", path.display()))
+}
+
+/// The five parts `rule:tooling/a-primer-claim-is-executed` fixes, each
+/// recognized by something only the section that carries it says.
+#[test]
+fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_refusal_table() {
+    let primer = primer();
+    for wanted in [
+        "nvs agent find <query>",
+        "So the loop is three calls and a check",
+        "```nvs",
+        "| `<?php` |",
+        "| `function __construct(…)` |",
+        "## The chapters",
+        "- **programs** —",
+        "- **php-differences** —",
+    ] {
+        assert!(primer.contains(wanted), "the primer carries `{wanted}`");
+    }
+    let classes = document()["classes"].as_array().expect("`classes`").len();
+    assert!(
+        primer.contains(&format!("{classes} `Core` classes")),
+        "the primer counts the registry it renders beside the chapters"
+    );
+}
+
+/// The three shapes the investigation behind `docs/decisions/0167.md` caught an
+/// agent guessing wrong, all in one program that runs.
+#[test]
+fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag() {
+    let primer = primer();
+    for wanted in [
+        "array<string> $amounts = [\"3\", \"11\", \"7\"];",
+        "Core\\Arr::sort($amounts, {order: Core\\Order::Asc})",
+        "foreach ($ordered as string $each) {",
+        "($each as int)",
+        "```output",
+    ] {
+        assert!(
+            primer.contains(wanted),
+            "the worked program shows `{wanted}`"
+        );
+    }
+}
+
+/// A program that reads a file does not run without a grant, and the primer is
+/// where an agent that has read nothing else learns it.
+#[test]
+fn the_primer_names_the_capability_model_and_the_smallest_grant() {
+    let primer = primer();
+    for wanted in [
+        "default for every one of them is **denied**",
+        "`fs.read`",
+        "[capabilities.fs]",
+        "read = [\"data\"]",
+    ] {
+        assert!(
+            primer.contains(wanted),
+            "the capability model states `{wanted}`"
+        );
+    }
+}
+
+/// A section is in the primer because it is marked and for no other reason, so
+/// the chapter that carries the capability model contributes that section and
+/// none of its neighbours.
+#[test]
+fn an_unmarked_chapter_section_is_not_lifted_into_the_primer() {
+    let primer = primer();
+    let chapter = chapter("tools/20-config.md");
+    let lines: Vec<&str> = chapter.lines().collect();
+    let mut marked = 0;
+
+    for (i, line) in lines.iter().enumerate() {
+        let Some(title) = line.strip_prefix("# ") else {
+            continue;
+        };
+        let heading = format!("## {title}");
+        if i > 0 && lines[i - 1].trim() == "<!-- primer -->" {
+            marked += 1;
+            assert!(
+                primer.contains(&heading),
+                "`{title}` is marked, so it is lifted"
+            );
+        } else {
+            assert!(
+                !primer.contains(&heading),
+                "`{title}` is not marked, so nothing lifts it"
+            );
+        }
+    }
+
+    assert!(marked > 0, "the configuration chapter marks a section");
+    assert!(
+        !primer.contains("<!-- primer -->"),
+        "the marker selects a section and is not part of it"
+    );
+}
+
 /// Member for member against the document: one line each, in one direction and
 /// then the other, so neither a dropped member nor an invented one passes.
 #[test]

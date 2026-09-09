@@ -3,7 +3,7 @@
 
 # Tooling
 
-*37 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*36 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1058,7 +1058,7 @@ one input added to one document, never a fork.
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 
-## `nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface  *(designed — not yet in the compiler)*
+## `nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface
 
 `rule:tooling/an-agent-asks-the-binary`
 

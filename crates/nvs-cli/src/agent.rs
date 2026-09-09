@@ -1,16 +1,29 @@
 //! `nvs agent` — the surface a coding agent reads the language through.
 //!
-//! `rule:tooling/an-agent-asks-the-binary` is the surface and
-//! `rule:tooling/the-index-is-one-line-per-member` is what `index` prints. Every
-//! verb here renders [`crate::meta::document`] and decides nothing
+//! `rule:tooling/an-agent-asks-the-binary` is the surface,
+//! `rule:tooling/the-index-is-one-line-per-member` is what `index` prints and
+//! `rule:tooling/a-primer-claim-is-executed` is what `primer` carries. `index`,
+//! `find` and `show` render [`crate::meta::document`] and decide nothing
 //! (`rule:tooling/one-json-several-renderers`), which is what makes this a
 //! consumer of the registry rather than a second statement of it: a member that
 //! lands is in the index at the next call, and there is no list anywhere that
-//! can disagree with the binary that compiles the program.
+//! can disagree with the binary that compiles the program. `primer` renders that
+//! same document beside the reference chapters this binary embeds, and writes no
+//! sentence of its own about the language.
 //!
 //! Nothing is written to disk and nothing is cached. The document is rebuilt per
 //! call from compile-time tables, so the answer cannot describe a version that is
 //! not installed — which is the failure the whole surface exists to remove.
+//!
+//! ## The primer, and where its text comes from
+//!
+//! Every part of the primer is lifted from a chapter section a `<!-- primer -->`
+//! comment marks, and a section is in it for that reason and no other, so a
+//! section that stops being true stops being rendered rather than becoming a
+//! lie. [`CHAPTERS`] is what this binary carries; the chapter map at the foot of
+//! the primer is those chapters' own front matter, and the count above it is the
+//! registry's. `docs/reference/README.md` § *Marking a section for the primer*
+//! is the marker's home.
 //!
 //! ## A line, and the symbol inside it
 //!
@@ -51,6 +64,49 @@
 use std::process::ExitCode;
 
 use serde_json::Value;
+
+/// The line that marks the section under it, on a line of its own.
+const MARKER: &str = "<!-- primer -->";
+
+/// The reference chapters, in the order `docs/novis.md` concatenates them, which
+/// is the order the chapter map prints them in.
+///
+/// The whole chapter is embedded rather than an extract of its marked sections,
+/// because an extract is a second artefact that can disagree with the chapter
+/// and the primer exists to be a document that cannot. It spends ~290 KB of the
+/// binary's read-only data — once per binary, never per request — to buy that.
+const CHAPTERS: &[&str] = &[
+    include_str!("../../../docs/reference/lang/10-programs.md"),
+    include_str!("../../../docs/reference/lang/20-types.md"),
+    include_str!("../../../docs/reference/lang/30-expressions.md"),
+    include_str!("../../../docs/reference/lang/40-statements.md"),
+    include_str!("../../../docs/reference/lang/50-classes.md"),
+    include_str!("../../../docs/reference/lang/55-enums.md"),
+    include_str!("../../../docs/reference/lang/60-iteration.md"),
+    include_str!("../../../docs/reference/lang/70-errors.md"),
+    include_str!("../../../docs/reference/lang/80-concurrency.md"),
+    include_str!("../../../docs/reference/lang/90-attributes.md"),
+    include_str!("../../../docs/reference/lang/95-testing.md"),
+    include_str!("../../../docs/reference/tools/10-cli.md"),
+    include_str!("../../../docs/reference/tools/20-config.md"),
+    include_str!("../../../docs/reference/tools/30-php-differences.md"),
+    include_str!("../../../docs/reference/tools/40-editor.md"),
+];
+
+/// The chapters whose marked sections open the primer, in the order it prints
+/// them: the lookup protocol, the worked program, the capability model, then the
+/// refusals. Every other chapter's marked sections follow in reference order, so
+/// this list fixes where a section lands and never whether it is lifted.
+const PRIMER_FIRST: &[&str] = &["cli", "programs", "config", "php-differences"];
+
+/// One chapter: the three front-matter fields the chapter map reads, and the
+/// text the marked sections are cut from.
+struct Chapter {
+    id: &'static str,
+    title: &'static str,
+    summary: &'static str,
+    text: &'static str,
+}
 
 /// One line of the index: the symbol `show` resolves, and the line `index`
 /// prints for it.
@@ -149,6 +205,156 @@ fn entries(document: &Value) -> Vec<Entry> {
     }
 
     out
+}
+
+/// The document that makes an agent productive: the marked chapter sections in
+/// the order `rule:tooling/a-primer-claim-is-executed` fixes, then the chapter
+/// map from the chapters' own front matter.
+pub(crate) fn primer() -> ExitCode {
+    let document = crate::meta::document();
+    let chapters: Vec<Chapter> = CHAPTERS.iter().map(|text| chapter(text)).collect();
+    let classes = array(&document, "classes");
+    let members: usize = classes
+        .iter()
+        .map(|class| array(class, "members").len())
+        .sum();
+
+    let mut out = format!(
+        "# Novis, for a coding agent\n\n\
+         Generated by `nvs agent primer` from the reference chapters and the registry this binary \
+         carries: {} `Core` classes and {members} members, one line each in `nvs agent index`.\n",
+        classes.len(),
+    );
+
+    for chapter in primer_order(&chapters) {
+        for section in marked_sections(chapter.text) {
+            push_section(&mut out, &section);
+        }
+    }
+
+    out.push_str("\n## The chapters\n\nThe reference is one chapter per topic, and these are all of them.\n\n");
+    for chapter in &chapters {
+        out.push_str(&format!(
+            "- **{}** — {}: {}\n",
+            chapter.id, chapter.title, chapter.summary
+        ));
+    }
+
+    print!("{out}");
+    ExitCode::SUCCESS
+}
+
+/// A chapter's leading `---` block — `key: value` lines, three of which the
+/// primer reads — and the text under it.
+fn chapter(text: &'static str) -> Chapter {
+    let mut chapter = Chapter {
+        id: "",
+        title: "",
+        summary: "",
+        text,
+    };
+    let mut lines = text.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return chapter;
+    }
+    for line in lines {
+        if line.trim() == "---" {
+            break;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        // A title holding a `:` is quoted to survive that split; the quotes are
+        // the front matter's and not the title's.
+        let value = value.trim();
+        let value = value
+            .strip_prefix('"')
+            .and_then(|value| value.strip_suffix('"'))
+            .unwrap_or(value);
+        match key.trim() {
+            "id" => chapter.id = value,
+            "title" => chapter.title = value,
+            "summary" => chapter.summary = value,
+            _ => {}
+        }
+    }
+    chapter
+}
+
+/// The chapters in the order the primer prints their marked sections.
+fn primer_order(chapters: &[Chapter]) -> Vec<&Chapter> {
+    let mut out: Vec<&Chapter> = PRIMER_FIRST
+        .iter()
+        .filter_map(|id| chapters.iter().find(|chapter| chapter.id == *id))
+        .collect();
+    out.extend(
+        chapters
+            .iter()
+            .filter(|chapter| !PRIMER_FIRST.contains(&chapter.id)),
+    );
+    out
+}
+
+/// Each section a [`MARKER`] line marks, lifted whole: the heading on the line
+/// directly under the marker, and every line down to the next heading of the
+/// same or a shallower level.
+///
+/// A marker with anything but a heading under it lifts nothing, rather than
+/// guessing where the section it meant begins.
+fn marked_sections(text: &str) -> Vec<Vec<&str>> {
+    let lines: Vec<&str> = text.lines().collect();
+    let levels = heading_levels(&lines);
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() != MARKER || i + 1 >= lines.len() || levels[i + 1] == 0 {
+            continue;
+        }
+        let level = levels[i + 1];
+        let end = (i + 2..lines.len())
+            .find(|&j| levels[j] > 0 && levels[j] <= level)
+            .unwrap_or(lines.len());
+        out.push(lines[i + 1..end].to_vec());
+    }
+    out
+}
+
+/// The heading level of each line, and `0` for a line that is not a heading. A
+/// `#` inside a fenced block is a comment or a prompt, never a heading.
+fn heading_levels(lines: &[&str]) -> Vec<usize> {
+    let mut levels = vec![0; lines.len()];
+    let mut fenced = false;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        let hashes = line.len() - line.trim_start_matches('#').len();
+        if !fenced && hashes > 0 && line[hashes..].starts_with(' ') {
+            levels[i] = hashes;
+        }
+    }
+    levels
+}
+
+/// One lifted section under the primer's own title: its headings demoted by one
+/// level, the marker of whatever section follows it dropped, and no trailing
+/// blank line.
+fn push_section(out: &mut String, lines: &[&str]) {
+    let levels = heading_levels(lines);
+    let mut body = String::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == MARKER {
+            continue;
+        }
+        if levels[i] > 0 {
+            body.push('#');
+        }
+        body.push_str(line.trim_end());
+        body.push('\n');
+    }
+    out.push('\n');
+    out.push_str(body.trim_end());
+    out.push('\n');
 }
 
 /// One line per member the registry holds, and one per enum, exception and

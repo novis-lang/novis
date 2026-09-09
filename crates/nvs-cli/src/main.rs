@@ -548,6 +548,14 @@ enum Command {
 /// that compiles a program is the binary that answers for it.
 #[derive(Subcommand, Debug)]
 enum AgentCommand {
+    /// Print the short document that makes a coding agent productive: the
+    /// lookup protocol, one worked program, the capability model, the refusals
+    /// and the chapter map.
+    ///
+    /// It is generated from the reference chapters this binary embeds, so it
+    /// describes the language this binary compiles and nothing else.
+    // `rule:tooling/a-primer-claim-is-executed`.
+    Primer,
     /// Print one line per registered member, and one per enum, exception and
     /// attribute beside them.
     // `rule:tooling/the-index-is-one-line-per-member`.
@@ -1003,6 +1011,7 @@ fn main() -> ExitCode {
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
         Command::Agent { command } => match command {
+            AgentCommand::Primer => agent::primer(),
             AgentCommand::Index => agent::index(),
             AgentCommand::Find { query } => agent::find(&query),
             AgentCommand::Show { symbol } => agent::show(&symbol),

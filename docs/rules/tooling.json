@@ -807,7 +807,7 @@
     {
       "id": "tooling/an-agent-asks-the-binary",
       "title": "`nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0167"
       ],
@@ -850,7 +850,9 @@
         "tooling/an-agent-asks-the-binary",
         "tooling/the-index-is-one-line-per-member"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/agent.rs"
+      ]
     },
     {
       "id": "tooling/an-adapter-carries-protocol-and-never-language",
