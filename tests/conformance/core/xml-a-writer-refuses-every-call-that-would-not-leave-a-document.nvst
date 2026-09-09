@@ -1,0 +1,108 @@
+--TEST--
+A writer refuses a call out of its own state rather than emitting what a parser would refuse, and a refusal writes nothing — `rule:core-classes/xml-tree-and-stream`, `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// What is open is the writer's, not the caller's, so every sentence below is
+// one the writer reached by looking at itself. None of them writes a byte: the
+// document echoed at the end is exactly what the accepted calls put in it.
+Core\Xml\Writer $w = Core\Xml::writer();
+
+// The document is the outer pair, so everything else is inside it.
+try {
+    $w->startElement("order");
+} catch (LogicError $closed) {
+    echo $closed->message, "\n";
+}
+
+$w->startDocument();
+try {
+    $w->startDocument();
+} catch (LogicError $twice) {
+    echo $twice->message, "\n";
+}
+
+// Character data belongs inside an element, and closing needs something open.
+try {
+    $w->content("loose");
+} catch (LogicError $loose) {
+    echo $loose->message, "\n";
+}
+try {
+    $w->cdata("loose");
+} catch (LogicError $loose) {
+    echo $loose->message, "\n";
+}
+try {
+    $w->endElement();
+} catch (LogicError $nothing) {
+    echo $nothing->message, "\n";
+}
+try {
+    $w->endDocument();
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+
+// The three constructs XML gives no escape grammar to are refused rather than
+// rewritten, because rewriting them would be a guess about what was meant.
+try {
+    $w->comment("a -- b");
+} catch (LogicError $dashes) {
+    echo $dashes->message, "\n";
+}
+try {
+    $w->instruction("xml", "version=\"1.0\"");
+} catch (LogicError $reserved) {
+    echo $reserved->message, "\n";
+}
+try {
+    $w->doctype("1st");
+} catch (LogicError $digit) {
+    echo $digit->message, "\n";
+}
+try {
+    $w->attribute("k", "v");
+} catch (LogicError $unattached) {
+    echo $unattached->message, "\n";
+}
+
+// An attribute goes on the start tag it belongs to, once, and only while that
+// tag is still open.
+$w->startElement("order");
+$w->attribute("id", "7");
+try {
+    $w->attribute("id", "8");
+} catch (LogicError $repeated) {
+    echo $repeated->message, "\n";
+}
+$w->content("one");
+try {
+    $w->attribute("late", "9");
+} catch (LogicError $late) {
+    echo $late->message, "\n";
+}
+$w->endElement();
+
+echo $w->endDocument(), "\n";
+
+// And it is answered once: a writer is not a buffer a second call reads back.
+try {
+    $w->endDocument();
+} catch (LogicError $again) {
+    echo $again->message, "\n";
+}
+--EXPECT--
+Core\Xml\Writer::startElement(): the document is not open, and `startDocument` is what opens it.
+Core\Xml\Writer::startDocument(): the document is already open.
+Core\Xml\Writer::content(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::cdata(): character data belongs inside an element, and none is open.
+Core\Xml\Writer::endElement(): no element is open, so there is nothing to close.
+Core\Xml\Writer::endDocument(): a document has a root element, and none was written.
+Core\Xml\Writer::comment(): a comment has no escape grammar, so it cannot hold `--` or end with `-`.
+Core\Xml\Writer::instruction(): `xml` is the declaration's own target, which `startDocument` writes.
+Core\Xml\Writer::doctype(): `1st` is not a name a document can write.
+Core\Xml\Writer::attribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
+Core\Xml\Writer::attribute(): this element already carries an attribute named `id`.
+Core\Xml\Writer::attribute(): no start tag is still taking attributes — an attribute goes on its element before anything is written inside it.
+<?xml version="1.0" encoding="UTF-8"?><order id="7">one</order>
+Core\Xml\Writer::endDocument(): the document is finished, and `endDocument` has answered it.
