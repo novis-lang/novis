@@ -7,6 +7,7 @@ two generated documents claim: this one, and the primer the binary renders.
     python tools/reference.py --no-examples   # regenerate only (sub-second)
     python tools/reference.py --examples-only [--only <substring>]   # run the examples, write nothing
     python tools/reference.py --primer --check   # prove `nvs agent primer` instead, writing nothing
+    python tools/reference.py --agent-walk    # walk the surface cold: primer, find, show, check
     python tools/reference.py --keep          # leave the example directories under .agent-tmp/ behind
 
 ## What it builds, and from what
@@ -35,6 +36,11 @@ proves the assembled document instead, which is what an agent holding nothing el
 examples run through the harness above, and each `E0xxx` a lifted refusal table names must be
 declared in the diagnostic registry: a refusal's PHP cell is a fragment rather than a program, so
 the code beside it is what can be executed about it (`rule:tooling/a-primer-claim-is-executed`).
+
+`--agent-walk` proves the *surface* rather than either document. It walks the three calls and the
+check an agent walks, handing each step only what the step before it printed, so a command that
+answers when asked in isolation while its answer is not an address the next command resolves fails
+here and nowhere else.
 
 ## Why a generated file rather than the spec
 
@@ -71,6 +77,8 @@ TMP = ROOT / ".agent-tmp" / "reference-examples"
 #: Where `--primer` parks what `nvs agent primer` printed, so a failure's `file:line` names a file
 #: that is still on disk to read.
 PRIMER = ROOT / ".agent-tmp" / "primer" / "primer.md"
+#: Where `--agent-walk` assembles the program it hands `nvs check`, for the same reason.
+WALK = ROOT / ".agent-tmp" / "agent-walk"
 BINARY = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
 
 #: A chapter's leading `---` block: `key: value` lines, three of which mean something.
@@ -778,6 +786,130 @@ def check_primer(keep: bool) -> int:
     return 1 if bad_codes or bad_examples else 0
 
 
+# ------------------------------------------------------------------ the cold-start walk
+
+#: A `Core` member as a program calls it: the qualified name, and the parenthesis that makes it a
+#: call rather than a mention.
+CALLED_RE = re.compile(r"(Core\\[A-Za-z0-9_\\]*[A-Za-z0-9_]::[A-Za-z_][A-Za-z0-9_]*)\(")
+
+
+def ask(*args: str, cwd: Path | None = None) -> tuple[int, str, str]:
+    """One call to the binary: its status, its stdout and its stderr, with newlines normalized."""
+    p = subprocess.run([str(BINARY), *args], cwd=cwd, capture_output=True, timeout=TIMEOUT)
+    return (p.returncode,
+            p.stdout.decode("utf-8", "replace").replace("\r\n", "\n"),
+            p.stderr.decode("utf-8", "replace").replace("\r\n", "\n"))
+
+
+def symbol_of(line: str) -> str:
+    """The symbol an index line opens with: the line up to its first `(`, `<` or space.
+
+    `crates/nvs-cli/src/agent.rs`'s header owns that shape. Reading a printed line back the way the
+    surface promises a consumer can is half of what the walk proves.
+    """
+    cut = min((at for at in (line.find(c) for c in "(< ") if at >= 0), default=len(line))
+    return line[:cut]
+
+
+def check_walk(keep: bool) -> int:
+    """Walk the surface cold, the way an agent holding nothing but this binary walks it.
+
+    `rule:tooling/an-agent-asks-the-binary` is three calls and a check, and every step here is
+    handed only what the step before it printed: the members looked up are the ones the primer's
+    own program calls, the symbol `show` is asked for is the one `find`'s line opened with, and the
+    program `nvs check` reads is the one the primer prints. So this proves the surface *closes*,
+    which is the failure a per-command test cannot see -- every command answering something, while
+    an answer is not an address the next command resolves.
+
+    The check is walked twice over each program: once as the primer prints it, which must pass, and
+    once with its first call written as a free function, which must be refused by name. A check
+    that accepts what the language does not have would end the loop as convincingly as one that
+    passes, and leave an agent with a program that cannot run.
+    """
+    code, primer, err = ask("agent", "primer")
+    if code != 0 or not primer.strip():
+        print(f"reference.py: `nvs agent primer` exited {code} printing {len(primer)} bytes\n"
+              f"{err.strip()}")
+        return 1
+    PRIMER.parent.mkdir(parents=True, exist_ok=True)
+    PRIMER.write_text(primer, encoding="utf-8", newline="\n")
+
+    failures: list[str] = []
+    for named in ("nvs agent find", "nvs agent show", "nvs check"):
+        if named not in primer:
+            failures.append(f"the primer never names `{named}`, so an agent holding it alone does "
+                            "not reach the next step")
+
+    programs = [ex for ex in examples_in(PRIMER) if ex.mode == "run"]
+    symbols = sorted({m.group(1) for ex in programs for m in CALLED_RE.finditer(ex.entry)})
+    if not programs or not symbols:
+        print(f"reference.py: the primer prints {len(programs)} program(s) calling {len(symbols)} "
+              "`Core` member(s) -- the walk has nothing to look up")
+        return 1
+
+    for symbol in symbols:
+        code, out, _ = ask("agent", "find", symbol)
+        lines = [line for line in out.splitlines() if line.strip()]
+        if code != 0 or not lines:
+            failures.append(f"`nvs agent find {symbol}` exited {code} printing {len(lines)} "
+                            "line(s), and the primer's own program calls that member")
+            continue
+        found = next((line for line in lines if symbol_of(line) == symbol), None)
+        if found is None:
+            failures.append(f"`nvs agent find {symbol}` printed {len(lines)} line(s), none of them "
+                            f"opening with `{symbol}`")
+            continue
+        code, card, err = ask("agent", "show", symbol_of(found))
+        rows = [line for line in card.splitlines() if line.strip()]
+        if code != 0:
+            failures.append(f"`nvs agent show {symbol}` exited {code} on the symbol `nvs agent "
+                            f"find` printed:\n{err.strip()}")
+        elif not rows or rows[0] != found:
+            failures.append(f"`nvs agent show {symbol}` does not open with the line `find` printed")
+        elif len(rows) == 1:
+            failures.append(f"`nvs agent show {symbol}` printed its index line and nothing else -- "
+                            "no description, no parameters, no return")
+
+    for ex in programs:
+        work = WALK / f"program-{ex.index:02d}"
+        if work.exists():
+            shutil.rmtree(work)
+        work.mkdir(parents=True)
+        for name, body in ex.files.items():
+            beside = work / name
+            beside.parent.mkdir(parents=True, exist_ok=True)
+            beside.write_text(body, encoding="utf-8", newline="\n")
+        entry = work / "main.nvs"
+        entry.write_text(ex.entry, encoding="utf-8", newline="\n")
+        code, out, err = ask("check", "main.nvs", cwd=work)
+        if code != 0:
+            failures.append("`nvs check` refuses the program the primer prints:\n"
+                            f"{(err or out).strip()}")
+            continue
+        called = CALLED_RE.search(ex.entry)
+        if called is None:
+            continue
+        member = called.group(1).rsplit("::", 1)[1]
+        entry.write_text(ex.entry.replace(called.group(0), f"{member}(", 1),
+                         encoding="utf-8", newline="\n")
+        code, out, err = ask("check", "main.nvs", cwd=work)
+        said = f"{out}\n{err}"
+        if code == 0:
+            failures.append(f"`nvs check` accepts `{member}(` as a free function, so the step the "
+                            "loop ends on answers nothing")
+        elif member not in said:
+            failures.append(f"`nvs check` refuses `{member}(` without naming it:\n{said.strip()}")
+        elif not keep:
+            shutil.rmtree(work, ignore_errors=True)
+
+    for problem in failures:
+        print(f"FAIL {problem}\n")
+    print(f"reference.py: the walk resolved {len(symbols)} member(s) through `find` and `show` and "
+          f"checked {len(programs)} program(s)"
+          + (f", {len(failures)} step(s) failed" if failures else ""))
+    return 1 if failures else 0
+
+
 # ------------------------------------------------------------------ main
 
 
@@ -790,6 +922,8 @@ def main() -> int:
     ap.add_argument("--examples-only", action="store_true", help="run the examples, write nothing")
     ap.add_argument("--primer", action="store_true",
                     help="check `nvs agent primer` instead: run every example it prints")
+    ap.add_argument("--agent-walk", action="store_true",
+                    help="walk the surface cold: primer, then find, show and check on what it said")
     ap.add_argument("--only", help="with the examples: only chapters whose path contains this")
     ap.add_argument("--keep", action="store_true", help="leave example directories behind")
     opts = ap.parse_args()
@@ -798,6 +932,11 @@ def main() -> int:
     # nothing for `--check` to compare and it means the same thing with the flag or without it.
     if opts.primer:
         return check_primer(opts.keep)
+
+    # The walk asks the binary the questions an agent asks it, so it too has nothing to compare and
+    # nothing to write.
+    if opts.agent_walk:
+        return check_walk(opts.keep)
 
     if opts.examples_only:
         return check_examples(opts.only, opts.keep)
