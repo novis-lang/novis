@@ -1,0 +1,64 @@
+--TEST--
+`Core\Budget`'s three readings agree at every point in a request — held never exceeds the peak, before a spike, while it is held and after it is released — asserted by counting rather than read off a line — `rule:observability/memory-is-three-numbers-on-core-budget`
+--FILE--
+<?nvs
+// The invariant, swept rather than sampled. A member that answered plausibly
+// at one point — a peak that is `memoryHeld` under another name, say — still
+// looks right on its own line, and parts from the held figure only once the
+// two are asked at a moment where they must differ. So the same question is
+// put three times across a request's shape and the *count* is what is printed.
+uint $agreements = 0;
+
+if (Core\Budget::memoryHeld() <= Core\Budget::memoryPeak()) {
+    $agreements = $agreements + 1;
+}
+
+string $spike = Core\Str::repeat("z", 1048576);
+if (Core\Budget::memoryHeld() <= Core\Budget::memoryPeak()) {
+    $agreements = $agreements + 1;
+}
+
+$spike = "";
+if (Core\Budget::memoryHeld() <= Core\Budget::memoryPeak()) {
+    $agreements = $agreements + 1;
+}
+
+echo "held is never above the peak: ", ($agreements as string), " of 3\n";
+
+// And the peak itself only ever climbs, over the same three points — the other
+// half of one mark: a figure that fell back at any of them would be a second
+// reading of the current balance wearing the peak's name.
+uint $climbs = 0;
+uint $mark = Core\Budget::memoryPeak();
+
+string $again = Core\Str::repeat("z", 1048576);
+if (Core\Budget::memoryPeak() >= $mark) {
+    $climbs = $climbs + 1;
+}
+$mark = Core\Budget::memoryPeak();
+
+$again = "";
+if (Core\Budget::memoryPeak() >= $mark) {
+    $climbs = $climbs + 1;
+}
+
+echo "the peak never falls: ", ($climbs as string), " of 2\n";
+
+// The third member joins the same sweep, because the trio is only usable if
+// all three are one accounting: a request that is still running is inside the
+// ceiling it is measured against, at every point it can be asked. A ceiling
+// answering `0` is a request under none, which the same condition covers
+// rather than needing a second reading to detect.
+uint $inside = 0;
+uint $ceiling = Core\Budget::memoryLimit();
+if ($ceiling == 0 || Core\Budget::memoryHeld() <= $ceiling) {
+    $inside = $inside + 1;
+}
+if ($ceiling == 0 || Core\Budget::memoryPeak() <= $ceiling) {
+    $inside = $inside + 1;
+}
+echo "both readings are inside the ceiling: ", ($inside as string), " of 2\n";
+--EXPECT--
+held is never above the peak: 3 of 3
+the peak never falls: 2 of 2
+both readings are inside the ceiling: 2 of 2
