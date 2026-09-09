@@ -115,6 +115,7 @@ Conventions the whole file uses:
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Signal`](#core-core-signal) |  |
+| [`Core\Budget`](#core-core-budget) |  |
 | [`Core\Request`](#core-core-request) | the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted` |
 | [`Core\Request\Mount`](#core-core-request-mount) | the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) | the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time |
@@ -16246,6 +16247,50 @@ Registers the closure this request runs when the process is asked to stop — a 
 
 **Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it. It does not stop the shutdown or delay it — the drain has already begun by the time the handler runs.
 
+<a id="core-core-budget"></a>
+### `Core\Budget`
+
+Keywords: memoryHeld, memoryPeak, memoryLimit
+
+| Member | Signature |
+|---|---|
+| [`Core\Budget::memoryHeld`](#core-core-budget-memoryheld) | `memoryHeld(): uint` |
+| [`Core\Budget::memoryPeak`](#core-core-budget-memorypeak) | `memoryPeak(): uint` |
+| [`Core\Budget::memoryLimit`](#core-core-budget-memorylimit) | `memoryLimit(): uint` |
+
+<a id="core-core-budget-memoryheld"></a>
+#### `Core\Budget::memoryHeld`
+
+```nvs skip
+Core\Budget::memoryHeld(): uint
+```
+
+The bytes **this request** holds right now — what `memory_get_usage` was reaching for, with no `$real_usage` boolean. It falls as values die, because Novis releases on the last reference rather than at the end of the script, so a request that has finished with a large payload reads small again.
+
+**Returns** `uint` — This request's held bytes. Never the process's — that is `Core\Os::residentBytes`, and it is a different question.
+
+<a id="core-core-budget-memorypeak"></a>
+#### `Core\Budget::memoryPeak`
+
+```nvs skip
+Core\Budget::memoryPeak(): uint
+```
+
+The highest `memoryHeld()` has been during this request — `memory_get_peak_usage`. The runtime records the mark as it allocates rather than deriving it from a reading, so a spike that has already been released is still reported.
+
+**Returns** `uint` — This request's high-water mark in bytes, never below what `memoryHeld()` answers. It cannot be reset: the number the request-level notices exist to surface is not one an application may put back.
+
+<a id="core-core-budget-memorylimit"></a>
+#### `Core\Budget::memoryLimit`
+
+```nvs skip
+Core\Budget::memoryLimit(): uint
+```
+
+The ceiling `memoryHeld()` and `memoryPeak()` are measured against — `[limits] memory` as a byte count, less whatever is reserved for the limit handler. It is here so that a peak has a scale without every call site parsing `Core\Config::get('limits.memory')` and its suffix.
+
+**Returns** `uint` — The ceiling in bytes, or `0` for a request under no cap at all — the same reading of zero the runtime's own limit check uses, not a second spelling for it.
+
 <a id="core-core-request"></a>
 ### `Core\Request`
 
@@ -23012,6 +23057,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports (`rule:config/check-and-dump-audit-the-tree-offline`) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
 | `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` (`rule:errors/escalation-ladder`) |
+| `memory_get_usage` | member | `Core\Budget::memoryHeld` — this request's held bytes, with no `$real_usage` boolean; the *process's* resident set is `Core\Os::residentBytes`, which is the other question PHP's one function was answering (`rule:observability/memory-is-three-numbers-on-core-budget`) |
+| `memory_get_peak_usage` | member | `Core\Budget::memoryPeak`, read against `Core\Budget::memoryLimit` where PHP compares against `ini_get('memory_limit')`. The runtime records the mark rather than deriving it, because deterministic release means the current figure has already fallen back by the time a script reads it (`rule:observability/a-memory-peak-is-recorded-not-asked-for`) |
 | `memory_reset_peak_usage` | dropped | the peak is evidence an operator needs, and a member that set it back to the current figure would let a program hide the number `rule:observability/memory-high-water-writes-a-warn` exists to surface. Bounding one section of a program is `Core\Debug`'s probes |
 | `gc_enable` | dropped | memory is refcounted and released deterministically (`rule:security/arena-is-an-ownership-root`); there is no collector to turn on |
 | `gc_disable` | dropped | same, in the other direction |

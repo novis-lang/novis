@@ -3,7 +3,7 @@
 
 # Observability
 
-*14 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+*12 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -552,7 +552,7 @@ implementation, the same way the Clover and lcov shapes were.
 
 <a id="observability-memory-is-three-numbers-on-core-budget"></a>
 
-## A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\Budget`, and the process's resident bytes are `Core\Os`'s  *(designed — not yet in the compiler)*
+## A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\Budget`, and the process's resident bytes are `Core\Os`'s
 
 `rule:observability/memory-is-three-numbers-on-core-budget`
 
@@ -599,7 +599,7 @@ are two members on the two classes that own them.
 
 <a id="observability-a-memory-peak-is-recorded-not-asked-for"></a>
 
-## The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it  *(designed — not yet in the compiler)*
+## The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it
 
 `rule:observability/a-memory-peak-is-recorded-not-asked-for`
 

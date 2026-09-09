@@ -6218,9 +6218,12 @@ kind = "cargo-named"
 stage = "5 registered"
 name = "nvs-stdlib (spec § 16 loses its last three keys)"
 args = ["test", "-p", "nvs-stdlib"]
+# The second name is the walk over `tests/migration-members-outstanding.txt`,
+# spelled as `spec_registry_coverage.rs` spells it: the check was drafted with
+# a shorthand, and a name no crate declares reads as unwritten work forever.
 tests = [
   "every_part_two_spec_class_is_registered",
-  "every_migration_member_is_registered",
+  "every_migration_member_row_names_a_registered_member",
 ]
 
 [[check]]

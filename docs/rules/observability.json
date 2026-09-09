@@ -432,7 +432,7 @@
     {
       "id": "observability/memory-is-three-numbers-on-core-budget",
       "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0148"
       ],
@@ -446,13 +446,16 @@
         "errors/on-limit"
       ],
       "guardedBy": [
-        "crates/nvs-stdlib/tests/migration-members-outstanding.txt"
+        "crates/nvs-stdlib/tests/migration-members-outstanding.txt",
+        "crates/nvs-stdlib/src/budget.rs",
+        "tests/conformance/core/budget-held-never-exceeds-the-peak-at-any-point-in-a-request.nvst",
+        "tests/conformance/core/budget-the-limit-is-a-ceiling-and-not-a-third-reading.nvst"
       ]
     },
     {
       "id": "observability/a-memory-peak-is-recorded-not-asked-for",
       "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0148"
       ],
@@ -465,7 +468,8 @@
         "programs/memory-priority"
       ],
       "guardedBy": [
-        "crates/nvs-runtime/src/budget.rs"
+        "crates/nvs-runtime/src/budget.rs",
+        "tests/conformance/core/budget-the-peak-outlives-a-spike-the-held-figure-gives-back.nvst"
       ]
     },
     {

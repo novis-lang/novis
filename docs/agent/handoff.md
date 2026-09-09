@@ -2,57 +2,57 @@
 
 ## State
 
-**Goal 24 — stage 4 is closed, and stage 5 with it.** `Core\Signal` is registered with one member,
-`onShutdown(callable $handler): void`, and the stage-4 `cargo-named` check's three `-p nvs-stdlib`
-names are green. `§16 Core\Signal` left `spec-classes-part-two-outstanding.txt`, which was the last
-key stage 5 owed: `every_part_two_spec_class_is_registered` and `every_migration_member_is_registered`
-both pass, and no outstanding file still names `Core\Net`, `Core\Os` or `Core\Signal`. Stage 6 —
-`Core\Budget` — is the first open stage.
+**Goal 24 — stage 6's first two items are landed.** `Core\Budget` is registered with `memoryHeld`,
+`memoryPeak` and `memoryLimit`, all three `uint` byte counts over `Ctx`; `§16 Core\Budget` left
+`spec-classes-part-two-outstanding.txt` and its three keys left `migration-members-outstanding.txt`.
+`rule:observability/memory-is-three-numbers-on-core-budget` and
+`rule:observability/a-memory-peak-is-recorded-not-asked-for` are both `shipped` now, with the cases
+and the module as their `guardedBy`.
 
-**The delivery is a store, and the handler is a safepoint.** `SafepointFlags::SHUTDOWN` is the new
-bit; `nvs_safepoint` runs `Ctx::run_shutdown_handler` in the one branch there that is not a stop, so
-the closure is entered between two Novis statements on the request's own stack. The delivery's whole
-effect on state is `Drain::process().begin()` — `rule:concurrency/a-drain-closes-a-connection-cleanly`'s
-drain and no second state machine — which is why the handler observes `Core\Server::isDraining()`
-already `true`.
+**The peak is recorded, not sampled.** `budget::add` moves a `PEAK` thread-local inside the branch
+that already tests for a positive delta; `Ctx::new` rebases it and carries what it displaced, and
+`Drop for Ctx` republishes `max(enclosing, reached)` before any teardown allocates, so a nested
+isolate cannot erase its parent's mark. `crates/nvs-runtime/src/budget.rs`'s module doc is the home
+of what that spends, and `crates/nvs-stdlib/src/budget.rs`'s owns why the record's `int` is a `uint`
+here and why `Core\Os::residentBytes` stays where it is.
 
-**Nothing installs an operating-system handler yet**, so nothing raises the bit outside tests. That
-slice is `crates/nvs-cli/src/serve.rs:730`'s already-named one and belongs with the control socket
-beside it; the backlog carries it. `crates/nvs-stdlib/src/signal.rs`'s module doc is the home of why
-the class has no `isShuttingDown` of its own and no signal number anywhere in a signature.
+**The stage-5 acceptance check was naming a test that does not exist** — a shorthand for
+`every_migration_member_row_names_a_registered_member` — and now names the real one. Stage 5 is
+green; the playbook bullet above is the trap.
+
+**Stage 6 item 3 is the whole of what is left in the goal**: the three readings an operator gets
+without asking. Nothing else in `loop-goal.toml` is open.
 
 ## Next group
 
-**Stage 6: `Core\Budget`'s three numbers** — one file set: `crates/nvs-stdlib/src/budget.rs` (new),
-`crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/budget.rs`.
+**Stage 6: the three unasked readings** — one file set: `crates/nvs-stdlib/src/script.rs`,
+`crates/nvs-server/src/metrics.rs`, `crates/nvs-config/src/tree.rs`.
 
-- [ ] **The class, its three members and its registration.** `memoryHeld`, `memoryPeak` and
-      `memoryLimit` over the counter `crates/nvs-runtime/src/budget.rs:180` already keeps in every
-      build ([0148](../decisions/0148.md) §§ 11-12, and `rule:programs/memory-priority` for what a
-      reading may cost). Five edits per member, `docs/agent/conventions.md` § *A `Core` member*: the
-      module joins the list at `crates/nvs-stdlib/src/lib.rs:191` and the address chain at
-      `crates/nvs-stdlib/src/lib.rs:362`, the class the roster at
-      `crates/nvs-stdlib/src/registry.rs:1497`. `crates/nvs-stdlib/src/signal.rs:75` is the neighbour
-      to copy a handle-free, capability-free class's shape from, and `Core\Os::residentBytes` is the
-      process reading that stays where it is — 0148 § 12 is why the two are not one member.
-- [ ] **The high-water mark, recorded in `budget::add`.** `crates/nvs-runtime/src/budget.rs:180`,
-      inside the branch that already tests for a positive delta, and a nested `Ctx` restores
-      `max(enclosing, reached)` on drop rather than clobbering the mark of the request that spawned
-      it (0148 § 15). The cost claim is measured in `benches/abi-probe`, never asserted.
-- [ ] **Three `.nvst` cases, each a different question.** One allocates a known-size buffer, drops
-      it, and reads a peak above the drop against a held figure below it; one asserts a parent's peak
-      survives a child that allocated less; one asks `memoryLimit` with nothing configured.
-      `tests/conformance/core/signal-registering-a-handler-begins-no-shutdown.nvst:1` is the shape,
-      and `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:18` is the `§16 Core\Budget`
-      line the same slice strikes.
+- [ ] **`Core\Script\ExitReport::memoryPeak`.** A fourth reading on the report a `spawn script`
+      handler is handed, off `Ctx::memory_peak` exactly as `Core\Budget::memoryPeak` reads it
+      ([0148](../decisions/0148.md) § 14, and `rule:observability/a-memory-peak-is-recorded-not-asked-for`
+      for what the mark is). The class rows are `crates/nvs-stdlib/src/script.rs:256`, its slot layout
+      `crates/nvs-stdlib/src/script.rs:343` and its symbol table `crates/nvs-stdlib/src/script.rs:338`
+      — a slot, not a member body, so this is not the five-edit shape.
+- [ ] **The `nvs_request_memory_peak_bytes` histogram**, beside the four default series at
+      `crates/nvs-server/src/metrics.rs:154` and with `Kind::Histogram`'s buckets
+      (`crates/nvs-server/src/metrics.rs:119`), per
+      `rule:observability/the-runtime-exports-what-it-already-measures` — the runtime already keeps
+      the figure, which is the whole admission test.
+- [ ] **`[limits] memory_high_water`, a fraction whose crossing writes one `Warn`.**
+      `rule:observability/memory-high-water-writes-a-warn` and 0148 § 14: unwritten is off, off is
+      silent, and a value outside `0.0..=1.0` is refused at boot by the typed-value path
+      `crates/nvs-config/src/tree.rs:171`'s `Limits` block already has beside `max_output`.
 
 ## Backlog
 
-- The operating-system half of the shutdown: nothing installs a signal handler or raises
-  `SafepointFlags::SHUTDOWN` on running requests — `crates/nvs-cli/src/serve.rs:730` names the slice,
-  beside the control socket that shares it.
-- Stage 6's third item — `Script\ExitReport::memoryPeak`, the `nvs_request_memory_peak_bytes`
-  histogram, and the `[limits] memory_high_water` fraction (0148 § 14) — is its own group after the
-  class lands.
-- `Core\Server`'s rest — the request's own environment and `traceId()` — waits on a served request
-  carrying it; `crates/nvs-stdlib/src/server.rs`'s module doc owns that gap.
+- A `.nvst` case for the nested mark — a parent's peak surviving a child that allocated less. It is
+  pinned today as a `-p nvs-runtime` unit test, `crates/nvs-runtime/src/budget.rs`'s
+  `a_nested_context_measures_its_own_allocation_and_restores_what_it_displaced`; the program-level
+  spelling needs `spawn`, which `docs/agent/loop-goal.md` § Stage 6 item 2 asks for.
+- Nothing installs an operating-system shutdown handler, so nothing raises `SafepointFlags::SHUTDOWN`
+  outside tests — `crates/nvs-cli/src/serve.rs:730`, with the control socket beside it.
+- `Core\Process::spawn` is still `unowned` in `crates/nvs-stdlib/tests/migration-members-outstanding.txt`
+  — `docs/agent/carried-gaps.md` § Unowned.
+- `spec-classes-part-two-outstanding.txt` still owes `Core\Signature` (29), `Core\Metrics` (unowned)
+  and §17's four; none is this goal's.
