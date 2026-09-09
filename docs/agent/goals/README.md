@@ -199,7 +199,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [34 workspace-index](34-workspace-index.md) | M10, `rule:ide/five-features-are-one-reference-index` | `nvs-lsp` — one index, its five readers, and the requests M4B's closed list left out |
 | [35 editor-surfaces](35-editor-surfaces.md) | M10, `rule:ide/tasks-carry-a-problem-matcher` | `editors/vscode` and the two CLI surfaces it queries — Tasks, the AST panel, a Test Explorer, template regions |
 | [36 resource-ceilings](36-resource-ceilings.md) | M6, `rule:errors/on-limit` | `nvs-runtime`, `nvs-host`'s watchdog and the poll's emit site — a runaway is stopped whether it burns a core, allocates in a loop, or asks for everything at once |
-| 36–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| 38–48 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [49 gap-zero](49-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written entries, because a gap register is emptied after everything that adds to it has run |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |
 

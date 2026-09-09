@@ -484,6 +484,28 @@ handoff = "docs/agent/goals/37-config-is-written.handoff.md"
 milestone = "M6"
 preflight = "docker"
 
+# Last of the hand-written entries, because a gap register can only be emptied after everything
+# that would add to it has run: goals 21 and 27 build the two gates, goal 28 closes five items,
+# and every entry from 23 to 37 closes more, so emptying it in front of them is emptying it twice.
+# It ends the third owner state -- `unowned` -- rather than the gaps themselves: after it, every
+# recorded gap is either closed or named to an **uncarried** milestone whose plan states the
+# scope, no item names a goal (every hand-written entry is retired by then, so one that did would
+# be orphaned by the exact mechanism this goal exists to end), and `docs/agent/carried-gaps.md` is
+# deleted because it has nothing left to index. **Numbered 49 rather than 38 on purpose**: it must
+# stay last of the hand-written entries whatever else is scheduled, so it takes the number
+# directly under the dossier and leaves 38-48 free for anything inserted in front of it -- which
+# is what the dossier's own comment already argues about the range. It is the one entry that
+# trades a floor check, replacing `chain.py --check`'s assertion that the index exists with the
+# stronger gate over five registers; its goal prose names that trade and is the only place it is
+# authorized.
+[[goal]]
+name = "49 gap-zero"
+md = "docs/agent/goals/49-gap-zero.md"
+toml = "docs/agent/goals/49-gap-zero.toml"
+handoff = "docs/agent/goals/49-gap-zero.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
