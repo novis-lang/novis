@@ -85,8 +85,17 @@ files = [
 modules = [
   # Stage 3 -- the command that binds one socket today, and the module doc stating the rule that goes.
   "crates/nvs-cli/src/serve.rs",
-  # Stage 2 -- the compiled-unit cache: the `RefCell`, the revalidation policy, the compile counter.
+  # Stage 2 -- the compiled-unit cache: the two locks, the revalidation policy, the compile counter.
   "crates/nvs-cli/src/script.rs",
+  # Stage 2 -- `Unit` at :308 and `Code` at :371: the two `Rc`s and the `dyn Placed` that make a
+  # compiled unit `!Send`, which is what the shared cache is blocked on.
+  "crates/nvs-codegen/src/lib.rs",
+  # Stage 2 -- `ClassTable` at :1046 and `ClassDesc` at :259, whose raw pointers are the other half
+  # of that blocker, and the argument that an already-built table is immutable.
+  "crates/nvs-runtime/src/object.rs",
+  # Stage 2 -- `install_statics` at :163, which takes the `Rc` a shared unit has to hand over as an
+  # `Arc`; `ctx/error.rs`'s `ErrorClass` holds the other one.
+  "crates/nvs-runtime/src/ctx/isolate.rs",
   # Stages 2-3 -- `NvsListener::from_std` at :336, the constructor written for exactly this fan-out.
   "crates/nvs-host/src/net.rs",
   # Stage 3 -- `Worker::spawn(cpu, ...)` at :273 and the pinning handshake priced per process start.

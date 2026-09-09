@@ -5341,6 +5341,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   every stdlib line holding rows becomes a `private type` error pointing at the caller. Make the
   stream `pub` and re-export it beside the rows type in the same edit — `PgRows` and `TdsRows` carry
   the same default. [until: reviewed 2026-09-09]
+- **Sharing a compiled unit across cores dead-ends on `nvs_codegen::Unit` being `!Send`, and an
+  `Arc<Compiled>` does not fix it.** Four fields make it so — `classes: Rc<ClassTable>` and
+  `statics: Rc<[..]>` (`crates/nvs-codegen/src/lib.rs:320`, `:345`), `entries`' `*const u8`, and
+  `Code::Placed(Box<dyn Placed>)` at `:371` — and `ClassTable` is `!Send` too, through
+  `ClassDesc`'s raw pointers. Name them all in one build: drop a `const _: fn() = || { fn
+  is_send<T: Send>() {} is_send::<nvs_codegen::Unit>(); };` into the crate you are editing.
+  [until: gone crates/nvs-codegen/src/lib.rs:rc::Rc<nvs_runtime::ClassTable>]
 
 ## Divergences and refusals already pinned
 

@@ -2,38 +2,52 @@
 
 ## State
 
-**Goal 23 — `nvs serve` takes every core — has just started; nothing of it has landed yet.** Goal 22's
-whole list is this goal's Stage 1 floor.
+**Goal 23 — `nvs serve` takes every core. Stage 2 has started; its first slice is on disk.** Goal
+22's whole list is this goal's Stage 1 floor and is green.
 
-This is M7's own stated scope, shipped around: goal 6 built the single-core server and closed, and
-until this entry existed no `[[goal]]` owned "per-core accept and dispatch". It is **the largest
-measured performance item in the repository** — `benches/serve-proxied.json`'s deployed arm has php-fpm
-scaling 2.44x from one core to four while `nvs serve` stays flat, turning a 2.92x lead into 1.19x.
+**What landed:** the compiled-unit cache's interior mutability is the shape a fleet needs.
+`Compiler`'s two maps are `RwLock`s and its compile counter is an `AtomicU64`
+(`crates/nvs-cli/src/script.rs:188`), neither guard is ever held across a compile, and the module
+doc at `crates/nvs-cli/src/script.rs:42` states the two known gaps that are left instead of the
+old "a single core collapses the concurrent half" argument. Nothing else in stage 2 can land
+before those gaps close.
 
-**The primitives are built and unreached.** `nvs_host::NvsListener::from_std`
-(`crates/nvs-host/src/net.rs:336`) exists for this exact fan-out; `nvs_host::Worker::spawn(cpu, …)`
-(`crates/nvs-host/src/lib.rs:273`) pins a scheduler per core for a cost paid per process start. Both
-have only `#[cfg(test)]` callers, and nothing in `nvs-cli` or `nvs-server` reads a CPU count at all.
+**What blocks the rest of stage 2, and it is not a design question:** `nvs_codegen::Unit` is
+neither `Send` nor `Sync`, so `Compiled` cannot hold `Arc`s and the cache cannot be reached from a
+second core at all. That is what `a_compiled_unit_is_read_by_every_core_through_one_arc` needs
+first. The standing decision ("shared behind an `Arc`, one publisher") is unchanged — this is its
+mechanism, and it lives in `nvs-codegen` and `nvs-runtime` rather than here. The playbook bullet
+above lists every field that makes it so.
 
-**The design question is already decided** and is not reopened: the compiled unit is **shared behind an
-`Arc` with one publisher**, not per core. An immutable unit is sound to share, and sharing is what
-keeps M7's "10k cold requests compile it exactly once" acceptance meaning the same thing at four cores
-as at one.
+**Single-flighting is a later slice on purpose.** With one accepting core, `CompileState::Compiling`
+and step 4's "a fresher revalidation has not won" compare are both unreachable, so writing them
+before the fan-out would be untestable code. They land with the `Arc`, not before it.
 
 ## Next group
 
-**Stage 2: the shared unit** — one file set: `crates/nvs-cli/src/script.rs`,
-`crates/nvs-config/src/cache.rs`.
+**Stage 2: a compiled unit crosses a core boundary** — one file set:
+`crates/nvs-codegen/src/lib.rs`, `crates/nvs-runtime/src/object.rs`,
+`crates/nvs-runtime/src/ctx/isolate.rs`, `crates/nvs-runtime/src/ctx/error.rs`.
 
-- [ ] **The cache stops being a `RefCell`** — `crates/nvs-cli/src/script.rs:58`'s module doc states the
-      current shape and the argument that a second core breaks ("nothing can observe this cache while a
-      compile is running"). Rewrite it, don't overlay it.
-- [ ] **One publisher for `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidate-and-swap** — a revalidation that wins publishes a new
-      `Arc`; readers never block on a compile; § 3a's `validate` pick and the "a fresher revalidation
-      has not won" ordering are restated for N readers rather than one.
-- [ ] **The compile counter counts compiles, not cores** — `script.rs:193`. This is what stage 5
-      asserts against, and multiplying it is the failure the shared cache exists to prevent.
-- [ ] `routes: Arc<Routes>` (`script.rs:113`) already shares correctly and needs nothing.
+- [ ] **`Unit`'s two `Rc`s become `Arc`s** — `crates/nvs-codegen/src/lib.rs:320` (`classes`) and
+      `crates/nvs-codegen/src/lib.rs:345` (`statics`), with the two signatures that take them:
+      `crates/nvs-runtime/src/ctx/isolate.rs:163`'s `install_statics` and
+      `crates/nvs-runtime/src/ctx/error.rs:69`'s `ErrorClass::table`. What an isolate may share is
+      `rule:security/isolate-shares-nothing`'s "immutable compiled code"; the cost is one atomic
+      increment per isolate install, per `rule:programs/memory-priority`.
+- [ ] **The raw pointers get their `unsafe impl Send + Sync`, or a reason they cannot** —
+      `crates/nvs-runtime/src/object.rs:1046` (`ClassTable`, whose `ClassDesc` at `:259` holds
+      `Vec<*const ClassDesc>` into boxes the table itself owns) and
+      `crates/nvs-codegen/src/lib.rs:308` (`Unit`, whose `entries` are addresses in its own
+      mapping). The argument is that neither is mutated after
+      `crates/nvs-codegen/src/lib.rs:905`'s `into_unit`; `Code::Placed(Box<dyn Placed>)` at
+      `crates/nvs-codegen/src/lib.rs:371` needs the same on the trait. This is the goal's one
+      permitted ADR number if it wants a record.
+- [ ] **Then `Compiled` holds `Arc`s and the cache publishes** — `crates/nvs-cli/src/script.rs:124`,
+      which is what `a_compiled_unit_is_read_by_every_core_through_one_arc` and
+      `a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it` assert. `CompileState`'s
+      third state and step 4's compare (`crates/nvs-cli/src/script.rs:340`) become reachable and
+      land with it, for the other three stage-2 checks.
 
 ## Backlog
 
@@ -41,7 +55,8 @@ as at one.
   `crates/nvs-config/src/server.rs`, `crates/nvs-server/src/serve.rs` — and rewrites `serve.rs:42`'s
   § *Decision: one socket, and the flag is the last word*, which names its own successor. A `[server]
   workers` key defaults to `available_parallelism`; the Unix-domain refusal stays one refusal.
-- **Stage 4 (nothing leaks across a core)** parameterises the existing state-bleed suite by core rather
-  than adding a second one — the shared `Isolate` is what makes that a parameterisation.
-- **Stage 5 (the number)** re-records `benches/serve-proxied.json` on one and four cores. The threshold
-  is written from what the bench prints, not by hand.
+- **Stage 4 (nothing leaks across a core)** parameterises the existing state-bleed suite by core
+  rather than adding a second one.
+- **Stage 5 (the number)** re-records `benches/serve-proxied.json` on one and four cores.
+- The goal's `[context] modules` now names `nvs-codegen`'s and `nvs-runtime`'s three files, so the
+  next pack prints them; nothing else was missing from the pack this session.
