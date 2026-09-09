@@ -4484,6 +4484,140 @@ mod tests {
         served_by(listener, &handler, client)
     }
 
+    /// One worker of the core boundary: this core's listener, the one
+    /// connection it serves, and the half of the suite the caller names.
+    ///
+    /// The handler is built inside the closure because a core's handler is an
+    /// [`Rc`] and never crosses a thread — which is the shape under test, not
+    /// an accommodation: what the cores share is compiled program text and
+    /// nothing else
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+    fn one_bleeding_core(
+        listener: std::net::TcpListener,
+        planting: bool,
+    ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+        move |sched| {
+            let mut listener =
+                NvsListener::from_std(listener).expect("the OS refused a non-blocking listener");
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let (inbound, supply) = carrying(request);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    if planting {
+                        plant_the_suite(child);
+                    } else {
+                        let said = probe_the_suite(child);
+                        child.write_output(said.as_bytes()).expect("a buffer");
+                    }
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                )
+            });
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &wide_open(),
+                    // This core's own drain and not the process's, which is
+                    // one-way for the whole binary.
+                    &Draining::detached(),
+                    |_note| {},
+                    || ControlFlow::Break(()),
+                )
+                .expect("the accept loop failed");
+            });
+            run_the_core(sched);
+        }
+    }
+
+    /// The same suite across a **core** boundary: the planting run is a request
+    /// one worker serves, and the probing run is a request the *next* worker
+    /// serves, on another pinned thread with a scheduler and a run queue of its
+    /// own.
+    ///
+    /// Two workers on two listeners rather than two connections to one, because
+    /// which core the OS hands a connection to is the OS's choice — the
+    /// fan-out's own property, and the wrong thing for a case about what
+    /// crosses a core to rest on. The planting worker is **joined** before the
+    /// probing request is written, so the first run has demonstrably ended and
+    /// what it left behind is there to be found.
+    ///
+    /// Returns the second response, or [`None`] on a host that enumerates no
+    /// CPU: such a host is served from the boot thread, so there is no second
+    /// core there for the state to be found on.
+    fn across_a_core_boundary() -> Option<String> {
+        let cpus = nvs_host::cpus();
+        let first_cpu = cpus.first().copied()?;
+        // One CPU is a fleet of two workers sharing it, which is `nvs serve`'s
+        // own answer when a written count is above this machine's parallelism.
+        let second_cpu = cpus.get(1).copied().unwrap_or(first_cpu);
+
+        let planting_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let planting_addr = planting_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+        let probing_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let probing_addr = probing_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let planting_worker =
+            nvs_host::Worker::spawn(first_cpu, one_bleeding_core(planting_socket, true))
+                .expect("the OS refused a worker thread");
+        let probing_worker =
+            nvs_host::Worker::spawn(second_cpu, one_bleeding_core(probing_socket, false))
+                .expect("the OS refused a worker thread");
+
+        let mut planting =
+            TcpStream::connect(planting_addr).expect("the loopback refused a connection");
+        planting
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("the socket refused a read timeout");
+        planting
+            .write_all(
+                // Closed after the one request, so this core's tally reaches
+                // zero and its worker can be joined below.
+                planting_request()
+                    .replace("\r\n\r\n", "\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .expect("the write failed");
+        let mut planted = String::new();
+        planting
+            .read_to_string(&mut planted)
+            .expect("the planting response could not be read");
+        assert!(
+            planted.contains(BLED_OUTPUT),
+            "the planting run left nothing behind to look for: {planted}"
+        );
+        drop(planting);
+        planting_worker.join().expect("the planting core panicked");
+
+        let mut probing =
+            TcpStream::connect(probing_addr).expect("the loopback refused a connection");
+        probing
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("the socket refused a read timeout");
+        probing
+            .write_all(b"GET /clean HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .expect("the second write failed");
+        let mut answer = String::new();
+        probing
+            .read_to_string(&mut answer)
+            .expect("the response could not be read");
+        drop(probing);
+        probing_worker.join().expect("the probing core panicked");
+        Some(answer)
+    }
+
     /// The answer lines of a response, which is its body: one line per row.
     fn answer_lines(answer: &str) -> &str {
         answer
@@ -4496,19 +4630,18 @@ mod tests {
     /// proves nothing leaks between requests, and the same suite runs across an
     /// isolate boundary.**
     ///
-    /// **It is one suite run twice, and the plan says so in the same breath**:
-    /// "which the shared `Isolate` makes a parameterisation rather than a
-    /// second suite". [`SUITE`] is the rows; the two arms differ only in what
-    /// the second run *is* — the next request on the connection, or a child
-    /// isolate the request starts before it ends. Both runs are the same
-    /// [`Isolate`] type either way, which is the property being spent: a second
-    /// isolation path would make one of these arms say nothing about the other.
+    /// **It is one suite run more than once, and the plan says so in the same
+    /// breath**: "which the shared `Isolate` makes a parameterisation rather
+    /// than a second suite". [`SUITE`] is the rows; an arm differs only in what
+    /// the second run *is* — the next request on the connection, a child
+    /// isolate the request starts before it ends, or
+    /// [`the_state_bleed_suite_passes_across_a_core_boundary`]'s request on
+    /// another worker. Every run is the same [`Isolate`] type, which is the
+    /// property being spent: a second isolation path would make one of these
+    /// arms say nothing about the others.
     ///
     /// **Every row answers a string rather than a bool**, so a failure names
-    /// what crossed. And the count is asserted beside the answers, because a
-    /// row that silently stopped running would otherwise pass by not
-    /// contradicting anything — the row table is the assertion, not the four
-    /// lines a reader can see.
+    /// what crossed; [`nothing_bled`] is what every arm's answer is held to.
     ///
     /// **The first run's marker is on the wire, not in the fixture.** Its
     /// query, its header and its body all carry [`BLED`], which is state the
@@ -4527,30 +4660,60 @@ mod tests {
                 across_an_isolate_boundary(),
             ),
         ] {
-            let lines = answer_lines(&answer);
-            assert_eq!(
-                lines.lines().count(),
-                SUITE.len(),
-                "{boundary}: {} rows ran, and the suite has {}: {lines}",
-                lines.lines().count(),
-                SUITE.len()
-            );
-            // Collected rather than asserted row by row, so a failure reports
-            // every row that bled instead of only the first one in the table.
-            let bled: Vec<&str> = SUITE
-                .iter()
-                .filter(|row| {
-                    let clean = format!("{}: {NOTHING}", row.what);
-                    !lines.lines().any(|line| line == clean)
-                })
-                .map(|row| row.what)
-                .collect();
-            assert!(
-                bled.is_empty(),
-                "{boundary}: {} bled across it, and the answers were:\n{lines}",
-                bled.join(", ")
-            );
+            nothing_bled(boundary, &answer);
         }
+    }
+
+    /// The same suite, run where the second request lands on **another core**:
+    /// a worker of its own, pinned to its own CPU, with its own scheduler, run
+    /// queue and handler. The rows are unchanged, which is the point — a third
+    /// boundary is a parameter of the one suite and not a suite of its own.
+    ///
+    /// **A core is the boundary a shared `static` crosses that the other two do
+    /// not.** State a request leaves in a thread-local is invisible to the next
+    /// core by construction, so the arms above would pass over it; what fails
+    /// here is state parked somewhere the whole process reaches, which is
+    /// exactly what `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s
+    /// "what the cores share is compiled program text and nothing else" forbids
+    /// and what `rule:security/isolate-shares-nothing` makes a run's own.
+    #[test]
+    fn the_state_bleed_suite_passes_across_a_core_boundary() {
+        let Some(answer) = across_a_core_boundary() else {
+            return;
+        };
+        nothing_bled("a request on another core", &answer);
+    }
+
+    /// One arm's answer, asserted: the row count first, then every row's own
+    /// line.
+    ///
+    /// The count is asserted beside the answers because a row that silently
+    /// stopped running would otherwise pass by not contradicting anything — the
+    /// row table is the assertion, not the four lines a reader can see. And the
+    /// rows that bled are collected rather than asserted one at a time, so a
+    /// failure reports every one of them instead of the first in the table.
+    fn nothing_bled(boundary: &str, answer: &str) {
+        let lines = answer_lines(answer);
+        assert_eq!(
+            lines.lines().count(),
+            SUITE.len(),
+            "{boundary}: {} rows ran, and the suite has {}: {lines}",
+            lines.lines().count(),
+            SUITE.len()
+        );
+        let bled: Vec<&str> = SUITE
+            .iter()
+            .filter(|row| {
+                let clean = format!("{}: {NOTHING}", row.what);
+                !lines.lines().any(|line| line == clean)
+            })
+            .map(|row| row.what)
+            .collect();
+        assert!(
+            bled.is_empty(),
+            "{boundary}: {} bled across it, and the answers were:\n{lines}",
+            bled.join(", ")
+        );
     }
 
     /// A handler whose program says which sink it is writing through, so the
@@ -6435,6 +6598,207 @@ mod tests {
             !asked.get(),
             "the handler was asked for a request the ceiling had already refused"
         );
+    }
+
+    /// One worker under a valve the whole fleet shares: this core's listener,
+    /// the connections it accepts before its loop's tail, and a report on every
+    /// request the handler is *asked* for — which is exactly the requests the
+    /// ceiling admitted, because the valve is asked before the handler is.
+    ///
+    /// The program reads its request's body to the end, so a client still owing
+    /// bytes parks the run there: a place is taken before the handler and given
+    /// back when the answer exists, and a body that has not all arrived is what
+    /// holds one open for as long as a test needs it.
+    fn one_admitting_core(
+        listener: std::net::TcpListener,
+        serving: Serving,
+        connections: usize,
+        admitted: std::sync::mpsc::Sender<()>,
+    ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+        move |sched| {
+            let mut listener =
+                NvsListener::from_std(listener).expect("the OS refused a non-blocking listener");
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let _ = admitted.send(());
+                let (inbound, supply) = carrying(request);
+                let program: Program = Box::new(|run: &mut Ctx, _args| {
+                    if let Some(inbound) = run.inbound_mut()
+                        && let Some(body) = inbound.body()
+                    {
+                        while let Ok(Some(_chunk)) = body.next_chunk() {}
+                    }
+                    run.write_output(b"served").expect("a buffer");
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                )
+            });
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                let left = Cell::new(connections);
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &serving,
+                    &Draining::detached(),
+                    |_note| {},
+                    || {
+                        left.set(left.get() - 1);
+                        if left.get() == 0 {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    },
+                )
+                .expect("the accept loop failed");
+            });
+            run_the_core(sched);
+        }
+    }
+
+    /// `rule:http-server/admission-is-arithmetic-not-a-number`'s counter is
+    /// **one relaxed atomic for the process**, so what it guards is the fleet's
+    /// ceiling and never a share of it handed out per core.
+    ///
+    /// Both halves are asserted here, and the first is the one a per-core
+    /// counter would pass on its own: one core takes *both* of the two places
+    /// while its neighbour has served nothing, which a ceiling divided by the
+    /// core count would have refused. Only then does a request on that idle
+    /// core meet the `503` — a core with nothing in flight of its own can be
+    /// refusing against no count but the one the other core filled.
+    ///
+    /// Two places rather than more because two is the smallest ceiling that can
+    /// tell those two shapes apart, and each is held by a body three bytes
+    /// short: nothing here waits on a timing window.
+    #[test]
+    fn the_in_flight_ceiling_is_fleet_wide_so_a_hot_core_cannot_refuse_while_neighbours_idle() {
+        /// A request whose body is three bytes short, so its run parks holding
+        /// its place in the count until the rest of the body is written.
+        fn holding(addr: std::net::SocketAddr) -> TcpStream {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(
+                    b"POST /hot HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\
+                      Content-Length: 5\r\n\r\nab",
+                )
+                .expect("the write failed");
+            socket
+        }
+
+        let cpus = nvs_host::cpus();
+        let Some(first_cpu) = cpus.first().copied() else {
+            // A host that enumerates no CPU is served from the boot thread, so
+            // there is no second core there to share a count with.
+            return;
+        };
+        let second_cpu = cpus.get(1).copied().unwrap_or(first_cpu);
+
+        let admission = Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 2,
+            per_request: None,
+            budget: None,
+        })));
+        // One valve, cloned into both workers, which is what `nvs serve` hands
+        // a fleet: the `Arc` is the count, and a clone of it is not a second.
+        let serving = Serving::new(
+            Arc::clone(&admission),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+        );
+
+        let hot_socket = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let hot_addr = hot_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+        let idle_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let idle_addr = idle_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let (hot_asked, hot_admitted) = std::sync::mpsc::channel();
+        let (idle_asked, idle_admitted) = std::sync::mpsc::channel();
+
+        let hot_worker = nvs_host::Worker::spawn(
+            first_cpu,
+            one_admitting_core(hot_socket, serving.clone(), 2, hot_asked),
+        )
+        .expect("the OS refused a worker thread");
+        let idle_worker = nvs_host::Worker::spawn(
+            second_cpu,
+            one_admitting_core(idle_socket, serving, 1, idle_asked),
+        )
+        .expect("the OS refused a worker thread");
+
+        let mut first = holding(hot_addr);
+        hot_admitted
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("the hot core never admitted the first request of the fleet's two");
+        let mut second = holding(hot_addr);
+        hot_admitted.recv_timeout(CLIENT_PATIENCE).expect(
+            "one core did not get both of the fleet's places, so the ceiling had been divided \
+             per core and a hot core refuses while its neighbours idle",
+        );
+
+        let mut refused = TcpStream::connect(idle_addr).expect("the loopback refused a connection");
+        refused
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("the socket refused a read timeout");
+        refused
+            .write_all(b"GET /neighbour HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .expect("the write failed");
+        let mut answer = String::new();
+        refused
+            .read_to_string(&mut answer)
+            .expect("the response could not be read");
+        assert!(
+            answer.starts_with("HTTP/1.1 503 Service Unavailable\r\n"),
+            "a core answered a request the fleet had no place left for, so it was counting \
+             against a ceiling of its own: {answer}"
+        );
+        assert!(
+            matches!(
+                idle_admitted.try_recv(),
+                Err(std::sync::mpsc::TryRecvError::Empty)
+            ),
+            "the handler was asked for a request the fleet's ceiling had already refused"
+        );
+        assert_eq!(
+            admission.in_flight(),
+            2,
+            "the fleet's count is not the two places its one hot core is holding"
+        );
+
+        // The bodies both runs are still owed: each answer is one place given
+        // back, and a core's loop returns once its own tally reaches zero.
+        for (which, socket) in [("first", &mut first), ("second", &mut second)] {
+            socket
+                .write_all(b"cde")
+                .expect("the rest of the body could not be written");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            assert!(
+                answer.starts_with("HTTP/1.1 200 OK\r\n"),
+                "the hot core's {which} request was admitted and then not answered: {answer}"
+            );
+        }
+        drop(first);
+        drop(second);
+        drop(refused);
+        hot_worker.join().expect("the hot core panicked");
+        idle_worker.join().expect("the idle core panicked");
     }
 
     /// The condition, spelled the way the OS spells it on this platform.
