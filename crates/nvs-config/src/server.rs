@@ -2,8 +2,8 @@
 //! durations — refusing the magnitudes that would leave a connection unbounded — and `listen` as
 //! the sockets to bind.
 //!
-//! Those, along with `max_in_flight` and `health_path`, are the only parts of `[server]` that
-//! resolve to something other than what was written *here*, so this module is small on purpose:
+//! Those, along with `max_in_flight`, `workers` and `health_path`, are the only parts of `[server]`
+//! that resolve to something other than what was written *here*, so this module is small on purpose:
 //! everything else in the block is a path or a word read directly off [`crate::tree::Server`]. The
 //! mount table resolves as well, and it is [`mod@crate::mount`]'s because it needs a disk to
 //! expand a glob against — [`validate`] runs the half of it that does not.
@@ -35,6 +35,14 @@
 //! server's start depend on a nameserver. Which of the classified entries a given process actually
 //! binds is the caller's — [`Listen`] says what each entry *is* and nothing about how many cores
 //! there are.
+//!
+//! **`workers` is the one key here whose default this machine answers**, and it is a bound rather
+//! than a request for one: with nothing written the count is
+//! [`std::thread::available_parallelism`], and a written count is taken as it stands in both
+//! directions. Nothing clamps it against the machine, because a heuristic that knew better than the
+//! block would make the core count something the file cannot state — the same direction
+//! `max_in_flight` goes the other way for, where the arithmetic is against a memory budget a
+//! deployment cannot see. Only `0` is refused, under `E0636`.
 //!
 //! **`health_path` is off by default, and an empty string is that same off** — § 5 writes the key
 //! out as `""`, so the state where no URL is reserved has to be reachable both by leaving the key
@@ -105,6 +113,7 @@ impl Default for Waits {
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     waits_for(config, origins)?;
     listen_on(config, origins)?;
+    workers_for(config, origins)?;
     health_path(config, origins)?;
     crate::mount::check(config, origins)
 }
@@ -303,6 +312,52 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
              for a Unix-domain socket",
         )
     })
+}
+
+/// The cores this server accepts on, as the tree's `[server] workers` bounds them.
+///
+/// With the key left out the count is what this machine answers
+/// [`std::thread::available_parallelism`] with, and one core where it answers nothing at all — an
+/// unconfigured server takes the box it was started on, which is
+/// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s default and the reason a
+/// deployment needs no directive to scale. A written count is the bound in both directions: it is
+/// neither raised to the machine's parallelism nor clamped down to it, because a number the file
+/// states is the operator's answer to a question this function is not asked to have an opinion on.
+///
+/// # Errors
+///
+/// `E0636` for a `workers` of `0`. Nothing else here can refuse: the code's own declaration owns
+/// why a count above the machine's parallelism is started rather than clamped.
+pub fn workers_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<usize, Diagnostic> {
+    let Some(written) = config.server.as_ref().and_then(|server| server.workers) else {
+        return Ok(this_machine());
+    };
+    if written == 0 {
+        return Err(Diagnostic::error(
+            code::E_NO_WORKERS,
+            "`server.workers` is `0`, which is a server with no core to accept on",
+        )
+        .with_note(format!(
+            "every listening socket is accepted on by a worker, so a count of zero binds the \
+             addresses this tree names and then answers nobody on any of them{}",
+            origin_note(origins.get("server.workers"))
+        ))
+        .with_help(
+            "write how many cores this server accepts on, as `4`, or leave `server.workers` out \
+             to take this machine's own parallelism",
+        ));
+    }
+    // Saturating rather than refusing: a count this platform cannot hold in a `usize` is a number
+    // no machine has cores for, and the fan-out asking for every one of them is what the tree said.
+    Ok(usize::try_from(written).unwrap_or(usize::MAX))
+}
+
+/// What this machine answers, and one core where it answers nothing.
+fn this_machine() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
 }
 
 /// The one URL § 5's probe answers on, or `None` where this server reserves none.

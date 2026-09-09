@@ -870,6 +870,9 @@ pub struct Server {
     pub health_path: Option<String>,
     /// The in-flight ceiling.
     pub max_in_flight: Option<u64>,
+    /// How many cores accept, over this machine's own available parallelism
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+    pub workers: Option<u64>,
     /// The header read wait — one of the waits below, all finite with nothing configured and all
     /// *idle* rather than total. [`mod@crate::server`] reads them into durations and owns what each
     /// one bounds; a `Setting` rather than a `String` so that `"10s"` and a bare `10` spell the

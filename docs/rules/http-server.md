@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*8 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -35,6 +35,7 @@ static             = false                # a mode-selected startup default; dev
 trusted_proxies    = []                   # fail-closed
 health_path        = ""                   # off
 max_in_flight      = 10000
+workers            = 4                    # accept cores; unwritten is this machine's parallelism
 header_timeout     = "10s"
 body_idle_timeout  = "30s"
 write_idle_timeout = "30s"
@@ -43,9 +44,11 @@ keepalive_timeout  = "75s"
 
 The whole block is `Boot`-class ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. `listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file, on the same precedent that makes the mode flag the last word ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)); `--port` alone keeps the host the file chose.
 
+`workers` is the one key here the machine answers a default for, and it is the only one that says how many accept loops there are rather than what one of them does: [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core) owns the count, what a core holds of its own and what every core shares.
+
 The accept loop backs off on descriptor exhaustion and logs once per window rather than once per attempt, and a core that stops making progress is reported and shed by a watchdog reading the in-flight deadline each worker already keeps. The waits, the valve and the probe are their own rules: [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing).
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0106](../decisions/0106.md), [0161](../decisions/0161.md).</sub>
 
 <a id="http-server-a-mount-table-expands-at-boot"></a>
 
@@ -170,6 +173,24 @@ limiting — stays the proxy's. Two things do not: how a message is parsed, whic
 covers as it covers a client call.
 
 <sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0074](../decisions/0074.md).</sub>
+
+<a id="http-server-the-accept-fan-out-is-one-worker-per-core"></a>
+
+## Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism  *(designed — not yet in the compiler)*
+
+`rule:http-server/the-accept-fan-out-is-one-worker-per-core`
+
+`nvs serve` binds every entry of `[server] listen` before it accepts anything, and then starts one worker per core, each holding its own handle on every one of those listeners — so a connection is accepted by whichever core reaches it first, rather than by one core that hands it on.
+
+**`[server] workers` bounds the count, and the default is what the machine answers.** With the key left out the fan-out is [`std::thread::available_parallelism`](https://doc.rust-lang.org/std/thread/fn.available_parallelism.html), so a deployment moved onto a bigger box scales without a directive being edited, and a host that answers nothing at all is one core. A written count is the bound in **both** directions: it is neither raised to the machine's parallelism nor clamped down to it, because a core count a heuristic chose is one the file cannot state, and an operator who sized a container against its CPU quota has already answered the question. `0` is refused under `E0636` — every listener is accepted on by a worker, so a count of zero binds the addresses the tree names and then answers nobody on any of them, which is [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)'s empty `listen` array reached from the other end. There is no `auto` spelling: leaving the key out is what asks for the machine's own answer.
+
+**What the cores share is compiled program text and nothing else.** Every mounted entry is compiled before the first socket is bound, published once behind an `Arc` that every core reads, so the compile count is one per distinct source rather than one per core — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s "shares immutable compiled code", and the same single publisher an edit revalidates through ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)). Everything else a core holds is its own: its scheduler, its run queue, its accept loop and the backoff that loop applies ([`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off)), which is what [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)'s relaxed in-flight counter and [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline)'s per-worker watchdog are already written against.
+
+**A listener the server cannot bind is refused once, before any core starts.** The classification of a `listen` entry belongs to the configuration and not to a core ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), so one deployment mistake is one refusal — a fan-out that bound as it started would report the same wrong entry once per core and would leave a process half-listening while it did.
+
+What it costs, per [`programs/memory-priority`](programs.md#programs-memory-priority): one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). It holds strictly less than a per-core compiled-unit cache would, which is the shape this one replaces.
+
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md).</sub>
 
 <a id="http-server-max-in-flight-refuses-before-allocating"></a>
 

@@ -70,7 +70,7 @@ use std::sync::Arc;
 
 use jiff::Zoned;
 use nvs_config::mount::Mounted;
-use nvs_config::server::{Listen, capacity_for, listen_on, waits_for};
+use nvs_config::server::{Listen, capacity_for, listen_on, waits_for, workers_for};
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
@@ -144,6 +144,14 @@ pub(crate) fn run(
     let ceiling = Ceiling::of(&capacity);
     if let Some(note) = ceiling.clamp_note() {
         eprintln!("note: {note}");
+    }
+    // `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s core count, read at boot
+    // beside the valve because the key is `Boot`-class with the rest of the block. It is a bound
+    // and not a request for one — a written count is neither raised to this machine's parallelism
+    // nor clamped down to it — so the only thing it can refuse is the `0` that leaves nothing
+    // accepting, and this loop accepts on one core.
+    if let Err(diagnostic) = workers_for(&snapshot.config, &origins) {
+        return report(diagnostic, &sources);
     }
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
     // written under `[http.headers]` it is the whole of what every response this
@@ -795,7 +803,9 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 
 #[cfg(test)]
 mod tests {
-    use super::{Listen, SocketAddr, address, sweep_orphans};
+    use super::{Listen, SocketAddr, address, sweep_orphans, workers_for};
+    use std::collections::BTreeMap;
+    use std::num::NonZeroUsize;
     use std::path::PathBuf;
 
     fn tcp(written: &str) -> Listen {
@@ -899,5 +909,41 @@ mod tests {
             address(&configured, None, Some(8080)).expect("the flag is the last word"),
             "127.0.0.1:8080".parse::<SocketAddr>().expect("parses")
         );
+    }
+
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s count, from every direction
+    /// it has, because the key's whole content is which answer wins.
+    ///
+    /// The default is asserted against this machine's own parallelism rather than against a number
+    /// the case picked, since a resolution that answered a constant — `1`, or the ADR's example —
+    /// would pass against anything else. The written count is asserted **above** the machine's own
+    /// as well as below it: a clamp against the box is exactly what the goal's § *Standing
+    /// decisions* refuses, and only the high side can tell one from a bound that merely happens to
+    /// agree. `0` is the one refusal, on `listen = []`'s reasoning reached from the other end.
+    #[test]
+    fn a_server_workers_key_bounds_the_count_and_defaults_to_available_parallelism() {
+        let origins = BTreeMap::new();
+        let machine = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
+        for written in ["", "[server]\nlisten = [\"127.0.0.1:8000\"]\n"] {
+            assert_eq!(
+                workers_for(&config_of(written), &origins).expect("an unwritten count was refused"),
+                machine,
+                "for {written:?}"
+            );
+        }
+        for count in [1, machine, machine + 7] {
+            assert_eq!(
+                workers_for(
+                    &config_of(&format!("[server]\nworkers = {count}\n")),
+                    &origins
+                )
+                .expect("a written count was refused"),
+                count,
+                "for {count}"
+            );
+        }
+        let refused = workers_for(&config_of("[server]\nworkers = 0\n"), &origins)
+            .expect_err("a server with no core to accept on was started");
+        assert_eq!(refused.code, Some(nvs_diagnostics::code::E_NO_WORKERS));
     }
 }

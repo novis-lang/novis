@@ -1777,6 +1777,21 @@ pub mod code {
     /// would have caught it.
     pub const E_NO_UNIX_TRANSPORT: Code = Code::new("E0635");
 
+    /// A `[server] workers` written as `0`.
+    ///
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`
+    /// : every listening socket this server binds is accepted on by a worker,
+    /// so a count of zero is a process that takes the addresses the tree names
+    /// and then answers nobody on any of them — `E0620`'s empty `listen`
+    /// reached from the other end.
+    ///
+    /// Only zero is refused. The key is the bound rather than a request for
+    /// one, so a count above what the machine answers
+    /// `available_parallelism` with is what the operator asked for and is
+    /// started: a heuristic that knew better than the block would make the
+    /// core count something the file cannot state.
+    pub const E_NO_WORKERS: Code = Code::new("E0636");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
