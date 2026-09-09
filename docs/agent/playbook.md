@@ -3800,6 +3800,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs_runtime::call(crate::csv::nvs_core_csv_format, &mut Ctx::buffered(), &args)` drives one, with
   `ctx.take_pending()` for the refusal. Build the argument list its parameters take and release it
   yourself — the callee borrows its args. [until: reviewed 2026-09-09]
+- **A `.nvst` case that pins a log record now pins its own line numbers.**
+  `rule:errors/a-record-names-where-it-was-produced` puts
+  `"source":{"file":"case.nvs","line":N}` on every `Core\Log::write` record and
+  ` at case.nvs:N` on the plaintext one, so a comment added anywhere above a
+  write moves an expectation that had nothing to do with it. Write the prose
+  first and take the numbers from the runner's own `actual:` block afterwards,
+  never the other way round. [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 

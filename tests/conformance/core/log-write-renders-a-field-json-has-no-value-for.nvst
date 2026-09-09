@@ -18,5 +18,5 @@ Core\Log::write(Core\Log\Level::Error, "captured", $binary);
 // of a failed write.
 Core\Log::write(Core\Log\Level::Info, "after");
 --EXPECT--
-{"level":"error","msg":"captured","fields":{"payload":{"$bytes":"74657874"}}}
-{"level":"info","msg":"after"}
+{"level":"error","msg":"captured","source":{"file":"case.nvs","line":9},"fields":{"payload":{"$bytes":"74657874"}}}
+{"level":"info","msg":"after","source":{"file":"case.nvs","line":16}}

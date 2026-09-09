@@ -26,6 +26,6 @@ format = "text"
 [capabilities.fs]
 read = ["."]
 --EXPECT--
-[error] the application said so
+[error] the application said so at case.nvs:12
   user => int(7)
-[warn] and again
+[warn] and again at case.nvs:17

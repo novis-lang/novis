@@ -3211,6 +3211,11 @@ impl<'a> Lowering<'a> {
             let written_class =
                 nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
                     .then(|| self.written_type_constants(*cur, call));
+            // A member on `nvs_stdlib::registry::RECORD_PRODUCERS` is handed
+            // where it was called, as argument 0 — `Lowering::producer_source`
+            // owns the position and why it is emitted here.
+            let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
+                .then(|| self.producer_source(*cur));
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3227,7 +3232,8 @@ impl<'a> Lowering<'a> {
             }
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let mut arg_values = Vec::with_capacity(values.len() + 3);
+            let mut arg_values = Vec::with_capacity(values.len() + 4);
+            arg_values.extend(source);
             arg_values.extend(written_class.into_iter().flatten());
             arg_values.push(object_v);
             arg_values.extend(values);
@@ -3416,12 +3422,17 @@ impl<'a> Lowering<'a> {
             let written_class =
                 nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
                     .then(|| self.written_type_constants(*cur, call));
+            // A member on `nvs_stdlib::registry::RECORD_PRODUCERS` is handed
+            // where it was called, as argument 0 — `Lowering::producer_source`
+            // owns the position.
+            let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
+                .then(|| self.producer_source(*cur));
             let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let arg_values = written_class
+            let arg_values = source
                 .into_iter()
-                .flatten()
+                .chain(written_class.into_iter().flatten())
                 .chain(lowered.values)
                 .collect::<Vec<_>>();
             let result = self.emit_fallible(

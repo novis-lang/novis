@@ -74,7 +74,7 @@
 //! and lands on [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic)
 //! instead, beside where [`crate::debug`] sends a dump.
 
-use nvs_render::{Level, Node, Record, Rendered};
+use nvs_render::{Level, Node, Record, Rendered, Source};
 use nvs_runtime::{Ctx, Fault, LogChannel, Value};
 
 use crate::registry::{
@@ -211,10 +211,15 @@ nvs_runtime::nvs_helper! {
     /// Where that one call lands is
     /// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record)'s, not
     /// this member's — the module doc's § *Where the bytes go* owns the split.
-    fn nvs_core_log_write(ctx, args: [3]) {
-        let level = level_of(&args[0])?;
-        let message = message_of(&args[1])?;
-        let record = record(ctx, level, message, args[2]);
+    fn nvs_core_log_write(ctx, args: [4]) {
+        #[expect(
+            unsafe_code,
+            reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
+        )]
+        let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
+        let level = level_of(&args[1])?;
+        let message = message_of(&args[2])?;
+        let record = record(ctx, source, level, message, args[3]);
         // Unreachable from source. Absent a `[log] target` the destination is
         // the process's own output stream, which nothing in the language moves
         // or closes — the reason `Core\Debug::dump`'s own write gives. With one
@@ -273,6 +278,12 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
 /// This call as `rule:errors/diagnostic-record`'s record — the envelope fields this crate has a
 /// source for, and the bag as named nodes.
 ///
+/// `source` is the one field neither this crate nor the context can answer for:
+/// `rule:errors/a-record-names-where-it-was-produced` makes it a property of the
+/// *call site*, so it arrives as the constant
+/// [`crate::registry::RECORD_PRODUCERS`] puts in argument 0 and is set here
+/// rather than by [`Ctx::stamp_envelope`], which answers for the request.
+///
 /// Everything past building it belongs elsewhere: which keys a rendering
 /// writes and that an absent one is omitted rather than empty are
 /// `nvs-render`'s, and *which* rendering is
@@ -280,9 +291,10 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
 /// `[log] format`. That is `rule:errors/log-write`'s *one implementation, two callers* —
 /// the engine floor builds the same `Record` and hands it to the same method,
 /// so neither this member nor the floor has a rendering to choose.
-fn record(ctx: &Ctx, level: Level, message: &str, fields: Value) -> Record {
+fn record(ctx: &Ctx, source: Option<Source>, level: Level, message: &str, fields: Value) -> Record {
     let mut record = Record::at(level);
     record.envelope.message = Some(Rendered::new(message));
+    record.envelope.source = source;
     record.envelope.fields = named(fields);
     // § 6's other four envelope keys, from the one place that has them and for
     // both of that section's writers — [`Ctx::stamp_envelope`]'s own doc owns
@@ -324,7 +336,7 @@ fn named(fields: Value) -> Vec<(String, Node)> {
 
 #[cfg(test)]
 mod tests {
-    use nvs_render::Level;
+    use nvs_render::{Level, Source};
     use nvs_runtime::logfile::LogFile;
     use nvs_runtime::{
         ClassTable, Ctx, ErrorClass, Inbound, NvsArray, NvsStr, OutputSink, TraceContext, Value,
@@ -405,6 +417,7 @@ mod tests {
             nvs_core_log_write,
             &mut ctx,
             &[
+                no_source(),
                 Value::int(error_severity()),
                 Value::str(NvsStr::new(thrown.message().as_bytes())),
                 Value::array(fields),
@@ -429,6 +442,90 @@ mod tests {
             ) && written.ends_with("\"}}\n"),
             "and the shape both wrote is § 6's — the envelope keys they have a \
              source for, then the bag, and nothing empty: {written}"
+        );
+    }
+
+    /// The zero word [`crate::registry::RECORD_PRODUCERS`] hands a producer
+    /// with no call site — what a test driving the helper by hand holds, there
+    /// being no compiled unit under it to have baked a carrier.
+    fn no_source() -> Value {
+        Value::source_const(std::ptr::null())
+    }
+
+    /// One `Core\Log::write` of `"a message"` from `source`, as the line it
+    /// wrote — the whole helper, so what is asserted is what a target receives.
+    fn from_source(source: Value) -> String {
+        let mut ctx = Ctx::buffered();
+        call(
+            nvs_core_log_write,
+            &mut ctx,
+            &[
+                source,
+                Value::int(error_severity()),
+                Value::str(NvsStr::new(b"a message")),
+                Value::array(NvsArray::new()),
+            ],
+        )
+        .expect("a buffered sink is the one output that cannot fail");
+        String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a buffered context hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text")
+    }
+
+    /// `rule:errors/a-record-names-where-it-was-produced`'s member half: a
+    /// record produced inside a method names it, and one produced at file scope
+    /// names the file and the line alone rather than an empty member.
+    ///
+    /// Read off the rendered line rather than off the envelope, because the
+    /// omission is only a *fact* once a rendering has had the chance to write
+    /// the key — the same reason
+    /// [`a_field_with_no_value_is_omitted_rather_than_empty`] asks its question
+    /// of the serialiser.
+    #[test]
+    fn a_log_record_reports_its_enclosing_member_and_none_at_file_scope() {
+        let inside = nvs_runtime::source::encode(&Source {
+            file: "app/Handler.nvs".to_owned(),
+            line: 118,
+            member: Some("Handler::respond".to_owned()),
+        });
+        let at_scope = nvs_runtime::source::encode(&Source {
+            file: "script.nvs".to_owned(),
+            line: 3,
+            member: None,
+        });
+        let member = from_source(Value::source_const(inside.as_ptr()));
+        let scope = from_source(Value::source_const(at_scope.as_ptr()));
+        assert!(
+            member.contains(
+                "\"source\":{\"file\":\"app/Handler.nvs\",\"line\":118,\
+                 \"member\":\"Handler::respond\"}"
+            ),
+            "a record produced in a member names it: {member}"
+        );
+        assert!(
+            scope.contains("\"source\":{\"file\":\"script.nvs\",\"line\":3}"),
+            "and a script's own statement names the file and the line: {scope}"
+        );
+        assert!(
+            !scope.contains("member"),
+            "with no member key at all, rather than an empty one: {scope}"
+        );
+    }
+
+    /// `rule:errors/a-record-names-where-it-was-produced`'s other end: a
+    /// producer the compiler had no call site for is handed the zero word, and
+    /// the record it writes has no `source` key rather than an empty one.
+    ///
+    /// The whole line, not a `contains`: an empty envelope key would print
+    /// plausibly against any assertion made about the keys around it.
+    #[test]
+    fn a_producer_with_no_source_omits_the_field_rather_than_rendering_it_empty() {
+        assert_eq!(
+            from_source(no_source()),
+            "{\"level\":\"error\",\"msg\":\"a message\"}\n",
+            "the envelope's existing rule, applied to one more field"
         );
     }
 
@@ -466,6 +563,7 @@ mod tests {
             nvs_core_log_write,
             ctx,
             &[
+                no_source(),
                 Value::int(error_severity()),
                 Value::str(NvsStr::new(message.as_bytes())),
                 Value::array(NvsArray::new()),
@@ -764,6 +862,7 @@ mod tests {
             nvs_core_log_write,
             &mut ctx,
             &[
+                no_source(),
                 Value::int(error_severity()),
                 Value::str(NvsStr::new(b"the application said so")),
                 Value::array(NvsArray::new()),
@@ -834,6 +933,7 @@ mod tests {
                 nvs_core_log_write,
                 &mut ctx,
                 &[
+                    no_source(),
                     Value::int(level.syslog_severity().into()),
                     Value::str(NvsStr::new(level.name().as_bytes())),
                     Value::array(NvsArray::new()),
@@ -895,6 +995,7 @@ mod tests {
             nvs_core_log_write,
             &mut ctx,
             &[
+                no_source(),
                 Value::int(Level::Error.syslog_severity().into()),
                 Value::str(NvsStr::new(b"the application said so")),
                 Value::array(NvsArray::new()),

@@ -12,14 +12,19 @@ Core\Log::write(Core\Log\Level::Warn, "a retry");
 Core\Log::write(Core\Log\Level::Info, "started");
 Core\Log::write(Core\Log\Level::Debug, "detail");
 
+// Each line names where it was written, by
+// `rule:errors/a-record-names-where-it-was-produced`: the file as the program
+// named it and the statement's own one-based line, with no `member` key at all
+// at file scope rather than an empty one.
+
 // `rule:errors/log-write` chose JSON over logfmt for exactly this: whatever a message
 // wanted to be, a record is one line, and the quoting is the encoder's rather
 // than a judgement made at the site that writes it.
 Core\Log::write(Core\Log\Level::Info, "a \"quoted\" word\nand a second line");
 --EXPECT--
-{"level":"critical","msg":"the floor"}
-{"level":"error","msg":"an operation failed"}
-{"level":"warn","msg":"a retry"}
-{"level":"info","msg":"started"}
-{"level":"debug","msg":"detail"}
-{"level":"info","msg":"a \"quoted\" word\nand a second line"}
+{"level":"critical","msg":"the floor","source":{"file":"case.nvs","line":6}}
+{"level":"error","msg":"an operation failed","source":{"file":"case.nvs","line":7}}
+{"level":"warn","msg":"a retry","source":{"file":"case.nvs","line":8}}
+{"level":"info","msg":"started","source":{"file":"case.nvs","line":9}}
+{"level":"debug","msg":"detail","source":{"file":"case.nvs","line":10}}
+{"level":"info","msg":"a \"quoted\" word\nand a second line","source":{"file":"case.nvs","line":20}}

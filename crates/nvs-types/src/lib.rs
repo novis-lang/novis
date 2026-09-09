@@ -249,6 +249,7 @@ pub use nvs_stdlib::html::{
     MARKUP_SYMBOL as CORE_HTML_MARKUP,
 };
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
+pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::router::link::{
     ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SYMBOL as CORE_ROUTE_LINK,

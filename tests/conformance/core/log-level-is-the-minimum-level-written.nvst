@@ -32,5 +32,5 @@ level = "Warn"
 [capabilities.fs]
 read = ["."]
 --EXPECT--
-{"level":"warn","msg":"the floor itself"}
-{"level":"error","msg":"above the floor"}
+{"level":"warn","msg":"the floor itself","source":{"file":"case.nvs","line":22}}
+{"level":"error","msg":"above the floor","source":{"file":"case.nvs","line":23}}

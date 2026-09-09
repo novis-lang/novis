@@ -592,6 +592,35 @@ impl Value {
         }
     }
 
+    /// A `rule:errors/a-record-names-where-it-was-produced` carrier in a slot,
+    /// as [`crate::source`] lays one out — the encoding side of
+    /// [`Self::as_source_const`], on [`Self::shape_codec`]'s convention
+    /// exactly.
+    #[must_use]
+    pub fn source_const(blob: *const u8) -> Self {
+        Self::new(Tag::Null, blob as usize as u64)
+    }
+
+    /// The `rule:errors/a-record-names-where-it-was-produced` carrier a
+    /// producer's argument 0 holds — [`Self::as_shape_codec`]'s twin, and a
+    /// third named accessor rather than a generic payload read for that
+    /// method's reason.
+    ///
+    /// The zero word answers `None` here as it does there: a producer reached
+    /// with no call site to name is handed one, and [`crate::source::decode`]
+    /// is what turns the rest into a source.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the payload is a pointer `nvs-codegen` widened to u64 when it stored the slot, so narrowing it back is exact on every target"
+    )]
+    pub const fn as_source_const(self) -> Option<*const u8> {
+        match self.tag() {
+            Some(Tag::Null) if self.bits != 0 => Some(self.bits as usize as *const u8),
+            _ => None,
+        }
+    }
+
     /// The array payload's header pointer, if this value is an array.
     #[must_use]
     #[expect(

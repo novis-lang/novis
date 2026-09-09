@@ -78,7 +78,7 @@
 //!    to a `Core` member — see `nvs_render`'s own § *Where this sits* for the
 //!    crate edge it needs first.
 
-use nvs_render::{Caps, Elision, Level, Node, Record, Rendered, Scalar};
+use nvs_render::{Caps, Elision, Level, Node, Record, Rendered, Scalar, Source};
 use nvs_runtime::{Fault, NvsObj, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
@@ -165,14 +165,21 @@ nvs_runtime::nvs_helper! {
     /// written to the diagnostic channel.
     ///
     /// The tail arrives as one `array` argument holding the arguments under
-    /// `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`] owns why — so
-    /// this is an ordinary one-slot helper.
+    /// `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`] owns why — and
+    /// ahead of it is where this call was written, which
+    /// [`crate::registry::RECORD_PRODUCERS`] puts in argument 0 and owns the
+    /// position of.
     ///
     /// A dump with no arguments at all writes nothing rather than an empty
     /// line: `Core\Debug::dump()` says nothing, and a blank line in a build
     /// log is worse than silence.
-    fn nvs_core_debug_dump(ctx, args: [1]) {
-        let record = record_of(&args[0])?;
+    fn nvs_core_debug_dump(ctx, args: [2]) {
+        #[expect(
+            unsafe_code,
+            reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
+        )]
+        let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
+        let record = record_of(source, &args[1])?;
         if record.nodes.is_empty() {
             return Ok(Value::null());
         }
@@ -217,8 +224,15 @@ pub(crate) fn node(value: Value) -> Node {
 
 /// `rule:errors/record-producers`'s *"a record at `Debug`, one node per argument"* — the whole
 /// of what `dump` produces, and the shape M8's log record is built from too.
-fn record_of(tail: &Value) -> Result<Record, Fault> {
+///
+/// `source` is where the call was written, in the argument order the ABI hands
+/// it over in: on the envelope rather than among the nodes, because
+/// `rule:errors/a-record-names-where-it-was-produced` makes it a property of the
+/// record and not one of the values dumped. `None` is the producer with no call
+/// site, whose field every rendering omits.
+fn record_of(source: Option<Source>, tail: &Value) -> Result<Record, Fault> {
     let mut record = Record::at(Level::Debug);
+    record.envelope.source = source;
     let caps = Caps::default();
     // Unreachable from source: `dump`'s one parameter is `CoreTy::Variadic`,
     // so `nvs_ir::lower::lower_call_args` builds this `array<mixed>` rather
@@ -604,7 +618,12 @@ mod tests {
         let mut tail = nvs_runtime::NvsArray::new();
         tail.append(Value::int(7));
         let tail = Value::array(tail);
-        nvs_runtime::call(nvs_core_debug_dump, &mut ctx, &[tail]).expect("a dump cannot fail");
+        nvs_runtime::call(
+            nvs_core_debug_dump,
+            &mut ctx,
+            &[Value::source_const(std::ptr::null()), tail],
+        )
+        .expect("a dump cannot fail");
         assert_eq!(
             ctx.take_buffered_diagnostic().as_deref(),
             Some(b"int(7)\n".as_slice())
@@ -614,6 +633,53 @@ mod tests {
             unsafe_code,
             reason = "this frame built the array and still owns the only \
                       reference to it; the helper borrowed it"
+        )]
+        unsafe {
+            tail.release();
+        }
+    }
+
+    /// `rule:errors/a-record-names-where-it-was-produced`: the record a dump
+    /// produces names the file, line and member its own call was written at,
+    /// read off the constant [`crate::registry::RECORD_PRODUCERS`] puts in
+    /// argument 0.
+    ///
+    /// Asserted on the record rather than on what the channel shows, because
+    /// `rule:errors/debug-dump` sends a dump's *nodes* to the terminal and
+    /// renders no envelope there. The datum is on the record for the renderings
+    /// that do carry one — `nvs_render::json` writes every envelope key — and
+    /// putting it anywhere else would be the second construction § 1 refuses.
+    #[test]
+    fn a_dump_reports_the_line_it_was_written_on() {
+        let written_at = Source {
+            file: "app/Main.nvs".to_owned(),
+            line: 42,
+            member: Some("Main::main".to_owned()),
+        };
+        let blob = nvs_runtime::source::encode(&written_at);
+        #[expect(
+            unsafe_code,
+            reason = "this frame baked the blob and it outlives the read"
+        )]
+        let source = unsafe { nvs_runtime::source::of_operand(Value::source_const(blob.as_ptr())) };
+        let mut tail = nvs_runtime::NvsArray::new();
+        tail.append(Value::int(7));
+        let tail = Value::array(tail);
+        let record = record_of(source, &tail).expect("a variadic tail is an array");
+        assert_eq!(
+            record.envelope.source,
+            Some(written_at),
+            "one datum, carried from the call site to the envelope unchanged"
+        );
+        assert_eq!(
+            record.nodes.len(),
+            1,
+            "and the value dumped is still the record's one node"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the array and still owns the only \
+                      reference to it; the record borrowed it"
         )]
         unsafe {
             tail.release();

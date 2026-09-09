@@ -620,9 +620,20 @@ pub(crate) fn lower_callable(
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
         let written = nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
             .then(|| low.written_type_constants(cur, call));
-        let args = written
+        // A producer reached through a callable reference is handed the zero
+        // word rather than this thunk's own position: the record is produced
+        // wherever the callable is later invoked, and the line that wrote the
+        // reference is not that place. `rule:errors/a-record-names-where-it-was-produced`
+        // omits the field rather than naming somewhere the program did not
+        // produce a record.
+        let source =
+            nvs_types::core_takes_source(&call.class.to_string(), &call.method).then(|| {
+                low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
+                    .0
+            });
+        let args = source
             .into_iter()
-            .flatten()
+            .chain(written.into_iter().flatten())
             .chain(receiver)
             .chain(args)
             .collect::<Vec<_>>();

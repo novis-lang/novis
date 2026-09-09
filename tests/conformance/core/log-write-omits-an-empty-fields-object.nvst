@@ -24,7 +24,7 @@ Core\Log::write(Core\Log\Level::Warn, "mixed", $several);
 array<mixed> $none = [];
 Core\Log::write(Core\Log\Level::Info, "bare", $none);
 --EXPECT--
-{"level":"info","msg":"bare"}
-{"level":"info","msg":"given","fields":{"user":7}}
-{"level":"warn","msg":"mixed","fields":{"ratio":1.5,"retried":true,"codes":[1,2]}}
-{"level":"info","msg":"bare"}
+{"level":"info","msg":"bare","source":{"file":"case.nvs","line":5}}
+{"level":"info","msg":"given","source":{"file":"case.nvs","line":8},"fields":{"user":7}}
+{"level":"warn","msg":"mixed","source":{"file":"case.nvs","line":16},"fields":{"ratio":1.5,"retried":true,"codes":[1,2]}}
+{"level":"info","msg":"bare","source":{"file":"case.nvs","line":22}}

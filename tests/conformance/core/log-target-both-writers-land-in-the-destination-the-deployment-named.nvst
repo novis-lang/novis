@@ -37,5 +37,5 @@ target = "file:app.log"
 read = ["."]
 --EXPECTF--
 the program's own output
-{"level":"error","msg":"the application said so"}
+{"level":"error","msg":"the application said so","source":{"file":"case.nvs","line":23}}
 {"level":"error","msg":"the floor said so","fields":{"class":"RuntimeError","backtrace":"%s","origin":"exit-hook"}}

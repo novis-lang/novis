@@ -2003,6 +2003,25 @@ impl<'a> Lowering<'a> {
         [desc, list, codec]
     }
 
+    /// The constant a producer on `nvs_stdlib::registry::RECORD_PRODUCERS`
+    /// takes as its argument 0: where this call site is, as
+    /// [`InstKind::SourceConst`] carries it.
+    ///
+    /// Ahead of everything the call itself wrote, receiver included, for the
+    /// reason that roster's twin gives — what a producer is handed here is a
+    /// constant *of* the call rather than a value in it, and one position for
+    /// every producer beats a position that moves. `dump` is variadic, so a
+    /// trailing slot would be a slot no reader of `args` can point at.
+    ///
+    /// Not refcounted, so nothing retains or releases it, and emitted before
+    /// the receiver is opened so that a `?->` guard's branch cannot come
+    /// between a constant and its use — both for [`Self::written_type_constants`]'s
+    /// reasons exactly.
+    pub(crate) fn producer_source(&mut self, b: BlockId) -> ValueId {
+        let source = Some(self.source());
+        self.emit(b, Ty::ClassDesc, InstKind::SourceConst { source })
+            .0
+    }
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();
         self.block_insts[b.index() as usize].push(Inst {

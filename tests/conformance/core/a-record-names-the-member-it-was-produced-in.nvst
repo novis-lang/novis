@@ -1,0 +1,24 @@
+--TEST--
+A record names the file, line and enclosing member it was produced at, and a record produced at file scope names no member at all -- `rule:errors/a-record-names-where-it-was-produced`
+--FILE--
+<?nvs
+// The datum is the *producer's own* call site, not the frame that reached it:
+// `Orders::place` writes the first record, so that is the member on it, however
+// many calls deep the script was when it got there. One derivation, filled from
+// a constant the compiler baked at the call -- never a stack walked at run time,
+// which is what the rule declines to buy.
+class Orders {
+    public static function place(): void {
+        Core\Log::write(Core\Log\Level::Info, "placed");
+    }
+}
+
+Orders::place();
+
+// A statement at file scope has a file and a line and no member to name, so the
+// key is omitted rather than written empty -- the envelope's existing rule,
+// applied to the one field a call site fills.
+Core\Log::write(Core\Log\Level::Info, "done");
+--EXPECT--
+{"level":"info","msg":"placed","source":{"file":"case.nvs","line":9,"member":"Orders::place"}}
+{"level":"info","msg":"done","source":{"file":"case.nvs","line":18}}

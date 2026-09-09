@@ -2585,6 +2585,45 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose helper is handed **where it was called**,
+/// as an extra leading argument — `rule:errors/a-record-names-where-it-was-produced`'s
+/// file, one-based line and enclosing `Class::member`.
+///
+/// A record says where it was produced and only the compiler knows, so the
+/// datum arrives as a constant of the call: `nvs_ir::ir::InstKind::SourceConst`
+/// carries what `nvs_ir::lower::Lowering::source` derived, `nvs-codegen` bakes
+/// `nvs_runtime::source::encode`'s bytes into the unit, and the helper reads
+/// them back through `nvs_runtime::source::of_operand`. A member on this roster
+/// therefore has `args: [N]` **one more** than [`CoreMethod::params`] counts.
+///
+/// **The constant is always argument 0**, ahead of the receiver and of
+/// everything the call wrote, which is [`WRITTEN_CLASS_MEMBERS`]' rule for its
+/// own block and holds here for one more reason: `Core\Debug::dump` is
+/// variadic, so a trailing slot would be one no reader of `args` can point at.
+/// No member is on both rosters, and one that joined both would be deciding an
+/// order between two blocks that each claim the front — a decision to take
+/// then, not a collision to discover at a call site.
+///
+/// **The zero word is a producer with no call site**, which is the thunk a
+/// callable reference synthesizes: that record is produced wherever the
+/// callable is later invoked, and the envelope omits the field rather than
+/// naming the line that wrote the reference.
+///
+/// **`Core\Debug::render` is deliberately not here.** It answers a *rendering*
+/// — `rule:errors/debug-dump`'s nodes, without an envelope — so a source it was
+/// handed would reach no reader, and a slot nothing reads is a slot that goes
+/// wrong quietly.
+pub const RECORD_PRODUCERS: &[(&str, &str)] =
+    &[(crate::debug::NAME, "dump"), (crate::log::NAME, "write")];
+
+/// Whether `class::method` is one of [`RECORD_PRODUCERS`].
+#[must_use]
+pub fn takes_source(class: &str, method: &str) -> bool {
+    RECORD_PRODUCERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of `Core`-owned **generic** classes, each with the type
 /// parameters it declares, in order — spec § 9's three collections.
 ///
