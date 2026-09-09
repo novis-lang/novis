@@ -105,6 +105,9 @@ modules = [
   "crates/nvs-runtime/src/capability.rs",
   # `nvs agent` — the surface a coding agent reads the language through.
   "crates/nvs-cli/src/agent.rs",
+  # `rule:security/capability-question-is-grant-and-scope`'s capability question: a grant, a
+  # scope, and the `bool` the two of them answer.
+  "crates/nvs-config/src/capability.rs",
 ]
 
 # The rules every stage of this goal works inside.
