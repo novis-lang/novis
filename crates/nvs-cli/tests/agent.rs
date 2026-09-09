@@ -8,6 +8,7 @@
 //! property the index exists to have, and a count passes over a member swapped
 //! for another.
 
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// `nvs agent <args...>`, as `(stdout, stderr, success)`.
@@ -352,5 +353,259 @@ fn show_on_an_unknown_symbol_exits_non_zero_naming_the_nearest_matches() {
     assert!(
         err.contains(r"Core\Str::length"),
         "the refusal names the symbol meant: {err}"
+    );
+}
+
+/// A fresh empty directory named for the test that owns it, so two tests never
+/// share a working directory.
+fn tree(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("nvs-agent-init-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
+    dir
+}
+
+/// `nvs agent init <args...>`, run *in* `dir`, as `(stdout, stderr, success)`.
+fn init(dir: &Path, args: &[&str]) -> (String, String, bool) {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["agent", "init"])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    (
+        String::from_utf8(out.stdout).expect("the output is UTF-8"),
+        String::from_utf8(out.stderr).expect("the output is UTF-8"),
+        out.status.success(),
+    )
+}
+
+/// Every file under `dir`, relative to it with `/` separators and sorted, so a
+/// test asserts on the whole tree rather than on the files it thought to check.
+fn files(dir: &Path) -> Vec<String> {
+    fn walk(root: &Path, at: &Path, out: &mut Vec<String>) {
+        for entry in std::fs::read_dir(at).expect("the fixture directory is readable") {
+            let path = entry.expect("the entry is readable").path();
+            if path.is_dir() {
+                walk(root, &path, out);
+            } else {
+                let relative = path
+                    .strip_prefix(root)
+                    .expect("the entry is under the root");
+                out.push(relative.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(dir, dir, &mut out);
+    out.sort();
+    out
+}
+
+/// One of the fixture's files, as text.
+fn read(dir: &Path, relative: &str) -> String {
+    std::fs::read_to_string(dir.join(relative)).expect("the file this run wrote is readable")
+}
+
+/// A tree with no harness in it gets the harness-neutral pointer and nothing
+/// else, because an adapter is written for a harness that is present and this
+/// tree shows none.
+#[test]
+fn init_in_an_empty_tree_writes_the_agents_stanza_and_nothing_else() {
+    let dir = tree("empty");
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(ok, "`nvs agent init` succeeds: {err}");
+    assert_eq!(files(&dir), vec!["AGENTS.md".to_owned()]);
+
+    let stanza = read(&dir, "AGENTS.md");
+    for command in [
+        "nvs agent primer",
+        "nvs agent index",
+        "nvs agent find",
+        "nvs agent show",
+    ] {
+        assert!(stanza.contains(command), "the stanza names `{command}`");
+    }
+    assert!(
+        stanza.contains("nvs check"),
+        "the stanza names the check loop"
+    );
+    assert!(out.contains("AGENTS.md"), "it says what it wrote: {out}");
+}
+
+/// The stanza is a region of a file the project owns, so a second run finds its
+/// own markers and leaves everything between them — and everything outside
+/// them — exactly as it was.
+#[test]
+fn init_run_twice_changes_nothing_the_first_run_wrote() {
+    let dir = tree("twice");
+    let theirs = "# Working on this project\n\nOur own rules, which this does not touch.\n";
+    std::fs::write(dir.join("AGENTS.md"), theirs).expect("the project's own file is written");
+
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the first run succeeds: {err}");
+    let after_one = read(&dir, "AGENTS.md");
+    assert!(
+        after_one.starts_with(theirs),
+        "the stanza lands beside the project's own instructions, not instead of them"
+    );
+
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the second run succeeds: {err}");
+    assert_eq!(read(&dir, "AGENTS.md"), after_one, "and wrote nothing new");
+    assert_eq!(files(&dir), vec!["AGENTS.md".to_owned()]);
+}
+
+/// Whether a changed stanza is an edit or an upgrade is not something this can
+/// see, so it refuses both — overwriting a reader's own sentence is the worse of
+/// the two mistakes, and the refusal names the file and the way out.
+#[test]
+fn init_refuses_to_overwrite_a_stanza_that_has_been_edited() {
+    let dir = tree("edited");
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the first run succeeds: {err}");
+
+    let written = read(&dir, "AGENTS.md");
+    let edited = written.replace("nvs agent index", "nvs agent index  (we run this in CI)");
+    assert_ne!(edited, written, "the edit landed inside the stanza");
+    std::fs::write(dir.join("AGENTS.md"), &edited).expect("the edited file is written");
+
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(!ok, "an edited stanza is a refusal: {out}");
+    assert!(
+        err.contains("AGENTS.md"),
+        "the refusal names the file: {err}"
+    );
+    assert_eq!(read(&dir, "AGENTS.md"), edited, "and it changed nothing");
+}
+
+/// A harness is detected by the directory it already keeps in the project, so a
+/// tree with `.claude/` in it gets the skill beside the neutral stanza and a
+/// tree without one does not — which is the whole of the detection.
+#[test]
+fn init_writes_the_claude_skill_when_that_harness_is_present() {
+    let dir = tree("claude");
+    std::fs::create_dir_all(dir.join(".claude")).expect("the harness's own directory");
+
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(ok, "`nvs agent init` succeeds: {err}");
+    assert_eq!(
+        files(&dir),
+        vec![
+            ".claude/skills/novis/SKILL.md".to_owned(),
+            "AGENTS.md".to_owned(),
+        ]
+    );
+    assert!(
+        out.contains(".claude/skills/novis/SKILL.md"),
+        "it says what it wrote: {out}"
+    );
+
+    let (_, err, ok) = init(&dir, &[]);
+    assert!(ok, "the second run succeeds: {err}");
+    assert_eq!(
+        files(&dir),
+        vec![
+            ".claude/skills/novis/SKILL.md".to_owned(),
+            "AGENTS.md".to_owned(),
+        ]
+    );
+}
+
+/// Every pointer `--all` writes, as `(path, text)`, which is the whole set the
+/// two tests below hold to the rule — asked for by the flag rather than by
+/// naming the harnesses, so a row added to the table is covered the day it lands.
+fn pointers(name: &str) -> Vec<(String, String)> {
+    let dir = tree(name);
+    let (_, err, ok) = init(&dir, &["--all"]);
+    assert!(ok, "`nvs agent init --all` succeeds: {err}");
+    let paths = files(&dir);
+    assert!(
+        paths.len() > 1,
+        "`--all` writes the adapters as well as the stanza: {paths:?}"
+    );
+    paths
+        .into_iter()
+        .map(|path| {
+            let text = read(&dir, &path);
+            (path, text)
+        })
+        .collect()
+}
+
+/// A pointer says where to ask and how to check the answer, and that is the
+/// entire reason it exists — so each one names all four commands and the check
+/// loop, in whatever shape its harness reads.
+#[test]
+fn every_adapter_names_the_agent_commands_and_the_check_loop() {
+    for (path, text) in pointers("names-the-commands") {
+        for command in [
+            "nvs agent primer",
+            "nvs agent index",
+            "nvs agent find",
+            "nvs agent show",
+            "nvs check",
+        ] {
+            assert!(text.contains(command), "{path} names `{command}`");
+        }
+    }
+}
+
+/// `rule:tooling/an-adapter-carries-protocol-and-never-language`, as the thing
+/// that fails when it is broken: a signature, a type name or a refusal copied
+/// into a pointer is a copy that goes stale the day the member changes, and the
+/// agent reading it has no way to know it is old.
+#[test]
+fn no_adapter_contains_a_member_signature_a_type_name_or_a_refusal() {
+    for (path, text) in pointers("no-language-content") {
+        for needle in [
+            "Core\\",
+            "$",
+            "RuntimeError",
+            "not granted",
+            "<?nvs",
+            "function ",
+            "public ",
+        ] {
+            assert!(
+                !text.contains(needle),
+                "{path} states a language fact: it contains `{needle}`"
+            );
+        }
+    }
+}
+
+/// The skill is found and summarised by its front matter, so a missing key makes
+/// it invisible to the harness rather than wrong — which is a failure nothing
+/// else in this suite would see.
+#[test]
+fn the_claude_skill_carries_a_name_and_a_description_in_its_front_matter() {
+    let dir = tree("front-matter");
+    let (_, err, ok) = init(&dir, &["--all"]);
+    assert!(ok, "`nvs agent init --all` succeeds: {err}");
+
+    let skill = read(&dir, ".claude/skills/novis/SKILL.md");
+    let mut lines = skill.lines();
+    assert_eq!(
+        lines.next(),
+        Some("---"),
+        "the file opens on its front matter"
+    );
+    let front: Vec<&str> = lines.take_while(|line| *line != "---").collect();
+    assert!(
+        !front.is_empty(),
+        "the front matter is closed by a second `---`"
+    );
+
+    for key in ["name", "description"] {
+        let value = front
+            .iter()
+            .find_map(|line| line.strip_prefix(&format!("{key}: ")))
+            .unwrap_or_else(|| panic!("the front matter carries `{key}`: {front:?}"));
+        assert!(!value.trim().is_empty(), "`{key}` has a value");
+    }
+    assert!(
+        front.contains(&"name: novis"),
+        "the skill is named for the language: {front:?}"
     );
 }

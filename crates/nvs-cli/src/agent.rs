@@ -11,9 +11,28 @@
 //! same document beside the reference chapters this binary embeds, and writes no
 //! sentence of its own about the language.
 //!
-//! Nothing is written to disk and nothing is cached. The document is rebuilt per
-//! call from compile-time tables, so the answer cannot describe a version that is
-//! not installed — which is the failure the whole surface exists to remove.
+//! No answer is written to disk and nothing is cached. The document is rebuilt
+//! per call from compile-time tables, so the answer cannot describe a version
+//! that is not installed — which is the failure the whole surface exists to
+//! remove. `init` is the one command here that writes a file, and what it writes
+//! is a pointer at the four above rather than anything they would have said.
+//!
+//! ## The install
+//!
+//! `init` writes an `AGENTS.md` stanza — harness-neutral, delimited by markers
+//! it owns — and beside it one adapter per harness the tree shows, each naming
+//! those commands and the `nvs check` loop.
+//! `rule:tooling/an-adapter-carries-protocol-and-never-language` is why none of
+//! them names anything else: a language fact written into a pointer is a copy
+//! that goes stale the day the member changes, and every copy is read by an
+//! agent with no way to know it is old. So [`PROTOCOL`] is the whole of what
+//! every pointer says, and an [`Adapter`] contributes only the header its own
+//! harness reads it through.
+//!
+//! Re-running rewrites nothing. A stanza that still reads as this binary would
+//! write it is left alone; one that does not is named in a refusal, because the
+//! difference between an upgrade and an edit is not something this can see, and
+//! overwriting a reader's own sentence is the worse of the two mistakes.
 //!
 //! ## The primer, and where its text comes from
 //!
@@ -61,6 +80,7 @@
 //! `show` is the opposite — it was asked for one specific thing and exits
 //! non-zero when it cannot produce it, naming what it has instead.
 
+use std::path::Path;
 use std::process::ExitCode;
 
 use serde_json::Value;
@@ -559,4 +579,214 @@ fn push_pairs<T>(out: &mut String, heading: &str, rows: &[T], each: impl Fn(&T) 
             out.push_str(&format!("  {name:<width$}  {desc}\n"));
         }
     }
+}
+
+/// The line that opens the `AGENTS.md` stanza, and the line that closes it.
+///
+/// They delimit the region `init` owns, so a stanza that has been edited is a
+/// difference it can see rather than one it silently overwrites, and a project's
+/// own prose above and below the pair is never read.
+const STANZA_OPEN: &str = "<!-- nvs agent: written by `nvs agent init` -->";
+const STANZA_CLOSE: &str = "<!-- /nvs agent -->";
+
+/// What every pointer says, in every harness: where to ask, and the check loop.
+///
+/// Not a signature, not a type, not a refusal —
+/// `rule:tooling/an-adapter-carries-protocol-and-never-language` is why this is
+/// the whole of it, and why one const serves every harness: a pointer that says
+/// nothing about the language cannot disagree with the binary that answers.
+const PROTOCOL: &str = "\
+Novis is the language this project is written in, and the `nvs` binary installed on this machine is
+its documentation. It answers from the registry it compiles against, so an answer can never describe
+a version that is not installed — which is why nothing about the language itself is written here.
+
+- `nvs agent primer` — read once, before writing anything. The short document that makes a coding
+  agent productive.
+- `nvs agent index` — one line per member of the standard library.
+- `nvs agent find <query>` — the index lines whose class or member name matches. A command rather
+  than a grep, because a namespaced name loses its backslash to the shell before grep sees it.
+- `nvs agent show <symbol>` — one symbol's card: its signature, its prose, its parameters and what
+  it throws.
+
+Then check what you wrote. `nvs check <file>` names what is wrong and where, and `nvs test` runs the
+suite. That is the loop — read the primer once, `find` a name, `show` its card, `nvs check` — and
+the diagnostic is part of the documentation rather than an alternative to it.
+";
+
+/// The front matter a Claude Code skill is found and summarised by, over the
+/// title its body opens with.
+///
+/// Spelled a line at a time so the const stays indented with the code around
+/// it: a multi-line literal would have to begin every one of its lines at
+/// column 0. The format is the one thing here a harness owns.
+const CLAUDE_HEADER: &str = concat!(
+    "---\n",
+    "name: novis\n",
+    "description: Ask the installed `nvs` binary about the Novis language and check what you \
+     wrote — the primer, the index, one symbol's card, then `nvs check`. Use it whenever reading \
+     or writing Novis code.\n",
+    "---\n",
+    "\n",
+    "# Novis\n",
+);
+
+/// One harness's pointer: where its file goes, the directory whose presence says
+/// that harness is in use here, and the header it opens with.
+///
+/// The header is the only part a harness owns. What the file *says* is
+/// [`PROTOCOL`], identical in every one of them, which is what keeps this list
+/// open: another harness is another row, adding one decides nothing, and none of
+/// them can disagree with the language because none of them says anything about
+/// it.
+#[derive(Debug)]
+struct Adapter {
+    path: &'static str,
+    present: &'static str,
+    header: &'static str,
+}
+
+impl Adapter {
+    /// The whole file: this harness's header over the protocol every pointer
+    /// carries.
+    fn body(&self) -> String {
+        format!("{}\n{PROTOCOL}", self.header)
+    }
+}
+
+/// Every harness `init` knows how to point at.
+const ADAPTERS: &[Adapter] = &[Adapter {
+    path: ".claude/skills/novis/SKILL.md",
+    present: ".claude",
+    header: CLAUDE_HEADER,
+}];
+
+/// The stanza as it belongs in `AGENTS.md`, with no trailing newline, which is
+/// both what `init` writes and what it compares an existing stanza against.
+fn stanza() -> String {
+    format!("{STANZA_OPEN}\n\n## Novis\n\n{PROTOCOL}\n{STANZA_CLOSE}")
+}
+
+/// Install the surface into this project: the `AGENTS.md` stanza, and one
+/// adapter for each harness the tree shows — every one of them when `all`.
+///
+/// Each is written into a tree that has none and left alone in a tree that
+/// already carries it.
+pub(crate) fn init(all: bool) -> ExitCode {
+    let root = match std::env::current_dir() {
+        Ok(root) => root,
+        Err(error) => {
+            eprintln!("error: this directory cannot be read: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut written: Vec<&'static str> = Vec::new();
+    match install_stanza(&root.join("AGENTS.md")) {
+        Ok(true) => written.push("AGENTS.md"),
+        Ok(false) => {}
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    for adapter in ADAPTERS {
+        if !all && !root.join(adapter.present).exists() {
+            continue;
+        }
+        match install_adapter(&root, adapter) {
+            Ok(true) => written.push(adapter.path),
+            Ok(false) => {}
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if written.is_empty() {
+        println!("up to date");
+    }
+    for path in written {
+        println!("wrote {path}");
+    }
+    ExitCode::SUCCESS
+}
+
+/// Put the stanza in `AGENTS.md`, and say whether that changed the file.
+///
+/// A file with no stanza gains one at its foot, so a project's own instructions
+/// keep the opening of their own document. A file whose stanza already reads as
+/// [`stanza`] is untouched. Anything else is refused rather than rewritten.
+fn install_stanza(path: &Path) -> Result<bool, String> {
+    let block = stanza();
+    let existing = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return write_file(path, &format!("{block}\n")).map(|()| true);
+        }
+        Err(error) => return Err(format!("AGENTS.md cannot be read: {error}")),
+    };
+
+    let Some(open) = existing.find(STANZA_OPEN) else {
+        let mut out = existing;
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&block);
+        out.push('\n');
+        return write_file(path, &out).map(|()| true);
+    };
+
+    let Some(close) = existing[open..].find(STANZA_CLOSE) else {
+        return Err(format!(
+            "AGENTS.md opens an `nvs agent` stanza and never closes it; \
+             close it with `{STANZA_CLOSE}` or delete it, then run this again"
+        ));
+    };
+
+    let end = open + close + STANZA_CLOSE.len();
+    if existing[open..end] == block {
+        return Ok(false);
+    }
+    Err(format!(
+        "AGENTS.md's `nvs agent` stanza is not the one this binary writes, so it is left alone; \
+         delete the block from `{STANZA_OPEN}` to `{STANZA_CLOSE}` and run this again"
+    ))
+}
+
+/// Put one harness's pointer where it belongs, and say whether that changed the
+/// tree.
+///
+/// A file that already reads as [`Adapter::body`] is untouched; one that reads
+/// as anything else is refused, for the reason [`install_stanza`] refuses a
+/// changed stanza.
+fn install_adapter(root: &Path, adapter: &Adapter) -> Result<bool, String> {
+    let path = root.join(adapter.path);
+    let body = adapter.body();
+    match std::fs::read_to_string(&path) {
+        Ok(text) if text == body => Ok(false),
+        Ok(_) => Err(format!(
+            "{} is not the pointer this binary writes, so it is left alone; \
+             delete it and run this again",
+            adapter.path
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            write_file(&path, &body).map(|()| true)
+        }
+        Err(error) => Err(format!("{} cannot be read: {error}", adapter.path)),
+    }
+}
+
+/// Write `body` to `path`, creating the directories above it.
+fn write_file(path: &Path, body: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("{} cannot be created: {error}", parent.display()))?;
+    }
+    std::fs::write(path, body)
+        .map_err(|error| format!("{} cannot be written: {error}", path.display()))
 }

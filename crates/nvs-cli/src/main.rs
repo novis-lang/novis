@@ -576,6 +576,19 @@ enum AgentCommand {
         /// The symbol an index line opens with, as `Core\IO::read`.
         symbol: String,
     },
+    /// Install this surface into the project in the working directory: an
+    /// `AGENTS.md` stanza, and one adapter for each harness the tree shows, each
+    /// naming the four commands above and the `nvs check` loop.
+    ///
+    /// None of them states a language fact, for any reason — that is what the
+    /// four commands are for, and a copy of one of their answers would be stale
+    /// the day the member it describes changes.
+    // `rule:tooling/an-adapter-carries-protocol-and-never-language`.
+    Init {
+        /// Write every adapter, rather than only the harnesses this tree shows.
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 /// `nvs api`'s own subcommands.
@@ -1015,6 +1028,7 @@ fn main() -> ExitCode {
             AgentCommand::Index => agent::index(),
             AgentCommand::Find { query } => agent::find(&query),
             AgentCommand::Show { symbol } => agent::show(&symbol),
+            AgentCommand::Init { all } => agent::init(all),
         },
     }
 }
