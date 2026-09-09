@@ -1409,6 +1409,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   same slice to owe `python tools/reference.py --no-examples` and `docs/novis.md` in its commit,
   because every chapter edit makes the generated file stale.
   [until: gone docs/reference/README.md]
+- **Changing a capability denial's sentence is a 27-case edit, not a one-line one.**
+  `grep -rl "which is not granted" tests/` is the blast radius, and several of those cases compare
+  `$e->message ==` inside program logic rather than echoing it
+  (`tests/conformance/core/io-copy-names-two-grants-and-neither-one-alone-is-enough.nvst:23`), so the
+  expectation bump does not find them. Budget the corpus pass as the slice itself, and price any
+  design that leaves `$e->message` alone against it before choosing.
+  [until: reviewed 2026-09-09]
 
 ## Running things
 
@@ -3836,6 +3843,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   are one record and the failure reads as serde's `EOF while parsing a value`. Give each write its
   own message or `source`, and reach for `floor::expire_log_windows` only where the *count* is the
   subject. [until: reviewed 2026-09-09]
+- **A `-p nvs-hir` member fixture reports the same `Class::member` miss twice, so a test that counts
+  the diagnostics fails on a check that works.** One `self::missing()` in a method body comes back as
+  two identical `E0309`s from `MemberResolver::check`, and every older test in that module asserts
+  with `.any()`, which hides it. Assert over the whole filtered set — all of them carry the help, or
+  none of them do — rather than indexing the first and pinning a count of one.
+  [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 
