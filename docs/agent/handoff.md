@@ -2,66 +2,63 @@
 
 ## State
 
-**Goal 24 — `Core\Net`, `Core\Os` and `Core\Signal`. `Core\Net`'s TCP half is on disk and green.**
-`crates/nvs-stdlib/src/net.rs` registers three classes — `Core\Net` (`connect`, `listen`),
-`Core\Net\Stream` (`read`, `write`, `close`) and `Core\Net\Listener` (`accept`, `port`, `close`) —
-over `nvs_host::NvsTcp` and `NvsListener`. `examples/net-echo.nvs` runs, and the driver's earliest
-failing check is closed. Two of `rule:core-classes/net-one-api-three-transports`'s five entry points
-are built; the datagram and the two Unix-domain ones are not.
+**Goal 24 — `Core\Net`, `Core\Os` and `Core\Signal`. The datagram transport now exists in
+`nvs-host`; `Core\Net` still registers only the TCP two of its five entry points.**
+`crates/nvs-host/src/net.rs:493` is `NvsUdp`, a third alias over `NvsStream` — `bind`, `from_std`,
+`local_addr`, `send_to` and `recv_from`, parking on the same four functions and carrying no `Read`
+and no `Write`, because a datagram socket has no stream to read. It is re-exported as
+`nvs_host::NvsUdp`. Both names the stage-2 `-p nvs-host` check asks for are green.
 
-The socket lives in the request's own table: `nvs_runtime::Ctx::hold_open_socket` /
-`open_socket_mut` / `take_open_socket` over a new `HeldSocket` trait
-(`crates/nvs-runtime/src/ctx/held.rs:37`), which is `HeldConnection`'s shape for
-`HeldConnection`'s reason — `nvs-host` depends on `nvs-runtime`, so the field is a `dyn Trait` and
-`net.rs`'s `Connected`/`Bound` newtypes are what implement it. A handle's one slot holds the key.
+`crates/nvs-stdlib/src/net.rs` is untouched: `Core\Net` is `connect` and `listen`, and its module doc
+still says UDP and the two Unix-domain doors are not on disk. Nothing here is blocked — the next
+group is ordinary building, and the one design question it had is answered below rather than left
+for the session that hits it.
 
-Both new rules now carry guards and both are still `designed`, honestly: each states a surface
-whose UDP and Unix halves are unwritten. `§16 Core\Net` is struck from
-`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
-
-Two design calls this goal's standing form left to the module doc, both recorded there:
-**every waiting member takes a required `Core\Time\Duration`** — there is no configuration block to
-default from and no spelling for an unbounded wait — and **`read` answers `tainted bytes` capped by
-`READ_CEILING`**, since a socket reports what arrived rather than what was asked for.
+Only one slice was taken. The stdlib datagram surface is **all-or-nothing** —
+`conformance_coverage.rs`'s three-cases-per-member floor fails the build for a member that lands
+without its cases — so a half-written class leaves a red tree, and it was not worth starting at the
+context this session had left.
 
 ## Next group
 
-**Stage 2 (cont.): UDP and the Unix-domain pair, `Core\Net`'s remaining three entry points** — one
-file set: `crates/nvs-stdlib/src/net.rs`, `crates/nvs-host/src/net.rs`,
-`crates/nvs-stdlib/src/registry.rs`.
+**Stage 2 (cont.): the datagram surface in `Core\Net`, over the `NvsUdp` that landed** — one file
+set: `crates/nvs-stdlib/src/net.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`tests/conformance/core/`.
 
-- [ ] **A datagram socket, over the reactor.** `nvs-host` has no UDP source yet — `NvsStream` is
-      generic over `mio::event::Source` (`crates/nvs-host/src/net.rs:149`) and
-      `mio::net::UdpSocket` fits it, so the slice is an alias plus `send_to`/`recv_from` beside
-      `poll_read` (`crates/nvs-host/src/net.rs:755`). `rule:core-classes/net-udp-carries-no-reliability-layer`
-      and 0162 § 11 are the surface; the two `-p nvs-host` names the acceptance check wants are
-      `a_udp_socket_registers_with_the_reactor_and_parks_the_coroutine` and
-      `a_udp_read_with_no_datagram_waiting_suspends_rather_than_spinning`.
-- [ ] **`Core\Net::bindDatagram` and its class, asking two grants.**
-      `rule:security/net-listen-is-a-separate-grant-from-net-connect` is the one that matters here:
-      `net.listen` once for the local port, and `net.connect` re-asked through
-      `nvs_runtime::capability::pin_host` (`crates/nvs-runtime/src/capability.rs:153`) at **every**
-      send. Register beside `crate::net::LISTENER` (`crates/nvs-stdlib/src/registry.rs:1699`).
-      Acceptance name: `a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor`.
-- [ ] **`Core\Net::connectPath` and `listenPath` over `NvsUnix`.**
-      `crates/nvs-host/src/net.rs:486` is `NvsUnix` and `:513` its `connect`; there is no
-      Unix-domain listener there yet. Both ends ask `Cap::NetLocal` at
-      `Scope::Path` — `rule:config/net-local-is-named-and-not-on-the-roster` and 0162 § 10, which is
-      where "it governs binding as well" is settled. Acceptance names:
-      `a_program_supplied_unix_path_is_refused_as_a_target_at_every_door` and
-      `no_door_dispatches_on_a_url_scheme`; the second is the whole five-member surface at once and
-      wants the other four to exist first. `#[cfg(unix)]` — `NvsUnix` is not built on Windows, so
-      the members need a refusal arm naming the platform there.
+- [ ] **`Core\Net::bindDatagram` and `Core\Net\Datagram`, asking the two grants.**
+      `bindDatagram(string $address, uint $port): Core\Net\Datagram` is
+      `crates/nvs-stdlib/src/net.rs:706`'s `listen` body with `NvsUdp::bind` — an address literal,
+      no DNS, `Cap::NetListen` at `Scope::Endpoint`. The class is `port`, `close`,
+      `send(string $host, uint $port, bytes $payload, Duration $within): uint` and
+      `receive(uint $max, Duration $within)`. **`send` asks the second grant**:
+      `nvs_runtime::capability::pin_host` exactly as `connect` does at
+      `crates/nvs-stdlib/src/net.rs:673`, because `rule:security/net-address-policy` says a datagram
+      sent to a program-supplied address is asked at the send what a TCP connect is asked at the
+      connect. Rows and cards at `crates/nvs-stdlib/src/net.rs:109`, the `address()` arm at
+      `crates/nvs-stdlib/src/net.rs:450`, the roster at `crates/nvs-stdlib/src/registry.rs:1705`
+      and its instance rows at `crates/nvs-stdlib/src/registry.rs:2035`.
+- [ ] **`receive` answers a `Core\Net\Datagram\Message`, and that is the decision to record in the
+      module doc.** Three slot-reading members — `payload(): tainted bytes`, `host(): string`,
+      `port(): uint` — no capability, no waiting. The row `bindDatagram` replaces is
+      `stream_socket_recvfrom`, which delivers the sender through an out-param; Novis has neither
+      out-params nor tuples, so an object is the narrowest thing that answers it, and a `receive`
+      answering bytes alone would be a datagram socket that cannot reply. `payload` is capped by
+      `READ_CEILING` for `crates/nvs-stdlib/src/net.rs:100`'s reason.
+- [ ] **The cases, which are where this slice's cost is.** Three `.nvst` files reach every new
+      member's floor of three, on
+      `tests/conformance/core/net-a-tcp-echo-round-trips-over-the-reactor.nvst:1`'s pattern — two
+      sockets in one program, send then receive, so nothing parks with nobody to wake it. Loopback
+      needs `net.internal` beside `net.connect`, so each is a multi-file case. Plus the
+      `-p nvs-stdlib` name the acceptance check wants,
+      `a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor`, beside the two that already
+      assert which door refuses at `crates/nvs-stdlib/src/net.rs:885`.
 
 ## Backlog
 
-- Stage 3 `Core\Os` and stage 4 `Core\Signal` — `docs/agent/loop-goal.toml`'s stages 3 and 4 name
-  their tests; `Core\Budget` and `Core\Os` still hold rows in
-  `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
+- `Core\Net::connectPath` and `listenPath` over `NvsUnix`, asking `net.local` —
+  `rule:config/net-local-is-named-and-not-on-the-roster`, stage 2's third item.
 - `rule:core-classes/net-one-api-three-transports` and
-  `rule:security/net-listen-is-a-separate-grant-from-net-connect` flip to `shipped` when the
-  remaining three entry points land — `docs/rules/*.json`.
-- `Core\Net\Stream` answers no peer address; `stream_socket_get_name`'s remote half has no member —
-  `docs/spec/02-php-migration.md:775`.
-- A read on a served request parks a core on a peer's schedule; nothing caps the number of sockets
-  a request may open — `docs/agent/carried-gaps.md`, goal 36.
+  `rule:core-classes/net-udp-carries-no-reliability-layer` stay `designed` until all five doors land.
+- `§16 Core\Net` is struck from `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`
+  already; nothing to do there.
+- Stages 3-6 (`Core\Os`, `Core\Signal`, `Core\Budget`) are untouched — `docs/agent/loop-goal.toml`.
