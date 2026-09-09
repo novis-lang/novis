@@ -2,67 +2,75 @@
 
 ## State
 
-**Goal 25's Stage 2 has landed whole: `Core\Compress` is registered, implemented, bounded and
-pinned.** `compress` and `decompress` are the whole-buffer pair, `Core\Codec` is **five** cases and
-not four — the migration table's `gzencode`/`gzcompress`/`gzdeflate` rows name three distinct byte
-formats over one deflate stream — and the incremental half (`deflate_init`, `deflate_add`,
-`inflate_init`) is `crates/nvs-stdlib/src/compress.rs`'s known gap 1 rather than an open question.
+**Goal 25's Stage 3 has landed whole: `Core\Mime` is registered, its table is compiled in, and its
+three acceptance tests are green.** `detect(bytes $data): Mime\Type` and
+`mediaType(Mime\Type $type): string` are the whole surface. `Core\Mime\Type` is **17** cases whose
+zero is `Unknown`, and `crates/nvs-stdlib/src/mime.rs`'s `SIGNATURES` is 22 entries of literal octet
+runs at fixed offsets, matched by comparison — no search, no offset read out of the input, no
+arithmetic, which is the half of libmagic the module doc says this class declines.
 
-**The bound is `rule:core-classes/decompression-bound`, opened as ADR 0166** — the one ADR number
-this goal authorised. Two numbers, `[limits] max_decompressed` (64 MiB) and
-`[limits] max_decompression_ratio` (1000:1), both `System`-class, both clamping a call's own
-`$maxBytes`/`$maxRatio` downward only, and neither with a spelling for "off": `false` reads as the
-shipped default. A breach is a `ParseError` naming the rule, never an `IOError`.
+**The subject parameter is `Qual::Neutral`, not the `Contagious` the previous group's item
+proposed.** `detect` answers an enum case and a case carries no octet of its subject, so nothing
+qualified can reach the answer; `Neutral` is the mark that accepts a tainted argument without
+laundering it. What survives is the *argument's* mark, and no passing program can show that — the
+pin is a refusal, `tests/conformance/core/mime-detection-launders-nothing-it-detected.nvst`.
 
-**Stage 0's § 17 rows are done for two of the three classes** — `Core\Compress` and `Core\Zip` now
-carry the surface and the ADR; `Core\Mime`'s row is still one line with no ADR. **Stage 5's first
-strike is already spent**: `every_part_two_spec_class_is_registered` refuses a line naming a
-registered class, so `§17 Core\Compress` left
-`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` with the class rather than at the
-end of the goal — and Stage 3 and Stage 4 each owe theirs the same way. The migration table's
-`zlib` rows are still Stage 5's. Dependencies are `flate2`, `brotli` and `ruzstd`, all pure Rust,
-notice regenerated.
+**No ADR was opened**, per the goal's standing decisions: the surface is a `rule:core-api/tier-roster`
+row, and § 17's `Core\Mime` row now carries it. That rule's "designed, not shipped" list named five
+classes that are registered — the networking, OS, signal and compression ones — and now names only
+the archive class, XML, big integers, signature and metrics.
+
+**Stage 5's second strike is spent**: `§17 Core\Mime` left
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` in the registering slice, because
+`every_part_two_spec_class_is_registered` refuses a line naming a registered class. `§17 Core\Zip`
+is Stage 4's. `docs/spec/02-php-migration.md` has **no `fileinfo` rows at all** — no
+`mime_content_type`, no `finfo_*`, no `exif_imagetype` — so Stage 5's "the `fileinfo` rows answer a
+`Core` spelling" is a write rather than an edit.
 
 ## Next group
 
-**Stage 3: `Core\Mime`, magic bytes and no rule interpreter** — one file set: the new
-`crates/nvs-stdlib/src/mime.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/lib.rs`. `crates/nvs-stdlib/src/compress.rs` is the shape to copy for all
-three: a class const, an enum const, a `MethodDoc` per row, an `address` arm, and a `#[cfg(test)]`
-module holding the acceptance names.
+**Stage 4: `Core\Zip`, where the policy lives** — one file set: the new
+`crates/nvs-stdlib/src/zip.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/lib.rs`,
+`Cargo.toml`, `examples/zip-refuses.nvs`. `crates/nvs-stdlib/src/mime.rs` is the freshest shape to
+copy, and the bomb half is **reused and never restated**: `compress::Bound` is
+`crates/nvs-stdlib/src/compress.rs:295`, its ceiling `crates/nvs-stdlib/src/compress.rs:314` and its
+one-way clamp `crates/nvs-stdlib/src/compress.rs:328`.
 
-- [ ] **Detection is from magic bytes and never from a file extension**
-      (`rule:core-api/tier-roster`'s § 17 row; a type read off an extension is a type an attacker
-      chose). A fixed table this crate carries, not libmagic's rule language. Register the class at
-      `crates/nvs-stdlib/src/registry.rs:1695`, beside `crate::compress::CLASS`, and the module at
-      `crates/nvs-stdlib/src/lib.rs:203` and `crates/nvs-stdlib/src/lib.rs:370`. Test:
-      `a_type_is_detected_from_magic_bytes_and_never_from_a_file_extension`.
-- [ ] **The answer is a closed enum plus an `Unknown`, never a free string**, so a caller cannot
-      compare against a spelling that never occurs — the same decision `Core\Codec` makes at
-      `crates/nvs-stdlib/src/compress.rs:83`, whose ordinals-are-ABI note applies here too. Register
-      it beside `crate::compress::CODEC` at `crates/nvs-stdlib/src/registry.rs:2389`. Test:
-      `the_answer_is_a_closed_enum_plus_unknown_and_never_a_free_string`.
-- [ ] **Detection launders nothing** (`rule:security/launderers-are-sink-named`): bytes that detect
-      as `image/png` are still `tainted`, so the subject parameter is
-      `CoreTy::Blob(Qual::Contagious)` — `crates/nvs-stdlib/src/compress.rs:138` is the worked
-      example — and the sentence goes in the member's own reference card, which is where a caller
-      will read it. Test: `detected_bytes_are_still_tainted_because_detection_is_not_a_launderer`.
-- [ ] **Three `.nvst` cases, and the strike in the same slice.**
-      `conformance_coverage.rs`'s floor is three cases per member, and its error-path gate wants
-      every `Fault::` site either reached by a case or declared "unreachable from source" within
-      eight lines above it. `§17 Core\Mime` leaves
-      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:18` in the slice that
-      registers the class, not at Stage 5: `every_part_two_spec_class_is_registered` fails on a
-      line naming a class that is registered now.
+- [ ] **Three refusals, at read time, before any byte reaches a path**: a traversing entry, an
+      absolute-path entry, a symlink entry (`rule:security/a-path-is-not-a-url` for what a path is;
+      the goal's Stage 4 owns the three). Refused by the reader so a program cannot opt out by
+      walking entries itself. Register the class at `crates/nvs-stdlib/src/registry.rs:1701`, beside
+      `crate::mime::CLASS`, and the module at `crates/nvs-stdlib/src/lib.rs:234` and
+      `crates/nvs-stdlib/src/lib.rs:393`. Tests:
+      `a_traversing_entry_is_refused_at_read_time_by_the_diagnostic_that_names_the_rule`,
+      `an_absolute_path_entry_is_refused_the_same_way`, `a_symlink_entry_is_refused_the_same_way`.
+- [ ] **The bomb is Stage 2's bound applied per entry *and* across the archive**, not a second rule
+      — `rule:core-classes/decompression-bound`, whose `Bound` is at
+      `crates/nvs-stdlib/src/compress.rs:295`. A refusal is a `ParseError` naming the rule, never an
+      `IOError`. Tests:
+      `a_decompression_bomb_is_refused_by_stage_twos_bound_per_entry_and_across_the_archive`,
+      `a_refusal_is_a_diagnostic_and_never_a_failed_io_error`.
+- [ ] **Extraction takes a destination and never escapes it, checked after path resolution** so a
+      symlink appearing mid-extraction cannot win the race. `crates/nvs-stdlib/src/path.rs` and
+      `crates/nvs-stdlib/src/storage.rs` are the manifest's named modules for the containment and
+      the grant; the class is registered at `crates/nvs-stdlib/src/registry.rs:1701`. Test:
+      `extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it`.
+- [ ] **The fixture, three `.nvst` cases, and the strike in the same slice.**
+      `examples/zip-refuses.nvs` is the acceptance check that is currently red — the goal's `files`
+      list at `docs/agent/loop-goal.toml:10` — and its expected output is frozen in the `[[check]]`
+      that runs it. `§17 Core\Zip` leaves
+      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:17` here, not at Stage 5, for
+      the reason `Core\Mime`'s line did.
 
 ## Backlog
 
-- Stage 4, `Core\Zip`: four hostile archives, four refusals, and the bound above applied per entry
-  *and* across the archive — ADR 0166 § 6 says it gets no second rule (`docs/agent/loop-goal.md`).
-- Stage 5: strike `§17 Core\Compress`, `§17 Core\Mime` and `§17 Core\Zip` from
-  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, and answer the migration table's
-  `zlib`, `fileinfo` and `zip` rows (`docs/spec/02-php-migration.md`).
-- `Core\Compress`'s incremental half — `Core\Compress\Stream`, shaped like `Core\Hash\Stream` —
-  is known gap 1 in `crates/nvs-stdlib/src/compress.rs`, and no goal carries it yet.
+- Stage 5: answer `docs/spec/02-php-migration.md`'s `zlib`, `fileinfo` and `zip` rows — the
+  `fileinfo` ones do not exist yet and have to be written.
+- Stage 5: `the_server_still_sets_no_content_encoding_of_its_own` in `-p nvs-server`, which nothing
+  has written (`docs/agent/loop-goal.toml`, stage `5 registered`).
+- `Core\Compress`'s incremental half — `Core\Compress\Stream` — is known gap 1 in
+  `crates/nvs-stdlib/src/compress.rs`, and no goal carries it.
+- `Core\Mime`'s table grows by appending: EBML, BMP and every text format are deliberately absent,
+  and `crates/nvs-stdlib/src/mime.rs`'s known gaps say why.
 - `python tools/records.py --check` reports four records missing `modifies: []`; 0163, 0164 and 0165
   are another goal's and were left alone.

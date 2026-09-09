@@ -176,6 +176,11 @@ rules = ["core-api/tier-roster", "http-server/two-deployments-and-nothing-a-prox
 [context.stage.2]
 adrs = ["0051 §3"]
 
+# The bound Stage 4 reuses rather than restates, and what a path is. Neither is in
+# the base manifest, which names records and not rules.
+[context.stage.4]
+rules = ["core-classes/decompression-bound", "security/a-path-is-not-a-url"]
+
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
 

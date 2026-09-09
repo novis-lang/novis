@@ -97,9 +97,8 @@ is the general rule rather than a special case, and it is what keeps the `Core` 
 ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)) while the thing it talks to is optional.
 
 **Designed, not shipped.** Several classes the roster places at Tier 0 are not registered in
-`crates/nvs-stdlib/src/registry.rs` yet — the networking, OS and signal classes, the compression, archive
-and MIME classes, XML, big integers and the metrics class — and none of the four first-party sandboxed
-components exists. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for
+`crates/nvs-stdlib/src/registry.rs` yet — the archive class, XML, big integers, the signature class and
+the metrics class — and none of the four first-party sandboxed components exists. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for
 what *is* registered; the missing rows fail nothing, because there is no coverage gate past the spec
 sections the current milestone owns.
 

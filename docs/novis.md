@@ -144,6 +144,7 @@ Conventions the whole file uses:
 | [`Core\Html`](#core-core-html) |  |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Compress`](#core-core-compress) |  |
+| [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
@@ -18574,6 +18575,46 @@ Decompresses `$data` under `$codec`, **under a bound that cannot be switched off
 
 **Throws** `ParseError` — `$data` is not a well-formed frame of `$codec`, or the output would pass either half of the bound. Never an `IOError`: a hostile archive and a full disk are different questions.
 
+<a id="core-core-mime"></a>
+### `Core\Mime`
+
+Keywords: detect, mediaType
+
+| Member | Signature |
+|---|---|
+| [`Core\Mime::detect`](#core-core-mime-detect) | `detect(bytes $data): Core\Mime\Type` |
+| [`Core\Mime::mediaType`](#core-core-mime-mediatype) | `mediaType(Core\Mime\Type $type): string` |
+
+<a id="core-core-mime-detect"></a>
+#### `Core\Mime::detect`
+
+```nvs skip
+Core\Mime::detect(bytes $data): Core\Mime\Type
+```
+
+Reports what `$data` is, read from the octets themselves — replacing `mime_content_type`, `finfo_buffer` and `exif_imagetype`. There is no parameter for a file name, because a type read off an extension is a type an attacker chose.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` (neutral) | The octets to inspect. Only the first few are read — the widest signature in the table is sixteen — so a prefix of an upload answers what the whole of it would. |
+
+**Returns** `Core\Mime\Type` — The case naming what the octets are, or `Core\Mime\Type::Unknown` where no signature matched — which includes every format serialized as text. **Detection is not a laundering**: bytes that detect as `image/png` are still `tainted`, because a signature describes the first octets and says nothing about what the rest is safe for.
+
+<a id="core-core-mime-mediatype"></a>
+#### `Core\Mime::mediaType`
+
+```nvs skip
+Core\Mime::mediaType(Core\Mime\Type $type): string
+```
+
+The IANA media type `$type` is spelled with, for a `Content-Type` header or a stored record. One direction only: a case has a name, and a name never becomes a case.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$type` | `Core\Mime\Type` | The case to spell, usually one `detect` just answered. |
+
+**Returns** `string` — The media type, as `image/png` — and `application/octet-stream` for `Core\Mime\Type::Unknown`, which is what a program that must send something should send for octets it could not name.
+
 <a id="core-core-http"></a>
 ### `Core\Http`
 
@@ -20878,6 +20919,31 @@ The format a `Core\Compress` member reads or writes. The first three are one def
 | `Core\Codec::Deflate` | RFC 1951 — the stream with no header at all, PHP's `gzdeflate`. |
 | `Core\Codec::Brotli` | RFC 7932, `Content-Encoding: br`. |
 | `Core\Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
+
+<a id="enum-core-mime-type"></a>
+#### `Core\Mime\Type`
+
+What `Core\Mime::detect` read out of a run of octets. Closed, so a program compares against a case rather than against a media-type spelling that may never occur, and `Unknown` is the answer for every format whose serialization is text.
+
+| Case | Meaning |
+|---|---|
+| `Core\Mime\Type::Unknown` | No signature matched. The ordinary answer for text — JSON, CSV, SVG, HTML — and for octets that are nothing in particular. |
+| `Core\Mime\Type::Png` | `image/png`. |
+| `Core\Mime\Type::Jpeg` | `image/jpeg`. |
+| `Core\Mime\Type::Gif` | `image/gif`, both the 87a and 89a versions. |
+| `Core\Mime\Type::Webp` | `image/webp` — a RIFF container whose form is `WEBP`. |
+| `Core\Mime\Type::Tiff` | `image/tiff`, in either byte order. |
+| `Core\Mime\Type::Avif` | `image/avif`. |
+| `Core\Mime\Type::Heic` | `image/heic` — what a phone camera uploads. |
+| `Core\Mime\Type::Pdf` | `application/pdf`. |
+| `Core\Mime\Type::Mp4` | `video/mp4`, by its ISO base media brand. |
+| `Core\Mime\Type::Ogg` | `application/ogg` — the container, which carries audio and video alike and says which only inside. |
+| `Core\Mime\Type::Wav` | `audio/wav` — a RIFF container whose form is `WAVE`. |
+| `Core\Mime\Type::Zip` | `application/zip`, including every format that *is* a zip archive: `.docx`, `.xlsx`, `.odt`, `.jar`. |
+| `Core\Mime\Type::Gzip` | `application/gzip`, PHP's `gzencode` output and `Core\Codec::Gzip`'s frame. |
+| `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Codec::Zstd`'s frame. |
+| `Core\Mime\Type::Xz` | `application/x-xz`. |
+| `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
 
 <a id="enum-core-log-level"></a>
 #### `Core\Log\Level`
