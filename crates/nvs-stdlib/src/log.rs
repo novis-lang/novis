@@ -219,7 +219,18 @@ nvs_runtime::nvs_helper! {
         let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
         let level = level_of(&args[1])?;
         let message = message_of(&args[2])?;
-        let record = record(ctx, source, level, message, args[3]);
+        let mut record = record(ctx, source, level, message, args[3]);
+        // `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`: this
+        // target's bound is a finite disk, and the cheapest place to protect
+        // one is before the bytes exist. A run of identical records is one line
+        // carrying the count `nvs_runtime::floor` stamps on, and the writes it
+        // stands for do not happen — over that module's table rather than a
+        // window of this member's own, because what makes two records the same
+        // record has to be one answer for both of the writers § 6 keeps
+        // identical.
+        if !nvs_runtime::floor::admit_log_record(&mut record) {
+            return Ok(Value::null());
+        }
         // Unreachable from source. Absent a `[log] target` the destination is
         // the process's own output stream, which nothing in the language moves
         // or closes — the reason `Core\Debug::dump`'s own write gives. With one
@@ -660,7 +671,12 @@ mod tests {
         );
 
         let mut unsampled = serving(None);
-        let quiet = keys(&written(&mut unsampled, "the store said no"));
+        // Another message, so this is a record of its own rather than a second
+        // occurrence of the one above: the request keys are exactly what
+        // `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers` does not
+        // let a window distinguish by, so two writes differing only in them are
+        // one line.
+        let quiet = keys(&written(&mut unsampled, "the queue is full"));
         assert!(
             !quiet
                 .iter()
@@ -690,8 +706,11 @@ mod tests {
                 &["level", "msg", "request_id", "span_id", "trace_id", "ts"],
             ),
         ];
-        for (mut ctx, expected) in shapes {
-            let line = written(&mut ctx, "the store said no");
+        for (index, (mut ctx, expected)) in shapes.into_iter().enumerate() {
+            // A message per shape, because what is being counted is the keys of
+            // three separate records: three identical ones are one line and a
+            // count, under `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+            let line = written(&mut ctx, &format!("the store said no {index}"));
             let found = keys(&line);
             let mut wanted: Vec<String> = expected.iter().map(|key| (*key).to_owned()).collect();
             wanted.sort();
