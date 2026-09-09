@@ -2,55 +2,50 @@
 
 ## State
 
-**Goal 23 — `nvs serve` takes every core. Stage 2's first two slices are on disk and green.** Goal
+**Goal 23 — `nvs serve` takes every core. Stage 2's publishing half is on disk and green.** Goal
 22's whole list is this goal's Stage 1 floor and is green.
 
-**What landed:** a compiled unit can now cross a core boundary. `nvs_codegen::Unit`'s two shared
-fields are `std::sync::Arc`s (`crates/nvs-codegen/src/lib.rs:328`, `:355`), as are the two
-signatures that take them — `Ctx::install_statics` (`crates/nvs-runtime/src/ctx/isolate.rs:164`) and
-`ErrorClass` (`crates/nvs-runtime/src/ctx/error.rs:73`). `ClassTable` and `Unit` each carry an
-`unsafe impl Send + Sync` whose argument is in its own doc comment, and each is pinned by a
-compile-time crossing test — `a_class_table_crosses_a_core_boundary_behind_an_arc` and
-`a_unit_crosses_a_core_boundary_behind_an_arc`. `nvs_codegen::Placed` gained a `Send + Sync`
-supertrait so the loader's half is bounded rather than vouched for; `nvs-cli`'s `Loaded` satisfies
-it unchanged.
+**What landed:** the compiled-unit cache publishes rather than copies. `Compiled` holds an
+`Arc<nvs_codegen::Unit>` and a `Ready` entry is an `Arc<Compiled>`
+(`crates/nvs-cli/src/script.rs:131`, `:176`), so every reader of one content digest is handed a
+clone of the same pointer. `Compiler` is `Send + Sync` with no annotation — nothing in it was
+thread-affine once the unit stopped being — and `a_compiled_unit_is_read_by_every_core_through_one_arc`
+(`crates/nvs-cli/src/script.rs:820`) is four real OS threads holding their programs at a barrier while
+the published entry's reference count is read. `nvs serve` builds one cache before it binds anything
+and hands it out by `Arc` (`crates/nvs-cli/src/serve.rs:276`).
 
-**The stage-2 blocker the previous handoff named is closed.** `Arc<Unit>` is `Send + Sync`, so
-`Compiled` can hold one and the cache can be reached from a second core. Nothing is blocked on a
-decision.
-
-**Single-flighting is still a later slice, and still on purpose.** With one accepting core
-`CompileState::Compiling` and the "a fresher revalidation has not won" compare are unreachable, so
-they land with the fan-out rather than before it.
+**What is left in stage 2 is step 4's compare and the three tests over it.** `Compiler::advance`
+still writes the path pointer unconditionally, which is the "publish only if nobody moved it since"
+half of `rule:config/an-edit-reaches-the-next-request-without-a-restart`. Single-flighting stays a
+later slice, with the fan-out, for the reason `script.rs`'s first known gap gives. Nothing is
+blocked on a decision.
 
 ## Next group
 
-**Stage 2: the cache publishes one unit to every core** — one file set:
-`crates/nvs-cli/src/script.rs`, `crates/nvs-cli/src/serve.rs`.
+**Stage 2: step 4's publish is conditional, and the stage's four remaining tests** — one file set:
+`crates/nvs-cli/src/script.rs`.
 
-- [ ] **`Compiled` holds `Arc`s and the cache's `Ready` entry publishes one** —
-      `crates/nvs-cli/src/script.rs:126` (`Compiled::unit`, today an `Rc<nvs_codegen::Unit>`),
-      `crates/nvs-cli/src/script.rs:171` (`CompileState::Ready`), `crates/nvs-cli/src/script.rs:414`
-      (`Compiler::compile`) and `crates/nvs-cli/src/script.rs:534` (`program_over`). The unit side
-      is done: `Arc<nvs_codegen::Unit>` is `Send + Sync` and
-      `crates/nvs-codegen/src/lib.rs:404`'s doc comment is the home of why.
-      `rule:config/an-edit-reaches-the-next-request-without-a-restart` is the cache's shape, and the
-      goal's § *Standing decisions* fixes the publisher in `script.rs`.
-- [ ] **`a_compiled_unit_is_read_by_every_core_through_one_arc`, in `-p nvs-cli`** —
-      `crates/nvs-cli/src/script.rs:774` is the shape a multi-reader test already takes here (one
-      `Compiler`, N readers, a counted answer). The other four names in the same `[[check]]` block
-      are the specification for the rest of the stage; take only this one until the fan-out exists,
-      since `the_compile_counter_counts_compiles_and_not_cores` needs more than one core to mean
-      anything.
-- [ ] **`Compiler` is shared by `Arc`, not built per core** — `crates/nvs-cli/src/serve.rs:68`
-      imports both `Rc` and `Arc` already, and `crates/nvs-cli/src/script.rs:783`'s comment says the
-      current arrangement is one `Rc<Compiler>` per core, which is what stage 2 replaces.
+- [ ] **`a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it` and
+      `the_compile_counter_counts_compiles_and_not_cores`** — both are tests over what already
+      landed, and neither needs a code change. The first is the swap seen from a reader that
+      resolved before it: `crates/nvs-cli/src/script.rs:989` is that fixture over one core, and
+      `crates/nvs-cli/src/script.rs:820` is the threaded shape to copy. The second asserts the
+      counter's own claim at `crates/nvs-cli/src/script.rs:245` — one per cache, not one per core.
+      `rule:config/an-edit-reaches-the-next-request-without-a-restart` is what both state.
+- [ ] **Step 4 publishes only if nobody moved the pointer since, and
+      `a_stale_revalidation_does_not_overwrite_a_fresher_published_one`** —
+      `crates/nvs-cli/src/script.rs:381` (`Compiler::advance`, today an unconditional `insert`) and
+      `crates/nvs-cli/src/script.rs:399` (`Compiler::record`). The compare is against the
+      `PathEntry` the resolve observed, so `advance` needs that entry as an argument;
+      `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s step 4 is the sentence, and
+      `script.rs`'s first known gap (`crates/nvs-cli/src/script.rs:63`) is what stops being a gap.
+- [ ] **`a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile`** —
+      `crates/nvs-cli/src/script.rs:381` for the publish and
+      `crates/nvs-cli/src/script.rs:885` (`no_request_stalls_while_the_file_is_compiled`) for the
+      never-blocks half, which is the same claim asserted across threads rather than resumes.
 
 ## Backlog
 
-- Single-flighting (`CompileState::Compiling`, the fresher-revalidation compare) — lands with the
-  fan-out, not before it; `crates/nvs-cli/src/script.rs`'s module doc § *Known gaps*.
-- `nvs-cli/src/main.rs:1584` still builds `Rc<nvs_codegen::Unit>` for the one-shot run path; it is
-  correct as it stands and only needs revisiting if that path ever shares a unit.
-- `nvs-cli/src/runner.rs` holds `Rc<nvs_codegen::Unit>` throughout (`:2101` counts strong handles);
-  the test runner is single-core by design and is not stage 2's business.
+- Single-flighting a compile in flight — `crates/nvs-cli/src/script.rs:63`, lands with the fan-out.
+- `nvs serve` accepts on one core; the per-core listeners are stage 3 — `crates/nvs-cli/src/serve.rs:296`.
+- `Table` is still `Rc`-shared in `serve.rs`; the fan-out decides whether it crosses too.

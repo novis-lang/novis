@@ -267,7 +267,13 @@ pub(crate) fn run(
     // request re-checks is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s question and the same module doc's: this
     // compiler carries the `[opcache]` block, so an edited entry is recompiled
     // for the requests that resolve it after the edit.
-    let compiler = Rc::new(Compiler::new(&snapshot.config));
+    //
+    // An `Arc` rather than an `Rc` because one cache serves the fleet: the unit
+    // it publishes is `Send` and `Sync` (`nvs_codegen::Unit`), so the compile
+    // paid for here is the only one any core makes, and a per-core cache would
+    // have made the count above one per core. Built once, before anything is
+    // bound, and handed to every accept loop by clone.
+    let compiler = Arc::new(Compiler::new(&snapshot.config));
     for mounted in table.mounts() {
         if let Err(message) = compiler.resolve(&mounted.entry.to_string_lossy()) {
             eprintln!("error: {message}");
@@ -310,7 +316,7 @@ pub(crate) fn run(
     // handle to have been given (`nvs_runtime::drain`).
     let draining = nvs_server::Draining::process();
     let handler = Rc::new({
-        let compiler = Rc::clone(&compiler);
+        let compiler = Arc::clone(&compiler);
         let table = Rc::clone(&table);
         let draining = draining.clone();
         move |request: Request<Incoming>, origin: Origin| {
