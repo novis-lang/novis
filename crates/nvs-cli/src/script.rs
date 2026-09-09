@@ -39,7 +39,7 @@
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!
-//! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and what one core collapses
+//! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and what a shared cache still owes
 //!
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
@@ -51,19 +51,37 @@
 //! write the digest back on success; leave it alone on failure, and answer that
 //! caller with the failure the new content is now keyed to.
 //!
-//! **A single core collapses the concurrent half of it.** That ADR is written
-//! against `DashMap`s reached from many request-serving cores, and specifies a
-//! compile pool, a `Compiling`/`Ready`/`Failed` broadcast every racing caller
-//! single-flights on, and a step 4 that writes a new digest back *only if a
-//! fresher revalidation has not won*. This cache is a [`RefCell`] reached from
-//! one coroutine on one core: there is no second resolve of a path between an
-//! observation and the write that follows it, so the compare in step 4 is
-//! **unreachable rather than relaxed**, and single-flighting is a property of
-//! the borrow rather than machinery. `Compiling` has no representation for the
-//! same reason — nothing can observe this cache while a compile is running in
-//! it. What survives is [`CompileState`]'s other two states, which are
-//! observable: a second resolve landing on content that already failed is
+//! **A reader never waits behind a compile.** Both maps are [`RwLock`]s: a
+//! resolve that hits takes the read half and contends with nothing, and the
+//! write half is taken for a single `insert` *after* the front end and the
+//! backend have already finished. **Neither guard is ever held across a
+//! compile**, which is what makes step 3 re-entrant — the program being
+//! compiled may itself `spawn script` back into this resolver — and is the
+//! whole of what keeps a serving core free where that rule keeps a thread free
+//! with a compile pool.
+//!
+//! **Known gap: nothing here single-flights a compile in progress.** That rule
+//! specifies a `Compiling`/`Ready`/`Failed` broadcast every racing caller waits
+//! on, and a step 4 that writes a new digest back *only if a fresher
+//! revalidation has not won*. [`CompileState`] has the two states a *finished*
+//! compile leaves behind and no spelling for the third, so two resolves of the
+//! same cold content that overlap both compile it, and the later `insert` wins
+//! step 4 unconditionally. On one accepting core neither is reachable: there is
+//! no second resolve of a path between an observation and the write that
+//! follows it. Both become reachable the moment a second core accepts, and the
+//! broadcast entry is what `docs/plan/m7.md`'s "ten thousand cold requests
+//! compile it exactly once" then rests on. What already holds either way is the
+//! cheaper half: a resolve landing on content that has already failed is
 //! answered from the table rather than compiled again.
+//!
+//! **Known gap: a compiled unit is `Rc`-shared, so one of these caches serves
+//! one core.** [`Compiled`] holds an [`Rc`] of an [`nvs_codegen::Unit`], and a
+//! `Unit` is neither [`Send`] nor [`Sync`]: it holds the entry addresses its
+//! own compiled code baked in, and an `Rc` of the [`nvs_runtime::ClassTable`]
+//! every instance of its classes carries a raw pointer into. Publishing one
+//! unit to every core is an [`Arc`] of both of those, in the crates that own
+//! them; until that lands, the locks above are the shape of the shared cache
+//! and not yet the fan-out.
 //!
 //! **A failure renders its spans once.** The front end writes diagnostics to
 //! standard error as it compiles (see [`Resolver::resolve`]), so the resolve
@@ -81,11 +99,11 @@
 //! the next resolve of that path hands the new unit to whoever asks next.
 //!
 
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime};
 
 use nvs_config::cache::{Digest, EnvHash, Revalidation, UnitKey, Validate, content_hash, env_hash};
@@ -115,10 +133,10 @@ pub(crate) struct Compiled {
 /// What one written path resolved to last, and when that was checked — [ADR
 /// 0017]'s `PathEntry`, the pointer an edit swaps.
 ///
-/// Copied out of the map rather than borrowed across the `stat` and the compile
-/// below it, which is why every field is [`Copy`]: holding the borrow over a
-/// front-end run would make the map unreachable from the `spawn script` that
-/// run may itself perform.
+/// Copied out of the map rather than read under a guard held across the `stat`
+/// and the compile below it, which is why every field is [`Copy`]: a guard
+/// spanning a front-end run would deadlock against the `spawn script` that run
+/// may itself perform.
 ///
 #[derive(Clone, Copy, Debug)]
 struct PathEntry {
@@ -168,14 +186,16 @@ struct Observed {
 ///
 #[derive(Debug)]
 pub(crate) struct Compiler {
-    /// Written path to what the last check of it observed. `RefCell` because
-    /// the seam borrows a resolver shared, and a cache that could not be
-    /// written on a hit would not be one.
-    paths: RefCell<HashMap<PathBuf, PathEntry>>,
+    /// Written path to what the last check of it observed. Behind a lock
+    /// because the seam borrows a resolver shared, and a cache that could not
+    /// be written on a hit would not be one — and a [`RwLock`] rather than a
+    /// mutex because a hit only reads it, which is every resolve after the
+    /// first.
+    paths: RwLock<HashMap<PathBuf, PathEntry>>,
     /// The unit table proper, addressed by content rather than by path, so that
     /// two paths holding the same source compile once and a reverted edit is a
     /// hit rather than a recompile.
-    units: RefCell<HashMap<UnitKey, CompileState>>,
+    units: RwLock<HashMap<UnitKey, CompileState>>,
     /// The environment half of every key here — `rule:config/the-extension-set-is-in-every-unit-key`'s digest, taken
     /// once from the configuration this process booted, because it is constant
     /// for the life of a snapshot.
@@ -204,12 +224,19 @@ pub(crate) struct Compiler {
     /// resolve hands back — is equal for a unit compiled once and one
     /// compiled a thousand times.
     ///
-    /// **What it spends:** one word per compiler, which is one per core, and
-    /// an increment on the one step that already costs a front end and a
-    /// backend. Deliberately not `#[cfg(test)]`: a field that exists in one
-    /// profile makes the release build a different struct, and this is the
-    /// number an `nvs info` would report if it ever reported one.
-    compiles: Cell<u64>,
+    /// It counts **compiles and not cores**: one per cache rather than one per
+    /// worker, so a fleet sharing a cache sums into it and content compiled
+    /// once reads as one however many cores asked for it. That is the whole
+    /// point of sharing the cache, and the number that says the sharing works.
+    ///
+    /// **What it spends:** one word per cache, and a relaxed increment on the
+    /// one step that already costs a front end and a backend — relaxed for
+    /// `nvs_server::admit`'s reason, that nothing orders anything else against
+    /// this and every increment only has to land. Deliberately not
+    /// `#[cfg(test)]`: a field that exists in one profile makes the release
+    /// build a different struct, and this is the number an `nvs info` would
+    /// report if it ever reported one.
+    compiles: AtomicU64,
 }
 
 impl Default for Compiler {
@@ -235,12 +262,12 @@ impl Compiler {
     /// it has already compiled, and the artifact cache that same block places.
     pub(crate) fn new(config: &Config) -> Self {
         Self {
-            paths: RefCell::new(HashMap::new()),
-            units: RefCell::new(HashMap::new()),
+            paths: RwLock::new(HashMap::new()),
+            units: RwLock::new(HashMap::new()),
             env: env_hash(config),
             revalidation: Revalidation::from_config(config),
             cache: crate::cache::from_config(config),
-            compiles: Cell::new(0),
+            compiles: AtomicU64::new(0),
         }
     }
 
@@ -261,7 +288,7 @@ impl Compiler {
         path: &str,
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
         let written = PathBuf::from(path);
-        let known = self.paths.borrow().get(&written).copied();
+        let known = shared(&self.paths).get(&written).copied();
 
         // 1. The syscall this resolve does not make: `validate = "never"` is
         //    production's answer for every resolve, and the rate cap is the
@@ -334,11 +361,7 @@ impl Compiler {
         path: &Path,
         content: Digest,
     ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
-        match self
-            .units
-            .borrow()
-            .get(&UnitKey::new(path, content, self.env))?
-        {
+        match shared(&self.units).get(&UnitKey::new(path, content, self.env))? {
             CompileState::Ready(compiled) => Some(Ok((
                 program_over(Rc::clone(compiled)),
                 Arc::clone(&compiled.routes),
@@ -350,7 +373,7 @@ impl Compiler {
     /// Step 4's pointer write: what this path resolves to now, and the moment
     /// the cap is measured from.
     fn advance(&self, path: &Path, observed: &Observed) {
-        self.paths.borrow_mut().insert(
+        exclusive(&self.paths).insert(
             path.to_path_buf(),
             PathEntry {
                 content_hash: observed.content_hash,
@@ -368,7 +391,7 @@ impl Compiler {
     /// this path goes, and a unit a running [`Program`] still holds stays
     /// mapped through that program's own `Rc` rather than through this map.
     fn record(&self, key: UnitKey, state: CompileState, keep: Option<Digest>) {
-        let mut units = self.units.borrow_mut();
+        let mut units = exclusive(&self.units);
         let reached = key.content_hash();
         units.retain(|other, _| {
             other.path() != key.path()
@@ -393,7 +416,7 @@ impl Compiler {
         // rather than after it: a compile that *failed* is still a compile
         // this cache paid for, and the claim being counted is about how many
         // times the file was put through the front end at all.
-        self.compiles.set(self.compiles.get() + 1);
+        self.compiles.fetch_add(1, Ordering::Relaxed);
         let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
         // Held across the lowering and the key alike: § 1's digest is over
@@ -420,6 +443,24 @@ impl Compiler {
             routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
         }))
     }
+}
+
+/// A read guard on one of [`Compiler`]'s two maps: the hit path, and the one
+/// every resolve after the first takes.
+///
+/// Poison is stepped over rather than reported, which is `nvs_host`'s rule for
+/// the same reason it is this cache's: nothing under either guard can leave a
+/// map half-written — a `get`, an `insert`, a `retain` and an [`Rc`] clone —
+/// so a thread that panicked elsewhere has not made anything in here untrue,
+/// and refusing to read it would cost a working process its whole cache.
+fn shared<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    lock.read().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// A write guard on one of the same two maps, held for one `insert` and never
+/// across a compile — the module doc's *A reader never waits behind a compile*.
+fn exclusive<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    lock.write().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Step 2: what the file behind `path` holds now.
@@ -555,7 +596,7 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
 
 #[cfg(test)]
 mod tests {
-    use super::{Compiler, granting_ctx as granting};
+    use super::{Compiler, granting_ctx as granting, shared};
     use nvs_runtime::script::{Program, ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
 
@@ -706,7 +747,7 @@ mod tests {
         let path = from_root("examples/isolate/capture.nvs");
         let _first = compiler.resolve(&path).expect("the child compiles");
         let _second = compiler.resolve(&path).expect("and again, from the cache");
-        assert_eq!(compiler.units.borrow().len(), 1);
+        assert_eq!(shared(&compiler.units).len(), 1);
     }
 
     #[test]
@@ -721,9 +762,11 @@ mod tests {
         // default, because the default answers requests 2..N from step 1
         // without looking at the file and would make this a test of the rate
         // cap. Here every request after the first re-observes the file, hashes
-        // it, and is still answered out of the unit table: the single-flight
-        // is the module doc's "property of the borrow", and this is the number
-        // that says so.
+        // it, and is still answered out of the unit table, because on one
+        // accepting core no second resolve of the path runs between an
+        // observation and the write that follows it. This is the number that
+        // says so, and the module doc's second known gap is what has to land
+        // before it says the same thing on four cores.
         const REQUESTS: usize = 10_000;
 
         let entry = a_file_saying("cold", "served");
@@ -756,13 +799,13 @@ mod tests {
             "a request was answered with no unit"
         );
         assert_eq!(
-            compiler.compiles.get(),
+            compiler.compiles.load(std::sync::atomic::Ordering::Relaxed),
             1,
             "the file was put through the front end more than once"
         );
         // And the table did not grow an entry per request either, which is the
         // same claim stated as what the cache holds afterwards.
-        assert_eq!(compiler.units.borrow().len(), 1);
+        assert_eq!(shared(&compiler.units).len(), 1);
     }
 
     #[test]
@@ -814,7 +857,10 @@ mod tests {
             report.resumes, REQUESTS,
             "a request gave the core back and was resumed, which is the stall"
         );
-        assert_eq!(compiler.compiles.get(), 1);
+        assert_eq!(
+            compiler.compiles.load(std::sync::atomic::Ordering::Relaxed),
+            1
+        );
         // And what the requests that did not compile were handed is the unit,
         // not a placeholder waiting to be filled in: every one of them runs.
         assert_eq!(held.borrow().len(), REQUESTS);
@@ -888,7 +934,7 @@ mod tests {
         let completion = run_program(after);
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(String::from_utf8_lossy(&completion.output), "two\n");
-        assert_eq!(compiler.units.borrow().len(), 1);
+        assert_eq!(shared(&compiler.units).len(), 1);
         drop(before);
     }
 
@@ -897,16 +943,16 @@ mod tests {
         // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s paragraph after the five steps, in the
         // spelling one core has for it. The ADR keeps a *thread* free by
         // running step 3 on the compile pool; what keeps this core free is the
-        // property [`PathEntry`]'s own doc states — neither table is borrowed
+        // property [`PathEntry`]'s own doc states — neither map's guard is held
         // across the stat or the compile — and the caller that proves it is a
         // program already in flight, because its `spawn script` re-enters this
-        // resolver from inside the very run a held borrow would have to span.
+        // resolver from inside the very run a held guard would have to span.
         let child = a_file_saying("in-flight", "one");
         let compiler = revalidating();
         let (holding, _) = compiler
             .compiled(&child.to_string_lossy())
             .expect("the child compiles");
-        let before = compiler.paths.borrow()[&child].content_hash;
+        let before = shared(&compiler.paths)[&child].content_hash;
 
         // The edit a serving core is about to find, and the request that finds
         // it: this parent resolves the edited path mid-run, through the seam
@@ -931,7 +977,7 @@ mod tests {
         assert!(completion.ok, "error: {:?}", completion.error);
         assert_eq!(String::from_utf8_lossy(&completion.output), "served\n");
         assert_ne!(
-            compiler.paths.borrow()[&child].content_hash,
+            shared(&compiler.paths)[&child].content_hash,
             before,
             "the swap did not publish"
         );
