@@ -111,13 +111,14 @@ const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/tools/20-config.md"),
     include_str!("../../../docs/reference/tools/30-php-differences.md"),
     include_str!("../../../docs/reference/tools/40-editor.md"),
+    include_str!("../../../docs/reference/tools/50-agents.md"),
 ];
 
 /// The chapters whose marked sections open the primer, in the order it prints
 /// them: the lookup protocol, the worked program, the capability model, then the
 /// refusals. Every other chapter's marked sections follow in reference order, so
 /// this list fixes where a section lands and never whether it is lifted.
-const PRIMER_FIRST: &[&str] = &["cli", "programs", "config", "php-differences"];
+const PRIMER_FIRST: &[&str] = &["agents", "programs", "config", "php-differences"];
 
 /// One chapter: the three front-matter fields the chapter map reads, and the
 /// text the marked sections are cut from.
