@@ -2,45 +2,52 @@
 
 ## State
 
-**Goal 24 — `Core\Net`, `Core\Os` and `Core\Signal` — has just started; nothing of it has landed yet.**
-Goal 23's whole list is this goal's Stage 1 floor.
+**Goal 24 — `Core\Net`, `Core\Os` and `Core\Signal`. Stage 2's design half has landed; no member
+exists yet.** [0162](../decisions/0162.md) is the goal's one ADR number, spent: it decides the
+socket surface as five entry points over three transports, and decides that **the grant follows the
+direction rather than the transport** — reaching out is `net.connect` with
+`rule:security/net-address-policy`'s table, binding is `net.listen` with none, a socket path at
+either end is `net.local`. A UDP socket needs two grants, because it does two things.
 
-These are the three classes in spec § 16 that **no milestone and no goal named at all** — the others in
-`spec-classes-part-two-outstanding.txt` each had an owner once it was looked for. They are M8's:
-`rule:core-api/tier-roster` puts all three at Tier 0, and M8's stdlib
-goals (4 and 5) walked without them.
+`net.local` is on the roster and exercised at the config layer
+(`crates/nvs-config/src/capability.rs:73`, `crates/nvs-config/src/tree.rs:298`). **`net.listen` is
+not on it yet** — it has no scope variant, and the stage that builds a listener is the one that
+should choose it. `Scope` has `Unscoped | Path | Host | Name` and none of them is an `address:port`.
 
-`Core\Socket` (`crates/nvs-stdlib/src/socket.rs`) is `rule:concurrency/a-connection-is-a-root-isolate`'s WebSocket upgrade and is **not** what
-this goal extends — the name collision is the trap worth knowing before opening the file.
+The four rules 0162 creates are `designed` and `guardedBy: []`; each names its guard in the record's
+*Verification*. `Core\Socket` (`crates/nvs-stdlib/src/socket.rs`) is still the WebSocket upgrade and
+is not what this goal extends.
 
 ## Next group
 
-**Stage 2: `Core\Net`** — one file set: `crates/nvs-host/src/net.rs`,
-`crates/nvs-config/src/capability.rs`, `crates/nvs-runtime/src/capability.rs`, and the new
+**Stage 3: TCP, and the grant a bind asks** — one file set: `crates/nvs-config/src/capability.rs`,
+`crates/nvs-config/src/tree.rs`, `crates/nvs-host/src/net.rs`, and the new
 `crates/nvs-stdlib/src/net.rs`.
 
-- [ ] **The ADR first.** One number for the socket surface: what a program may open, what the
-      capability answers, and why there is no second event loop. `rule:core-api/tier-roster`'s row is the whole design
-      on disk today.
-- [ ] **`net.local` joins the roster** — `rule:config/net-local-is-named-and-not-on-the-roster` named it and goal 20 deliberately did not add it
-      ("it has no caller until `Core\Net` lands"). This goal is that caller. `net.listen` is separate
-      and neither widens `net.connect`.
-- [ ] **TCP over `NvsTcp`/`NvsListener`** (`net.rs:227`, `:313`) — a program-supplied host still walks
-      `rule:security/net-address-policy`'s denied-range table through `pin_host`; goal 20's carve-out was for *configured*
-      stores and does not reach a program's own `connect`.
-- [ ] **UDP is the one addition to `nvs-host`** — there is no datagram type in that crate. `NvsUdp`
-      over `mio::net::UdpSocket`, shaped like `NvsStream` so it parks rather than blocking the core.
-- [ ] **Unix needs no new transport** — `NvsUnix` is at `net.rs:460`. A program-supplied path is
-      refused at this door as a *target*, per goal 20's standing decision.
+- [ ] **`net.listen` joins the roster, and picks its scope.**
+      `rule:security/net-listen-is-a-separate-grant-from-net-connect` says entries are `address:port`
+      literals matched exactly and that the grant carries no address policy;
+      `crates/nvs-config/src/capability.rs:109` is the `Scope` enum that has no variant for one, and
+      `crates/nvs-config/src/capability.rs:255` is `is_path_scoped`, the shape a per-capability
+      property takes here. `net_local_and_net_connect_are_separate_grants` at
+      `crates/nvs-config/tests/capability.rs:547` is the test to mirror, from the third side.
+- [ ] **`Core\Net::connect` over `NvsTcp`.** `crates/nvs-host/src/net.rs:313` is `NvsTcp::connect`
+      with its deadline, and `crates/nvs-stdlib/src/json.rs` is the five-edit module small enough to
+      read whole. The door asks `Cap::NetConnect` at `Scope::Host` and then the address, in that
+      order — `crates/nvs-runtime/src/capability.rs` holds `require` and `pin_host`.
+- [ ] **`Core\Net::listen` over `NvsListener`,** whose accepting half is at
+      `crates/nvs-host/src/net.rs:327`. `rule:core-classes/net-one-api-three-transports`: accepting
+      is a member on the listener, never a sixth entry point.
 
 ## Backlog
 
-- **Stage 3 (`Core\Os`)** is five facts and its own small file set. `cpuCount` answers
-  `available_parallelism`, which after goal 23 is the number the server actually fans out over;
-  `crates/nvs-cli/src/info.rs:145` is today's only caller. `loadAverage` throws on Windows naming the
-  platform rather than inventing an answer.
-- **Stage 4 (`Core\Signal`)** is graceful shutdown only — no `kill`, no `alarm`, no signal number as an
-  integer. A handler enters the drain that already exists (`crates/nvs-server/src/control.rs`), never a
-  second state machine, and runs at a safepoint rather than in a signal context.
-- **Stage 5** strikes the three keys from `spec-classes-part-two-outstanding.txt`; registering a class
-  and striking its line are one slice.
+- Stage 4: UDP needs `NvsUdp` in `crates/nvs-host/src/net.rs` — that crate has no datagram type, and
+  it is the one addition to it (`rule:core-classes/net-udp-carries-no-reliability-layer`).
+- Stage 5: Unix needs no new transport — `NvsUnix` is at `crates/nvs-host/src/net.rs:478`; the door
+  asks `Cap::NetLocal` at `Scope::Path`, both ends (`rule:config/net-local-is-named-and-not-on-the-roster`).
+- Stage 6: `Core\Os`, `Core\Signal` and `Core\Budget` — `rule:core-api/tier-roster` rows with no
+  design question left; [0148](../decisions/0148.md) settled the one that existed.
+- The migration table's `Core\Net` cells name no `Core\X::member` spelling, so they owe no key in
+  `crates/nvs-stdlib/tests/migration-members-outstanding.txt` until one is written there.
+- `docs/agent/loop-goal.toml`'s `[context]` printed everything this session needed; no field was
+  missing.
