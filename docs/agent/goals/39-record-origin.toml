@@ -1,0 +1,219 @@
+# Goal 39 -- A record names the line it came from, and a repeat is bounded at the sink that suffers
+# The acceptance test, as data.
+#
+# `39-record-origin.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # goal-switch.py unions the previous goal's list into this one. This goal writes no
+  # `examples/*.nvs` fixture of its own: a source location and a coalescing count are asserted from
+  # Rust and from `.nvst` cases, not from a program's frozen output.
+]
+
+[context]
+
+modules = [
+  # The model that already has both slots: `Source`, `Envelope::source`, and `Envelope::count` with
+  # the doc comment naming the rule that fills it. Nothing here changes; it is read so stage 2 fills
+  # a field rather than inventing one.
+  "crates/nvs-render/src/lib.rs",
+  # `record_of` -- where `Core\Debug::dump` builds its record, and the first of the two producers
+  # that must name their call site.
+  "crates/nvs-stdlib/src/debug.rs",
+  # `Core\Log::write`'s half of the same, plus the context machinery that already decides which
+  # envelope keys it has a source for.
+  "crates/nvs-stdlib/src/log.rs",
+  # The floor's window: `COALESCING_WINDOW`, the thread-local `Window`, `admit` and `key`. Stage 3
+  # extends this mechanism and must leave the floor's own single slot alone -- the comment arguing
+  # why one is enough *there* is the thing stage 3 answers rather than ignores.
+  "crates/nvs-runtime/src/floor.rs",
+  # `LOCATION_SLOT` and the store that sets it to `""`, and `nvs_trace_push` -- the runtime end of
+  # the call-site constant that already exists on the unwind path.
+  "crates/nvs-runtime/src/throwable.rs",
+  # `Terminator::Propagate`'s `frame: String` -- the IR half of that constant, and what stage 0 reads
+  # to decide whether a producer needs a sibling of its own.
+  "crates/nvs-ir/src/ir.rs",
+  # Where that label becomes static bytes in the unit's own data. The pattern a producer's constant
+  # follows, and the file that says what a call site can be handed for free.
+  "crates/nvs-codegen/src/emit.rs",
+]
+
+# The rules every stage of this goal works inside.
+rules = [
+  # This goal's first rule: what a record says about where it came from, and why no stack is captured.
+  "errors/a-record-names-where-it-was-produced",
+  # Its second: the bound sits on the sink, and each sink answers for what is scarce in it.
+  "errors/a-repeat-is-bounded-at-the-sink-that-suffers",
+  # The envelope both rules fill, and the closed node model neither of them may extend.
+  "errors/diagnostic-record",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A `.nvst` test case",
+  "A rule fragment",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `39-record-origin.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+# ---------------------------------------------------------------------------------------------------
+
+# Stage 0 decides how a producer learns its call site, and the rejected alternative -- a
+# current-location word in `Ctx` -- is argued in the record rather than left to a session at 2am.
+[context.stage.0]
+adrs = ["0165"]
+rules = ["errors/propagation"]
+
+# The keystone reads the record that argues one datum with two readers, and the trace-id rule that
+# is why no stack is captured beside it.
+[context.stage.2]
+adrs = ["0165"]
+rules = ["observability/a-log-record-carries-trace-ids-when-a-trace-is-active"]
+
+# Stage 3 works inside the floor's own bound, which is where the sink-not-the-caller argument is
+# written, and against 0163's stream, which is the sink this stage must NOT touch.
+[context.stage.3]
+adrs = ["0165", "0163"]
+rules = [
+  "http-server/the-floor-cannot-fill-the-disk",
+  "errors/engine-floor",
+  "errors/log-fields",
+]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its floor's, not this goal's own: nothing here touches a database, and the daemon is needed because
+# goal 38's acceptance list -- carried in as stage 1 -- reaches the driver suites that do.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-runtime", "crates/nvs-render"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. A record names where it was produced, and the `Throwable` property that
+# has always answered the empty string answers the same datum. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the origin"
+name = "a record names the file, line and member it was produced at"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_dump_reports_the_line_it_was_written_on",
+  "a_log_record_reports_its_enclosing_member_and_none_at_file_scope",
+  "a_producer_with_no_source_omits_the_field_rather_than_rendering_it_empty",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the origin"
+name = "a throwable's location is the same datum, and is no longer the empty string"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_thrown_object_reports_a_location_rather_than_an_empty_string",
+  "the_location_and_a_record_produced_at_the_same_site_agree",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the origin"
+name = "the conformance tree, including this goal's origin cases"
+args = ["test", "tests/conformance/"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the log target's window. The floor keeps its single slot; the log target gets a small
+# table, because the case the floor's comment says does not arise is the case that arises here.
+# Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the window"
+name = "interleaved identical records coalesce where a single slot would catch none of them"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another",
+  "the_next_record_after_a_window_closes_carries_how_many_it_stands_for",
+  "the_floor_keeps_its_single_slot_and_its_own_window",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the window"
+name = "a record that differs is never held back, and the occurrence keys never distinguish one"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_record_differing_only_in_request_id_still_coalesces",
+  "a_record_differing_in_its_source_line_is_written_immediately",
+  "the_windows_footprint_does_not_grow_with_the_number_of_records_written",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the rulebook. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "the rulebook validates, and neither rule this goal ships is still designed"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "every generated chapter is current with the fragments and their topic entries"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the rulebook"
+name = "the record and the rulebook still agree on what this decision created"
+argv = ["python", "tools/decisions.py", "--check"]

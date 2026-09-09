@@ -189,6 +189,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + `rule:config/net-local-is-named-and-not-on-the-roster`'s deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
 | [38 encoder-cycles](38-encoder-cycles.md) | M8, no ADR slot — [0164](../../decisions/0164.md) is already accepted | `nvs-stdlib` |
+| [39 record-origin](39-record-origin.md) | M8, no ADR slot — [0165](../../decisions/0165.md) is already accepted | `nvs-render`, `nvs-runtime`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen` |
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s change | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |

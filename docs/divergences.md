@@ -127,6 +127,7 @@ Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Genera
 | Errors | every failure category ends in a log line, and no handler is ever given a second attempt at the same failure | [`errors/escalation-ladder`](rules/errors.md#errors-escalation-ladder) |
 | Errors | the handler is request-local and fires exactly once; there is no global `set_exception_handler` | [`errors/on-uncaught-throw`](rules/errors.md#errors-on-uncaught-throw) |
 | Errors | there is one model behind every diagnostic, so a value's type is never lost the way `print_r` loses it | [`errors/diagnostic-record`](rules/errors.md#errors-diagnostic-record) |
+| Errors | no stack is captured per record, where `getTrace` snapshots the whole stack at construction; the call path is the trace's answer and a record carries only where it was produced | [`errors/a-record-names-where-it-was-produced`](rules/errors.md#errors-a-record-names-where-it-was-produced) |
 | Errors | a cut, a cycle and a redaction are nodes in the record, so every rendering agrees on them instead of truncating per formatter | [`errors/record-transformations`](rules/errors.md#errors-record-transformations) |
 | Errors | one member replaces `var_dump`, `print_r`, `var_export` and `json_encode`, and reads correctly in every medium | [`errors/renderings`](rules/errors.md#errors-renderings) |
 | Errors | no `__debugInfo` and no `__toString` in a dump — a dump shows declared state and never a prettier view of it | [`errors/no-render-hook`](rules/errors.md#errors-no-render-hook) |

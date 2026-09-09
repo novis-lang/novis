@@ -313,6 +313,21 @@ handoff = "docs/agent/goals/38-encoder-cycles.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# It follows goal 38 because both close a gap in shipped surface found in one review and neither
+# shares the other's file set, and it precedes everything that would otherwise inherit that gap:
+# 0163's viewer cannot name a line no producer writes, `Throwable::$location` is a readable
+# property that always answers the empty string, and a request that logs in a loop is unbounded
+# where a request that faults in a loop already is not. Nothing ahead of it is a dependency -- the
+# model declares both envelope fields and a call-site constant already reaches the runtime on the
+# unwind path.
+[[goal]]
+name = "39 record-origin"
+md = "docs/agent/goals/39-record-origin.md"
+toml = "docs/agent/goals/39-record-origin.toml"
+handoff = "docs/agent/goals/39-record-origin.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
 # The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
 # and `rule:core-classes/html-parsing`'s WHATWG parser both wait on `Core\Xml`'s tree, and `rule:core-classes/html-parsing` is titled
 # *Unscheduled, and lands with `Core\Xml`* -- three gaps, one tree, one goal. It is last of the

@@ -3,7 +3,7 @@
 
 # Errors
 
-*2 of 26 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -350,6 +350,33 @@ implementation of [`errors/record-transformations`](errors.md#errors-record-tran
 
 <sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
 
+<a id="errors-a-record-names-where-it-was-produced"></a>
+
+## A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum  *(designed — not yet in the compiler)*
+
+`rule:errors/a-record-names-where-it-was-produced`
+
+A record's envelope carries where it was produced — the file as the program named it, its one-based
+line, and the enclosing `Class::member` where there is one — filled by the producer from a constant
+the compiler already knows, and a `Throwable`'s `location` is that same datum rather than a second
+spelling of it.
+
+Two spellings of "where" that could disagree would be worse than one that was missing, so there is
+one construction with two readers. A producer that has no source to give omits the field, on the
+envelope's existing rule that an absent field is omitted rather than rendered empty.
+
+**No stack is captured per record.** Where a trace is active the record already carries `span_id`
+([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active)) and the trace already
+records call entry and exit at every call site, so *how execution arrived* is reconstructable for
+exactly the sessions that asked for a trace. Where one is not, the file, line and member are the
+answer, and they are enough to open an editor in the right place. Matching PHP's snapshot-the-whole-
+stack behaviour would need a walk of Novis's own frame chain and is not bought here.
+
+The cost stays where [`errors/propagation`](errors.md#errors-propagation) put it. A `source` is read at the call that produces a
+record, never maintained as running state, so no path that produces no record pays anything for it.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/propagation`](errors.md#errors-propagation), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active). Decided in [0165](../decisions/0165.md).</sub>
+
 <a id="errors-record-transformations"></a>
 
 ## Redaction, control bytes, bidi and elision are decided in the record
@@ -537,6 +564,39 @@ A record is charged to the request's budget, and a record shed under burst press
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
 <sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
+
+<a id="errors-a-repeat-is-bounded-at-the-sink-that-suffers"></a>
+
+## A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time  *(designed — not yet in the compiler)*
+
+`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`
+
+A run of identical records is bounded at the sink that would suffer from it, and each sink answers
+for what is scarce in it: a disk-bounded target coalesces before the write, and an indexed target
+stores every occurrence and groups them at read time.
+
+[`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk) puts the bound on the sink rather than on the
+caller "so that no caller has to be trusted to be rare", and that holds here unchanged. What differs
+is what each sink is protecting. The diagnostic log's bound is a finite disk, and the cheapest place
+to protect one is before the bytes exist. The debug stream's bound is an index that holds a million
+rows without complaint, so merging occurrences before storing them would spend the developer's
+information to save nothing scarce — its ingester already computes a per-record hash, and the viewer
+collapses a run into one row saying how many it stands for, which expands.
+
+**The log target's window is a small fixed table, not the floor's single slot.** The floor keeps one
+because a fault loop repeats one record; application code interleaves, and a single slot coalesces
+none of that. Memory stays a constant, just a larger one.
+
+The identity is the floor's: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count` are
+cleared before hashing, because those are what distinguish two occurrences of one thing. Everything
+else counts, `source` included — two identical messages from two lines are two facts. **A record that
+differs is written immediately and never held behind a window**, and the next occurrence after a
+window closes carries how many it stands for.
+
+Coalescing bounds what is *stored*, not what is *spent*: a duplicate is only known to be one after
+its record has been built and rendered, so a loop still pays for every record it makes.
+
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0165](../decisions/0165.md).</sub>
 
 <a id="errors-ambiguous-input-refused"></a>
 
