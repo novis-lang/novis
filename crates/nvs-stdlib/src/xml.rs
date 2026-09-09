@@ -1100,7 +1100,13 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::{KIND, Kind, Parsed, parse};
+    use nvs_runtime::{Ctx, NvsStr, OutputSink, Tag, Value, call};
+
+    use super::{
+        ATTRIBUTES_SLOT, CHILDREN_SLOT, CLASS, DOCTYPE_REFUSAL, KIND, KIND_NAME, KIND_SLOT, Kind,
+        NAME, NAME_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, parse,
+    };
+    use crate::registry::{CLASSES, CoreTy, Qual};
 
     /// A kind's name, read out of the registered roster rather than out of a
     /// second table here — so a walk asserted below is asserted against the
@@ -1164,6 +1170,384 @@ mod tests {
                 "{} is in the family and no document produces one",
                 case(kind)
             );
+        }
+    }
+
+    /// What a reference may resolve to is a closed vocabulary, and the closure
+    /// is the whole mitigation.
+    ///
+    /// `rule:core-classes/xml-refuses-by-construction`: the five predefined
+    /// entities and numeric character references expand because they are the
+    /// document's own characters written another way, and every other name —
+    /// including the ones a document type declaration would have introduced and
+    /// the HTML spellings a program reaches for out of habit — is refused by one
+    /// sentence naming the three places nothing is resolved from. The sweep is
+    /// what makes this a claim about the parser rather than about a default:
+    /// there is no name that answers differently, and [`CLASS`] carries no
+    /// second parameter a flag could have occupied.
+    #[test]
+    fn an_external_entity_is_not_a_code_path_rather_than_a_flag_defaulting_to_off() {
+        for (reference, expanded) in [
+            ("&amp;", "&"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&quot;", "\""),
+            ("&apos;", "'"),
+            ("&#65;", "A"),
+            ("&#x41;", "A"),
+        ] {
+            let tree = parse(&format!("<a>{reference}</a>"))
+                .expect("a predefined entity is the document's own character");
+            let mut seen = Vec::new();
+            walk(&tree, &mut seen);
+            assert!(
+                seen.contains(&format!("Text::{expanded}")),
+                "{reference} is one of the seven that expand, and it answered {seen:?}"
+            );
+        }
+
+        for name in ["xxe", "file", "sp", "nbsp", "copy", "lol1", "ent"] {
+            let err = parse(&format!("<a>&{name};</a>")).expect_err(
+                "no entity is resolved from anywhere, so no name outside the five works",
+            );
+            assert_eq!(
+                err,
+                format!(
+                    "`&{name};` is not one of the five predefined entities, and no entity is \
+                     resolved from a document type declaration, an internal subset or the network"
+                ),
+                "every unknown name is refused by the same sentence, because none of them is looked \
+                 up anywhere"
+            );
+        }
+
+        // The other half of "rather than a flag": the signature has nowhere to
+        // put one. A single parameter, no defaults, so there is no argument a
+        // caller could pass and no default a deployment could have changed.
+        assert_eq!(
+            CLASS.methods.len(),
+            1,
+            "the tree half is the parse and nothing else"
+        );
+        assert_eq!(
+            CLASS.methods[0].params.len(),
+            1,
+            "`Core\\Xml::parse` takes the document and nothing else"
+        );
+        assert!(
+            CLASS.methods[0].defaults.is_empty(),
+            "a default is a setting once there is a parameter to hang it on"
+        );
+    }
+
+    /// A document type declaration stops at its own token, whatever it names.
+    ///
+    /// `rule:core-classes/xml-refuses-by-construction` refuses the declaration
+    /// **whole**, and the assertion that says so is that all five spellings
+    /// below — bare, `SYSTEM` over the network, `SYSTEM` over the filesystem,
+    /// `PUBLIC`, and an internal subset declaring an external entity — answer
+    /// the *same* sentence in both positions a declaration can appear. A parser
+    /// that read the identifier far enough to decide would have to differ
+    /// somewhere across that table.
+    #[test]
+    fn a_dtd_naming_an_external_subset_is_refused_rather_than_fetched() {
+        for dtd in [
+            "<!DOCTYPE a>",
+            "<!DOCTYPE a SYSTEM \"http://example.invalid/a.dtd\">",
+            "<!DOCTYPE a SYSTEM \"file:///etc/passwd\">",
+            "<!DOCTYPE a PUBLIC \"-//W3C//DTD XHTML 1.0//EN\" \"http://www.w3.org/TR/xhtml1.dtd\">",
+            "<!DOCTYPE a [<!ENTITY x SYSTEM \"file:///etc/passwd\">]>",
+        ] {
+            for document in [format!("{dtd}<a/>"), format!("<a>{dtd}</a>")] {
+                let err = parse(&document)
+                    .expect_err("a declaration is not something a document may hold");
+                assert_eq!(
+                    err, DOCTYPE_REFUSAL,
+                    "`{document}` is refused by the identifier never being read, so the sentence \
+                     cannot depend on what it named"
+                );
+            }
+        }
+    }
+
+    /// The billion-laughs document is closed at its declaration, not metered.
+    ///
+    /// `rule:core-classes/xml-refuses-by-construction`: an expansion needs an
+    /// internal subset to declare its entities in, and there is none, so there
+    /// is no expansion factor for a ratio and ceiling to bound. Both sides are
+    /// asserted, because either alone would pass against a parser that read the
+    /// subset — with the declaration the parse stops at `<!DOCTYPE`, and with it
+    /// stripped the first reference is refused as a name nothing defines.
+    #[test]
+    fn a_billion_laughs_document_is_refused_at_its_doctype_rather_than_bounded() {
+        const SUBSET: &str = concat!(
+            "<!DOCTYPE lolz [",
+            "<!ENTITY lol \"lol\">",
+            "<!ENTITY lol1 \"&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;\">",
+            "<!ENTITY lol2 \"&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;&lol1;\">",
+            "]>"
+        );
+
+        let bomb = format!("{SUBSET}<lolz>&lol2;</lolz>");
+        assert_eq!(
+            parse(&bomb).expect_err("the declaration is refused before anything is expanded"),
+            DOCTYPE_REFUSAL,
+            "the bomb stops at its declaration, so no bound is reached and none is reported"
+        );
+
+        let err = parse("<lolz>&lol2;</lolz>")
+            .expect_err("a reference to a name nothing defines is refused on its own");
+        assert!(
+            err.starts_with("`&lol2;` is not one of the five predefined entities"),
+            "with the subset gone the reference is still unresolvable, and answered {err}"
+        );
+    }
+
+    /// Whether a signature's type mentions `class` anywhere inside it.
+    ///
+    /// Exhaustive with the leaves grouped rather than swept up by a `_`,
+    /// because this backs an assertion about an *absence*: a composite variant
+    /// added later must be a build error here rather than a hole the sweep
+    /// walks straight past. Same shape, and for the same reason, as
+    /// `Core\Ast`'s.
+    fn mentions(ty: &CoreTy, class: &str) -> bool {
+        match ty {
+            CoreTy::Instance(name)
+            | CoreTy::ShapeOfCallables(name)
+            | CoreTy::Written(name)
+            | CoreTy::Enum(name)
+            | CoreTy::EnumCase(name, _)
+            | CoreTy::Var(name) => *name == class,
+            CoreTy::Array(inner)
+            | CoreTy::Nullable(inner)
+            | CoreTy::Iterated(inner)
+            | CoreTy::Variadic(inner) => mentions(inner, class),
+            CoreTy::InstanceAt(name, args) => {
+                *name == class || args.iter().any(|arg| mentions(arg, class))
+            }
+            CoreTy::Union(members) => members.iter().any(|member| mentions(member, class)),
+            CoreTy::CallableSig(params, ret) => {
+                params.iter().any(|param| mentions(param, class)) || mentions(ret, class)
+            }
+            CoreTy::Options(options) => options.iter().any(|option| mentions(&option.ty, class)),
+            CoreTy::Shape(arms) => arms
+                .iter()
+                .any(|arm| arm.iter().any(|field| mentions(&field.ty, class))),
+            CoreTy::Bool
+            | CoreTy::Int
+            | CoreTy::Uint
+            | CoreTy::Float
+            | CoreTy::Decimal
+            | CoreTy::Str
+            | CoreTy::Bytes
+            | CoreTy::Text(_)
+            | CoreTy::Blob(_)
+            | CoreTy::SecretBytes
+            | CoreTy::SecretBlob(_)
+            | CoreTy::TaintedStr
+            | CoreTy::TaintedBytes
+            | CoreTy::SecretTaintedStr
+            | CoreTy::Void
+            | CoreTy::Mixed
+            | CoreTy::Callable
+            | CoreTy::Entry
+            | CoreTy::IntLiteral(_) => false,
+        }
+    }
+
+    /// Whether every place `ty` can carry text carries it in the `tainted`
+    /// form.
+    ///
+    /// Exhaustive for the same reason [`mentions`] is: the assertion is that
+    /// there is no unmarked text position anywhere in a node's answers, and a
+    /// composite variant that appeared later would otherwise be a position the
+    /// sweep never looked at.
+    fn every_text_position_is_tainted(ty: &CoreTy) -> bool {
+        match ty {
+            CoreTy::Str
+            | CoreTy::Bytes
+            | CoreTy::Text(_)
+            | CoreTy::Blob(_)
+            | CoreTy::SecretBytes
+            | CoreTy::SecretBlob(_) => false,
+            CoreTy::Array(inner)
+            | CoreTy::Nullable(inner)
+            | CoreTy::Iterated(inner)
+            | CoreTy::Variadic(inner) => every_text_position_is_tainted(inner),
+            CoreTy::InstanceAt(_, args) => args.iter().all(every_text_position_is_tainted),
+            CoreTy::Union(members) => members.iter().all(every_text_position_is_tainted),
+            CoreTy::CallableSig(params, ret) => {
+                params.iter().all(every_text_position_is_tainted)
+                    && every_text_position_is_tainted(ret)
+            }
+            CoreTy::Options(options) => options
+                .iter()
+                .all(|option| every_text_position_is_tainted(&option.ty)),
+            CoreTy::Shape(arms) => arms.iter().all(|arm| {
+                arm.iter()
+                    .all(|field| every_text_position_is_tainted(&field.ty))
+            }),
+            CoreTy::Instance(_)
+            | CoreTy::ShapeOfCallables(_)
+            | CoreTy::Written(_)
+            | CoreTy::Enum(_)
+            | CoreTy::EnumCase(_, _)
+            | CoreTy::Var(_)
+            | CoreTy::Bool
+            | CoreTy::Int
+            | CoreTy::Uint
+            | CoreTy::Float
+            | CoreTy::Decimal
+            | CoreTy::TaintedStr
+            | CoreTy::TaintedBytes
+            | CoreTy::SecretTaintedStr
+            | CoreTy::Void
+            | CoreTy::Mixed
+            | CoreTy::Callable
+            | CoreTy::Entry
+            | CoreTy::IntLiteral(_) => true,
+        }
+    }
+
+    /// Every string a program can read out of a parsed tree is `tainted`, and
+    /// the mark does not depend on what was parsed.
+    ///
+    /// `rule:security/tainted-sources` applied to a parser: what comes out of
+    /// one over bytes a program did not write is untrusted, whatever the
+    /// argument was. The sweep is over the whole instance roster rather than
+    /// over the three members that answer text today, so a sixth member
+    /// answering an unmarked `string` fails here — which is the shape a
+    /// namespace or a doctype accessor would arrive in.
+    ///
+    /// The parameter's [`Qual::Neutral`] is the second half and not a detail:
+    /// [`Qual::Contagious`] would make the answer's mark depend on the
+    /// argument's, so a tree parsed from a literal would come back unmarked.
+    /// A qualifier is erased before codegen, so these rows are the whole claim
+    /// — there is nothing at run time for a case to look at.
+    #[test]
+    fn every_string_read_out_of_a_parsed_tree_is_tainted() {
+        for member in NODE.members() {
+            assert!(
+                every_text_position_is_tainted(&member.return_ty),
+                "{NODE_NAME}::{} answers text that is not `tainted`, and a parsed tree has no \
+                 unmarked half",
+                member.name
+            );
+        }
+
+        assert!(
+            matches!(CLASS.methods[0].params[0], CoreTy::Text(Qual::Neutral)),
+            "the parse's parameter is neutral, so the answer is tainted unconditionally rather \
+             than contagiously"
+        );
+    }
+
+    /// Whether a type reaches nothing but the tree, its text and its closed
+    /// kind — a whitelist, so a variant added later fails closed.
+    fn is_inert(ty: &CoreTy) -> bool {
+        match ty {
+            CoreTy::Instance(name) => *name == NODE_NAME,
+            CoreTy::Enum(name) => *name == KIND_NAME,
+            CoreTy::Array(inner) => is_inert(inner),
+            CoreTy::TaintedStr => true,
+            _ => false,
+        }
+    }
+
+    /// A parsed tree is inert data, on
+    /// `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule
+    /// for the AST — the same property, shown the same three ways, because the
+    /// two trees are the same kind of thing.
+    ///
+    /// 1. **No member anywhere in `Core` accepts a node or the class.** The
+    ///    sweep is over the whole registry, because a door that ran a tree
+    ///    would be declared next to whatever ran it rather than here.
+    /// 2. **A walk reaches nothing but the tree.** Every member a node has
+    ///    answers a node, its text or its kind, so no amount of walking
+    ///    produces a value of another class.
+    /// 3. **The values are ordinary data at run time too**, over a real parse:
+    ///    every slot is an integer, text or an array of those, and there is no
+    ///    closure, callable or resource anywhere in it.
+    #[test]
+    fn a_parsed_tree_has_no_path_back_into_execution() {
+        for class in CLASSES {
+            for member in class.members() {
+                for param in member.params {
+                    assert!(
+                        !mentions(param, NODE_NAME) && !mentions(param, NAME),
+                        "{}::{} takes a parsed tree, which would be the path back into execution \
+                         this closes",
+                        class.name,
+                        member.name
+                    );
+                }
+            }
+        }
+
+        for member in NODE.members() {
+            assert!(
+                is_inert(&member.return_ty),
+                "{NODE_NAME}::{} answers something that is neither the tree, its text nor its \
+                 kind, so walking the tree reaches outside it",
+                member.name
+            );
+        }
+
+        let source = Value::str(NvsStr::new(b"<?xml version=\"1.0\"?><a k=\"v\">t<b/></a>"));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree = call(super::nvs_core_xml_parse, &mut ctx, &[source])
+            .expect("that document is well-formed");
+        let mut seen = 0usize;
+        assert_data(tree, &mut seen);
+        // Document, the element, its text and the empty element — the walk
+        // reached every one, so the property was checked over a tree rather
+        // than over its root.
+        assert_eq!(seen, 4, "every node of the parsed document was inspected");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and the tree's own \
+                      references are the nodes' own"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Asserts that `node` is a [`NODE`] holding nothing but data, and
+    /// recurses into its children, counting what it inspected.
+    fn assert_data(node: Value, seen: &mut usize) {
+        *seen += 1;
+        let receiver = node.obj_ptr().expect("a node is an object");
+        assert_eq!(
+            crate::instance::slot(receiver, KIND_SLOT).tag(),
+            Some(Tag::Int),
+            "a node's kind is the case's ordinal"
+        );
+        for (slot, what) in [(NAME_SLOT, "name"), (TEXT_SLOT, "text")] {
+            assert_eq!(
+                crate::instance::slot(receiver, slot).tag(),
+                Some(Tag::Str),
+                "a node's {what} is text"
+            );
+        }
+        for (slot, each) in [(ATTRIBUTES_SLOT, Some(Tag::Str)), (CHILDREN_SLOT, None)] {
+            let held = crate::instance::slot(receiver, slot);
+            assert_eq!(held.tag(), Some(Tag::Array), "a node holds its own array");
+            let array = held.array_ptr().expect("the slot is an array");
+            let array = crate::arr::borrowed(array);
+            let mut from = 0usize;
+            while let Some(at) = array.next_slot(from) {
+                let value = array
+                    .value_at(at)
+                    .expect("next_slot only names live entries");
+                match each {
+                    Some(tag) => assert_eq!(value.tag(), Some(tag), "an attribute value is text"),
+                    None => assert_data(value, seen),
+                }
+                from = at + 1;
+            }
         }
     }
 }
