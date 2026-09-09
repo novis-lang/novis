@@ -145,6 +145,7 @@ Conventions the whole file uses:
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Compress`](#core-core-compress) |  |
 | [`Core\Mime`](#core-core-mime) |  |
+| [`Core\Zip`](#core-core-zip) |  |
 | [`Core\Http`](#core-core-http) |  |
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
@@ -18614,6 +18615,53 @@ The IANA media type `$type` is spelled with, for a `Content-Type` header or a st
 | `$type` | `Core\Mime\Type` | The case to spell, usually one `detect` just answered. |
 
 **Returns** `string` — The media type, as `image/png` — and `application/octet-stream` for `Core\Mime\Type::Unknown`, which is what a program that must send something should send for octets it could not name.
+
+<a id="core-core-zip"></a>
+### `Core\Zip`
+
+Keywords: entries, read
+
+| Member | Signature |
+|---|---|
+| [`Core\Zip::entries`](#core-core-zip-entries) | `entries(bytes $archive): array<tainted string>` |
+| [`Core\Zip::read`](#core-core-zip-read) | `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` |
+
+<a id="core-core-zip-entries"></a>
+#### `Core\Zip::entries`
+
+```nvs skip
+Core\Zip::entries(bytes $archive): array<tainted string>
+```
+
+The names an archive carries, in the order its central directory lists them — replacing `zip_read`/`zip_entry_name` and `ZipArchive::statIndex`. The archive is judged whole first: an archive carrying a traversing, absolute-path or symlink entry has no listing, because a program that could see such an entry could act on it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$archive` | `bytes` (neutral) | The archive's octets. Only its central directory is read, so listing a large archive costs its entry count rather than its size. |
+
+**Returns** `array<tainted string>` — One `tainted string` per entry. A name is tainted whatever the archive's own type was, for the reason a claim out of a verified token is: the name was written by whoever built the archive, and a literal archive in a test is no safer than a downloaded one.
+
+**Throws** `ParseError` — `$archive` is not a well-formed zip archive, or it carries an entry naming an absolute path, traversing out of the archive with a `..` component, repeating a name, or marked as a symlink. Never an `IOError`: a hostile archive and a failing disk are different questions.
+
+<a id="core-core-zip-read"></a>
+#### `Core\Zip::read`
+
+```nvs skip
+Core\Zip::read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes
+```
+
+One entry's octets, decompressed **under a bound that cannot be switched off** — replacing `zip_entry_read` and `ZipArchive::getFromName`, whose only limit was the memory the request had left.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$archive` | `bytes` (neutral) | The archive's octets, judged by the same reader `entries` uses: a hostile entry anywhere in it refuses this call too, whichever entry was asked for. |
+| `$name` | `string` (neutral) | The entry to read, compared whole against the archive's own names and never resolved as a path. A name `entries` just answered is accepted as it stands. |
+| `$maxBytes` | `uint` (default `67108864`) | The most output this call will produce, in octets. A call may ask for less than `[limits] max_decompressed` and never for more; `0` is a bound of zero and not a spelling for unbounded. |
+| `$maxRatio` | `uint` (default `1000`) | The most output per octet of the entry's compressed size. The second half of the same bound, because a bomb is small on the wire. |
+
+**Returns** `tainted bytes` — The entry's octets, never a truncation — an entry that would pass either half of the bound throws instead of answering the prefix it had reached. Tainted, for the reason the names are: octets out of an archive are somebody else's.
+
+**Throws** `ParseError` — Everything `entries` refuses, plus: no entry has that name, the entry is compressed by a method this class does not read, its stream is not well formed, or its output would pass either half of the bound.
 
 <a id="core-core-http"></a>
 ### `Core\Http`

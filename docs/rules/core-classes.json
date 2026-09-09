@@ -660,7 +660,9 @@
       "seeAlso": ["core-api/tier-roster", "config/three-changeability-classes", "programs/memory-priority"],
       "guardedBy": [
         "tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst",
-        "crates/nvs-stdlib/src/compress.rs"
+        "tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst",
+        "crates/nvs-stdlib/src/compress.rs",
+        "crates/nvs-stdlib/src/zip.rs"
       ]
     },
     {

@@ -3754,6 +3754,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `rule:ide/stdout-belongs-to-the-protocol` rather than the member you were writing. Build a test
   context as `Ctx::new(OutputSink::Sink)`, which is what every other `nvs-stdlib` unit test already
   does. [until: gone crates/nvs-lsp/tests/stdout_policy.rs]
+- **A `Fault` message's stem reaches `conformance_coverage.rs`'s corpus only through an `--EXPECT--`
+  line, because a `"Core\\Zip: ..."` literal in a `--FILE--` section is two backslashes on disk.**
+  `every_error_path_is_asserted_or_declared_unreachable` does a plain substring search over each
+  case's whole text for the run of the message before its first `{`, and `Core\\Zip` does not
+  contain `Core\Zip`. Print the message — `echo $e->message` — rather than testing it with
+  `Core\Str::startsWith`, and keep every hole out of the stem, which means a refusal must not
+  interpolate a library's own error text if the case is to freeze it. [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 
@@ -5428,6 +5435,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `CoreTy::Blob(Qual::Contagious)` for a member that reshapes octets and learns nothing about where
   they came from, and it is accepted inside a `CoreTy::Union` member too.
   [until: reviewed 2026-09-09]
+- **A `CoreTy::Uint` parameter arrives as a `uint`-tagged `Value`, so `as_int()` answers `None` and
+  the member dies at run time rather than at build time.** The failure is a `FATAL ... expected a
+  non-negative `uint` ..., got tag 3` from the argument guard a session writes as unreachable, which
+  reads like a caller error and is actually the accessor: a row's `Const::Uint` default is
+  materialised as a `uint`, not as an `int`. Use `Value::as_uint` for every `CoreTy::Uint` slot —
+  `crates/nvs-stdlib/src/compress.rs`'s `uint_of` is the shape — and reach for `as_int` only where
+  the row says `CoreTy::Int`. [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 
