@@ -5571,6 +5571,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `every_member_parameter_carries_a_qualifier_classification`, because an option is a parameter.
   Run `cargo test -p nvs-stdlib --lib` after writing a row and before the full gate.
   [until: reviewed 2026-09-09]
+- **A depth-ceiling constant is not evidence that a recursive walk over a document that deep
+  survives.** `Core\Xml`'s ceiling is 1024 and `nvs_host::TASK_STACK_SIZE` is 1 MiB, so one native
+  frame per node overflowed at about 900 — inside a bound the parser still accepted, turning a
+  stated refusal into a crash. Price the frame against that stack rather than against the constant,
+  and put the stack on the heap: `crates/nvs-stdlib/src/xml.rs:@instance_of` is the shape.
+  [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

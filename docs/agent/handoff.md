@@ -2,62 +2,65 @@
 
 ## State
 
-**Goal `xml-tree`, stage 3 is complete and green.** `Core\Xml::writer({indent?: string})` answers a
-`Core\Xml\Writer` with ten members — the two pairs (`startDocument`/`endDocument`,
-`startElement`/`endElement`) and the six single calls (`content`, `attribute`, `comment`, `cdata`,
-`instruction`, `doctype`) that spec § 17 keeps out of PHP's doubled roster. Its whole state is its own
-slots, so what is open is never an argument: `endElement` takes no name, `endDocument` refuses a tree
-rather than emitting one, and every refusal writes nothing. All five of stage 3's acceptance tests
-pass.
+**Goal `xml-tree`, stage 4 is complete and green.** `Core\Html::parse(string $document):
+Core\Xml\Node` drives `html5ever` through `crate::html`'s own `Sink` — a `TreeSink` over a flat
+arena — into `crate::xml`'s `Parsed` nodes, so the boundary between the crate and the tree is where
+the one-node-family rule is enforced rather than restated. All three tests the stage's acceptance
+check names pass, and `rule:core-classes/html-parsing` is now `shipped` with them and the three new
+`.nvst` cases as its guards.
 
-**`rule:core-classes/xml-tree-and-stream` is `shipped`** and names its four guards; its last paragraph
-now says what each half of the stream spends, since a writer holds the document it is building.
+**The dependency is `html5ever = "0.39"`, seventeen crates, MIT or Apache-2.0 and no C.** The audit
+under `rule:packaging/a-c-dependency-answers-two-questions` is written on the workspace row
+(`Cargo.toml`, the *HTML parsing* section); `markup5ever_rcdom` is deliberately not taken.
+`THIRD-PARTY-LICENSES.txt` is regenerated and `cargo deny check licenses` is clean.
 
-**One asymmetry is deliberate and stated in three places** — `doctype`'s reference card, the module
-doc and
-`tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst`: the writer
-writes a `<!DOCTYPE …>` and `Core\Xml::parse` refuses one whole, so that is the one construct this
-class writes and will not read back. Nobody has decided whether a subset-free declaration should
-parse; `rule:core-classes/xml-refuses-by-construction` currently says no.
+**One pre-existing crash is fixed on the way, and it was `Core\Xml`'s.** `instance_of` recursed once
+per node, so a document nested past about 900 elements exhausted the task stack before
+`DEPTH_CEILING` refused it — a crash where the bound was supposed to be. It is now iterative over a
+heap stack, and `Core\Html::parse` holds the same ceiling from the other side by flattening a tree
+past it rather than refusing one, since that door has no way to refuse.
 
-**`examples/html-sanitize.nvs` is still the failing acceptance check** and is still not a regression:
-it cannot be written before `Core\Html::sanitize` exists in stage 5.
+**`examples/html-sanitize.nvs` is still the failing acceptance check** and is still not a
+regression: it is stage 5's fixture and cannot be written before `Core\Html::sanitize` exists.
 
 ## Next group
 
-**Stage 4: the WHATWG parser, on `Core\Html`** — one file set, `crates/nvs-stdlib/src/html.rs` plus
-`crates/nvs-stdlib/Cargo.toml`, the family in `crates/nvs-stdlib/src/xml.rs` and new cases under
-`tests/conformance/core/`. The whole group is specified by `rule:core-classes/html-parsing`.
+**Stage 5: `Core\Html::sanitize`, which is why the tree matters** — one file set,
+`crates/nvs-stdlib/src/html.rs` plus `examples/html-sanitize.nvs` and new cases under
+`tests/conformance/core/`. The whole group is specified by `rule:core-classes/html-sanitize` and
+`rule:security/tainted-qualifier`, and stage 5's `[[check]]` in `docs/agent/loop-goal.toml` names
+the four tests it must end with.
 
-- [ ] **`html5ever` as a dependency of `nvs-stdlib`, driven through a Novis-owned tree builder** into
-      `crate::xml`'s own `Parsed` nodes, so the boundary between the crate and the tree is where
-      stage 2's family is enforced. The dependency goes in `crates/nvs-stdlib/Cargo.toml:11`, and
-      `rule:packaging/a-c-dependency-answers-two-questions` is the audit it has to pass — it is Rust,
-      so it passes on the first question, and the record should say so rather than leave it unasked.
-      Specified by `rule:core-classes/html-parsing`.
-- [ ] **`Core\Html::parse(string $document): Core\Xml\Node`**, the entry that never fails. Its row
-      joins the class block at `crates/nvs-stdlib/src/html.rs:107`, its symbol the `address` arm at
-      `crates/nvs-stdlib/src/html.rs:248`, and it answers `CoreTy::Instance(NODE_NAME)` from
-      `crates/nvs-stdlib/src/xml.rs:123`. Pin
-      `tag_soup_produces_a_document_because_the_parser_has_no_failure_mode` and
-      `the_parser_produces_core_xmls_own_node_family` — the second is best asked as an *agreement*
-      over `crate::xml::KIND`'s five cases rather than over one document.
-- [ ] **`it_is_an_entry_on_core_html_and_there_is_no_html_mode_on_the_xml_parser`**, read off the
-      registry the way `no_operation_is_available_through_both_the_tree_and_the_stream` at
-      `crates/nvs-stdlib/src/xml.rs:3150` reads the stream half: no row on `Core\Xml` may take a
-      parameter that selects an algorithm, and no row on `Core\Html` may answer a reader or a writer.
-- [ ] **Three `.nvst` cases per new member**, the floor
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:155` holds. One case may ask the whole roster,
-      so three cases asking three different questions close the whole class at once — that is how
-      stage 3's three writer cases were written.
+- [ ] **A serialiser over `crate::xml::Parsed`, written here rather than in `crate::xml`**, because
+      `rule:core-classes/html-parsing` says serialization follows the door: WHATWG rules through
+      this one, XML rules through the other. It is what `sanitize` rebuilds a document with, and it
+      is the piece with no caller yet, so write it against the walk `crates/nvs-stdlib/src/html.rs:1362`
+      already uses to read a tree in the tests. Specified by `rule:core-classes/html-sanitize`.
+- [ ] **The closed allowlist and `Core\Html::sanitize(tainted string): Core\Html\Markup`** — the
+      row at `crates/nvs-stdlib/src/html.rs:130`, the card beside `PARSE_DOC` at
+      `crates/nvs-stdlib/src/html.rs:279`, the body, and the `address()` arm at
+      `crates/nvs-stdlib/src/html.rs:302`. It is the **second** launderer on this class and
+      `escape` is the auto-applied one, so `Qual::Launder` on the parameter is what makes
+      `html_escape_launders_for_the_html_sink_and_for_no_other`'s set claim need re-reading rather
+      than re-asserting. Specified by `rule:core-classes/html-sanitize`.
+- [ ] **The four tests stage 5's check names**, in `crates/nvs-stdlib/src/html.rs:1284`'s `mod
+      tests`: `sanitize_is_an_adr_0024_launderer_beside_escape`,
+      `the_allowlist_is_closed_and_is_not_configurable_by_a_caller`,
+      `an_element_outside_the_allowlist_is_dropped_rather_than_escaped_in_place` and
+      `parse_sanitize_serialise_reparse_reaches_a_fixed_point_over_the_mxss_corpus` — the last is
+      the acceptance property, so its corpus is the slice's real content.
+- [ ] **`examples/html-sanitize.nvs`**, the acceptance fixture that has been the failing check since
+      this goal opened. It is named at `docs/agent/loop-goal.toml:10`, and that file's header says
+      the expected output is frozen while a fixture's *source* is not — so write the program to the
+      output rather than the other way round. Specified by `rule:core-classes/html-sanitize`.
 
 ## Backlog
 
-- Nothing serialises a tree — `crates/nvs-stdlib/src/xml.rs` § *Known gaps* 1, and stage 5's
-  `sanitize` needs it.
-- A qualified name is the document's own spelling, with no `xmlns` resolution — same section, gap 2.
-- Indenting puts whitespace text nodes between elements, which a parse answers as text — same
-  section, gap 3, and the writer's `indent` option is where a program meets it.
-- Whether a subset-free `<!DOCTYPE …>` should parse — `rule:core-classes/xml-refuses-by-construction`
-  says no, and the writer can now write one.
-- `examples/html-sanitize.nvs`, blocked on stage 5 — `docs/agent/loop-goal.md`.
+- `Core\Html`'s automatic escape-and-lift at the HTTP sink still waits on the response existing —
+  `crates/nvs-stdlib/src/html.rs`'s module doc, § *Known gaps*.
+- `spec-classes-part-two-outstanding.txt` loses `§17 Core\Xml` at the end of stage 5 —
+  `docs/agent/loop-goal.md` § *Stage 5*.
+- Whether a subset-free `<!DOCTYPE html>` should parse through `Core\Xml` is still undecided;
+  `rule:core-classes/xml-refuses-by-construction` currently says no, and `Core\Html` now drops one.
+- `Core\Xml`'s streaming reader and `Core\Html`'s parse share no code and need not, but neither has
+  a differential case against PHP — `tests/differential/` holds none for either.

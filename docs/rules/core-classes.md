@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*27 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*26 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -421,7 +421,7 @@ into.
 
 <a id="core-classes-html-parsing"></a>
 
-## HTML parses by the WHATWG algorithm onto `Core\Xml`'s own tree, and that parse never fails  *(designed — not yet in the compiler)*
+## HTML parses by the WHATWG algorithm onto `Core\Xml`'s own tree, and that parse never fails
 
 `rule:core-classes/html-parsing`
 
@@ -442,11 +442,17 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
-**Half shipped, and the halves do not separate.** `Core\Xml`'s door and the node family both parsers
-produce are on disk; the WHATWG parse over them is not, and the goal that landed the tree builds it.
-The tree and the builder interface are one implementation, so whichever was built second would
-otherwise have been shaped by the first — which is why the tree came first and this parse is written
-against it rather than beside it.
+**The tree came first and this parse is written against it**, rather than beside it: the tree and the
+builder interface are one implementation, so whichever was built second would otherwise have been
+shaped by the first. `Core\Html::parse` drives `html5ever` through a tree builder of ours straight
+into those nodes, so the boundary between the crate and the tree is where the one-family rule is
+enforced — a construct one door could produce that the other could not would have to be a sixth kind
+of node, and there is no way to write one.
+
+Two placements follow from the family being closed at five, and both are refusals to invent a node
+rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's answer to what the
+other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
+separate fragment has no kind here and a program looks for them under the element it wrote.
 
 <sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
 
