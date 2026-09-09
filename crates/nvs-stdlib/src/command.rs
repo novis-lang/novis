@@ -1671,7 +1671,7 @@ mod tests {
         let id = classes.define("Deployer", &[] as &[&str], &[]);
         classes.set_methods(id, declares);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), id));
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), id));
         ctx.set_commands(std::sync::Arc::new(CommandTable::new(vec![deploy()])));
         ctx.set_command_line(line.iter().map(|word| (*word).to_owned()).collect());
         ctx

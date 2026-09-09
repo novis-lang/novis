@@ -158,9 +158,10 @@ impl Ctx {
     /// in step: [`Self::method_isolate`] re-materializes these same recipes for
     /// `rule:security/isolate-shares-nothing`'s
     /// `Class::method` isolate, whose code is the parent's unit's and so has no
-    /// path a resolver could compile. Cost is one `Rc` bump per arming, against
-    /// a list `nvs_codegen::Unit` already owns.
-    pub fn install_statics(&mut self, defaults: std::rc::Rc<[Option<FieldDefault>]>) {
+    /// path a resolver could compile. Cost is one atomic increment per arming,
+    /// against a list `nvs_codegen::Unit` already owns — atomic because that
+    /// unit is one per program and read by every core.
+    pub fn install_statics(&mut self, defaults: std::sync::Arc<[Option<FieldDefault>]>) {
         self.release_statics();
         let mut store: Box<[Value]> = defaults
             .iter()
@@ -195,9 +196,10 @@ impl Ctx {
     /// static property and a bare embedder alike — [`Self::install_statics`]
     /// owns why those two are one answer.
     ///
-    /// Cost is one `Rc` bump, against a list `nvs_codegen::Unit` already owns.
+    /// Cost is one atomic increment, against a list `nvs_codegen::Unit`
+    /// already owns.
     #[must_use]
-    pub fn unit_statics(&self) -> Option<std::rc::Rc<[Option<FieldDefault>]>> {
+    pub fn unit_statics(&self) -> Option<std::sync::Arc<[Option<FieldDefault>]>> {
         self.unit_statics.clone()
     }
 
@@ -583,7 +585,7 @@ mod tests {
     fn installing_statics_materializes_one_slot_per_declared_default() {
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
         assert_eq!(ctx.statics_len(), 0);
-        ctx.install_statics(std::rc::Rc::from(vec![
+        ctx.install_statics(std::sync::Arc::from(vec![
             Some(FieldDefault::Int(3)),
             Some(FieldDefault::Str("hi".to_owned())),
             None,
@@ -592,7 +594,7 @@ mod tests {
         // Re-arming is what a second request on a reused context does: the
         // previous slots are released, never leaked, and the initializers run
         // again rather than the writes of the request before carrying over.
-        ctx.install_statics(std::rc::Rc::from(vec![
+        ctx.install_statics(std::sync::Arc::from(vec![
             Some(FieldDefault::Int(3)),
             Some(FieldDefault::Str("hi".to_owned())),
             None,
@@ -606,7 +608,7 @@ mod tests {
     #[test]
     fn a_method_isolate_arms_its_own_slots_from_the_parents_unit() {
         let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
-        parent.install_statics(std::rc::Rc::from(vec![
+        parent.install_statics(std::sync::Arc::from(vec![
             Some(FieldDefault::Int(3)),
             Some(FieldDefault::Str("hi".to_owned())),
         ]));
@@ -689,8 +691,8 @@ mod tests {
         );
 
         let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
-        parent.set_runtime_error_class(crate::ErrorClass::new(std::rc::Rc::new(classes), id));
-        parent.install_statics(std::rc::Rc::from(vec![Some(FieldDefault::Int(3)), None]));
+        parent.set_runtime_error_class(crate::ErrorClass::new(std::sync::Arc::new(classes), id));
+        parent.install_statics(std::sync::Arc::from(vec![Some(FieldDefault::Int(3)), None]));
 
         let mut child = parent.method_isolate(OutputSink::Buffer(Vec::new()));
         let answer = crate::call_static(&mut child, "Reports::monthly", &[])

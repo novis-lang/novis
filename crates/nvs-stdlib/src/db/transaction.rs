@@ -1125,7 +1125,7 @@ mod tests {
         ATTEMPTS.with(|entered| entered.set(0));
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
-            std::rc::Rc::new(classes),
+            std::sync::Arc::new(classes),
             root,
         ));
         let mut recovered = Scripted { asked: Vec::new() };

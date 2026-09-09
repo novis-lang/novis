@@ -939,8 +939,11 @@ mod tests {
         let mut table = ClassTable::new();
         let root = table.define("Throwable", &SLOTS, &[]);
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
-        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(Rc::new(table), root));
-        ctx.install_statics(Rc::from(vec![Some(FieldDefault::Int(7))]));
+        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
+            std::sync::Arc::new(table),
+            root,
+        ));
+        ctx.install_statics(std::sync::Arc::from(vec![Some(FieldDefault::Int(7))]));
         ctx
     }
 
@@ -1011,7 +1014,7 @@ mod tests {
             // Before the child arms anything of its own the base is null: it is
             // not the parent's, and there is nothing to have aliased it to.
             recorded.set(child.statics_base());
-            child.install_statics(Rc::from(vec![
+            child.install_statics(std::sync::Arc::from(vec![
                 Some(FieldDefault::Int(1)),
                 Some(FieldDefault::Int(2)),
             ]));

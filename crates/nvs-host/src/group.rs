@@ -595,7 +595,10 @@ mod tests {
         let mut table = nvs_runtime::ClassTable::new();
         let root = table.define("Throwable", &SLOTS, &[]);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(Rc::new(table), root));
+        ctx.set_runtime_error_class(nvs_runtime::ErrorClass::new(
+            std::sync::Arc::new(table),
+            root,
+        ));
         ctx
     }
 
@@ -802,7 +805,7 @@ mod tests {
     fn a_child_writes_the_request_s_statics_and_its_siblings_see_it() {
         let mut sched = Scheduler::new();
         let mut parent = ctx();
-        parent.install_statics(Rc::from(vec![None]));
+        parent.install_statics(std::sync::Arc::from(vec![None]));
         let total = Rc::new(std::cell::Cell::new(0_i64));
         let seen = Rc::clone(&total);
 

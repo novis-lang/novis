@@ -1355,7 +1355,7 @@ mod tests {
             }],
         );
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), id));
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), id));
         ctx
     }
 

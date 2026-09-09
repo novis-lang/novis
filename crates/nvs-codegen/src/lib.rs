@@ -317,7 +317,15 @@ pub struct Unit {
     /// Shared rather than owned outright so a [`nvs_runtime::ErrorClass`]
     /// handed to a [`nvs_runtime::Ctx`] can keep it alive by itself — that is
     /// what makes installing one need no `unsafe` at the call site.
-    classes: std::rc::Rc<nvs_runtime::ClassTable>,
+    ///
+    /// The share is atomic because one compiled unit is read by every core
+    /// (`rule:security/isolate-shares-nothing`'s "immutable compiled code" is
+    /// the whole of what crosses), so the handle has to be able to. What that
+    /// costs is one atomic increment per install rather than one non-atomic
+    /// one, against a table the unit owns exactly one of —
+    /// `rule:programs/memory-priority`'s trade in the direction it is meant to
+    /// go.
+    classes: std::sync::Arc<nvs_runtime::ClassTable>,
     entries: FxHashMap<String, *const u8>,
     /// Every compiled function's declared shape, by the same name as
     /// [`Unit::entries`] — moved out of the builder rather than dropped with
@@ -341,8 +349,10 @@ pub struct Unit {
     /// Shared rather than owned outright for the reason `classes` is: a context
     /// armed from this list keeps it, so an `rule:security/isolate-shares-nothing` method-entry isolate of
     /// that context can arm itself against the same slot numbering with no unit
-    /// in hand (`nvs_runtime::Ctx::method_isolate`).
-    statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
+    /// in hand (`nvs_runtime::Ctx::method_isolate`). Atomically shared for the
+    /// reason `classes` is too: the unit behind it is one per program, not one
+    /// per core.
+    statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
 }
 
 /// Whatever keeps a [`Unit`]'s code mapped for as long as the unit lives.
@@ -377,12 +387,67 @@ enum Code {
 /// the whole of what [`Descriptors::bind`] and [`Descriptors::into_unit`] need
 /// from `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s mapping: the addresses this unit's own functions ended up
 /// at. Implemented outside this crate, by whoever owns those pages.
-pub trait Placed {
+///
+/// **`Send + Sync` is a supertrait because a [`Unit`] crosses cores.** One
+/// compiled unit is shared by the whole fleet, so whatever owns its pages is
+/// shared too, and stating that here is what keeps [`Unit`]'s own `unsafe impl`
+/// from having to vouch for an implementation in another crate. A loader whose
+/// mapping is thread-affine cannot implement this trait, which is the refusal
+/// the right way round.
+pub trait Placed: Send + Sync {
     /// Where this owner placed the function `symbol` names, or [`None`] if the
     /// payload defines no such function — which § 3 makes a skipped method row
     /// rather than an error, exactly as the JIT path skips an undefined one.
     fn address_of(&self, symbol: &str) -> Option<*const u8>;
 }
+
+/// A unit is `Send` and `Sync` because one compiled unit serves every core.
+///
+/// That is the whole of `rule:security/isolate-shares-nothing`'s "immutable
+/// compiled code": `nvs-cli`'s compiled-unit cache publishes one
+/// [`std::sync::Arc<Unit>`](std::sync::Arc) and every core resolving a request
+/// against that file reads it, rather than each core compiling the file for
+/// itself. Two auto traits stand between that and the type, and each has one
+/// reason it does not hold on its own:
+///
+/// - **[`Unit::entries`] holds `*const u8`**, and a raw pointer is neither.
+///   Each is a function address inside pages [`Unit::_code`] owns, so it is
+///   valid for exactly as long as the unit is, on whichever core reads it.
+///   Moving the address is not the operation that needs a contract — calling
+///   through it is, and [`Unit::call_static`] carries that `unsafe` itself.
+/// - **[`Code::Jit`] holds a `JITModule`, which is `!Sync`** for the
+///   `RefCell<HashMap<..>>` its symbol lookup memoizes into. Nothing here can
+///   reach it: the field is private, is written by exactly the two constructors
+///   below, and is read by *nothing* — its `#[expect(dead_code)]` is that fact
+///   in the compiler's own words. It exists to be dropped, once, when the last
+///   handle goes, and a `JITModule` is `Send`, so that drop is sound on any
+///   core. [`Code::Placed`] needs no such argument: [`Placed`] states the bound.
+///
+/// Everything else the unit holds already crosses on its own terms —
+/// [`nvs_runtime::ClassTable`] carries its own argument, `MethodShape` and
+/// [`nvs_runtime::FieldDefault`] are plain data.
+///
+/// **What this does not say is that a unit is mutable from two cores.** It has
+/// no `&mut self` method at all: everything that writes one belongs to
+/// [`UnitBuilder`] or [`Descriptors`], both of which are consumed to produce it.
+#[expect(
+    unsafe_code,
+    reason = "the two auto traits are blocked by a pointer whose pages the unit \
+              owns and by a field nothing reads; the bullets above are the argument"
+)]
+// SAFETY: see the doc comment above — every address in `entries` points into
+// pages `_code` keeps mapped for the unit's whole life, and `_code` itself is
+// unreachable through `&Unit`.
+unsafe impl Send for Unit {}
+
+#[expect(
+    unsafe_code,
+    reason = "shared reads of a unit with no `&mut self` method, on `Send`'s \
+              argument above"
+)]
+// SAFETY: as `Send` above. `&Unit` exposes reads only, and the one `!Sync`
+// field is private and read by nothing.
+unsafe impl Sync for Unit {}
 
 impl std::fmt::Debug for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -488,7 +553,7 @@ impl Unit {
     pub fn runtime_error_class(&self) -> Option<nvs_runtime::ErrorClass> {
         let id = self.classes.id_of("RuntimeError")?;
         Some(nvs_runtime::ErrorClass::new(
-            std::rc::Rc::clone(&self.classes),
+            std::sync::Arc::clone(&self.classes),
             id,
         ))
     }
@@ -662,7 +727,7 @@ impl Unit {
         if let Some(class) = self.runtime_error_class() {
             ctx.set_runtime_error_class(class);
         }
-        ctx.install_statics(std::rc::Rc::clone(&self.statics));
+        ctx.install_statics(std::sync::Arc::clone(&self.statics));
     }
 }
 
@@ -778,7 +843,7 @@ pub struct Descriptors {
     /// `nvs_ir::ir::Program::statics` carries and the payload's code baked in —
     /// [`Unit::statics`]'s own contents, read off the IR here for the reason
     /// every other field is: the loading process lowered the same source.
-    statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
+    statics: std::sync::Arc<[Option<nvs_runtime::FieldDefault>]>,
     /// [`class_desc_symbol`]'s name for each descriptor, to the address a
     /// relocation against it resolves to. Built once here rather than searched
     /// per relocation: a loader asks this for every undefined symbol in the
@@ -916,7 +981,7 @@ impl Descriptors {
             .collect();
         Unit {
             _code: Code::Placed(code),
-            classes: std::rc::Rc::new(self.classes.table),
+            classes: std::sync::Arc::new(self.classes.table),
             entries,
             shapes,
             statics: self.statics,
@@ -1805,7 +1870,7 @@ impl UnitBuilder<JITModule> {
             .collect();
         Ok(Unit {
             _code: Code::Jit(Box::new(self.module)),
-            classes: std::rc::Rc::new(self.classes.table),
+            classes: std::sync::Arc::new(self.classes.table),
             entries,
             shapes: self.shapes,
             statics: self.static_defaults.into(),
@@ -2556,5 +2621,29 @@ echo Tag::of(3);
         assert_eq!(MethodShape::of(&[Ty::Object]).arity, 0);
         assert_eq!(MethodShape::of(&[]).arity, 0);
         assert_eq!(MethodShape::of(&[]).param_tags, 0);
+    }
+
+    /// What `nvs-cli`'s unit cache publishes has to be shareable, or "compile
+    /// exactly once" becomes "compile once per core" — see [`Unit`]'s own
+    /// `unsafe impl`s for why the two auto traits are sound here.
+    ///
+    /// A compile-time assertion: removing either impl stops this building
+    /// rather than leaving a green test over a cache that quietly split.
+    #[test]
+    fn a_unit_crosses_a_core_boundary_behind_an_arc() {
+        const fn crosses<T: Send + Sync>() {}
+        crosses::<Unit>();
+        crosses::<std::sync::Arc<Unit>>();
+        // The loader's half is bounded by the trait rather than vouched for,
+        // so a `Placed` implementation that is not shareable fails at *its*
+        // definition and not here.
+        crosses::<Box<dyn Placed>>();
+        // The JIT's half is vouched for, and this is the one clause of that
+        // argument a dependency can take away: `Unit`'s `Send` rests on the
+        // last handle being able to drop a `JITModule` on any core. `Sync` is
+        // deliberately not asserted — the module memoizes symbol lookups
+        // through a `RefCell`, and the argument is that nothing can reach it.
+        const fn sends<T: Send>() {}
+        sends::<JITModule>();
     }
 }

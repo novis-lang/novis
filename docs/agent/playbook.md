@@ -5341,13 +5341,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   every stdlib line holding rows becomes a `private type` error pointing at the caller. Make the
   stream `pub` and re-export it beside the rows type in the same edit — `PgRows` and `TdsRows` carry
   the same default. [until: reviewed 2026-09-09]
-- **Sharing a compiled unit across cores dead-ends on `nvs_codegen::Unit` being `!Send`, and an
-  `Arc<Compiled>` does not fix it.** Four fields make it so — `classes: Rc<ClassTable>` and
-  `statics: Rc<[..]>` (`crates/nvs-codegen/src/lib.rs:320`, `:345`), `entries`' `*const u8`, and
-  `Code::Placed(Box<dyn Placed>)` at `:371` — and `ClassTable` is `!Send` too, through
-  `ClassDesc`'s raw pointers. Name them all in one build: drop a `const _: fn() = || { fn
-  is_send<T: Send>() {} is_send::<nvs_codegen::Unit>(); };` into the crate you are editing.
-  [until: gone crates/nvs-codegen/src/lib.rs:rc::Rc<nvs_runtime::ClassTable>]
+- **An `unsafe impl Send for T {}` switches the auto-trait check off, so the fields your safety
+  argument rests on are never re-checked — including a dependency's.** `nvs_codegen::Unit`'s `Send`
+  rests on `cranelift_jit::JITModule` being `Send` (the last `Arc` handle drops one on whatever core
+  it lands on), and nothing about writing the impl makes the compiler agree; a cranelift bump could
+  take it away and leave every test green. Pin each foreign clause with its own assertion —
+  `const fn sends<T: Send>() {} sends::<JITModule>();` beside the type's own crossing test, and
+  deliberately *not* the clause the argument does not need. [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

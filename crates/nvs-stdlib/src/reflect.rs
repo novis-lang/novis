@@ -991,7 +991,7 @@ mod tests {
             native: false,
         };
         classes.set_methods(id, vec![row("open", true), row("sealed", false)]);
-        let classes = std::rc::Rc::new(classes);
+        let classes = std::sync::Arc::new(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
@@ -1154,7 +1154,7 @@ mod tests {
                 }],
             );
         }
-        let classes = std::rc::Rc::new(classes);
+        let classes = std::sync::Arc::new(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));

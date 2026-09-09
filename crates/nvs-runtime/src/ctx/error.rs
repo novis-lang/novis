@@ -60,20 +60,25 @@ pub struct SnapshotMismatch {
 /// The safe way to hand a [`Ctx`] a descriptor that must outlive it: a
 /// [`ClassDesc`]'s *address* is its identity (`crate::object`), so a context
 /// cannot make one up and still match a `catch` clause's — it has to be handed
-/// the compiled unit's. Carrying the [`Rc`](std::rc::Rc)-shared
+/// the compiled unit's. Carrying the [`Arc`](std::sync::Arc)-shared
 /// [`ClassTable`] along with the id is what turns "the table must outlive the
 /// context" from a contract into a fact, which is why
 /// [`Ctx::set_runtime_error_class`] needs no `unsafe` at all.
+///
+/// The share is atomic because the table's one owner is a compiled unit that
+/// every core reads (`nvs_codegen::Unit`), and a handle taken out of it has to
+/// be able to cross with it. One atomic increment per install is what that
+/// costs, per `rule:programs/memory-priority`.
 #[derive(Clone, Debug)]
 pub struct ErrorClass {
-    table: std::rc::Rc<ClassTable>,
+    table: std::sync::Arc<ClassTable>,
     id: ClassId,
 }
 
 impl ErrorClass {
     /// A handle on `id` within `table`.
     #[must_use]
-    pub fn new(table: std::rc::Rc<ClassTable>, id: ClassId) -> Self {
+    pub fn new(table: std::sync::Arc<ClassTable>, id: ClassId) -> Self {
         Self { table, id }
     }
 
@@ -94,7 +99,7 @@ impl ErrorClass {
     #[must_use]
     pub fn sibling(&self, name: &str) -> Option<Self> {
         Some(Self::new(
-            std::rc::Rc::clone(&self.table),
+            std::sync::Arc::clone(&self.table),
             self.table.id_of(name)?,
         ))
     }
@@ -621,7 +626,7 @@ mod tests {
         table.define("ParseError", &WIDE, &[root]);
 
         let mut ctx = Ctx::buffered();
-        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(table), root));
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), root));
         #[expect(
             unsafe_code,
             reason = "an `int` carries no reference for the slot to take over"

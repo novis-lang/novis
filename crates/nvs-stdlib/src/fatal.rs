@@ -239,7 +239,7 @@ mod tests {
         let mut classes = ClassTable::new();
         let root = classes.define("RuntimeError", &SLOTS, &[]);
         let mut ctx = Ctx::buffered();
-        ctx.set_runtime_error_class(ErrorClass::new(std::rc::Rc::new(classes), root));
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), root));
         ctx.set_pending("the store said no");
         ctx.push_frame("Main::main");
         let thrown = ctx.take_thrown();
