@@ -2110,7 +2110,7 @@ nvs_runtime::nvs_helper! {
     /// can provoke is the state to avoid. What that refusal was reaching for is
     /// a real hazard and belongs where it can be asserted: a *served request*
     /// calling this member parks its core on a descriptor the request never
-    /// opened. Goal 6 is where a case can serve a request, and so where that
+    /// opened. Goal `server` is where a case can serve a request, and so where that
     /// decision is answerable rather than guessed at. The interactive half is
     /// `Core\Cli`'s prompts, which ask a question under a deadline
     /// (`rule:tooling/a-prompt-is-a-core-member`) and are what a program at a terminal actually wants.

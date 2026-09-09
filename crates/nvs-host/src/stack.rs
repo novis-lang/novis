@@ -43,7 +43,7 @@
 //!
 //! **[`MAX_POOLED_STACKS`] is a compiled-in stand-in for the worker's in-flight
 //! cap**, which does not exist yet: admission arithmetic and the configurable
-//! `[limits]` that bound it are goal 3's, and this constant is what that work
+//! `[limits]` that bound it are goal `governance`'s, and this constant is what that work
 //! replaces. Without it the pool's only bound would be the high-water mark of
 //! concurrency, so one burst would leave its stacks — and the pages they
 //! touched — resident for the life of the worker. Handing a stack back to the
@@ -130,7 +130,7 @@ impl StackPool {
     /// cannot be queued — and nothing softer is wanted either: address space is
     /// precisely the resource `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s admission arithmetic counts before
     /// it admits a request, so a refusal at this point means admission let in
-    /// work the worker could not hold. That arithmetic is goal 3's; until it
+    /// work the worker could not hold. That arithmetic is goal `governance`'s; until it
     /// exists this is the same `expect` `corosensei`'s own default stack does.
     pub(crate) fn take(&mut self) -> DefaultStack {
         match self.free.pop() {

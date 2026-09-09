@@ -7,7 +7,7 @@ arms, and why its artifact is not `benches/serve.json`. Nothing here restates an
 owns only how the run is carried out.
 
 The other leg is `tools/bench.py --serve-vs-fpm`: no containers, no proxy, Windows-native, and driven
-by a generator written into that file. It stays, it is goal 6's acceptance check, and it is not
+by a generator written into that file. It stays, it is goal `server`'s acceptance check, and it is not
 comparable with this one. Where the two files would otherwise hold the same code -- the FastCGI
 client and the closed-loop generator behind arm 4 -- this one imports it rather than copying it.
 

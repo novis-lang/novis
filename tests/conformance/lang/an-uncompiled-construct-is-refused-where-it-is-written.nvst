@@ -1,5 +1,5 @@
 --TEST--
-The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (`rule:security/isolate-shares-nothing`, goal 3) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
+The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (`rule:security/isolate-shares-nothing`, goal `governance`) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
 --FILE--
 <?nvs
 // `rule:statements/a-require-expression-is-mixed`'s value form runs now: the site calls the target file's own

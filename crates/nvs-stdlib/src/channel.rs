@@ -1,4 +1,4 @@
-//! `Core\Task\Channel<T>` — the language surface over goal 2's item 11: a
+//! `Core\Task\Channel<T>` — the language surface over goal `concurrency`'s item 11: a
 //! bounded queue between two tasks whose `send` **suspends** at the bound
 //! instead of growing.
 //!

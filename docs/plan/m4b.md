@@ -1,17 +1,17 @@
 # M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
-**Carried by goals 12, 14 and 15 — after the parity program, before everything else.** It was pulled ahead
-of M10 to get Novis into an editor early, and it was placed behind goals 1–6 for the same reason it was
+**Carried by goals `resilient-tree`, `lsp-server` and `editor` — after the parity program, before everything else.** It was pulled ahead
+of M10 to get Novis into an editor early, and it was placed behind goals `core-depth` through `server` for the same reason it was
 placed behind M4: completion, hover and diagnostics written against a language that cannot open a file
 or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
 about to change. It runs as **four chain goals** —
-[12 resilient-tree](../agent/goals/12-resilient-tree.md), [13 surface](../agent/goals/13-surface.md),
-[14 lsp-server](../agent/goals/14-lsp-server.md) and [15 editor](../agent/goals/15-editor.md) — which are
-the item list's one home; goal 13 is M1's two unfinished front-end items, pulled in because the grammar
+[resilient-tree](../agent/goals/14-resilient-tree.md), [surface](../agent/goals/15-surface.md),
+[lsp-server](../agent/goals/16-lsp-server.md) and [editor](../agent/goals/17-editor.md) — which are
+the item list's one home; goal `surface` is M1's two unfinished front-end items, pulled in because the grammar
 must colour their surface.
 
-**One assertion in *Verify* re-anchors.** `hyper` and its five dependencies came in at goal 6 and one of
+**One assertion in *Verify* re-anchors.** `hyper` and its five dependencies came in at goal `server` and one of
 them is `tokio`, so what `crates/nvs-runtime/tests/manifest_policy.rs` checks is the property that
 assertion was reaching for: no manifest of ours names an async runtime, no crate of ours depends on one,
 and the graph's single route to a scheduler crate compiles `sync` alone. The claim is about a *runtime*,
@@ -32,7 +32,7 @@ it at the cursor". There is **no second parser and no second tree**: `nvs check`
 parse followed by "refuse if anything was reported", which is what they already do.
 
 **The `trivia` half of that paragraph lands before this milestone, in
-[goal 11](../agent/goals/11-doc-comments.md).**
+[goal `doc-comments`](../agent/goals/13-doc-comments.md).**
 `rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
 lexing, which is the same one edit to `skip_trivia`, so that goal builds the `Trivia` vector, all four
 `TriviaKind` variants and the losslessness property to `rule:ide/one-grammar-one-tree`'s specification. What is still

@@ -56,6 +56,6 @@ closes it; `python tools/playbook.py --check` reads it and `--retire` deletes th
     added beside a carried one fails the run even though attribution now claims its file. What the ratchet
     does *not* have is a floor: nothing requires the number to fall, which is why the entry names the goal
     instead. Each closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it,
-    never a panic however well worded — in the first goal that writes `nvs-ir` lowering again, and goal 10
+    never a panic however well worded — in the first goal that writes `nvs-ir` lowering again, and goal `typed-callable`
     is the first entry on the chain that does. A goal that is not that one has taken the wrong slice if it
     finds itself editing a file above. [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]

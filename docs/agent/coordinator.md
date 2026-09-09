@@ -40,7 +40,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
 | `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
-| `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. `chain.toml` is the order, and there is exactly one — the driver reads it always, not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` is which entry is installed. Its README is the only home for all of that. |
+| `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. The directory **is** the order — `N-<slug>.md` walked by number, and there is exactly one chain, read always and not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` names the goal that is installed. Its README is the only home for all of that. |
 | `tools/orient.py` | The whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
 | `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
@@ -338,7 +338,7 @@ prints what it cost.
 
     python tools/loop.py
 
-**That is the whole command.** It walks `docs/agent/goals/chain.toml`, it runs until the chain is walked
+**That is the whole command.** It walks `docs/agent/goals/`, it runs until the chain is walked
 or something goes wrong or you stop it, and it restarts itself along the way — § *The run* below is what
 that second half means. There is nothing to add to make a long run safe; `--max-sessions N` is there for
 a short one you intend to watch, and the count is otherwise the answer to a question nobody can ask at

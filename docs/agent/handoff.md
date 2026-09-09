@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 26, stage 3's reader half is on disk and green.** `Core\Xml::reader` answers a
+**Goal `xml-tree`, stage 3's reader half is on disk and green.** `Core\Xml::reader` answers a
 `Core\Xml\Reader`, whose two members are `read` (the next node, or `null`) and `depth` (how deeply
 nested that node was). A reader's whole state is its own slots — the document's text, a cursor, the
 stack of open names, two counts and a flag — so it holds no native allocation and what a walk

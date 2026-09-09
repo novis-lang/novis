@@ -3,7 +3,7 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 --FILE--
 <?nvs
 // `rule:tooling/commands-are-compiled`'s command table is built while compiling, and its reader —
-// `Core\Command::help(?string $name): Cli\Text` — is goal 4's, because a
+// `Core\Command::help(?string $name): Cli\Text` — is goal `core-part-ii`'s, because a
 // terminal is not reachable before capabilities exist
 // (docs/agent/goals/1-core-depth.md item 6). So this case asks the question
 // that *is* answerable today, and it is the one that section's promise rests

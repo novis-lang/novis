@@ -11,26 +11,26 @@ overwrites it with the next goal's seed at every switch, and `tools/goal-switch.
 outgoing goal's `[[check]]` blocks forward and nothing else. So a `## Backlog` bullet lives exactly
 until the goal that wrote it goes green — which is how `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s cache redesign came to be "in the
 handoff's backlog" according to a module doc, and in no file at all according to the repository, and
-how `§18 stream` came to be filed under "goal 5's" six goals after goal 5 closed. Same failure,
+how `§18 stream` came to be filed under "goal `database`'s" six goals after goal `database` closed. Same failure,
 same fix, one file up.
 
 ## The contract
 
-- **An entry names an owner.** A goal number that is a live `[[goal]]` in
-  [goals/chain.toml](goals/chain.toml), a **milestone tag** whose plan already covers the gap, or the
+- **An entry names an owner.** A goal number that is a live goal in
+  [the goals directory](goals/), a **milestone tag** whose plan already covers the gap, or the
   word **`unowned`** with the reason it is nobody's yet. `unowned` is a legitimate state — it is a
   scheduling question for the user — but it is never the *absence* of an answer, and it is never what a
-  *future* milestone's scheduled work is called. Goal 27 turns these three kinds into a gate.
+  *future* milestone's scheduled work is called. Goal `gap-owners` turns these three kinds into a gate.
 - **The ratchet files carry the same column.** `crates/nvs-stdlib/tests/`'s four `*-outstanding.txt`
   lists write `# <owner>` after every key, and `every_outstanding_key_names_an_owner` in
-  `spec_registry_coverage.rs` fails on one no `[[goal]]` answers for. Two kinds rather than three
+  `spec_registry_coverage.rs` fails on one no goal answers for. Two kinds rather than three
   there: a key is struck by a session and only a chain entry runs sessions, so a milestone nobody has
   cut into goals reads as `unowned` on a key.
 - **An entry leaves exactly one way: the gap is closed.** Not when it is rewritten, not when it stops
   being convenient. An entry whose owner went green without closing it is the failure this file
   exists to make visible; strike the owner, not the entry. The *Owner* column is the row's expiry
   declaration: `python tools/playbook.py --check` flags a row whose owner is retired in
-  [goals/chain.toml](goals/chain.toml) and not yet struck. A § *Unowned* bullet has no owner to
+  [the goals directory](goals/) and not yet struck. A § *Unowned* bullet has no owner to
   watch, so it ends with the `[until: ...]` trailer [tools/playbook.py](../../tools/playbook.py)'s
   module doc defines, naming the state of the tree that closes it.
 - **One line of *what*, and a pointer to the module doc that owns the detail.** Every fact in this
@@ -72,13 +72,14 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 ## Unowned
 
 Nobody's, and each is a scheduling question rather than a session's. **Five entries.**
-The six that stood here before were made reachable as goals 23–28, and spec § 17's four classes — filed
-under an M9 that carries the extension system and none of them — are goals 25 and 26 now. The two that
+The six that stood here before were made reachable as goals `per-core` through `formats` and 29–31, and spec § 17's four
+classes — filed
+under an M9 that carries the extension system and none of them — are goals `formats` and `xml-tree` now. The two that
 came back are the contract's second rule in plain sight: an owner that went green without closing its
 gap is struck, not renamed. The last is the other way a gap arrives unowned: a rule answered in full,
 by code that no key reaches.
 
-- **`Core\Metrics`** — spec § 16's class, filed as goal 6's item 19 and left behind by it.
+- **`Core\Metrics`** — spec § 16's class, filed as goal `server`'s item 19 and left behind by it.
   `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
   metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
   through, so no Novis program can name one. `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
@@ -90,7 +91,7 @@ by code that no key reaches.
   [until: exists crates/nvs-stdlib/src/process.rs:name: "spawn"]
 - **`rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
-  *Consequences* says outright that it "remains open"; goal 21's item 7 closes the *leak* at teardown
+  *Consequences* says outright that it "remains open"; goal `carried-gaps`'s item 7 closes the *leak* at teardown
   and does not build the collector. This is an **open decision, not an unclosed gap**, and it stays
   here so that it stays visible. Its consequence shows up in one other place and that is not a
   duplicate: `nvs_safepoint` clears and ignores two of its four flags (`crates/nvs-runtime/src/lib.rs`
@@ -107,7 +108,7 @@ by code that no key reaches.
   `rule:concurrency/connection-bounds-are-finite` asks for finite rather than for configurable, so
   `nvs-server`'s `bounds` answers it in full and every number is a constant: an operator who wants a
   different idle, lifetime, frame size or open-connection ceiling rebuilds. It is unowned rather than
-  goal 37's because that goal closes keys that parse and reach no reader, and these are readers no key
+  goal `config-is-written`'s because that goal closes keys that parse and reach no reader, and these are readers no key
   reaches — `nvs_config::tree::Server` has no field for any of them, so the audit cannot see them.
   `crates/nvs-server/src/bounds.rs` § *Known gap*, which names where the keys belong.
   [until: gone crates/nvs-server/src/bounds.rs:Known gap: none of these has a]
@@ -121,14 +122,14 @@ session deciding again:
   `crates/nvs-cli/src/bundle.rs`'s `.nvsx` embedding is M9's; the inlining items in
   `crates/nvs-runtime/src/decimal.rs` and the string fast path in `crates/nvs-runtime/src/lib.rs` are
   M12's. Only a gap in a milestone that has *already been carried*, and that no chain entry claims, is
-  unowned. Goal 27 makes this distinction machine-readable.
+  unowned. Goal `gap-owners` makes this distinction machine-readable.
 - **A decision is not a gap.** `crates/nvs-stdlib/src/time.rs`'s "there is no `Core\Month`, and there
   is not going to be one" and `crates/nvs-syntax/src/casing.rs`'s "left out deliberately" are settled
-  positions that happen to sit under a `# Known gaps` heading. Goal 27 moves them out of the block, so
+  positions that happen to sit under a `# Known gaps` heading. Goal `gap-owners` moves them out of the block, so
   the roster counts what is owed.
 
 **The list this file indexes is not the whole inventory.** There are 50 `# Known gaps` blocks across the
 crates holding 152 enumerated items; this file names the ones whose ownership needed an argument, and
-[carried-refusals.md](carried-refusals.md) 901 covers `nvs-ir`'s. The rest were unindexed until goal 27,
+[carried-refusals.md](carried-refusals.md) 901 covers `nvs-ir`'s. The rest were unindexed until goal `gap-owners`,
 which puts the owner in the module doc beside the gap and derives the roster rather than copying it —
 this file's own contract, applied one level down.

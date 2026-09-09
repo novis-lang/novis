@@ -183,7 +183,20 @@ Step 5 above, in detail:
   --show M8` prints a milestone, `--show M8:verify` its acceptance paragraph, `--amend M8 --from <file>`
   rewrites one, and `session.py --wrap` takes a `## milestone: M8` section for the same thing.
 - **The schedule is the chain, not the milestone table.**
-  [chain.toml](docs/agent/goals/chain.toml) is the order the loop walks; a milestone is an **identity
-  tag** one or more goals carry, and the plan's `Carried by` cells are derived from it. So **say "goal
-  19", never "in M7"** — M7's work alone sits at goals 6, 16, 18 and 19, so a milestone number says
-  nothing about what is next or finished. `brief.py` prints the live goal; `plan.py --check` gates it.
+  [docs/agent/goals/](docs/agent/goals/) *is* the chain: a goal is `N-<slug>.md` plus, until it is
+  retired, a sibling `.toml` and `.handoff.md`, the numbers run `1..N` with no gaps, and the order
+  the loop walks is that number. A milestone is an **identity tag** one or more goals carry, and
+  the plan's `Carried by` cells are derived from it, so a milestone number says nothing about what
+  is next or finished — M7's work alone sits at goals `server`, `request-json`, `input-shapes`,
+  `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `brief.py` prints the live
+  goal; `plan.py --check` gates it.
+- **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
+  in a code comment, in a commit message, in an owner column. **The number is the goal's position**, so
+  it moves the moment anything is inserted in front of it, and a sentence naming one silently comes
+  to mean a different goal; the slug never moves. The two places a number belongs are the goal's
+  own two file headers and a link target that is a filename, and `chain.py` rewrites both when it
+  renames. `python tools/chain.py --check` fails on any other one.
+- **Reordering the chain is renaming files, and `python tools/chain.py` is what does it.**
+  `--new <slug> --after N` / `--before N`, `--move N --to M` (or `--after`/`--before`/`--next`),
+  `--remove N --delete-files`: each renumbers everything it displaces so `1..N` still holds, and
+  closes the hole a removal leaves. Never rename a goal file by hand.

@@ -2861,7 +2861,7 @@ pub mod code {
     /// reading — "the program asked for something and got something else" —
     /// applies to a budget and to a core, and because refusing all three is
     /// one rule for a reader to learn instead of three cases. Enforcement is
-    /// goal 3's, and it is what removes this code.
+    /// goal `governance`'s, and it is what removes this code.
     pub const E_SPAWN_OPTION_UNSUPPORTED: Code = Code::new("E0777");
 
     /// A user-declared class's non-static method reached through the class

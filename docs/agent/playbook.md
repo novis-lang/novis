@@ -40,12 +40,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing, while a gap only written into the handoff is one every later session pays too. `modules`
   is the field you may leave: `tools/context-sync.py` sweeps it from your commits between sessions.
   [until: gone tools/context-sync.py:MAX_ADDED]
-- **A goal's number is read from its `name`, and falls back to its *position* when the name does not
-  start with a bare number.** `plan.py`'s `GOAL_NUM_RE` is `^\s*(\d+)\b`, so `"19b unix-sockets"`
-  does not match, and `plan.py --check` renumbers it and everything after it while every document
-  still cites the old numbers. Insert with a real number and renumber, or use the gap ahead of the
-  dossier at 50 — `dossier.py` numbers what it appends from `max(number) + 1`, so a hand-written
-  entry never moves the generated ones. [until: gone tools/plan.py:GOAL_NUM_RE]
+- **A goal's number is its position, so inserting one renumbers every goal after it — and that is
+  fine only because nothing but the tool writes a number.** `python tools/chain.py --new <slug>
+  --after N` renames the files it displaces and rewrites the two headers and the link targets that
+  carry a number; prose names a goal by its slug and is untouched. Never rename a goal file by hand,
+  and never write `goal 29` into a sentence — `chain.py --check` fails on it, because the next
+  insert would silently make it name a different goal. [until: gone tools/chain.py:number_citations]
 - **A whole decision record costs thousands of tokens to read; one of its `###` sections costs a
   fraction.** `python tools/peek.py <file>:"## 4"`, or `sed -n` between the heading and the next
   one, never `cat`. The same goes for a long module: `grep -n` for the anchor first.
@@ -1277,7 +1277,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   128 anyway once the index has the rename. Commit a renaming slice yourself, `git add -A -- <dir>` then
   `git commit -F`, after `verify.py` is green, and leave the wrap the docs. [until: reviewed 2026-09-08]
 - **A `rule:` citation wrapped across two comment lines fails `rules.py --check` from a file you never
-  touched.** `docs/agent/goals/chain.toml` had split
+  touched.** `docs/agent/goals/` had split
   `rule:ide/the-extension-refuses-a-binary-it-does-not-understand` over two `#` lines, so the checker
   read the first half as a rule id that does not exist and `rules.py --render` has exited 1 ever since —
   which lands on whoever next edits `docs/rules/`, because `session.py --wrap` runs both for them.
@@ -1333,7 +1333,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   matcher: grep the crate for what the name *describes*, then rename that test rather than landing a
   twin beside it. [until: reviewed 2026-09-08]
 - **A goal stage's `[[check]]` block can be green before any of that stage's work exists, because it
-  names gates that already pass.** Goal 17's stage 4 checks five `nvs-stdlib` roster gates that hold on
+  names gates that already pass.** Goal `test-request`'s stage 4 checks five `nvs-stdlib` roster gates that hold on
   every tree, so the driver's acceptance can report the goal green while that stage's deliverable — a
   rule fragment and a spec row — is unwritten. Where a stage's deliverable is documentation, read the
   stage's own prose in `loop-goal.md` before believing its checks: they are a floor, not the
@@ -1358,7 +1358,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   with `target/debug/nvs.exe check` on a two-line file before budgeting the slice as a one-line
   addition. [until: reviewed 2026-09-08]
 - **A goal's prose can name a diagnostic code that was free when it was written and is taken now.**
-  Goal 20's stage 3 asked for `E0627` "beside `E0626`", but `E0627` had since been issued to
+  Goal `unix-sockets`'s stage 3 asked for `E0627` "beside `E0626`", but `E0627` had since been issued to
   `E_UNSPELLED_EXPORTER` and the band's next free number was `E0635` — which the orientation pack
   prints for every band, under *the next free number*. Take the number from that block and never from
   a goal, a rule or a check's comment, and amend the prose that named the stale one in the same
@@ -1371,7 +1371,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   records in the fragment's prose, and keep `because` to the records that created or amended the
   rule. [until: reviewed 2026-09-09]
 - **A `cargo-named` check's *test name* can carry a member spelling a later ADR renamed, and
-  writing that member is the wrong repair.** Goal 24 asked for
+  writing that member is the wrong repair.** Goal `net-os-signal` asked for
   `..._memory_usage_..._all_answer` after ADR 0148 § 12 had moved held bytes to `Core\Budget`,
   leaving `Core\Os::residentBytes`. A check name is drafted before its stage runs, so when the
   spec row, the migration table and the outstanding file all disagree with it, amend the name.
@@ -1389,7 +1389,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `# extensions:` header, and row the new names in the same slice. [until: reviewed 2026-09-09]
 - **A `loop-goal.toml` `exact` check over an example now pins the *line numbers* of that example's
   own producers, so a comment added above one turns the floor red.** A record's envelope carries
-  `source` since goal 39's stage 2 (`rule:errors/a-record-names-where-it-was-produced`), and
+  `source` since goal `record-origin`'s stage 2 (`rule:errors/a-record-names-where-it-was-produced`), and
   `examples/logging.nvs`'s two `Core\Log::write` lines are in the check's `want` verbatim. Edit such
   an example only below its last producer, or run `target/debug/nvs.exe run <example>` afterwards and
   move the `want` with it — the check reports stdout line for line and says nothing about why a

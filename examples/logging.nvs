@@ -7,7 +7,7 @@
 // writer is the same native serialiser the engine floor calls directly, so
 // the two can never disagree about log shape. Two writers that agree today
 // is the failure this arrangement prevents, and it is the same reasoning
-// goal 2 used for one graph copy reached twice rather than two copies.
+// goal `concurrency` used for one graph copy reached twice rather than two copies.
 //
 // `Core\Log::write` refuses a `secret` argument at the call site — a sink
 // on ADR 0033's axis — while accepting `tainted` freely, because a field is

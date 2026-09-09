@@ -1435,7 +1435,7 @@ pub const CLASSES: &[CoreClass] = &[
     // signature is here and the body is a placeholder — [`crate::task`] owns
     // why, and it is the one row of the three that is not compile-time folded.
     crate::task::CLASS,
-    // Goal 2's item 11, and no spec § of its own either — `rule:concurrency/one-scheduler`'s scope
+    // Goal `concurrency`'s item 11, and no spec § of its own either — `rule:concurrency/one-scheduler`'s scope
     // line leaves this type's spelling undecided, so [`crate::channel`]'s
     // module doc is the one home for the surface and for why the queue lives
     // in the instance's own slots rather than in the host.

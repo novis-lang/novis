@@ -62,7 +62,7 @@ pub const TOKEN_TYPES: &[SemanticTokenType] = &[
 /// a value through the program, and an editor showing it at every use site is
 /// the cheapest teaching surface the language has. Being non-standard, they
 /// need the client's `semanticTokenScopes` mapping to reach a theme, which is
-/// goal 15's half.
+/// goal `editor`'s half.
 pub const TOKEN_MODIFIERS: &[SemanticTokenModifier] = &[
     SemanticTokenModifier::DEFAULT_LIBRARY,
     SemanticTokenModifier::new("tainted"),

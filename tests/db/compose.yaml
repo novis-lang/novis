@@ -1,9 +1,9 @@
 # Every server a test needs, as one file: the five ADR 0067's *Verification* names, and the SMTP catcher
-# goal 4's stage 9 points `Core\Mail` at.
+# goal `core-part-ii`'s stage 9 points `Core\Mail` at.
 #
 # `tools/loop.py` brings these up once per run -- `docker compose -f tests/db/compose.yaml up -d --wait
-# <services>` -- from the current goal's `[docker]` block: goal 4 names `redis` and `mailpit`, goal 5 the
-# five database servers, and goal 6 reuses `postgres` and `redis` alone. `--wait` is why every service below
+# <services>` -- from the current goal's `[docker]` block: goal `core-part-ii` names `redis` and `mailpit`, goal `database` the
+# five database servers, and goal `server` reuses `postgres` and `redis` alone. `--wait` is why every service below
 # carries a healthcheck: it makes "up" mean *healthy* rather than *started*, so a driver's first
 # connection is not racing the server's own initialisation.
 #
@@ -179,7 +179,7 @@ services:
       - certs:/certs:ro
 
   # ---------------------------------------------------------------------------------------------------
-  # PostgreSQL -- the first driver, per goal 5's standing decisions, because its extended protocol pays
+  # PostgreSQL -- the first driver, per goal `database`'s standing decisions, because its extended protocol pays
   # nothing extra for a prepare. It also carries the `::` cast and the jsonb `?` operator that the
   # placeholder rewriter has to leave alone.
   # ---------------------------------------------------------------------------------------------------
@@ -256,7 +256,7 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------------------------------
-  # Redis, here because goal 4's shared cache tier and goal 6's fleet lease both use it and one compose
+  # Redis, here because goal `core-part-ii`'s shared cache tier and goal `server`'s fleet lease both use it and one compose
   # file is better than two that drift. Both ports are open: 6379 plain and 6380 TLS, so a test can
   # assert the encrypted path without a second container.
   # ---------------------------------------------------------------------------------------------------
@@ -309,7 +309,7 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------------------------------
-  # Mailpit, the SMTP endpoint goal 4's stage 9 points `Core\Mail` at. It is a catcher, not a relay: it
+  # Mailpit, the SMTP endpoint goal `core-part-ii`'s stage 9 points `Core\Mail` at. It is a catcher, not a relay: it
   # stores what it accepts and forwards NOTHING -- no `MP_SMTP_RELAY_*` is set, so no test can cause a
   # real email to leave this machine, and the loopback binding above means nothing off it can connect
   # anyway. Delivery is asserted over the HTTP API on 18025 (`GET /api/v1/messages`). STARTTLS serves

@@ -92,21 +92,29 @@ their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the
 already established below — derive the machine-derivable half, and let a `--check` fail when the
 committed copy stops agreeing with it.
 
-**The chain is edited with `python tools/chain.py`, never by hand.** `docs/agent/goals/chain.toml` is the
-order the driver walks, and adding one entry to it is three goal files nobody has a template for, a
-`[[goal]]` block, a `README.md` row and a `plan.py --sync`. The tool does the mechanical four and prints
-the fifth: `--new <slug> --title "…"` scaffolds the three files — with the predecessor's `playbook`,
-`plan`, `[valgrind]`, `[wsl]` and `[docker]` blocks copied forward *as text*, so their comments survive,
-and everything that is this goal's own substance left as marked `TODO` — takes the next free number below
-the dossier, and inserts the entry in front of it. `--set N`, `--why N`, `--move N`, `--renumber`,
-`--retitle` and `--remove` are the edits; no flag at all lists the order with where the run stands.
+**The chain is edited with `python tools/chain.py`, never by hand.** `docs/agent/goals/` *is* the order
+the driver walks — a goal is `N-<slug>.md` plus a sibling `.toml` and `.handoff.md`, the numbers run
+`1..N` with no gaps, and walking the chain is sorting on the number. So **inserting or moving a goal
+renames files**, and it is never one file: `--new <slug> --after N` scaffolds the three — with the
+predecessor's `playbook`, `plan`, `[valgrind]`, `[wsl]` and `[docker]` blocks copied forward *as text*,
+so their comments survive, and everything that is this goal's own substance left as marked `TODO` — and
+renumbers every goal from the landing position on so `1..N` still holds. `--move N --to M`
+(or `--after`, `--before`, `--next`) and `--remove N --delete-files` are the same operation, the second
+closing the hole its number leaves. `--set N --milestone`, `--retitle N --to <slug>` and `--renumber`
+are the rest; no flag at all lists the order with where the run stands, and `--check` is the gate.
 
-**`--retire N` is what a walked entry ends as, and the driver runs it at every switch.** The fold is
-cumulative — goal 1's checks are in goal 2's file and in every file after it — so once the run has left a
-goal, its own `.toml` is a copy of a copy, and six of them were 830K that no tool reads and every `grep`
-over `docs/` hits eight times. This deletes that `.toml` and its `.handoff.md`, and marks the entry
-`retired = "<date>"`; the `[[goal]]` block and the `.md` stay, because the list is indexed by position and
-the prose is cited from the plan. It refuses unless **every** `[[check]]` of that goal is in the live
+**What survives a renumber is what is not written as a number.** Prose names a goal by its slug
+(AGENTS.md, *The schedule is the chain*), so the only text a move rewrites is the goal's own two file
+headers and the link targets that are filenames. `--check` reports any `goal 29` written into prose,
+because the day one exists is the day a renumber starts lying about it.
+
+**`--retire N` is what a walked goal ends as, and the driver runs it at every switch.** The fold is
+cumulative — goal `core-depth`'s checks are in goal `concurrency`'s file and in every file after it —
+so once the run has left a goal, its own `.toml` is a copy of a copy, and six of them were 830K that no
+tool reads and every `grep` over `docs/` hits eight times. This deletes that `.toml` and its
+`.handoff.md`, and **that deletion is the whole record**: retirement is the `.toml` being gone, so a
+flag and the disk can no longer disagree about it. The `.md` stays, because it holds the goal's number
+and the prose the plan cites. It refuses unless **every** `[[check]]` of that goal is in the live
 `loop-goal.toml`, matched on `(kind, name)` so a floor a session legitimately edited still counts — and
 that proof, unlike the position guard, is not `--force`-able.
 
@@ -116,12 +124,11 @@ it if that ever stops being byte-identical, alongside the two failures that are 
 TOML with no `goal-switch` marker line (which makes the switch *into* that goal refuse, stopping the run)
 and one with no `files`/`[valgrind] skip` key for the floor to be unioned into.
 
-Two things it refuses. **An entry at or before the live one**, because `goal-switch.py` has already folded
-each walked entry's checks into the one after it and `.loop/chain.json` indexes the list by position — so
-editing, moving or landing anything back there invalidates a floor that has already been built, and
-nothing downstream notices. And **a number in `dossier.py`'s range**: 21–49 is free space in front of the
-dossier on purpose, since the emitter numbers what it appends from `max(number) + 1`. `--force` is there
-for a tree where the run is over or was never started.
+One thing it refuses: **a goal at or before the live one**, whether it is the thing being edited or the
+place something is landing. `goal-switch.py` has already folded each walked goal's checks into the one
+after it, so moving, renumbering or removing anything back there invalidates a floor that is already
+built, and nothing downstream notices. `--force` is there for a tree where the run is over or was never
+started.
 
 ## One shell call runs one command, and its exit status is the last one's
 
@@ -432,7 +439,7 @@ python tools/bench-proxied.py --down                                  # tear bot
 
 **Two legs, two artifacts, and no arithmetic between them.** The first runs on this box with no
 containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `bench.py`, and
-is goal 6's acceptance check — so it must keep working where there is no Docker and no `wrk`. The second
+is goal `server`'s acceptance check — so it must keep working where there is no Docker and no `wrk`. The second
 is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
 front of both peers because that is the only deployment either has, two compose files brought up one at a
 time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually names. Their inputs
@@ -473,14 +480,14 @@ rest. **The roster is derived from `nvs meta --json` and the reference chapters*
 adding to a list when a feature lands.
 
 `--emit-goals` writes one goal per group under `docs/agent/goals/dossier/` and **appends them to
-`docs/agent/goals/chain.toml`** — the one chain, always, because that is the only file `loop.py` walks
+`docs/agent/goals/`** — the one chain, always, because that is the only file `loop.py` walks
 and an emission anywhere else would be a chain nothing reads. **Deciding to run it is the user's**, like
 `doc-cleanup.md` and `dependency-update.md`, for the same reason: it decides what several hundred
-sessions will do next. The user made that decision, and [goal 50](goals/50-dossier.md) is
+sessions will do next. The user made that decision, and [goal `dossier`](goals/43-dossier.md) is
 what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
 on the end of the chain the driver is already walking and the run continues into them without a restart.
 `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by `md` path,
-so goal 50's check re-runs it under `--dry-run` and passes only on *nothing appended*.
+so goal `dossier`'s check re-runs it under `--dry-run` and passes only on *nothing appended*.
 
 Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
 appends the goals that are left rather than the ones that were. The generated files carry no ordinal

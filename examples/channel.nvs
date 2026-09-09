@@ -1,5 +1,5 @@
 <?nvs
-// `Core\Task\Channel` and its backpressure, as a program — goal 2's item 11.
+// `Core\Task\Channel` and its backpressure, as a program — goal `concurrency`'s item 11.
 //
 // The three lines this prints are frozen in `docs/agent/loop-goal.toml`
 // (stage 4); the source is not. The channel's *surface* is M5's own design

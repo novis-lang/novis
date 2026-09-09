@@ -192,7 +192,7 @@ docs/
 [per-session prompt](docs/agent/session-prompt.md), the [current goal](docs/agent/loop-goal.md), and
 [handoff.md](docs/agent/handoff.md) — live state, overwritten by each session. The schedule is the goal
 chain in [docs/agent/goals/](docs/agent/goals/README.md), not the milestone table: a milestone is an
-identity tag one or more goals carry, so "goal 19" says what is happening and "M7" does not.
+identity tag one or more goals carry, so "goal `parses`" says what is happening and "M7" does not.
 
 The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
 Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform

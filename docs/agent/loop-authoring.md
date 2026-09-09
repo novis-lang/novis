@@ -8,9 +8,9 @@ to be settled with the user *before* the run rather than during it, and the shap
 kinds, the per-iteration flow. This file owns how a goal is *written*. Neither restates the other.
 
 **Start from the scaffold, not from a blank file or a copied neighbour**: `python tools/chain.py --new
-<slug> --title "…"` writes the three files a chain entry needs with the boilerplate already carried
-forward and every question this file answers left as a marked `TODO`, then splices the `[[goal]]` block
-into `goals/chain.toml`. What each `TODO` wants is the sections below.
+<slug> --after N --title "…"` writes the three files a goal needs, with the boilerplate already carried
+forward and every question this file answers left as a marked `TODO`, and renumbers every goal from
+that position on so the chain still runs `1..N`. What each `TODO` wants is the sections below.
 
 ## 1. Measure first — this is step zero, not a formality
 
@@ -86,7 +86,7 @@ unscoped one, which is about 30k of context before a session has read a line of 
 ### Write it per stage, not per goal
 
 A goal is a finite contained group of work; **a stage of one is finite again**, and the manifest is the
-place that distinction is worth money. Goal 14 runs twelve stages, and its stage 8 argues from ADR 0101's
+place that distinction is worth money. Goal `lsp-server` runs twelve stages, and its stage 8 argues from ADR 0101's
 redaction sections — which say nothing at all to the session writing its stage 4. Measured before this
 existed: 13,120 of that goal's 17,746 B of sliced ADR text belonged to a stage either already landed or
 not yet open, and its whole pack was 71,627 B.
@@ -113,7 +113,7 @@ adrs  = ["0099 §1"]
   `context-sync.py` writes to the base list and a stage-local copy would silently stop receiving what a
   session edited; not `plan`, whose default is two fields every session reads.
 - **The number is the prose stage, not a `[[check]]`'s `stage = "4 the requests"` label.** Those are
-  coarser on purpose — one acceptance line often spans several prose stages, and goal 14's own comment
+  coarser on purpose — one acceptance line often spans several prose stages, and goal `lsp-server`'s own comment
   says so — and making the two agree would give that grouping up for nothing.
 - **`chain.py --check` audits every stage's entries**, not the one in flight, so a selector that resolves
   to nothing in stage 9 is caught while the goal is being written rather than by the session that opens
@@ -245,7 +245,7 @@ opposite conclusion, and where the answer gets written down. A decision with no 
 **A goal that will open a record says so, and does not name the number.** A number is claimed by the
 file that lands, one above the highest in `docs/decisions/` — so a number written into a goal near the
 end of the chain is a number an earlier goal claims first, and the session that arrives finds it taken
-and frozen. Say *one new record and no other number*; the goal 33 form — naming the record because it
+and frozen. Say *one new record and no other number*; the goal `editor-install` form — naming the record because it
 has already landed and this goal only implements it — is the other legitimate one.
 
 `python tools/chain.py --check` notes a queued goal with no § *Standing decisions* at all, which is

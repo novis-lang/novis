@@ -1908,7 +1908,7 @@ mod tests {
 
     /// Byte-oriented code that has never heard of a core drives this stream:
     /// the body below is generic over `Read + Write` and reaches for
-    /// `BufReader`, which is the whole reason goal 5's drivers and a `rustls`
+    /// `BufReader`, which is the whole reason goal `database`'s drivers and a `rustls`
     /// session compose over it. The peer answers late on purpose, so the park
     /// happens *inside* the generic code rather than beside it.
     #[test]
