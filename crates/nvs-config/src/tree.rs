@@ -294,6 +294,14 @@ pub struct CapNet {
     /// `connect` grants. `true` is not a spelling it has — an exception names the address it wants,
     /// so that what a deployment gave back is legible in review.
     pub internal: Option<Setting>,
+    /// The socket paths a program may connect to or bind, written as absolute paths or directory
+    /// prefixes and canonicalized before matching like every other path-scoped grant
+    /// (`rule:config/net-local-is-named-and-not-on-the-roster`).
+    ///
+    /// It carries no address policy, because a path has no address, and it follows from `connect`
+    /// no more than `connect` follows from it: reaching the network and opening a socket on this
+    /// machine are different powers.
+    pub local: Option<Setting>,
 }
 
 /// The `process.*` grants.

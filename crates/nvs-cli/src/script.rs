@@ -767,6 +767,10 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
         net: Some(nvs_config::tree::CapNet {
             connect: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
             internal: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
+            // The listener is a TCP one, so there is no socket path to grant, and
+            // `net.local` is a grant of its own rather than something `connect` implies
+            // (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
+            local: None,
         }),
         ..nvs_config::tree::Capabilities::default()
     });

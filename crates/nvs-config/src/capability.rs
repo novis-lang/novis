@@ -66,6 +66,20 @@ pub enum Cap {
     ScriptSpawn,
     /// `net.connect` — the hosts an outbound connection may reach.
     NetConnect,
+    /// `net.local` — the socket paths a program may connect to or bind
+    /// (`rule:config/net-local-is-named-and-not-on-the-roster`).
+    ///
+    /// Asked at [`Scope::Path`] and carrying no address policy, because there is no address to ask
+    /// one about. It is a grant of its own rather than [`NetConnect`](Self::NetConnect) widened to
+    /// admit paths: that grant's whole character is the table it carries, and hosts governed by a
+    /// table beside paths governed by nothing is one name covering two guarantees. Reaching the
+    /// network and opening something on this machine are different powers, so holding either says
+    /// nothing about the other — `rule:security/net-listen-is-a-separate-grant-from-net-connect`.
+    ///
+    /// It governs **both ends** of a path. Binding one is granted the same way as connecting to
+    /// one, because a program that may create a socket at a path is a program whatever else on the
+    /// host finds it may speak to.
+    NetLocal,
     /// `process.exec` — the programs a subprocess may be started from.
     ProcessExec,
     /// `debug.trace` — where a trace may be written (`rule:testing/debug-probes`).
@@ -199,6 +213,7 @@ impl Cap {
         Self::FsWrite,
         Self::ScriptSpawn,
         Self::NetConnect,
+        Self::NetLocal,
         Self::ProcessExec,
         Self::DebugTrace,
         Self::DebugProfile,
@@ -218,6 +233,7 @@ impl Cap {
             Self::FsWrite => "fs.write",
             Self::ScriptSpawn => "script.spawn",
             Self::NetConnect => "net.connect",
+            Self::NetLocal => "net.local",
             Self::ProcessExec => "process.exec",
             Self::DebugTrace => "debug.trace",
             Self::DebugProfile => "debug.profile",
@@ -244,6 +260,7 @@ impl Cap {
             Self::FsRead
                 | Self::FsWrite
                 | Self::ScriptSpawn
+                | Self::NetLocal
                 | Self::ProcessExec
                 | Self::DebugTrace
                 | Self::DebugProfile
@@ -270,6 +287,7 @@ impl Cap {
             Self::FsWrite => caps.fs.as_ref()?.write.as_ref(),
             Self::ScriptSpawn => caps.script.as_ref()?.spawn.as_ref(),
             Self::NetConnect => caps.net.as_ref()?.connect.as_ref(),
+            Self::NetLocal => caps.net.as_ref()?.local.as_ref(),
             Self::ProcessExec => caps.process.as_ref()?.exec.as_ref(),
             Self::DebugTrace => caps.debug.as_ref()?.trace.as_ref(),
             Self::DebugProfile => caps.debug.as_ref()?.profile.as_ref(),
@@ -292,6 +310,7 @@ impl Cap {
             Self::FsWrite => caps.fs.as_mut()?.write.as_mut(),
             Self::ScriptSpawn => caps.script.as_mut()?.spawn.as_mut(),
             Self::NetConnect => caps.net.as_mut()?.connect.as_mut(),
+            Self::NetLocal => caps.net.as_mut()?.local.as_mut(),
             Self::ProcessExec => caps.process.as_mut()?.exec.as_mut(),
             Self::DebugTrace => caps.debug.as_mut()?.trace.as_mut(),
             Self::DebugProfile => caps.debug.as_mut()?.profile.as_mut(),

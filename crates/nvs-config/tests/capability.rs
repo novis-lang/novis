@@ -542,3 +542,74 @@ fn db_schema_names_blocks_and_does_not_follow_from_db_connect() {
     assert_eq!(Cap::DbSchema.name(), "db.schema");
     assert_eq!(Cap::parse("db.schema"), Some(Cap::DbSchema));
 }
+
+/// `net.local` and `net.connect` are two grants, and neither is the other's shorthand
+/// (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
+///
+/// Asserted from both sides, because the failure this guards against is asymmetric: a program that
+/// may reach the network reaching a socket path is the way onto the local machine
+/// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` spends a whole rule
+/// refusing, and a program that may open one socket reaching the internet is the widening
+/// `rule:config/net-local-is-named-and-not-on-the-roster` declined to write.
+///
+/// The path half is path-scoped like every other one, so § 4's canonicalise-then-prefix governs it
+/// and a `..` out of a granted directory is refused rather than resolved.
+#[test]
+fn net_local_and_net_connect_are_separate_grants() {
+    let disk = Disk::of(&["/run", "/run/redis.sock", "/var/run", "/var/run/other.sock"]);
+    let sock = p("/run/redis.sock");
+
+    // A path grant is not a host grant, even at its widest spelling.
+    let local = granting("[net]\nlocal = true\n", &disk);
+    assert!(local.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
+    assert!(!local.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk));
+
+    // And a host grant is not a path grant, at its widest spelling either.
+    let connect = granting("[net]\nconnect = true\n", &disk);
+    assert!(connect.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk));
+    assert!(!connect.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
+
+    // Deny by default, one spelling of "nothing granted" per row.
+    for (why, text) in [
+        ("no `[capabilities]` block at all", ""),
+        ("a `net` block granting nothing", "[net]\n"),
+        ("`local = false`", "[net]\nlocal = false\n"),
+        ("an empty list", "[net]\nlocal = []\n"),
+    ] {
+        let caps = granting(text, &disk);
+        assert!(
+            !caps.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk),
+            "{why} granted `net.local` for {}",
+            sock.display(),
+        );
+        assert!(
+            !caps.allows(Cap::NetLocal, Scope::Unscoped, &disk),
+            "{why} granted `net.local` unscoped",
+        );
+    }
+
+    // Granted at a directory prefix, but not outside it — including through the `..` a program
+    // supplies rather than an operator.
+    let rooted = granting("[net]\nlocal = [\"/run\"]\n", &disk);
+    assert!(rooted.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
+    for (why, outside) in [
+        ("a sibling directory", p("/var/run/other.sock")),
+        (
+            "a `..` back out of the root",
+            raw("/run/../var/run/other.sock"),
+        ),
+    ] {
+        assert!(
+            !rooted.allows(Cap::NetLocal, Scope::Path(outside.as_path()), &disk),
+            "`net.local = [\"/run\"]` reached {} through {why}",
+            outside.display(),
+        );
+    }
+
+    // A path grant, so canonicalization has work to do on it, and no host wildcard: there is no
+    // host in it to pattern-match.
+    assert!(Cap::NetLocal.is_path_scoped());
+    assert!(!Cap::NetLocal.takes_host_wildcard());
+    assert_eq!(Cap::NetLocal.name(), "net.local");
+    assert_eq!(Cap::parse("net.local"), Some(Cap::NetLocal));
+}
