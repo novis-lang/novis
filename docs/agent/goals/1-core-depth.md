@@ -1,3 +1,6 @@
+---
+milestone: M4S
+---
 # Loop goal 1 — `Core`'s pure half, finished
 
 Finish **M4S** — [docs/plan/m4s.md](../../plan/m4s.md) is the scope and this file does not restate it.
@@ -5,7 +8,7 @@ Every member of [docs/spec/01-core-library.md](../../spec/01-core-library.md) §
 capability, a reactor, a driver or an open handle **runs, is cased, and is claimed by a row in the
 migration table.**
 
-This is goal 1 of the parity program ([goals/README.md](README.md)), and it is first for a reason that
+This is goal `core-depth` of the parity program ([goals/README.md](README.md)), and it is first for a reason that
 compounds the way M4's operator table did: **every goal above this one is written against `Core`.** A
 driver returns `Core\Time\Instant`s, the server returns `tainted string` from `Core\Request`, an isolate
 copies a `Core\ObjectMap`. A member that is registered but wrong, or registered and untested, is a defect
@@ -99,7 +102,7 @@ there rather than scheduling any of it.
     **The recurrence is the switch's bug, not this file's.** `tools/goal-switch.py` carries a goal's
     `[[check]]` blocks forward and its unclosed items not at all, so a carried check whose green depends
     on an item list arrives without its basis; until that is fixed, every goal in
-    `docs/agent/goals/chain.toml` inherits this paragraph by hand.
+    `docs/agent/goals/` inherits this paragraph by hand.
 
 ## Stage 2 — the four attribute passes, which are one pass
 
@@ -124,14 +127,14 @@ not an example to read for inspiration.
    a declared `#[Query]` parameter (§ 6). Same pass, same file, one group with item 3.
    `rule:routing/the-servers-match-dispatches-nothing`.
 5. **`Core\Router::url()` and `::urlAbsolute()` are launderers over that table** — and only those two.
-   `::match` and `::methodsFor` are goal 6's, because a match needs a request. Splitting the class this
+   `::match` and `::methodsFor` are goal `server`'s, because a match needs a request. Splitting the class this
    way is [01-core-library.md](../../spec/01-core-library.md) § *Milestones*'s own instruction and not this
    goal's invention.
 6. **`#[Command]`/`#[Option]`/`#[Argument]` build the command table.**
    `rule:tooling/commands-are-compiled`, with its own three compile errors: a
    duplicate command name, two options sharing a spelling, an `#[Option]` on a parameter with no
    conversion from `string`. **The table only** — `Core\Command::run`, the generated `--help` and the
-   completions are goal 4's, since neither argv nor a terminal is reachable before capabilities exist.
+   completions are goal `core-part-ii`'s, since neither argv nor a terminal is reachable before capabilities exist.
 
 ## Stage 3 — the intrinsic-folding pass
 
@@ -244,8 +247,8 @@ not an example to read for inspiration.
     **What it spends:** nothing per request — a digest state is stack-held and released before the member
     returns — and binary size for each algorithm's own tables. That is priority 5 for priority 2, the
     trade AGENTS.md's ordering already authorizes. A new crate owes the three things the standing decision
-    below names, and nothing here needs a capability, a handle or a reactor, which is why it is goal 1's
-    and not goal 4's.
+    below names, and nothing here needs a capability, a handle or a reactor, which is why it is goal `core-depth`'s
+    and not goal `core-part-ii`'s.
 
 ## Acceptance
 
@@ -279,7 +282,7 @@ be here.
 
 ## What this goal does not touch
 
-Anything needing a capability, a reactor, a driver or an open handle — that is goals 2–6. `nvs-ir` and
+Anything needing a capability, a reactor, a driver or an open handle — that is goals `concurrency` through `server`. `nvs-ir` and
 `nvs-codegen`, except where an attribute pass emits through the path `#[Json\Derive]` already uses.
 Item 15 *owns* seventeen standing `nvs-ir` refusals without scheduling one of them; owning is not
 touching, and it is there so the floor's own gate has an answer rather than a hole. Doc

@@ -1,3 +1,6 @@
+---
+milestone: M7
+---
 # Loop goal 41 — A response body written over time, and the two doors onto it
 
 `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between two
@@ -22,7 +25,19 @@ that ends with its request, `Core\Sse::current` for one that outlives it, and
 `Core\Response::stream` for the untyped case — a large export, a chunked file — that is the same
 machinery with no event framing over it.
 
-**It is M7's**, the milestone goal 6 carried, and it is the last piece of ADR 0083 that never landed.
+**It is M7's**, the milestone goal `server` carried, and it is the last piece of ADR 0083 that never landed.
+
+## Why here
+
+M7's last unlanded piece, and the one goal `server` left behind:
+`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between a
+streaming response and a connection isolate, and **neither side of it is built**. `Answer` is an
+`Option<Bytes>` with an exact `size_hint`, so nothing in this workspace can write a byte to a client
+after the head has gone out — which makes `Core\Sse::upgrade`, registered and cell-carried and
+started in the right order since goal `server`, a door onto nothing. It is placed after goal `resource-ceilings` because a
+long-lived connection isolate is exactly the runaway shape that goal's ceilings exist to stop — an
+event stream whose budget is declared and unenforced is priority 1 spent to buy priority 3 — and
+after goal `config-is-written` because that is where the hand-written run ends. Nothing after it depends on it.
 
 ## What is wrong today, in one line each
 

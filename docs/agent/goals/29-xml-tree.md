@@ -11,7 +11,7 @@ says `Core\Html::sanitize` and the WHATWG parser "both wait on that tree existin
 one tree, one goal.
 
 **It is M8's, not M9's** — `rule:core-api/tier-roster` puts `Core\Xml` at
-Tier 0 (`0051:94`) and [m9.md](../plan/m9.md) carries the extension system, not document formats.
+Tier 0 (`0051:94`) and [m9.md](../../plan/m9.md) carries the extension system, not document formats.
 `spec-classes-part-two-outstanding.txt`'s claim that M9 carried § 17 was wrong; goal `formats` corrected the
 other half.
 

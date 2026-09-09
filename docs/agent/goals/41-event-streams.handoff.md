@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 41 — a response body written over time, and the two doors onto it — has just started; nothing
+**Goal `event-streams` — a response body written over time, and the two doors onto it — has just started; nothing
 of it has landed yet.** The previous goal's whole acceptance list is this goal's floor.
 
 **There is no streaming body anywhere in this workspace.** `Answer` at

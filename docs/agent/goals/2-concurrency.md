@@ -1,10 +1,13 @@
+---
+milestone: M5
+---
 # Loop goal 2 — the reactor, the scheduler, and isolates
 
 Finish **M5** — [docs/plan/m5.md](../../plan/m5.md) is the scope and this file does not restate it. A
 Novis program can **suspend**: on a socket, on a timer, on a child task, on another core's answer — and a
 core that is waiting on one request keeps serving the others.
 
-This is goal 2 of the parity program ([goals/README.md](README.md)) and it is **the keystone**. Nothing
+This is goal `concurrency` of the parity program ([goals/README.md](README.md)) and it is **the keystone**. Nothing
 above it has a socket, a timer or a task without it: the four database drivers, the outbound HTTP client
 and the listener all reach the network through the one stream this goal builds. Every goal after this is
 written against its shape, so a shape that is wrong here is wrong four times.
@@ -22,7 +25,7 @@ the program depends on getting it right: **`nvs-host`'s socket implements plain 
 `Write`, and parks its coroutine rather than blocking its core.** A read that would block returns to the
 reactor, the coroutine is resumed when the descriptor is ready, and the *caller* sees an ordinary blocking
 `read`. That is what lets every synchronous Rust crate compose with no async at all — `rustls` streams
-over it unmodified, and so do the wire codecs goal 5's drivers use. A design that instead exposes futures
+over it unmodified, and so do the wire codecs goal `database`'s drivers use. A design that instead exposes futures
 would put a second concurrency model beside the coroutines, which is exactly what `rule:concurrency/one-scheduler` refuses.
 
 **The proof it works already exists.** `benches/abi-probe`'s coroutine invariants are green and have been
@@ -91,7 +94,7 @@ the bag. The items add a name to slots that already exist, and a check that the 
 
 ## Stage 1 — the floor
 
-Goals 1 and M4's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never traded.**
+Goals `core-depth` and M4's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never traded.**
 `Core`'s pure half is finished and this goal does not touch it; a red check there is a regression.
 
 ## Stage 2 — the keystone: `nvs-host`, the reactor, and the parking stream
@@ -144,7 +147,7 @@ is a consumer of it.
     deferred with a named future spelling and is **not** in scope.
 15. **`Core\Task::afterResponse` and the `[deferred]` block** — §§ 6–7. The connection ends, the request
     tree does not; and what happens when the deferred queue is full is a decision that ADR already took.
-    The `[deferred]` config block's *validation* is goal 3's, since the registry does not exist yet; what
+    The `[deferred]` config block's *validation* is goal `governance`'s, since the registry does not exist yet; what
     lands here is the member and its behaviour under compiled-in defaults.
 
 ## Stage 5 — the graph copy, and both things carried by it
@@ -169,7 +172,7 @@ is a consumer of it.
     overlay — `rule:security/isolate-shares-nothing`. It belongs in this goal rather
     than later because an isolate is a task with a heap boundary, which is exactly what Stage 2 built.
 21. **The request tree and its shared budget**, § *Budgets are accounted at the root of the request tree*.
-    Enforcement of the *limits* is goal 3's; the accounting is this item's, and until then it runs under
+    Enforcement of the *limits* is goal `governance`'s; the accounting is this item's, and until then it runs under
     compiled-in defaults.
 22. **`Core\Script::args()`, the top-level `return` contract, and the `ScriptResult` shape** — § *Failure
     is a value, not an exception*, plus `rule:statements/no-host-populated-variables`. A child's uncaught
@@ -230,14 +233,14 @@ there by the switch that left it and folded forward at every switch since.
   mechanism about a program that suspended itself, and the two are not unified.
 - **`race` does not exist**, and neither does a `timeout` wrapper. `{limit, deadline}` is the spelling.
 - **`Core\Http\Client` is not in this goal.** The transport it will use is — a TCP stream and `rustls`
-  over it — and the member surface, its address policy and its retry rules are goal 4's.
-- **The `[deferred]`, `[limits]` and `script.spawn` enforcement is goal 3's.** This goal runs under
+  over it — and the member surface, its address policy and its retry rules are goal `core-part-ii`'s.
+- **The `[deferred]`, `[limits]` and `script.spawn` enforcement is goal `governance`'s.** This goal runs under
   compiled-in defaults and says so at each site, exactly as m5.md already does.
 
 ## What this goal does not touch
 
-`Core`'s pure half (goal 1, and it is the floor) — except that Stage 0b adds a name to every slot it
-already has, and changes no member's shape. Every capability-bearing `Core` member (goal 4) — the
-transport is not the client. The listener (goal 6). `rule:testing/debug-probes`'s `TRACE`/`PROFILE` safepoint bits, which
+`Core`'s pure half (goal `core-depth`, and it is the floor) — except that Stage 0b adds a name to every slot it
+already has, and changes no member's shape. Every capability-bearing `Core` member (goal `core-part-ii`) — the
+transport is not the client. The listener (goal `server`). `rule:testing/debug-probes`'s `TRACE`/`PROFILE` safepoint bits, which
 have no consumer until an exporter exists; the three spawn-construct trace events wait with them, and
 m5.md already says so.

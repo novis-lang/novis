@@ -1,3 +1,6 @@
+---
+milestone: M6
+---
 # Loop goal 3 — config, capabilities, limits, and the disk cache
 
 Finish **M6** — [docs/plan/m6.md](../../plan/m6.md) is the scope and this file does not restate it. An
@@ -5,10 +8,10 @@ operator can **say what a program may do and how much of it**, and the engine en
 at every syscall-touching entry point, a limit at every safepoint, and a compiled artifact that is
 verified before a single page of it becomes executable.
 
-This is goal 3 of the parity program ([goals/README.md](README.md)), and it is here rather than after
-goal 4 for one reason: **every capability-bearing `Core` member in goal 4 is gated on what this goal
+This is goal `governance` of the parity program ([goals/README.md](README.md)), and it is here rather than after
+goal `core-part-ii` for one reason: **every capability-bearing `Core` member in goal `core-part-ii` is gated on what this goal
 builds.** A member written before its gate exists is a member whose gate gets retrofitted, and a
-retrofitted gate is exactly the kind that has a hole in it. Goal 2's isolates already run under
+retrofitted gate is exactly the kind that has a hole in it. Goal `concurrency`'s isolates already run under
 compiled-in defaults and say so at each site; this goal is where those sites get their real answer.
 
 ## What "done" means here
@@ -23,12 +26,12 @@ never grow.
 
 ## Stage 0 — the catch-up
 
-Nothing. Goal 2 landed under compiled-in defaults deliberately, and picking those up is Stage 4's item 12
+Nothing. Goal `concurrency` landed under compiled-in defaults deliberately, and picking those up is Stage 4's item 12
 rather than a catch-up: it is the *work*, not a debt.
 
 ## Stage 1 — the floor
 
-M4's, goal 1's and goal 2's whole acceptance lists, inserted mechanically by `goal-switch.py`, **never
+M4's, goal `core-depth`'s and goal `concurrency`'s whole acceptance lists, inserted mechanically by `goal-switch.py`, **never
 traded.**
 
 ## Stage 2 — the registry and the tree
@@ -54,7 +57,7 @@ The one file set the next four items share: a directive's declaration, and how a
    implementation loses.
 5. **`password_file` yields the file's content with one trailing newline stripped** (§ 7), the CLI flag
    list is closed at the global layer (§ 8), and `nvs config check`/`nvs config dump` exist (§ 9).
-   `nvs ctl config` waits for goal 6's socket.
+   `nvs ctl config` waits for goal `server`'s socket.
 6. **`[[app]]`, keyed on a canonicalized entry-file path.**
    `rule:config/an-application-is-its-entry-file-path`: every matching block applies,
    least-specific first (§ 2); a block may widen, bounded by the global ceiling (§ 3). An entry path
@@ -86,8 +89,8 @@ The one file set the next four items share: a directive's declaration, and how a
 11. **Safepoint-driven limit enforcement.** Memory and CPU caps terminate a runaway script as a `FATAL`,
     reported to `Core\Fatal::onLimit` if registered and **never to an ordinary `catch`** —
     `rule:errors/escalation-ladder`. Safepoints have been emitted since the first
-    backend commit and goal 2's cancellation is their first consumer; this is the second.
-12. **The isolate's governance, which is goal 2's deferred half.** `script.spawn` with
+    backend commit and goal `concurrency`'s cancellation is their first consumer; this is the second.
+12. **The isolate's governance, which is goal `concurrency`'s deferred half.** `script.spawn` with
     canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]`
     value, spawn-site sub-caps, and derivation of a child's overlay from its parent's *effective* config.
     Two failures have their own names and both are easy to report as something else: a recursive spawn is
@@ -95,7 +98,7 @@ The one file set the next four items share: a directive's declaration, and how a
     concurrent isolates cannot *together* exceed the tree's budget.
 13. **`fatal_reserve_memory`/`fatal_reserve_time` and `Core\Fatal::onLimit` registration.** ADR 0020: the
     reserved slice a resource-limit `FATAL`'s handler runs with is carved out of the request's own budget
-    **at the same point these limits are set up**, which is why it is this item and not goal 4's.
+    **at the same point these limits are set up**, which is why it is this item and not goal `core-part-ii`'s.
 
 ## Stage 5 — the artifact cache
 
@@ -170,14 +173,14 @@ there by the switch that left it and folded forward at every switch since.
 - **The artifact cache is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` as written.** If the implementation forces a different shape, record
   *that* in the crate's module doc with the reason and put the redesign in `## Backlog` — do not start one
   mid-run.
-- **No socket.** `nvs ctl` needs a long-running server and arrives in goal 6. `nvs config check` and
+- **No socket.** `nvs ctl` needs a long-running server and arrives in goal `server`. `nvs config check` and
   `nvs config dump` are this goal's and read the tree directly.
 - **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 ## What this goal does not touch
 
-Every capability-bearing `Core` **member** — that is goal 4, and this goal builds the gate rather than
-the thing behind it. The listener, the control socket and `[http.*]`'s *runtime* behaviour (goal 6; only
+Every capability-bearing `Core` **member** — that is goal `core-part-ii`, and this goal builds the gate rather than
+the thing behind it. The listener, the control socket and `[http.*]`'s *runtime* behaviour (goal `server`; only
 its boot-time validation is here). `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s freeing of executable memory, which m6.md carries and which
 has no consumer until there is a long-running process to free it in — it goes in `## Backlog` if a
 session reaches it.

@@ -1,3 +1,6 @@
+---
+milestone: M8
+---
 # Loop goal 25 — `Core\Compress`, `Core\Mime` and `Core\Zip`
 
 Spec § 17's three archive-and-encoding classes, each Tier 0 for the same reason: what a compressed or
@@ -10,10 +13,10 @@ are refused before anything touches a filesystem.
 Tier 0 (`0051:96-100`), and [m9.md](../../plan/m9.md) is the extension system — `.nvsx` loading, the WIT
 world, the capability bridge — and carries none of them.
 `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` said M9 carried the § 17 four; that
-comment was wrong and this goal is half of what corrects it, `Core\Xml` being the other half in goal 26.
+comment was wrong and this goal is half of what corrects it, `Core\Xml` being the other half in goal `xml-tree`.
 
-**It sits after goal 24** because `Core\Mime`'s detection is what a `Core\Net` or `Core\Http` reader
-hands bytes to, and before goal 26 because `Core\Xml` is the largest of the four and shares nothing
+**It sits after goal `net-os-signal`** because `Core\Mime`'s detection is what a `Core\Net` or `Core\Http` reader
+hands bytes to, and before goal `xml-tree` because `Core\Xml` is the largest of the four and shares nothing
 with these three.
 
 ## Stage 0 — the catch-up
@@ -27,7 +30,7 @@ with these three.
 
 ## Stage 1 — the floor
 
-Goal 24's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `net-os-signal`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
 ## Stage 2 — `Core\Compress`, and the bound that cannot be switched off
 
@@ -74,7 +77,7 @@ Goal 24's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Stage 5 — the three keys are struck
 
 `spec-classes-part-two-outstanding.txt` loses `§17 Core\Compress`, `§17 Core\Mime` and `§17 Core\Zip`;
-`Core\Xml` stays for goal 26. The migration table's `zlib`, `fileinfo` and `zip` rows answer a `Core`
+`Core\Xml` stays for goal `xml-tree`. The migration table's `zlib`, `fileinfo` and `zip` rows answer a `Core`
 spelling.
 
 ## Standing decisions

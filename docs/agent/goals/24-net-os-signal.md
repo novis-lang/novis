@@ -1,3 +1,6 @@
+---
+milestone: M8
+---
 # Loop goal 24 — `Core\Net`, `Core\Os` and `Core\Signal`
 
 Spec § 16's last three unregistered classes, and the only three in the whole part that **no milestone
@@ -11,7 +14,7 @@ reactor drives, ask the host what process it is, and be told to shut down gracef
 Core's stdlib. M8's stdlib goals — 4 and 5 — have walked without them, which is what made these a gap
 in a past milestone rather than work on a future one.
 
-**It sits after goal 23** because `Core\Os::cpuCount` should answer the number the server actually
+**It sits after goal `per-core`** because `Core\Os::cpuCount` should answer the number the server actually
 fans out over, not a number nothing reads.
 
 ## Stage 0 — the catch-up
@@ -24,7 +27,7 @@ fans out over, not a number nothing reads.
 
 ## Stage 1 — the floor
 
-Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `per-core`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
 ## Stage 2 — `Core\Net`, over the reactor and nothing else
 
@@ -33,17 +36,17 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    sentence and this is where it becomes a rule.
 2. **`net.local` joins the capability roster.**
    `rule:config/net-local-is-named-and-not-on-the-roster` names it and
-   goal 20 deliberately did **not** add it — "it has no caller until `Core\Net` lands". This goal is
+   goal `unix-sockets` deliberately did **not** add it — "it has no caller until `Core\Net` lands". This goal is
    that caller. `net.connect` keeps the outbound host scope it has; a listening socket is a separate
    question and gets `net.listen`.
 3. **TCP.** `connect`, and a listener that accepts — over `nvs_host::NvsTcp`/`NvsListener`
    (`crates/nvs-host/src/net.rs:227`, `:313`), which park on the reactor and are what the drivers and
    the server already speak through. A program-supplied host walks
    `rule:security/net-address-policy`'s denied-range table through
-   `nvs_runtime::capability::pin_host`, unchanged — goal 20's carve-out was for *configured* stores and
+   `nvs_runtime::capability::pin_host`, unchanged — goal `unix-sockets`'s carve-out was for *configured* stores and
    does not reach a program's own `connect`.
 4. **Unix.** `NvsUnix` exists (`net.rs:460`) and needs no new transport. A program-supplied socket
-   path is refused at this door under goal 20's standing decision — refused as a *target*, so it cannot
+   path is refused at this door under goal `unix-sockets`'s standing decision — refused as a *target*, so it cannot
    be told apart from a path that could not be opened.
 5. **UDP is new to the host.** `nvs-host` has no datagram type; `NvsUdp` over `mio::net::UdpSocket` is
    this goal's one addition to that crate, written to the same shape as `NvsStream` so it parks the
@@ -54,7 +57,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Stage 3 — `Core\Os`, five facts about the host
 
 1. **`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`** — the spec § 16 row, whole.
-   `cpuCount` answers `std::thread::available_parallelism`, which after goal 23 is the number the
+   `cpuCount` answers `std::thread::available_parallelism`, which after goal `per-core` is the number the
    server fans out over; `crates/nvs-cli/src/info.rs:145` already calls it and stops being the only
    caller.
 2. **`loadAverage` has no Windows answer**, and the member says so rather than inventing one — it
@@ -71,7 +74,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    job control. There is no `kill`, no `alarm` and no signal number as an integer.
 2. **It composes with the drain that already exists.** `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain answers the probe and
    `isDraining()`; a `Core\Signal` handler is the CLI-side entry into the same state machine, not a
-   second one. On the server the signal path is the process's, and after goal 23 it is fleet-wide.
+   second one. On the server the signal path is the process's, and after goal `per-core` it is fleet-wide.
 3. **A handler runs as ordinary Novis code at a safepoint**, never in a signal context — the delivery
    sets a flag the safepoint reads, which is the shape `nvs_safepoint` already has.
 

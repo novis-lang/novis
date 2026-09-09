@@ -1,3 +1,6 @@
+---
+milestone: M8
+---
 # Loop goal 5 — `Core\Db` and five drivers
 
 Finish **M8's database half** — `rule:core-classes/db-one-api` is the design and
@@ -5,7 +8,7 @@ Finish **M8's database half** — `rule:core-classes/db-one-api` is the design a
 `mysqli`, `pgsql` and `sqlite3`**, over pure-Rust MySQL, MariaDB, PostgreSQL and SQL Server drivers plus
 SQLite.
 
-This is goal 5 of the parity program ([goals/README.md](README.md)). It is a separate goal from goal 4
+This is goal `database` of the parity program ([goals/README.md](README.md)). It is a separate goal from goal `core-part-ii`
 purely because `nvs-db` shares no file with `Core\Cli` — the two would have made one manifest naming every
 module in the workspace, which is the cost loop-authoring.md § 2 exists to avoid.
 
@@ -26,13 +29,13 @@ specification. Write those as differential cases, not as frozen ones.
 
 ## The shape every session must hold
 
-**A driver is synchronous code over goal 2's parking stream.** `rustls` layers on the same stream for TLS.
+**A driver is synchronous code over goal `concurrency`'s parking stream.** `rustls` layers on the same stream for TLS.
 There is no async runtime and `sqlx`, `tokio-postgres` and `tiberius` are not usable here — not as a
 preference but structurally, because they need a runtime that spawns. What *is* usable is the wire-protocol
 half of the ecosystem: `mysql_common`, `postgres-protocol`, and our own TDS. SQLite is `rusqlite`, and it
 is [ADR 0051 § 4](../../decisions/0051.md)'s **one audited C exception** — its test suite
 is orders of magnitude larger than its source and it is continuously fuzzed, which is the exceptional
-verification record that question 2 asks for. Nothing else clears that bar, and goal 4 built the
+verification record that question 2 asks for. Nothing else clears that bar, and goal `core-part-ii` built the
 enumeration check that says so.
 
 **Every statement is prepared, and emulated prepares do not exist in any form** (§ 1). That is what makes
@@ -49,7 +52,7 @@ to. A driver that interpolates inside itself has reintroduced exactly the thing 
 
 ## Stage 1 — the floor
 
-M4's and goals 1–4's whole acceptance lists, **never traded.**
+M4's and goals `core-depth` through `core-part-ii`'s whole acceptance lists, **never traded.**
 
 ## Stage 2 — the keystone: one connection, one prepared statement, one row
 
@@ -58,7 +61,7 @@ protocol pays nothing extra for a prepare (§ *Context*), `postgres-protocol` is
 crates, and it has the reset that § 13 calls the good case. The other four are then the same shape.
 
 3. **`crates/nvs-db` exists, and a PostgreSQL connection is opened, TLS-wrapped and authenticated.** Over
-   goal 2's `NvsTcp` with `rustls` on it — the item is the *seam*, and it is this goal's ADR slot.
+   goal `concurrency`'s `NvsTcp` with `rustls` on it — the item is the *seam*, and it is this goal's ADR slot.
 4. **A connection is named, or built from settings, and is memoized for the request** — § 2. The settings
    are **five types, not one loose shape**: SQLite takes a `path` and has no `host`, so a `host` on a
    SQLite settings literal is a **compile error** rather than a silently ignored field.
@@ -98,7 +101,7 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
 12. **"Everything is a string" does not happen.** § *Context* names it as an artefact of the MySQL text
     protocol and the reason `$row['id'] == 1` silently fails in PHP. A driver that returns strings has
     reproduced the defect this API exists to remove.
-13. **Two things come from goal 1 and goal 4**: `Core\Time`'s types for the date columns, and `Core\Json`
+13. **Two things come from goal `core-depth` and goal `core-part-ii`**: `Core\Time`'s types for the date columns, and `Core\Json`
     for the JSON ones — which are **not** auto-decoded.
 
 ## Stage 5 — transactions
@@ -141,7 +144,7 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
 22. **The transactional-enqueue property is the reason for the whole design** — § 3: an enqueue commits
     with your write, so a job never exists for a row that was rolled back. A queue that is a separate
     broker cannot have that property, and § 8 says why there is no broker.
-23. **Queued work and scheduled work are different** — § 7. `[[schedule]]`'s validation landed in goal 3;
+23. **Queued work and scheduled work are different** — § 7. `[[schedule]]`'s validation landed in goal `governance`;
     this is the other half and the two are not unified.
 
 ## Stage 9 — what `nvs check` proves, and the trace
@@ -160,7 +163,7 @@ than left to be invented at 2 a.m. by the session that first needs a server:
 
 - **`tests/db/compose.yaml`** — MySQL, MariaDB, PostgreSQL, SQL Server and Redis, each pinned to a version
   and each with a healthcheck, so `docker compose up -d --wait` means *healthy* rather than *started*.
-  Redis is there because goal 4's shared cache tier and goal 6's fleet lease both use it, and one compose
+  Redis is there because goal `core-part-ii`'s shared cache tier and goal `server`'s fleet lease both use it, and one compose
   file is better than two that drift.
 - **`python tools/db-matrix.py`** — runs `rule:core-classes/db-one-api`'s per-driver list against those servers and prints one
   `<driver>: ok` line each. It is a harness rather than a test: the assertions are `nvs-db`'s own, and
@@ -194,7 +197,7 @@ like the WSL leg already is.
   another's state.
 - **PostgreSQL first, then the rest.** Its extended protocol pays nothing extra for a prepare, so the
   first driver is the one that exercises the design rather than the driver's own quirks.
-- **SQLite's C dependency is the one audited exception**, under `rule:packaging/a-c-dependency-answers-two-questions`'s second question, and goal 4
+- **SQLite's C dependency is the one audited exception**, under `rule:packaging/a-c-dependency-answers-two-questions`'s second question, and goal `core-part-ii`
   built the enumeration check that fails on any *addition* to that list. A second C dependency is a
   `BLOCKED`.
 - **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`, with
@@ -206,5 +209,5 @@ like the WSL leg already is.
 blocked until an ADR closes it — ordering, transactional DDL, fleet locking, reversibility, safety against
 a live multi-tenant database. `nvs queue migrate` is **not** that: it creates two tables this ADR
 specifies, and a session that finds itself generalising it has drifted into the blocked design. The
-listener and everything request-shaped (goal 6), including `#[Test(db:)]`'s rolled-back transaction, which
+listener and everything request-shaped (goal `server`), including `#[Test(db:)]`'s rolled-back transaction, which
 needs the test-server half that arrives with it.

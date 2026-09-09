@@ -1,0 +1,275 @@
+# Goal 40 -- The configuration is written down, and every key in it is read
+# The acceptance test, as data.
+#
+# `40-config-is-written.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # goal-switch.py unions the previous goal's list into this one. This goal writes no
+  # `examples/*.nvs` fixture: what it produces is a generated file and a gate over it, and both are
+  # asserted from Rust and from Python rather than from a program's frozen output.
+]
+
+[context]
+
+modules = [
+  # The one home for what `nvs.toml` can hold. Every leaf field here is a key stage 0's roster
+  # derives and stage 2's file must print, and it is where stage 1 writes an `[unread:]` trailer.
+  "crates/nvs-config/src/tree.rs",
+  # `roots` -- step 1's `--config` list, step 2's `./nvs.toml` and step 3's fall-through, in twelve
+  # lines. Stage 3 adds the write at step 3 and changes neither of the first two.
+  "crates/nvs-config/src/resolve.rs",
+  # The changeability table, whose rows are prefixes rather than keys. `cache.dir` has a row here
+  # and no reader anywhere, which is stage 1's first item.
+  "crates/nvs-config/src/directive.rs",
+  # `trust::check` and `canonical` -- stage 3's refusal to create a configuration file in a
+  # directory another local account can write.
+  "crates/nvs-config/src/trust.rs",
+  # `Snapshot::get`'s flat dotted-key lookup: the *second* spelling of a reader, and the one a
+  # field-access search misses. `Core\Storage`'s root is read this way.
+  "crates/nvs-config/src/snapshot.rs",
+  # `LocalFiles`, `boot_snapshot` and `working_directory` -- where the CLI resolves a tree, and the
+  # module doc arguing why `nvs run` reads without the ownership check that `nvs serve` applies.
+  "crates/nvs-cli/src/config.rs",
+  # The subcommand enum. Stage 3's project-command table goes here, beside the arms it classifies.
+  "crates/nvs-cli/src/main.rs",
+  # `from_config` and `default_dir` -- the artifact cache reading `opcache.file_cache_dir` and never
+  # `cache.dir`, which is the evidence for stage 1's first item; and § 4's "a failure to write is
+  # not an error anyone hears about", which is the discipline stage 3 copies.
+  "crates/nvs-cli/src/cache.rs",
+  # `Cap`'s roster, its names and its grant lookups -- including `DebugTrace`/`DebugProfile`, which
+  # are grantable and never asked.
+  "crates/nvs-config/src/capability.rs",
+  # "Nothing scrapes or pushes this", in the module doc of the registry that would be exported.
+  # The evidence behind stage 1's marking of the three exporter addresses.
+  "crates/nvs-server/src/metrics.rs",
+  # Generate-then-check as this repository already does it: one home, mechanically enforced, with
+  # `--check` as the gate. Stage 0's tool is this shape and stage 2's file is its output.
+  "tools/lints.py",
+  # Where a gate is wired, and the argument for why the generated-file step precedes the compile
+  # steps rather than following them.
+  "tools/verify.py",
+]
+
+# The rules every stage of this goal works inside.
+rules = [
+  # The lookup this goal adds a step-3 write to, and does not otherwise touch.
+  "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+  # Why a host with no file is valid rather than broken -- still true after this goal, and the
+  # answer whenever stage 3 declines to write.
+  "config/no-configuration-file-is-a-complete-configuration",
+  # Ownership is the trust boundary: stage 3's fourth refusal, and why creating a file in a
+  # world-writable directory is the one thing this goal must not do.
+  "config/ownership-is-the-trust-boundary",
+  # Three changeability classes -- what a generated comment has to say about a key besides its
+  # default, and what `directive.rs`'s rows are for.
+  "config/three-changeability-classes",
+  # A default that is unsafe inbound or unbounded outbound is a defect: stage 2's argument for
+  # commenting every key rather than freezing today's numbers into every deployment.
+  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A decision record",
+  "A rule fragment",
+  "A code comment",
+]
+
+milestones = ["M6:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Tooling > A full diagnostic band',
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `40-config-is-written.md`, holding what only that stage needs.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.1]
+# The three subsystems stage 1 marks rather than builds. Each is read to write one honest trailer --
+# what is missing and who owns it -- and none of them is built by this goal.
+rules = [
+  "observability/the-exporters-are-crates",
+  "http-server/a-unix-socket-listener",
+  "testing/debug-probes",
+  "packaging/extension-loading-is-root-controlled",
+]
+
+[context.stage.2]
+# Why a generated default is commented rather than live: a default that is unsafe or unbounded is a
+# defect, so a later tightening has to be able to reach a deployment that took this file.
+rules = ["http-server/an-unsafe-or-unbounded-default-is-a-defect"]
+shapes = ["A code comment"]
+
+[context.stage.3]
+# What `nvs serve` defends that `nvs run` does not, and the ladder a declined write reports on.
+rules = [
+  "errors/escalation-ladder",
+  "config/the-resolved-root-is-announced-and-stored",
+]
+
+# Nothing here changes what a program allocates. The floor's entries are unioned in; this goal adds
+# none of its own.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor's, not this goal's own: nothing here touches a database.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the roster. The tool exists before anything it would report on is fixed, because a
+# hand-audit is wrong the week after it is written. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "0 the roster"
+name = "the directive roster derives from the tree, and both spellings of a reader count"
+argv = ["python", "tools/directives.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "0 the roster"
+name = "a key read only through a flat dotted lookup is not reported unread"
+argv = ["python", "tools/directives.py", "--explain", "storage.<name>.root"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 1 -- implement or mark. The gate from stage 0 is what makes "nothing in between" enforceable:
+# a key with neither a reader nor a trailer fails, and so does a trailer over a key that now works.
+# Goal prose stage 1.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "1 implement or mark"
+name = "the artifact cache directory has one spelling, and it is the one an operator writes"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "the_configured_cache_directory_is_read_from_the_key_the_tree_documents",
+  "a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 implement or mark"
+name = "every key the tree parses is read or carries a reason, and no reason outlives its gap"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "every_unread_key_names_what_is_missing_and_who_owns_it",
+  "no_key_with_a_reader_still_claims_to_be_unread",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the default file. Commented, so the shipped defaults still apply and a later tightening
+# still reaches a deployment that took this file. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the default file"
+name = "the generated file holds every key the tree parses, exactly once, and nothing it does not"
+argv = ["python", "tools/directives.py", "--check-template"]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the default file"
+name = "the shipped file parses, resolves, and changes nothing about the run that takes it"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "the_default_file_parses_with_deny_unknown_fields",
+  "the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all",
+  "every_unimplemented_key_in_the_default_file_is_marked_as_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a project command writes it. The four refusals are each a test, because each of them is a
+# way this stage could quietly become a defect. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "a project command with no tree writes one, and reads back exactly what it wrote"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_run_in_a_directory_with_no_config_writes_one_and_then_resolves_it",
+  "the_written_file_is_the_shipped_template_byte_for_byte",
+  "an_existing_nvs_toml_is_never_touched",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "the four refusals: a named config, an audit, an opt-out, and a directory that fails the check"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_config_flag_disables_the_write_even_when_every_named_file_is_missing",
+  "config_check_and_dump_and_lsp_never_write",
+  "no_init_and_the_environment_variable_each_disable_the_write",
+  "a_working_directory_that_fails_the_ownership_check_is_not_written_to",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "a write that cannot happen is an info record and never a failure"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_read_only_working_directory_leaves_the_run_green_on_the_shipped_defaults",
+  "a_declined_write_says_which_reason_applied",
+  "nvs_init_writes_the_same_file_and_refuses_to_overwrite_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the records and the rulebook. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "the rulebook validates, including the fragment this goal adds"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "every record this goal opened is complete and cited"
+argv = ["python", "tools/decisions.py", "--gate"]
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "no document in the tree still cites this goal's subject by ADR number"
+argv = ["python", "tools/check-links.py"]

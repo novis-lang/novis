@@ -1,3 +1,6 @@
+---
+milestone: M7
+---
 # Loop goal 23 — `nvs serve` takes every core, and the compiled unit is shared
 
 `nvs serve` binds one socket on one core today, and no path in the process starts a second. This goal
@@ -6,11 +9,11 @@ handle on the descriptor, and one compiled unit is shared across all of them beh
 single publisher. When it is green, `benches/serve-proxied.json`'s deployed arm scales with cores
 instead of staying flat.
 
-**It sits here because M7's own scope says so and no `[[goal]]` claimed it.**
-[m7.md](../../plan/m7.md) puts "per-core accept and dispatch" inside the milestone; goal 6 shipped the
+**It sits here because M7's own scope says so and no goal claimed it.**
+[m7.md](../../plan/m7.md) puts "per-core accept and dispatch" inside the milestone; goal `server` shipped the
 single-core server and closed, so this is a milestone's stated scope that nothing owned — the reason
 [carried-gaps.md](../carried-gaps.md) carried it as `unowned` until this entry existed. It is first of
-the entries added after goal 20 because it is **the largest measured performance item in the
+the entries added after goal `unix-sockets` because it is **the largest measured performance item in the
 repository**: the proxied bench has php-fpm scaling 2.44x from one core to four while `nvs serve`
 stays flat, turning a 2.92x lead into 1.19x — and inverting it on a box with more cores.
 
@@ -28,6 +31,11 @@ answerable rather than racing. Both are called only from `#[cfg(test)]`. Nothing
 relaxed atomic "so one hot core cannot refuse while its neighbours idle", its watchdog is already per
 worker, and its h2c refusal argues *from* connections being balanced across cores.
 
+## Why here
+
+The primitives are built and unreached: `NvsListener::from_std` and `Worker::spawn(cpu, ...)` have
+only `#[cfg(test)]` callers.
+
 ## Stage 0 — the catch-up
 
 1. **`serve.rs`'s § *Decision: one socket, and the flag is the last word*** (`crates/nvs-cli/src/serve.rs:42`)
@@ -40,7 +48,7 @@ worker, and its h2c refusal argues *from* connections being balanced across core
 
 ## Stage 1 — the floor
 
-Goal 22's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `warm-start`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
 ## Stage 2 — the keystone: the compiled unit is shared, and the swap has one publisher
 
