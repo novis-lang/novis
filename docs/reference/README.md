@@ -68,6 +68,29 @@ A chapter may place one of the generated tables where its prose wants it, on a l
 A table no chapter places is appended at the end of the file, so nothing the binary declares is
 ever lost — but place them, because a table inside its chapter is what a reader finds.
 
+## Marking a section for the primer
+
+`nvs agent primer` is the short document a coding agent reads before it writes anything, and it is
+generated from these chapters rather than hand-written
+(`rule:tooling/a-primer-claim-is-executed`). A chapter opts a section in with a comment on the line
+directly above that section's heading:
+
+```
+<!-- primer -->
+# `[capabilities]`
+```
+
+The section it heads is lifted whole — its prose, its tables and its examples, down to the next
+heading of the same or a shallower level — so a section that stops being true stops being rendered
+rather than becoming a lie. The marker is stripped from `docs/novis.md`, where it would mean
+nothing.
+
+What the primer carries is fixed: the lookup protocol, one complete worked program with every shape
+in it annotated, the capability model and the smallest `nvs.toml` that grants a file read, the
+refusal tables, and the chapter map from this front matter. A section that is none of those puts
+prose in front of a reader spending a token budget on it, and a part of the primer that no section
+expresses is a chapter missing it — the edit belongs in the chapter.
+
 ## A class introduction file
 
 `core/<Class>.md`, named by the class after `Core\` with `\` written `-`: `Str.md`,

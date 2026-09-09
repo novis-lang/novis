@@ -27,6 +27,7 @@ usually one file:
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs info` | build, host and third-party licensing information |
 | `nvs meta --json` | the whole `Core` registry as JSON |
+| `nvs agent <verb>` | the same registry for a coding agent: an index, a search, one card |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. `nvs` declares no
@@ -328,7 +329,7 @@ an unknown argument, and clap's error names `nvs info`.
     nvs meta --json
 
 Prints the `Core` registry as one JSON object — the same data Part B of this reference is
-generated from. `--json` is required. Its six top-level keys:
+generated from. `--json` is required. Its seven top-level keys:
 
 - `classes`: one object per `Core` class, with `name` and `members`. A member has `name`, `kind`
   (`static` or `instance`), `signature` (the full spelling, `length(string $s): uint`), `params`
@@ -341,6 +342,46 @@ generated from. `--json` is required. Its six top-level keys:
 - `attributes`: the compiler-recognized attribute names.
 - `directives`: every `nvs.toml` directive with its `key`, its `class` (`Runtime`, `RuntimeTighten`,
   `System`) and when a change applies (`Reload` or `Boot`).
+- `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
+  roster of its own rather than a field on a member, so a renderer that wants a capability beside a
+  card joins the two on `(class, member)`; a member absent from it is ungated.
+
+<!-- primer -->
+# nvs agent
+
+    nvs agent index                one line per Core member, enum, exception and attribute
+    nvs agent find <query>         the index lines whose symbol matches the query
+    nvs agent show <symbol>        one member's card: signature, description, parameters, errors
+
+The surface a coding agent reads the language through. Every verb renders the document
+`nvs meta --json` prints, writes nothing to disk and caches nothing, so the binary that compiles a
+program is the binary that answers for it and an answer can never describe a version that is not
+installed.
+
+An index line opens with the symbol `show` resolves and continues with that member's signature:
+
+    Core\IO::read(string $path): string  [fs.read]
+    Core\Json::decodeAs<T>(string $json): T
+    Core\Order  enum {Asc, Desc}
+    RuntimeError  exception extends Error
+
+The symbol is the line up to its first `(`, `<` or space, so nothing has to parse a line to get
+from it back to `show` — which also accepts that leading token with a generic's `<T>` still on it.
+A name in brackets after a signature is the capability the call is gated on, granted in `nvs.toml`;
+a line with no bracket names a member that reaches nothing outside the program.
+
+`find` matches that symbol rather than the whole line, case-insensitively, so a query naming a type
+does not answer with every member that returns one. It is a command rather than an instruction to
+grep the index, because a namespaced name loses its backslash to the shell before `grep` sees it,
+and the empty result that follows is indistinguishable from a name the language does not have.
+`find` prints nothing and succeeds when a query matches nothing: the index is complete, so an empty
+result is the answer that no such name exists. `show` is the opposite — it was asked for one
+specific thing, and when it cannot resolve the symbol it exits non-zero and prints the nearest
+names it does have.
+
+So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
+`nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
+wrong, which makes the check part of reading the language rather than an alternative to it.
 
 # nvs ast
 

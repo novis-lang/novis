@@ -166,6 +166,7 @@ and `Core\Config::set("mode.default", "development")` is accepted for the reques
 the logger and the HTTP error pages, and neither is in this binary. `Core\Config::get("mode")`
 (without `.default`) answers `null`, and `set("mode", …)` returns `false`.
 
+<!-- primer -->
 # `[capabilities]`
 
 A program can do nothing outside its own memory unless the configuration says so. Every effect —
@@ -190,38 +191,6 @@ deny. The roster is closed:
 
 A capability whose member has not landed yet is still accepted here rather than refused, so a grant
 written today keeps meaning the same thing on the build that starts asking for it.
-
-`net.connect` carries a second key, because a granted host is not automatically a reachable address:
-an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
-the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
-reach an internal service excepts the address it means, one at a time:
-
-```toml
-[capabilities.net]
-connect = ["metrics.internal"]   # the names reachable
-internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
-```
-
-An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
-spelling it has. It grants nothing on its own: an address named there is still only reached under a
-host `connect` grants.
-
-`net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
-the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
-ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
-literal instead, matched as the endpoint it names rather than as the string it was written as, and
-one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
-bind.
-
-```toml
-[capabilities.net]
-listen = ["0.0.0.0:8080", "[::1]:9000"]   # the endpoints bindable
-```
-
-Both questions are about an endpoint a *program* names. A store an operator wrote into
-`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
-nor the address is asked about — which is why a shared store on the loopback needs no `internal`
-exception and no `connect` entry.
 
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 
@@ -269,6 +238,40 @@ hello from data
 Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
 Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
 ```
+
+# Network grants: the addresses and endpoints they reach
+
+`net.connect` carries a second key, because a granted host is not automatically a reachable address:
+an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
+the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
+reach an internal service excepts the address it means, one at a time:
+
+```toml
+[capabilities.net]
+connect = ["metrics.internal"]   # the names reachable
+internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+```
+
+An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+spelling it has. It grants nothing on its own: an address named there is still only reached under a
+host `connect` grants.
+
+`net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
+the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
+ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
+literal instead, matched as the endpoint it names rather than as the string it was written as, and
+one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
+bind.
+
+```toml
+[capabilities.net]
+listen = ["0.0.0.0:8080", "[::1]:9000"]   # the endpoints bindable
+```
+
+Both questions are about an endpoint a *program* names. A store an operator wrote into
+`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
+nor the address is asked about — which is why a shared store on the loopback needs no `internal`
+exception and no `connect` entry.
 
 # `[[app]]` — per-application blocks
 

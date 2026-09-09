@@ -65,6 +65,8 @@ FENCE_RE = re.compile(r"^```([^\n]*)\n(.*?)^```[ \t]*$", re.M | re.S)
 PLACEHOLDER_RE = re.compile(r"^<!-- generated: ([a-z-]+) -->$", re.M)
 #: A chapter's own-source note, stripped from the generated file.
 SRC_RE = re.compile(r"^<!-- src:.*?-->[ \t]*\n?", re.M)
+#: A chapter section's primer marker, stripped from the generated file.
+PRIMER_RE = re.compile(r"^<!-- primer -->[ \t]*\n?", re.M)
 #: A markdown heading, for demotion and for the anchor index.
 HEADING_RE = re.compile(r"^(#{1,6}) (.*)$", re.M)
 #: One row of the migration table.
@@ -513,8 +515,11 @@ def build(reg: dict) -> str:
             return TABLES[name](reg)
         body = PLACEHOLDER_RE.sub(sub, body)
         # A chapter's `<!-- src: `rule:types/grammar` -->` lines are for this repository's own
-        # readers -- which decision owns the paragraph -- and never for the generated file.
-        return SRC_RE.sub("", body)
+        # readers -- which decision owns the paragraph -- and never for the generated file. A
+        # `<!-- primer -->` marker goes the same way: it selects the section `nvs agent primer`
+        # lifts (`rule:tooling/a-primer-claim-is-executed`) and says nothing to a reader who has
+        # the whole reference in front of them.
+        return PRIMER_RE.sub("", SRC_RE.sub("", body))
 
     lines.append("# Part A — The language")
     lines.append("")

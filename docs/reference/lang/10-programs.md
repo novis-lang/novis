@@ -21,6 +21,38 @@ Hello, World!
 `echo` takes any number of comma-separated expressions and writes them, unseparated, to standard
 output; `print expr;` writes one. Nothing is appended for you — `"\n"` is the newline.
 
+<!-- primer -->
+# A complete program, annotated
+
+The shapes a program reaches for in its first ten lines, in one file that runs. Each is specified
+in the chapter that owns it — types, statements, expressions — and named in the comment beside it.
+
+```nvs
+<?nvs
+// A local declares its type once, and no binding ever changes type.
+array<string> $amounts = ["3", "11", "7"];
+
+// A member's optional knobs are one trailing object literal, `{key: value}`. They are not named
+// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+
+int $total = 0;
+// Every `foreach` binding declares its type; an untyped `as $each` does not parse.
+foreach ($ordered as string $each) {
+    // `as` is the one conversion operator: no casts, and a string that is not an integer throws.
+    $total = $total + ($each as int);
+}
+
+// Every built-in is a class member; the language has no free functions.
+echo Core\Json::encode($ordered), " ", $total, "\n";
+```
+```output
+["11","3","7"] 21
+```
+
+Nothing in it reaches outside the program. A member that reads a file, opens a connection or starts
+another process is denied at the call until `nvs.toml` grants the capability it names.
+
 # Code mode and HTML mode
 
 A file starts in **HTML mode**: every byte is copied to the output verbatim until an opening tag.

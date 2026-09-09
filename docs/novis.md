@@ -215,6 +215,37 @@ Hello, World!
 `echo` takes any number of comma-separated expressions and writes them, unseparated, to standard
 output; `print expr;` writes one. Nothing is appended for you — `"\n"` is the newline.
 
+### A complete program, annotated
+
+The shapes a program reaches for in its first ten lines, in one file that runs. Each is specified
+in the chapter that owns it — types, statements, expressions — and named in the comment beside it.
+
+```nvs
+<?nvs
+// A local declares its type once, and no binding ever changes type.
+array<string> $amounts = ["3", "11", "7"];
+
+// A member's optional knobs are one trailing object literal, `{key: value}`. They are not named
+// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+
+int $total = 0;
+// Every `foreach` binding declares its type; an untyped `as $each` does not parse.
+foreach ($ordered as string $each) {
+    // `as` is the one conversion operator: no casts, and a string that is not an integer throws.
+    $total = $total + ($each as int);
+}
+
+// Every built-in is a class member; the language has no free functions.
+echo Core\Json::encode($ordered), " ", $total, "\n";
+```
+```output
+["11","3","7"] 21
+```
+
+Nothing in it reaches outside the program. A member that reads a file, opens a connection or starts
+another process is denied at the call until `nvs.toml` grants the capability it names.
+
 ### Code mode and HTML mode
 
 A file starts in **HTML mode**: every byte is copied to the output verbatim until an opening tag.
@@ -21306,6 +21337,7 @@ usually one file:
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs info` | build, host and third-party licensing information |
 | `nvs meta --json` | the whole `Core` registry as JSON |
+| `nvs agent <verb>` | the same registry for a coding agent: an index, a search, one card |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`) and `-h`/`--help`. `nvs` declares no
@@ -21607,7 +21639,7 @@ an unknown argument, and clap's error names `nvs info`.
     nvs meta --json
 
 Prints the `Core` registry as one JSON object — the same data Part B of this reference is
-generated from. `--json` is required. Its six top-level keys:
+generated from. `--json` is required. Its seven top-level keys:
 
 - `classes`: one object per `Core` class, with `name` and `members`. A member has `name`, `kind`
   (`static` or `instance`), `signature` (the full spelling, `length(string $s): uint`), `params`
@@ -21620,6 +21652,45 @@ generated from. `--json` is required. Its six top-level keys:
 - `attributes`: the compiler-recognized attribute names.
 - `directives`: every `nvs.toml` directive with its `key`, its `class` (`Runtime`, `RuntimeTighten`,
   `System`) and when a change applies (`Reload` or `Boot`).
+- `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
+  roster of its own rather than a field on a member, so a renderer that wants a capability beside a
+  card joins the two on `(class, member)`; a member absent from it is ungated.
+
+### nvs agent
+
+    nvs agent index                one line per Core member, enum, exception and attribute
+    nvs agent find <query>         the index lines whose symbol matches the query
+    nvs agent show <symbol>        one member's card: signature, description, parameters, errors
+
+The surface a coding agent reads the language through. Every verb renders the document
+`nvs meta --json` prints, writes nothing to disk and caches nothing, so the binary that compiles a
+program is the binary that answers for it and an answer can never describe a version that is not
+installed.
+
+An index line opens with the symbol `show` resolves and continues with that member's signature:
+
+    Core\IO::read(string $path): string  [fs.read]
+    Core\Json::decodeAs<T>(string $json): T
+    Core\Order  enum {Asc, Desc}
+    RuntimeError  exception extends Error
+
+The symbol is the line up to its first `(`, `<` or space, so nothing has to parse a line to get
+from it back to `show` — which also accepts that leading token with a generic's `<T>` still on it.
+A name in brackets after a signature is the capability the call is gated on, granted in `nvs.toml`;
+a line with no bracket names a member that reaches nothing outside the program.
+
+`find` matches that symbol rather than the whole line, case-insensitively, so a query naming a type
+does not answer with every member that returns one. It is a command rather than an instruction to
+grep the index, because a namespaced name loses its backslash to the shell before `grep` sees it,
+and the empty result that follows is indistinguishable from a name the language does not have.
+`find` prints nothing and succeeds when a query matches nothing: the index is complete, so an empty
+result is the answer that no such name exists. `show` is the opposite — it was asked for one
+specific thing, and when it cannot resolve the symbol it exits non-zero and prints the nearest
+names it does have.
+
+So the loop is three calls and a check: `find` the name, `show` its card, write the program, then
+`nvs check` it. A diagnostic names the spelling this language wants at the place the program got it
+wrong, which makes the check part of reading the language rather than an alternative to it.
 
 ### nvs ast
 
@@ -21843,38 +21914,6 @@ deny. The roster is closed:
 A capability whose member has not landed yet is still accepted here rather than refused, so a grant
 written today keeps meaning the same thing on the build that starts asking for it.
 
-`net.connect` carries a second key, because a granted host is not automatically a reachable address:
-an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
-the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
-reach an internal service excepts the address it means, one at a time:
-
-```toml
-[capabilities.net]
-connect = ["metrics.internal"]   # the names reachable
-internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
-```
-
-An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
-spelling it has. It grants nothing on its own: an address named there is still only reached under a
-host `connect` grants.
-
-`net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
-the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
-ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
-literal instead, matched as the endpoint it names rather than as the string it was written as, and
-one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
-bind.
-
-```toml
-[capabilities.net]
-listen = ["0.0.0.0:8080", "[::1]:9000"]   # the endpoints bindable
-```
-
-Both questions are about an endpoint a *program* names. A store an operator wrote into
-`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
-nor the address is asked about — which is why a shared store on the loopback needs no `internal`
-exception and no `connect` entry.
-
 A grant is spelled one of three ways, and a dotted key is the same as a nested block:
 
 ```toml
@@ -21921,6 +21960,40 @@ hello from data
 Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
 Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
 ```
+
+### Network grants: the addresses and endpoints they reach
+
+`net.connect` carries a second key, because a granted host is not automatically a reachable address:
+an outbound connection to a loopback, private, link-local or unspecified address is refused whatever
+the grant says, since a hostname an attacker influenced can resolve into one. A deployment that must
+reach an internal service excepts the address it means, one at a time:
+
+```toml
+[capabilities.net]
+connect = ["metrics.internal"]   # the names reachable
+internal = ["10.4.0.9"]          # the denied addresses this deployment reaches anyway
+```
+
+An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
+spelling it has. It grants nothing on its own: an address named there is still only reached under a
+host `connect` grants.
+
+`net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
+the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
+ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
+literal instead, matched as the endpoint it names rather than as the string it was written as, and
+one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
+bind.
+
+```toml
+[capabilities.net]
+listen = ["0.0.0.0:8080", "[::1]:9000"]   # the endpoints bindable
+```
+
+Both questions are about an endpoint a *program* names. A store an operator wrote into
+`[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host
+nor the address is asked about — which is why a shared store on the loopback needs no `internal`
+exception and no `connect` entry.
 
 ### `[[app]]` — per-application blocks
 

@@ -44,6 +44,7 @@ parameter — and no value ever changes type. **Every function is a method and e
 class constant**, so there is no global scope for anything to live in and nothing the host
 populates.
 
+<!-- primer -->
 # Files, tags and names
 
 | PHP | Novis | Code |
@@ -59,6 +60,7 @@ populates.
 | `new $className()`, `$className::f()`, `$x instanceof $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
 | `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
 
+<!-- primer -->
 # Functions, constants and scope
 
 | PHP | Novis | Code |
@@ -78,6 +80,7 @@ populates.
 | `unset($x)` on a local or `unset($o->prop)` | none; `unset` removes an array entry only. Assign `null` where the type is `?T` | `E0234`, `E0413` |
 | `class A { const X = 1; }`, `interface I { const X = 1; }` | `public const int X = 1;` — a constant writes its visibility like every member, and its type like every binding | `E0122`, `E0246` |
 
+<!-- primer -->
 # Types and conversions
 
 | PHP | Novis | Code |
@@ -97,6 +100,7 @@ populates.
 | `$obj + 1` | objects take part in no arithmetic | `E0716` |
 | `array $a` without `<T>` | accepted, but write `array<T>` — the element type is what makes reads typed | — |
 
+<!-- primer -->
 # Operators
 
 | PHP | Novis | Code |
@@ -138,6 +142,7 @@ as in PHP.
 `elseif` and `else if` both work. `#` starts a line comment (`#[` opens an attribute). A `?>` at
 the end of a file is fine.
 
+<!-- primer -->
 # Classes
 
 | PHP | Novis | Code |
@@ -163,6 +168,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 `self::`, `abstract`, `final`, interfaces with constants and default method bodies, `clone`,
 `new A` without parentheses and `A::class` all work.
 
+<!-- primer -->
 # Closures and callables
 
 | PHP | Novis | Code |
@@ -173,6 +179,7 @@ Constructor promotion (`public function constructor(public int $x)`), `static::`
 | `strlen(...)`, `A::f(...)`, `$o->m(...)` | write a closure: `fn(string $s): uint => Core\Str::length($s)` — first-class callable syntax type-checks but stops the compiler in this build | `E0320` for a free name |
 | `call_user_func($f, 1)` | `$f(1)` — the answer of a call through `callable` is `mixed`, so `$f(1) as int` | — |
 
+<!-- primer -->
 # Arrays and strings
 
 | PHP | Novis | Code |
