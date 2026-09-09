@@ -6,7 +6,7 @@ sibling `N-<slug>.toml` and `N-<slug>.handoff.md`; the number is the position, t
 `1..N` with no gaps, and walking the chain is sorting on that number. There is no second file
 saying what the order is, which is the whole point: an order kept in two places is an order that
 drifts, and the `chain.toml` this replaced had drifted far enough that its seventh entry was the
-one everything else called goal 21.
+one every other document called `carried-gaps` -- by a number that was not seven.
 
 The tree under that directory is walked, not just its top level, because `dossier.py` emits ninety
 goals at a time into `goals/dossier/` and three files each at the top level would bury the chain a

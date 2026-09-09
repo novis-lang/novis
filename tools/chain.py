@@ -712,8 +712,12 @@ def cmd_remove(chain, opts):
         print(f"chain: --dry-run -- would delete {len(on_disk)} file(s) and close the hole at "
               f"goal {g.num}")
         return 0
+    # `--ignore-unmatch` because a goal scaffolded and not yet staged is untracked, and `git rm`
+    # refuses a path it has never seen -- which is exactly the goal most likely to be removed
+    # again. The unlink after it is what actually deletes those.
+    git("rm", "-q", "--ignore-unmatch", "--", *(rel(p) for p in on_disk))
     for path in on_disk:
-        git("rm", "-q", "--", rel(path))
+        path.unlink(missing_ok=True)
     rest = [x for x in chain if x.num != g.num]
     renamed, rewritten, ranges = apply_renumber(rest, order_after(rest), dry_run=False)
     print(f"chain: goal {g.num} ({g.slug}) removed, {len(on_disk)} file(s) deleted, hole closed")
