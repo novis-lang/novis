@@ -115,12 +115,16 @@ pub fn unit_of(key: &str) -> Option<Unit> {
     match leaf {
         // `rule:errors/on-limit`'s reserved slice is a quantity of the same heap `memory`
         // bounds, so it is read in the same units and by the same parser.
-        "memory" | "max_output" | "fatal_reserve_memory" => Some(Unit::Bytes),
+        // `rule:core-classes/decompression-bound`'s absolute half is a quantity of the same heap
+        // `memory` bounds, so it is read in the same units and by the same parser.
+        "memory" | "max_output" | "fatal_reserve_memory" | "max_decompressed" => Some(Unit::Bytes),
         // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and
         // is read here for the same reason: a limit missing from this table has no block, so a
         // bare name never reaches `[limits]` and the reader silently answers its default instead.
         "cpu_time" | "wall_time" | "fatal_reserve_time" => Some(Unit::Duration),
-        "max_tasks" | "max_script_depth" => Some(Unit::Count),
+        // The ratio half is a multiplier rather than a fraction — output per octet of input — so
+        // it is a `Count` and not `Unit::Ratio`, whose values run between zero and one.
+        "max_tasks" | "max_script_depth" | "max_decompression_ratio" => Some(Unit::Count),
         _ => None,
     }
 }

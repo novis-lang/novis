@@ -199,6 +199,18 @@ pub struct Limits {
     /// does not run forever, it exhausts the tree's heap, and m6.md's *Verify* asks for that spawn
     /// to be stopped as a depth rather than reported as an out-of-memory.
     pub max_script_depth: Option<Setting>,
+    /// `System` — the most any one `Core\Compress` or `Core\Zip` decompression may produce
+    /// (`rule:core-classes/decompression-bound`). `System` on the reserve's grounds and beside it
+    /// for the same reason: a call chooses how much *less* than this it wants through its own
+    /// argument, and a program raising the ceiling it decompresses hostile input under is exactly
+    /// the choice that has to be made by someone else. Not under `[limits.hard]`, because this key
+    /// *is* the ceiling — there is no request-set value for a second one to bound — and `false`
+    /// does not remove it: `crates/nvs-stdlib/src/compress.rs`'s `Bound` reads an unbounded value
+    /// as the shipped default, so no configuration spells an unbounded decompression.
+    pub max_decompressed: Option<Setting>,
+    /// `System` — the other half of the same bound: the most output per octet of input. A bomb is
+    /// small on the wire, so a byte ceiling alone is one a small request still reaches.
+    pub max_decompression_ratio: Option<Setting>,
     /// `[limits.hard]` — the same keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }

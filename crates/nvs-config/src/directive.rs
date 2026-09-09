@@ -103,6 +103,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // reason: a script able to raise its own would exhaust the tree's heap before any depth
     // stopped it, which is the confusion m6.md's *Verify* asks this key to remove.
     Directive { key: "limits.max_script_depth", class: Class::System, apply: Apply::Reload },
+    // The decompression bound (`rule:core-classes/decompression-bound`), on the same grounds and
+    // not under `[limits.hard]` for the same reason: a call lowers what it decompresses under
+    // through its own argument, so a request-set value for a ceiling to bound would be a second
+    // way to say the same thing -- and the only direction a script could move a `Runtime` one is
+    // the direction the rule forbids.
+    Directive { key: "limits.max_decompressed", class: Class::System, apply: Apply::Reload },
+    Directive { key: "limits.max_decompression_ratio", class: Class::System, apply: Apply::Reload },
     // `[mode]` is the other block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },

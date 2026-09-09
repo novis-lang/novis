@@ -121,6 +121,8 @@ ceiling.
 | `fatal_reserve_memory` | size | the slice of `memory` kept back for the limit handler (`Core\Fatal::onLimit`); not raisable, no ceiling |
 | `fatal_reserve_time` | duration | the slice of `cpu_time` kept back for the same handler |
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
+| `max_decompressed` | size | the most one `Core\Compress` or `Core\Zip` decompression may produce (default 64M); not raisable, and `false` does not remove it |
+| `max_decompression_ratio` | count | the other half of the same bound — output per octet of input (default 1000). A call asks for less through its own arguments and never for more |
 
 `[limits.hard]` takes the first five keys only. Breaching a limit is **not an exception**: nothing
 in the program can `catch` it. The request is stopped, the handler registered with
