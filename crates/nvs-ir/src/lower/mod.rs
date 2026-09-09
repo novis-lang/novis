@@ -69,6 +69,7 @@
 //! reserved.
 
 use nvs_diagnostics::{SourceFile, SourceId, Span};
+use nvs_render::Source;
 use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding,
@@ -917,7 +918,7 @@ pub fn lower_method(
         .return_type
         .as_ref()
         .map_or(Ty::Void, |t| lower_decl_type(t, exprs, checked_types));
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
+    let mut low = Lowering::new(name, Some(name), src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -1123,7 +1124,7 @@ pub fn lower_property_hook(
     let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
     let is_set = hook.kind == PropertyHookKind::Set;
     let ret_ty = if is_set { Ty::Void } else { prop_ty };
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
+    let mut low = Lowering::new(name, Some(name), src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -1284,7 +1285,7 @@ pub fn lower_script(
     role: ScriptRole,
 ) -> Lowered {
     let ret_ty = Ty::Tagged;
-    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types, enums);
+    let mut low = Lowering::new(name, None, src, ret_ty, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -1461,6 +1462,10 @@ pub(crate) struct Lowering<'a> {
     /// [`Terminator::Propagate`] carries. The caller of [`lower_method`]/
     /// [`lower_script`] picks the spelling; this is the same string.
     fn_label: String,
+    /// The `Class::member` enclosing every statement this frame lowers, or
+    /// `None` for a script frame, whose [`Self::fn_label`] names a frame
+    /// rather than a member. [`Self::source`] is what reads it.
+    member: Option<String>,
     /// The span of the statement currently being lowered — the position half
     /// of that same backtrace frame.
     ///
@@ -1768,8 +1773,12 @@ impl ArgSig {
 }
 
 impl<'a> Lowering<'a> {
+    /// A frame's lowering state. `name` is the backtrace frame's label and
+    /// `member` the `Class::member` enclosing its statements — the same string
+    /// for a method, and `None` against a frame name for a script.
     pub(crate) fn new(
         name: &str,
+        member: Option<&str>,
         src: &'a SourceFile,
         ret_ty: Ty,
         exprs: &'a ExprTypeTable,
@@ -1795,6 +1804,7 @@ impl<'a> Lowering<'a> {
             this: None,
             entry: None,
             fn_label: name.to_owned(),
+            member: member.map(str::to_owned),
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
             switch_seq: 0,
@@ -2125,24 +2135,45 @@ impl<'a> Lowering<'a> {
     /// identical on every platform. `<line>` is the enclosing statement's,
     /// from the span `rule:testing/debug-probes`'s per-statement id already carries.
     ///
-    /// **This is a backtrace spelling, and it is not what
-    /// `rule:errors/a-record-names-where-it-was-produced`'s `source` is built
-    /// from.** The three inputs are the ones `nvs_render::Source` asks for and
-    /// they are already together here, so that rule's datum comes from these
-    /// same [`Self::fn_label`], source name and [`Self::cur_stmt_span`] rather
-    /// than from a second position table — but from the inputs, never from
-    /// this string, for three reasons. It is rendered, and an envelope carries
-    /// content rather than presentation (`rule:errors/diagnostic-record`), so
-    /// a reader wanting the file alone would have to parse it back apart. Its
-    /// leading half is a *frame* name rather than a member: a script frame's
-    /// is `script` or [`file_script_label`]'s `file#<id>$script`, exactly
-    /// where `Source::member` is `None`. And it exists only where a landing
-    /// block does, reaching compiled code through [`Terminator::Propagate`]
-    /// alone, so a producer called from a statement that needs no error path
-    /// has no constant here at all and gets one emitted at its own call.
+    /// Both halves of that position come from [`Self::source`], so the record
+    /// `rule:errors/a-record-names-where-it-was-produced` asks a producer for
+    /// and this string cannot disagree about where a statement is.
+    ///
+    /// **The rendered string is a backtrace spelling, and no record is built
+    /// from it.** An envelope carries content rather than presentation
+    /// (`rule:errors/diagnostic-record`), so a reader wanting the file alone
+    /// would have to parse it back apart. Its leading half is a *frame* name
+    /// rather than a member — a script frame's is `script` or
+    /// [`file_script_label`]'s `file#<id>$script`, exactly where
+    /// [`Self::member`] is `None`. And it exists only where a landing block
+    /// does, reaching compiled code through [`Terminator::Propagate`] alone,
+    /// so a producer called from a statement that needs no error path has no
+    /// constant here at all and gets one emitted at its own call.
     pub(crate) fn frame_label(&self) -> String {
+        let at = self.source();
+        format!("{}() at {}:{}", self.fn_label, at.file, at.line)
+    }
+    /// Where the statement being lowered is, in
+    /// `rule:errors/a-record-names-where-it-was-produced`'s three parts: the
+    /// file as the program named it, its one-based line, and the enclosing
+    /// `Class::member` where there is one.
+    ///
+    /// **This is the one derivation of that datum**, and both readers the rule
+    /// names come off it — a record's envelope, through the constant emitted at
+    /// the producer's own call, and [`Self::frame_label`], by rendering it. Two
+    /// spellings that agree today is the thing the rule exists to rule out, so
+    /// nothing else builds one.
+    ///
+    /// No second position table is read for it: the line is the one the span
+    /// `rule:testing/debug-probes`'s per-statement id already carries, and the
+    /// member is [`Self::member`], which a script frame has none of.
+    pub(crate) fn source(&self) -> Source {
         let (line, _) = self.src.line_col(self.cur_stmt_span.start);
-        format!("{}() at {}:{}", self.fn_label, self.src.name(), line + 1)
+        Source {
+            file: self.src.name().to_owned(),
+            line: u32::try_from(line + 1).expect("far more lines than a source file can hold"),
+            member: self.member.clone(),
+        }
     }
     /// Appends a reserved [`InstKind::Safepoint`] marker to `b` — see that
     /// variant's own doc comment for the call sites this has (function entry,

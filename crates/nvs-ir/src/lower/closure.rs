@@ -176,7 +176,7 @@ pub(crate) fn lower_closure(
         ret,
     } = pending;
     let label = format!("{class}::{FN_INVOKE}");
-    let mut low = Lowering::new(&label, src, *ret, exprs, checked_types, enums);
+    let mut low = Lowering::new(&label, Some(&label), src, *ret, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     low.emit_safepoint(entry);
@@ -557,7 +557,7 @@ pub(crate) fn lower_callable(
     } = pending;
     let ret = lower_checked_ty(call.return_ty, checked_types);
     let label = format!("{class}::{FN_INVOKE}");
-    let mut low = Lowering::new(&label, src, ret, exprs, checked_types, enums);
+    let mut low = Lowering::new(&label, Some(&label), src, ret, exprs, checked_types, enums);
     let entry = low.new_block();
     let mut cur = entry;
     low.emit_safepoint(entry);

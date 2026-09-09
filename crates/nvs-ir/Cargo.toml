@@ -10,6 +10,12 @@ repository.workspace = true
 
 [dependencies]
 nvs-diagnostics.workspace = true
+# `rule:errors/a-record-names-where-it-was-produced`'s three parts are
+# `nvs_render::Source`, built once in `lower::Lowering::source` so the record a
+# producer carries and the backtrace frame beside it read one datum rather than
+# two that agree today. ADR 0092 § 1 keeps that crate below every other, so this
+# edge runs downward like the rest of them.
+nvs-render.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
 rustc-hash.workspace = true

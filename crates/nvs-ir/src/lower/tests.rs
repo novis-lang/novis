@@ -4085,3 +4085,55 @@ fn a_written_class_carries_no_contract_beside_its_descriptor() {
     assert!(text.contains("class.desc Note"), "{text}");
     assert!(text.contains("shape.codec none"), "{text}");
 }
+
+/// One frame's [`Lowering::source`] and the [`Lowering::frame_label`] rendered
+/// beside it, without running a body through: the fixture's statement span is
+/// set by hand to the third line, which is what both are read against.
+fn frame_at(label: &str, member: Option<&str>) -> (Source, String) {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", "<?nvs\n$a = 1;\n$b = 2;\n");
+    let exprs = ExprTypeTable::new();
+    let checked_types = TypeInterner::new();
+    let enums = EnumTable::default();
+    let mut low = Lowering::new(
+        label,
+        member,
+        map.file(file),
+        Ty::Void,
+        &exprs,
+        &checked_types,
+        &enums,
+    );
+    low.cur_stmt_span = Span::at(file, 14);
+    (low.source(), low.frame_label())
+}
+
+#[test]
+fn a_method_frame_names_its_member_and_a_script_frame_names_none() {
+    let (method, _) = frame_at("T::m", Some("T::m"));
+    assert_eq!(method.file, "t.nvs");
+    assert_eq!(method.line, 3);
+    assert_eq!(method.member.as_deref(), Some("T::m"));
+
+    for label in ["script", "file#0$script"] {
+        let (script, _) = frame_at(label, None);
+        assert_eq!(script.file, "t.nvs");
+        assert_eq!(script.line, 3);
+        assert_eq!(script.member, None, "{label} is a frame name, not a member");
+    }
+}
+
+#[test]
+fn a_backtrace_frame_renders_from_the_source_a_record_would_carry() {
+    for (label, member) in [
+        ("T::m", Some("T::m")),
+        ("script", None),
+        ("file#0$script", None),
+    ] {
+        let (source, frame) = frame_at(label, member);
+        assert_eq!(
+            frame,
+            format!("{label}() at {}:{}", source.file, source.line)
+        );
+    }
+}

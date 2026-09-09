@@ -613,7 +613,15 @@ pub(crate) fn lower_generator_factory(
     checked_types: &TypeInterner,
     enums: &EnumTable,
 ) -> Function {
-    let mut low = Lowering::new(name, src, Ty::Object, exprs, checked_types, enums);
+    let mut low = Lowering::new(
+        name,
+        Some(name),
+        src,
+        Ty::Object,
+        exprs,
+        checked_types,
+        enums,
+    );
     let entry = low.new_block();
     low.emit_safepoint(entry);
 
@@ -704,7 +712,15 @@ pub(crate) fn lower_generator_advance(
     enums: &EnumTable,
 ) -> (Lowered, Vec<(String, Ty)>, Vec<i64>) {
     let label = format!("{class}::{GEN_ADVANCE}");
-    let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types, enums);
+    let mut low = Lowering::new(
+        &label,
+        Some(&label),
+        src,
+        Ty::Bool,
+        exprs,
+        checked_types,
+        enums,
+    );
     let entry = low.new_block();
     low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
@@ -857,7 +873,7 @@ pub(crate) fn lower_generator_current(
     enums: &EnumTable,
 ) -> Function {
     let label = format!("{class}::{GEN_CURRENT_METHOD}");
-    let mut low = Lowering::new(&label, src, elem, exprs, checked_types, enums);
+    let mut low = Lowering::new(&label, Some(&label), src, elem, exprs, checked_types, enums);
     // The generator's declaration is the nearest real source a body nobody
     // wrote has, so it is what `$e->location` and the backtrace frame name.
     low.cur_stmt_span = m.name;
@@ -1015,7 +1031,15 @@ pub(crate) fn lower_generator_unwind(
     enums: &EnumTable,
 ) -> Function {
     let label = format!("{class}::{GEN_UNWIND_METHOD}");
-    let mut low = Lowering::new(&label, src, Ty::Void, exprs, checked_types, enums);
+    let mut low = Lowering::new(
+        &label,
+        Some(&label),
+        src,
+        Ty::Void,
+        exprs,
+        checked_types,
+        enums,
+    );
     let entry = low.new_block();
     low.emit_safepoint(entry);
     let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
