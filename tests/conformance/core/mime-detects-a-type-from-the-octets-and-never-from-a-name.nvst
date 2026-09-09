@@ -1,0 +1,48 @@
+--TEST--
+`Core\Mime::detect` reads a type out of the octets themselves, and the class has no parameter a file name could arrive in — spec § 17, `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// The whole table swept and the agreements counted, rather than read off a
+// line: a signature that stopped matching would still print plausibly on its
+// own row. Each key is the shortest run of octets that satisfies one entry.
+array<string> $signatures = [
+    "89504e470d0a1a0a" => "image/png",
+    "ffd8ffe000104a4649" => "image/jpeg",
+    "474946383961" => "image/gif",
+    "524946462400000057454250" => "image/webp",
+    "524946462400000057415645" => "audio/wav",
+    "49492a00" => "image/tiff",
+    "0000001c6674797061766966" => "image/avif",
+    "0000001c6674797068656963" => "image/heic",
+    "0000001c6674797069736f6d" => "video/mp4",
+    "4f676753" => "application/ogg",
+    "255044462d312e37" => "application/pdf",
+    "504b03041400" => "application/zip",
+    "1f8b0800" => "application/gzip",
+    "28b52ffd" => "application/zstd",
+    "fd377a585a00" => "application/x-xz",
+    "0061736d01000000" => "application/wasm",
+];
+
+int $agreed = 0;
+foreach ($signatures as string $hex => string $want) {
+    Core\Mime\Type $found = Core\Mime::detect(Core\Encoding::fromHex($hex));
+    if (Core\Mime::mediaType($found) == $want) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed: ", $agreed, "\n";
+
+// A name is not a type. These octets *spell* a file name, and there is no
+// member on this class that could have been handed one to read instead — so
+// they detect as nothing at all.
+echo Core\Mime::mediaType(Core\Mime::detect("holiday.png" as bytes)), "\n";
+
+// And the other half of the same sentence: the octets are what they are
+// whatever a name would have claimed about them.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
+echo Core\Mime::detect($png) == Core\Mime\Type::Png ? "png" : "not png", "\n";
+--EXPECT--
+agreed: 16
+application/octet-stream
+png

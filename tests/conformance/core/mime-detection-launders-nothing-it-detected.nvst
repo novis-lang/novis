@@ -1,0 +1,28 @@
+--TEST--
+Detection is not a launderer: `Core\Mime::detect` accepts tainted octets and answers a plain case, and the octets it read are still tainted afterwards — `rule:security/launderers-are-sink-named`, `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// An upload, as the octets a request hands a program: a PNG header in front of
+// whatever the sender put behind it.
+tainted bytes $upload = Core\Encoding::fromHex("89504e470d0a1a0a") as tainted bytes;
+
+// Accepted, and the answer carries nothing of the argument. `detect`'s
+// parameter is neutral rather than contagious because a case is not made of
+// the subject's bytes, so this binding is a plain one and so is its spelling.
+Core\Mime\Type $type = Core\Mime::detect($upload);
+string $name = Core\Mime::mediaType($type);
+echo $name, "\n";
+
+// Refused, and this is the whole rule. A signature says what the first octets
+// look like and nothing about what the rest is safe for — a PNG header sits in
+// front of anything at all — so a member that had laundered here would be one
+// reachable by writing `detect` before the sink. No runtime assertion can show
+// it, because a plain value is assignable into a `tainted` target: the refusal
+// is the pin, and it is the binding that has to fail.
+bytes $stored = $upload;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+%A
+error: aborting due to 1 error

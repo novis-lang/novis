@@ -1,0 +1,44 @@
+--TEST--
+`Core\Mime\Type::Unknown` is an ordinary answer and not a failure: a format serialized as text has no signature, and a prefix too short for one is not a guess at the rest — spec § 17
+--FILE--
+<?nvs
+// Every one of these is a real document of a real format, and none of them has
+// a signature to read: SVG, CSV, HTML and plain text all open with whatever
+// their author wrote. Naming one from its first line would be guessing, and a
+// detection that answers wrongly is worse than one that says it cannot say.
+array<string> $texts = [
+    "<svg xmlns=http://www.w3.org/2000/svg></svg>",
+    "name,value\n1,2\n",
+    "<!DOCTYPE html>\n<title>hello</title>\n",
+    "the quick brown fox jumps over the lazy dog\n",
+    "",
+];
+
+int $unknown = 0;
+foreach ($texts as string $text) {
+    if (Core\Mime::detect($text as bytes) == Core\Mime\Type::Unknown) {
+        $unknown = $unknown + 1;
+    }
+}
+echo "unknown: ", $unknown, "\n";
+
+// A prefix shorter than the signature it is a prefix of is `Unknown` for the
+// same reason: detection compares octets it has, and never extrapolates from
+// the ones it has to the ones it does not.
+echo Core\Mime::detect(Core\Encoding::fromHex("89504e47")) == Core\Mime\Type::Unknown
+    ? "half a header: unknown"
+    : "half a header: named", "\n";
+
+// The `Unknown` case has a spelling too, and it is the one a program that must
+// send something should send for octets it could not name.
+echo Core\Mime::mediaType(Core\Mime\Type::Unknown), "\n";
+
+// A zip container is a zip. `.docx`, `.xlsx` and `.jar` *are* zip archives,
+// and what tells them apart is an entry inside — which is `Core\Zip`'s reading
+// and not a signature, so this is the honest answer about the octets.
+echo Core\Mime::mediaType(Core\Mime::detect(Core\Encoding::fromHex("504b0304140000000800"))), "\n";
+--EXPECT--
+unknown: 5
+half a header: unknown
+application/octet-stream
+application/zip
