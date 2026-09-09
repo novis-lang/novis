@@ -3700,6 +3700,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   began it, whichever order cargo runs them in. `is_draining_answers_the_same_on_every_core` is the
   one case here that begins it and its doc comment says so; write every other one against
   `Draining::detached()`, which is what that constructor exists for. [until: reviewed 2026-09-09]
+- **A `-p nvs-server` test *can* serve a second connection when its core is an `nvs_host::Worker`, and
+  the bullet about `run_until_idle` is only about the one-shot fixture.** `run_the_core` keeps taking
+  turns while anything is parked, so a `keep_serving` that counts down accepts every connection it is
+  given — it fires *after* each accept and never before one
+  (`crates/nvs-server/src/serve.rs:1373`). Hold one of those connections in flight with a body three
+  bytes short: `crate::body::Pull::next_chunk` parks the run with its place in the admission count
+  still taken, so "two requests in flight at once" is a state to write rather than a race to win.
+  [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 
