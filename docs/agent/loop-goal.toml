@@ -113,6 +113,8 @@ modules = [
   # The typed block tree one configuration file deserializes into: every block an ADR states, with
   # its own fields, and an unknown key refused.
   "crates/nvs-config/src/tree.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
 ]
 
 # 0017 is the swap the shared unit must keep working; 0006 is what an isolate may share; 0061 is the
