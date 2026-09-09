@@ -713,6 +713,19 @@ mod tests {
             (r"Core\Taint::assertTrusted", false),
             (r"Core\Uri::encodeComponent", false),
             (r"Core\Uri::encodeFormValue", false),
+            // The writing half of § 17 is a launderer once per member that puts
+            // something into a document, and none of them answers a carrier:
+            // nothing auto-escapes into an XML document the way `echo` does
+            // into an HTTP response, so the predicate's first condition fails
+            // before its second is asked. `crate::xml`'s `WRITER` is where each
+            // member names the sink it launders for.
+            (r"Core\Xml\Writer::attribute", false),
+            (r"Core\Xml\Writer::cdata", false),
+            (r"Core\Xml\Writer::comment", false),
+            (r"Core\Xml\Writer::content", false),
+            (r"Core\Xml\Writer::doctype", false),
+            (r"Core\Xml\Writer::instruction", false),
+            (r"Core\Xml\Writer::startElement", false),
         ];
 
         let mut roster: Vec<(String, bool)> = CLASSES

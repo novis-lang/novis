@@ -1705,6 +1705,12 @@ pub const CLASSES: &[CoreClass] = &[
     // its own and not a mode on the row above — the family is shared and no
     // operation is, so which shape a program uses is settled at the door.
     crate::xml::READER,
+    // The stream half's other door, beside the reader for the reason the
+    // reader sits beside the tree: reading a document a node at a time and
+    // building one a node at a time are the two halves of one shape, and
+    // `rule:core-classes/xml-tree-and-stream` is what keeps neither of them
+    // reachable through the other.
+    crate::xml::WRITER,
     // § 17's codec class, beside `Core\Html` because that is the section both
     // are rows of. Tier 0 for a reason that is not the other three's:
     // `rule:core-classes/decompression-bound`'s bound is policy, and a policy

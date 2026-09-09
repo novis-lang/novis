@@ -30,11 +30,14 @@
 //! walk in any order and any number of times. [`nvs_core_xml_reader`] is the
 //! stream half: it answers a walk that holds one node at a time, so a document
 //! a program does not want to materialise is read by asking for the next node
-//! until there is none. **No operation is available through both** — the two
-//! doors share the node family and nothing else, so what a shape costs stays a
-//! property of the door a program came in through, and a program picks the one
-//! that fits how much of the document it needs at once. This paragraph is the
-//! split's one statement; no member card re-argues it.
+//! until there is none. [`nvs_core_xml_writer`] is that half from the other
+//! side, building a document a node at a time out of state that is the
+//! writer's rather than the caller's — so an unclosed element is refused where
+//! it was written instead of reaching a reader. **No operation is available
+//! through both** — the doors share the node family and nothing else, so what a
+//! shape costs stays a property of the door a program came in through, and a
+//! program picks the one that fits how much of the document it needs at once.
+//! This paragraph is the split's one statement; no member card re-argues it.
 //!
 //! Two things a walk deliberately does not carry, resolved toward the narrower
 //! surface and recorded here because this is where the split is stated. A walk
@@ -87,19 +90,17 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The writer is not here.** The reader is ([`READER`]), so a program that
-//!    outgrows the tree can read a document a node at a time; writing one back
-//!    out a node at a time is what is missing, and until it lands the stream
-//!    half of § 17 reads and does not write.
-//! 2. **Nothing serialises.** A tree can be walked and not written back out, so
-//!    `Core\Html::sanitize`'s parse-walk-serialise round trip has two of its
-//!    three steps.
-//! 3. **A name is the name as written, prefix and all.** `<x:a/>` answers
+//! 1. **Nothing serialises a tree.** A tree can be walked and not written back
+//!    out, so `Core\Html::sanitize`'s parse-walk-serialise round trip has two
+//!    of its three steps. [`WRITER`] writes a document a node at a time and is
+//!    not the missing step: it is written to, never handed a tree, which is
+//!    what `a_parsed_tree_has_no_path_back_into_execution` holds.
+//! 2. **A name is the name as written, prefix and all.** `<x:a/>` answers
 //!    `x:a`, and no `xmlns` declaration is resolved to a namespace URI. A
 //!    program comparing qualified names is comparing the document's own
 //!    spelling, which is right for a document it controls and not enough for
 //!    one it does not.
-//! 4. **Whitespace between elements is text.** A pretty-printed document has a
+//! 3. **Whitespace between elements is text.** A pretty-printed document has a
 //!    text node between every pair of siblings, exactly as the XML it is says
 //!    it does. Dropping them would be a guess about which whitespace mattered,
 //!    which `rule:errors/ambiguous-input-refused` is the general answer to.
@@ -107,7 +108,8 @@
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -130,11 +132,16 @@ pub(crate) const KIND_NAME: &str = r"Core\Xml\NodeKind";
 /// position that carries one.
 pub(crate) const READER_NAME: &str = r"Core\Xml\Reader";
 
-/// `Core\Xml`'s registry rows — § 17's two front doors, one per shape: the
-/// parse that materialises a whole document, and the reader that walks one a
-/// node at a time. They answer the same family and share no operation, which is
+/// `Core\Xml\Writer`'s fully-qualified name, for [`WRITER`] and for the return
+/// position that carries one.
+pub(crate) const WRITER_NAME: &str = r"Core\Xml\Writer";
+
+/// `Core\Xml`'s registry rows — § 17's three front doors, two of them the
+/// stream half's: the parse that materialises a whole document, the reader that
+/// walks one a node at a time, and the writer that builds one a node at a time.
+/// They answer the same family and share no operation, which is
 /// `rule:core-classes/xml-tree-and-stream` and the paragraph in the module doc
-/// above. The writer is this module's known gap 1.
+/// above.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -155,6 +162,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(READER_NAME),
             symbol: "nvs_core_xml_reader",
             doc: Some(&READER_DOC),
+        },
+        CoreMethod {
+            name: "writer",
+            names: &[],
+            params: &[CoreTy::Options(WRITER_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(WRITER_NAME),
+            symbol: "nvs_core_xml_writer",
+            doc: Some(&WRITER_DOC),
         },
     ],
     instance: &[],
@@ -470,6 +486,412 @@ const OPEN_SLOT: usize = 4;
 /// See [`DOCUMENT_SLOT`].
 const ROOTED_SLOT: usize = 5;
 
+/// `Core\Xml\Writer`'s registry rows — the other half of the stream, which
+/// builds a document a node at a time and never holds one to walk.
+///
+/// **Every one of these is a write, and none of them is a question**, which is
+/// the disjointness `rule:core-classes/xml-tree-and-stream` asks for read from
+/// the writing side: the tree's members answer what a node holds, and nothing
+/// here answers anything until the document is finished. `content` is the
+/// member the family would have called `text`, renamed rather than shared —
+/// reading a node's text and writing character data are two operations, and a
+/// spelling they had in common is exactly what the rule forbids.
+///
+/// PHP spells every construct twice, as a `start_`/`end_` pair and as a
+/// `write_` shortcut. `rule:core-api/one-paradigm-per-operation` keeps one of
+/// each, chosen by the construct: **the pair where it can contain other nodes**
+/// — the document and an element — and **the single call where it cannot** — an
+/// attribute, a comment, a CDATA section, a processing instruction and the
+/// document type declaration.
+pub(crate) const WRITER: CoreClass = CoreClass {
+    name: WRITER_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "startDocument",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_start_document",
+            doc: Some(&START_DOCUMENT_DOC),
+        },
+        CoreMethod {
+            name: "endDocument",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_xml_writer_end_document",
+            doc: Some(&END_DOCUMENT_DOC),
+        },
+        CoreMethod {
+            name: "startElement",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_start_element",
+            doc: Some(&START_ELEMENT_DOC),
+        },
+        CoreMethod {
+            name: "endElement",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_end_element",
+            doc: Some(&END_ELEMENT_DOC),
+        },
+        CoreMethod {
+            name: "content",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_content",
+            doc: Some(&CONTENT_DOC),
+        },
+        CoreMethod {
+            name: "attribute",
+            names: &["name", "value"],
+            params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_attribute",
+            doc: Some(&ATTRIBUTE_DOC),
+        },
+        CoreMethod {
+            name: "comment",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_comment",
+            doc: Some(&COMMENT_DOC),
+        },
+        CoreMethod {
+            name: "cdata",
+            names: &["text"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_cdata",
+            doc: Some(&CDATA_DOC),
+        },
+        CoreMethod {
+            name: "instruction",
+            names: &["target", "data"],
+            params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_instruction",
+            doc: Some(&INSTRUCTION_DOC),
+        },
+        CoreMethod {
+            name: "doctype",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_xml_writer_doctype",
+            doc: Some(&DOCTYPE_DOC),
+        },
+    ],
+    slots: &[
+        "written",
+        "stack",
+        "open",
+        "tag",
+        "attributes",
+        "indent",
+        "mixed",
+        "state",
+        "rooted",
+    ],
+    constants: &[],
+};
+
+/// `Core\Xml::writer`'s options — `xmlwriter_set_indent` and
+/// `xmlwriter_set_indent_string` as the one thing they are.
+///
+/// A bag rather than two calls that mutate the writer, per
+/// `rule:core-api/shape-rules` R3, which is also what removes the state PHP has
+/// in which indenting is on with nothing to indent with. The default is the
+/// empty string and it means no indenting at all, so the one option carries
+/// both questions and there is no second one to disagree with it.
+///
+/// [`Qual::Neutral`] because a writer carries no qualifier at all: what this
+/// answers is an object, and the option is checked to be whitespace before
+/// anything holds it, so there is nothing an argument's mark could travel into.
+const WRITER_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "indent",
+    ty: CoreTy::Text(Qual::Neutral),
+    default: Const::Str(""),
+}];
+
+/// `Core\Xml::writer`'s reference card — `rule:core-api/reference-card`.
+const WRITER_DOC: MethodDoc = MethodDoc {
+    short: "Opens a writer that builds a document a node at a time — replacing `XMLWriter`. What \
+            is open is the writer's own state rather than something the caller has to remember, \
+            so a mismatched or missing close is refused where it is written instead of reaching \
+            a reader as a malformed document. Nothing is escaped by the caller either: every \
+            member that takes character data escapes it, which is why there is no member that \
+            writes raw bytes into the document.",
+    params: &[ParamDoc {
+        name: "indent",
+        desc: "What one level of nesting is indented by, and the empty string — the default — for \
+               no indenting. It has to be whitespace, since anything else would be content the \
+               document did not ask for, and it is never inserted beside character data, where it \
+               would change what the document says.",
+        shape: &[],
+    }],
+    ret: "A writer holding an empty document, before its `startDocument`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The indent is not whitespace.",
+    }],
+};
+
+/// `Core\Xml\Writer::startDocument`'s reference card —
+/// `rule:core-api/reference-card`.
+const START_DOCUMENT_DOC: MethodDoc = MethodDoc {
+    short: "Opens the document, writing its XML declaration. A document is the outermost of the \
+            two pairs, so this comes before every other write and `endDocument` closes it.",
+    params: &[],
+    ret: "Nothing; the declaration is written and the writer will accept content.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The document is already open, or is already finished.",
+    }],
+};
+
+/// `Core\Xml\Writer::endDocument`'s reference card —
+/// `rule:core-api/reference-card`.
+const END_DOCUMENT_DOC: MethodDoc = MethodDoc {
+    short: "Closes the document and answers it. This is where the writer refuses an unbalanced \
+            tree rather than emitting one: an element still open here is an error, not a \
+            document, so there is no arrangement of calls that produces text a parser would \
+            refuse. Reading the document does not raise PHP's question of whether reading it also \
+            empties the buffer, because what comes back is a value.",
+    params: &[],
+    ret: "The whole document as written, plain rather than `tainted`: every member that took \
+          character data escaped it and every name was checked against XML's own, so nothing a \
+          caller handed over survives as markup. Writing anything afterwards is refused.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "An element is still open, no root element was written, or the document was never \
+               opened or is already finished.",
+    }],
+};
+
+/// `Core\Xml\Writer::startElement`'s reference card —
+/// `rule:core-api/reference-card`.
+const START_ELEMENT_DOC: MethodDoc = MethodDoc {
+    short: "Opens an element, which is the other of the two pairs: everything written until its \
+            `endElement` is inside it. Attributes go on it until the first thing that is not one, \
+            and whether it is written as `<a></a>` or `<a/>` is settled by whether anything was.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The element's name, qualified prefix and all — a qualified name is a name, so \
+               there is no second member for a document that uses them. It has to be a name XML \
+               can write, and is refused rather than escaped when it is not.",
+        shape: &[],
+    }],
+    ret: "Nothing; the element is open and is what the next writes go into.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The name is not a name XML can write, a second root element was started, elements \
+               are nested deeper than the ceiling, or the document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::endElement`'s reference card —
+/// `rule:core-api/reference-card`.
+const END_ELEMENT_DOC: MethodDoc = MethodDoc {
+    short: "Closes the innermost open element. The name is not an argument, because the writer \
+            knows what is open — which is the whole of why a mismatched close is not a shape this \
+            API has.",
+    params: &[],
+    ret: "Nothing; an element nothing was written into is closed as `<a/>`, and one that holds \
+          something as `</a>`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "Nothing is open, or the document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::content`'s reference card — `rule:core-api/reference-card`.
+const CONTENT_DOC: MethodDoc = MethodDoc {
+    short: "Writes character data into the open element, escaped. This is the writer's escape \
+            point: `&`, `<` and `>` become references here, so an injection is not reachable by \
+            forgetting a call, and there is no member that writes markup a caller assembled — \
+            `rule:security/launderers-are-sink-named` is why a generic one would not be added.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The characters to write. `tainted` text is accepted and laundered for this one \
+               sink, an XML document, because what reaches the document is the escaped form and \
+               nothing a caller writes here can become markup.",
+        shape: &[],
+    }],
+    ret: "Nothing; the open element now holds character data, and the writer stops indenting \
+          inside it, since whitespace beside text changes what a document says.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "No element is open, the text holds a character XML cannot write, or the document \
+               is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::attribute`'s reference card —
+/// `rule:core-api/reference-card`.
+const ATTRIBUTE_DOC: MethodDoc = MethodDoc {
+    short: "Writes one attribute on the element that was just opened. A single call rather than a \
+            pair, because an attribute holds a value and cannot contain nodes — the pair PHP has \
+            exists only to let text be written between its halves.",
+    params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The attribute's name, qualified prefix and all, and refused when it is not a \
+                   name XML can write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "Its value, escaped into the quotes it is written between — the quote itself \
+                   and the whitespace a parser would otherwise fold included, so what comes back \
+                   out of a parse is what was written. `tainted` text is laundered for this sink \
+                   exactly as `content`'s is.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the attribute is on the open start tag.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "No start tag is still taking attributes, the element already carries an attribute \
+               of that name, the name is not a name XML can write, the value holds a character \
+               XML cannot write, or the document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::comment`'s reference card — `rule:core-api/reference-card`.
+const COMMENT_DOC: MethodDoc = MethodDoc {
+    short: "Writes a comment, as one call: a comment's content is text, so there is nothing for a \
+            pair to contain.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The comment's content. A comment is the one place XML has no escape grammar for, \
+               so a `--` inside it or a trailing `-` is refused rather than rewritten — \
+               `rule:errors/ambiguous-input-refused` is the general shape of that answer.",
+        shape: &[],
+    }],
+    ret: "Nothing; the comment is written where the writer stands, inside the open element or \
+          beside the root.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The text holds `--`, ends with `-`, holds a character XML cannot write, or the \
+               document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::cdata`'s reference card — `rule:core-api/reference-card`.
+const CDATA_DOC: MethodDoc = MethodDoc {
+    short: "Writes character data as a CDATA section. One call, because a CDATA section is an \
+            escaping choice about text and is written with the text it is a choice about — a \
+            parse answers the same `Text` node either way.",
+    params: &[ParamDoc {
+        name: "text",
+        desc: "The characters to write. A CDATA section has no escape grammar inside it, so a \
+               `]]>` in the text is refused rather than split across two sections.",
+        shape: &[],
+    }],
+    ret: "Nothing; the open element now holds character data, exactly as `content` leaves it.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "No element is open, the text holds `]]>` or a character XML cannot write, or the \
+               document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::instruction`'s reference card —
+/// `rule:core-api/reference-card`.
+const INSTRUCTION_DOC: MethodDoc = MethodDoc {
+    short: "Writes a processing instruction, as one call: it is a target and its data, both text, \
+            with nothing to nest inside it.",
+    params: &[
+        ParamDoc {
+            name: "target",
+            desc: "What the instruction is addressed to. `xml` in any casing is refused, because \
+                   that target is the XML declaration `startDocument` already wrote.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "data",
+            desc: "The instruction's data, written as it stands — an instruction has no escape \
+                   grammar, so a `?>` inside it is refused. The empty string writes the target \
+                   alone.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the instruction is written where the writer stands.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The target is not a name XML can write or is `xml`, the data holds `?>` or a \
+               character XML cannot write, or the document is not open.",
+    }],
+};
+
+/// `Core\Xml\Writer::doctype`'s reference card — `rule:core-api/reference-card`.
+const DOCTYPE_DOC: MethodDoc = MethodDoc {
+    short: "Writes a document type declaration naming `$name`, before the root element. Naming a \
+            document type is not resolving one: this takes no external identifier and no internal \
+            subset, so nothing it writes declares an entity or points at one. It is written for a \
+            reader outside Novis, because `Core\\Xml::parse` and `Core\\Xml::reader` refuse a \
+            `<!DOCTYPE …>` whole — a document carrying one is the one thing this class writes and \
+            will not read back.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The document type's name, which is the root element's name in every document that \
+               a validator would accept.",
+        shape: &[],
+    }],
+    ret: "Nothing; the declaration is written above the root element.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The root element is already open or written, the name is not a name XML can write, \
+               or the document is not open.",
+    }],
+};
+
+/// [`WRITER`]'s slots, in declaration order: the chunks of the document written
+/// so far …
+const WRITTEN_SLOT: usize = 0;
+/// … the names of the elements open around the writer …
+const OPEN_NAMES_SLOT: usize = 1;
+/// … how many of those names are live …
+const OPEN_COUNT_SLOT: usize = 2;
+/// … whether a start tag is written and still able to take attributes …
+const TAG_SLOT: usize = 3;
+/// … the names that tag already carries …
+const TAG_NAMES_SLOT: usize = 4;
+/// … what one level of nesting is indented by …
+const INDENT_SLOT: usize = 5;
+/// … the depth at which character data was written into an element still open,
+/// or `0` for none …
+const MIXED_SLOT: usize = 6;
+/// … which of [`BEFORE`], [`WRITING`] and [`FINISHED`] the writer is in …
+const STATE_SLOT: usize = 7;
+/// … and whether the root element has been written.
+const ROOT_SLOT: usize = 8;
+
+/// [`STATE_SLOT`] before `startDocument`, when the writer holds nothing.
+const BEFORE: usize = 0;
+/// [`STATE_SLOT`] while the document is open and takes writes.
+const WRITING: usize = 1;
+/// [`STATE_SLOT`] once `endDocument` has answered, after which nothing is
+/// written and nothing is answered again.
+const FINISHED: usize = 2;
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -483,6 +905,23 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_xml_reader" => (nvs_core_xml_reader as *const ()).cast(),
         "nvs_core_xml_reader_read" => (nvs_core_xml_reader_read as *const ()).cast(),
         "nvs_core_xml_reader_depth" => (nvs_core_xml_reader_depth as *const ()).cast(),
+        "nvs_core_xml_writer" => (nvs_core_xml_writer as *const ()).cast(),
+        "nvs_core_xml_writer_start_document" => {
+            (nvs_core_xml_writer_start_document as *const ()).cast()
+        }
+        "nvs_core_xml_writer_end_document" => {
+            (nvs_core_xml_writer_end_document as *const ()).cast()
+        }
+        "nvs_core_xml_writer_start_element" => {
+            (nvs_core_xml_writer_start_element as *const ()).cast()
+        }
+        "nvs_core_xml_writer_end_element" => (nvs_core_xml_writer_end_element as *const ()).cast(),
+        "nvs_core_xml_writer_content" => (nvs_core_xml_writer_content as *const ()).cast(),
+        "nvs_core_xml_writer_attribute" => (nvs_core_xml_writer_attribute as *const ()).cast(),
+        "nvs_core_xml_writer_comment" => (nvs_core_xml_writer_comment as *const ()).cast(),
+        "nvs_core_xml_writer_cdata" => (nvs_core_xml_writer_cdata as *const ()).cast(),
+        "nvs_core_xml_writer_instruction" => (nvs_core_xml_writer_instruction as *const ()).cast(),
+        "nvs_core_xml_writer_doctype" => (nvs_core_xml_writer_doctype as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1339,26 +1778,32 @@ fn counted(count: usize) -> Value {
     Value::uint(u64::try_from(count).expect("a count taken off a document is under `u64::MAX`"))
 }
 
-/// Slot `index` of a reader, as the count it holds.
+/// Slot `index` of a reader or a writer, as the count it holds.
 ///
 /// # Errors
 ///
 /// A `Fault::fatal` for a slot holding anything else, which only a bug in this
-/// module can produce: a reader's slots are written by [`nvs_core_xml_reader`]
-/// and by [`read`] and by nothing else.
-fn count_slot(receiver: *mut ObjHeader, index: usize, member: &str) -> Result<usize, Fault> {
+/// module can produce: those slots are written by the two constructors and by
+/// the members that step them, and by nothing else.
+fn count_slot(
+    class: &CoreClass,
+    receiver: *mut ObjHeader,
+    index: usize,
+    member: &str,
+) -> Result<usize, Fault> {
     let held = crate::instance::slot(receiver, index);
     held.as_uint()
         .and_then(|count| usize::try_from(count).ok())
-        .ok_or_else(|| wrong_slot(member, index, held))
+        .ok_or_else(|| wrong_slot(class, member, index, held))
 }
 
-/// The fault for a reader slot holding something [`read`] did not write there.
-fn wrong_slot(member: &str, index: usize, held: Value) -> Fault {
+/// The fault for a slot holding something this module did not write there.
+fn wrong_slot(class: &CoreClass, member: &str, index: usize, held: Value) -> Fault {
     Fault::fatal(format!(
-        "{READER_NAME}::{member} found tag {} in its `{}` slot",
+        "{}::{member} found tag {} in its `{}` slot",
+        class.name,
         held.tag_byte(),
-        READER.slots[index]
+        class.slots[index]
     ))
 }
 
@@ -1381,22 +1826,22 @@ fn read(receiver: Value) -> Result<Value, Fault> {
     let held = crate::instance::slot(object, DOCUMENT_SLOT);
     let document = held
         .as_text()
-        .ok_or_else(|| wrong_slot("read", DOCUMENT_SLOT, held))?;
+        .ok_or_else(|| wrong_slot(&READER, "read", DOCUMENT_SLOT, held))?;
     let held = crate::instance::slot(object, ROOTED_SLOT);
     let mut rooted = held
         .as_bool()
-        .ok_or_else(|| wrong_slot("read", ROOTED_SLOT, held))?;
+        .ok_or_else(|| wrong_slot(&READER, "read", ROOTED_SLOT, held))?;
     let held = crate::instance::slot(object, STACK_SLOT);
     let stack = held
         .array_ptr()
-        .ok_or_else(|| wrong_slot("read", STACK_SLOT, held))?;
+        .ok_or_else(|| wrong_slot(&READER, "read", STACK_SLOT, held))?;
     let mut stack = crate::arr::borrowed(stack);
     let mut open = Open {
         names: &mut stack,
-        depth: count_slot(object, OPEN_SLOT, "read")?,
+        depth: count_slot(&READER, object, OPEN_SLOT, "read")?,
     };
 
-    let mut scan = Reader::at(document, count_slot(object, CURSOR_SLOT, "read")?);
+    let mut scan = Reader::at(document, count_slot(&READER, object, CURSOR_SLOT, "read")?);
     let stepped = scan.step(&mut open, &mut rooted).map_err(|why| {
         Fault::thrown_as(
             ThrownClass::Parse,
@@ -1554,13 +1999,734 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+// ============================================================================
+// The writer
+// ============================================================================
+
+/// Whether `name` is one a document can carry — XML's `Name` production, as
+/// [`is_name_start`] and [`is_name_char`] already spell it for the parser, so
+/// the writer refuses exactly the names the reader would refuse to read back.
+fn is_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(is_name_start) && chars.all(is_name_char)
+}
+
+/// `text` with the three characters that would otherwise be markup written as
+/// the references XML reads them back from.
+///
+/// `>` is only markup after `]]`, and escaping it unconditionally is what stops
+/// a text ending in `]]` from closing a section a later reader is inside — the
+/// cheaper rule, and the one every serialiser that has ever been read by
+/// another one converged on.
+fn escaped(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// `text` as an attribute value between double quotes: [`escaped`]'s three,
+/// plus the quote itself and the whitespace a parser folds to a space, so what
+/// comes back out of a parse is the value that went in.
+fn quoted(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\t' => out.push_str("&#9;"),
+            '\n' => out.push_str("&#10;"),
+            '\r' => out.push_str("&#13;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+/// A writer's slots, reached as the state they are.
+///
+/// Every accessor here reads and writes straight through to the receiver rather
+/// than keeping a copy, so there is no arrangement in which a refusal has
+/// already moved half the state: a member decides on everything it is going to
+/// write before it writes any of it. A writer holds no native allocation, for
+/// the reason a reader holds none — the pieces of the document written so far
+/// are a Novis array, the names of the elements open around it are another, and
+/// the rest is counts and flags.
+///
+/// What it spends, per `rule:programs/memory-priority`: the document it is
+/// building, which is what a writer is for and what `endDocument` hands back.
+/// What it does **not** hold is a tree of nodes — nothing here is walkable, and
+/// nothing written is readable until the document is finished — which is the
+/// half of `rule:core-classes/xml-tree-and-stream`'s memory story a writer can
+/// keep.
+struct Pen {
+    /// The receiver these slots belong to.
+    object: *mut ObjHeader,
+    /// The member reading them, for the sentence a refusal carries.
+    member: &'static str,
+}
+
+impl Pen {
+    /// The writer `receiver` names, for `member`.
+    ///
+    /// # Errors
+    ///
+    /// A `Fault::fatal` for a receiver that is not one of [`WRITER`]'s
+    /// instances, which the compile-time signature rules out.
+    fn of(receiver: Value, member: &'static str) -> Result<Self, Fault> {
+        let object = crate::instance::receiver(receiver, &WRITER, member)?;
+        Ok(Self { object, member })
+    }
+
+    /// The refusal this member makes: spec § 10's `LogicError`, which is the
+    /// class for a program that asked for something its own state forbids.
+    ///
+    /// # Errors
+    ///
+    /// Always — this is the error, and the `Result` is so a caller writes
+    /// `return pen.refuse(…)` rather than wrapping it.
+    fn refuse<T>(&self, why: &str) -> Result<T, Fault> {
+        Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            // The sentence is the member's and the period is here, exactly as
+            // the parse's is, so no message has to remember to end like one.
+            format!("{WRITER_NAME}::{}(): {why}.", self.member),
+        ))
+    }
+
+    /// Count slot `index`.
+    ///
+    /// # Errors
+    ///
+    /// A `Fault::fatal` for a slot holding anything else — a bug in this
+    /// module, since nothing outside it writes one.
+    fn count(&self, index: usize) -> Result<usize, Fault> {
+        count_slot(&WRITER, self.object, index, self.member)
+    }
+
+    /// Flag slot `index`.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn flag(&self, index: usize) -> Result<bool, Fault> {
+        let held = crate::instance::slot(self.object, index);
+        held.as_bool()
+            .ok_or_else(|| wrong_slot(&WRITER, self.member, index, held))
+    }
+
+    /// Writes a count into slot `index`.
+    fn set_count(&self, index: usize, count: usize) {
+        crate::instance::set_slot(self.object, index, counted(count));
+    }
+
+    /// Writes a flag into slot `index`.
+    fn set_flag(&self, index: usize, flag: bool) {
+        crate::instance::set_slot(self.object, index, Value::bool(flag));
+    }
+
+    /// Array slot `index`, borrowed.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn array(&self, index: usize) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+        let held = crate::instance::slot(self.object, index);
+        let array = held
+            .array_ptr()
+            .ok_or_else(|| wrong_slot(&WRITER, self.member, index, held))?;
+        Ok(crate::arr::borrowed(array))
+    }
+
+    /// Refuses unless the document is open.
+    ///
+    /// # Errors
+    ///
+    /// A `LogicError` before `startDocument` and after `endDocument` alike: the
+    /// document is the outermost pair, so every other member is inside it.
+    fn writing(&self) -> Result<(), Fault> {
+        match self.count(STATE_SLOT)? {
+            WRITING => Ok(()),
+            BEFORE => self.refuse("the document is not open, and `startDocument` is what opens it"),
+            _ => self.refuse("the document is finished, and `endDocument` has answered it"),
+        }
+    }
+
+    /// Appends `chunk` to what the document holds.
+    ///
+    /// The pieces are kept apart and joined once, in [`end_document`], so a
+    /// document costs what it is rather than what appending to one string over
+    /// and over would. The write cannot move the array for [`Open::push`]'s
+    /// reason: no member hands a writer's own arrays out, so
+    /// [`NvsArray::set_index`]'s copy-on-write separation never fires and the
+    /// handle stays the one the slot names.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn emit(&self, chunk: &str) -> Result<(), Fault> {
+        let mut written = self.array(WRITTEN_SLOT)?;
+        let at =
+            i64::try_from(written.count()).expect("a document's piece count is under `i64::MAX`");
+        written.set_index(at, Value::str(NvsStr::new(chunk.as_bytes())));
+        Ok(())
+    }
+
+    /// Closes a start tag that is still taking attributes, if one is open.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn seal(&self) -> Result<(), Fault> {
+        if self.flag(TAG_SLOT)? {
+            self.emit(">")?;
+            self.set_flag(TAG_SLOT, false);
+        }
+        Ok(())
+    }
+
+    /// Writes the line break and indentation a node at `depth` gets.
+    ///
+    /// Nothing at all when the writer does not indent, and nothing once
+    /// character data has reached an element that is still open: whitespace
+    /// beside text is text, so indenting there would change what the document
+    /// says rather than how it looks.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn lead(&self, depth: usize) -> Result<(), Fault> {
+        let held = crate::instance::slot(self.object, INDENT_SLOT);
+        let indent = held
+            .as_text()
+            .ok_or_else(|| wrong_slot(&WRITER, self.member, INDENT_SLOT, held))?;
+        if indent.is_empty() || self.count(MIXED_SLOT)? != 0 {
+            return Ok(());
+        }
+        let mut lead = String::with_capacity(1 + indent.len() * depth);
+        lead.push('\n');
+        for _ in 0..depth {
+            lead.push_str(indent);
+        }
+        self.emit(&lead)
+    }
+
+    /// Records that character data has reached the innermost of `open`
+    /// elements, which is what [`Self::lead`] reads.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::count`]'s.
+    fn mark_mixed(&self, open: usize) -> Result<(), Fault> {
+        if self.count(MIXED_SLOT)? == 0 {
+            self.set_count(MIXED_SLOT, open);
+        }
+        Ok(())
+    }
+
+    /// The name of the innermost of `open` elements.
+    ///
+    /// # Errors
+    ///
+    /// A `Fault::fatal` where the stack holds no name for an element the count
+    /// says is open, which only a bug in this module can produce.
+    fn innermost(&self, open: usize) -> Result<String, Fault> {
+        let names = self.array(OPEN_NAMES_SLOT)?;
+        let at = i64::try_from(open - 1).expect("`DEPTH_CEILING` is far under `i64::MAX`");
+        let held = names.get_index(at);
+        held.as_ref()
+            .and_then(|name| name.as_text())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{WRITER_NAME}::{} has an element open with no name on its stack",
+                    self.member
+                ))
+            })
+    }
+}
+
+/// Refuses `text` if it holds a character XML has no way to write.
+///
+/// The parser's own answer, read off [`numeric`]'s refusal: a control character
+/// other than the three whitespace ones has no spelling in a document, escaped
+/// or otherwise, so writing one would produce text this module's own reader
+/// would refuse.
+///
+/// # Errors
+///
+/// A `LogicError` naming the character.
+fn writable(pen: &Pen, text: &str) -> Result<(), Fault> {
+    if let Some(ch) = text
+        .chars()
+        .find(|ch| ch.is_control() && !matches!(ch, '\t' | '\r' | '\n'))
+    {
+        return pen.refuse(&format!(
+            "the text holds U+{:04X}, which a document has no way to write",
+            u32::from(ch)
+        ));
+    }
+    Ok(())
+}
+
+/// [`nvs_core_xml_writer_start_document`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` for a document already open or already finished.
+fn start_document(receiver: Value) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "startDocument")?;
+    match pen.count(STATE_SLOT)? {
+        BEFORE => {}
+        WRITING => return pen.refuse("the document is already open"),
+        _ => return pen.refuse("the document is finished, and `endDocument` has answered it"),
+    }
+    pen.emit(r#"<?xml version="1.0" encoding="UTF-8"?>"#)?;
+    pen.set_count(STATE_SLOT, WRITING);
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_end_document`]'s body: the one place a writer answers
+/// anything, and the one place it refuses a tree rather than emitting it.
+///
+/// # Errors
+///
+/// A `LogicError` for an element still open, for a document with no root
+/// element, and for a document that is not open.
+fn end_document(receiver: Value) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "endDocument")?;
+    pen.writing()?;
+    let open = pen.count(OPEN_COUNT_SLOT)?;
+    if open > 0 {
+        let name = pen.innermost(open)?;
+        return pen.refuse(&format!(
+            "`<{name}>` is still open, so what this holds is not a document"
+        ));
+    }
+    if !pen.flag(ROOT_SLOT)? {
+        return pen.refuse("a document has a root element, and none was written");
+    }
+
+    let written = pen.array(WRITTEN_SLOT)?;
+    let mut document = String::new();
+    for at in 0..written.count() {
+        let at = i64::try_from(at).expect("a document's piece count is under `i64::MAX`");
+        let held = written.get_index(at);
+        let Some(piece) = held.as_ref().and_then(|piece| piece.as_text()) else {
+            return Err(Fault::fatal(format!(
+                "{WRITER_NAME}::endDocument found a piece of its document that is not text"
+            )));
+        };
+        document.push_str(piece);
+    }
+    pen.set_count(STATE_SLOT, FINISHED);
+    Ok(Value::str(NvsStr::new(document.as_bytes())))
+}
+
+/// [`nvs_core_xml_writer_start_element`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` for a name a document cannot carry, for a second root
+/// element, for nesting past [`DEPTH_CEILING`], and for a document that is not
+/// open.
+fn start_element(receiver: Value, name: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "startElement")?;
+    pen.writing()?;
+    if !is_name(name) {
+        return pen.refuse(&format!("`{name}` is not a name a document can write"));
+    }
+    let open = pen.count(OPEN_COUNT_SLOT)?;
+    if open == 0 && pen.flag(ROOT_SLOT)? {
+        return pen.refuse("a document has one root element, and it is already written");
+    }
+    if open == DEPTH_CEILING {
+        return pen.refuse(&format!(
+            "elements are nested {DEPTH_CEILING} deep, which is as deep as a document goes"
+        ));
+    }
+
+    pen.seal()?;
+    pen.lead(open)?;
+    pen.emit("<")?;
+    pen.emit(name)?;
+    let mut names = pen.array(OPEN_NAMES_SLOT)?;
+    let at = i64::try_from(open).expect("`DEPTH_CEILING` is far under `i64::MAX`");
+    names.set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+    pen.set_count(OPEN_COUNT_SLOT, open + 1);
+    pen.set_flag(TAG_SLOT, true);
+    // A start tag carries no attribute twice, and the names it already carries
+    // are the tag's rather than the writer's, so they go when it does.
+    crate::instance::set_slot(pen.object, TAG_NAMES_SLOT, Value::array(NvsArray::new()));
+    if open == 0 {
+        pen.set_flag(ROOT_SLOT, true);
+    }
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_end_element`]'s body.
+///
+/// Which of `<a/>` and `<a></a>` an empty element is written as is settled here
+/// rather than by a second closing member, per spec § 17's row: an element
+/// nothing was written into is the first, and every other one is the second.
+///
+/// # Errors
+///
+/// A `LogicError` where nothing is open, and for a document that is not open.
+fn end_element(receiver: Value) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "endElement")?;
+    pen.writing()?;
+    let open = pen.count(OPEN_COUNT_SLOT)?;
+    if open == 0 {
+        return pen.refuse("no element is open, so there is nothing to close");
+    }
+    if pen.flag(TAG_SLOT)? {
+        pen.emit("/>")?;
+        pen.set_flag(TAG_SLOT, false);
+    } else {
+        pen.lead(open - 1)?;
+        let name = pen.innermost(open)?;
+        pen.emit("</")?;
+        pen.emit(&name)?;
+        pen.emit(">")?;
+    }
+    pen.set_count(OPEN_COUNT_SLOT, open - 1);
+    if pen.count(MIXED_SLOT)? > open - 1 {
+        pen.set_count(MIXED_SLOT, 0);
+    }
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_content`]'s body — the writer's escape point.
+///
+/// # Errors
+///
+/// A `LogicError` where no element is open, for a character a document cannot
+/// write, and for a document that is not open.
+fn content(receiver: Value, text: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "content")?;
+    pen.writing()?;
+    let open = pen.count(OPEN_COUNT_SLOT)?;
+    if open == 0 {
+        return pen.refuse("character data belongs inside an element, and none is open");
+    }
+    writable(&pen, text)?;
+    pen.seal()?;
+    pen.emit(&escaped(text))?;
+    pen.mark_mixed(open)?;
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_attribute`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` where no start tag is still taking attributes, for a name the
+/// tag already carries, for a name a document cannot carry, for a value holding
+/// a character a document cannot write, and for a document that is not open.
+fn attribute(receiver: Value, name: &str, value: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "attribute")?;
+    pen.writing()?;
+    if !pen.flag(TAG_SLOT)? {
+        return pen.refuse(
+            "no start tag is still taking attributes — an attribute goes on its element before \
+             anything is written inside it",
+        );
+    }
+    if !is_name(name) {
+        return pen.refuse(&format!("`{name}` is not a name a document can write"));
+    }
+    writable(&pen, value)?;
+
+    let mut carried = pen.array(TAG_NAMES_SLOT)?;
+    let count = carried.count();
+    for at in 0..count {
+        let at = i64::try_from(at).expect("a start tag's attribute count is under `i64::MAX`");
+        let held = carried.get_index(at);
+        if held.as_ref().and_then(|held| held.as_text()) == Some(name) {
+            return pen.refuse(&format!(
+                "this element already carries an attribute named `{name}`"
+            ));
+        }
+    }
+    let at = i64::try_from(count).expect("a start tag's attribute count is under `i64::MAX`");
+    carried.set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+
+    pen.emit(" ")?;
+    pen.emit(name)?;
+    pen.emit("=\"")?;
+    pen.emit(&quoted(value))?;
+    pen.emit("\"")?;
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_comment`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` for content XML gives a comment no way to hold, and for a
+/// document that is not open.
+fn comment(receiver: Value, text: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "comment")?;
+    pen.writing()?;
+    if text.contains("--") || text.ends_with('-') {
+        return pen
+            .refuse("a comment has no escape grammar, so it cannot hold `--` or end with `-`");
+    }
+    writable(&pen, text)?;
+    pen.seal()?;
+    pen.lead(pen.count(OPEN_COUNT_SLOT)?)?;
+    pen.emit("<!--")?;
+    pen.emit(text)?;
+    pen.emit("-->")?;
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_cdata`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` where no element is open, for a text holding `]]>` or a
+/// character a document cannot write, and for a document that is not open.
+fn cdata(receiver: Value, text: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "cdata")?;
+    pen.writing()?;
+    let open = pen.count(OPEN_COUNT_SLOT)?;
+    if open == 0 {
+        return pen.refuse("character data belongs inside an element, and none is open");
+    }
+    if text.contains("]]>") {
+        return pen.refuse("a CDATA section has no escape grammar, so it cannot hold `]]>`");
+    }
+    writable(&pen, text)?;
+    pen.seal()?;
+    pen.emit("<![CDATA[")?;
+    pen.emit(text)?;
+    pen.emit("]]>")?;
+    pen.mark_mixed(open)?;
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_instruction`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` for a target a document cannot carry or that is the
+/// declaration's own, for data holding `?>` or a character a document cannot
+/// write, and for a document that is not open.
+fn instruction(receiver: Value, target: &str, data: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "instruction")?;
+    pen.writing()?;
+    if !is_name(target) {
+        return pen.refuse(&format!("`{target}` is not a name a document can write"));
+    }
+    if target.eq_ignore_ascii_case("xml") {
+        return pen.refuse("`xml` is the declaration's own target, which `startDocument` writes");
+    }
+    if data.contains("?>") {
+        return pen.refuse(
+            "a processing instruction has no escape grammar, so its data cannot hold `?>`",
+        );
+    }
+    writable(&pen, data)?;
+    pen.seal()?;
+    pen.lead(pen.count(OPEN_COUNT_SLOT)?)?;
+    pen.emit("<?")?;
+    pen.emit(target)?;
+    if !data.is_empty() {
+        pen.emit(" ")?;
+        pen.emit(data)?;
+    }
+    pen.emit("?>")?;
+    Ok(Value::null())
+}
+
+/// [`nvs_core_xml_writer_doctype`]'s body.
+///
+/// # Errors
+///
+/// A `LogicError` once the root element is written, for a name a document
+/// cannot carry, and for a document that is not open.
+fn doctype(receiver: Value, name: &str) -> Result<Value, Fault> {
+    let pen = Pen::of(receiver, "doctype")?;
+    pen.writing()?;
+    if pen.flag(ROOT_SLOT)? {
+        return pen.refuse(
+            "a document type declaration goes above the root element, and the root element is \
+             already written",
+        );
+    }
+    if !is_name(name) {
+        return pen.refuse(&format!("`{name}` is not a name a document can write"));
+    }
+    pen.lead(0)?;
+    pen.emit("<!DOCTYPE ")?;
+    pen.emit(name)?;
+    pen.emit(">")?;
+    Ok(Value::null())
+}
+
+/// One of a writer member's text arguments.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for anything else.
+fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    // unreachable from source: every one of these parameters is `CoreTy::Text`,
+    // so an argument that is not a `string` is `E0401` at the call site.
+    value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{WRITER_NAME}::{member} expected a `string`, got tag {}",
+            value.tag_byte()
+        ))
+    })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Xml::writer({indent?: string}): Core\Xml\Writer` — replacing
+    /// `xmlwriter_open_memory` and the five calls PHP configures one with.
+    ///
+    /// Nothing is written here, exactly as [`nvs_core_xml_reader`] reads
+    /// nothing: the writer holds an empty document, an empty stack and the
+    /// indent it will use, and `startDocument` is what puts the first character
+    /// into it.
+    fn nvs_core_xml_writer(_ctx, args: [1]) {
+        // unreachable from source: the option is `CoreTy::Str`, so anything
+        // that is not a `string` is `E0401` at the call site.
+        let Some(indent) = args[0].as_text() else {
+            return Err(Fault::fatal(format!(
+                "{NAME}::writer expected a `string` indent, got tag {}",
+                args[0].tag_byte()
+            )));
+        };
+        if !indent.chars().all(is_space) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{NAME}::writer(): an indent is whitespace, and `{indent}` holds something \
+                     a document would carry as content."
+                ),
+            ));
+        }
+        Ok(crate::instance::build(
+            &WRITER,
+            [
+                Value::array(NvsArray::new()),
+                Value::array(NvsArray::new()),
+                counted(0),
+                Value::bool(false),
+                Value::array(NvsArray::new()),
+                Value::str(NvsStr::new(indent.as_bytes())),
+                counted(0),
+                counted(BEFORE),
+                Value::bool(false),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->startDocument(): void` — the outer pair's opening half.
+    fn nvs_core_xml_writer_start_document(_ctx, args: [1]) {
+        start_document(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->endDocument(): string` — the outer pair's closing half, and
+    /// the document itself.
+    fn nvs_core_xml_writer_end_document(_ctx, args: [1]) {
+        end_document(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->startElement(string $name): void` — the inner pair's opening
+    /// half.
+    fn nvs_core_xml_writer_start_element(_ctx, args: [2]) {
+        start_element(args[0], text_of(&args[1], "startElement")?)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->endElement(): void` — the inner pair's closing half, which
+    /// takes no name because the writer knows what is open.
+    fn nvs_core_xml_writer_end_element(_ctx, args: [1]) {
+        end_element(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->content(string $text): void` — character data, escaped.
+    fn nvs_core_xml_writer_content(_ctx, args: [2]) {
+        content(args[0], text_of(&args[1], "content")?)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->attribute(string $name, string $value): void` — one attribute
+    /// on the element that was just opened.
+    fn nvs_core_xml_writer_attribute(_ctx, args: [3]) {
+        attribute(
+            args[0],
+            text_of(&args[1], "attribute")?,
+            text_of(&args[2], "attribute")?,
+        )
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->comment(string $text): void` — a comment, as one call.
+    fn nvs_core_xml_writer_comment(_ctx, args: [2]) {
+        comment(args[0], text_of(&args[1], "comment")?)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->cdata(string $text): void` — character data as a CDATA
+    /// section, which is an escaping choice about the same text `content`
+    /// writes.
+    fn nvs_core_xml_writer_cdata(_ctx, args: [2]) {
+        cdata(args[0], text_of(&args[1], "cdata")?)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->instruction(string $target, string $data): void` — a
+    /// processing instruction, as one call.
+    fn nvs_core_xml_writer_instruction(_ctx, args: [3]) {
+        instruction(
+            args[0],
+            text_of(&args[1], "instruction")?,
+            text_of(&args[2], "instruction")?,
+        )
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$writer->doctype(string $name): void` — the document type declaration,
+    /// which names a document type and resolves nothing.
+    fn nvs_core_xml_writer_doctype(_ctx, args: [2]) {
+        doctype(args[0], text_of(&args[1], "doctype")?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, NvsStr, OutputSink, Tag, Value, call};
 
     use super::{
         ATTRIBUTES_SLOT, CHILDREN_SLOT, CLASS, DOCTYPE_REFUSAL, KIND, KIND_NAME, KIND_SLOT, Kind,
-        NAME, NAME_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, parse,
+        NAME, NAME_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, WRITER, WRITER_NAME, WRITER_OPTIONS,
+        parse,
     };
     use crate::registry::{CLASSES, CoreClass, CoreTy, Qual};
 
@@ -1678,12 +2844,18 @@ mod tests {
         }
 
         // The other half of "rather than a flag": no signature on this class
-        // has anywhere to put one. Every door takes the document's text and
-        // nothing else, with no defaults, so there is no argument a caller
-        // could pass and no default a deployment could have changed — and the
-        // sweep is over the rows rather than over the parse alone, because a
-        // flag added to the stream would resolve entities just as thoroughly.
+        // has anywhere to put one. Every door that *reads* takes the document's
+        // text and nothing else, with no defaults, so there is no argument a
+        // caller could pass and no default a deployment could have changed —
+        // and the sweep is over the rows rather than over the parse alone,
+        // because a flag added to the stream would resolve entities just as
+        // thoroughly. The writing door is asked a different question below,
+        // because it takes no document and so has nothing to resolve out of
+        // one.
         for member in CLASS.methods {
+            if matches!(member.return_ty, CoreTy::Instance(name) if name == WRITER_NAME) {
+                continue;
+            }
             assert!(
                 member
                     .params
@@ -1698,6 +2870,33 @@ mod tests {
                 "a default is a setting once there is a parameter to hang it on"
             );
         }
+
+        // The writing door: it takes no document, so the question here is that
+        // its options are about the output and nothing else. One option, whose
+        // whole content is what a level of nesting is indented by — a second
+        // one is where a resolver's flag would arrive if it ever did.
+        let writer = CLASS
+            .methods
+            .iter()
+            .find(
+                |member| matches!(member.return_ty, CoreTy::Instance(name) if name == WRITER_NAME),
+            )
+            .expect("§ 17's writing door is registered");
+        assert!(
+            writer
+                .params
+                .iter()
+                .all(|param| matches!(param, CoreTy::Options(_))),
+            "`Core\\Xml::writer` takes something other than its own formatting"
+        );
+        assert_eq!(
+            WRITER_OPTIONS
+                .iter()
+                .map(|option| option.name)
+                .collect::<Vec<_>>(),
+            vec!["indent"],
+            "a second option on the one door that takes no document is where a setting would go"
+        );
     }
 
     /// A document type declaration stops at its own token, whatever it names.
@@ -2009,6 +3208,220 @@ mod tests {
                 from = at + 1;
             }
         }
+    }
+
+    /// A writer indenting by `indent`, over the argument list its option takes.
+    fn pen(ctx: &mut Ctx, indent: &str) -> Value {
+        let indent = Value::str(NvsStr::new(indent.as_bytes()));
+        let writer = call(super::nvs_core_xml_writer, ctx, &[indent])
+            .expect("whitespace is what an indent is");
+        dropped(indent);
+        writer
+    }
+
+    /// One call against a writer: what it answered, or the sentence it refused
+    /// with.
+    fn asked(ctx: &mut Ctx, member: nvs_runtime::NvsFn, args: &[Value]) -> Result<Value, String> {
+        call(member, ctx, args).map_err(|_| {
+            ctx.take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default()
+        })
+    }
+
+    /// A call that has to be accepted, and whose answer nothing here keeps.
+    fn wrote(answer: Result<Value, String>) {
+        match answer {
+            Ok(value) => dropped(value),
+            Err(why) => panic!("the writer refused a write it had no reason to: {why}"),
+        }
+    }
+
+    /// A text argument, which the callee borrows and the caller releases.
+    fn word(text: &str) -> Value {
+        Value::str(NvsStr::new(text.as_bytes()))
+    }
+
+    /// What is open is the writer's own state, so a caller cannot get it wrong.
+    ///
+    /// The acceptance property of `rule:core-classes/xml-tree-and-stream`'s
+    /// writing half, asserted the way the goal states it: the caller never says
+    /// what is open — `endElement` takes no name at all — so every refusal here
+    /// is one the writer makes out of what it is holding. What that buys is
+    /// checked at the end by handing the document to this module's own parser,
+    /// which refuses everything that is not well-formed: a writer that could be
+    /// talked into ill-formed output fails there rather than in a program.
+    ///
+    /// The refusals are interleaved with the writes on purpose. A refusal
+    /// writes nothing, so the document at the end is exactly what the accepted
+    /// calls put in it — a writer that half-applied a refused call would still
+    /// answer a well-formed document and fail only on this comparison.
+    #[test]
+    fn the_writer_enforces_nesting_from_its_own_state_and_not_from_the_caller() {
+        let close = WRITER
+            .members()
+            .find(|member| member.name == "endElement")
+            .expect("the writer closes an element");
+        assert!(
+            close.params.is_empty() && close.names.is_empty(),
+            "`endElement` reads what is open off the writer, so there is no name to get wrong"
+        );
+
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let attribute = super::nvs_core_xml_writer_attribute;
+        let content = super::nvs_core_xml_writer_content;
+        let doctype = super::nvs_core_xml_writer_doctype;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "");
+        let (order, item, other) = (word("order"), word("item"), word("other"));
+        let (sku, one, mixed, digit) = (word("sku"), word("1"), word("a & b"), word("2bad"));
+
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+
+        // Nothing is open, so there is nothing to close. A caller holding the
+        // nesting itself has no way to make this refusal at all.
+        let why = asked(&mut ctx, end, &[writer]).expect_err("nothing is open");
+        assert!(why.contains("nothing to close"), "{why}");
+
+        wrote(asked(&mut ctx, start, &[writer, order]));
+
+        // A document type declaration goes above the root element, and the root
+        // element is written — again a fact about the writer rather than about
+        // the argument.
+        let why = asked(&mut ctx, doctype, &[writer, order]).expect_err("the root is written");
+        assert!(why.contains("above the root element"), "{why}");
+
+        wrote(asked(&mut ctx, attribute, &[writer, sku, one]));
+        let why =
+            asked(&mut ctx, attribute, &[writer, sku, one]).expect_err("that name is carried");
+        assert!(why.contains("already carries an attribute"), "{why}");
+
+        wrote(asked(&mut ctx, start, &[writer, item]));
+        wrote(asked(&mut ctx, content, &[writer, mixed]));
+
+        // The start tag is closed because something was written inside it, and
+        // an attribute after that would land on nothing.
+        let why = asked(&mut ctx, attribute, &[writer, sku, one]).expect_err("the tag is closed");
+        assert!(why.contains("still taking attributes"), "{why}");
+
+        wrote(asked(&mut ctx, end, &[writer]));
+        wrote(asked(&mut ctx, start, &[writer, item]));
+        wrote(asked(&mut ctx, end, &[writer]));
+
+        // A name a document cannot carry, refused where it is written rather
+        // than where it is read.
+        let why = asked(&mut ctx, start, &[writer, digit]).expect_err("that is not a name");
+        assert!(why.contains("is not a name a document can write"), "{why}");
+
+        wrote(asked(&mut ctx, end, &[writer]));
+
+        // The root element is closed, so a second one is a second document —
+        // which the writer knows because it is what it has been holding.
+        let why = asked(&mut ctx, start, &[writer, other]).expect_err("the root is written");
+        assert!(why.contains("one root element"), "{why}");
+        let document = asked(&mut ctx, super::nvs_core_xml_writer_end_document, &[writer])
+            .expect("nothing is open and the root element is written");
+        let text = document
+            .as_text()
+            .expect("a finished document is text")
+            .to_owned();
+        assert_eq!(
+            text,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+             <order sku=\"1\"><item>a &amp; b</item><item/></order>",
+            "a refusal writes nothing, so this is what the accepted calls wrote"
+        );
+
+        // The strict parser is the check the writer's own state is meant to
+        // buy: it refuses everything that is not well-formed, and this is what
+        // came out.
+        let tree = parse(&text).expect("what the writer answered is a document");
+        assert_eq!(
+            tree.children.len(),
+            1,
+            "the root element, and nothing beside it"
+        );
+
+        dropped(document);
+        for held in [order, item, other, sku, one, mixed, digit] {
+            dropped(held);
+        }
+        dropped(writer);
+    }
+
+    /// The end of a document with something still open is not a document.
+    ///
+    /// The reader's half of this is pinned by
+    /// `tests/conformance/core/xml-a-reader-refuses-where-the-walk-reaches-it-and-does-not-advance-past-it.nvst`,
+    /// and this is the writing half: `endDocument` is the one member that
+    /// answers, so it is the one place the writer can refuse a tree rather than
+    /// emit it. A refusal leaves the writer where it was, so closing the
+    /// element it named and asking again is what finishes the document — the
+    /// error is about the state, not about the writer being spent.
+    #[test]
+    fn an_unclosed_element_at_the_end_is_an_error_and_not_a_document() {
+        let start = super::nvs_core_xml_writer_start_element;
+        let end = super::nvs_core_xml_writer_end_element;
+        let finish = super::nvs_core_xml_writer_end_document;
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let writer = pen(&mut ctx, "");
+        let (outer, inner) = (word("a"), word("b"));
+
+        // A document with no root element is not one either: what `endDocument`
+        // refuses is everything a parser would refuse to read back.
+        wrote(asked(
+            &mut ctx,
+            super::nvs_core_xml_writer_start_document,
+            &[writer],
+        ));
+        let why = asked(&mut ctx, finish, &[writer]).expect_err("nothing was written");
+        assert!(
+            why.contains("a root element, and none was written"),
+            "{why}"
+        );
+
+        wrote(asked(&mut ctx, start, &[writer, outer]));
+        wrote(asked(&mut ctx, start, &[writer, inner]));
+
+        // Each refusal names the innermost element that is open, and closing it
+        // moves the answer one out rather than finishing anything.
+        let why = asked(&mut ctx, finish, &[writer]).expect_err("`<b>` is open");
+        assert!(why.contains("`<b>` is still open"), "{why}");
+        wrote(asked(&mut ctx, end, &[writer]));
+        let why = asked(&mut ctx, finish, &[writer]).expect_err("`<a>` is open");
+        assert!(why.contains("`<a>` is still open"), "{why}");
+        wrote(asked(&mut ctx, end, &[writer]));
+
+        let document = asked(&mut ctx, finish, &[writer]).expect("everything is closed");
+        let text = document
+            .as_text()
+            .expect("a finished document is text")
+            .to_owned();
+        assert_eq!(
+            text, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><a><b/></a>",
+            "the refusals wrote nothing, and the closes wrote what they close"
+        );
+        parse(&text).expect("what the writer answered is a document");
+
+        // And it is finished: a writer answers its document once, and writing
+        // into one that has been answered is refused for the same reason
+        // closing something that is not open is.
+        let why = asked(&mut ctx, finish, &[writer]).expect_err("the document is answered");
+        assert!(why.contains("the document is finished"), "{why}");
+        let why = asked(&mut ctx, start, &[writer, outer]).expect_err("the document is answered");
+        assert!(why.contains("the document is finished"), "{why}");
+
+        dropped(document);
+        dropped(outer);
+        dropped(inner);
+        dropped(writer);
     }
 
     /// Releases the one reference this test module owns to `value`.
