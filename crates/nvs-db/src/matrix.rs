@@ -40,15 +40,17 @@
 //!
 //! # Known gaps
 //!
-//! 1. **There is no socket leg.** [`Location`] has a published server and a
-//!    file and no third arm, so the transport
+//! 1. **The socket leg is asked for and never published.** [`Location`] has
+//!    its third arm and `tests/handshake.rs` dials whichever one it is handed,
+//!    so the case list is already the one that would run over the transport
 //!    `rule:core-classes/db-unix-socket-path` gives MySQL, MariaDB and
-//!    PostgreSQL is asserted against listeners this crate binds itself and
-//!    against no real server. The property a second transport has to have is
-//!    that the driver agrees across both, which is what running the TCP legs'
-//!    own case list over `AF_UNIX` would say. It needs a container's socket
-//!    directory bind-mounted onto the host by `tools/db-matrix.py`, and one
-//!    more field beside the group above.
+//!    PostgreSQL — but `tools/db-matrix.py` sets no [`SOCKET_VAR`], so nothing
+//!    hands it one, and that transport is asserted against listeners this crate
+//!    binds itself and against no real server. The property a second transport
+//!    has to have is that the driver agrees across both, which is what running
+//!    the TCP legs' own case list over `AF_UNIX` would say. It needs a
+//!    container's socket directory bind-mounted onto the host by
+//!    `tools/db-matrix.py`.
 
 use std::path::PathBuf;
 
@@ -59,6 +61,13 @@ use crate::conn::Driver;
 /// Its absence is the whole of the skip decision, so it is named once here and
 /// read nowhere else.
 pub const DRIVER_VAR: &str = "NVS_DB_MATRIX_DRIVER";
+
+/// The environment field carrying a Unix-domain socket.
+///
+/// Its absence is the whole of the choice between the two transports — the
+/// harness sets it for a leg reached over `AF_UNIX` and leaves it unset for the
+/// published port — so it is named once here, as [`DRIVER_VAR`] is.
+pub const SOCKET_VAR: &str = "NVS_DB_MATRIX_SOCKET";
 
 /// A server the harness published, for the four drivers that speak over TCP.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,15 +88,46 @@ pub struct Server {
     pub ca: PathBuf,
 }
 
+/// A server the harness published on a Unix-domain socket, for the three
+/// drivers `rule:core-classes/db-unix-socket-path` gives that transport to.
+///
+/// Its own shape rather than a [`Server`] with an empty anchor, by the
+/// required-group argument this module's doc makes: nothing vouches for a
+/// socket and no handshake over one asks, so there is no `NVS_DB_MATRIX_CA`
+/// here at all — where an empty field would be one a case could still read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Socket {
+    /// [`SOCKET_VAR`]: the string a deployment writes in its own
+    /// `[db.<name>] host`, which `rule:core-classes/db-unix-socket-path` makes
+    /// the directory for PostgreSQL and the socket file for MySQL and MariaDB.
+    /// Carried as written and a `String` rather than a `PathBuf`, because that
+    /// is what it is — the host a driver is handed, opened by that driver and
+    /// never by this module.
+    pub path: String,
+    /// `NVS_DB_MATRIX_PORT`, which PostgreSQL derives `.s.PGSQL.<port>` from
+    /// and the other two ignore — exactly as the `socket_endpoint` signature
+    /// those drivers share does with it.
+    pub port: u16,
+    /// `NVS_DB_MATRIX_USER`.
+    pub user: String,
+    /// `NVS_DB_MATRIX_PASSWORD`.
+    pub password: String,
+    /// `NVS_DB_MATRIX_DATABASE`.
+    pub database: String,
+}
+
 /// Where a driver's database is.
 ///
-/// Two shapes rather than one struct with unused fields, so a SQLite case
-/// cannot read a port that means nothing and a PostgreSQL case cannot read a
-/// path that was never set.
+/// Three shapes rather than one struct with unused fields, so a SQLite case
+/// cannot read a port that means nothing, a PostgreSQL case cannot read a path
+/// that was never set, and a socket case cannot read an anchor no handshake
+/// over that transport will ask for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Location {
     /// A published TCP server — every driver but SQLite.
     Server(Server),
+    /// A Unix-domain socket — PostgreSQL, MySQL and MariaDB.
+    Socket(Socket),
     /// `NVS_DB_MATRIX_PATH`: a scratch file the harness creates before the run
     /// and removes after it. SQLite only, because it has no wire.
     File(PathBuf),
@@ -138,15 +178,41 @@ fn endpoint_from(lookup: impl Fn(&str) -> Option<String>) -> Option<Endpoint> {
         })
     };
 
+    // One reading for both wire transports, called at the head of an arm so
+    // that whichever one is being read reports a missing or unparseable port
+    // the same way, and so that a SQLite leg reads no port at all.
+    let port_of = || {
+        let port = field("PORT");
+        port.parse::<u16>()
+            .unwrap_or_else(|e| panic!("NVS_DB_MATRIX_PORT={port} is not a port: {e}"))
+    };
+
     let location = if driver == Driver::Sqlite {
         Location::File(PathBuf::from(field("PATH")))
+    } else if let Some(path) = lookup(SOCKET_VAR) {
+        // Set for exactly the leg reached over `AF_UNIX`, so its presence is
+        // the whole of the choice: a host published beside it is left unread.
+        // The rest of the group is what a published server reads, minus the
+        // anchor — a socket leg authenticates and names a database as one over
+        // TCP does.
+        assert!(
+            driver != Driver::SqlServer,
+            "{SOCKET_VAR} is set for {}, which has no socket transport to reach: \
+             TDS speaks over TCP alone",
+            driver.matrix_name()
+        );
+        Location::Socket(Socket {
+            port: port_of(),
+            path,
+            user: field("USER"),
+            password: field("PASSWORD"),
+            database: field("DATABASE"),
+        })
     } else {
-        let port = field("PORT");
+        let port = port_of();
         Location::Server(Server {
             host: field("HOST"),
-            port: port
-                .parse()
-                .unwrap_or_else(|e| panic!("NVS_DB_MATRIX_PORT={port} is not a port: {e}")),
+            port,
             user: field("USER"),
             password: field("PASSWORD"),
             database: field("DATABASE"),
@@ -161,7 +227,7 @@ fn endpoint_from(lookup: impl Fn(&str) -> Option<String>) -> Option<Endpoint> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Endpoint, Location, endpoint_from};
+    use super::{Endpoint, Location, Socket, endpoint_from};
     use crate::conn::Driver;
 
     fn env(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
@@ -231,10 +297,88 @@ mod tests {
         ]));
     }
 
+    /// A socket field selects the socket leg, and the anchor is not in that
+    /// leg's required group: there is no `NVS_DB_MATRIX_CA` in this
+    /// environment at all, which is what stops a published server dead, and a
+    /// host beside the socket is left unread rather than preferred to it.
+    #[test]
+    fn a_socket_field_selects_the_socket_leg_and_needs_no_anchor() {
+        let found = endpoint_from(env(&[
+            ("NVS_DB_MATRIX_DRIVER", "postgres"),
+            ("NVS_DB_MATRIX_SOCKET", "/var/run/postgresql"),
+            ("NVS_DB_MATRIX_HOST", "127.0.0.1"),
+            ("NVS_DB_MATRIX_PORT", "55432"),
+            ("NVS_DB_MATRIX_USER", "novis"),
+            ("NVS_DB_MATRIX_PASSWORD", "novis"),
+            ("NVS_DB_MATRIX_DATABASE", "novis_test"),
+        ]))
+        .expect("a named driver is an endpoint");
+
+        assert_eq!(
+            found,
+            Endpoint {
+                driver: Driver::Postgres,
+                location: Location::Socket(Socket {
+                    path: "/var/run/postgresql".to_string(),
+                    port: 55432,
+                    user: "novis".to_string(),
+                    password: "novis".to_string(),
+                    database: "novis_test".to_string(),
+                }),
+            }
+        );
+    }
+
+    /// The path is carried as written for each of the three drivers that have
+    /// a socket leg, because `rule:core-classes/db-unix-socket-path` keeps
+    /// each derivation — a directory for PostgreSQL, the file itself for the
+    /// other two — in that driver, and a harness that spelled one of them here
+    /// would be the second home for it.
+    #[test]
+    fn a_socket_path_is_carried_as_written_for_every_driver_that_has_one() {
+        for (name, driver, written) in [
+            ("postgres", Driver::Postgres, "/var/run/postgresql"),
+            ("mysql", Driver::MySql, "/var/run/mysqld/mysqld.sock"),
+            ("mariadb", Driver::MariaDb, "/run/mysqld/mysqld.sock"),
+        ] {
+            let found = endpoint_from(env(&[
+                ("NVS_DB_MATRIX_DRIVER", name),
+                ("NVS_DB_MATRIX_SOCKET", written),
+                ("NVS_DB_MATRIX_PORT", "5432"),
+                ("NVS_DB_MATRIX_USER", "novis"),
+                ("NVS_DB_MATRIX_PASSWORD", "novis"),
+                ("NVS_DB_MATRIX_DATABASE", "novis_test"),
+            ]))
+            .expect("a named driver is an endpoint");
+
+            assert_eq!(found.driver, driver);
+            let Location::Socket(socket) = found.location else {
+                panic!("{name} was pointed at a socket")
+            };
+            assert_eq!(socket.path, written);
+            assert_eq!(socket.port, 5432);
+        }
+    }
+
+    /// SQL Server is the driver that refuses the transport rather than lacking
+    /// a spelling for it, so a socket leg scheduled for it is the harness
+    /// being wrong and stops the run — a leg that dialled one anyway would
+    /// report the driver's own refusal as a failed handshake.
+    #[test]
+    #[should_panic(expected = "which has no socket transport")]
+    fn a_socket_leg_for_sql_server_stops_the_run() {
+        let _ = endpoint_from(env(&[
+            ("NVS_DB_MATRIX_DRIVER", "mssql"),
+            ("NVS_DB_MATRIX_SOCKET", "/var/run/mssql.sock"),
+            ("NVS_DB_MATRIX_PORT", "51433"),
+        ]));
+    }
+
     /// SQLite is the driver with no wire, so it reads a path and none of the
     /// server fields — not the anchor either, since a file handle has nothing
-    /// to verify. Asserted by giving it a full set of them and checking that
-    /// what comes back carries only the file.
+    /// to verify, and not a socket, since its own path *is* the database.
+    /// Asserted by giving it a full set of them and checking that what comes
+    /// back carries only the file.
     #[test]
     fn sqlite_reads_a_path_and_no_server_fields() {
         let found = endpoint_from(env(&[
@@ -242,6 +386,7 @@ mod tests {
             ("NVS_DB_MATRIX_PATH", "/tmp/novis-matrix.db"),
             ("NVS_DB_MATRIX_HOST", "127.0.0.1"),
             ("NVS_DB_MATRIX_PORT", "not-a-port"),
+            ("NVS_DB_MATRIX_SOCKET", "/var/run/mysqld/mysqld.sock"),
             ("NVS_DB_MATRIX_CA", "/tmp/novis-matrix/ca.crt"),
         ]))
         .expect("a named driver is an endpoint");
