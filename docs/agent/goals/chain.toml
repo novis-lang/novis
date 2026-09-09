@@ -467,6 +467,24 @@ handoff = "docs/agent/goals/36-resource-ceilings.handoff.md"
 milestone = "M6"
 preflight = "docker"
 
+# M6's other half, and it is placed after goal 36 rather than before it because it is priority 4
+# against that goal's priority 1: this is the simplicity of the surface, not request isolation. It
+# closes the gap between what `nvs.toml` *parses* and what anything reads -- 174 leaf keys under
+# `deny_unknown_fields`, of which a hand-audit found nine that reach no reader at all -- and it makes
+# the tree inspectable by writing it down, so a deployment on the shipped defaults has a file saying
+# so instead of a rulebook chapter. The two halves are one goal because a generated file documenting
+# every key is a promise about every key: it cannot be written until each one is implemented or says
+# what is missing, and the audit has nowhere to publish its answer until the file exists. Its
+# keystone is goal 27's applied a third time -- a fact gains a tag beside the thing it is about, and
+# a gate fails on an untagged one -- so a key cannot land unread again.
+[[goal]]
+name = "37 config-is-written"
+md = "docs/agent/goals/37-config-is-written.md"
+toml = "docs/agent/goals/37-config-is-written.toml"
+handoff = "docs/agent/goals/37-config-is-written.handoff.md"
+milestone = "M6"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
