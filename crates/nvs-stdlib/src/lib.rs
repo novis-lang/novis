@@ -231,6 +231,7 @@ mod jwt;
 mod log;
 mod mail;
 pub mod math;
+mod mime;
 mod multipart;
 mod net;
 mod objmap;
@@ -389,6 +390,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| log::address(symbol))
         .or_else(|| mail::address(symbol))
         .or_else(|| math::address(symbol))
+        .or_else(|| mime::address(symbol))
         .or_else(|| net::address(symbol))
         .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))

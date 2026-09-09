@@ -1693,6 +1693,12 @@ pub const CLASSES: &[CoreClass] = &[
     // `rule:core-classes/decompression-bound`'s bound is policy, and a policy
     // a program can decline is not one — see [`crate::compress`].
     crate::compress::CLASS,
+    // § 17's detection class, beside the codec class for the reason both are
+    // Tier 0: what a program is allowed to conclude about untrusted octets is
+    // policy. Its whole knowledge is a compiled-in table of literal
+    // signatures — [`crate::mime`] owns why that is not libmagic's rule
+    // language, and why nothing here reads a file name.
+    crate::mime::CLASS,
     // `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
     // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
@@ -2387,6 +2393,11 @@ pub const ENUMS: &[CoreEnum] = &[
     // subsystem: a format chosen at the call site is a closed enum, never a
     // name in a string that a run-time comparison has to validate.
     crate::compress::CODEC,
+    // The answer `Core\Mime::detect` gives, whose zero case is `Unknown`: a
+    // detection that cannot say is an ordinary case rather than an error, and
+    // a closed one so a caller never compares against a media-type spelling
+    // that occurs nowhere.
+    crate::mime::TYPE,
     crate::log::LEVEL,
     crate::env::MODE,
     crate::router::METHOD,
