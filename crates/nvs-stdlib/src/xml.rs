@@ -983,24 +983,30 @@ const _: () = assert!(KIND.cases.len() == Kind::ALL.len());
 /// ordinary code over owned strings and the whole of it is dropped before the
 /// member returns. What each field means per [`Kind`] is on the member cards
 /// above, which are what a program reads.
+///
+/// **This type is the boundary `rule:core-classes/html-parsing`'s one-node-family
+/// clause is enforced at.** [`crate::html`]'s WHATWG parse builds these and
+/// nothing else, so the two doors cannot drift into two families: a node HTML
+/// could produce that XML could not would have to be a sixth [`Kind`], and
+/// there is no sixth. It is `pub(crate)` for exactly that one caller.
 #[derive(Debug)]
-struct Parsed {
+pub(crate) struct Parsed {
     /// Which of the five this is.
-    kind: Kind,
+    pub(crate) kind: Kind,
     /// An element's tag name or a processing instruction's target.
-    name: String,
+    pub(crate) name: String,
     /// The character data this node carries itself.
-    text: String,
+    pub(crate) text: String,
     /// An element's attributes, in written order.
-    attributes: Vec<(String, String)>,
+    pub(crate) attributes: Vec<(String, String)>,
     /// This node's children, in document order.
-    children: Vec<Parsed>,
+    pub(crate) children: Vec<Parsed>,
 }
 
 impl Parsed {
     /// An empty node of `kind` — every field is filled by the reader that
     /// produced it, and the ones a kind does not use stay empty.
-    fn new(kind: Kind) -> Self {
+    pub(crate) fn new(kind: Kind) -> Self {
         Self {
             kind,
             name: String::new(),
@@ -1723,16 +1729,72 @@ fn parse(document: &str) -> Result<Parsed, String> {
     Reader::new(document).document()
 }
 
+/// One node part-way through becoming a [`NODE`] instance: the node itself with
+/// its children taken off it, the ones still to be built, and the ones already
+/// built.
+///
+/// [`instance_of`]'s stack frame, in the heap where it costs nothing but bytes.
+#[derive(Debug)]
+struct Building {
+    /// The node, with [`Parsed::children`] emptied into [`Self::pending`].
+    node: Parsed,
+    /// The children not yet built, innermost-last so a pop takes the next one
+    /// in document order.
+    pending: Vec<Parsed>,
+    /// The children already built, in document order.
+    built: NvsArray,
+}
+
+impl Building {
+    /// `node` with its children moved into the two lists.
+    fn new(mut node: Parsed) -> Self {
+        let mut pending = std::mem::take(&mut node.children);
+        pending.reverse();
+        Self {
+            node,
+            pending,
+            built: NvsArray::new(),
+        }
+    }
+}
+
 /// One [`Parsed`] subtree as the [`NODE`] instance a program holds.
 ///
-/// Recursive, and bounded by [`DEPTH_CEILING`] because that is what the reader
-/// already refused past — so the depth here is the document's, not an
-/// attacker's choice.
-fn instance_of(node: Parsed) -> Value {
-    let mut children = NvsArray::new();
-    for child in node.children {
-        children.append(instance_of(child));
+/// **Iterative, over a heap stack rather than the native one**, and that is the
+/// whole reason it is written this way: [`DEPTH_CEILING`] is a thousand and a
+/// task's stack is `nvs_host::TASK_STACK_SIZE`, which a frame per node exhausts
+/// before the ceiling is reached — so a document nested a thousand deep took
+/// the process down instead of being refused, which is a crash rather than the
+/// bound. `Vec` grows on the heap, where the request's own memory limit already
+/// accounts for it.
+///
+/// Depth is still bounded, by the reader that refused a document past the
+/// ceiling and by [`crate::html`]'s parse flattening one past it — this
+/// function is simply no longer the thing that has to survive the bound being
+/// wrong.
+pub(crate) fn instance_of(node: Parsed) -> Value {
+    let mut stack = vec![Building::new(node)];
+    loop {
+        let top = stack
+            .last_mut()
+            .expect("the loop returns the moment the last frame is popped");
+        if let Some(next) = top.pending.pop() {
+            stack.push(Building::new(next));
+            continue;
+        }
+        let done = stack
+            .pop()
+            .expect("the frame just read back is still the last one");
+        let value = built(done.node, done.built);
+        match stack.last_mut() {
+            Some(parent) => parent.built.append(value),
+            None => return value,
+        }
     }
+}
+
+/// One node with its children already built, as the [`NODE`] instance.
+fn built(node: Parsed, children: NvsArray) -> Value {
     let mut attributes = NvsArray::new();
     for (name, value) in node.attributes {
         attributes.set(
