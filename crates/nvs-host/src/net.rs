@@ -1,6 +1,7 @@
 //! The parking stream: a plain `Read` and `Write` that hands the core back
-//! instead of blocking it, over TCP or over a Unix-domain socket — and
-//! [`NvsListener`], the accepting half that parks on the same four functions.
+//! instead of blocking it, over TCP or over a Unix-domain socket —
+//! [`NvsListener`], the accepting half that parks on the same four functions,
+//! and [`NvsUdp`], which parks on them a whole datagram at a time.
 //!
 //! `rule:concurrency/try-the-syscall-then-park`
 //! is this module's specification, and its one sentence is the whole shape:
@@ -87,6 +88,11 @@
 //! Decided and recorded here rather than in an ADR, under the goal's standing
 //! decisions; what it was chosen over is a second concrete type carrying its
 //! own copy of the four functions that do the waiting.
+//!
+//! [`NvsUdp`] is the third alias and the one that shows what the generic is
+//! actually over: it is not a stream at all, so it carries no `Read` and no
+//! `Write`, and what it shares is the *waiting* — the same registration, the
+//! same deadline, the same suspend — under `send_to` and `recv_from` instead.
 //!
 //! Those four are `wait_until_ready`, `arm`, `unregister` and
 //! `block_until_ready`, and between them they hold every rule in this module:
@@ -473,6 +479,110 @@ fn lost_in_the_backlog(err: &io::Error) -> bool {
             | io::ErrorKind::ConnectionAborted
             | io::ErrorKind::ConnectionReset
     )
+}
+
+/// The parking datagram socket — the same four functions, waited on a whole
+/// message at a time.
+///
+/// An alias like [`NvsTcp`], for the reason this module's docs § *One type over
+/// the source* gives: what a datagram changes is the syscall each wait wraps and
+/// not the waiting. What it does not get is [`Read`] and [`Write`], because a
+/// datagram socket has no stream to read — every send names an address and every
+/// receive answers with one, which is why the two members below are inherent
+/// rather than the two traits everything else here is reached through.
+pub type NvsUdp = NvsStream<mio::net::UdpSocket>;
+
+impl NvsStream<mio::net::UdpSocket> {
+    /// Binds a datagram socket to `addr`.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the address — already in use, or not one of this
+    /// host's.
+    pub fn bind(addr: SocketAddr) -> io::Result<Self> {
+        Ok(Self::new(mio::net::UdpSocket::bind(addr)?))
+    }
+
+    /// Takes over a `std` socket, switching it to non-blocking first.
+    ///
+    /// [`NvsTcp::from_std`]'s case, reached the same way: the socket is bound —
+    /// and its options chosen — before the core that will wait on it exists.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the mode change.
+    pub fn from_std(socket: std::net::UdpSocket) -> io::Result<Self> {
+        socket.set_nonblocking(true)?;
+        Ok(Self::new(mio::net::UdpSocket::from_std(socket)))
+    }
+
+    /// The address this socket is bound to.
+    ///
+    /// # Errors
+    ///
+    /// The platform's answer for a socket it no longer holds.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.local_addr()
+    }
+
+    /// Sends one datagram to `target`, parking the task while the socket will
+    /// not take it.
+    ///
+    /// `rule:concurrency/try-the-syscall-then-park` in the order everything here
+    /// takes it, and a send is the case that most often needs no reactor at all:
+    /// a socket whose transmit queue has room answers immediately, and the queue
+    /// is only full under a burst.
+    ///
+    /// One call is one datagram and there is no partial send: a message too
+    /// large for the path is refused rather than split, so the returned count is
+    /// `buf.len()` on every success and is returned rather than asserted because
+    /// it is what the platform said.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own — a message over the maximum size among them — or
+    /// `TimedOut` once this socket's deadline has passed.
+    pub fn send_to(&mut self, buf: &[u8], target: SocketAddr) -> io::Result<usize> {
+        loop {
+            match self.inner.send_to(buf, target) {
+                Ok(sent) => return Ok(sent),
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    self.wait_until_ready(Interest::WRITABLE)?;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    /// Receives one datagram, parking the task while none is waiting, and
+    /// answers what arrived together with who sent it.
+    ///
+    /// A datagram is delivered whole or not at all, so a buffer shorter than the
+    /// message keeps the bytes that fit and **the rest are gone**: there is no
+    /// second call that returns the tail, which is the difference from a stream
+    /// and is the caller's to size for.
+    ///
+    /// # Errors
+    ///
+    /// The socket's own, or `TimedOut` once this socket's deadline has passed.
+    /// Windows adds one that has nothing to do with the wait: after a datagram
+    /// this socket sent draws an ICMP port-unreachable, the *next* receive
+    /// reports `ConnectionReset` for it. It is reported rather than swallowed —
+    /// a datagram socket has no connection to reset, so the error is genuinely
+    /// about a send and belongs to the caller that made it.
+    pub fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        loop {
+            match self.inner.recv_from(buf) {
+                Ok(arrived) => return Ok(arrived),
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    self.wait_until_ready(Interest::READABLE)?;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
 }
 
 /// The parking stream over a Unix-domain socket — the same contract, the same
@@ -2003,6 +2113,114 @@ mod tests {
         assert!(
             !server.is_parked_on(),
             "a blocking wait left a reactor registration behind"
+        );
+    }
+
+    /// A bound datagram socket and the plain `std` peer a test speaks to it
+    /// with.
+    fn bound_pair() -> (NvsUdp, std::net::UdpSocket, SocketAddr) {
+        let socket = NvsUdp::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = socket.local_addr().expect("a bound socket had no address");
+        let peer = std::net::UdpSocket::bind("127.0.0.1:0").expect("the OS refused a port");
+        (socket, peer, addr)
+    }
+
+    /// The datagram half of the same contract: a receive with nothing waiting
+    /// registers and parks, the reactor is what ends the park, and the reply
+    /// goes back out over the socket the park was taken on.
+    #[test]
+    fn a_udp_socket_registers_with_the_reactor_and_parks_the_coroutine() {
+        let (mut socket, peer, addr) = bound_pair();
+        let peer_addr = peer.local_addr().expect("a bound socket had no address");
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let registered = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&registered);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 16];
+            let (read, from) = socket.recv_from(&mut buf).expect("the receive failed");
+            assert_eq!(&buf[..read], b"ping");
+            assert_eq!(from, peer_addr, "the datagram named the wrong sender");
+            counted.set(usize::from(socket.is_parked_on()));
+            socket
+                .send_to(b"pong", from)
+                .expect("the reply could not be sent");
+        });
+
+        // The task runs into the receive, finds nothing and parks — which is
+        // where the registration has to already exist, `rule:concurrency/the-reactor-reports-readiness`
+        // rule 1.
+        let turn = sched.run();
+        assert_eq!(turn.parked, 1, "a receive with no datagram waiting ran on");
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(1),
+            "the parked receive filed no registration to be woken by"
+        );
+
+        peer.send_to(b"ping", addr).expect("the send failed");
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(
+            registered.get(),
+            1,
+            "the receive that came back out of a park had dropped its registration"
+        );
+        let mut reply = [0_u8; 16];
+        let (read, from) = peer.recv_from(&mut reply).expect("no reply arrived");
+        assert_eq!(&reply[..read], b"pong");
+        assert_eq!(from, addr, "the reply came from the wrong socket");
+    }
+
+    /// The park is a suspension and not a retry loop: with the socket empty the
+    /// task is off the run queue, nothing resumes it, and the poller waits out
+    /// its whole timeout rather than reporting a readiness to spin on.
+    #[test]
+    fn a_udp_read_with_no_datagram_waiting_suspends_rather_than_spinning() {
+        let (mut socket, peer, addr) = bound_pair();
+        let mut sched = Scheduler::new();
+        let _installed = install(Reactor::new().expect("the OS refused a poll"));
+
+        let reads = Rc::new(Cell::new(0_usize));
+        let counted = Rc::clone(&reads);
+        sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
+            let mut buf = [0_u8; 16];
+            let (read, _) = socket.recv_from(&mut buf).expect("the receive failed");
+            assert_eq!(&buf[..read], b"late");
+            counted.set(counted.get() + 1);
+        });
+
+        assert_eq!(sched.run().parked, 1, "the receive did not park");
+        // Two turns of the loop with the socket still empty. A receive that
+        // retried instead of suspending would take a resume in one of them, and
+        // a poller reporting a readiness nobody can use would wake a task.
+        for _ in 0..2 {
+            let turn = sched.run();
+            assert_eq!(turn.resumes, 0, "an empty socket resumed the parked task");
+            let woken = with_current(|reactor| {
+                reactor
+                    .poll(Some(Duration::from_millis(5)))
+                    .expect("the poll failed")
+                    .len()
+            })
+            .expect("no reactor is installed");
+            assert_eq!(woken, 0, "an empty socket reported itself readable");
+            assert_eq!(
+                sched.ready_count(),
+                0,
+                "the parked task went back on the run queue"
+            );
+        }
+        assert_eq!(reads.get(), 0, "the receive answered with nothing sent");
+
+        peer.send_to(b"late", addr).expect("the send failed");
+        run_until_idle(&mut sched).expect("the loop failed");
+        assert_eq!(reads.get(), 1, "the datagram never reached the parked task");
+        assert_eq!(
+            with_current(|reactor| reactor.registrations()),
+            Some(0),
+            "the finished task left its registration behind"
         );
     }
 }

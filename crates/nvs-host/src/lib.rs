@@ -54,8 +54,10 @@
 //! are `std::io`'s own and which parks instead of blocking, `rule:concurrency/try-the-syscall-then-park`. Its
 //! module doc owns the try-then-park order and what a repeat park costs. There
 //! is one such type and not one per socket family — [`NvsStream`] is generic
-//! over what it parks on, and `NvsUnix` is the same type over a local socket;
-//! `net`'s docs § *One type over the source* own that call.
+//! over what it parks on, `NvsUnix` is the same type over a local socket, and
+//! [`NvsUdp`] is it again over a datagram one, waiting the same way under
+//! `send_to` and `recv_from` instead of the two traits; `net`'s docs § *One
+//! type over the source* own that call.
 //!
 //! What a task *costs* is [`stack`]: [`TASK_STACK_SIZE`] of reserved address
 //! space per task, resident only in the pages its handler touched, pooled per
@@ -118,7 +120,7 @@ pub use group::SchedulerHost;
 pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
 #[cfg(unix)]
 pub use net::NvsUnix;
-pub use net::{NvsListener, NvsStream, NvsTcp};
+pub use net::{NvsListener, NvsStream, NvsTcp, NvsUdp};
 pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,
