@@ -1215,15 +1215,17 @@
     },
     {
       "id": "config/net-local-is-named-and-not-on-the-roster",
-      "title": "A program-supplied socket path needs `net.local`, a path-scoped grant that is named and not yet on the roster",
+      "title": "A program-supplied socket path needs `net.local`, a path-scoped grant carrying no address policy and governing both ends",
       "status": "designed",
       "because": [
-        "0142"
+        "0142",
+        "0162"
       ],
       "seeAlso": [
         "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
-        "security/capability-roster-is-closed",
+        "security/net-listen-is-a-separate-grant-from-net-connect",
         "security/path-scope-canonicalise-then-prefix",
+        "security/a-path-is-not-a-url",
         "security/net-address-policy"
       ],
       "guardedBy": []

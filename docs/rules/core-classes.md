@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*25 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
+*28 of 77 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1879,3 +1879,81 @@ compare bytes ends up comparing nothing.
 **Not shipped.** There is no spreadsheet package in the tree.
 
 <sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>
+
+<a id="core-classes-net-one-api-three-transports"></a>
+
+## `Core\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor  *(designed — not yet in the compiler)*
+
+`rule:core-classes/net-one-api-three-transports`
+
+`Core\Net` is the whole socket surface, replacing PHP's `socket_*`, `stream_socket_*` and `fsockopen`
+with one class over three transports: TCP, UDP and Unix-domain sockets. A program reaches them through
+five entry points — an outbound TCP connection, a listening TCP socket, a bound UDP socket, an
+outbound Unix-domain connection and a listening Unix-domain socket — and accepting is a member on the
+listener rather than a sixth way in.
+
+**No entry point decides between transports by reading its argument.** A host and a socket path are
+separate members taking separately-typed arguments, so [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url)'s refusal —
+no member dispatches on the textual content of a path — holds by construction rather than by a check.
+That is why the surface is five members where PHP has two: `stream_socket_client("unix://…")` and
+`stream_socket_client("tcp://…")` are one function distinguished by a prefix, and the second member is
+the security property.
+
+Every one of those sockets parks on the runtime's own reactor. `crates/nvs-host/src/net.rs` is the
+contract they share — a `Read` and a `Write` that hand the core back instead of blocking it — and
+`crates/nvs-host/src/reactor.rs` is its readiness half. A second event loop is never the answer: it
+would be a second poll structure whose fairness, shutdown, deadline and drain semantics must be made
+to agree with the reactor's by hand, and whose disagreements appear only under load, which is what
+[`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) refuses for the scheduler on the same ground. A shape that cannot be
+expressed over the reactor is cut, not given a loop of its own.
+
+The connected transports answer a `Read` and a `Write` shaped like every other stream in the language.
+A datagram socket does not, because it has no stream to read: it sends and receives whole messages,
+addressed one at a time.
+
+<sub>See also [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`core-classes/net-udp-carries-no-reliability-layer`](core-classes.md#core-classes-net-udp-carries-no-reliability-layer). Decided in [0162](../decisions/0162.md).</sub>
+
+<a id="core-classes-net-a-socket-does-not-outlive-its-request"></a>
+
+## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests  *(designed — not yet in the compiler)*
+
+`rule:core-classes/net-a-socket-does-not-outlive-its-request`
+
+A socket opened through `Core\Net` closes with the request that opened it. There is no persistent
+connection, no pool held across requests and no handle a later request can find, which is
+[`security/no-cross-request-state`](security.md#security-no-cross-request-state) applied to the one subsystem whose PHP ancestor offered the
+opposite: `pfsockopen`'s whole purpose was a connection that outlived the script, and its row in the
+migration table is a member whose persistent half is dropped.
+
+What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one reactor registration per open socket,
+attributable to the request that opened it and released with its arena. The process therefore holds
+one registration per socket **in flight** and nothing per socket served, which is the O(in-flight)
+bound that separates a cost from a leak.
+
+A program that wants a connection to survive a request wants a store, and the stores are the ones
+already granted by name — [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)'s shared
+cache and [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s database — where the endpoint is an operator's and the
+lifetime is the runtime's.
+
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0162](../decisions/0162.md).</sub>
+
+<a id="core-classes-net-udp-carries-no-reliability-layer"></a>
+
+## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them  *(designed — not yet in the compiler)*
+
+`rule:core-classes/net-udp-carries-no-reliability-layer`
+
+A `Core\Net` datagram socket sends and receives messages, reports what it sent and what arrived, and
+offers nothing above that: no ordering, no retransmission, no fragmentation and no acknowledgement. A
+datagram that is lost is lost, and a program that cannot tolerate that wants TCP.
+
+The refusal is written down because the pressure to add "just a retry" is constant and its result is
+always the same — a reliability layer nobody specified, whose failure modes belong to the library
+while the timing budget it spends belongs to the program. A protocol that genuinely provides reliable
+datagrams is a protocol, placed by [`core-api/tier-placement`](core-api.md#core-api-tier-placement) like any other, and Tier 0 is not
+where it lands.
+
+A program that builds ordering or retries over this surface is making that choice explicitly, which is
+the point: the trade is visible in the program rather than hidden in a member's contract.
+
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0162](../decisions/0162.md).</sub>

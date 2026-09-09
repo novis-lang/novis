@@ -771,7 +771,7 @@ inclusion bug into a remote one. There is no opt-in and no reduced form.
 | `stream_socket_client` | member | `Core\Net` ([01 § 16](01-core-library.md)), over the runtime's own reactor rather than a second event loop |
 | `stream_socket_server` | member | `Core\Net` |
 | `stream_socket_accept` | member | `Core\Net` |
-| `stream_socket_pair` | member | `Core\Net` |
+| `stream_socket_pair` | dropped | a connected pair of anonymous sockets exists to be handed to a forked child, and `pcntl` is dropped. The one process boundary Novis has is an isolate, which shares nothing (`rule:security/isolate-shares-nothing`) and so cannot receive a descriptor |
 | `stream_socket_get_name` | member | `Core\Net` |
 | `stream_socket_recvfrom` | member | `Core\Net` |
 | `stream_socket_sendto` | member | `Core\Net` |

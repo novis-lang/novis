@@ -1,6 +1,5 @@
-When `Core\Net` lands, a program will want to connect to a socket path directly, and the restriction
-in `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` has to give. The shape that
-answers it is a **separate** capability, `net.local`, asked at `Scope::Path` under
+A program that supplies a socket path — connecting to one or binding one — needs `net.local`, a
+capability **separate** from `net.connect`, asked at `Scope::Path` under
 `rule:security/path-scope-canonicalise-then-prefix`, whose entries are absolute paths or directory
 prefixes and which carries no address policy because there is no address:
 
@@ -9,12 +8,18 @@ prefixes and which carries no address policy because there is no address:
 local = ["/run/redis.sock", "/var/run/mysqld/"]
 ```
 
-It is named and **not added to the roster**, because the roster is closed on purpose
-(`rule:security/capability-roster-is-closed`) and a capability with no caller is a row that cannot be
-exercised. Naming it buys the thing an unwritten decision usually fails to buy: whoever writes
-`Core\Net` finds the answer rather than the question.
+**It governs both ends of a path.** Binding one is granted the same way as connecting to one: a
+program that may create a socket at a path is a program that whatever else on the host finds it may
+speak to, and a path the operator did not name is one they cannot have intended.
 
 It is deliberately not `net.connect` widened to admit paths. That grant's whole documented character
 is that it carries an address policy (`rule:security/net-address-policy`), and entries of two kinds
 under one name — hosts governed by a table, paths governed by nothing — is one name covering two
-guarantees.
+guarantees. The general form of that separation is
+`rule:security/net-listen-is-a-separate-grant-from-net-connect`: the grant follows what the program is
+doing rather than the transport it does it over.
+
+`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` is unaffected and stays exactly
+as strict. `Core\Net::connect` still may not take a path, because it is not the member that takes one —
+a host and a path are separately-typed arguments to separate members, which is
+`rule:security/a-path-is-not-a-url` holding by construction rather than by a check.

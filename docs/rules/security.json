@@ -612,12 +612,14 @@
         "0058",
         "0118",
         "0142",
-        "0067"
+        "0067",
+        "0162"
       ],
       "seeAlso": [
         "security/outbound-url-is-a-sink",
         "security/the-policy-lives-in-the-capability",
         "security/capability-question-is-grant-and-scope",
+        "security/net-listen-is-a-separate-grant-from-net-connect",
         "core-classes/db-capabilities"
       ],
       "guardedBy": [
@@ -625,6 +627,21 @@
         "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst",
         "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst"
       ]
+    },
+    {
+      "id": "security/net-listen-is-a-separate-grant-from-net-connect",
+      "title": "The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other",
+      "status": "designed",
+      "because": [
+        "0162"
+      ],
+      "seeAlso": [
+        "security/net-address-policy",
+        "config/net-local-is-named-and-not-on-the-roster",
+        "security/capability-roster-is-closed",
+        "core-classes/net-one-api-three-transports"
+      ],
+      "guardedBy": []
     },
     {
       "id": "security/the-policy-lives-in-the-capability",

@@ -13,3 +13,9 @@ because an operator writing a whole `/8` hands back most of the table without na
 The one class of address it does not govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — that address is not attacker-influenceable, and applying the
 policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
+
+"Connection" here means every outbound destination, not only a connected stream: a `Core\Net` datagram
+sent to an address the program supplied is asked the same question at the send that a TCP connect is
+asked at the connect. What the table does **not** govern is a *bind*, whose terms invert —
+`rule:security/net-listen-is-a-separate-grant-from-net-connect` is that grant and says why it carries
+no policy of its own.
