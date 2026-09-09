@@ -2124,6 +2124,22 @@ impl<'a> Lowering<'a> {
     /// given on the command line — so the rendered trace is byte-for-byte
     /// identical on every platform. `<line>` is the enclosing statement's,
     /// from the span `rule:testing/debug-probes`'s per-statement id already carries.
+    ///
+    /// **This is a backtrace spelling, and it is not what
+    /// `rule:errors/a-record-names-where-it-was-produced`'s `source` is built
+    /// from.** The three inputs are the ones `nvs_render::Source` asks for and
+    /// they are already together here, so that rule's datum comes from these
+    /// same [`Self::fn_label`], source name and [`Self::cur_stmt_span`] rather
+    /// than from a second position table — but from the inputs, never from
+    /// this string, for three reasons. It is rendered, and an envelope carries
+    /// content rather than presentation (`rule:errors/diagnostic-record`), so
+    /// a reader wanting the file alone would have to parse it back apart. Its
+    /// leading half is a *frame* name rather than a member: a script frame's
+    /// is `script` or [`file_script_label`]'s `file#<id>$script`, exactly
+    /// where `Source::member` is `None`. And it exists only where a landing
+    /// block does, reaching compiled code through [`Terminator::Propagate`]
+    /// alone, so a producer called from a statement that needs no error path
+    /// has no constant here at all and gets one emitted at its own call.
     pub(crate) fn frame_label(&self) -> String {
         let (line, _) = self.src.line_col(self.cur_stmt_span.start);
         format!("{}() at {}:{}", self.fn_label, self.src.name(), line + 1)
