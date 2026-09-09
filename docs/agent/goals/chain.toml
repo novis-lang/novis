@@ -320,10 +320,9 @@ retired = true
 [[goal]]
 name = "39 record-origin"
 md = "docs/agent/goals/39-record-origin.md"
-toml = "docs/agent/goals/39-record-origin.toml"
-handoff = "docs/agent/goals/39-record-origin.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # The user's, after asking how an agent will write a language no model has distilled. Every entry
 # after this one is a consumer: a session writing a `.nvst` case or an example greps the spec for

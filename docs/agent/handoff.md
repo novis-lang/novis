@@ -2,43 +2,55 @@
 
 ## State
 
-**Goal 39 is closed.** Stage 3 landed the log target's window and stage 4 flipped the rulebook, so
-both of the goal's rules are `shipped`: `rule:errors/a-record-names-where-it-was-produced` and
-`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+**Goal 40 — An agent learns Novis from the binary, in three calls — has just started; nothing of it
+has landed yet.** Goal 39's whole list is this goal's Stage 1 floor.
 
-`Core\Log::write` coalesces through `crates/nvs-runtime/src/floor.rs`'s fixed table —
-`LOG_WINDOW_SLOTS` slots, scanned rather than indexed so two records can never collide into one,
-evicting a free slot first and then the window nearest to closing. The floor keeps its single slot
-and `COALESCING_WINDOW` unchanged, and both sinks share one `key`, so what counts as the same record
-is decided once for both. Nothing touches the debug stream ([0165](../decisions/0165.md) § 3).
+The design is settled and frozen: [0167](../decisions/0167.md) holds it, and the goal's
+§ *Standing decisions* names every tradeoff a session would otherwise stop on. Three things a session
+must not re-decide:
 
-The coalescing is visible to any test that writes one record twice, which is what the playbook
-bullet is for: two `-p nvs-stdlib` envelope-shape tests wrote one message across three contexts and
-now give each write its own message.
+- **`nvs agent`, not an extension of `nvs doc`.** A symbol is not a path, and `nvs doc` takes one
+  positionally.
+- **No per-member capability field.** `rule:security/capability-declaration-is-one-table` refuses
+  that shape for a security-review reason, and stage 2 joins against the table at render time
+  instead. The table itself is read and never edited.
+- **Nothing cached, nothing written to disk** by the four read verbs. An answer that can be stale is
+  the failure the surface exists to remove.
+
+Stage 0 is an audit and is cheap: two `tooling` rules are marked `designed` over surface the binary
+appears to ship (`nvs doc <entry> --out <dir>` writes pages today; `nvs meta --json <entry>` emits a
+`program` key today), and one `shipped` rule — `security/capability-declaration-is-one-table` — names
+two renderers that do not exist. Confirm each against the binary before stage 2 builds on it.
 
 ## Next group
 
-**Stage 3 follow-on: the member's own coverage, which the six unit tests reach only through
-`nvs-runtime`** — one file set: `crates/nvs-stdlib/src/log.rs`, `tests/conformance/core/`. A goal
-switch overwrites this file, so this group holds only if the driver stays on goal 39.
+**Stage 0 then stage 2** — one file set: `crates/nvs-cli/src/{main,meta}.rs`, reading
+`crates/nvs-stdlib/src/registry.rs`. Stage 0 is an audit with no edit outside the rulebook, so it is
+cheap to take in front of the keystone rather than in a session of its own.
 
-- [ ] **A `-p nvs-stdlib` test drives `Core\Log::write` through the table** —
-      `crates/nvs-stdlib/src/log.rs:572` is `written`, the helper that calls the member for real, and
-      `crates/nvs-runtime/src/floor.rs:407` is `expire_log_windows`. Assert that the second identical
-      write buffers nothing and that the next one after the window closes carries `count`, which no
-      test asserts of the member itself today.
-      `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
-- [ ] **A conformance case for one line where a program wrote two** —
-      `tests/conformance/core/log-write-renders-one-json-line-per-record.nvst:9` is the shape to
-      write beside: one message written twice inside the window is one line, and a message differing
-      only in its own `source` line is a second one.
-      `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+- [ ] **Audit the three rules named above** against the release binary — `nvs doc`, `nvs meta --json
+      <entry>`, and whether any renderer reads `CAPABILITIES`. Flip the `designed` ones that hold;
+      write down, and leave `designed`, any that does not.
+- [ ] **`crates/nvs-cli/src/meta.rs`** — the document gains a `capabilities` roster rendered from
+      `crates/nvs-stdlib/src/registry.rs`'s `CAPABILITIES`: class, member, capability. A seventh
+      top-level key beside `exceptions`, `interfaces`, `attributes` and `directives`. No field is
+      added to a member row.
+- [ ] **`crates/nvs-cli/src/agent.rs`** (new) with `index`, and `crates/nvs-cli/src/main.rs:186`'s
+      `Command` enum gaining `Agent`. One line per member joined to that roster, so
+      `Core\IO::read(string $path): string  [fs.read]` is what a line looks like.
+- [ ] **`find` and `show`** beside it, if the group still has room — same file, and the tests for all
+      three are one `-p nvs-cli` run.
 
 ## Backlog
 
-- Read-time grouping for the debug stream is [0163](../decisions/0163.md)'s ingester and viewer, and
-  deliberately not this bound — `docs/decisions/0165.md` § 3.
-- A per-call-site rate limit is the only thing that would make a hot loop cheap rather than quiet,
-  and nothing has measured for it — `docs/agent/loop-goal.md` § *Standing decisions*.
-- `[log] format` is still unread at run time, so JSON Lines is the single answer —
-  `crates/nvs-runtime/src/floor.rs`'s module doc.
+- **Stage 3, the primer** — `crates/nvs-cli/src/agent.rs`, `docs/reference/lang/*.md` markers and
+  `tools/reference.py`. Shares one file with the group above and adds two; take it next.
+- **Stage 4, the two diagnostics** — `crates/nvs-hir/src/members.rs:1014` and
+  `crates/nvs-runtime/src/capability.rs:109`. Shares nothing with the rest of this goal; it is a
+  session of its own and that is the right outcome.
+- **Stage 5, the install** — `crates/nvs-cli/src/agent.rs` again, plus a new
+  `docs/reference/tools/50-agents.md`.
+- **Stage 6, the rulebook** — including `rule:tooling/meta-json`'s "Four rosters" sentence, which
+  stage 2 makes five and which stays true until then.
+- When this goal's last check goes green the driver takes goal 26.
+  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.

@@ -1,116 +1,177 @@
-# Loop goal 39 — A record names the line it came from, and a repeat is bounded at the sink that suffers
+# Loop goal 40 — An agent learns Novis from the binary, in three calls
 
-Every developer-facing record says **where it was produced** — file, line, and enclosing member — so
-a reader can open an editor at the right place instead of guessing from a message.
-`Throwable::$location` stops being the empty string it is set to today, filled from that same datum
-rather than a second spelling of it. And a request that logs in a loop stops being able to fill the
-disk that a request which *faults* in a loop already cannot, because the log target gains the
-coalescing window the engine floor has had all along — sized for interleaved application logging
-rather than for a fault repeating one record.
+An agent that has never seen Novis reads about two thousand tokens once, then pays a few hundred per
+lookup, and writes code that compiles — instead of reading a repository it cannot fit. `nvs agent`
+answers from the registry the binary already carries: a generated primer, one line per member, a
+search over those lines, and one member's card. `nvs agent init` puts a pointer to that surface in a
+user's project, one short file per harness, none of which states a language fact of its own.
 
-It follows goal 38 because both close a gap in shipped surface found in one review and neither
-shares the other's file set, and it precedes everything that would inherit the gap: `Envelope.source`
-is what [0163](../decisions/0163.md)'s viewer exists to show, and it is filled nowhere.
+It sits here, three entries after the live goal, because every goal after it is a consumer: a session
+writing a `.nvst` case or an example currently greps the spec for a member's spelling, and this
+replaces that with one bounded call. The benefit compounds over everything that follows, which is the
+only argument strong enough to put an entry that *adds* surface in front of ten that close gaps.
 
-Goal 38's whole acceptance list is this goal's floor, and it is never traded.
+Goal 39's whole acceptance list is this goal's floor, and it is never traded.
 
 ## What is wrong today, in one line each
 
-Read out of the tree rather than inferred.
+Read out of the tree rather than inferred. Items 1–3 are what
+[0167](../decisions/0167.md)'s three-arm investigation measured; item 4 is a shipped rule with no
+consumer, found while writing it.
 
-1. **`nvs_render::Source` is defined, named by `rule:errors/diagnostic-record`, and constructed
-   nowhere.** `Envelope.source` is `Option<Source>` and every `Source {` in the workspace belongs to
-   `nvs-db`'s unrelated bind-source type. Stage 2.
-2. **`Throwable::$location` is written as the empty string when the object is built**
-   (`crates/nvs-runtime/src/throwable.rs`, the `LOCATION_SLOT` store). A declared, readable property
-   that always answers `""` looks as though it says something. Stage 2.
-3. **`Envelope.count` is filled only by the floor.** `crates/nvs-runtime/src/floor.rs` owns the
-   window; `Core\Log::write` renders the same record to the program's own stream and passes it
-   entirely. Stage 3.
-4. **The floor's window is one slot**, and its own comment says why that is enough *there* — a fault
-   loop repeats one record. Application code interleaves, so the same single slot coalesces nothing.
-   Stage 3.
+1. **The complete reference cannot be read.** `docs/novis.md` is ~1.2 MB — more than a context
+   window — and it is correct by construction, which is why the answer is a smaller *selection* and
+   never a second document. Stage 3.
+2. **There is no way to ask for one member.** `nvs meta --json` is ~604 KB and all-or-nothing;
+   `docs/novis.md` is greppable only by someone who already has it on disk. An agent wanting
+   `Core\Str::length`'s card has no call that returns just it. Stage 2.
+3. **An unknown member suggests nothing.** `Core\Str::lenght` reports `E0309` from
+   `crates/nvs-hir/src/members.rs:1014` with no *did you mean*, while the registry holding `length`
+   is in the same process. Stage 4.
+4. **`rule:security/capability-declaration-is-one-table` is `shipped` and names two consumers that do
+   not exist.** It says the metadata command renders `crates/nvs-stdlib/src/registry.rs`'s
+   `CAPABILITIES` and the reference prints it beside a member's card.
+   `crates/nvs-cli/src/meta.rs` never reads the table, `nvs meta --json` has no `capabilities` key
+   beside its six, and `docs/novis.md` prints the word beside no card. Stage 0 and stage 2.
+5. **A capability denial says what happened and not what to do.**
+   `crates/nvs-runtime/src/capability.rs:109` names the member, the capability and the resource, and
+   never names `nvs.toml`. Every arm of the investigation was stopped here, one of them for half its
+   total effort. Stage 4.
 
-## Stage 0 — the catch-up, and how the datum reaches a producer
+## Stage 0 — the catch-up
 
-Nothing on disk contradicts either rule; what exists is the empty-string store in item 2, which
-stage 2 replaces rather than edits around.
+Item 4 above, and only its audit half. Confirm against the tree that the table has no renderer, then
+decide **which document the roster joins** — `nvs meta --json`'s own, as a seventh top-level roster
+beside `exceptions`, `interfaces`, `attributes` and `directives`, which is
+[0167](../decisions/0167.md) § 3's answer and the shape the other four already have.
 
-The open question this stage answers before stage 2 writes anything: **what a producer reads to know
-its call site.** The pattern already exists on the unwind path — `nvs_ir`'s `Terminator::Propagate`
-carries a `frame: String` (`crates/nvs-ir/src/ir.rs`), `crates/nvs-codegen/src/emit.rs` materialises
-it as static bytes in the unit's own data, and `nvs_trace_push` takes it as a pointer and a length.
-This stage reads that label and answers one question: does it already carry file, line and member, or
-does a producer need a sibling constant of its own? The answer is written down either way, because it
-decides stage 2's shape and is the one thing a session must not guess at.
+Two rules in this stretch are marked `designed` while the binary ships them —
+`rule:tooling/nvs-doc-renders-and-decides-nothing` (`nvs doc <entry> --out <dir>` writes a page per
+class today) and `rule:tooling/meta-json-takes-a-program` (`nvs meta --json <entry>` emits the
+`program` key today). Verify each against the binary and flip the ones that hold. A rule that turns
+out not to hold is written down and left `designed`; it is not this goal's work to make it true.
 
-It does **not** answer it by adding a current-location word to `Ctx`
-([0165](../decisions/0165.md) § *Alternatives rejected*): that is a store on every statement to
-serve the rare statement that produces a record.
+Nothing else on disk contradicts this goal's rules — the four they create are new.
 
 ## Stage 1 — the floor
 
-Goal 38's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for
+Goal 39's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for
 anything above it.
 
-## Stage 2 — the keystone: one construction, two readers
+## Stage 2 — the keystone: the registry answers a query
 
-File set: `crates/nvs-stdlib/src/{log,debug}.rs` and `crates/nvs-runtime/src/throwable.rs`, plus
-whatever stage 0 decided the constant is.
+File set: `crates/nvs-cli/src/main.rs:186` (the `Command` enum), `crates/nvs-cli/src/meta.rs`, and a
+new `crates/nvs-cli/src/agent.rs`. `crates/nvs-stdlib/src/registry.rs` is read and not edited.
 
-1. **The call-site constant**, in the shape stage 0 settled — a compile-time value, read at the call
-   that produces a record and never maintained as running state, so no path that produces no record
-   pays for it (`rule:errors/propagation`'s cost, unmoved).
-2. **`crates/nvs-stdlib/src/debug.rs:@record_of`** — fill `Envelope.source` on the record it builds.
-3. **`crates/nvs-stdlib/src/log.rs`** — the same on `Core\Log::write`'s record.
-4. **`crates/nvs-runtime/src/throwable.rs`** — the `LOCATION_SLOT` store takes the same datum instead
-   of `""`. One construction with two readers: two spellings of "where" that could disagree would be
-   worse than one that was missing.
-5. **A producer with no source to give omits the field**, on the envelope's existing rule that an
-   absent field is omitted rather than rendered empty.
+1. **`crates/nvs-cli/src/meta.rs`** — the document gains `capabilities`, the `CAPABILITIES` table
+   rendered as a roster: class, member, capability. Read from
+   `crates/nvs-stdlib/src/registry.rs`; **no field is added to a member row**, which
+   `rule:security/capability-declaration-is-one-table` refuses and this goal does not reopen.
+2. **`crates/nvs-cli/src/agent.rs:@index`** — one line per member, joined to that roster:
+   `Core\IO::read(string $path): string  [fs.read]`. One line per enum with its cases, per exception
+   with its parent, per attribute. Nothing cached, nothing written to disk.
+3. **`crates/nvs-cli/src/agent.rs:@find`** — the index lines matching a query, case-insensitive over
+   the class and member name. It exists because a namespaced name loses its backslash to the shell
+   before `grep` sees it, and the empty result that follows cannot be told from a name that does not
+   exist.
+4. **`crates/nvs-cli/src/agent.rs:@show`** — one member's card: signature, each parameter with its
+   description, the return, what it throws, and its capability. A symbol that resolves to nothing
+   exits non-zero naming the nearest matches rather than printing an empty card.
+5. **`crates/nvs-cli/src/main.rs`** — the `Agent` subcommand and its four verbs, plus `init`, whose
+   body is stage 5's.
 
-No stack is captured, at any producer. Where a trace is active the record already carries `span_id`
-and the trace already has the call events, which is where "how did execution get here" is answered.
+`docs/reference/tools/10-cli.md` gains each command as it lands; that chapter is what puts them in
+`docs/novis.md`.
 
-## Stage 3 — the log target's window
+## Stage 3 — the primer, generated, and every claim in it executed
 
-File set: `crates/nvs-runtime/src/floor.rs` and `crates/nvs-stdlib/src/log.rs`.
+File set: `crates/nvs-cli/src/agent.rs`, `docs/reference/lang/*.md` (markers only), and
+`tools/reference.py`.
 
-The floor keeps its single slot and its `COALESCING_WINDOW` unchanged. The log target gets the same
-mechanism with a **small fixed table** and a trivial eviction, so interleaved records coalesce where
-one slot would catch none of them — memory stays a constant, just a larger one.
+1. **A chapter marks primer material** with a comment on a line of its own, the mechanism
+   `tools/reference.py` already uses for its generated tables — `<!-- primer -->` above a section
+   lifts that section whole. Marking is how a chapter opts in, so a section that stops being true
+   stops being rendered rather than becoming a lie.
+2. **`crates/nvs-cli/src/agent.rs:@primer`** renders, in this order: the lookup protocol; one
+   complete worked program with a typed local, a `foreach` binding, an options bag at a call site
+   and a conversion, each annotated; the capability model and the smallest `nvs.toml` that grants a
+   file read; the refusal table; the chapter map from the chapters' own front matter.
+3. **The content is fixed by what the investigation caught**, and each of these was a wrong guess by
+   an arm that had everything else: the options bag has no call-site spelling anywhere
+   (`{header?: bool}` reads as named parameters and is one `options:` shape argument), a `foreach`
+   binding declares a concrete type and `var` is refused there, and a program that reads a file does
+   not run without a grant.
+4. **Every refusal the primer states is fed to `nvs check` and must be refused; every example runs
+   and must print what the primer says.** The harness is `tools/reference.py`'s, which already does
+   exactly this for `docs/novis.md`'s examples — reuse it rather than writing a second one.
 
-The identity is the floor's `key`: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count`
-cleared before hashing, everything else counting, `source` included — two identical messages from two
-lines are two facts. A record that differs is written immediately and never held behind a window.
+## Stage 4 — the two diagnostics
 
-**Nothing here touches the debug stream.** [0165](../decisions/0165.md) § 3 sends that the other
-way: its bound is an index rather than a disk, so it stores every occurrence and groups at read time.
-Coalescing it at the sink for symmetry would throw away exactly what makes a group expandable.
+File set: `crates/nvs-hir/src/members.rs:1014` and `crates/nvs-runtime/src/capability.rs:109`.
 
-## Stage 4 — the rulebook
+1. **An unknown member suggests the nearest registered name.** Edit distance over the class's own
+   members, one suggestion, and none at all past a threshold — a confident wrong suggestion is worse
+   than none, because the agent will take it.
+2. **A capability denial names where a grant is written**: a `help:` line naming `nvs.toml` and the
+   `[capabilities.fs]` table for the capability that was refused. The message keeps its subject and
+   its wording; this is a line under it.
 
-`rule:errors/a-record-names-where-it-was-produced` and
-`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers` move from `designed` to `shipped` and
-their `guardedBy` names the cases stages 2 and 3 landed.
+## Stage 5 — `nvs agent init`, and the adapters
+
+File set: `crates/nvs-cli/src/agent.rs`, and a new `docs/reference/tools/50-agents.md`.
+
+1. **`nvs agent init`** writes an `AGENTS.md` stanza, and beside it one adapter per harness it finds
+   — a Claude Code skill at `.claude/skills/novis/SKILL.md` when `.claude/` is present. `--all`
+   writes every adapter regardless; re-running is idempotent and refuses to clobber a stanza a user
+   has edited.
+2. **No adapter states a language fact** — not a signature, not a refusal, not a type. Each names the
+   four commands and the `nvs check` loop. This is the whole of
+   `rule:tooling/an-adapter-carries-protocol-and-never-language` and the reason an adapter needs no
+   maintenance when the language changes.
+3. **`docs/reference/tools/50-agents.md`** is the chapter: what the surface is, the install, and a
+   worked session showing the three calls and the check loop. It documents only what stages 2–5
+   landed, and its examples run like every other chapter's.
+4. **This repository installs it too.** `AGENTS.md` gains the stanza, so the loop's own sessions stop
+   grepping the spec for a member's spelling.
+
+## Stage 6 — the rulebook
+
+`rule:tooling/an-agent-asks-the-binary`, `rule:tooling/the-index-is-one-line-per-member`,
+`rule:tooling/a-primer-claim-is-executed` and
+`rule:tooling/an-adapter-carries-protocol-and-never-language` move from `designed` to `shipped`, and
+their `guardedBy` names the cases stages 2–5 landed.
+
+`rule:tooling/meta-json`'s fragment is edited here and not earlier: its body says **"Four rosters the
+compiler declares outside the registry sit beside `classes` and `enums`"**, and stage 2 makes that
+five. The rule is `shipped`, so the sentence stays true until the fifth exists.
+`rule:security/capability-declaration-is-one-table` keeps its text — stage 2 gives it the renderer it
+always claimed, so nothing in it changes.
 
 ## Standing decisions
 
-- **A constant read at the call, never a current-location word in `Ctx`**
-  ([0165](../decisions/0165.md) § *Options considered*). The second spends every statement to
-  serve the rare one.
-- **No captured stack, at any producer** ([0165](../decisions/0165.md) § 2). The call path is the
-  trace's answer. Do not add a frame walk because PHP's `getTrace` has one.
-- **One datum for `Envelope.source` and `Throwable::$location`** ([0165](../decisions/0165.md)
-  § 1), not two constructions that agree today.
-- **The debug stream is not coalesced** ([0165](../decisions/0165.md) § 3). If stage 3 looks like
-  it wants to be general, that is the moment to re-read the section, not to generalise.
-- **A per-call-site rate limit is not in scope** ([0165](../decisions/0165.md) § 6). It is the
-  only thing that would make a hot loop cheap rather than quiet, and it drops records that differ;
-  taking it is a new record, and nothing has been measured that asks for it.
-- **This goal opens no ADR number.** [0165](../decisions/0165.md) is already accepted and its
-  `changes:` block names both rules this goal ships.
-- **If stage 0 finds the existing frame label already carries file, line and member**, stage 2 reuses
-  it rather than adding a second constant, and the finding is written into the module doc that owns
-  it. If it finds the label is a bare member name, the sibling constant is this goal's and not a
-  reason to stop.
+- **The surface is `nvs agent`, not an extension of `nvs doc`** ([0167](../decisions/0167.md)
+  § 1). `nvs doc <entry>` takes a positional path and a symbol is not a path; a query form under it
+  would be ambiguous at the argument parser before it was ambiguous to a reader.
+- **Nothing is written to disk and nothing is cached** ([0167](../decisions/0167.md) § 1). If a
+  stage finds a render slow enough to want a cache, that is a finding to write down, not a cache to
+  add: an answer that can be stale is the failure this whole surface exists to avoid.
+- **No per-member capability field** ([0167](../decisions/0167.md) § 3, and
+  `rule:security/capability-declaration-is-one-table`'s own second paragraph). The join is at render
+  time. If the join turns out to be awkward, the fallback is to render the roster and let the reader
+  join — never to push a field onto the member rows.
+- **The primer is generated and never hand-written** ([0167](../decisions/0167.md) § 2). A
+  section that cannot be expressed as a marked chapter section is a signal the chapter is missing it,
+  and the edit belongs in the chapter.
+- **No size gate on the primer** ([0167](../decisions/0167.md) *Alternatives rejected*). Its
+  budget is met by what it selects. Do not add a byte-count check, and do not trim a selected
+  section's prose to hit a number.
+- **An adapter carries no language content**, in any harness, for any reason
+  ([0167](../decisions/0167.md) § 4). A stage that finds an adapter would be more useful with a
+  refusal table in it has found the argument this rule already rejected.
+- **`nvs agent init --embed` is not built** ([0167](../decisions/0167.md) *Revisiting*). Nothing
+  has asked for it and it reintroduces the staleness the design removes.
+- **This goal opens no ADR number.** [0167](../decisions/0167.md) is already accepted and its
+  `changes:` block names the four rules it creates and the two it modifies.
+- **Static capability checking is not in scope.** `nvs check` never building the grants its own
+  diagnostic needs is a carried gap owned elsewhere; stage 4 improves the *runtime* message and
+  nothing more.
