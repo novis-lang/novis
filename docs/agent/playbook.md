@@ -3721,6 +3721,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exactly `2 ×` with nothing in the message about isolates to point at why. Count what the request
   itself did — an `AtomicUsize` the task bumps once its `Completion` reads `ok` — and leave
   `finished` to a case that is about the scheduler. [until: reviewed 2026-09-09]
+- **A dotted-decimal address with leading zeros does not parse in Rust, so it cannot stand for "the
+  same endpoint spelled another way" in a `net.listen` case.**
+  `"127.000.000.001:8080".parse::<std::net::SocketAddr>()` is an `AddrParseError`, because Rust
+  refuses the octal-ambiguous form outright rather than reading it the way `inet_pton` does, so a
+  case built around it panics in its own helper before it asserts anything. The spelling that does
+  exercise `Scope::Endpoint`'s address comparison is the IPv4-mapped v6 one,
+  `[::ffff:127.0.0.1]:8080`, which parses and unmaps onto the granted v4 address.
+  [until: reviewed 2026-09-09]
 
 ## Splitting a file that got too big
 

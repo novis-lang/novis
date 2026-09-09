@@ -124,7 +124,7 @@ rules = [
   "0004",
 ]
 
-adrs = ["0051 §3", "0058 §3", "0142 §6"]
+adrs = ["0051 §3", "0058 §3", "0142 §6", "0162 §7", "0162 §12"]
 
 shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
 
