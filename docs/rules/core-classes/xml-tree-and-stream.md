@@ -20,4 +20,5 @@ produce, so a program that outgrows the tree does not learn a second vocabulary.
 once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
 
 What it spends, per `rule:programs/memory-priority`: the tree is proportional to the document,
-attributed to the request that parsed it and released with its arena; the stream holds one window.
+attributed to the request that parsed it and released with its arena; reading through the stream holds
+one window, and writing through it holds the document being built and no tree of nodes at all.

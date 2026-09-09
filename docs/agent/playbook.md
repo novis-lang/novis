@@ -5564,6 +5564,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   against `Call` reaches nothing. Read the `emit` arm for the variant first, and copy
   `InstKind::ShapeCodecConst` when what you add is a compile-time constant the member reads off
   its own `args`. [until: gone crates/nvs-ir/src/ir.rs:CoreCall]
+- **A new `Core` row trips frozen assertions in modules it does not touch.** A
+  `CoreTy::Text(Qual::Launder)` parameter fails `nvs_stdlib::html`'s
+  `every_launderer_for_an_auto_escaping_sink_answers_a_carrier`, which asserts that roster whole
+  across every class, and an unclassified `CoreTy::Str` in a `CoreOption` fails
+  `every_member_parameter_carries_a_qualifier_classification`, because an option is a parameter.
+  Run `cargo test -p nvs-stdlib --lib` after writing a row and before the full gate.
+  [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

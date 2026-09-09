@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*28 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*27 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -452,7 +452,7 @@ against it rather than beside it.
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
-## `Core\Xml` is a materialising tree beside a one-window stream, and no operation is available through both  *(designed — not yet in the compiler)*
+## `Core\Xml` is a materialising tree beside a one-window stream, and no operation is available through both
 
 `rule:core-classes/xml-tree-and-stream`
 
@@ -478,7 +478,8 @@ produce, so a program that outgrows the tree does not learn a second vocabulary.
 once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
 
 What it spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): the tree is proportional to the document,
-attributed to the request that parsed it and released with its arena; the stream holds one window.
+attributed to the request that parsed it and released with its arena; reading through the stream holds
+one window, and writing through it holds the document being built and no tree of nodes at all.
 
 <sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0168](../decisions/0168.md).</sub>
 

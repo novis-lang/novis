@@ -146,6 +146,7 @@ Conventions the whole file uses:
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
 | [`Core\Xml\Reader`](#core-core-xml-reader) |  |
+| [`Core\Xml\Writer`](#core-core-xml-writer) |  |
 | [`Core\Compress`](#core-core-compress) |  |
 | [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Zip`](#core-core-zip) |  |
@@ -18572,12 +18573,13 @@ Keywords:
 <a id="core-core-xml"></a>
 ### `Core\Xml`
 
-Keywords: parse, reader
+Keywords: parse, reader, writer
 
 | Member | Signature |
 |---|---|
 | [`Core\Xml::parse`](#core-core-xml-parse) | `parse(string $document): Core\Xml\Node` |
 | [`Core\Xml::reader`](#core-core-xml-reader) | `reader(string $document): Core\Xml\Reader` |
+| [`Core\Xml::writer`](#core-core-xml-writer) | `writer({indent?: string}): Core\Xml\Writer` |
 
 <a id="core-core-xml-parse"></a>
 #### `Core\Xml::parse`
@@ -18610,6 +18612,23 @@ Opens a walk over `$document` that holds one node at a time — replacing `XMLRe
 | `$document` | `string` (neutral) | The document text, held as it was handed over rather than copied and read forward from as the walk goes. No entity is resolved from anywhere, exactly as `parse` resolves none. |
 
 **Returns** `Core\Xml\Reader` — A reader positioned before the first node.
+
+<a id="core-core-xml-writer"></a>
+#### `Core\Xml::writer`
+
+```nvs skip
+Core\Xml::writer({indent?: string}): Core\Xml\Writer
+```
+
+Opens a writer that builds a document a node at a time — replacing `XMLWriter`. What is open is the writer's own state rather than something the caller has to remember, so a mismatched or missing close is refused where it is written instead of reaching a reader as a malformed document. Nothing is escaped by the caller either: every member that takes character data escapes it, which is why there is no member that writes raw bytes into the document.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{indent: …}` | `string` (default `""`, neutral) | What one level of nesting is indented by, and the empty string — the default — for no indenting. It has to be whitespace, since anything else would be content the document did not ask for, and it is never inserted beside character data, where it would change what the document says. |
+
+**Returns** `Core\Xml\Writer` — A writer holding an empty document, before its `startDocument`.
+
+**Throws** `LogicError` — The indent is not whitespace.
 
 <a id="core-core-xml-node"></a>
 ### `Core\Xml\Node`
@@ -18712,6 +18731,184 @@ $reader->depth(): uint
 How many elements are open around the node `read` last answered: `0` for the root element and for anything written beside it, one more for each element it is nested inside. This is the structure a walk carries, since a closing tag is not a node — a depth no greater than an earlier one means every element opened since has closed.
 
 **Returns** `uint` — The depth of the node last answered, and `0` both before the first `read` and after the one that answered `null`.
+
+<a id="core-core-xml-writer"></a>
+### `Core\Xml\Writer`
+
+Keywords: startDocument, endDocument, startElement, endElement, content, attribute, comment, cdata, instruction, doctype
+
+| Member | Signature |
+|---|---|
+| [`Core\Xml\Writer->startDocument`](#core-core-xml-writer-startdocument) | `startDocument(): void` |
+| [`Core\Xml\Writer->endDocument`](#core-core-xml-writer-enddocument) | `endDocument(): string` |
+| [`Core\Xml\Writer->startElement`](#core-core-xml-writer-startelement) | `startElement(string $name): void` |
+| [`Core\Xml\Writer->endElement`](#core-core-xml-writer-endelement) | `endElement(): void` |
+| [`Core\Xml\Writer->content`](#core-core-xml-writer-content) | `content(string $text): void` |
+| [`Core\Xml\Writer->attribute`](#core-core-xml-writer-attribute) | `attribute(string $name, string $value): void` |
+| [`Core\Xml\Writer->comment`](#core-core-xml-writer-comment) | `comment(string $text): void` |
+| [`Core\Xml\Writer->cdata`](#core-core-xml-writer-cdata) | `cdata(string $text): void` |
+| [`Core\Xml\Writer->instruction`](#core-core-xml-writer-instruction) | `instruction(string $target, string $data): void` |
+| [`Core\Xml\Writer->doctype`](#core-core-xml-writer-doctype) | `doctype(string $name): void` |
+
+<a id="core-core-xml-writer-startdocument"></a>
+#### `Core\Xml\Writer->startDocument`
+
+```nvs skip
+$writer->startDocument(): void
+```
+
+Opens the document, writing its XML declaration. A document is the outermost of the two pairs, so this comes before every other write and `endDocument` closes it.
+
+**Returns** `void` — Nothing; the declaration is written and the writer will accept content.
+
+**Throws** `LogicError` — The document is already open, or is already finished.
+
+<a id="core-core-xml-writer-enddocument"></a>
+#### `Core\Xml\Writer->endDocument`
+
+```nvs skip
+$writer->endDocument(): string
+```
+
+Closes the document and answers it. This is where the writer refuses an unbalanced tree rather than emitting one: an element still open here is an error, not a document, so there is no arrangement of calls that produces text a parser would refuse. Reading the document does not raise PHP's question of whether reading it also empties the buffer, because what comes back is a value.
+
+**Returns** `string` — The whole document as written, plain rather than `tainted`: every member that took character data escaped it and every name was checked against XML's own, so nothing a caller handed over survives as markup. Writing anything afterwards is refused.
+
+**Throws** `LogicError` — An element is still open, no root element was written, or the document was never opened or is already finished.
+
+<a id="core-core-xml-writer-startelement"></a>
+#### `Core\Xml\Writer->startElement`
+
+```nvs skip
+$writer->startElement(string $name): void
+```
+
+Opens an element, which is the other of the two pairs: everything written until its `endElement` is inside it. Attributes go on it until the first thing that is not one, and whether it is written as `<a></a>` or `<a/>` is settled by whether anything was.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (launder) | The element's name, qualified prefix and all — a qualified name is a name, so there is no second member for a document that uses them. It has to be a name XML can write, and is refused rather than escaped when it is not. |
+
+**Returns** `void` — Nothing; the element is open and is what the next writes go into.
+
+**Throws** `LogicError` — The name is not a name XML can write, a second root element was started, elements are nested deeper than the ceiling, or the document is not open.
+
+<a id="core-core-xml-writer-endelement"></a>
+#### `Core\Xml\Writer->endElement`
+
+```nvs skip
+$writer->endElement(): void
+```
+
+Closes the innermost open element. The name is not an argument, because the writer knows what is open — which is the whole of why a mismatched close is not a shape this API has.
+
+**Returns** `void` — Nothing; an element nothing was written into is closed as `<a/>`, and one that holds something as `</a>`.
+
+**Throws** `LogicError` — Nothing is open, or the document is not open.
+
+<a id="core-core-xml-writer-content"></a>
+#### `Core\Xml\Writer->content`
+
+```nvs skip
+$writer->content(string $text): void
+```
+
+Writes character data into the open element, escaped. This is the writer's escape point: `&`, `<` and `>` become references here, so an injection is not reachable by forgetting a call, and there is no member that writes markup a caller assembled — `rule:security/launderers-are-sink-named` is why a generic one would not be added.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The characters to write. `tainted` text is accepted and laundered for this one sink, an XML document, because what reaches the document is the escaped form and nothing a caller writes here can become markup. |
+
+**Returns** `void` — Nothing; the open element now holds character data, and the writer stops indenting inside it, since whitespace beside text changes what a document says.
+
+**Throws** `LogicError` — No element is open, the text holds a character XML cannot write, or the document is not open.
+
+<a id="core-core-xml-writer-attribute"></a>
+#### `Core\Xml\Writer->attribute`
+
+```nvs skip
+$writer->attribute(string $name, string $value): void
+```
+
+Writes one attribute on the element that was just opened. A single call rather than a pair, because an attribute holds a value and cannot contain nodes — the pair PHP has exists only to let text be written between its halves.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (launder) | The attribute's name, qualified prefix and all, and refused when it is not a name XML can write. |
+| `$value` | `string` (launder) | Its value, escaped into the quotes it is written between — the quote itself and the whitespace a parser would otherwise fold included, so what comes back out of a parse is what was written. `tainted` text is laundered for this sink exactly as `content`'s is. |
+
+**Returns** `void` — Nothing; the attribute is on the open start tag.
+
+**Throws** `LogicError` — No start tag is still taking attributes, the element already carries an attribute of that name, the name is not a name XML can write, the value holds a character XML cannot write, or the document is not open.
+
+<a id="core-core-xml-writer-comment"></a>
+#### `Core\Xml\Writer->comment`
+
+```nvs skip
+$writer->comment(string $text): void
+```
+
+Writes a comment, as one call: a comment's content is text, so there is nothing for a pair to contain.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The comment's content. A comment is the one place XML has no escape grammar for, so a `--` inside it or a trailing `-` is refused rather than rewritten — `rule:errors/ambiguous-input-refused` is the general shape of that answer. |
+
+**Returns** `void` — Nothing; the comment is written where the writer stands, inside the open element or beside the root.
+
+**Throws** `LogicError` — The text holds `--`, ends with `-`, holds a character XML cannot write, or the document is not open.
+
+<a id="core-core-xml-writer-cdata"></a>
+#### `Core\Xml\Writer->cdata`
+
+```nvs skip
+$writer->cdata(string $text): void
+```
+
+Writes character data as a CDATA section. One call, because a CDATA section is an escaping choice about text and is written with the text it is a choice about — a parse answers the same `Text` node either way.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (launder) | The characters to write. A CDATA section has no escape grammar inside it, so a `]]>` in the text is refused rather than split across two sections. |
+
+**Returns** `void` — Nothing; the open element now holds character data, exactly as `content` leaves it.
+
+**Throws** `LogicError` — No element is open, the text holds `]]>` or a character XML cannot write, or the document is not open.
+
+<a id="core-core-xml-writer-instruction"></a>
+#### `Core\Xml\Writer->instruction`
+
+```nvs skip
+$writer->instruction(string $target, string $data): void
+```
+
+Writes a processing instruction, as one call: it is a target and its data, both text, with nothing to nest inside it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$target` | `string` (launder) | What the instruction is addressed to. `xml` in any casing is refused, because that target is the XML declaration `startDocument` already wrote. |
+| `$data` | `string` (launder) | The instruction's data, written as it stands — an instruction has no escape grammar, so a `?>` inside it is refused. The empty string writes the target alone. |
+
+**Returns** `void` — Nothing; the instruction is written where the writer stands.
+
+**Throws** `LogicError` — The target is not a name XML can write or is `xml`, the data holds `?>` or a character XML cannot write, or the document is not open.
+
+<a id="core-core-xml-writer-doctype"></a>
+#### `Core\Xml\Writer->doctype`
+
+```nvs skip
+$writer->doctype(string $name): void
+```
+
+Writes a document type declaration naming `$name`, before the root element. Naming a document type is not resolving one: this takes no external identifier and no internal subset, so nothing it writes declares an entity or points at one. It is written for a reader outside Novis, because `Core\Xml::parse` and `Core\Xml::reader` refuse a `<!DOCTYPE …>` whole — a document carrying one is the one thing this class writes and will not read back.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (launder) | The document type's name, which is the root element's name in every document that a validator would accept. |
+
+**Returns** `void` — Nothing; the declaration is written above the root element.
+
+**Throws** `LogicError` — The root element is already open or written, the name is not a name XML can write, or the document is not open.
 
 <a id="core-core-compress"></a>
 ### `Core\Compress`
