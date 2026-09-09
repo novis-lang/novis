@@ -115,6 +115,9 @@ modules = [
   "crates/nvs-stdlib/src/zip.rs",
   # Seeding the checker's signature table with `Core`.
   "crates/nvs-types/src/core_lib.rs",
+  # The accept loop: one listening socket, one coroutine per connection, and one `hyper`
+  # connection future driven on that coroutine's own stack.
+  "crates/nvs-server/src/serve.rs",
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
