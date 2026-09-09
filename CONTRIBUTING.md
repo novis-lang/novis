@@ -158,6 +158,7 @@ crates/             the Cargo workspace
   nvs-server        the built-in HTTP server: a socket to a root isolate and back
   nvs-cli           the `nvs` binary  [audited unsafe]
   nvs-test          the `.nvst` conformance format and its runner
+  nvs-lsp           `nvs lsp` — the Novis language server
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]
   userland          the same program in Novis and in PHP, for `tools/bench.py`
@@ -169,6 +170,7 @@ examples/           `.nvs` programs the guard tests and the docs compile
 fuzz/               cargo-fuzz targets
 docker/             the container image
 website/            the Astro site
+editors/            the VS Code extension, and where a second editor's would sit
 tools/              how this repository is driven; docs/agent/commands.md is the full set
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
