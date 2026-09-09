@@ -66,6 +66,11 @@
 //! shared by every request that runs it (`rule:security/isolate-shares-nothing`'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept
 //! loop holds per connection in flight. Nothing accumulates per request answered.
+//! One more thread for the process, not one per core, and one watched entry per
+//! *running* core: [`nvs_host::Watchdog`], which every worker registers itself
+//! with once it holds a reactor and deregisters from when it ends. It reads the
+//! deadline each accept loop already publishes, so a core writes nothing for it
+//! on any path.
 //!
 
 use std::cell::Cell;
@@ -360,6 +365,9 @@ pub(crate) fn run(
             waits,
             serving,
             ticks: true,
+            // Unpinned, and a `CpuId` is only ever handed out by `cpus()`, so
+            // there is no core to report a stall against and nothing to watch.
+            watched: None,
         };
         return if serve_on_worker(&mut sched, core) {
             ExitCode::SUCCESS
@@ -367,8 +375,18 @@ pub(crate) fn run(
             ExitCode::FAILURE
         };
     }
+    // One watchdog for the process rather than one per core, as
+    // `rule:http-server/a-wedged-core-is-detected-by-its-deadline` states it. Held
+    // in this frame so that it outlives every worker and its thread is joined
+    // where the fleet is joined, rather than by whichever core happened to end
+    // last; its own thread starts with the first registration a core makes.
+    let watchdog = Arc::new(nvs_host::Watchdog::new());
     let mut running = Vec::with_capacity(rows.len());
     for (index, listeners) in rows.into_iter().enumerate() {
+        // A count above this machine's parallelism is started rather than
+        // clamped, so two workers can share a CPU: honouring the number the
+        // operator wrote is what the key means, and the cores cycle.
+        let cpu = cpus[index % cpus.len()];
         let core = Core {
             listeners,
             compiler: Arc::clone(&compiler),
@@ -379,11 +397,8 @@ pub(crate) fn run(
             // One roster and so one ticker, on the first worker: a schedule
             // armed per core would fire every entry once per core.
             ticks: index == 0,
+            watched: Some((cpu, Arc::clone(&watchdog))),
         };
-        // A count above this machine's parallelism is started rather than
-        // clamped, so two workers can share a CPU: honouring the number the
-        // operator wrote is what the key means, and the cores cycle.
-        let cpu = cpus[index % cpus.len()];
         match nvs_host::Worker::spawn(cpu, move |sched| serve_on_worker(sched, core)) {
             Ok(worker) => running.push(worker),
             Err(error) => {
@@ -442,6 +457,12 @@ struct Core {
     /// A flag rather than the roster itself, because an `Armed` holds an `Rc`
     /// and so is one of the things a worker builds rather than is handed.
     ticks: bool,
+    /// This core's place in `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
+    /// watched set: the CPU it is pinned to, and the process's one watchdog,
+    /// which it registers with itself once it holds a reactor to read a
+    /// deadline off. `None` on the host that enumerates no CPU, where nothing
+    /// is pinned and so a stall has no core to be named against.
+    watched: Option<(nvs_host::CpuId, Arc<nvs_host::Watchdog>)>,
 }
 
 /// One core's whole server: its own mount table over the fleet's compiler, one
@@ -460,6 +481,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         waits,
         serving,
         ticks,
+        watched,
     } = core;
     let stopped = Rc::new(Cell::new(false));
     // This core's own table over § 4's set, which is the same set on every
@@ -747,6 +769,19 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         }
     };
     let installed = nvs_host::reactor::install(reactor);
+    // `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s registration,
+    // made here because this is the line that produces the `DeadlineView` and
+    // this is the thread whose turning it describes. The watchdog reads that
+    // view and this core writes nothing further for it, on any path: what it
+    // watches is the deadline table every accept loop below already keeps.
+    // The handle deregisters on drop, so the watched set is the cores that are
+    // running rather than the cores that were started — a finished core's
+    // frozen deadline would otherwise read as a wedged one forever.
+    let _watched = watched
+        .zip(nvs_host::reactor::with_current(|reactor| {
+            reactor.deadline_view()
+        }))
+        .map(|((cpu, watchdog), view)| watchdog.register(cpu, view));
     // **`run_until_idle` is not this loop by itself, and a server is the first
     // caller for which that matters.** It returns as soon as one blocking poll
     // wakes nothing — which is what a connection's own socket reports once the
