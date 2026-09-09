@@ -115,6 +115,15 @@ modules = [
   # docs for which statement and expression shapes are covered, and why this trusts its input
   # rather than re-checking it.
   "crates/nvs-ir/src/lower/mod.rs",
+  # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
+  # with one field per capture.
+  "crates/nvs-ir/src/lower/closure.rs",
+  # `rule:iteration/generators`'s state-machine transform: the frame, the spill/reload of a local
+  # live across a `yield`, and the synthesized methods.
+  "crates/nvs-ir/src/lower/generator.rs",
+  # Lowering's own tests, one module deep so that `mod.rs` is the lowering and not the evidence
+  # for it.
+  "crates/nvs-ir/src/lower/tests.rs",
 ]
 
 # The rules every stage of this goal works inside.
