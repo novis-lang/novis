@@ -118,9 +118,9 @@ pub use blocking::BlockingPool;
 pub use channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError, channel};
 pub use group::SchedulerHost;
 pub use isolate::{Completion, Failure, Isolate, Output, Program, Running};
+pub use net::{Accepted, Accepting, NvsAcceptor, NvsListener, NvsStream, NvsTcp, NvsUdp};
 #[cfg(unix)]
-pub use net::NvsUnix;
-pub use net::{NvsListener, NvsStream, NvsTcp, NvsUdp};
+pub use net::{NvsUnix, NvsUnixListener};
 pub use reactor::{Installed, Interest, Reactor, RemoteWake, run_until_idle};
 pub use scheduler::{
     Finished, RunReport, Scheduler, TaskId, Waiting, Wake, cancel_task, children_still_running,

@@ -113,11 +113,13 @@
 //! code size, two instantiations of four small functions
 //! (`rule:programs/memory-priority`).
 //!
-//! [`NvsListener`] is that decision reached from the other side. An accepting
+//! [`NvsAcceptor`] is that decision reached from the other side. An accepting
 //! socket waits on `READABLE` for a connection exactly as a stream waits on it
 //! for a byte, so it *holds* an [`NvsStream`] over `mio`'s listener rather than
-//! carrying a fifth copy of the waiting; why it is a name at all, rather than
-//! one more alias, is its own doc.
+//! carrying a fifth copy of the waiting, and it is generic over what it accepts
+//! for the same reason the stream is: [`NvsListener`] and `NvsUnixListener` are
+//! its two aliases. Why it is a wrapper at all, rather than one more alias of
+//! [`NvsStream`], is its own doc.
 //!
 //! What stays per family is what is genuinely per family, and it is only the
 //! *address*: a `SocketAddr` on one side, a path on the other, so `connect` is
@@ -339,19 +341,81 @@ impl NvsStream<mio::net::TcpStream> {
 /// so a second type would mean a fifth copy of the four functions this module's
 /// docs § *One type over the source* keeps in one place. What the wrapper buys
 /// is the name and the surface: `NvsStream<TcpListener>` carries a `Read` and a
-/// `Write` bound it can never satisfy, an `NvsListener` carries `accept` and
-/// nothing else, and a caller cannot reach for the wrong one by accident.
+/// `Write` bound it can never satisfy, an acceptor carries `accept` and nothing
+/// else, and a caller cannot reach for the wrong one by accident.
 ///
-/// What comes out of [`Self::accept`] is an [`NvsTcp`]: `mio` hands back an
-/// already non-blocking socket, which is the state [`NvsStream::new`] documents
-/// as its input, so an accepted connection needs no mode change on its way in.
+/// It is generic for [`NvsStream`]'s own reason: what differs between the
+/// socket families is only the *address* — the peer an accept answers with, and
+/// the socket a bind names — so [`NvsListener`] and `NvsUnixListener` are two
+/// aliases over one accept, reached through [`Accepting`].
+///
+/// What comes out of [`Self::accept`] is a parking stream of the same family:
+/// `mio` hands back an already non-blocking socket, which is the state
+/// [`NvsStream::new`] documents as its input, so an accepted connection needs no
+/// mode change on its way in.
 ///
 /// Both halves of the accept are here — [`Self::accept`] parks the coroutine
 /// and [`Self::poll_accept`] answers `Poll::Pending` — for the reason
 /// [`NvsStream::poll_read`] gives: a poll may not suspend, and an accept loop
 /// written as a coroutine has no reason to go through a future.
 #[derive(Debug)]
-pub struct NvsListener(NvsStream<mio::net::TcpListener>);
+pub struct NvsAcceptor<L: Accepting>(NvsStream<L>);
+
+/// What an accept answers with: the parking stream of this acceptor's family,
+/// and the address the connection arrived from.
+///
+/// A name because the pair is written four times over two functions and reads
+/// as two projections at every one of them.
+pub type Accepted<L> = (NvsStream<<L as Accepting>::Stream>, <L as Accepting>::Peer);
+
+/// The accepting socket over TCP — what a server that binds a port holds.
+pub type NvsListener = NvsAcceptor<mio::net::TcpListener>;
+
+/// The accepting socket over a Unix-domain path — `NvsUnix`'s listening twin,
+/// and Unix only for the reason that alias gives.
+#[cfg(unix)]
+pub type NvsUnixListener = NvsAcceptor<mio::net::UnixListener>;
+
+/// A source that answers connections, and the whole of what differs between the
+/// families: the socket an accept hands back, and how the peer is spelled.
+///
+/// The [`Connecting`] decision read from the other side — the waiting is shared
+/// and only the address is per family, so this trait carries the address and
+/// nothing else.
+pub trait Accepting: Source {
+    /// The socket an accept hands back, already non-blocking.
+    type Stream: Source;
+
+    /// How this family spells the address a connection arrived from.
+    type Peer;
+
+    /// Takes the next connection off the backlog without waiting for one.
+    ///
+    /// # Errors
+    ///
+    /// The platform's, `WouldBlock` included: waiting is [`NvsAcceptor`]'s job
+    /// and never the socket's.
+    fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)>;
+}
+
+impl Accepting for mio::net::TcpListener {
+    type Stream = mio::net::TcpStream;
+    type Peer = SocketAddr;
+
+    fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)> {
+        mio::net::TcpListener::accept(self)
+    }
+}
+
+#[cfg(unix)]
+impl Accepting for mio::net::UnixListener {
+    type Stream = mio::net::UnixStream;
+    type Peer = std::os::unix::net::SocketAddr;
+
+    fn accept(&self) -> io::Result<(Self::Stream, Self::Peer)> {
+        mio::net::UnixListener::accept(self)
+    }
+}
 
 impl NvsListener {
     /// Binds a listening socket to `addr`.
@@ -389,7 +453,50 @@ impl NvsListener {
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.0.inner.local_addr()
     }
+}
 
+#[cfg(unix)]
+impl NvsUnixListener {
+    /// Binds a listening socket at `path`, which must not exist yet.
+    ///
+    /// The path is created by the bind and is **not** removed by the drop, which
+    /// is the platform's behaviour and not a choice made here: a caller that
+    /// unlinks it is unlinking whatever holds the name now, which need not be
+    /// this socket.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the path — it exists, the directory does not, no
+    /// permission, or a name too long for `sun_path`.
+    pub fn bind(path: impl AsRef<std::path::Path>) -> io::Result<Self> {
+        Ok(Self(NvsStream::new(mio::net::UnixListener::bind(path)?)))
+    }
+
+    /// Takes over a `std` listener, switching it to non-blocking first —
+    /// [`NvsListener::from_std`], for a socket bound before this core existed.
+    ///
+    /// # Errors
+    ///
+    /// The platform refused the mode change.
+    pub fn from_std(listener: std::os::unix::net::UnixListener) -> io::Result<Self> {
+        listener.set_nonblocking(true)?;
+        Ok(Self(NvsStream::new(mio::net::UnixListener::from_std(
+            listener,
+        ))))
+    }
+
+    /// The address this socket is listening on, which for a local socket is a
+    /// path, an abstract name, or unnamed.
+    ///
+    /// # Errors
+    ///
+    /// The platform's answer for a socket it no longer holds.
+    pub fn local_addr(&self) -> io::Result<std::os::unix::net::SocketAddr> {
+        self.0.inner.local_addr()
+    }
+}
+
+impl<L: Accepting> NvsAcceptor<L> {
     /// Bounds every wait on this listener by `at`, or lifts the bound —
     /// [`NvsStream::set_deadline`], which owns what a deadline is.
     pub fn set_deadline(&mut self, at: Option<Instant>) {
@@ -418,7 +525,7 @@ impl NvsListener {
     /// caller to report the failure against, and an accept loop that stopped on
     /// one would be a listener any peer could close by connecting and resetting.
     /// It is retried here, exactly as `Interrupted` is.
-    pub fn accept(&mut self) -> io::Result<(NvsTcp, SocketAddr)> {
+    pub fn accept(&mut self) -> io::Result<Accepted<L>> {
         loop {
             match self.0.inner.accept() {
                 Ok((stream, peer)) => return Ok((NvsStream::new(stream), peer)),
@@ -442,7 +549,7 @@ impl NvsListener {
     /// # Errors
     ///
     /// [`Self::accept`]'s, on the same terms.
-    pub fn poll_accept(&mut self) -> Poll<io::Result<(NvsTcp, SocketAddr)>> {
+    pub fn poll_accept(&mut self) -> Poll<io::Result<Accepted<L>>> {
         loop {
             match self.0.inner.accept() {
                 Ok((stream, peer)) => {
