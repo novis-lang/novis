@@ -1256,6 +1256,15 @@ mod tests {
     /// safer than a downloaded one. `Core\Mime::detect` is deliberately absent
     /// beside them, and that is the same test read the other way: it answers a
     /// case of a closed enum, and a case carries no octet of its subject.
+    /// The newest three are `Core\Xml\Node`'s — `name`, `text` and
+    /// `attributes` — and they are the roster read over a *document*: what a
+    /// parse answers is untrusted whatever the text handed to `Core\Xml::parse`
+    /// was, so the mark is unconditional rather than contagious, and that is
+    /// why the parameter is `Qual::Neutral` and not `Qual::Contagious`. Their
+    /// siblings `kind()` and `children()` are deliberately absent, and that is
+    /// the same test read the other way twice: a case of a closed enum carries
+    /// no character of its document, and a child is another node whose own
+    /// three members are already here.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1362,6 +1371,13 @@ mod tests {
                     "text",
                     "null|tainted string".to_owned(),
                 ),
+                (
+                    r"Core\Xml\Node",
+                    "attributes",
+                    "array<tainted string>".to_owned(),
+                ),
+                (r"Core\Xml\Node", "name", "tainted string".to_owned()),
+                (r"Core\Xml\Node", "text", "tainted string".to_owned()),
                 (r"Core\Zip", "entries", "array<tainted string>".to_owned(),),
                 (r"Core\Zip", "read", "tainted bytes".to_owned()),
             ]),
@@ -1374,7 +1390,8 @@ mod tests {
              whole, the two readers of the captures the matched route filled, the captures \
              of the mount serving the request, the two payloads a connection's peer \
              sent, what a socket the program opened itself read back, what one \
-             datagram carried, and the names and octets read out of an archive. \
+             datagram carried, the names and octets read out of an archive, and \
+             the three strings a node of a parsed document answers with. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \

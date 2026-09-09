@@ -1,0 +1,81 @@
+--TEST--
+A comment and a processing instruction are nodes of the same family an element is, carried rather than dropped, and each answers the members the family declares — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+class Kind {
+    public static function name(Core\Xml\NodeKind $kind): string {
+        if ($kind == Core\Xml\NodeKind::Element) {
+            return "element";
+        }
+        if ($kind == Core\Xml\NodeKind::Text) {
+            return "text";
+        }
+        if ($kind == Core\Xml\NodeKind::Comment) {
+            return "comment";
+        }
+        if ($kind == Core\Xml\NodeKind::ProcessingInstruction) {
+            return "processing-instruction";
+        }
+        return "document";
+    }
+}
+
+// A comment's content is its text and it has no name; a processing
+// instruction's target is its name and its data is its text. Both are leaves,
+// and both carry no attributes — the members are the family's, so a walk asks
+// every node the same questions.
+Core\Xml\Node $document = Core\Xml::parse(
+    "<?stylesheet href=\"a.css\"?><!--the prolog's own note--><doc><!--inside--><?work do?></doc>"
+);
+
+class Walk {
+    public static function show(Core\Xml\Node $node): void {
+        echo Kind::name($node->kind()), " name=\"", $node->name(), "\" text=\"", $node->text(),
+             "\" attributes=", Core\Arr::count($node->attributes()),
+             " children=", Core\Arr::count($node->children()), "\n";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::show($child);
+        }
+    }
+}
+
+Walk::show($document);
+
+// A comment's text is what it held, punctuation and all, because a document's
+// comments are part of what it says rather than something to strip on the way
+// in.
+Core\Xml\Node $kept = Core\Xml::parse("<a><!-- keep < & > -->x</a>");
+foreach ($kept->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        echo Kind::name($child->kind()), ": \"", $child->text(), "\"\n";
+    }
+}
+
+// A processing instruction with no data is a target and nothing else, which is
+// an empty text rather than an absent one.
+Core\Xml\Node $bare = Core\Xml::parse("<a><?go?></a>");
+foreach ($bare->children() as Core\Xml\Node $root) {
+    foreach ($root->children() as Core\Xml\Node $child) {
+        echo "target: \"", $child->name(), "\", data: \"", $child->text(), "\"\n";
+    }
+}
+
+// `xml` is the declaration's target, so it is refused anywhere else: a document
+// saying how to read itself may only do so once, at the front.
+try {
+    Core\Xml::parse("<a><?xml version=\"1.0\"?></a>");
+    echo "a declaration was read as an instruction\n";
+} catch (ParseError $declaration) {
+    echo $declaration->message, "\n";
+}
+--EXPECT--
+document name="" text="" attributes=0 children=3
+processing-instruction name="stylesheet" text="href="a.css"" attributes=0 children=0
+comment name="" text="the prolog's own note" attributes=0 children=0
+element name="doc" text="" attributes=0 children=2
+comment name="" text="inside" attributes=0 children=0
+processing-instruction name="work" text="do" attributes=0 children=0
+comment: " keep < & > "
+text: "x"
+target: "go", data: ""
+Core\Xml::parse(): `<?xml …?>` is the declaration, so it may only be the first thing in a document.

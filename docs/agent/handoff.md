@@ -2,44 +2,58 @@
 
 ## State
 
-**Goal 26 — `Core\Xml`'s tree and stream, and the WHATWG parser over it — has just started; nothing of
-it has landed yet.** Goal 25's whole list is this goal's Stage 1 floor.
+**Goal 26, stage 2. The tree exists.** `crates/nvs-stdlib/src/xml.rs` is new and registered:
+`Core\Xml::parse`, `Core\Xml\Node`'s five instance members (`kind`, `name`, `text`, `attributes`,
+`children`) over five slots, and `Core\Xml\NodeKind`'s five cases, over a hand-written strict XML
+reader in the same file. Five `.nvst` cases under `tests/conformance/core/xml-*`; the unit test
+`element_text_comment_processing_instruction_and_document_are_the_whole_family` is green.
 
-**This is the largest single unowned item in the repository**, because it is not free-standing.
-`crates/nvs-stdlib/src/html.rs`'s *Known gaps* says `Core\Html::sanitize` and
-`rule:core-classes/html-parsing`'s WHATWG
-parser "both wait on that tree existing at all", and `rule:core-classes/html-parsing` is titled *Unscheduled, and lands
-with `Core\Xml`*. Three gaps, one tree, one goal — and this entry existing is what makes that § 4
-wrong, so the fold into `rule:core-classes/html-parsing`'s body is stage 0's work.
+**Stage 0 has not landed** — `crates/nvs-stdlib/src/html.rs`'s *Known gaps* (`html.rs:26`) still says
+the tree waits on existing at all, and `rule:core-classes/html-parsing`'s *Not shipped* paragraph
+(`docs/rules/core-classes/html-parsing.md:18`) still reads as unscheduled. Both are now wrong.
+
+**No ADR was opened.** The node family was already decided by `rule:core-classes/html-parsing`, so
+this slice implements a rule rather than making one. The goal's one pre-authorized ADR number (next
+free is 0168) is unspent and belongs with the tree/stream split and the three refusals.
+
+**One design call, made toward the safe option and not yet recorded in a rule:** a `<!DOCTYPE …>` is
+refused *whole* (`crates/nvs-stdlib/src/xml.rs:462`), so an internal subset defines nothing and there
+is no expansion to bound. Stage 2 item 4's check name presumes goal 25's ratio-and-ceiling instead —
+that is the first thing the next group has to settle.
+
+**Stage 5 item 4 is already done**: registering a class and striking its line in
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` are one slice by that file's own rule,
+so `§17 Core\Xml` is gone and only `§16 Core\Metrics` and `§16 Core\Signature` remain.
 
 ## Next group
 
-**Stage 2: the tree** — one file set: the new `crates/nvs-stdlib/src/xml.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-diagnostics/src/lib.rs`.
+**Stage 2: the refusals, the taint and the record that decides them** — one file set:
+`crates/nvs-stdlib/src/xml.rs`, a new `docs/decisions/0168.md`, `docs/rules/core-classes/`.
 
-- [ ] **One node family** — element, text, comment, processing instruction, document (`rule:core-classes/html-parsing`).
-      `Core\Html`'s parser and `Core\Xml`'s produce the same nodes, which is the whole reason this is
-      one goal rather than two.
-- [ ] **The tree materialises and the stream does not, and no operation is available through both.**
-      Spec § 17 states this as the one place two shapes of a subsystem coexist, so it is not read as an
-      exception to R17. Say it once in the module doc; member cards never re-argue it.
-- [ ] **A parsed tree is inert data**, on `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule for the AST: no path back into execution, no
-      `XSLTProcessor` shape at all.
-- [ ] **The three classic attacks are refused by construction** — external entity resolution is *not a
-      code path* rather than a flag defaulting to off, billion-laughs is bounded by goal 25's ceiling,
-      and a DTD naming an external subset is refused rather than fetched.
-- [ ] **Every string out of a parsed tree is `tainted`.**
+- [ ] **Decide the DOCTYPE question and record it** — ADR 0168 with a rule fragment under
+      `docs/rules/core-classes/`, covering the tree/stream split and the three refusals
+      (`rule:core-classes/html-parsing` for the family it does not reopen). The whole-refusal position
+      is at `crates/nvs-stdlib/src/xml.rs:462`; the alternative it beat is an internal subset expanded
+      under goal 25's ceiling. Then fix the check name in `docs/agent/loop-goal.toml` and
+      `docs/agent/goals/26-xml-tree.toml` if the decision keeps the refusal.
+- [ ] **Item 4's three tests** — `an_external_entity_is_not_a_code_path_rather_than_a_flag_defaulting_to_off`,
+      `a_dtd_naming_an_external_subset_is_refused_rather_than_fetched` and
+      `a_billion_laughs_expansion_is_bounded_by_the_ceiling_goal_25_landed`, in
+      `crates/nvs-stdlib/src/xml.rs:1102`'s test module. The parser already refuses all three; what is
+      owed is the assertion. `Reader::reference` at `crates/nvs-stdlib/src/xml.rs:601` is the whole of
+      what this module resolves, which is what the first name is a claim about.
+- [ ] **Item 5 — `every_string_read_out_of_a_parsed_tree_is_tainted`**, same test module. The rows are
+      `CoreTy::TaintedStr` at `crates/nvs-stdlib/src/xml.rs:173`; a test asserts the *rows*, since the
+      qualifier is erased before codegen and no run-time value carries it.
+- [ ] **Item 3 — `a_parsed_tree_has_no_path_back_into_execution`**, same test module, on
+      `rule:tooling/reflection-and-source-parsing-are-core-features`'s reading for the AST: the roster
+      at `crates/nvs-stdlib/src/xml.rs:173` is five slot reads and nothing that evaluates.
 
 ## Backlog
 
-- **Stage 3 (the stream)** is a reader and a writer holding one window rather than the document — the
-  property that makes the split worth having. The writer enforces nesting from its own state, so an
-  unclosed element at the end is an error and not a document.
-- **Stage 4 (the parser)** is `html5ever` through a Novis-owned tree builder (`rule:core-classes/html-parsing`), and it is
-  **never-failing**: tag soup produces a document, because a parser that can throw makes sanitizing
-  untrusted markup conditional on the attacker's cooperation. It is an entry on `Core\Html`, never a
-  mode of `Core\Xml` (§ 1).
-- **Stage 5 (`sanitize`)** is the second `rule:security/tainted-qualifier` launderer on `Core\Html` — parse, walk a **closed**
-  allowlist, serialise. The acceptance property is mXSS: parse-sanitize-serialise-reparse reaches a
-  fixed point. It also strikes the last of the eight keys, so
-  `spec-classes-part-two-outstanding.txt` holds none and spec §§ 16–17 is registered whole.
+- Stage 0's two prose items: `crates/nvs-stdlib/src/html.rs:26` and `docs/rules/core-classes/html-parsing.md:18`.
+- Stage 3's stream (reader and writer), which known gap 1 in `crates/nvs-stdlib/src/xml.rs` names.
+- Nothing serialises a tree back out — known gap 2, and stage 5's `sanitize` needs it.
+- Namespace prefixes are not resolved — known gap 3.
+- `[context] modules` gained `nvs-stdlib/src/xml.rs` by the driver's sweep; `[context] shapes` wanted
+  nothing this session did not have.

@@ -1,0 +1,80 @@
+--TEST--
+`Core\Xml\Node::attributes` answers an element's attributes as the pairs they always were, in the order the document wrote them, and every other kind of node carries none — spec § 17, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The root element of a parsed document, found by its kind rather than by a
+// position — the prolog's comments and processing instructions are children of
+// the document too.
+class Root {
+    public static function of(Core\Xml\Node $document): Core\Xml\Node {
+        foreach ($document->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                return $child;
+            }
+        }
+        return $document;
+    }
+}
+
+// Both quotations are the same attribute, and a reference in a value is
+// expanded where it is read rather than left for the caller.
+Core\Xml\Node $document = Core\Xml::parse(
+    "<row id=\"7\" zone='west' label=\"a &amp; b\"><cell/>only</row>"
+);
+Core\Xml\Node $row = Root::of($document);
+echo "name: ", $row->name(), "\n";
+foreach ($row->attributes() as string $name => tainted string $value) {
+    echo "  ", $name, " = ", $value, "\n";
+}
+
+// There is no attribute node in the family, so an attribute is not reachable as
+// a child: this element has one element child and one text child, and no third.
+echo "children: ", Core\Arr::count($row->children()), "\n";
+
+// Every other kind carries none — an answer rather than an error, which is why
+// the member has no `errors` on its card.
+uint $carried = 0;
+foreach ($row->children() as Core\Xml\Node $child) {
+    $carried = $carried + Core\Arr::count($child->attributes());
+}
+echo "attributes under the row: ", $carried, ", on the document: ",
+     Core\Arr::count($document->attributes()), "\n";
+
+// An element carries no text of its own: the characters belong to its text
+// child, which is where a program reads them.
+foreach ($row->children() as Core\Xml\Node $child) {
+    echo "  child ", $child->name(), " text=\"", $child->text(), "\"\n";
+}
+echo "row text: \"", $row->text(), "\"\n";
+
+// A name is compared whole and spelled as written, prefix included: no
+// namespace declaration is resolved, which this module's known gap 3 owns.
+Core\Xml\Node $prefixed = Core\Xml::parse("<x:a xmlns:x=\"urn:e\" x:k=\"v\"/>");
+Core\Xml\Node $element = Root::of($prefixed);
+echo "prefixed: ", $element->name(), "\n";
+foreach ($element->attributes() as string $name => tainted string $value) {
+    echo "  ", $name, " = ", $value, "\n";
+}
+
+// One name, written twice, is a refusal rather than a last-one-wins: which of
+// the two a program meant is exactly the guess this parser does not make.
+try {
+    Core\Xml::parse("<row id=\"7\" id=\"8\"/>");
+    echo "an attribute was written twice and accepted\n";
+} catch (ParseError $twice) {
+    echo $twice->message, "\n";
+}
+--EXPECT--
+name: row
+  id = 7
+  zone = west
+  label = a & b
+children: 2
+attributes under the row: 0, on the document: 0
+  child cell text=""
+  child  text="only"
+row text: ""
+prefixed: x:a
+  xmlns:x = urn:e
+  x:k = v
+Core\Xml::parse(): attribute `id` is written twice on `row`.

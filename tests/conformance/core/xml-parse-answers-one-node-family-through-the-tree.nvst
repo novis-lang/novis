@@ -1,0 +1,79 @@
+--TEST--
+`Core\Xml::parse` materialises a document node over the one node family both parsers produce — element, text, comment, processing instruction and document, and no sixth thing — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// One name per case of the family, so the walk below prints what a program
+// compares against rather than the integer a case is. It is a class because
+// `rule:classes/no-free-functions-or-constants` makes every callable one, and
+// the `if` chain is the point: each case is reachable from source.
+class Kind {
+    public static function name(Core\Xml\NodeKind $kind): string {
+        if ($kind == Core\Xml\NodeKind::Element) {
+            return "element";
+        }
+        if ($kind == Core\Xml\NodeKind::Text) {
+            return "text";
+        }
+        if ($kind == Core\Xml\NodeKind::Comment) {
+            return "comment";
+        }
+        if ($kind == Core\Xml\NodeKind::ProcessingInstruction) {
+            return "processing-instruction";
+        }
+        return "document";
+    }
+}
+
+// The tree is walked in any order and any number of times, which is what
+// separates it from the streaming half of the same subsystem.
+class Walk {
+    public static function show(Core\Xml\Node $node, int $depth): void {
+        echo $depth, " ", Kind::name($node->kind()), " name=", $node->name(),
+             " text=", $node->text(), "\n";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::show($child, $depth + 1);
+        }
+    }
+}
+
+// One document holding every kind: a comment and a processing instruction in
+// the prolog, an element with an attribute, character data, an empty element
+// and a CDATA section — which is text, because the two spell the same
+// characters.
+Core\Xml\Node $document = Core\Xml::parse(
+    "<!--about--><?render fast?><page id=\"7\">text<line/><![CDATA[<raw>]]></page>"
+);
+Walk::show($document, 0);
+
+// The document node is the one a program is handed rather than one it reaches:
+// nothing under it is a document.
+int $documents = 0;
+foreach ($document->children() as Core\Xml\Node $child) {
+    if ($child->kind() == Core\Xml\NodeKind::Document) {
+        $documents = $documents + 1;
+    }
+}
+echo "documents under the document: ", $documents, "\n";
+
+// The XML declaration is not a node — it is the document saying how to read
+// itself, so the family has no case for it and the tree does not carry one.
+Core\Xml\Node $declared = Core\Xml::parse("<?xml version=\"1.0\"?><a/>");
+echo "children after a declaration: ", Core\Arr::count($declared->children()), "\n";
+
+// A leaf carries no children rather than an empty something else, and the same
+// question asked twice answers the same way: the tree materialised.
+foreach ($declared->children() as Core\Xml\Node $only) {
+    echo "root: ", $only->name(), ", children: ", Core\Arr::count($only->children()),
+         ", again: ", Core\Arr::count($only->children()), "\n";
+}
+--EXPECT--
+0 document name= text=
+1 comment name= text=about
+1 processing-instruction name=render text=fast
+1 element name=page text=
+2 text name= text=text
+2 element name=line text=
+2 text name= text=<raw>
+documents under the document: 0
+children after a declaration: 1
+root: a, children: 0, again: 0

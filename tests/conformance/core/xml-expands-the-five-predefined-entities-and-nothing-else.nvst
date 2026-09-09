@@ -1,0 +1,81 @@
+--TEST--
+`Core\Xml::parse` expands the five predefined entities and numeric character references, which are the document's own characters written another way, and resolves no other entity from anywhere — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The concatenation of every text child, which is where an element's characters
+// live: a node's `text()` is its own, never a walk over its descendants.
+class Chars {
+    public static function of(Core\Xml\Node $element): tainted string {
+        tainted string $out = "";
+        foreach ($element->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Text) {
+                $out = $out . $child->text();
+            }
+        }
+        return $out;
+    }
+}
+
+class Root {
+    public static function of(Core\Xml\Node $document): Core\Xml\Node {
+        foreach ($document->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                return $child;
+            }
+        }
+        return $document;
+    }
+}
+
+// The five, then a decimal and a hexadecimal character reference. Each names a
+// character the document could have written directly, which is the whole of why
+// it is expanded rather than looked up.
+Core\Xml\Node $five = Core\Xml::parse("<t>&amp;&lt;&gt;&quot;&apos;|&#65;&#x42;</t>");
+echo "five: ", Chars::of(Root::of($five)), "\n";
+
+// A CDATA section is text, and text is text: the same characters reach the
+// program whichever way the document spelled them.
+Core\Xml\Node $cdata = Core\Xml::parse("<t><![CDATA[a & <b>]]>|a &amp; &lt;b&gt;</t>");
+echo "cdata: ", Chars::of(Root::of($cdata)), "\n";
+
+// The same expansion inside an attribute value, which is the other place a
+// reference may be written.
+Core\Xml\Node $attributes = Core\Xml::parse("<t k=\"&lt;&#38;&gt;\"/>");
+foreach (Root::of($attributes)->attributes() as string $name => tainted string $value) {
+    echo "attribute ", $name, " = ", $value, "\n";
+}
+
+// `&nbsp;` is HTML's, and it is not resolved here — not from a document type
+// declaration, not from an internal subset, and not from the network. There is
+// no branch in this parser that could have fetched one.
+try {
+    Core\Xml::parse("<t>&nbsp;</t>");
+    echo "an entity was resolved from somewhere\n";
+} catch (ParseError $undeclared) {
+    echo $undeclared->message, "\n";
+}
+
+// A bare ampersand is refused rather than read as itself: a document that means
+// one writes `&amp;`, and guessing which was meant is repair.
+try {
+    Core\Xml::parse("<t>Smith & Sons</t>");
+    echo "a bare ampersand was read as itself\n";
+} catch (ParseError $bare) {
+    echo $bare->message, "\n";
+}
+
+// A numeric reference that names no character a document may hold is refused
+// for the same reason: it is not a character written another way.
+try {
+    Core\Xml::parse("<t>&#0;</t>");
+    echo "a null was written into a document\n";
+} catch (ParseError $nothing) {
+    echo $nothing->message, "\n";
+}
+--EXPECT--
+five: &<>"'|AB
+cdata: a & <b>|a & <b>
+attribute k = <&>
+Core\Xml::parse(): `&nbsp;` is not one of the five predefined entities, and no entity is resolved from a document type declaration, an internal subset or the network.
+Core\Xml::parse(): `& Sons</t>` opens a reference that is never closed by `;` — a literal ampersand is written `&amp;`.
+Core\Xml::parse(): `&#0;` names no character a document may hold.

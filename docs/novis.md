@@ -143,6 +143,8 @@ Conventions the whole file uses:
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Html`](#core-core-html) |  |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
+| [`Core\Xml`](#core-core-xml) |  |
+| [`Core\Xml\Node`](#core-core-xml-node) |  |
 | [`Core\Compress`](#core-core-compress) |  |
 | [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Zip`](#core-core-zip) |  |
@@ -18566,6 +18568,100 @@ Keywords:
 | Member | Signature |
 |---|---|
 
+<a id="core-core-xml"></a>
+### `Core\Xml`
+
+Keywords: parse
+
+| Member | Signature |
+|---|---|
+| [`Core\Xml::parse`](#core-core-xml-parse) | `parse(string $document): Core\Xml\Node` |
+
+<a id="core-core-xml-parse"></a>
+#### `Core\Xml::parse`
+
+```nvs skip
+Core\Xml::parse(string $document): Core\Xml\Node
+```
+
+Reads a whole XML document and answers its document node — replacing `DOMDocument::load`, `simplexml_load_string` and `xml_parse`, none of which agree about what malformed input means. This one refuses it: a document that is not well-formed throws, and nothing is repaired, recovered or guessed. `Core\Html::parse` is the opposite contract on the same node family, because the WHATWG algorithm has no failure mode.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$document` | `string` (neutral) | The document text. No entity is resolved from anywhere: the five predefined entities and numeric character references expand, and every other reference is refused. |
+
+**Returns** `Core\Xml\Node` — The document node, whose children are the root element and any comments or processing instructions written beside it. Every string reachable through it is `tainted`, whatever this argument was.
+
+**Throws** `ParseError` — The document is not well-formed — a tag that never closes or closes as something else, more than one root element, an attribute written twice, a reference this parser will not resolve, a document type declaration, or elements nested deeper than the ceiling.
+
+<a id="core-core-xml-node"></a>
+### `Core\Xml\Node`
+
+Keywords: kind, name, text, attributes, children
+
+| Member | Signature |
+|---|---|
+| [`Core\Xml\Node->kind`](#core-core-xml-node-kind) | `kind(): Core\Xml\NodeKind` |
+| [`Core\Xml\Node->name`](#core-core-xml-node-name) | `name(): tainted string` |
+| [`Core\Xml\Node->text`](#core-core-xml-node-text) | `text(): tainted string` |
+| [`Core\Xml\Node->attributes`](#core-core-xml-node-attributes) | `attributes(): array<tainted string>` |
+| [`Core\Xml\Node->children`](#core-core-xml-node-children) | `children(): array<Core\Xml\Node>` |
+
+<a id="core-core-xml-node-kind"></a>
+#### `Core\Xml\Node->kind`
+
+```nvs skip
+$node->kind(): Core\Xml\NodeKind
+```
+
+Which of the five kinds of node this is — the question every walk over a tree asks first, and the one a program answers with a comparison rather than with a check for which other members are empty.
+
+**Returns** `Core\Xml\NodeKind` — A `Core\Xml\NodeKind` case. The set is closed, so a `match` over it is exhaustive.
+
+<a id="core-core-xml-node-name"></a>
+#### `Core\Xml\Node->name`
+
+```nvs skip
+$node->name(): tainted string
+```
+
+The name this node was written under — an element's tag name, or a processing instruction's target. Empty for a text node, a comment and the document, which have no name to carry rather than an unknown one.
+
+**Returns** `tainted string` — The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, because no namespace declaration is resolved. `tainted`, as everything read out of a parsed tree is.
+
+<a id="core-core-xml-node-text"></a>
+#### `Core\Xml\Node->text`
+
+```nvs skip
+$node->text(): tainted string
+```
+
+The character data this node carries itself — a text node's characters, a comment's content, a processing instruction's data. Empty for an element and for the document, whose characters belong to their text children: this is the node's own text and never a walk over its descendants, so what it costs is a slot read.
+
+**Returns** `tainted string` — The characters, with the five predefined entities and any character references already expanded and a CDATA section read as the text it spells. `tainted`, as everything read out of a parsed tree is.
+
+<a id="core-core-xml-node-attributes"></a>
+#### `Core\Xml\Node->attributes`
+
+```nvs skip
+$node->attributes(): array<tainted string>
+```
+
+This element's attributes, in the order they were written — replacing `DOMElement`'s attribute nodes with the pairs they always were. Empty for every other kind of node.
+
+**Returns** `array<tainted string>` — One entry per attribute, keyed by the name as written and holding the value with its references expanded. `tainted`, as everything read out of a parsed tree is.
+
+<a id="core-core-xml-node-children"></a>
+#### `Core\Xml\Node->children`
+
+```nvs skip
+$node->children(): array<Core\Xml\Node>
+```
+
+This node's children, in document order — the document's are its root element and whatever comments and processing instructions sit beside it, an element's are its content. Empty for a text node, a comment and a processing instruction, which are leaves.
+
+**Returns** `array<Core\Xml\Node>` — One `Core\Xml\Node` per child, including the text nodes a pretty-printed document has between its elements: whitespace in an XML document is content, and dropping it would be a guess about which of it mattered.
+
 <a id="core-core-compress"></a>
 ### `Core\Compress`
 
@@ -21049,6 +21145,19 @@ What `Core\Mime::detect` read out of a run of octets. Closed, so a program compa
 | `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Codec::Zstd`'s frame. |
 | `Core\Mime\Type::Xz` | `application/x-xz`. |
 | `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
+
+<a id="enum-core-xml-nodekind"></a>
+#### `Core\Xml\NodeKind`
+
+What a node in a parsed document is. The set is closed at five and both parsers produce it, so a walk written against one door works unchanged through the other.
+
+| Case | Meaning |
+|---|---|
+| `Core\Xml\NodeKind::Element` | A tag and its content — the only kind that carries attributes or children of more than one kind. |
+| `Core\Xml\NodeKind::Text` | Character data, including what a CDATA section spelled: the two are the same characters written differently. |
+| `Core\Xml\NodeKind::Comment` | A `<!-- … -->`, carried rather than dropped, because a document's comments are part of what it says. |
+| `Core\Xml\NodeKind::ProcessingInstruction` | A `<?target data?>`, whose target is the node's name and whose data is its text. The XML declaration is not one of these. |
+| `Core\Xml\NodeKind::Document` | The root of what a parse answers with — never a child of anything, and the one node a program is handed rather than reaching. |
 
 <a id="enum-core-log-level"></a>
 #### `Core\Log\Level`

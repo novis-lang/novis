@@ -1688,6 +1688,17 @@ pub const CLASSES: &[CoreClass] = &[
     // layout the slot lives in. [`crate::html`] owns why it has no
     // constructor.
     crate::html::MARKUP,
+    // § 17's document class, next after `Core\Html` because the two are one
+    // subsystem: `rule:core-classes/html-parsing` makes both parsers produce
+    // the node family below, so which door parsed a document does not change
+    // what a program can do with it. The tree half is what is registered —
+    // [`crate::xml`] owns the split and why the streaming half is not a mode of
+    // this one.
+    crate::xml::CLASS,
+    // The node family itself, memberless of statics and produced only by a
+    // parse. Beside its class rather than in spec § order for `Core\Html`'s own
+    // reason: this is the value the section's first two rows both answer with.
+    crate::xml::NODE,
     // § 17's codec class, beside `Core\Html` because that is the section both
     // are rows of. Tier 0 for a reason that is not the other three's:
     // `rule:core-classes/decompression-bound`'s bound is policy, and a policy
@@ -2415,6 +2426,11 @@ pub const ENUMS: &[CoreEnum] = &[
     // a closed one so a caller never compares against a media-type spelling
     // that occurs nowhere.
     crate::mime::TYPE,
+    // What `Core\Xml\Node::kind` answers with, and the one roster both parsers
+    // build against — closed at five, so a walk over a document is exhaustive.
+    // Beside `Core\Mime`'s because both are § 17's, and for the reason that
+    // section's classes sit together in [`CLASSES`].
+    crate::xml::KIND,
     crate::log::LEVEL,
     crate::env::MODE,
     crate::router::METHOD,
