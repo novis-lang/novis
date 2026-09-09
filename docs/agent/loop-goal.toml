@@ -106,9 +106,9 @@ modules = [
   "crates/nvs-stdlib/src/csv.rs",
   "crates/nvs-stdlib/src/uri.rs",
   "crates/nvs-stdlib/src/encoding.rs",
-  # The case that already proves the graph copy's cycle-safety end to end: the shape stage 2's own
-  # cases are written to, so a new case matches the tree instead of inventing a second style.
-  "tests/conformance/core/serialize-encode-and-decode-are-one-graph-copy.nvst",
+  # `modules` selects over the module map -- one crate file's own `//!` first sentence -- so a
+  # `tests/**.nvst` path here matches nothing and only spends a warning. The shape a new case is
+  # written to comes from `shapes`, which names the canonical example.
 ]
 
 # The rules every stage of this goal works inside.
