@@ -1727,6 +1727,23 @@ LIST_OF_STR = ("args", "argv", "cases", "stderr_contains", "stdout_contains", "t
 NONEMPTY = {"argv", "tests", ("ordered", "want")}
 COUNTS = ("min_bytes", "min_passing")
 
+#: Commands an acceptance list may not run, keyed on the argv tail that makes them wrong, with what
+#: to run instead. A goal's checks are the things the goal's own work turns green. A command that
+#: reports a REPO-WIDE BACKLOG is not one of those: it answers for a chore somebody else schedules,
+#: so a goal gated on it cannot close until that chore is done, however finished the goal is. That
+#: is a stop nobody in the run can clear, and it reads exactly like a goal that is not finished.
+#: A command belongs here when its findings are a queue rather than a fault -- when the same list
+#: would be red over a tree the goal never touched. Add to it with the reason, never silently.
+CHORE_ARGV = {
+    ("tools/decisions.py", "--check"): (
+        '["python", "tools/decisions.py", "--gate"]',
+        "`--check` counts every decision not yet summarized, and the summary pass is fired by the "
+        "user (docs/agent/decisions-summary.md), never by a goal. A goal that opens an ADR is "
+        "`missing` its own summary from the moment it writes the record, so the check is red on "
+        "arrival. `--gate` is the same tool's set of findings that are always wrong, which is what "
+        "a check named for a record's integrity is asking for, and it is the shape CI runs."),
+}
+
 
 def validate_spec(spec):
     """Everything about an acceptance list that can be known before a single check is run.
@@ -1784,6 +1801,13 @@ def validate_spec(spec):
                 raise GoalError(f"{where}: a memoized check is already named {named!r} at "
                                 f"check {memo_names[named]}, and the memo is keyed on the name")
             memo_names[named] = i
+
+        argv = [a for a in c.get("argv", []) if isinstance(a, str)]
+        for (tool, flag), (instead, why) in CHORE_ARGV.items():
+            if tool in argv and flag in argv:
+                raise GoalError(f"{where}: `{tool} {flag}` reports a backlog this goal cannot "
+                                f"clear, so it would hold the run on a chore. Use {instead} -- "
+                                f"{why}")
 
 
 def spec_error(path):

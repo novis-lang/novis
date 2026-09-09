@@ -187,7 +187,7 @@ The driver stops on an exit code, never on a session's opinion. So a goal must b
 that exit 0 and output that matches exactly. **If it cannot be, do not run it unattended** — a run is
 uncapped by default, so no reliable stop condition means it does not end at all with nobody watching.
 
-Two failure modes worth naming, both of which have happened here:
+Three failure modes worth naming, all of which have happened here:
 
 - **A threshold is not a milestone.** The previous goal's acceptance list was reached with `Core` at 39 of
   ~205 spec members, because the list checked fixtures rather than coverage. If "complete" means every
@@ -197,6 +197,13 @@ Two failure modes worth naming, both of which have happened here:
   named test must be checked for having *existed and run*. That is what `kind = "cargo-named"` is for, and
   it is why most of the tests a goal names do not exist when it is written: writing one is how an item
   finishes.
+- **A chore is not a check.** Four goals ran `python tools/decisions.py --check`, which counts every
+  decision not yet summarized — a pass the user fires, never a goal. A goal that opens an ADR is
+  `missing` its own summary from the moment it writes the record, so all four were red on arrival and
+  would each have held the run on a backlog no session of theirs could clear. A check has to be
+  something the goal's own work turns green. `CHORE_ARGV` in [loop.py](../../tools/loop.py) is the list
+  of commands that are not, with what to run instead and why; `chain.py --check` refuses an entry that
+  names one, so this is caught when the goal is written rather than when the chain reaches it.
 
 ## 4. The two halves, and what belongs in each
 
