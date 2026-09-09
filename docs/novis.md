@@ -145,6 +145,7 @@ Conventions the whole file uses:
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Xml`](#core-core-xml) |  |
 | [`Core\Xml\Node`](#core-core-xml-node) |  |
+| [`Core\Xml\Reader`](#core-core-xml-reader) |  |
 | [`Core\Compress`](#core-core-compress) |  |
 | [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Zip`](#core-core-zip) |  |
@@ -18571,11 +18572,12 @@ Keywords:
 <a id="core-core-xml"></a>
 ### `Core\Xml`
 
-Keywords: parse
+Keywords: parse, reader
 
 | Member | Signature |
 |---|---|
 | [`Core\Xml::parse`](#core-core-xml-parse) | `parse(string $document): Core\Xml\Node` |
+| [`Core\Xml::reader`](#core-core-xml-reader) | `reader(string $document): Core\Xml\Reader` |
 
 <a id="core-core-xml-parse"></a>
 #### `Core\Xml::parse`
@@ -18593,6 +18595,21 @@ Reads a whole XML document and answers its document node — replacing `DOMDocum
 **Returns** `Core\Xml\Node` — The document node, whose children are the root element and any comments or processing instructions written beside it. Every string reachable through it is `tainted`, whatever this argument was.
 
 **Throws** `ParseError` — The document is not well-formed — a tag that never closes or closes as something else, more than one root element, an attribute written twice, a reference this parser will not resolve, a document type declaration, or elements nested deeper than the ceiling.
+
+<a id="core-core-xml-reader"></a>
+#### `Core\Xml::reader`
+
+```nvs skip
+Core\Xml::reader(string $document): Core\Xml\Reader
+```
+
+Opens a walk over `$document` that holds one node at a time — replacing `XMLReader`. A document a program does not want to materialise is read by asking for the next node until there is none, and what the walk itself holds does not grow with how much of the document is left. Nothing is read here: the first `read` is what reaches the document's first character.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$document` | `string` (neutral) | The document text, held as it was handed over rather than copied and read forward from as the walk goes. No entity is resolved from anywhere, exactly as `parse` resolves none. |
+
+**Returns** `Core\Xml\Reader` — A reader positioned before the first node.
 
 <a id="core-core-xml-node"></a>
 ### `Core\Xml\Node`
@@ -18661,6 +18678,40 @@ $node->children(): array<Core\Xml\Node>
 This node's children, in document order — the document's are its root element and whatever comments and processing instructions sit beside it, an element's are its content. Empty for a text node, a comment and a processing instruction, which are leaves.
 
 **Returns** `array<Core\Xml\Node>` — One `Core\Xml\Node` per child, including the text nodes a pretty-printed document has between its elements: whitespace in an XML document is content, and dropping it would be a guess about which of it mattered.
+
+<a id="core-core-xml-reader"></a>
+### `Core\Xml\Reader`
+
+Keywords: read, depth
+
+| Member | Signature |
+|---|---|
+| [`Core\Xml\Reader->read`](#core-core-xml-reader-read) | `read(): ?Core\Xml\Node` |
+| [`Core\Xml\Reader->depth`](#core-core-xml-reader-depth) | `depth(): uint` |
+
+<a id="core-core-xml-reader-read"></a>
+#### `Core\Xml\Reader->read`
+
+```nvs skip
+$reader->read(): ?Core\Xml\Node
+```
+
+The next node of the walk, or `null` at the end of the document — the one operation that advances a reader. An element arrives when its opening tag is read, carrying its name and its attributes and no children, because nothing inside it has been read yet; what is inside arrives as the nodes that follow. A closing tag is not a node, so `depth` is how a program tells where one element ended and the next began.
+
+**Returns** `?Core\Xml\Node` — The node just read, of the family a parsed tree is made of — every kind but `Document`, which is a tree's root and a walk has none. `null` once the document is finished, and every string a node carries is `tainted`.
+
+**Throws** `ParseError` — The document is not well-formed where the walk has reached — the same refusals `parse` makes, reported when a node reaches them rather than before the first node is answered. The walk does not advance past one, so asking again reports the same sentence.
+
+<a id="core-core-xml-reader-depth"></a>
+#### `Core\Xml\Reader->depth`
+
+```nvs skip
+$reader->depth(): uint
+```
+
+How many elements are open around the node `read` last answered: `0` for the root element and for anything written beside it, one more for each element it is nested inside. This is the structure a walk carries, since a closing tag is not a node — a depth no greater than an earlier one means every element opened since has closed.
+
+**Returns** `uint` — The depth of the node last answered, and `0` both before the first `read` and after the one that answered `null`.
 
 <a id="core-core-compress"></a>
 ### `Core\Compress`

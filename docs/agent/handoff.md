@@ -2,60 +2,58 @@
 
 ## State
 
-**Goal 26, stages 0 and 2 are closed.** The tree half is on disk and green in
-`crates/nvs-stdlib/src/xml.rs` — `Core\Xml::parse`, the five-case node family, the refusals and the
-taint sweep — and stage 0's two catch-up edits have landed: `crates/nvs-stdlib/src/html.rs`'s *Known
-gaps* and `rule:core-classes/html-parsing`'s closing paragraph both say what is true now, that the
-tree exists and only the WHATWG builder over it is missing.
+**Goal 26, stage 3's reader half is on disk and green.** `Core\Xml::reader` answers a
+`Core\Xml\Reader`, whose two members are `read` (the next node, or `null`) and `depth` (how deeply
+nested that node was). A reader's whole state is its own slots — the document's text, a cursor, the
+stack of open names, two counts and a flag — so it holds no native allocation and what a walk
+*builds* is one node. Three of stage 3's five acceptance tests pass: the two reader pins and
+`no_operation_is_available_through_both_the_tree_and_the_stream`, which reads the stream half off
+the registry so a class registered under `Core\Xml\` joins the sweep by existing.
 
-**`examples/xml-tree.nvs` is written and runs**, so the acceptance check that has failed since session
-0006 is closed. It parses one document holding every kind, walks it with an exhaustive `match` over
-`Core\Xml\NodeKind` (no `default` — the enum is closed and the compiler accepts that), and catches
-both a malformed document and a `<!DOCTYPE …>`.
+**Two decisions are recorded in `crates/nvs-stdlib/src/xml.rs`'s module doc**, per the goal's
+standing decision that tree ergonomics resolve toward the narrower surface: a walk never answers a
+`Document` node, and a closing tag is not a node, which is why `depth` exists at all.
 
-**The next `files` fixture to fail is `examples/html-sanitize.nvs`, and that is not a bug.** It cannot
-be written before `Core\Html::sanitize` exists in stage 5; it is an item still open, not a regression.
+**`rule:core-classes/xml-tree-and-stream` stays `designed` on purpose** — the writer is not on disk,
+and the rule states both shapes. The wrap that lands the writer flips it to `shipped` and re-renders.
 
-**Stage 3 is untouched** — nothing in the tree holds a reader or a writer, and
-`rule:core-classes/xml-tree-and-stream` stays `designed` until one does.
-
-**The goal's one pre-authorized ADR number is spent** (0168); next free is 0169, and this goal may not
-open it.
+**`examples/html-sanitize.nvs` is still the failing acceptance check** and is still not a regression:
+it cannot be written before `Core\Html::sanitize` exists in stage 5.
 
 ## Next group
 
-**Stage 3: the stream** — one file set, `crates/nvs-stdlib/src/xml.rs` plus its registration in
-`crates/nvs-stdlib/src/registry.rs` and new cases under `tests/conformance/core/`. Every slice below
-is specified by `rule:core-classes/xml-tree-and-stream`; the acceptance names are the five in the
-`stage = "3 stream"` check.
+**Stage 3: the writer** — one file set, `crates/nvs-stdlib/src/xml.rs` plus its registration in
+`crates/nvs-stdlib/src/registry.rs` and new cases under `tests/conformance/core/`. The whole group
+is specified by `rule:core-classes/xml-tree-and-stream`.
 
-- [ ] **The reader**, a `Core\Xml\Reader` class answering stage 2's node family one node at a time and
-      holding one window rather than the document. Its rows join the class block at
-      `crates/nvs-stdlib/src/xml.rs:112`, its symbols the `address` arm at
-      `crates/nvs-stdlib/src/xml.rs:340`, and its registration the list at
-      `crates/nvs-stdlib/src/registry.rs:1697`. Pins
-      `the_reader_answers_stage_twos_node_family_one_node_at_a_time` and
-      `the_reader_holds_one_window_rather_than_the_document`.
-- [ ] **The writer**, whose own state enforces nesting so a caller cannot emit ill-formed output, and
-      for which an unclosed element at the end is an error rather than a document. Same three anchors;
-      it does not reuse `NODE` at `crates/nvs-stdlib/src/xml.rs:173`, because a writer is given
-      elements rather than handed nodes. Pins
+- [ ] **The writer**, a `Core\Xml\Writer` whose own state enforces nesting, so a caller cannot emit
+      ill-formed output: what is open is the writer's, not an argument. Its entry row joins the
+      class block at `crates/nvs-stdlib/src/xml.rs:138` beside `reader`, its class goes beside
+      `READER` at `crates/nvs-stdlib/src/xml.rs:383`, its symbols the `address` arm at
+      `crates/nvs-stdlib/src/xml.rs:475`, and its registration the list at
+      `crates/nvs-stdlib/src/registry.rs:1707`. Pins
       `the_writer_enforces_nesting_from_its_own_state_and_not_from_the_caller` and
-      `an_unclosed_element_at_the_end_is_an_error_and_not_a_document`.
-- [ ] **The two shapes share no operation**, which is the claim
-      `rule:core-classes/xml-tree-and-stream` is currently `designed` for: assert it over the registry
-      at `crates/nvs-stdlib/src/xml.rs:112` as
-      `no_operation_is_available_through_both_the_tree_and_the_stream`, then flip the rule's `status`
-      in `docs/rules/core-classes.json` and re-render with `python tools/rules.py --render`.
-- [ ] **Three `.nvst` cases per new member**, the floor asserted at
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:155`; the five existing
-      `tests/conformance/core/xml-*.nvst` are the spelling to copy, and
-      `tests/conformance/core/xml-parse-answers-one-node-family-through-the-tree.nvst:29` is the walk
-      a reader case is written against.
+      `an_unclosed_element_at_the_end_is_an_error_and_not_a_document` — the second is the writer's
+      half; the reader's is already pinned by
+      `tests/conformance/core/xml-a-reader-refuses-where-the-walk-reaches-it-and-does-not-advance-past-it.nvst`.
+      Note that no member anywhere may take a `Core\Xml\Node`, which
+      `a_parsed_tree_has_no_path_back_into_execution` at
+      `crates/nvs-stdlib/src/xml.rs:1932` enforces — so the writer is written to, never handed a
+      tree.
+- [ ] **Three `.nvst` cases per new member**, the floor
+      `crates/nvs-stdlib/tests/conformance_coverage.rs:156` asserts, each asking a different
+      question. `Core\Xml\Writer` is reached by the same `builds` attribution the reader is, so one
+      case naming `Core\Xml::writer` credits every member it then calls with an arrow.
+- [ ] **Re-run the disjointness sweep against the new rows** at
+      `crates/nvs-stdlib/src/xml.rs:2148`: it refuses a stream member that spells one of the node
+      family's, so a writer wanting `text` or `name` has to be renamed rather than exempted.
+- [ ] **Close the rule and the gap**: `rule:core-classes/xml-tree-and-stream` to `shipped` in
+      `docs/rules/core-classes.json` with `python tools/rules.py --render`, and known gap 1 in
+      `crates/nvs-stdlib/src/xml.rs:90` deleted, since it names the writer and nothing else.
 
 ## Backlog
 
-- `examples/html-sanitize.nvs` — the last missing `files` fixture, blocked on stage 5's `sanitize`.
-- Stage 4, the WHATWG parser on `Core\Html` — `crates/nvs-stdlib/src/html.rs`, `rule:core-classes/html-parsing`.
-- Stage 5, `Core\Html::sanitize` answering a `Markup` by rebuilding — `rule:core-classes/html-sanitize`.
-- `crates/nvs-stdlib/src/xml.rs`'s known gap 3, namespace prefixes unresolved — that module's doc.
+- Stage 4, the WHATWG parser on `Core\Html` — `rule:core-classes/html-parsing`.
+- Stage 5, `Core\Html::sanitize` and `examples/html-sanitize.nvs` — the failing acceptance check.
+- Nothing serialises a tree back out: `crates/nvs-stdlib/src/xml.rs`'s known gap 2.
+- A name is the name as written, prefix and all: that module's known gap 3.
