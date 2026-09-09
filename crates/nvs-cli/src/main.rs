@@ -115,6 +115,7 @@ use clap::{Parser as ClapParser, Subcommand};
 use nvs_diagnostics::{Diagnostics, Renderer, SourceMap};
 use nvs_syntax::{check_declarations, parse_file};
 
+mod agent;
 mod api_diff;
 mod ast;
 mod bundle;
@@ -527,6 +528,45 @@ enum Command {
         /// The directory the pages are written to, created if it is absent.
         #[arg(long, default_value = "doc")]
         out: PathBuf,
+    },
+    /// Answer a coding agent from the registry this binary carries.
+    ///
+    /// A verb of its own rather than an argument to `nvs doc`, which takes a
+    /// path: a symbol is not a path, and a query form under it would be
+    /// ambiguous at the argument parser before it was ambiguous to a reader.
+    // `rule:tooling/an-agent-asks-the-binary`; see [`agent`].
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
+}
+
+/// `nvs agent`'s own verbs — the read half of
+/// `rule:tooling/an-agent-asks-the-binary`'s surface.
+///
+/// Each renders `nvs meta --json`'s document and holds nothing, so the binary
+/// that compiles a program is the binary that answers for it.
+#[derive(Subcommand, Debug)]
+enum AgentCommand {
+    /// Print one line per registered member, and one per enum, exception and
+    /// attribute beside them.
+    // `rule:tooling/the-index-is-one-line-per-member`.
+    Index,
+    /// Print the index lines whose class or member name matches a query.
+    ///
+    /// A command rather than an instruction to grep the index, because a
+    /// namespaced name loses its backslash to the shell before `grep` sees it
+    /// and the empty result that follows is indistinguishable from a name the
+    /// language does not have.
+    Find {
+        /// What to match against a class and member name, without case.
+        query: String,
+    },
+    /// Print one symbol's card — its signature, its prose, its parameters and
+    /// what it throws.
+    Show {
+        /// The symbol an index line opens with, as `Core\IO::read`.
+        symbol: String,
     },
 }
 
@@ -962,6 +1002,11 @@ fn main() -> ExitCode {
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _, entry } => meta::run(entry.as_deref()),
         Command::Doc { file, out } => doc::run(&file, &out),
+        Command::Agent { command } => match command {
+            AgentCommand::Index => agent::index(),
+            AgentCommand::Find { query } => agent::find(&query),
+            AgentCommand::Show { symbol } => agent::show(&symbol),
+        },
     }
 }
 
