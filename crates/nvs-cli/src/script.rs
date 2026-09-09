@@ -62,11 +62,15 @@
 //!
 //! **Known gap: nothing here single-flights a compile in progress.** That rule
 //! specifies a `Compiling`/`Ready`/`Failed` broadcast every racing caller waits
-//! on, and a step 4 that writes a new digest back *only if a fresher
-//! revalidation has not won*. [`CompileState`] has the two states a *finished*
-//! compile leaves behind and no spelling for the third, so two resolves of the
-//! same cold content that overlap both compile it, and the later `insert` wins
-//! step 4 unconditionally. On one accepting core neither is reachable: there is
+//! on. [`CompileState`] has the two states a *finished* compile leaves behind
+//! and no spelling for the third, so two resolves of the same cold content
+//! that overlap both compile it. Step 4 is no longer part of that gap —
+//! [`Compiler::advance`] publishes only where the pointer still names what the
+//! resolve read on its way in, so the slower of two revalidations cannot roll
+//! the fresher one back — but a loser has still paid for a front end nobody
+//! wanted, and its [`Compiler::record`] can sweep the winner's entry out of
+//! the unit table on the way past, costing the next resolve of that path one
+//! recompile. On one accepting core neither is reachable: there is
 //! no second resolve of a path between an observation and the write that
 //! follows it. Both become reachable the moment a second core accepts, and the
 //! broadcast entry is what `docs/plan/m7.md`'s "ten thousand cold requests
@@ -295,6 +299,10 @@ impl Compiler {
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
         let written = PathBuf::from(path);
         let known = shared(&self.paths).get(&written).copied();
+        // What step 4 below compares against: the pointer as this resolve
+        // found it, read once here so that everything after it — the `stat`,
+        // the hash and the compile — happens outside the map.
+        let since = known.map(|entry| entry.content_hash);
 
         // 1. The syscall this resolve does not make: `validate = "never"` is
         //    production's answer for every resolve, and the rate cap is the
@@ -332,7 +340,7 @@ impl Compiler {
         // — a reverted edit, or a broken one being re-observed.
         if let Some(answer) = self.answer(&written, observed.content_hash) {
             if answer.is_ok() {
-                self.advance(&written, &observed);
+                self.advance(&written, &observed, since);
             }
             return answer;
         }
@@ -354,7 +362,7 @@ impl Compiler {
         };
         self.record(key, state, keep);
         if ready {
-            self.advance(&written, &observed);
+            self.advance(&written, &observed, since);
         }
         self.answer(&written, observed.content_hash)
             .expect("the state just written is in the table")
@@ -377,9 +385,28 @@ impl Compiler {
     }
 
     /// Step 4's pointer write: what this path resolves to now, and the moment
-    /// the cap is measured from.
-    fn advance(&self, path: &Path, observed: &Observed) {
-        exclusive(&self.paths).insert(
+    /// the cap is measured from — published **only if nobody moved the pointer
+    /// since**, which is the compare that rule's step 4 states rather than an
+    /// assignment.
+    ///
+    /// `since` is the digest [`Self::compiled`] copied out of the map on its
+    /// way in, and [`None`] — a path this resolve found nothing for — is one
+    /// of its values rather than a case beside it, so two cold resolves of one
+    /// path race on the same terms as two revalidations of it. A resolve that
+    /// observed the file earlier therefore cannot roll back one that observed
+    /// it later, however much longer its own compile took.
+    ///
+    /// Nothing is retried on a loss, and the caller is not told: the unit
+    /// table is keyed by content and already holds what this resolve
+    /// compiled, so it still answers with its own unit — what it has lost is
+    /// only being the content the *next* resolve of this path starts from.
+    /// [`bool`] is here for the tests that order two revalidations by hand.
+    fn advance(&self, path: &Path, observed: &Observed, since: Option<Digest>) -> bool {
+        let mut paths = exclusive(&self.paths);
+        if paths.get(path).map(|entry| entry.content_hash) != since {
+            return false;
+        }
+        paths.insert(
             path.to_path_buf(),
             PathEntry {
                 content_hash: observed.content_hash,
@@ -387,6 +414,7 @@ impl Compiler {
                 last_checked: Instant::now(),
             },
         );
+        true
     }
 
     /// `state` under `key`, and the two entries this path is then allowed to
@@ -878,6 +906,291 @@ mod tests {
             compiler.compiles.load(Ordering::Relaxed),
             1,
             "a core put the file through the front end for itself"
+        );
+    }
+
+    #[test]
+    fn a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it() {
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+        // step 4 seen from a core that resolved *before* the swap. [`record`]'s
+        // sweep takes the old generation out of the table the moment the new
+        // content is published, so the only thing keeping that reader's pages
+        // mapped is the `Arc` its own [`Program`] carries — and the counts
+        // below are that sentence as a number, rather than an argument from
+        // the program having run.
+        let path = a_file_saying("outlives", "one");
+        let written = path.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+
+        // The published entry, cloned out while it is still reachable: once
+        // the edit lands there is no route back to it through the cache, which
+        // is the whole of what is being asserted.
+        let (warm, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        let old = {
+            let units = shared(&compiler.units);
+            let CompileState::Ready(published) = units.values().next().expect("one entry") else {
+                panic!("the published entry is a failure");
+            };
+            Arc::clone(published)
+        };
+        // Dropped so that every reference counted below belongs to a reader.
+        drop(warm);
+
+        // Two barriers for the reason the test above has two: the reader has
+        // to be holding what it resolved while the edit is published, and it
+        // has to still be holding it afterwards.
+        let resolved = std::sync::Barrier::new(2);
+        let swapped = std::sync::Barrier::new(2);
+        std::thread::scope(|cores| {
+            cores.spawn(|| {
+                let (program, _routes) = compiler.compiled(&written).expect("the entry compiles");
+                resolved.wait();
+                swapped.wait();
+                assert_eq!(
+                    said(program),
+                    "one\n",
+                    "a reader was overtaken by an edit it never resolved"
+                );
+            });
+
+            resolved.wait();
+            let _ = a_file_saying("outlives", "two");
+            let (after, _routes) = compiler
+                .compiled(&written)
+                .expect("the edited entry compiles");
+            assert_eq!(
+                shared(&compiler.units).len(),
+                1,
+                "the swept generation is still in the table"
+            );
+            assert_eq!(
+                Arc::strong_count(&old),
+                2,
+                "the old unit is held by something other than its reader and this test"
+            );
+            swapped.wait();
+            drop(after);
+        });
+
+        // The reader has returned, so its clone is gone and the last hold on
+        // the old unit is this test's own: nothing in the cache outlived it.
+        assert_eq!(
+            Arc::strong_count(&old),
+            1,
+            "the old unit is still held after its last reader dropped it"
+        );
+    }
+
+    #[test]
+    fn a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile() {
+        // The two halves of `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
+        // step 4 that only a fleet has a spelling for: the revalidation that
+        // wins the compare moves the pointer, and the cores serving requests
+        // meanwhile are answered *throughout* it.
+        // `no_request_stalls_while_the_file_is_compiled` states the second half
+        // on one core, where a stall is a resume; here it is a thread, and what
+        // says nobody waited is that every reader was answered many times
+        // inside the window a single compile occupies.
+        //
+        // The readers resolve a path nobody edits, deliberately. A reader
+        // landing on the edited one would compile it for itself — nothing here
+        // single-flights a compile in flight, the module doc's first known gap
+        // — and that is a test of the gap rather than of the publish.
+        const READERS: usize = 3;
+
+        let read = a_file_saying("winner-read", "one");
+        let reading = read.to_string_lossy().into_owned();
+        let swap = a_file_saying("winner-swap", "one");
+        let swapping = swap.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+
+        // Both warm first, so that what races below is a revalidation against
+        // readers rather than two cold compiles against each other.
+        let (warm_read, _routes) = compiler
+            .compiled(&reading)
+            .expect("the read entry compiles");
+        drop(warm_read);
+        let (warm_swap, _routes) = compiler
+            .compiled(&swapping)
+            .expect("the swapped entry compiles");
+        drop(warm_swap);
+        let before = shared(&compiler.paths)[&swap].content_hash;
+
+        let started = std::sync::Barrier::new(READERS + 1);
+        let published = std::sync::atomic::AtomicBool::new(false);
+        let answered = std::thread::scope(|cores| {
+            let readers: Vec<_> = (0..READERS)
+                .map(|_| {
+                    cores.spawn(|| {
+                        started.wait();
+                        let mut answers = 0_usize;
+                        while !published.load(Ordering::Relaxed) {
+                            let (program, _routes) = compiler
+                                .compiled(&reading)
+                                .expect("the read entry compiles");
+                            answers += 1;
+                            drop(program);
+                        }
+                        answers
+                    })
+                })
+                .collect();
+
+            // The edit, published while every reader is already looping.
+            started.wait();
+            let _ = a_file_saying("winner-swap", "two");
+            let (after, _routes) = compiler
+                .compiled(&swapping)
+                .expect("the edited entry compiles");
+            published.store(true, Ordering::Relaxed);
+
+            let answered: Vec<_> = readers
+                .into_iter()
+                .map(|reader| reader.join().expect("a reader finished"))
+                .collect();
+            assert_eq!(
+                said(after),
+                "two\n",
+                "the revalidation that won published something else"
+            );
+            answered
+        });
+
+        assert_ne!(
+            shared(&compiler.paths)[&swap].content_hash,
+            before,
+            "the revalidation won the compare and did not publish"
+        );
+        assert_eq!(
+            shared(&compiler.units).len(),
+            2,
+            "one path per generation, so a swept generation is still in the table"
+        );
+        // Three compiles: the two warm-ups and the edit. A reader that had been
+        // made to wait for the compile would have gone back to the table
+        // afterwards; one that had gone through the front end for itself would
+        // be counted here.
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            3,
+            "a reader put something through the front end of its own"
+        );
+        for answers in answered {
+            assert!(
+                answers > 1,
+                "a reader was answered once and then waited the compile out: {answers}"
+            );
+        }
+        // And the path they were reading is untouched by the swap beside it.
+        let (still, _routes) = compiler
+            .compiled(&reading)
+            .expect("the read entry compiles");
+        assert_eq!(said(still), "one\n");
+    }
+
+    #[test]
+    fn a_stale_revalidation_does_not_overwrite_a_fresher_published_one() {
+        // Step 4's compare, driven at [`Compiler::advance`] because that is
+        // the one place two revalidations of a path can be *ordered* rather
+        // than raced: a resolve that observed the file before the edit is
+        // exactly a caller arriving with a `since` the pointer has moved past,
+        // and threads could only reproduce that by winning a coin toss.
+        let path = a_file_saying("stale", "one");
+        let written = path.to_string_lossy().into_owned();
+        let compiler = revalidating();
+        let (first, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        drop(first);
+        let stale = shared(&compiler.paths)[&path].content_hash;
+
+        let _ = a_file_saying("stale", "two");
+        let (second, _routes) = compiler
+            .compiled(&written)
+            .expect("the edited entry compiles");
+        drop(second);
+        let fresher = shared(&compiler.paths)[&path].content_hash;
+        assert_ne!(stale, fresher, "the edit never reached the pointer");
+
+        // The slower revalidation, landing after the one that overtook it. It
+        // compiled content this table already holds, so it is answered either
+        // way; what it must not do is name that content as the path's current
+        // one a second time.
+        let observed = super::Observed {
+            content_hash: stale,
+            stamp: None,
+        };
+        assert!(
+            !compiler.advance(&path, &observed, Some(stale)),
+            "a revalidation that observed the file first won step 4 by finishing last"
+        );
+        assert_eq!(
+            shared(&compiler.paths)[&path].content_hash,
+            fresher,
+            "the published content was rolled back to what a slower resolve saw"
+        );
+
+        // And the next resolve starts from the fresher pointer, which is the
+        // whole of what step 4 is for.
+        let (after, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        assert_eq!(said(after), "two\n");
+    }
+
+    #[test]
+    fn the_compile_counter_counts_compiles_and_not_cores() {
+        // [`Compiler::compiles`]'s own claim, which is what `docs/plan/m7.md`'s
+        // "compiles it exactly once" is asserted against: one counter per
+        // cache rather than one per worker. Two contents move it twice; any
+        // number of cores reading either of them does not move it at all.
+        const CORES: usize = 4;
+
+        let path = a_file_saying("counted", "one");
+        let written = path.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+
+        let (warm, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        drop(warm);
+        assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
+
+        // The cores resolve warm on purpose. Nothing here single-flights a
+        // compile already in flight — the module doc's first known gap — so
+        // four *cold* resolves racing would be counting that gap rather than
+        // this claim.
+        let read_by_every_core = || {
+            std::thread::scope(|cores| {
+                for _ in 0..CORES {
+                    cores.spawn(|| {
+                        let (_program, _routes) =
+                            compiler.compiled(&written).expect("the entry compiles");
+                    });
+                }
+            });
+        };
+
+        read_by_every_core();
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            1,
+            "a core reading the published unit was counted as a compile"
+        );
+
+        // A second content is a second compile: the number moves with what was
+        // put through the front end, and it stays where it is however many
+        // cores then read the result.
+        let _ = a_file_saying("counted", "two");
+        let (edited, _routes) = compiler
+            .compiled(&written)
+            .expect("the edited entry compiles");
+        drop(edited);
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "a new content reached the front end without being counted"
+        );
+
+        read_by_every_core();
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "a core reading the swapped-in unit was counted as a compile"
         );
     }
 
