@@ -396,6 +396,46 @@
       "guardedBy": []
     },
     {
+      "id": "testing/writing-a-debug-record-to-disk-is-its-own-gate",
+      "title": "`[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on",
+      "status": "designed",
+      "because": ["0163"],
+      "seeAlso": ["testing/debug-mode-directive", "testing/debug-surface", "errors/debug-dump", "errors/log-level"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/the-debug-stream-reaches-the-service-through-the-disk",
+      "title": "A debug record reaches the service through a sealed spool file that one writer owns, never over a socket",
+      "status": "designed",
+      "because": ["0163"],
+      "seeAlso": ["testing/writing-a-debug-record-to-disk-is-its-own-gate", "testing/debug-surface", "errors/engine-floor"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
+      "title": "The ingester owns every write to the index and runs without a browser, and the viewer only ever reads",
+      "status": "designed",
+      "because": ["0163"],
+      "seeAlso": ["testing/the-debug-stream-reaches-the-service-through-the-disk", "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined", "errors/log-write"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
+      "title": "A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops",
+      "status": "designed",
+      "because": ["0163"],
+      "seeAlso": ["testing/the-ingester-runs-whether-or-not-anyone-is-looking"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+      "title": "The viewer renders the correlated request stream and hands every artifact with an existing viewer to it",
+      "status": "designed",
+      "because": ["0163"],
+      "seeAlso": ["ide/the-extension-builds-no-ui-the-editor-already-has", "observability/speedscope-timeline-export", "observability/a-trace-id-exists-for-every-request", "errors/record-transformations"],
+      "guardedBy": []
+    },
+    {
       "id": "testing/bench-counters",
       "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
       "status": "designed",
