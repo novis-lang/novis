@@ -23540,6 +23540,14 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `session_cache_limiter` | dropped | it writes `Cache-Control` and `Expires` as a side effect of a session existing, from a four-name vocabulary nobody remembers. Caching headers are `Core\Response::setHeader`, written where they are meant |
 | `session_cache_expire` | dropped | the same headers, and the same answer |
 | `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` (`rule:observability/script-on-exit`) |
+| `gzcompress` | member | `Core\Compress::compress` with the `Zlib` case — the format is an enum case rather than a third of the function's name |
+| `gzuncompress` | member | `Core\Compress::decompress`, the same case in the other direction, under the output bound above |
+| `gzdeflate` | member | `Core\Compress::compress` with the `Deflate` case, which is the same bytes without the header |
+| `gzinflate` | member | `Core\Compress::decompress`, the same case, bounded |
+| `gzencode` | member | `Core\Compress::compress` with the `Gzip` case |
+| `gzdecode` | member | `Core\Compress::decompress`, the same case, bounded |
+| `zlib_encode` | member | `Core\Compress::compress`. PHP's `$encoding` integer *is* the enum case, chosen at the call site and validated at run time; here the compiler validates it |
+| `zlib_decode` | member | `Core\Compress::decompress`, the same, bounded |
 | `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
 | `gzopen` | dropped | reading and decompressing are two jobs (R17): `Core\IO::open`'s handle yields the bytes and `Core\Compress` decodes them. A handle is an object either way, never a `resource` (R14) |
 | `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
@@ -23552,7 +23560,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
 | `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
-| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
+| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress::decompress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
 | `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
