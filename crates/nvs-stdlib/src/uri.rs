@@ -168,6 +168,16 @@
 //! Equal *text* is not on offer and never was: one set of parameters has many
 //! spellings, and this is the one every reader accepts.
 //!
+//! `rule:classes/an-encoder-ends-a-cycle-by-identity` has nothing to carry
+//! here, because [`build`]'s walk descends into **arrays and nothing else**:
+//! the one shape with reference semantics, and so the one shape that can close
+//! a cycle, is never entered. An object reaching a parameter's value is handed
+//! whole to [`scalar_text`], which writes a carrier's own text or throws, and
+//! an array cannot hold itself — [`nvs_runtime::graph`]'s module doc owns why
+//! `$a[] = $a` appends a copy. The descent is therefore finite without a cap,
+//! and shared substructure is written once per path that reaches it, which is
+//! the same answer that rule gives.
+//!
 //! # What is not here: no dependency
 //!
 //! This half binds no outside crate, which is a deliberate exception to
