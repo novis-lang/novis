@@ -430,6 +430,36 @@ def dirty_generated() -> list[str]:
     return [ln[3:].strip() for ln in out.split("\n") if ln.strip()]
 
 
+def refresh_generated(dry: bool) -> str:
+    """Regenerate `docs/novis.md` when the tree has left it stale; return a refusal if it cannot.
+
+    `dirty_generated` sweeps the file only after something else has rewritten it, which covers
+    the session whose `verify.py` ran after its last edit. The other order is the workflow's own:
+    step 3 verifies and step 4 writes docs, so a step-4 edit to `docs/spec/02-php-migration.md`
+    or to a chapter under `docs/reference/` leaves the reference stale *and clean*. Nothing in
+    the session sees that. The driver's acceptance sweep does, after the session is gone, and a
+    run that stops there needs a person; a quarter of a second here is what that costs instead.
+
+    A tree with no debug binary cannot answer the question at all, and this refuses rather than
+    guessing -- the wrap writes nothing, and `python tools/verify.py` is the one command that
+    clears it."""
+    def run(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, str(ROOT / "tools" / "reference.py"), *args],
+                              cwd=ROOT, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+    checked = run("--check")
+    if checked.returncode == 0:
+        return ""
+    said = ((checked.stdout + checked.stderr).strip().split("\n") or [""])[-1]
+    if "stale" not in said:
+        return f"`python tools/reference.py --check` cannot run: {said}"
+    say(f"session.py: docs/novis.md is stale -- "
+        f"{'would regenerate' if dry else 'regenerating'} it from the binary")
+    if not dry:
+        run("--no-examples")
+    return ""
+
+
 def uncommitted_writes(sections: list[Section], extra: list[str] = ()) -> list[str]:
     """What this wrap writes -- or `verify.py` wrote under it, or `retire_expired` changed --
     that no `## commit:` carries."""
@@ -592,7 +622,7 @@ def validate(sections: list[Section]) -> list[str]:
             f"before the push -- `check-links.py` is CI's `docs` job, and `verify.py` deliberately "
             f"does not run it (its own docstring says why), so a green verify says nothing here. "
             f"A link already dead at HEAD is not counted: that one is not yours.")
-    errors += rulebook_findings()
+    errors += rulebook_findings() + record_findings() + migration_findings()
     return errors
 
 
@@ -825,6 +855,48 @@ RULEBOOK_GATES = (
      "old rendering beside the new rule."),
 )
 
+#: The same shape one directory over, and the same argument. A record's field set, heading order and
+#: derived counters are `records.py`'s job; that job is CI's `docs` and nothing before the push runs
+#: it, so a malformed record reaches `main` under a goal that is closed by the time CI says so.
+RECORD_GATES = (
+    (("--check",),
+     "a decision record's field set, heading order, cross-links or derived counters are wrong -- "
+     "most often a `changes:` block with no `modifies:` list, which the checker's own message "
+     "spells out. `verify.py` does not run this one either."),
+)
+
+#: And one directory further. The migration table is read by two acceptance checks and by nothing a
+#: session runs: `reference.py` renders its rows into `docs/novis.md`, and `check-migration.py`
+#: audits them against the PHP inventory. The percentage stays the goal's assertion -- `--min` is
+#: named by whoever asserts it -- so this gate takes the bare run, which is the structural half.
+MIGRATION_GATES = (
+    ((),
+     "the migration table has a structural error -- a row for a name PHP does not have, an outcome "
+     "outside the vocabulary, or a duplicate. The tool's own output is the whole message."),
+)
+
+
+def tree_gate(tree: str, tool: str, gates) -> list[str]:
+    """What `tool` refuses over the whole tree, for a session that edited `tree`."""
+    done = git("status", "--porcelain", "--", tree, check=False)
+    if done.returncode != 0 or not done.stdout.strip():
+        return []
+    out: list[str] = []
+    for args, why in gates:
+        ran = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / tool), *args],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if ran.returncode == 0:
+            continue
+        detail = (ran.stdout + ran.stderr).strip().split("\n")
+        shown = "\n      ".join(detail[:12])
+        more = f"\n      ... and {len(detail) - 12} more line(s)" if len(detail) > 12 else ""
+        out.append(
+            f"`{' '.join(('python', f'tools/{tool}', *args))}` fails, and this session edited "
+            f"`{tree}/`: {why}\n      {shown}{more}")
+    return out
+
 
 def rulebook_findings() -> list[str]:
     """What `tools/rules.py` refuses, but only for a session that touched `docs/rules/`.
@@ -843,24 +915,26 @@ def rulebook_findings() -> list[str]:
     under a session that never opened it is CI's finding and a human's to schedule, exactly as an
     inherited dead link is.
     """
-    done = git("status", "--porcelain", "--", "docs/rules", check=False)
-    if done.returncode != 0 or not done.stdout.strip():
-        return []
-    out: list[str] = []
-    for args, why in RULEBOOK_GATES:
-        ran = subprocess.run(
-            [sys.executable, str(ROOT / "tools" / "rules.py"), *args],
-            cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-        if ran.returncode == 0:
-            continue
-        detail = (ran.stdout + ran.stderr).strip().split("\n")
-        shown = "\n      ".join(detail[:12])
-        more = f"\n      ... and {len(detail) - 12} more line(s)" if len(detail) > 12 else ""
-        out.append(
-            f"`python tools/rules.py {' '.join(args)}` fails, and this session edited "
-            f"`docs/rules/`: {why}\n      {shown}{more}")
-    return out
+    return tree_gate("docs/rules", "rules.py", RULEBOOK_GATES)
+
+
+def record_findings() -> list[str]:
+    """What `tools/records.py` refuses, but only for a session that wrote a decision record.
+
+    The trigger is the session's own edit, exactly as it is above and for the same reason: a
+    record's shape is a property of the whole set and there is nothing per-file to compare, so a
+    set already red under a session that never opened `docs/decisions/` is CI's finding and a
+    person's to schedule."""
+    return tree_gate("docs/decisions", "records.py", RECORD_GATES)
+
+
+def migration_findings() -> list[str]:
+    """What `tools/check-migration.py` refuses, for a session that edited `docs/spec/`.
+
+    Same trigger, same reason. The threshold this table is really gated on lives in the goal's
+    acceptance list and nowhere else, so the bare run is what belongs here: it answers whether the
+    rows are well formed, which is the half a session can break and then close on."""
+    return tree_gate("docs/spec", "check-migration.py", MIGRATION_GATES)
 
 
 def body_links(sections: list[Section]) -> list[str]:
@@ -1132,6 +1206,13 @@ def wrap(path: Path, dry: bool) -> int:
     # that closes the session. Explicit is still better -- `--template` pre-fills the section --
     # and when the session was explicit this finds nothing to do.
     commits = [s for s in ordered if s.kind == "commit"]
+    # Before `uncommitted_writes` asks what is dirty, so that a reference regenerated here is
+    # dirty by the time it asks and joins the last commit with everything else the wrap wrote.
+    stop = refresh_generated(dry)
+    if stop:
+        say("session.py: NOTHING was written or committed:")
+        say(f"  - {stop}")
+        return 1
     owed = uncommitted_writes(sections, retire_expired(dry))
     if owed and commits:
         commits[-1].arg = " ".join(commits[-1].arg.split() + owed)
@@ -1383,6 +1464,28 @@ def check() -> int:
             if touched.returncode != 0 or not touched.stdout.strip()
             else "  every rule loads, every citation resolves, and the rendered pages are current")
     for p in rule_problems:
+        say(f"  YOURS  {p}")
+
+    say()
+    say("== RECORDS  (python tools/records.py -- CI's `docs` job, and only when you edited them)")
+    record_problems = record_findings()
+    if not record_problems:
+        touched = git("status", "--porcelain", "--", "docs/decisions", check=False)
+        say("  clean -- this wrap is not gated on it"
+            if touched.returncode != 0 or not touched.stdout.strip()
+            else "  every record's field set, heading order and derived counters are right")
+    for p in record_problems:
+        say(f"  YOURS  {p}")
+
+    say()
+    say("== MIGRATION  (python tools/check-migration.py -- only when you edited docs/spec/)")
+    migration_problems = migration_findings()
+    if not migration_problems:
+        touched = git("status", "--porcelain", "--", "docs/spec", check=False)
+        say("  clean -- this wrap is not gated on it"
+            if touched.returncode != 0 or not touched.stdout.strip()
+            else "  every row of the migration table is well formed")
+    for p in migration_problems:
         say(f"  YOURS  {p}")
 
     say()

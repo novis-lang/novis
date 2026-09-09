@@ -186,7 +186,13 @@ INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml"
                # green cache would answer for a policy the tree no longer has. The rest of
                # `tools/` is deliberately not an input: `loop.py` and friends change most
                # sessions and change nothing these steps would say.
-               "tools/lints.py", "tools/reference.py")
+               "tools/lints.py", "tools/reference.py",
+               # The third file `reference.py` reads, and the only one outside `docs/reference/`:
+               # every row of the migration table is rendered into `docs/novis.md`. Without it
+               # here, a session that edits the table alone answers from the green cache, the
+               # reference step never runs, and the stale `docs/novis.md` it leaves behind fails
+               # the driver's acceptance sweep rather than the session that wrote it.
+               "docs/spec/02-php-migration.md")
 # Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
 # cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
 # files, which would make the green cache's own hash the slowest thing in this script.

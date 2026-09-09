@@ -1350,7 +1350,12 @@ class Result:
 
     @property
     def first_err_line(self):
-        return (self.err.strip().splitlines() or [""])[0]
+        """Stderr's first line -- or, when a program reports on stdout and exits non-zero with
+        nothing on stderr, stdout's last. Every verdict in this file quotes this, and without the
+        fallback such a program reaches the ledger as a bare `exit 1 --`: a stop whose whole cause
+        was printed and then thrown away."""
+        return ((self.err.strip().splitlines() or [""])[0]
+                or (self.out.strip().splitlines() or [""])[-1])
 
 
 def capture(exe, args, timeout=1800, cwd=None, env=None, log_stdout=True):

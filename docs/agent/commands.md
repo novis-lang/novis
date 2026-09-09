@@ -252,12 +252,21 @@ run; a wider one does satisfy a narrower.
 **The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
-second together — and `session.py --wrap` runs **two** of them in-process, so a wrap cannot commit what
-it just broke: the link half always, and the two rulebook halves when the session has edited
-`docs/rules/`. That trigger is the difference between the two gates. A dead link is a per-file fact, so
-the link gate can ask HEAD which findings are inherited; a rulebook finding is a property of the whole
-tree, so the conservative equivalent is to ask whether this session touched the rulebook at all —
-including a rename, which is what makes a citation elsewhere go dead.
+second together — and `session.py --wrap` runs **four families** of them in-process, so a wrap cannot
+commit what it just broke: the link half always, and then the rulebook (`rules.py`), the records
+(`records.py`) and the migration table (`check-migration.py`, which is CI's too) — each only when the
+session has edited the tree that feeds it, `docs/rules/`, `docs/decisions/` and `docs/spec/`. That
+trigger is the difference between the link gate and the other three. A dead link is a per-file fact, so
+the link gate can ask HEAD which findings are inherited; a rulebook, record or migration finding is a
+property of the whole set, so the conservative equivalent is to ask whether this session touched that
+tree at all — including a rename, which is what makes a citation elsewhere go dead.
+
+**`docs/novis.md` is the fifth thing a wrap settles, and it is a write rather than a gate.** The
+reference is generated from the binary, the chapters under `docs/reference/` and the migration table's
+rows, so a step-4 edit to any of those leaves it stale *and clean* after step 3 verified it — which the
+driver's acceptance sweep then reports against a session that is already gone. The wrap regenerates it
+in a quarter of a second and the last `## commit:` carries it. A tree with no debug binary cannot answer
+the question, and the wrap refuses there rather than committing a guess.
 
 `layout.py` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
 every row names something on disk, every crate, bench package and tracked top-level directory has a row,
