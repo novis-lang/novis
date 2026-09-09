@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Generate `docs/novis.md` -- the one-file reference to everything Novis has -- and prove its examples.
+"""Generate `docs/novis.md` -- the one-file reference to everything Novis has -- and prove what the
+two generated documents claim: this one, and the primer the binary renders.
 
     python tools/reference.py                 # regenerate docs/novis.md, then run every example in it
     python tools/reference.py --check         # regenerate in memory; exit 1 if docs/novis.md is stale
     python tools/reference.py --no-examples   # regenerate only (sub-second)
     python tools/reference.py --examples-only [--only <substring>]   # run the examples, write nothing
+    python tools/reference.py --primer --check   # prove `nvs agent primer` instead, writing nothing
     python tools/reference.py --keep          # leave the example directories under .agent-tmp/ behind
 
 ## What it builds, and from what
@@ -24,6 +26,15 @@ language model, a person -- and is generated, never edited. Its three inputs:
 Every fenced `nvs` block in a chapter is a program this tool **runs against the binary**, and the
 `output` fence after it is what the program must print -- so an example that stops being true fails
 `python tools/verify.py` rather than misleading the next reader. The fence grammar is the README's.
+
+## The primer, which it proves and does not build
+
+`nvs agent primer` is assembled by the binary from `<!-- primer -->`-marked sections of the same
+chapters (`rule:tooling/an-agent-asks-the-binary`), so this tool writes no part of it -- `--primer`
+proves the assembled document instead, which is what an agent holding nothing else reads. Its
+examples run through the harness above, and each `E0xxx` a lifted refusal table names must be
+declared in the diagnostic registry: a refusal's PHP cell is a fragment rather than a program, so
+the code beside it is what can be executed about it (`rule:tooling/a-primer-claim-is-executed`).
 
 ## Why a generated file rather than the spec
 
@@ -54,7 +65,12 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "novis.md"
 SOURCES = ROOT / "docs" / "reference"
 MIGRATION = ROOT / "docs" / "spec" / "02-php-migration.md"
+#: The whole diagnostic registry: a code declared anywhere else does not exist.
+DIAGNOSTICS = ROOT / "crates" / "nvs-diagnostics" / "src" / "lib.rs"
 TMP = ROOT / ".agent-tmp" / "reference-examples"
+#: Where `--primer` parks what `nvs agent primer` printed, so a failure's `file:line` names a file
+#: that is still on disk to read.
+PRIMER = ROOT / ".agent-tmp" / "primer" / "primer.md"
 BINARY = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
 
 #: A chapter's leading `---` block: `key: value` lines, three of which mean something.
@@ -73,6 +89,10 @@ HEADING_RE = re.compile(r"^(#{1,6}) (.*)$", re.M)
 ROW_RE = re.compile(r"^\| `([^`]+)` \| (member|language|dropped|open) \| (.*) \|$")
 #: A markdown link whose target is a path rather than a URL or an in-page anchor.
 REL_LINK_RE = re.compile(r"(?<=\]\()(?!\w+:|[#/])([^)]+)(?=\))")
+#: One declared diagnostic code, in the registry.
+CODE_DECL_RE = re.compile(r'Code::new\("(E\d{4})"\)')
+#: One diagnostic code cited in prose or in a table cell.
+CODE_CITED_RE = re.compile(r"\bE\d{4}\b")
 
 TIMEOUT = 60  # seconds per example; a hung example is a bug in the example
 
@@ -711,6 +731,53 @@ def check_examples(only: str | None, keep: bool) -> int:
     return 1 if failures else 0
 
 
+def undeclared_codes(text: str) -> tuple[int, list[str]]:
+    """How many diagnostic codes the primer names, and one line per code that is declared nowhere.
+
+    A refusal the primer states is a table row whose PHP cell is a fragment -- `list($a) = $b`, a
+    bare `$x = 1` -- so there is no program to hand `nvs check`. What is executable about the row is
+    the code in its third column: it either names a `Code::new` constant in the registry or it names
+    nothing, and a refusal that cannot be raised is the one lie a generated document can still tell.
+    """
+    declared = set(CODE_DECL_RE.findall(DIAGNOSTICS.read_text(encoding="utf-8")))
+    first_line: dict[str, int] = {}
+    for m in CODE_CITED_RE.finditer(text):
+        first_line.setdefault(m.group(0), text.count("\n", 0, m.start()) + 1)
+    where = PRIMER.relative_to(ROOT).as_posix()
+    registry = DIAGNOSTICS.relative_to(ROOT).as_posix()
+    return len(first_line), [f"{where}:{line}: `{code}` is stated as a refusal, and is declared "
+                             f"nowhere in {registry}"
+                             for code, line in sorted(first_line.items()) if code not in declared]
+
+
+def check_primer(keep: bool) -> int:
+    """Prove the primer against the binary that printed it: its examples run, its refusals exist."""
+    p = subprocess.run([str(BINARY), "agent", "primer"], capture_output=True, timeout=TIMEOUT)
+    if p.returncode != 0:
+        print(f"reference.py: `nvs agent primer` exited {p.returncode}\n"
+              f"{p.stderr.decode('utf-8', 'replace').strip()}")
+        return 1
+    text = p.stdout.decode("utf-8", "replace").replace("\r\n", "\n")
+    PRIMER.parent.mkdir(parents=True, exist_ok=True)
+    PRIMER.write_text(text, encoding="utf-8", newline="\n")
+    # The assembled document is what is proven, not the chapters it lifted from: an example the
+    # primer carries without the `file` block or the `output` fence that stood beside it in the
+    # chapter is a claim the primer alone makes, and this is the only place it fails.
+    examples = examples_in(PRIMER)
+    cited, bad_codes = undeclared_codes(text)
+    if not examples or not cited:
+        print("reference.py: the primer prints "
+              f"{len(examples)} example(s) and names {cited} diagnostic code(s) -- a marked section "
+              "has lost the claim this proves")
+        return 1
+    bad_examples = [r for r in (run_example(ex, keep) for ex in examples) if r]
+    for f in bad_codes + bad_examples:
+        print(f"FAIL {f}\n")
+    print(f"reference.py: {len(examples) - len(bad_examples)} of {len(examples)} primer examples "
+          f"hold, {cited - len(bad_codes)} of {cited} refusal codes are declared")
+    return 1 if bad_codes or bad_examples else 0
+
+
 # ------------------------------------------------------------------ main
 
 
@@ -721,9 +788,16 @@ def main() -> int:
                     help="regenerate in memory and exit 1 if docs/novis.md differs")
     ap.add_argument("--no-examples", action="store_true", help="regenerate only")
     ap.add_argument("--examples-only", action="store_true", help="run the examples, write nothing")
+    ap.add_argument("--primer", action="store_true",
+                    help="check `nvs agent primer` instead: run every example it prints")
     ap.add_argument("--only", help="with the examples: only chapters whose path contains this")
     ap.add_argument("--keep", action="store_true", help="leave example directories behind")
     opts = ap.parse_args()
+
+    # The primer is rendered by the binary at the call and never written to the tree, so there is
+    # nothing for `--check` to compare and it means the same thing with the flag or without it.
+    if opts.primer:
+        return check_primer(opts.keep)
 
     if opts.examples_only:
         return check_examples(opts.only, opts.keep)
