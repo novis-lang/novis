@@ -15,6 +15,14 @@
 //! `toBase32`/`fromBase32`, and the `encodeText`/`decodeText`/`isValidText`
 //! trio over [`CHARSET`]. § 7's other class, `Core\Bytes`, is elsewhere.
 //!
+//! `rule:classes/an-encoder-ends-a-cycle-by-identity` has nothing to carry
+//! here, because no member of this class walks a value graph at all: every one
+//! of them reads a single `bytes` or `string` out of slot 0 ([`bytes_of`],
+//! [`text_of`]) and at most a `Core\Charset` case out of slot 1
+//! ([`charset_of`]), so there is no container to descend into and no value an
+//! identity could be taken of. What these members encode is a byte sequence,
+//! not a structure.
+//!
 //! # `Charset` is the WHATWG index, and Novis keeps three labels apart
 //!
 //! § 7 says the roster is the **WHATWG Encoding Standard's index**, not a list
