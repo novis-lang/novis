@@ -194,4 +194,4 @@ argv = ["python", "tools/rules.py", "--render", "--check"]
 kind = "command"
 stage = "4 the rulebook"
 name = "the record and the rulebook still agree on what this decision created"
-argv = ["python", "tools/decisions.py", "--check"]
+argv = ["python", "tools/decisions.py", "--gate"]

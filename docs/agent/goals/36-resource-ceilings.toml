@@ -321,4 +321,4 @@ argv = ["python", "tools/rules.py", "--check"]
 kind = "command"
 stage = "7 the record"
 name = "every record this goal opened is complete and cited"
-argv = ["python", "tools/decisions.py", "--check"]
+argv = ["python", "tools/decisions.py", "--gate"]
