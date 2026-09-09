@@ -281,10 +281,9 @@ retired = true
 [[goal]]
 name = "24 net-os-signal"
 md = "docs/agent/goals/24-net-os-signal.md"
-toml = "docs/agent/goals/24-net-os-signal.toml"
-handoff = "docs/agent/goals/24-net-os-signal.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # Spec § 17's three archive-and-encoding classes, each Tier 0 because what a compressed or
 # archived input can do to a server is policy and policy must be non-optional. They are M8's, not

@@ -1,14 +1,16 @@
-# Goal 24 -- `Core\Net`, `Core\Os` and `Core\Signal`.
+# Goal 25 -- `Core\Compress`, `Core\Mime` and `Core\Zip`.
 # The acceptance test, as data.
 #
-# `24-net-os-signal.md` is the prose. One home each.
+# `25-formats.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
+  "examples/compress-roundtrip.nvs",
+  "examples/zip-refuses.nvs",
+  # carried from the previous goal by tools/goal-switch.py
   "examples/net-echo.nvs",
   "examples/os-facts.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-socket.nvs",
   "examples/parses.nvs",
   "examples/input-shapes.nvs",
@@ -83,44 +85,24 @@ files = [
 [context]
 
 modules = [
-  # Stages 2-4 -- the three new `Core` modules land beside these; `socket.rs` is `Core\Socket`
-  # (`rule:concurrency/a-connection-is-a-root-isolate`'s WebSocket) and is deliberately NOT what this goal extends.
-  "crates/nvs-stdlib/src/socket.rs",
-  # Stages 2-4 -- every new class declares its rows here.
+  # Stages 2-4 -- the three new modules land beside these, and declare their rows here.
   "crates/nvs-stdlib/src/registry.rs",
-  # Stage 2 -- `NvsTcp` at :227, `NvsListener` at :313, `NvsUnix` at :460, and where `NvsUdp` joins.
-  "crates/nvs-host/src/net.rs",
-  # Stage 2 -- what a socket registers with, and what parking on it costs.
-  "crates/nvs-host/src/reactor.rs",
-  # Stage 2 -- `net.local` and `net.listen` join this roster; `net.connect` keeps its host scope.
-  "crates/nvs-config/src/capability.rs",
-  # Stage 2 -- `pin_host`/`pinned_address`: the denied-range walk a program's own connect still takes.
-  "crates/nvs-runtime/src/capability.rs",
-  # Stage 3 -- the one existing `available_parallelism` caller, at :145, which stops being the only one.
-  "crates/nvs-cli/src/info.rs",
-  # Stage 4 -- the drain state machine a `Core\Signal` handler enters rather than duplicating.
-  "crates/nvs-server/src/control.rs",
-  # `nvs-cli`'s half of `nvs_runtime::script`: the path a `spawn script` wrote, compiled into a
-  # `Program` an isolate can run.
-  "crates/nvs-cli/src/script.rs",
-  # The typed block tree one configuration file deserializes into: every block an ADR states, with
-  # its own fields, and an unknown key refused.
+  # Stage 3 -- `bytes` is what detection reads and what a codec answers.
+  "crates/nvs-stdlib/src/bytes.rs",
+  # Stage 4 -- path resolution and the traversal predicates an extraction destination is checked with.
+  "crates/nvs-stdlib/src/path.rs",
+  # Stage 4 -- the filesystem door an extraction goes through, and the grant it asks.
+  "crates/nvs-stdlib/src/storage.rs",
+  # Stage 2 -- `[limits]`, which supplies the default ceiling a call may lower and never raise.
   "crates/nvs-config/src/tree.rs",
-  # `Core\Net` — `rule:core-classes/net-one-api-three-transports`'s socket surface, over the
-  # runtime's own reactor and nothing else.
-  "crates/nvs-stdlib/src/net.rs",
-  # Seeding the checker's signature table with `Core`.
-  "crates/nvs-types/src/core_lib.rs",
-  # The host's own facts: the process's identity, the cores it may run on, the memory the
-  # operating system says it holds, and the load the kernel reports.
-  "crates/nvs-runtime/src/os.rs",
-  # `Core\Os` — the five facts a program may ask about the host it is running on, replacing
-  # `posix_*` minus fork, `php_uname`, `getrusage` and `sys_getloadavg`.
-  "crates/nvs-stdlib/src/os.rs",
+  # Stages 2-4 -- the diagnostics band a refusal that names its rule is declared in.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Stage 3 -- the taint axis a detected type does not launder.
+  "crates/nvs-stdlib/src/taint.rs",
 ]
 
-# 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
-# takes; 0142 is where `net.local` was named and deferred; 0052 is why no door dispatches on a scheme.
+# 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
+# not launder; 0052 is the closed-doors argument; 0009 is the bytes/string boundary.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
 # decision. ADR 0097 came out: it created more than eight rules, so naming
 # it here printed a whole chapter of titles to every stage,
@@ -128,16 +110,17 @@ modules = [
 # the rest in one call.
 rules = [
   "0051",
-  "0058",
-  "0142",
+  "0024",
+  "0009",
   "0052",
-  "0017",
   "0004",
 ]
 
-adrs = ["0051 §3", "0058 §3", "0142 §6", "0162 §7", "0162 §12"]
+# What no single stage owns: § 1 is the proxied-origin split every stage of this goal sits inside.
+# 0051 § 3 -- the tier test -- moved into stage 2, the only stage whose prose names it.
+adrs = ["0097 §1"]
 
-shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
+shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -168,7 +151,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `24-net-os-signal.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `25-formats.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -180,19 +163,10 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.0]
-rules = ["core-api/tier-roster"]
+rules = ["core-api/tier-roster", "http-server/two-deployments-and-nothing-a-proxy-owns"]
 
 [context.stage.2]
-rules = ["config/net-local-is-named-and-not-on-the-roster", "core-api/tier-placement", "security/a-path-is-not-a-url", "security/net-address-policy"]
-
-[context.stage.3]
-# ADR 0148 § 12 is what `Core\Os` is *not*: a request's memory. The stage that builds the class
-# cannot tell why `memoryUsage` is absent without it, and the base manifest carries neither section.
-rules = ["core-api/tier-roster", "security/capability-check-at-the-door", "testing/capability-closure-test"]
-adrs = ["0148 §11", "0148 §12"]
-
-[context.stage.4]
-rules = ["concurrency/a-drain-closes-a-connection-cleanly", "core-api/tier-roster"]
+adrs = ["0051 §3"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
@@ -200,12 +174,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Its own checks bind loopback sockets and need no container. The floor is goal 23's.
+# Its own checks are in-process over byte buffers and need no container. The floor is goal 24's.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
-memoize_on = ["crates/nvs-stdlib", "crates/nvs-host", "crates/nvs-config"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-config"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 403 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6135,15 +6115,12 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- `Core\Net`, over the reactor and nothing else.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 net"
+stage = "1 floor"
 name = "nvs-config (the two new grants)"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -6153,7 +6130,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 net"
+stage = "1 floor"
 name = "nvs-host (a datagram socket parks like a stream)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -6163,7 +6140,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 net"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Net: connect, listen, and what is refused)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6177,10 +6154,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- `Core\Os`, five facts about the host.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 os"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Os answers the host)"
 args = ["test", "-p", "nvs-stdlib"]
 # `memory_usage` was this list's fourth name until ADR 0148 § 12 moved a request's held bytes to
@@ -6197,10 +6173,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- `Core\Signal`, graceful shutdown and nothing else.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 signal"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Signal is shutdown, and only shutdown)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6212,10 +6187,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the three keys are struck.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 registered"
+stage = "1 floor"
 name = "nvs-stdlib (spec § 16 loses its last three keys)"
 args = ["test", "-p", "nvs-stdlib"]
 # The second name is the walk over `tests/migration-members-outstanding.txt`,
@@ -6224,6 +6198,94 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "every_part_two_spec_class_is_registered",
   "every_migration_member_row_names_a_registered_member",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `Core\Compress`, and the bound that cannot be switched off.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 compress"
+name = "nvs-stdlib (four codecs, one bound)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "gzip_deflate_brotli_and_zstd_each_round_trip",
+  "the_codec_is_an_enum_and_there_is_no_name_as_string_spelling",
+  "a_decompression_exceeding_the_ratio_throws_rather_than_truncating",
+  "a_decompression_exceeding_the_absolute_ceiling_throws_rather_than_truncating",
+  "a_call_may_lower_the_bound_and_may_not_raise_it_past_the_configured_ceiling",
+  "there_is_no_spelling_for_an_unbounded_decompression",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `Core\Mime`, magic bytes and no rule interpreter.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 mime"
+name = "nvs-stdlib (detection is by content, and launders nothing)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_type_is_detected_from_magic_bytes_and_never_from_a_file_extension",
+  "the_answer_is_a_closed_enum_plus_unknown_and_never_a_free_string",
+  "detected_bytes_are_still_tainted_because_detection_is_not_a_launderer",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `Core\Zip`, where the policy lives. The proofs are the attacks.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 zip"
+name = "nvs-stdlib (four hostile archives, four refusals that name the rule)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_traversing_entry_is_refused_at_read_time_by_the_diagnostic_that_names_the_rule",
+  "an_absolute_path_entry_is_refused_the_same_way",
+  "a_symlink_entry_is_refused_the_same_way",
+  "a_decompression_bomb_is_refused_by_stage_twos_bound_per_entry_and_across_the_archive",
+  "extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it",
+  "a_refusal_is_a_diagnostic_and_never_a_failed_io_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the three keys are struck, and the server still compresses nothing.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (spec § 17 loses three of its four keys)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-server (nothing in the response path compresses implicitly)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_server_still_sets_no_content_encoding_of_its_own",
 ]
 
 [[check]]

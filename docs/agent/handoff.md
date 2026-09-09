@@ -2,57 +2,45 @@
 
 ## State
 
-**Goal 24 — stage 6's first two items are landed.** `Core\Budget` is registered with `memoryHeld`,
-`memoryPeak` and `memoryLimit`, all three `uint` byte counts over `Ctx`; `§16 Core\Budget` left
-`spec-classes-part-two-outstanding.txt` and its three keys left `migration-members-outstanding.txt`.
-`rule:observability/memory-is-three-numbers-on-core-budget` and
-`rule:observability/a-memory-peak-is-recorded-not-asked-for` are both `shipped` now, with the cases
-and the module as their `guardedBy`.
+**Goal 25 — `Core\Compress`, `Core\Mime` and `Core\Zip` — has just started; nothing of it has landed
+yet.** Goal 24's whole list is this goal's Stage 1 floor.
 
-**The peak is recorded, not sampled.** `budget::add` moves a `PEAK` thread-local inside the branch
-that already tests for a positive delta; `Ctx::new` rebases it and carries what it displaced, and
-`Drop for Ctx` republishes `max(enclosing, reached)` before any teardown allocates, so a nested
-isolate cannot erase its parent's mark. `crates/nvs-runtime/src/budget.rs`'s module doc is the home
-of what that spends, and `crates/nvs-stdlib/src/budget.rs`'s owns why the record's `int` is a `uint`
-here and why `Core\Os::residentBytes` stays where it is.
+**They are M8's, not M9's**, and that correction is why this entry exists.
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`'s header said "the four in § 17 are the
+document and archive formats M9 carries"; [m9.md](../plan/m9.md) is the extension system — `.nvsx`
+loading, the WIT world, the capability bridge — and carries none of them, while
+`rule:core-api/tier-roster` puts all three at Tier 0.
 
-**The stage-5 acceptance check was naming a test that does not exist** — a shorthand for
-`every_migration_member_row_names_a_registered_member` — and now names the real one. Stage 5 is
-green; the playbook bullet above is the trap.
-
-**Stage 6 item 3 is the whole of what is left in the goal**: the three readings an operator gets
-without asking. Nothing else in `loop-goal.toml` is open.
+All three are Tier 0 for one reason: what a compressed or archived input can do to a server is
+**policy**, and policy must be non-optional. `Core\Zip` is Core "despite passing test 5" for exactly
+this — a sandboxed decoder gets the memory cap for free and the traversal rules not at all.
 
 ## Next group
 
-**Stage 6: the three unasked readings** — one file set: `crates/nvs-stdlib/src/script.rs`,
-`crates/nvs-server/src/metrics.rs`, `crates/nvs-config/src/tree.rs`.
+**Stage 2: `Core\Compress`, and the bound** — one file set: the new `crates/nvs-stdlib/src/compress.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-config/src/tree.rs`.
 
-- [ ] **`Core\Script\ExitReport::memoryPeak`.** A fourth reading on the report a `spawn script`
-      handler is handed, off `Ctx::memory_peak` exactly as `Core\Budget::memoryPeak` reads it
-      ([0148](../decisions/0148.md) § 14, and `rule:observability/a-memory-peak-is-recorded-not-asked-for`
-      for what the mark is). The class rows are `crates/nvs-stdlib/src/script.rs:256`, its slot layout
-      `crates/nvs-stdlib/src/script.rs:343` and its symbol table `crates/nvs-stdlib/src/script.rs:338`
-      — a slot, not a member body, so this is not the five-edit shape.
-- [ ] **The `nvs_request_memory_peak_bytes` histogram**, beside the four default series at
-      `crates/nvs-server/src/metrics.rs:154` and with `Kind::Histogram`'s buckets
-      (`crates/nvs-server/src/metrics.rs:119`), per
-      `rule:observability/the-runtime-exports-what-it-already-measures` — the runtime already keeps
-      the figure, which is the whole admission test.
-- [ ] **`[limits] memory_high_water`, a fraction whose crossing writes one `Warn`.**
-      `rule:observability/memory-high-water-writes-a-warn` and 0148 § 14: unwritten is off, off is
-      silent, and a value outside `0.0..=1.0` is refused at boot by the typed-value path
-      `crates/nvs-config/src/tree.rs:171`'s `Limits` block already has beside `max_output`.
+- [ ] **Four codecs, one API** — gzip, deflate, brotli, zstd. The codec is an **enum**, never a string;
+      there is no `compress($data, "gzip")` for the same reason there is no cipher-name-as-string.
+- [ ] **The bound is a parameter with a default, not an option that can be `null`** — a ratio and an
+      absolute output ceiling, both. Exceeding either throws; a truncated decompression that looks like
+      success is the bug the class exists to prevent. `[limits]` gives the default; a call may lower it
+      and never raise it past the configured ceiling.
+- [ ] **Dependencies picked under `rule:packaging/a-c-dependency-answers-two-questions`** — pure Rust for all four, no audited-C exception, and
+      each owes `python tools/gen-attribution.py`.
+- [ ] **Decide streaming-or-whole-buffer in the module doc.** The `Core\Xml` precedent is that a tree
+      and a stream are different jobs stated as such; that sentence is either written here or
+      explicitly does not apply.
 
 ## Backlog
 
-- A `.nvst` case for the nested mark — a parent's peak surviving a child that allocated less. It is
-  pinned today as a `-p nvs-runtime` unit test, `crates/nvs-runtime/src/budget.rs`'s
-  `a_nested_context_measures_its_own_allocation_and_restores_what_it_displaced`; the program-level
-  spelling needs `spawn`, which `docs/agent/loop-goal.md` § Stage 6 item 2 asks for.
-- Nothing installs an operating-system shutdown handler, so nothing raises `SafepointFlags::SHUTDOWN`
-  outside tests — `crates/nvs-cli/src/serve.rs:730`, with the control socket beside it.
-- `Core\Process::spawn` is still `unowned` in `crates/nvs-stdlib/tests/migration-members-outstanding.txt`
-  — `docs/agent/carried-gaps.md` § Unowned.
-- `spec-classes-part-two-outstanding.txt` still owes `Core\Signature` (29), `Core\Metrics` (unowned)
-  and §17's four; none is this goal's.
+- **Stage 3 (`Core\Mime`)** is a magic-byte table this crate carries — never libmagic's rule language
+  and never a file extension, because a type detected from an extension is a type an attacker chose.
+  The answer is a closed enum plus "unknown". **Detection is not a laundering** and that sentence goes
+  in the member's own doc card, because it is the thing a caller will get wrong.
+- **Stage 4 (`Core\Zip`)** is where the policy lives: traversing, absolute and symlink entries refused
+  at *read* time so a program cannot opt out by extracting entries itself; the bomb is stage 2's bound
+  applied per entry and across the archive. The proofs are the four attacks, each refused by a
+  diagnostic that names the rule rather than by a failed file operation.
+- **The server still compresses nothing** (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). This goal gives a *program* a compressor and
+  puts none in the response path.
