@@ -74,14 +74,19 @@
 //! cheaper half: a resolve landing on content that has already failed is
 //! answered from the table rather than compiled again.
 //!
-//! **Known gap: a compiled unit is `Rc`-shared, so one of these caches serves
-//! one core.** [`Compiled`] holds an [`Rc`] of an [`nvs_codegen::Unit`], and a
-//! `Unit` is neither [`Send`] nor [`Sync`]: it holds the entry addresses its
-//! own compiled code baked in, and an `Rc` of the [`nvs_runtime::ClassTable`]
-//! every instance of its classes carries a raw pointer into. Publishing one
-//! unit to every core is an [`Arc`] of both of those, in the crates that own
-//! them; until that lands, the locks above are the shape of the shared cache
-//! and not yet the fan-out.
+//! **A `Ready` entry is one unit, published rather than copied.** [`Compiled`]
+//! holds an [`Arc`] of an [`nvs_codegen::Unit`], and that `Unit` is [`Send`]
+//! and [`Sync`] for the reasons its own type doc states, so every core
+//! resolving the same content reads the pointer this cache published instead
+//! of compiling the file for itself. That is what turns the locks above from
+//! the shape of a shared cache into one: nothing in an entry is thread-affine,
+//! and what a resolve hands back is a clone of the published pointer.
+//!
+//! **Known gap: there is one accepting core to publish to.** `crate::serve`
+//! builds one of these before it binds anything and hands it out by [`Arc`],
+//! which is the fleet's shape already; what has not landed is the second core
+//! that takes a clone of it. So the sharing this module does is correct and
+//! currently unexercised outside its own tests.
 //!
 //! **A failure renders its spans once.** The front end writes diagnostics to
 //! standard error as it compiles (see [`Resolver::resolve`]), so the resolve
@@ -94,14 +99,13 @@
 //! This is also the mechanism
 //! `rule:concurrency/connection-bounds-are-finite`'s
 //! second bullet is a statement about. The swap is a write to the *table*: a
-//! [`Program`] already handed out owns its unit's pages through its own `Rc`,
+//! [`Program`] already handed out owns its unit's pages through its own `Arc`,
 //! so a connection isolate runs to completion on the code it began with while
 //! the next resolve of that path hands the new unit to whoever asks next.
 //!
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime};
@@ -122,8 +126,9 @@ use nvs_runtime::{Ctx, Value};
 /// halves of that answer exist.
 #[derive(Debug)]
 pub(crate) struct Compiled {
-    /// The unit itself, whose `Rc` is what keeps its pages mapped.
-    unit: Rc<nvs_codegen::Unit>,
+    /// The unit itself, whose `Arc` is what keeps its pages mapped and what
+    /// lets one compile of them serve every core.
+    unit: Arc<nvs_codegen::Unit>,
     /// The routes it declared, already crossed into the runtime's own shape.
     /// Empty for a program with no `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in
     /// rule and is one case rather than an `Option`'s two.
@@ -167,8 +172,9 @@ struct Stamp {
 ///
 #[derive(Debug)]
 enum CompileState {
-    /// The unit, and the route table beside it.
-    Ready(Rc<Compiled>),
+    /// The unit, and the route table beside it — one pointer, which is what
+    /// every core resolving this content is handed a clone of.
+    Ready(Arc<Compiled>),
     /// The one-line summary this content failed with, kept so that every later
     /// resolve landing on the same [`UnitKey`] is answered rather than
     /// recompiled.
@@ -363,7 +369,7 @@ impl Compiler {
     ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
         match shared(&self.units).get(&UnitKey::new(path, content, self.env))? {
             CompileState::Ready(compiled) => Some(Ok((
-                program_over(Rc::clone(compiled)),
+                program_over(Arc::clone(compiled)),
                 Arc::clone(&compiled.routes),
             ))),
             CompileState::Failed(message) => Some(Err(message.clone())),
@@ -389,7 +395,7 @@ impl Compiler {
     ///
     /// The sweep is what keeps the table O(paths): every earlier generation of
     /// this path goes, and a unit a running [`Program`] still holds stays
-    /// mapped through that program's own `Rc` rather than through this map.
+    /// mapped through that program's own `Arc` rather than through this map.
     fn record(&self, key: UnitKey, state: CompileState, keep: Option<Digest>) {
         let mut units = exclusive(&self.units);
         let reached = key.content_hash();
@@ -411,7 +417,7 @@ impl Compiler {
     /// hit saves is the Cranelift walk, which this counter never claimed to
     /// measure.
     ///
-    fn compile(&self, path: &str, written: &Path) -> Result<Rc<Compiled>, String> {
+    fn compile(&self, path: &str, written: &Path) -> Result<Arc<Compiled>, String> {
         // Counted here rather than at the call site, and before the front end
         // rather than after it: a compile that *failed* is still a compile
         // this cache paid for, and the claim being counted is about how many
@@ -438,8 +444,8 @@ impl Compiler {
         )
         .map(|(unit, _)| unit)
         .map_err(|error| format!("`{path}`: {error}"))?;
-        Ok(Rc::new(Compiled {
-            unit: Rc::new(unit),
+        Ok(Arc::new(Compiled {
+            unit: Arc::new(unit),
             routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
         }))
     }
@@ -450,7 +456,7 @@ impl Compiler {
 ///
 /// Poison is stepped over rather than reported, which is `nvs_host`'s rule for
 /// the same reason it is this cache's: nothing under either guard can leave a
-/// map half-written — a `get`, an `insert`, a `retain` and an [`Rc`] clone —
+/// map half-written — a `get`, an `insert`, a `retain` and an [`Arc`] clone —
 /// so a thread that panicked elsewhere has not made anything in here untrue,
 /// and refusing to read it would cost a working process its whole cache.
 fn shared<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
@@ -527,11 +533,11 @@ impl Resolver for Compiler {
 /// The [`Program`] over one compiled unit: arm the isolate's context with that
 /// unit's own tables, take the argument, and call the script frame.
 ///
-/// The `Rc` is what keeps the code mapped for as long as the program can run —
-/// a `Unit` owns its pages (`nvs_codegen::Unit`) — and it is a clone of the
-/// cache's, so a second isolate over the same path shares them rather than
-/// compiling again.
-fn program_over(compiled: Rc<Compiled>) -> Program {
+/// The `Arc` is what keeps the code mapped for as long as the program can run
+/// — a `Unit` owns its pages (`nvs_codegen::Unit`) — and it is a clone of the
+/// cache's, so a second isolate over the same path, on this core or on
+/// another, shares them rather than compiling again.
+fn program_over(compiled: Arc<Compiled>) -> Program {
     Box::new(move |ctx: &mut Ctx, args: Value| -> Value {
         // The child unit's statics and its error class, which
         // `nvs_runtime::script::Program` requires before any of its code runs
@@ -596,9 +602,11 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
 
 #[cfg(test)]
 mod tests {
-    use super::{Compiler, granting_ctx as granting, shared};
+    use super::{CompileState, Compiler, granting_ctx as granting, shared};
     use nvs_runtime::script::{Program, ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
 
     /// The repository root, which is what a written path is anchored at — and
     /// which `cargo test` does not run in, hence the manifest directory.
@@ -809,6 +817,71 @@ mod tests {
     }
 
     #[test]
+    fn a_compiled_unit_is_read_by_every_core_through_one_arc() {
+        // The same "compile exactly once" claim as the test above, stated
+        // about the fleet rather than about one core, and the half a
+        // scheduler cannot state: the readers here are real OS threads, and
+        // what each of them is handed is a clone of the *one* published
+        // `Arc<Compiled>` rather than a unit of its own.
+        //
+        // The compile is warmed on this thread first, deliberately. Nothing
+        // here single-flights a compile already in flight — the module doc's
+        // first known gap — so four cold resolves racing would be a test of
+        // that gap and not of the publishing this one is about.
+        const CORES: usize = 4;
+
+        let entry = a_file_saying("one-arc", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+        let (warm, _routes) = compiler.compiled(&path).expect("the entry compiles");
+        // Dropped so that every reference counted below belongs to a core.
+        drop(warm);
+
+        // Two barriers rather than a join, because the count being asserted
+        // is only true while the readers are still holding what they read: a
+        // thread that has already returned has dropped its clone.
+        let holding = std::sync::Barrier::new(CORES + 1);
+        let releasing = std::sync::Barrier::new(CORES + 1);
+        std::thread::scope(|cores| {
+            for _ in 0..CORES {
+                cores.spawn(|| {
+                    let (program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                    holding.wait();
+                    releasing.wait();
+                    drop(program);
+                });
+            }
+
+            holding.wait();
+            let units = shared(&compiler.units);
+            let CompileState::Ready(published) = units.values().next().expect("one entry") else {
+                panic!("the published entry is a failure");
+            };
+            assert_eq!(
+                Arc::strong_count(published),
+                CORES + 1,
+                "a core is holding something other than the published entry"
+            );
+            // And the unit inside it is one allocation, referenced by that
+            // one entry: this is what "through one arc" means, and it is the
+            // number that would be `CORES` if each core had compiled its own.
+            assert_eq!(
+                Arc::strong_count(&published.unit),
+                1,
+                "the published unit exists more than once"
+            );
+            drop(units);
+            releasing.wait();
+        });
+
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            1,
+            "a core put the file through the front end for itself"
+        );
+    }
+
+    #[test]
     fn no_request_stalls_while_the_file_is_compiled() {
         // The other half of `docs/plan/m7.md`'s core requirement, and the half
         // the number above cannot state: compiling once is worth nothing if
@@ -919,7 +992,7 @@ mod tests {
         // assertion is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s own accounting — the pointer moved rather
         // than the table growing an entry per edit — and it holds while the
         // program resolved before the edit is still alive, because that one's
-        // pages are kept by its own `Rc` (`script`'s module doc).
+        // pages are kept by its own `Arc` (`script`'s module doc).
         let path = a_file_saying("swaps", "one");
         let compiler = revalidating();
         let (before, _) = compiler
