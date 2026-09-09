@@ -2,45 +2,52 @@
 
 ## State
 
-**Goal 39 — stage 2's record half is on disk: a `Core\Log::write` and a `Core\Debug::dump` record
-name the file, one-based line and enclosing `Class::member` they were produced at.** What is left of
-stage 2 is the `Throwable` half, which is the next group. Goal 38's list is still this goal's Stage 1
-floor, and [0165](../decisions/0165.md) § *Standing decisions* are not a session's to re-open.
+**Goal 39 — stage 2 is closed: a record names where it was produced, and a `Throwable`'s `location`
+is that same datum.** A `throw` hands the raise the carrier a record producer already takes —
+`Terminator::Throw`'s new `source`, which is `InstKind::SourceConst` unchanged — and
+`nvs_runtime::nvs_raise` fills `LOCATION_SLOT` from it, so the four IR instructions the lowering used
+to emit per throw are gone. The zero word is a raise that is no site of its own (an unmatched `catch`
+hands the very same reference onward) and leaves the first throw's answer standing.
 
-The datum has one derivation and one carrier. `Lowering::source`
-(`crates/nvs-ir/src/lower/mod.rs:2170`) builds it; `InstKind::SourceConst` carries it;
-`nvs_runtime::source` is the byte format, with `encode` for `nvs-codegen` and `decode`/`of_operand`
-for a producer; `nvs_stdlib::registry::RECORD_PRODUCERS` is the roster and owns the ABI — the
-constant is **argument 0**, ahead of the receiver, because `dump` is variadic and has no fixed last
-slot. `None` (the zero word) is a producer with no call site, which today is only the thunk a
-callable reference synthesizes.
+`rule:errors/a-record-names-where-it-was-produced` is **shipped**.
+`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers` is still `designed`, so stage 4's flip is
+that rule alone once stage 3 lands. [0165](../decisions/0165.md) § *Standing decisions* are not a
+session's to re-open.
 
-**The rule is still `designed`**, and stays so until `Throwable::$location` is the same datum. The
-fragment's `guardedBy` gains `tests/conformance/core/a-record-names-the-member-it-was-produced-in.nvst`
-in the commit that flips it.
+The floor's `examples/logging.nvs` check was red on landed work, not on a gap: the envelope it prints
+carries `source` now, and its `want` names the lines the example's own writes sit on — in
+`docs/agent/loop-goal.toml` and the archived `docs/agent/goals/39-record-origin.toml` alike.
 
 ## Next group
 
-**Stage 2: a throw's location is that same datum** — one file set:
-`crates/nvs-runtime/src/throwable.rs`, `crates/nvs-ir/src/lower/exception.rs`,
-`crates/nvs-codegen/src/emit.rs`, `docs/rules/errors/`.
+**Stage 3: the log target's window** — one file set: `crates/nvs-runtime/src/floor.rs`,
+`crates/nvs-stdlib/src/log.rs`.
 
-- [ ] **A throw carries the carrier the producers already take** — `crates/nvs-ir/src/lower/exception.rs:26`
-      is where `throw` is lowered and where `Lowering::producer_source`
-      (`crates/nvs-ir/src/lower/mod.rs:2006`) is already in reach; the slot it fills is
-      `crates/nvs-runtime/src/throwable.rs:55`, which is written as the empty string at
-      construction today. `rule:errors/a-record-names-where-it-was-produced`.
-- [ ] **The two `-p nvs-runtime` tests the check names** —
-      `a_thrown_object_reports_a_location_rather_than_an_empty_string` and
-      `the_location_and_a_record_produced_at_the_same_site_agree`, beside the slot roster at
-      `crates/nvs-runtime/src/throwable.rs:835`. The second is the *agreement* the rule exists for,
-      so it has to read both readers of one construction, not two struct literals.
-- [ ] **Ship the rule** — `docs/rules/errors.json`'s entry to `shipped` with the conformance case
-      under `guardedBy`, then `python tools/rules.py --render`;
-      `crates/nvs-runtime/src/source.rs:1` is the module doc that owns the format it names.
+- [ ] **The log target gets a small fixed table where the floor keeps one slot** —
+      `crates/nvs-runtime/src/floor.rs:212` is `COALESCING_WINDOW` and
+      `crates/nvs-runtime/src/floor.rs:317` is `key`, the identity the rule fixes: `ts`,
+      `request_id`, `trace_id`, `span_id` and any `count` cleared before hashing, everything else
+      counting, `source` included. The floor keeps its single slot unchanged.
+      `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+- [ ] **`Core\Log::write` writes through that table** — `crates/nvs-stdlib/src/log.rs:203` is the
+      `nvs_helper!` block the member is defined in, and a record that differs is written immediately
+      rather than held behind the window. Nothing touches the debug stream, which groups at read time
+      ([0165](../decisions/0165.md) § 3). `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+- [ ] **The three `-p nvs-runtime` tests the stage-3 check names** —
+      `crates/nvs-runtime/src/floor.rs:290` is the seam a test uses instead of sleeping through the
+      window: `two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another`,
+      `the_next_record_after_a_window_closes_carries_how_many_it_stands_for`,
+      `the_floor_keeps_its_single_slot_and_its_own_window`.
+      `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+- [ ] **Ship the second rule** — `docs/rules/errors.json:240` to `shipped` with what stage 3 landed in
+      its `guardedBy`, then `python tools/rules.py --render`. That closes stage 4 and the goal.
 
 ## Backlog
 
-- Stage 3's debug stream is untouched; [0165](../decisions/0165.md) § 3 says it is not coalesced.
-- `Envelope.count` (the § 2 half of 0165) has no producer yet — the log target's fixed window.
-- `Core\Debug::render` is deliberately off `RECORD_PRODUCERS`; that roster's doc says why.
+- `nvs_raise_new`'s `ArithmeticError` still reads an empty `location`: the `%`-by-zero site
+  (`crates/nvs-codegen/src/emit.rs:1939`) has no carrier to hand it — `crates/nvs-runtime/src/throwable.rs`'s module doc owns the gap.
+- The goal's `[context] modules` names neither `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/print.rs`,
+  `crates/nvs-ir/src/lower/{call,convert}.rs`, `crates/nvs-codegen/src/lib.rs` nor
+  `crates/nvs-types/src/error_lib.rs`, all of which stage 2 had to edit.
+- A record's `count` is still filled only by the engine floor — stage 3's whole subject
+  ([0165](../decisions/0165.md) § 2).

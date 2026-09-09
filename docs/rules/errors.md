@@ -3,7 +3,7 @@
 
 # Errors
 
-*4 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -352,7 +352,7 @@ implementation of [`errors/record-transformations`](errors.md#errors-record-tran
 
 <a id="errors-a-record-names-where-it-was-produced"></a>
 
-## A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum  *(designed — not yet in the compiler)*
+## A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum
 
 `rule:errors/a-record-names-where-it-was-produced`
 

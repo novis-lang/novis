@@ -1387,6 +1387,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `fileinfo` and `zip` as DLLs its `php.ini` does not enable, and every name a regeneration adds is
   `open` until `docs/spec/02-php-migration.md` rows it. Pass `-d extension=` per DLL, diff the
   `# extensions:` header, and row the new names in the same slice. [until: reviewed 2026-09-09]
+- **A `loop-goal.toml` `exact` check over an example now pins the *line numbers* of that example's
+  own producers, so a comment added above one turns the floor red.** A record's envelope carries
+  `source` since goal 39's stage 2 (`rule:errors/a-record-names-where-it-was-produced`), and
+  `examples/logging.nvs`'s two `Core\Log::write` lines are in the check's `want` verbatim. Edit such
+  an example only below its last producer, or run `target/debug/nvs.exe run <example>` afterwards and
+  move the `want` with it — the check reports stdout line for line and says nothing about why a
+  number moved. [until: reviewed 2026-09-09]
 
 ## Running things
 

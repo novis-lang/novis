@@ -1,5 +1,5 @@
 --TEST--
-A record names the file, line and enclosing member it was produced at, and a record produced at file scope names no member at all -- `rule:errors/a-record-names-where-it-was-produced`
+A record names the file, line and enclosing member it was produced at, a record produced at file scope names no member at all, and a `Throwable`'s location is that same datum -- `rule:errors/a-record-names-where-it-was-produced`
 --FILE--
 <?nvs
 // The datum is the *producer's own* call site, not the frame that reached it:
@@ -19,6 +19,23 @@ Orders::place();
 // key is omitted rather than written empty -- the envelope's existing rule,
 // applied to the one field a call site fills.
 Core\Log::write(Core\Log\Level::Info, "done");
+
+// The second reader of that one datum: `$e->location` is the site the `throw`
+// was compiled with, handed to the raise as the very constant a producer above
+// takes, so the property and an envelope's `source` cannot disagree about where
+// something happened.
+class Relay {
+    public static function thrown(): string {
+        try {
+            throw new RuntimeError("boom");
+        } catch (Throwable $failure) {
+            return $failure->location;
+        }
+    }
+}
+
+echo Relay::thrown(), "\n";
 --EXPECT--
 {"level":"info","msg":"placed","source":{"file":"case.nvs","line":9,"member":"Orders::place"}}
 {"level":"info","msg":"done","source":{"file":"case.nvs","line":18}}
+case.nvs:27
