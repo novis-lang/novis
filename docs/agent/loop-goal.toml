@@ -1,13 +1,13 @@
-# Goal 23 -- `nvs serve` takes every core, and the compiled unit is shared.
+# Goal 24 -- `Core\Net`, `Core\Os` and `Core\Signal`.
 # The acceptance test, as data.
 #
-# `23-per-core.md` is the prose. One home each.
+# `24-net-os-signal.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No new fixture: every check here is a unit test or a measurement, and what a fan-out must not
-  # change is the output of every fixture the floor already froze.
+  "examples/net-echo.nvs",
+  "examples/os-facts.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-socket.nvs",
   "examples/parses.nvs",
@@ -83,61 +83,44 @@ files = [
 [context]
 
 modules = [
-  # Stage 3 -- the command that binds one socket today, and the module doc stating the rule that goes.
-  "crates/nvs-cli/src/serve.rs",
-  # Stage 2 -- the compiled-unit cache: the two locks, the revalidation policy, the compile counter.
-  "crates/nvs-cli/src/script.rs",
-  # Stage 2 -- `Unit` at :308 and `Code` at :371: the two `Rc`s and the `dyn Placed` that make a
-  # compiled unit `!Send`, which is what the shared cache is blocked on.
-  "crates/nvs-codegen/src/lib.rs",
-  # Stage 2 -- `ClassTable` at :1046 and `ClassDesc` at :259, whose raw pointers are the other half
-  # of that blocker, and the argument that an already-built table is immutable.
-  "crates/nvs-runtime/src/object.rs",
-  # Stage 2 -- `install_statics` at :163, which takes the `Rc` a shared unit has to hand over as an
-  # `Arc`; `ctx/error.rs`'s `ErrorClass` holds the other one.
-  "crates/nvs-runtime/src/ctx/isolate.rs",
-  # Stages 2-3 -- `NvsListener::from_std` at :336, the constructor written for exactly this fan-out.
+  # Stages 2-4 -- the three new `Core` modules land beside these; `socket.rs` is `Core\Socket`
+  # (`rule:concurrency/a-connection-is-a-root-isolate`'s WebSocket) and is deliberately NOT what this goal extends.
+  "crates/nvs-stdlib/src/socket.rs",
+  # Stages 2-4 -- every new class declares its rows here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 2 -- `NvsTcp` at :227, `NvsListener` at :313, `NvsUnix` at :460, and where `NvsUdp` joins.
   "crates/nvs-host/src/net.rs",
-  # Stage 3 -- `Worker::spawn(cpu, ...)` at :273 and the pinning handshake priced per process start.
-  "crates/nvs-host/src/lib.rs",
-  # Stage 3 -- the accept loop, the backoff and the drain probe that each become per core.
-  "crates/nvs-server/src/serve.rs",
-  # Stage 4 -- admission: where a connection is taken or refused, per core.
-  "crates/nvs-server/src/admit.rs",
-  # Stage 2 -- `UnitKey`, the digests and `[opcache] validate`, which the swap is addressed by.
-  "crates/nvs-config/src/cache.rs",
-  # Stage 3 -- `[server] listen`, and where a `workers` key joins it.
-  "crates/nvs-config/src/server.rs",
-  # Stage 4 -- the in-flight ceiling's relaxed atomic, already written for a fleet.
-  "crates/nvs-server/src/bounds.rs",
-  # The typed block tree one configuration file deserializes into: every block an ADR states, with
-  # its own fields, and an unknown key refused.
-  "crates/nvs-config/src/tree.rs",
-  # The `nvs` binary.
-  "crates/nvs-cli/src/main.rs",
+  # Stage 2 -- what a socket registers with, and what parking on it costs.
+  "crates/nvs-host/src/reactor.rs",
+  # Stage 2 -- `net.local` and `net.listen` join this roster; `net.connect` keeps its host scope.
+  "crates/nvs-config/src/capability.rs",
+  # Stage 2 -- `pin_host`/`pinned_address`: the denied-range walk a program's own connect still takes.
+  "crates/nvs-runtime/src/capability.rs",
+  # Stage 3 -- the one existing `available_parallelism` caller, at :145, which stops being the only one.
+  "crates/nvs-cli/src/info.rs",
+  # Stage 4 -- the drain state machine a `Core\Signal` handler enters rather than duplicating.
+  "crates/nvs-server/src/control.rs",
 ]
 
-# 0017 is the swap the shared unit must keep working; 0006 is what an isolate may share; 0061 is the
-# other reader of the same digests; 0116 is the arena a per-core worker owns; 0004 is what it spends.
+# 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
+# takes; 0142 is where `net.local` was named and deferred; 0052 is why no door dispatches on a scheme.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADRs 0097, 0042 came out: each created more than eight rules, so naming
-# them here printed a whole chapter of titles to every stage,
+# decision. ADR 0097 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
+  "0051",
+  "0058",
+  "0142",
+  "0052",
   "0017",
-  "0006",
-  "0061",
-  "0116",
   "0004",
 ]
 
-# 0097's *In short* block, because its ceiling, its backoff and its h2c refusal all argue from
-# balanced cores and no one stage owns that. 0017 -- the lazy revalidation and the pointer swap --
-# moved into stage 3, the only stage whose prose names it.
-adrs = ["0097"]
+adrs = ["0051 §3", "0058 §3", "0142 §6"]
 
-shapes = ["A rule fragment", "A decision record", "A commit message"]
+shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -168,7 +151,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `23-per-core.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `24-net-os-signal.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -179,15 +162,14 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
-[context.stage.2]
-rules = ["config/an-edit-reaches-the-next-request-without-a-restart"]
+[context.stage.0]
+rules = ["core-api/tier-roster"]
 
-[context.stage.3]
-rules = ["http-server/the-body-is-read-on-demand-under-two-caps", "http-server/the-server-block-is-boot-class"]
-adrs = ["0017"]
+[context.stage.2]
+rules = ["config/net-local-is-named-and-not-on-the-roster", "core-api/tier-placement", "security/a-path-is-not-a-url", "security/net-address-policy"]
 
 [context.stage.4]
-rules = ["http-server/two-deployments-and-nothing-a-proxy-owns"]
+rules = ["concurrency/a-drain-closes-a-connection-cleanly", "core-api/tier-roster"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
@@ -195,13 +177,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Its own checks need no container. The floor is goal 22's, which is goals 4-6's -- the drivers, the
-# Redis tier and the session store -- so the daemon is the floor's requirement and not this goal's.
+# Its own checks bind loopback sockets and need no container. The floor is goal 23's.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
-memoize_on = ["crates/nvs-server", "crates/nvs-cli", "crates/nvs-host"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-host", "crates/nvs-config"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 395 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6039,15 +6026,12 @@ tests = [
   "a_driver_answers_the_same_over_either_transport",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the unit is shared and the swap has one publisher.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 shared unit"
+stage = "1 floor"
 name = "nvs-cli (one unit, many readers, one publisher)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6061,10 +6045,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the fan-out.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 fan-out"
+stage = "1 floor"
 name = "nvs-cli (every listen entry is bound, on every core)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6077,7 +6060,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 drain"
+stage = "1 floor"
 name = "nvs-server (the drain is fleet-wide)"
 args = ["test", "-p", "nvs-server"]
 tests = [
@@ -6090,10 +6073,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- nothing leaks across a core.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 isolation"
+stage = "1 floor"
 name = "nvs-server (the state-bleed suite, parameterised by core)"
 args = ["test", "-p", "nvs-server"]
 tests = [
@@ -6105,10 +6087,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the number. The measurement is the check: a fan-out that does not scale is one to delete.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 measured"
+stage = "1 floor"
 name = "nvs-cli (serve scales with cores, by the margin the bench names)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6119,6 +6100,101 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- nothing a fan-out does changes an answer.
 # ---------------------------------------------------------------------------------------------------
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `Core\Net`, over the reactor and nothing else.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-config (the two new grants)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "net_listen_and_net_local_are_on_the_roster_and_denied_by_default",
+  "net_connect_still_carries_its_host_scope_and_neither_new_grant_widens_it",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-host (a datagram socket parks like a stream)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_udp_socket_registers_with_the_reactor_and_parks_the_coroutine",
+  "a_udp_read_with_no_datagram_waiting_suspends_rather_than_spinning",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-stdlib (Core\\Net: connect, listen, and what is refused)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_tcp_connect_walks_the_denied_range_table_through_pin_host",
+  "a_tcp_listener_asks_net_listen_and_not_net_connect",
+  "a_program_supplied_unix_path_is_refused_as_a_target_at_every_door",
+  "a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor",
+  "no_door_dispatches_on_a_url_scheme",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `Core\Os`, five facts about the host.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 os"
+name = "nvs-stdlib (Core\\Os answers the host)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "pid_hostname_cpu_count_memory_usage_and_load_average_all_answer",
+  "cpu_count_answers_the_number_serve_fans_out_over",
+  "load_average_throws_on_windows_with_a_message_naming_the_platform",
+  "no_core_os_member_is_a_sink_or_carries_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `Core\Signal`, graceful shutdown and nothing else.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 signal"
+name = "nvs-stdlib (Core\\Signal is shutdown, and only shutdown)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_handler_runs_as_ordinary_novis_code_at_a_safepoint_and_never_in_a_signal_context",
+  "a_handler_enters_the_existing_drain_rather_than_a_second_state_machine",
+  "there_is_no_kill_no_alarm_and_no_signal_number_as_an_integer",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the three keys are struck.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (spec § 16 loses its last three keys)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
 
 [[check]]
 kind = "nvs-suite"

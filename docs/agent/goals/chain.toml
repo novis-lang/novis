@@ -269,10 +269,9 @@ retired = true
 [[goal]]
 name = "23 per-core"
 md = "docs/agent/goals/23-per-core.md"
-toml = "docs/agent/goals/23-per-core.toml"
-handoff = "docs/agent/goals/23-per-core.handoff.md"
 milestone = "M7"
 preflight = "docker"
+retired = true
 
 # The three classes in spec § 16 that no milestone and no goal named at all -- `rule:core-api/tier-roster` puts
 # all three at Tier 0 and M8's stdlib goals (4 and 5) walked without them, which makes them a gap
