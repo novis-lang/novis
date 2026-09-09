@@ -326,6 +326,25 @@ handoff = "docs/agent/goals/39-record-origin.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# The user's, after asking how an agent will write a language no model has distilled. Every entry
+# after this one is a consumer: a session writing a `.nvst` case or an example greps the spec for
+# a member's spelling today, and `nvs agent find` is one call with a bounded answer -- so the
+# benefit compounds over the ten entries behind it, which is the only argument strong enough to
+# put a goal that ADDS surface in front of ten that close gaps. It depends on nothing that is not
+# already shipped: the registry document exists, and the reference chapters it selects from exist.
+# 0167's investigation is why it is shaped as a query surface rather than a smaller document.
+# Three agents were given the same task and three different documents; all wrote correct Novis
+# quickly, and all then lost most of their budget to one wall -- the one table declaring what each
+# member needs, shipped and tested and rendered by nothing, which stage 0 audits and stage 2
+# finally reads.
+[[goal]]
+name = "40 agent-surface"
+md = "docs/agent/goals/40-agent-surface.md"
+toml = "docs/agent/goals/40-agent-surface.toml"
+handoff = "docs/agent/goals/40-agent-surface.handoff.md"
+milestone = "M10"
+preflight = "docker"
+
 # The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
 # and `rule:core-classes/html-parsing`'s WHATWG parser both wait on `Core\Xml`'s tree, and `rule:core-classes/html-parsing` is titled
 # *Unscheduled, and lands with `Core\Xml`* -- three gaps, one tree, one goal. It is last of the

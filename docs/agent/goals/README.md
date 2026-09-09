@@ -127,6 +127,18 @@ parked, so a worker that ignores the drain is a server that cannot be stopped �
 stage 2 lands the predicate before stage 3 arms anything. The command keeps its name; § 6 of the record is
 why, and the sentence under it is what changes.
 
+**Then one inserted in front of all of them**, from the user's question about how anyone will write a
+language no model has distilled. [40 agent-surface](40-agent-surface.md) is
+[0167](../../decisions/0167.md) built: `nvs agent` answers a coding agent from the registry the binary
+already carries — a generated primer, one line per member, a search over those lines, one card — and
+`nvs agent init` writes one pointer per harness, none of which states a language fact of its own. It
+sits early rather than late because every entry behind it is a consumer, and because it depends on
+nothing that has not already shipped. Its record's investigation is the reason it is a query surface
+and not a smaller document: three agents given the same task and three different documents all wrote
+correct Novis quickly, and all then lost most of their budget to the same wall —
+`rule:security/capability-declaration-is-one-table`'s table, `shipped`, naming two renderers that do
+not exist. Stage 0 is that audit, and stage 2 gives the table the renderer it always claimed.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
 which puts `rule:testing/four-proofs`'s
@@ -190,6 +202,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
 | [38 encoder-cycles](38-encoder-cycles.md) | M8, no ADR slot — [0164](../../decisions/0164.md) is already accepted | `nvs-stdlib` |
 | [39 record-origin](39-record-origin.md) | M8, no ADR slot — [0165](../../decisions/0165.md) is already accepted | `nvs-render`, `nvs-runtime`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen` |
+| [40 agent-surface](40-agent-surface.md) | M10, no ADR slot — [0167](../../decisions/0167.md) is already accepted | `nvs-cli`, `nvs-hir`, `nvs-runtime`, and `tools/reference.py` — the surface a coding agent reads the language through |
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s change | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
