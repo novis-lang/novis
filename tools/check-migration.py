@@ -54,7 +54,10 @@ OUTCOMES = {"member", "language", "dropped", "open"}
 # point at which `rule:core-classes/db-one-api`'s central claim -- one API replaces `PDO`,
 # `mysqli`, `pgsql` and `sqlite3` -- stops being an assertion about four APIs and becomes an audit of
 # 236 named functions. Everything still on this list is either a Tier 1 extension (`gd`, `intl`,
-# `zip`, `exif`) or a subsystem whose replacement is `Core`'s own, and none of it is parity work.
+# `exif`) or a subsystem whose replacement is `Core`'s own -- `fileinfo` and `zip` are `Core\Mime`
+# and `Core\Zip`, both Tier 0 under `rule:core-api/tier-roster` and both registered, so what a name
+# like `finfo_open` or `zip_open` is still owed here is the audit and not the answer. None of it is
+# parity work.
 UNAUDITED = [
     "mbstring", "curl", "openssl", "sodium", "sockets", "intl", "gd", "exif", "fileinfo",
     "zip", "posix", "pcntl", "gettext", "ftp", "ldap", "soap",

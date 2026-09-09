@@ -1052,14 +1052,14 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `gzcompress` | member | `Core\Compress`, with the zlib format an enum case rather than a third of the function's name |
-| `gzuncompress` | member | the same class in the other direction, under the output bound above |
-| `gzdeflate` | member | `Core\Compress` with the raw-deflate case, which is the same bytes without the header |
-| `gzinflate` | member | the same, bounded |
-| `gzencode` | member | `Core\Compress` with the gzip case |
-| `gzdecode` | member | the same, bounded |
-| `zlib_encode` | member | `Core\Compress`. PHP's `$encoding` integer *is* the enum case, chosen at the call site and validated at run time; here the compiler validates it |
-| `zlib_decode` | member | the same, bounded |
+| `gzcompress` | member | `Core\Compress::compress` with the `Zlib` case — the format is an enum case rather than a third of the function's name |
+| `gzuncompress` | member | `Core\Compress::decompress`, the same case in the other direction, under the output bound above |
+| `gzdeflate` | member | `Core\Compress::compress` with the `Deflate` case, which is the same bytes without the header |
+| `gzinflate` | member | `Core\Compress::decompress`, the same case, bounded |
+| `gzencode` | member | `Core\Compress::compress` with the `Gzip` case |
+| `gzdecode` | member | `Core\Compress::decompress`, the same case, bounded |
+| `zlib_encode` | member | `Core\Compress::compress`. PHP's `$encoding` integer *is* the enum case, chosen at the call site and validated at run time; here the compiler validates it |
+| `zlib_decode` | member | `Core\Compress::decompress`, the same, bounded |
 | `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
 | `gzopen` | dropped | reading and decompressing are two jobs (R17): `Core\IO::open`'s handle yields the bytes and `Core\Compress` decodes them. A handle is an object either way, never a `resource` (R14) |
 | `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
@@ -1072,7 +1072,7 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
 | `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
-| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
+| `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress::decompress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `readgzfile` | member | the same first two, with the result echoed. Nothing reads, decodes and writes to the output in one step, because each of those is a different question about what the program is allowed to do |
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
 | `deflate_init` | member | `Core\Compress`, whose incremental half is an object rather than a context `resource` (R14) — [01 § 17](01-core-library.md) names this family as one of the three surfaces it replaces |
