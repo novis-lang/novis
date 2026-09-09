@@ -2,52 +2,43 @@
 
 ## State
 
-**Goal 39 — stage 2 is closed: a record names where it was produced, and a `Throwable`'s `location`
-is that same datum.** A `throw` hands the raise the carrier a record producer already takes —
-`Terminator::Throw`'s new `source`, which is `InstKind::SourceConst` unchanged — and
-`nvs_runtime::nvs_raise` fills `LOCATION_SLOT` from it, so the four IR instructions the lowering used
-to emit per throw are gone. The zero word is a raise that is no site of its own (an unmatched `catch`
-hands the very same reference onward) and leaves the first throw's answer standing.
+**Goal 39 is closed.** Stage 3 landed the log target's window and stage 4 flipped the rulebook, so
+both of the goal's rules are `shipped`: `rule:errors/a-record-names-where-it-was-produced` and
+`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
 
-`rule:errors/a-record-names-where-it-was-produced` is **shipped**.
-`rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers` is still `designed`, so stage 4's flip is
-that rule alone once stage 3 lands. [0165](../decisions/0165.md) § *Standing decisions* are not a
-session's to re-open.
+`Core\Log::write` coalesces through `crates/nvs-runtime/src/floor.rs`'s fixed table —
+`LOG_WINDOW_SLOTS` slots, scanned rather than indexed so two records can never collide into one,
+evicting a free slot first and then the window nearest to closing. The floor keeps its single slot
+and `COALESCING_WINDOW` unchanged, and both sinks share one `key`, so what counts as the same record
+is decided once for both. Nothing touches the debug stream ([0165](../decisions/0165.md) § 3).
 
-The floor's `examples/logging.nvs` check was red on landed work, not on a gap: the envelope it prints
-carries `source` now, and its `want` names the lines the example's own writes sit on — in
-`docs/agent/loop-goal.toml` and the archived `docs/agent/goals/39-record-origin.toml` alike.
+The coalescing is visible to any test that writes one record twice, which is what the playbook
+bullet is for: two `-p nvs-stdlib` envelope-shape tests wrote one message across three contexts and
+now give each write its own message.
 
 ## Next group
 
-**Stage 3: the log target's window** — one file set: `crates/nvs-runtime/src/floor.rs`,
-`crates/nvs-stdlib/src/log.rs`.
+**Stage 3 follow-on: the member's own coverage, which the six unit tests reach only through
+`nvs-runtime`** — one file set: `crates/nvs-stdlib/src/log.rs`, `tests/conformance/core/`. A goal
+switch overwrites this file, so this group holds only if the driver stays on goal 39.
 
-- [ ] **The log target gets a small fixed table where the floor keeps one slot** —
-      `crates/nvs-runtime/src/floor.rs:212` is `COALESCING_WINDOW` and
-      `crates/nvs-runtime/src/floor.rs:317` is `key`, the identity the rule fixes: `ts`,
-      `request_id`, `trace_id`, `span_id` and any `count` cleared before hashing, everything else
-      counting, `source` included. The floor keeps its single slot unchanged.
+- [ ] **A `-p nvs-stdlib` test drives `Core\Log::write` through the table** —
+      `crates/nvs-stdlib/src/log.rs:572` is `written`, the helper that calls the member for real, and
+      `crates/nvs-runtime/src/floor.rs:407` is `expire_log_windows`. Assert that the second identical
+      write buffers nothing and that the next one after the window closes carries `count`, which no
+      test asserts of the member itself today.
       `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
-- [ ] **`Core\Log::write` writes through that table** — `crates/nvs-stdlib/src/log.rs:203` is the
-      `nvs_helper!` block the member is defined in, and a record that differs is written immediately
-      rather than held behind the window. Nothing touches the debug stream, which groups at read time
-      ([0165](../decisions/0165.md) § 3). `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
-- [ ] **The three `-p nvs-runtime` tests the stage-3 check names** —
-      `crates/nvs-runtime/src/floor.rs:290` is the seam a test uses instead of sleeping through the
-      window: `two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another`,
-      `the_next_record_after_a_window_closes_carries_how_many_it_stands_for`,
-      `the_floor_keeps_its_single_slot_and_its_own_window`.
+- [ ] **A conformance case for one line where a program wrote two** —
+      `tests/conformance/core/log-write-renders-one-json-line-per-record.nvst:9` is the shape to
+      write beside: one message written twice inside the window is one line, and a message differing
+      only in its own `source` line is a second one.
       `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
-- [ ] **Ship the second rule** — `docs/rules/errors.json:240` to `shipped` with what stage 3 landed in
-      its `guardedBy`, then `python tools/rules.py --render`. That closes stage 4 and the goal.
 
 ## Backlog
 
-- `nvs_raise_new`'s `ArithmeticError` still reads an empty `location`: the `%`-by-zero site
-  (`crates/nvs-codegen/src/emit.rs:1939`) has no carrier to hand it — `crates/nvs-runtime/src/throwable.rs`'s module doc owns the gap.
-- The goal's `[context] modules` names neither `crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/print.rs`,
-  `crates/nvs-ir/src/lower/{call,convert}.rs`, `crates/nvs-codegen/src/lib.rs` nor
-  `crates/nvs-types/src/error_lib.rs`, all of which stage 2 had to edit.
-- A record's `count` is still filled only by the engine floor — stage 3's whole subject
-  ([0165](../decisions/0165.md) § 2).
+- Read-time grouping for the debug stream is [0163](../decisions/0163.md)'s ingester and viewer, and
+  deliberately not this bound — `docs/decisions/0165.md` § 3.
+- A per-call-site rate limit is the only thing that would make a hot loop cheap rather than quiet,
+  and nothing has measured for it — `docs/agent/loop-goal.md` § *Standing decisions*.
+- `[log] format` is still unread at run time, so JSON Lines is the single answer —
+  `crates/nvs-runtime/src/floor.rs`'s module doc.
