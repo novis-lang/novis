@@ -1,0 +1,97 @@
+<?nvs
+// What an archive is allowed to contain, decided when it is read.
+//
+// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Zip` in Tier 0 for the
+// same reason it places `Core\Compress` there: a `../` entry, an absolute-path
+// entry, a symlink entry and a decompression bomb are *policy*, and policy must
+// be non-optional. This file is what that looks like from a program — and what
+// it mostly looks like is that there is nothing to remember to do.
+//
+// **Nothing here asks a capability.** Reading an archive a program is already
+// holding reaches no file and no socket, so this runs under a deployment that
+// grants nothing at all. Writing an entry out is the program's own file
+// operation, under whatever `fs.write` it was granted.
+
+// Two entries, `notes/one.txt` and `notes/two.txt`, stored rather than
+// deflated. The archives in this file are base64 because an archive is octets
+// and a program is text.
+bytes $ordinary = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAABpER+2BgAAAAYAAAANAAAAbm90ZXMvdHdvLnR4dHNlY29uZFBLAQIeAxQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsBAh4DFAAAAAAAAAAAAGkRH7YGAAAABgAAAA0AAAAAAAAAAAAAAKSBMAAAAG5vdGVzL3R3by50eHRQSwUGAAAAAAIAAgB2AAAAYQAAAAAA");
+
+// A listing is `array<tainted string>`, because an entry name was written by
+// whoever built the archive. That is the same reading a claim out of a verified
+// token gets: the signature proves who wrote it, not that it is safe to use as
+// a path, a key or a header.
+echo "the archive holds ", Core\Arr::count(Core\Zip::entries($ordinary)), " entries:\n";
+foreach (Core\Zip::entries($ordinary) as tainted string $name) {
+    echo "  ", $name, "\n";
+}
+
+// A name is compared whole rather than resolved as a path, so an entry reads by
+// exactly the spelling the listing answered.
+tainted bytes $two = Core\Zip::read($ordinary, "notes/two.txt");
+echo "notes/two.txt is ", Core\Bytes::length($two), " octets\n\n";
+
+// The three refusals. Each of these archives is well formed — a zip tool would
+// open every one of them — and each is refused when it is *read*, not when
+// something extracts it. A program that walked the entries itself would have
+// nothing left it could have checked, which is the shape `ZipArchive` gets
+// wrong: it hands over the name and leaves the checking to whoever remembers.
+array<string> $attacks = [
+    // `notes/one.txt`, then `../../etc/passwd`.
+    "UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAALi4vLi4vZXRjL3Bhc3N3ZHJvb3Q6eDowOjBQSwECHgMUAAAAAAAAAAAAV+5xkgUAAAAFAAAADQAAAAAAAAAAAAAApIEAAAAAbm90ZXMvb25lLnR4dFBLAQIeAxQAAAAAAAAAAADMqc5XCgAAAAoAAAAQAAAAAAAAAAAAAACkgTAAAAAuLi8uLi9ldGMvcGFzc3dkUEsFBgAAAAACAAIAeQAAAGgAAAAAAA==",
+    // `notes/one.txt`, then `/etc/passwd`.
+    "UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAADMqc5XCgAAAAoAAAALAAAAL2V0Yy9wYXNzd2Ryb290Ong6MDowUEsBAh4DFAAAAAAAAAAAAFfucZIFAAAABQAAAA0AAAAAAAAAAAAAAKSBAAAAAG5vdGVzL29uZS50eHRQSwECHgMUAAAAAAAAAAAAzKnOVwoAAAAKAAAACwAAAAAAAAAAAAAApIEwAAAAL2V0Yy9wYXNzd2RQSwUGAAAAAAIAAgB0AAAAYwAAAAAA",
+    // `notes/one.txt`, then `notes/link` — an ordinary name whose mode says
+    // symlink and whose data is the target it points at.
+    "UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAAAKuR8pCwAAAAsAAAAKAAAAbm90ZXMvbGluay9ldGMvcGFzc3dkUEsBAh4DFAAAAAAAAAAAAFfucZIFAAAABQAAAA0AAAAAAAAAAAAAAKSBAAAAAG5vdGVzL29uZS50eHRQSwECHgMUAAAAAAAAAAAACrkfKQsAAAALAAAACgAAAAAAAAAAAAAA/6EwAAAAbm90ZXMvbGlua1BLBQYAAAAAAgACAHMAAABjAAAAAAA=",
+];
+
+int $refused = 0;
+foreach ($attacks as string $encoded) {
+    try {
+        Core\Zip::entries(Core\Encoding::fromBase64($encoded));
+    } catch (ParseError $hostile) {
+        $refused = $refused + 1;
+    }
+}
+echo "hostile archives refused when they were read: ", $refused, " of ",
+    Core\Arr::count($attacks), "\n";
+
+// And the refusal is the archive's rather than the extraction's: reading the
+// harmless first entry out of the traversing archive is refused too.
+try {
+    Core\Zip::read(Core\Encoding::fromBase64($attacks[0]), "notes/one.txt");
+    echo "a harmless entry came out of a hostile archive\n";
+} catch (ParseError $whole) {
+    echo "reading one harmless entry of a hostile archive: refused as well\n\n";
+}
+
+// The bomb. `big.txt` is 65536 octets of `A` in 79 octets of deflate, and the
+// bound that stops it is `Core\Compress`'s — one rule with two callers rather
+// than a second one written here. `$maxBytes` and `$maxRatio` are *asks*: a
+// call may want less than `[limits] max_decompressed` and never more, and there
+// is no value of either that means "no bound".
+bytes $bomb = Core\Encoding::fromBase64("UEsDBBQAAAAIAAAAAACABpugTwAAAAAAAQAHAAAAYmlnLnR4dO3BgQAAAACAILb9pRapCgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGpQSwECHgMUAAAACAAAAAAAgAaboE8AAAAAAAEABwAAAAAAAAAAAAAApIEAAAAAYmlnLnR4dFBLBQYAAAAAAQABADUAAAB0AAAAAAA=");
+echo "listing the bomb costs its central directory: ",
+    Core\Arr::count(Core\Zip::entries($bomb)), " entry\n";
+
+try {
+    Core\Zip::read($bomb, "big.txt", 4096);
+    echo "the ceiling did not hold\n";
+} catch (ParseError $ceiling) {
+    echo "asking for 4 KiB of a 64 KiB entry: refused\n";
+}
+
+try {
+    Core\Zip::read($bomb, "big.txt", 67108864, 100);
+    echo "the ratio did not hold\n";
+} catch (ParseError $ratio) {
+    echo "asking for 100:1 of an 830:1 entry: refused\n";
+}
+
+// Under a bound that fits, the same entry reads whole. The refusals above are
+// the policy, not the decoder failing — and what a refusal never answers is a
+// prefix, because a truncated read that looks like success is the bug the bound
+// exists to prevent.
+echo "under the shipped defaults: ",
+    Core\Bytes::length(Core\Zip::read($bomb, "big.txt")), " octets\n";
