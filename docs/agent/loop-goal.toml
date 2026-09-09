@@ -103,6 +103,8 @@ modules = [
   # The capability denial's wording -- the four `format!`s that name the member, the capability and
   # the resource, and never name `nvs.toml`.
   "crates/nvs-runtime/src/capability.rs",
+  # `nvs agent` — the surface a coding agent reads the language through.
+  "crates/nvs-cli/src/agent.rs",
 ]
 
 # The rules every stage of this goal works inside.
