@@ -18522,13 +18522,14 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 <a id="core-core-html"></a>
 ### `Core\Html`
 
-Keywords: escape, toSource, parse
+Keywords: escape, toSource, parse, sanitize
 
 | Member | Signature |
 |---|---|
 | [`Core\Html::escape`](#core-core-html-escape) | `escape(string $text): Core\Html\Markup` |
 | [`Core\Html::toSource`](#core-core-html-tosource) | `toSource(Core\Html\Markup $markup, string $reason): string` |
 | [`Core\Html::parse`](#core-core-html-parse) | `parse(string $document): Core\Xml\Node` |
+| [`Core\Html::sanitize`](#core-core-html-sanitize) | `sanitize(string $document): Core\Html\Markup` |
 
 <a id="core-core-html-escape"></a>
 #### `Core\Html::escape`
@@ -18577,6 +18578,21 @@ Parses `$document` as HTML by the WHATWG algorithm — the one browsers run — 
 | `$document` | `string` (neutral) | The document text. Any text at all is a document: this member has no way to refuse one. |
 
 **Returns** `Core\Xml\Node` — The `Core\Xml\Node` of kind `Document` whose children are what the algorithm put at the top level — for all but an empty input, one `html` element with `head` and `body` under it, whether or not the text wrote those tags. Implied tags, misnested tags and stray content are placed exactly where a browser places them, so what comes back is what a page would have rendered rather than a reading of what was written. A `<!DOCTYPE …>` leaves no node, since the tree has no kind for one. Names are lower-cased in the HTML namespace and case-corrected in the SVG and MathML ones, as the algorithm specifies. Nesting deeper than a thousand elements is flattened onto the thousandth rather than held, so no document can make the walk of the answer exhaust the stack.
+
+<a id="core-core-html-sanitize"></a>
+#### `Core\Html::sanitize`
+
+```nvs skip
+Core\Html::sanitize(string $document): Core\Html\Markup
+```
+
+Parses `$document` as HTML and answers a document rebuilt from the elements and attributes the allowlist holds — the launderer for untrusted markup, as opposed to untrusted text, which is `escape`'s.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$document` | `string` (launder) | The markup to rebuild. Any text at all is a document, since the parse behind this has no way to refuse one. |
+
+**Returns** `Core\Html\Markup` — A `Core\Html\Markup` carrying the rebuilt document, which is why the result may be written into a page without being escaped again. Nothing is filtered and nothing is escaped in place: an element the allowlist does not hold contributes no tag, an attribute it does not hold is not written, and a `script`, `style` or other raw-text element is gone with its content. The allowlist is closed — there is no argument that extends it, because a policy the caller writes is a policy whose holes are the caller's. Text, and the order of what is kept, are the document's own.
 
 <a id="core-core-html-markup"></a>
 ### `Core\Html\Markup`

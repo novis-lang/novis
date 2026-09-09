@@ -3870,6 +3870,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nearly alike and no proportionality assertion holds. Measure a throwaway input first and drop
   the reading; the counters are thread-local, so nothing another test does beside it is in the
   number. [until: reviewed 2026-09-09]
+- **A debug print in a `#[cfg(test)]` module fails two gates and neither is in the crate you
+  edited.** `no_crate_the_server_links_writes_to_stdout` scans the *source* of every crate the
+  language server links, so a `println!` in an `nvs-stdlib` unit test reads exactly like one in a
+  member body, and clippy denies `print_stderr` workspace-wide, so `eprintln!` is not the repair.
+  Carry the detail in the `assert_eq!` message instead, which is where a reader of the failure
+  looks anyway. [until: gone crates/nvs-lsp/tests/stdout_policy.rs:no_crate_the_server_links_writes_to_stdout]
 
 ## Splitting a file that got too big
 

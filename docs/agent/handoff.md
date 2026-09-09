@@ -2,65 +2,54 @@
 
 ## State
 
-**Goal `xml-tree`, stage 4 is complete and green.** `Core\Html::parse(string $document):
-Core\Xml\Node` drives `html5ever` through `crate::html`'s own `Sink` — a `TreeSink` over a flat
-arena — into `crate::xml`'s `Parsed` nodes, so the boundary between the crate and the tree is where
-the one-node-family rule is enforced rather than restated. All three tests the stage's acceptance
-check names pass, and `rule:core-classes/html-parsing` is now `shipped` with them and the three new
-`.nvst` cases as its guards.
+**Goal `xml-tree` is reached — `python tools/loop.py --goal-only` says every acceptance check
+passes.** Stage 5 landed: `Core\Html::sanitize(tainted string): Core\Html\Markup` is the class's
+second launderer, the four tests its `[[check]]` names pass including the mXSS corpus, and
+`examples/html-sanitize.nvs` exists, which closes the check that had failed since session 0002.
 
-**The dependency is `html5ever = "0.39"`, seventeen crates, MIT or Apache-2.0 and no C.** The audit
-under `rule:packaging/a-c-dependency-answers-two-questions` is written on the workspace row
-(`Cargo.toml`, the *HTML parsing* section); `markup5ever_rcdom` is deliberately not taken.
-`THIRD-PARTY-LICENSES.txt` is regenerated and `cargo deny check licenses` is clean.
+The last red check was neither: `5 registered` named `every_migration_member_is_registered`, a
+shorthand no crate declares, where `spec_registry_coverage.rs` has carried
+`every_migration_member_row_names_a_registered_member` — the same walk — throughout. The stage 1
+floor copy of that check already carried the correction and the stage 5 copy did not; both goal
+files now do. The playbook bullet for it was already written.
 
-**One pre-existing crash is fixed on the way, and it was `Core\Xml`'s.** `instance_of` recursed once
-per node, so a document nested past about 900 elements exhausted the task stack before
-`DEPTH_CEILING` refused it — a crash where the bound was supposed to be. It is now iterative over a
-heap stack, and `Core\Html::parse` holds the same ceiling from the other side by flattening a tree
-past it rather than refusing one, since that door has no way to refuse.
+**The member is three steps and only the middle one holds a policy** — `parse`, `rebuilt`, `source`,
+all in `crates/nvs-stdlib/src/html.rs`. The serialiser is written *here* rather than in `crate::xml`
+because `rule:core-classes/html-parsing` says serialization follows the door; `crate::xml` still has
+no tree serialiser of its own and writes through `Core\Xml\Writer` instead.
 
-**`examples/html-sanitize.nvs` is still the failing acceptance check** and is still not a
-regression: it is stage 5's fixture and cannot be written before `Core\Html::sanitize` exists.
+**The allowlist is `ELEMENTS`, 54 entries, closed and sorted** (`allowed` bisects it), with `GLOBAL`
+for `dir`/`lang`/`title` and `addressable` for the three URL attributes. It grants no `class`, `id`,
+`style` or `target`, and `the_allowlist_is_closed_and_is_not_configurable_by_a_caller` fails on the
+day one is added by hand.
+
+`rule:core-classes/html-sanitize` is now `shipped` with the three `.nvst` cases as its guards, and
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` already lost `§17 Core\Xml`, so stage
+5's fourth item was closed before this session.
 
 ## Next group
 
-**Stage 5: `Core\Html::sanitize`, which is why the tree matters** — one file set,
-`crates/nvs-stdlib/src/html.rs` plus `examples/html-sanitize.nvs` and new cases under
-`tests/conformance/core/`. The whole group is specified by `rule:core-classes/html-sanitize` and
-`rule:security/tainted-qualifier`, and stage 5's `[[check]]` in `docs/agent/loop-goal.toml` names
-the four tests it must end with.
+**Follow-ups this goal did not owe** — one file set, `crates/nvs-stdlib/src/html.rs` and
+`crates/nvs-stdlib/src/xml.rs`. None is a gate on anything; a goal switch discards this list, which is
+the right outcome if the sweep agrees the goal is met.
 
-- [ ] **A serialiser over `crate::xml::Parsed`, written here rather than in `crate::xml`**, because
-      `rule:core-classes/html-parsing` says serialization follows the door: WHATWG rules through
-      this one, XML rules through the other. It is what `sanitize` rebuilds a document with, and it
-      is the piece with no caller yet, so write it against the walk `crates/nvs-stdlib/src/html.rs:1362`
-      already uses to read a tree in the tests. Specified by `rule:core-classes/html-sanitize`.
-- [ ] **The closed allowlist and `Core\Html::sanitize(tainted string): Core\Html\Markup`** — the
-      row at `crates/nvs-stdlib/src/html.rs:130`, the card beside `PARSE_DOC` at
-      `crates/nvs-stdlib/src/html.rs:279`, the body, and the `address()` arm at
-      `crates/nvs-stdlib/src/html.rs:302`. It is the **second** launderer on this class and
-      `escape` is the auto-applied one, so `Qual::Launder` on the parameter is what makes
-      `html_escape_launders_for_the_html_sink_and_for_no_other`'s set claim need re-reading rather
-      than re-asserting. Specified by `rule:core-classes/html-sanitize`.
-- [ ] **The four tests stage 5's check names**, in `crates/nvs-stdlib/src/html.rs:1284`'s `mod
-      tests`: `sanitize_is_an_adr_0024_launderer_beside_escape`,
-      `the_allowlist_is_closed_and_is_not_configurable_by_a_caller`,
-      `an_element_outside_the_allowlist_is_dropped_rather_than_escaped_in_place` and
-      `parse_sanitize_serialise_reparse_reaches_a_fixed_point_over_the_mxss_corpus` — the last is
-      the acceptance property, so its corpus is the slice's real content.
-- [ ] **`examples/html-sanitize.nvs`**, the acceptance fixture that has been the failing check since
-      this goal opened. It is named at `docs/agent/loop-goal.toml:10`, and that file's header says
-      the expected output is frozen while a fixture's *source* is not — so write the program to the
-      output rather than the other way round. Specified by `rule:core-classes/html-sanitize`.
+- [ ] **A tree serialiser for the XML door**, so a walked `Core\Xml\Node` can be written back without
+      replaying it through `Core\Xml\Writer`. `rule:core-classes/html-parsing` § *serialization
+      follows the door* is what specifies the difference — refusing what the HTML one recovers from,
+      an end tag on every element — and the row would sit beside `children` at
+      `crates/nvs-stdlib/src/xml.rs:267`.
+- [ ] **`class` on the sanitizer's allowlist, or a written reason it is not there.** The standing
+      decision in `docs/agent/loop-goal.md` § *Standing decisions* says the list gains an element in
+      a commit with a reason rather than by a parameter; `class` is the first one a real application
+      will ask for, and the table is `crates/nvs-stdlib/src/html.rs:1273`.
+- [ ] **A `Core\Xml\Node` case over a sanitized document**, asserting the two doors agree about the
+      answer's tree. `rule:core-classes/html-parsing`'s one-node-family clause is what it pins, and
+      the walk to copy is `crates/nvs-stdlib/src/html.rs:1853`.
 
 ## Backlog
 
-- `Core\Html`'s automatic escape-and-lift at the HTTP sink still waits on the response existing —
-  `crates/nvs-stdlib/src/html.rs`'s module doc, § *Known gaps*.
-- `spec-classes-part-two-outstanding.txt` loses `§17 Core\Xml` at the end of stage 5 —
-  `docs/agent/loop-goal.md` § *Stage 5*.
-- Whether a subset-free `<!DOCTYPE html>` should parse through `Core\Xml` is still undecided;
-  `rule:core-classes/xml-refuses-by-construction` currently says no, and `Core\Html` now drops one.
-- `Core\Xml`'s streaming reader and `Core\Html`'s parse share no code and need not, but neither has
-  a differential case against PHP — `tests/differential/` holds none for either.
+- `Core\Metrics` and `Core\Signature` are the last two keys in
+  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, owned by `unowned` and
+  `signed-urls`.
+- Comment nodes are dropped by `sanitize` rather than kept and escaped — recorded in `verdict`'s own
+  comment, `crates/nvs-stdlib/src/html.rs`.
