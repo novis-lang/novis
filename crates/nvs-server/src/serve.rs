@@ -3640,6 +3640,228 @@ mod tests {
         );
     }
 
+    /// The same property across the fan-out: a client that goes away leaves its
+    /// isolate behind on **no** core — not on the core that served it, and not
+    /// on any of the cores that never saw it
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+    ///
+    /// [`a_client_disconnect_leaves_no_isolate_behind`] is the same disconnect
+    /// on one core and owns why the park is where it is and why the assertion is
+    /// an *ordering*. What a fleet adds is the half a single core cannot state:
+    /// the teardown belongs to the core that accepted the connection, so a
+    /// neighbour serving its own request neither takes part in it nor is torn
+    /// down by it. Both cores are asserted, and each against its own loop's
+    /// return — a release filed after every core had stopped would say nothing
+    /// about which core let go of what.
+    #[test]
+    fn a_disconnected_clients_isolates_are_left_behind_on_no_core() {
+        /// What happened, on which core, in the order it happened.
+        type Log = Arc<std::sync::Mutex<Vec<String>>>;
+
+        fn note(log: &Log, core: &str, what: &str) {
+            log.lock()
+                .expect("a poisoned log")
+                .push(format!("{core}: {what}"));
+        }
+
+        /// Files the isolate's release, which is the drop of everything its
+        /// program captured — so it fires on the cancellation path and on an
+        /// ordinary end alike, and it is the *order* that tells them apart.
+        struct Released(Log, &'static str);
+
+        impl Drop for Released {
+            fn drop(&mut self) {
+                note(&self.0, self.1, "the isolate was released");
+            }
+        }
+
+        /// One worker, serving one connection whose program parks on the body
+        /// its peer promised. Both cores run this: what differs is what their
+        /// clients go on to send.
+        fn one_core(
+            listener: std::net::TcpListener,
+            core: &'static str,
+            log: Log,
+        ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+            move |sched| {
+                let mut listener = NvsListener::from_std(listener)
+                    .expect("the OS refused a non-blocking listener");
+                let _installed = nvs_host::reactor::install(
+                    nvs_host::Reactor::new().expect("the OS refused a poll"),
+                );
+                let handler = {
+                    let log = Arc::clone(&log);
+                    Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                        let mut inbound = nvs_runtime::Inbound::new(
+                            request.method().as_str(),
+                            request.uri().path(),
+                            request.uri().query().unwrap_or(""),
+                        );
+                        let (head, incoming) = request.into_parts();
+                        let supply = match crate::body::of(&head.headers, incoming) {
+                            crate::body::Arrived::Streaming(supply, pull) => {
+                                inbound.set_body(pull);
+                                Some(supply)
+                            }
+                            crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                        };
+                        let released = Released(Arc::clone(&log), core);
+                        let log = Arc::clone(&log);
+                        let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                            let _held = &released;
+                            note(&log, core, "the isolate started");
+                            let inbound = child
+                                .inbound_mut()
+                                .expect("the isolate ran with no request in front of it");
+                            let body = inbound.body().expect("a request that promised a body");
+                            note(
+                                &log,
+                                core,
+                                loop {
+                                    match body.next_chunk() {
+                                        Ok(Some(_chunk)) => {}
+                                        Ok(None) => break "the body ended",
+                                        Err(_refused) => break "the body failed",
+                                    }
+                                },
+                            );
+                            Value::null()
+                        });
+                        Reply::Run(
+                            Isolate::new(program, Value::null(), Output::Capture)
+                                .answering(inbound),
+                            supply,
+                        )
+                    })
+                };
+                let ended = Arc::clone(&log);
+                sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                    serve_on_this_core(
+                        &mut listener,
+                        &handler,
+                        Waits::default(),
+                        &wide_open(),
+                        &Draining::detached(),
+                        |_note| {},
+                        || ControlFlow::Break(()),
+                    )
+                    .expect("the accept loop failed");
+                    note(&ended, core, "the accept loop returned");
+                });
+                run_the_core(sched);
+            }
+        }
+
+        let cpus = nvs_host::cpus();
+        let Some(first_cpu) = cpus.first().copied() else {
+            // A host that enumerates no CPU is served from the boot thread, and
+            // the one-core case above is the whole of this property there.
+            return;
+        };
+        let second_cpu = cpus.get(1).copied().unwrap_or(first_cpu);
+
+        let log: Log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let leaving = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let leaving_addr = leaving
+            .local_addr()
+            .expect("a bound listener had no address");
+        let staying = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let staying_addr = staying
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let left = nvs_host::Worker::spawn(
+            first_cpu,
+            one_core(leaving, "the served core", Arc::clone(&log)),
+        )
+        .expect("the OS refused a worker thread");
+        let kept = nvs_host::Worker::spawn(
+            second_cpu,
+            one_core(staying, "the neighbouring core", Arc::clone(&log)),
+        )
+        .expect("the OS refused a worker thread");
+
+        // The client that goes away: a hundred bytes promised, four sent, and
+        // then the socket closed while the program is inside `next_chunk`
+        // waiting for the other ninety-six.
+        let gone = std::thread::spawn(move || {
+            let mut socket =
+                TcpStream::connect(leaving_addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"POST /forever HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\n\r\nabcd",
+                )
+                .expect("the write failed");
+            // Long enough for the isolate to have started and parked, so the
+            // disconnect lands on a request that is genuinely still running.
+            std::thread::sleep(Duration::from_millis(50));
+            drop(socket);
+        });
+
+        // The neighbour's own client, which sends everything it promised: what
+        // the core that lost a peer does must be its own and not the fleet's.
+        let mut neighbour =
+            TcpStream::connect(staying_addr).expect("the loopback refused a connection");
+        neighbour
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("the socket refused a read timeout");
+        neighbour
+            .write_all(
+                b"POST /done HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\nConnection: close\
+                  \r\n\r\nabcd",
+            )
+            .expect("the write failed");
+        let mut answer = String::new();
+        neighbour
+            .read_to_string(&mut answer)
+            .expect("the response could not be read");
+
+        gone.join().expect("the client thread panicked");
+        left.join().expect("the served core panicked");
+        kept.join().expect("the neighbouring core panicked");
+
+        let events = log.lock().expect("a poisoned log").clone();
+        let at = |what: &str| events.iter().position(|event| event == what);
+        assert!(
+            at("the served core: the isolate started").is_some(),
+            "the isolate never ran, so there was nothing to leave behind: {events:?}"
+        );
+        assert!(
+            at("the served core: the body failed").is_some()
+                && at("the served core: the body ended").is_none(),
+            "a request parked on a body its peer never sent was not told the peer had gone, so \
+             this case never tested a disconnect: {events:?}"
+        );
+        let released = at("the served core: the isolate was released")
+            .expect("the isolate was still held when its core was torn down");
+        let returned = at("the served core: the accept loop returned")
+            .expect("the accept loop never returned, so the connection outlived its client");
+        assert!(
+            released < returned,
+            "the isolate outlived the connection that owned it: {events:?}"
+        );
+
+        // The neighbour: its own request ran to its own end, and the release it
+        // filed is its own connection's rather than a share of the teardown next
+        // door.
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the neighbouring core did not answer its own client: {answer}"
+        );
+        assert!(
+            at("the neighbouring core: the body ended").is_some(),
+            "the neighbouring core's request was failed by a peer that was not its own: {events:?}"
+        );
+        let next_door = at("the neighbouring core: the isolate was released")
+            .expect("the neighbouring core was still holding an isolate when it was torn down");
+        let stopped = at("the neighbouring core: the accept loop returned")
+            .expect("the neighbouring core never returned");
+        assert!(
+            next_door < stopped,
+            "the neighbouring core let go of its isolate only when it stopped: {events:?}"
+        );
+    }
+
     /// A request that carried no body leaves the carrier with none to read —
     /// `Inbound::body` answering `None` is "there was no body", which is the
     /// distinction RFC 9110 § 8.6 draws and what a `Core\Request` member reports
@@ -5601,6 +5823,207 @@ mod tests {
         );
     }
 
+    /// The drain is the **process's** bit, so a worker that took its own handle
+    /// answers what every other worker answers: a probe is a fact about the
+    /// instance a proxy is deciding about, and not about which core happened to
+    /// take the connection carrying it
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+    ///
+    /// Each handle is constructed on its own thread, because that is how a
+    /// worker takes one — [`Draining::process`] called there rather than a clone
+    /// handed down from the boot. Sharing that comes from the constructor is the
+    /// property under test; a clone would be asserting [`nvs_runtime::drain`]'s
+    /// own case a second time.
+    ///
+    /// **This is the only test in this binary that begins the process drain, and
+    /// a drain is one-way.** Every other case here takes [`Draining::detached`],
+    /// which is what that constructor exists for.
+    #[test]
+    fn is_draining_answers_the_same_on_every_core() {
+        let first = std::thread::spawn(Draining::process)
+            .join()
+            .expect("a core panicked taking its drain handle");
+        let second = std::thread::spawn(Draining::process)
+            .join()
+            .expect("a core panicked taking its drain handle");
+        assert!(
+            !first.is_draining(),
+            "a server that has not stopped accepting reported a drain"
+        );
+        assert!(
+            !second.is_draining(),
+            "a server that has not stopped accepting reported a drain"
+        );
+
+        // One core's accept loop reaching its tail, which is the only writer
+        // there is: a shutdown drains the process, so the core that gets here
+        // first is answering for all of them.
+        first.begin();
+        assert!(
+            second.is_draining(),
+            "a second core answered from a bit of its own, so the probe's answer would depend on \
+             which core the proxy reached"
+        );
+        // The reader that was handed no handle at all: `Core\Server::isDraining()`
+        // is the same bit, so an application answers what the probe answers
+        // whichever core it is running on.
+        assert!(
+            nvs_runtime::drain::is_draining(),
+            "the process's drain was invisible to the reader an application uses"
+        );
+        assert!(
+            !Draining::detached().is_draining(),
+            "a server of its own reported the process's drain as its"
+        );
+    }
+
+    /// A core's in-flight tally is its own, so the process ends when the **last**
+    /// of them reaches zero: a worker whose connections are all finished returns
+    /// while one still serving holds the process up alone
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+    ///
+    /// Two workers on two listeners rather than two handles on one, because
+    /// which core the OS hands a connection to is the OS's choice — that is the
+    /// fan-out's own property and the wrong thing for a case about the tally to
+    /// rest on. Both halves are asserted: the first core returns with the second
+    /// still holding a connection, and the second returns only once that
+    /// connection has ended.
+    #[test]
+    fn the_process_exits_when_the_last_cores_in_flight_count_reaches_zero() {
+        /// One worker: this core's listener, one connection accepted, and then
+        /// the tail that is under test. `accepted` reports the hand-over and
+        /// `returned` the tally reaching zero, so the test can tell those two
+        /// moments apart from the outside.
+        fn one_core(
+            listener: std::net::TcpListener,
+            accepted: std::sync::mpsc::Sender<()>,
+            returned: std::sync::mpsc::Sender<()>,
+        ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+            move |sched| {
+                // The socket is bound before any worker exists and each core
+                // takes its own handle from there, which is what makes this the
+                // fleet's shape rather than a second binding.
+                let mut listener = NvsListener::from_std(listener)
+                    .expect("the OS refused a non-blocking listener");
+                let _installed = nvs_host::reactor::install(
+                    nvs_host::Reactor::new().expect("the OS refused a poll"),
+                );
+                let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+                    Reply::status(StatusCode::OK)
+                });
+                sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                    serve_on_this_core(
+                        &mut listener,
+                        &handler,
+                        Waits::default(),
+                        &wide_open(),
+                        // This core's own drain and not the process's: what is
+                        // under test is when the loop returns, and the process
+                        // bit is one-way for the whole binary.
+                        &Draining::detached(),
+                        |_note| {},
+                        || {
+                            let _ = accepted.send(());
+                            ControlFlow::Break(())
+                        },
+                    )
+                    .expect("the accept loop failed");
+                    // The loop's tail let go, so this core's tally is zero and
+                    // its worker thread is about to end.
+                    let _ = returned.send(());
+                });
+                run_the_core(sched);
+            }
+        }
+
+        let cpus = nvs_host::cpus();
+        let Some(first_cpu) = cpus.first().copied() else {
+            // A host that enumerates no CPU is served from the boot thread, so
+            // there is no second tally there for this to be about.
+            return;
+        };
+        // One CPU is a fleet of two workers sharing it, which is `nvs serve`'s
+        // own answer when a written count is above this machine's parallelism.
+        let second_cpu = cpus.get(1).copied().unwrap_or(first_cpu);
+
+        let first_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let first_addr = first_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+        let second_socket =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let second_addr = second_socket
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let (first_handed_over, _first_accepted) = std::sync::mpsc::channel();
+        let (first_at_zero, first_returned) = std::sync::mpsc::channel();
+        let (second_handed_over, second_accepted) = std::sync::mpsc::channel();
+        let (second_at_zero, second_returned) = std::sync::mpsc::channel();
+
+        let first_worker = nvs_host::Worker::spawn(
+            first_cpu,
+            one_core(first_socket, first_handed_over, first_at_zero),
+        )
+        .expect("the OS refused a worker thread");
+        let second_worker = nvs_host::Worker::spawn(
+            second_cpu,
+            one_core(second_socket, second_handed_over, second_at_zero),
+        )
+        .expect("the OS refused a worker thread");
+
+        // The second core's connection first, and nothing written on it: it is
+        // in flight from the accept until this socket closes, which is the whole
+        // window the assertion below needs to exist.
+        let held = TcpStream::connect(second_addr).expect("the loopback refused a socket");
+        second_accepted
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("the second core never accepted the connection it is meant to be holding");
+
+        // The first core's connection, answered and then closed by the client:
+        // that core's tally is back to zero and its loop returns.
+        let mut client = TcpStream::connect(first_addr).expect("the loopback refused a socket");
+        client
+            .set_read_timeout(Some(CLIENT_PATIENCE))
+            .expect("the socket refused a read timeout");
+        client
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .expect("the write failed");
+        let mut answer = String::new();
+        client
+            .read_to_string(&mut answer)
+            .expect("the response could not be read");
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "the first core did not answer its one connection: {answer}"
+        );
+        drop(client);
+        first_returned
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("the first core never returned, though its only connection had finished");
+
+        // The one this case exists for. The first core is done and the second is
+        // not, so a process that exited on a tally would already be gone with a
+        // connection still being served.
+        assert!(
+            matches!(
+                second_returned.try_recv(),
+                Err(std::sync::mpsc::TryRecvError::Empty)
+            ),
+            "a core returned with a connection still in flight, so the process would exit on the \
+             first core's tally rather than on the last one's"
+        );
+
+        drop(held);
+        second_returned
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("the last core never returned once the connection it held had ended");
+        // Every worker joined is the process exiting, and it took both.
+        first_worker.join().expect("the first worker panicked");
+        second_worker.join().expect("the last worker panicked");
+    }
+
     /// The question the seam is actually built around: a connection that has
     /// answered and is waiting for the next request **parks the coroutine** —
     /// `poll_read` answers `Pending` having armed the reactor — and the readiness
@@ -6121,6 +6544,76 @@ mod tests {
         assert!(
             reopened.is_some(),
             "an episode after a recovery was swallowed by the previous window"
+        );
+    }
+
+    /// A backoff is **one core's** episode: the state lives in
+    /// [`serve_on_this_core`]'s own frame, so a fleet holds one per worker and a
+    /// shortage on one core is not something another core has to live inside
+    /// (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`, which
+    /// gives a core its accept loop and the backoff that loop applies).
+    ///
+    /// Three assertions, because a single fleet-wide value would look right at
+    /// any one of them alone: a neighbour's first exhaustion is still its
+    /// *first* wait however deep another core's episode has gone, its own line
+    /// is not swallowed by a window another core opened, and a neighbour
+    /// recovering does not end the episode of the core that is still short. The
+    /// wait itself costs the neighbour nothing on top of that, because a core
+    /// parks on [`nvs_host::sleep`] on its own task rather than blocking its
+    /// thread — the accept loop's own line, and the reason a shortage is not
+    /// paid for by the connections already accepted.
+    #[test]
+    fn the_accept_backoff_runs_per_core_and_one_cores_backoff_does_not_stall_another() {
+        let opened = Instant::now();
+        // Every step inside one report window, so what silences a line is only
+        // ever the window and never the clock.
+        let step = |attempt| opened + REPORT_WINDOW / 400 * attempt;
+        let mut short = AcceptBackoff::default();
+        let mut neighbour = AcceptBackoff::default();
+
+        // One core walks a whole episode down to its ceiling.
+        let mut episode = Vec::new();
+        for attempt in 0..12 {
+            let (wait, note) = short
+                .after(&exhausted(), step(attempt))
+                .expect("still exhausted");
+            episode.push((wait, note.is_some()));
+        }
+        assert_eq!(
+            episode.last().map(|(wait, _)| *wait),
+            Some(LONGEST_WAIT),
+            "the episode never reached the ceiling this case is about: {episode:?}"
+        );
+        assert_eq!(
+            episode.iter().filter(|(_, reported)| *reported).count(),
+            1,
+            "one core's episode reported more than once inside one window: {episode:?}"
+        );
+
+        let (wait, note) = neighbour
+            .after(&exhausted(), step(12))
+            .expect("still exhausted");
+        assert_eq!(
+            wait, FIRST_WAIT,
+            "a core inherited a wait from an episode that was not its own, so one core's shortage \
+             would delay every other core's next accept"
+        );
+        assert!(
+            note.is_some(),
+            "a core's first exhaustion was swallowed by a window another core had opened, so a \
+             shortage could reach the whole fleet and be reported by one of them"
+        );
+
+        // And the same fact from the other side: a core accepting again says
+        // nothing about a core that is still out of descriptors.
+        neighbour.accepted();
+        let (wait, _) = short
+            .after(&exhausted(), step(13))
+            .expect("still exhausted");
+        assert_eq!(
+            wait, LONGEST_WAIT,
+            "one core's accepted connection ended another core's episode, so a shortage would be \
+             retried at full speed on the core still inside it"
         );
     }
 }
