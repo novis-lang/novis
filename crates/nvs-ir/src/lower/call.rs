@@ -1346,8 +1346,12 @@ pub(crate) fn delegation_forward(
         guard_blocks.push(BasicBlock {
             id: unset,
             insts: refused,
+            // No source: this block is synthesized around a delegation the
+            // program never wrote a `throw` in, and the machinery that resolves
+            // a span to a line is `Lowering`'s rather than this builder's.
             term: Terminator::Throw {
                 value: exception,
+                source: None,
                 landing,
             },
         });

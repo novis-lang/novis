@@ -3375,15 +3375,26 @@ impl Emitter<'_, '_> {
                 let target = self.block(*default)?;
                 self.b.ins().jump(target, &args);
             }
-            Terminator::Throw { value, landing } => {
+            Terminator::Throw {
+                value,
+                source,
+                landing,
+            } => {
                 let (thrown, ty) = self.value(*value)?;
                 if !matches!(ty, Ty::Object) {
                     return Err(internal("a `throw` of something that is not an object"));
                 }
+                // The throw's own site, or the zero word where this raise is
+                // not one — the same nullable carrier a record producer takes,
+                // materialized by `InstKind::SourceConst` in this very block.
+                let site = match source {
+                    Some(source) => self.value(*source)?.0,
+                    None => self.b.ins().iconst(types::I64, 0),
+                };
                 // Ownership of the exception transfers to the context here —
                 // `nvs_ir::lower` already retained an aliasing operand.
                 let callee = self.runtime_ref("nvs_raise", RuntimeSig::Raise)?;
-                self.b.ins().call(callee, &[self.ctx_p, thrown]);
+                self.b.ins().call(callee, &[self.ctx_p, thrown, site]);
                 let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
                 let target = self.block(*landing)?;
                 self.b

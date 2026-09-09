@@ -1722,8 +1722,8 @@ impl<'a> Lowering<'a> {
     ///   `LogicError` (`docs/spec/01-core-library.md` § 10). The message names
     ///   the construct rather than the unmatched value: rendering an arbitrary
     ///   subject would need the `Stringable`/`mixed` rendering this crate does
-    ///   not have, and `Self::write_throw_location` already puts the file and
-    ///   line on the exception.
+    ///   not have, and the carrier `Self::throw_source` hands the raise already
+    ///   puts the file and line on the exception.
     ///
     /// The subject's reference is not parked in the [`Env`] the way
     /// [`Self::lower_switch`] parks its own — an expression has no name to
@@ -1934,12 +1934,13 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                self.write_throw_location(test_cur, exception);
+                let source = self.throw_source(test_cur);
                 let landing = self.landing_block(env);
                 self.seal(
                     test_cur,
                     Terminator::Throw {
                         value: exception,
+                        source,
                         landing,
                     },
                 );
@@ -4004,12 +4005,13 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.write_throw_location(unset, exception);
+        let source = self.throw_source(unset);
         let landing = self.landing_block(env);
         self.seal(
             unset,
             Terminator::Throw {
                 value: exception,
+                source,
                 landing,
             },
         );

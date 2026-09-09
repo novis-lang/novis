@@ -644,6 +644,43 @@ impl Thrown {
         handle.append(Value::str(NvsStr::new(label.as_bytes())));
         obj.set_field(BACKTRACE_SLOT, Value::from_array_ptr(handle.into_raw()));
     }
+
+    /// Fills the `location` property from the carrier the `throw` that is
+    /// raising this object was compiled with.
+    ///
+    /// **The throw site, not the construction site** — the same choice the
+    /// backtrace beside it already makes, and this module's own header says
+    /// why. A rethrow of the same object is a second site and moves it.
+    ///
+    /// A null carrier leaves the slot exactly as it stands: a `catch` matching
+    /// no clause hands the very same reference onward rather than raising
+    /// anywhere of its own, and an exception the runtime built for itself has
+    /// no site at all — a producer with no source omits the field rather than
+    /// rendering it empty (`rule:errors/a-record-names-where-it-was-produced`).
+    ///
+    /// # Safety
+    ///
+    /// `blob` is null or an address [`crate::source::encode`]'s bytes were
+    /// baked at, which is [`crate::source::decode`]'s whole contract.
+    #[expect(
+        unsafe_code,
+        reason = "the blob's liveness is the caller's obligation to state — it is a compiled unit's own data section"
+    )]
+    unsafe fn write_location(&self, blob: *const u8) {
+        let Some(obj) = self.borrow() else {
+            return;
+        };
+        if obj.field_count() < SLOT_COUNT {
+            return;
+        }
+        // SAFETY: forwarding this function's own contract unchanged — the
+        // caller says the blob is null or the bytes a unit baked.
+        let Some(source) = (unsafe { crate::source::decode(blob) }) else {
+            return;
+        };
+        let rendered = crate::source::location(&source);
+        obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(rendered.as_bytes())));
+    }
 }
 
 impl Drop for Thrown {
@@ -677,25 +714,34 @@ impl Drop for Thrown {
 /// aliasing `throw $e;` operand first, exactly the way it retains any other
 /// value copied into a second durable slot.
 ///
+/// `source` is the throw's own site, as `nvs_ir::ir::InstKind::SourceConst`
+/// carries it, and fills the object's `location` through
+/// [`Thrown::write_location`] before the context takes it. The zero word is a
+/// raise that is no site of its own, and leaves that property standing.
+///
 /// # Safety
 ///
-/// `ctx` must be non-null, aligned and valid for the duration of the call, and
+/// `ctx` must be non-null, aligned and valid for the duration of the call;
 /// `thrown` must be null or refer to a live object allocation whose reference
-/// is being transferred here.
+/// is being transferred here; and `source` must be null or an address
+/// [`crate::source::encode`]'s bytes were baked at.
 #[expect(
     unsafe_code,
-    reason = "compiled code passes the context and exception pointers; the \
-              contract cannot be expressed in the signature"
+    reason = "compiled code passes the context and exception pointers plus an \
+              address in its own data section; the contract cannot be \
+              expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
+pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source: *const u8) {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees both pointers are valid, and that the \
+        reason = "the caller guarantees every pointer is valid, and that the \
                   exception's reference is being transferred"
     )]
     unsafe {
-        (*ctx).raise(Thrown::from_raw(thrown));
+        let thrown = Thrown::from_raw(thrown);
+        thrown.write_location(source);
+        (*ctx).raise(thrown);
     }
 }
 
@@ -830,6 +876,8 @@ mod tests {
     use super::*;
     use crate::object::ClassTable;
 
+    use nvs_render::Source;
+
     /// The [`SLOT_COUNT`] slots in slot order, spelled the way
     /// `nvs_types::error_lib` declares them.
     const SLOT_NAMES: [&str; SLOT_COUNT] = ["message", "previous", "backtrace", "location"];
@@ -851,6 +899,100 @@ mod tests {
         let e = unsafe { Thrown::new(root, "boom") };
         assert_eq!(e.message(), "boom");
         assert_eq!(e.trace_as_string(), "");
+    }
+
+    /// The `location` property as a program reads it.
+    fn location_of(e: &Thrown) -> String {
+        let held = e
+            .field(LOCATION_SLOT)
+            .expect("every exception class declares a location slot");
+        let bytes = held.as_str_bytes().expect("the slot holds a string");
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+
+    /// The site a `throw` is compiled with, as `nvs-codegen` bakes it.
+    fn site() -> Source {
+        Source {
+            file: "app/Http/Handler.nvs".to_owned(),
+            line: 118,
+            member: Some("Handler::respond".to_owned()),
+        }
+    }
+
+    /// `rule:errors/a-record-names-where-it-was-produced`: the property the
+    /// synthesized constructor leaves empty is filled by the raise, from the
+    /// carrier the `throw` handed it.
+    #[test]
+    fn a_thrown_object_reports_a_location_rather_than_an_empty_string() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        assert_eq!(location_of(&e), "");
+        let blob = crate::source::encode(&site());
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: the context is this frame's, the exception's one reference is
+        // transferred, and the blob outlives the call.
+        unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+        }
+        let raised = ctx.take_thrown();
+        assert_eq!(location_of(&raised), "app/Http/Handler.nvs:118");
+    }
+
+    /// One construction with two readers: the property a `catch` reads and the
+    /// `source` a record producer puts on its envelope come off the same bytes,
+    /// so they cannot disagree about where something happened.
+    #[test]
+    fn the_location_and_a_record_produced_at_the_same_site_agree() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        let blob = crate::source::encode(&site());
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: as above — and the same blob is then read the way a producer
+        // reads its own argument 0.
+        let produced = unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+            crate::source::decode(blob.as_ptr())
+        };
+        let produced = produced.expect("the bytes a unit bakes decode to the datum");
+        assert_eq!(produced, site());
+        assert_eq!(
+            location_of(&ctx.take_thrown()),
+            crate::source::location(&produced)
+        );
+    }
+
+    /// A raise that is no site of its own — a `catch` matching no clause hands
+    /// the very same reference onward — leaves the first throw's answer
+    /// standing rather than clearing it.
+    #[test]
+    fn a_raise_with_no_site_leaves_the_location_the_first_throw_wrote() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        let blob = crate::source::encode(&site());
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: as above, and the second raise is handed the zero word the
+        // way an unmatched `catch` is compiled to.
+        unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+            let onward = ctx.take_thrown();
+            nvs_raise(&raw mut ctx, onward.into_raw(), std::ptr::null());
+        }
+        assert_eq!(location_of(&ctx.take_thrown()), "app/Http/Handler.nvs:118");
     }
 
     #[test]

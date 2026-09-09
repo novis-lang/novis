@@ -31,8 +31,9 @@
 //!
 //! # `location` is the throw site, not the construction site
 //!
-//! The synthesized constructor leaves it empty and `nvs_ir::lower`'s
-//! `write_throw_location` fills it at the `throw` — the choice that agrees
+//! The synthesized constructor leaves it empty and `nvs_runtime::nvs_raise`
+//! fills it at the `throw`, from the site constant `nvs_ir::lower`'s
+//! `Lowering::throw_source` hands it — the choice that agrees
 //! with the backtrace beside it, since that holds the frames the exception
 //! unwound *out of*. Two consequences, both pinned by
 //! `tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.nvst`:

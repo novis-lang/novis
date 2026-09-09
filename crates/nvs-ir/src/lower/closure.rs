@@ -373,9 +373,9 @@ fn check_param_class(
     env: &mut Env,
 ) -> BlockId {
     // A closure literal's body has no enclosing statement of its own, so the
-    // parameter's annotation is what `write_throw_location` and
-    // `Lowering::frame_label` render — the closure's own line, rather than the
-    // file's first.
+    // parameter's annotation is what `Lowering::source` reads — the closure's
+    // own line, rather than the file's first — for the carrier a throw here
+    // hands the raise and for `Lowering::frame_label` alike.
     low.cur_stmt_span = span;
     let (is_instance, _) = low.emit(
         cur,
@@ -423,12 +423,13 @@ fn check_param_class(
         },
         env,
     );
-    low.write_throw_location(refused, exception);
+    let source = low.throw_source(refused);
     let landing = low.landing_block(env);
     low.seal(
         refused,
         Terminator::Throw {
             value: exception,
+            source,
             landing,
         },
     );

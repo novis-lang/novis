@@ -33,12 +33,19 @@ impl<'a> Lowering<'a> {
         if self.aliasing_read(inner) {
             self.emit_retain(*cur, v);
         }
-        self.write_throw_location(*cur, v);
+        let source = self.throw_source(*cur);
         let landing = self.landing_block(env);
-        self.seal(*cur, Terminator::Throw { value: v, landing });
+        self.seal(
+            *cur,
+            Terminator::Throw {
+                value: v,
+                source,
+                landing,
+            },
+        );
     }
-    /// Fills `$e->location` with the site of the `throw` that is about to
-    /// raise it.
+    /// The carrier a `throw` in `cur` hands `nvs_runtime::nvs_raise`, which
+    /// fills the raised object's `location` from it.
     ///
     /// **The throw site, not the construction site**, and deliberately so: the
     /// backtrace beside it holds the frames the exception *unwound out of*
@@ -47,35 +54,15 @@ impl<'a> Lowering<'a> {
     /// cheap shape), so a `location` naming the construction site would be the
     /// one field disagreeing with everything around it.
     ///
-    /// The write goes through the *root* class label. `nvs_runtime::object`
-    /// lays a subclass's slots after its parent's, so a slot resolved against
-    /// `Throwable` is valid for every exception class there can be — which is
-    /// the same property that lets the runtime reach `backtrace` at all.
-    pub(crate) fn write_throw_location(&mut self, cur: BlockId, thrown: ValueId) {
-        let (line, _) = self.src.line_col(self.cur_stmt_span.start);
-        let rendered = format!("{}:{}", self.src.name(), line + 1);
-        let (previous, _) = self.emit(
-            cur,
-            Ty::Str,
-            InstKind::FieldGet {
-                object: thrown,
-                class: THROWABLE_ROOT.to_owned(),
-                field: LOCATION_FIELD.to_owned(),
-            },
-        );
-        self.emit_release(cur, previous);
-        let (location, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(rendered));
-        self.block_insts[cur.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::FieldSet {
-                object: thrown,
-                class: THROWABLE_ROOT.to_owned(),
-                field: LOCATION_FIELD.to_owned(),
-                value: location,
-            },
-            on_error: None,
-        });
+    /// It is [`Self::producer_source`]'s constant unchanged — the very datum a
+    /// record producer takes as its argument 0, which is what lets
+    /// `rule:errors/a-record-names-where-it-was-produced` have one
+    /// construction with two readers. Nothing is stored from here: the slot is
+    /// one `set_field` in the runtime, where the raise already reaches the
+    /// object, rather than a read, a release and a store emitted into every
+    /// frame that can throw.
+    pub(crate) fn throw_source(&mut self, cur: BlockId) -> Option<ValueId> {
+        Some(self.producer_source(cur))
     }
     /// `try { … } catch (T $e) { … } finally { … }` — the protected region,
     /// its clause dispatch, its `finally`, and the join point after all of
@@ -271,6 +258,7 @@ impl<'a> Lowering<'a> {
                 rethrow_cur,
                 Terminator::Throw {
                     value: thrown,
+                    source: None,
                     landing,
                 },
             );
@@ -325,6 +313,7 @@ impl<'a> Lowering<'a> {
                 cur,
                 Terminator::Throw {
                     value: thrown,
+                    source: None,
                     landing,
                 },
             );
@@ -542,12 +531,15 @@ impl<'a> Lowering<'a> {
         }
 
         // Nothing matched — the very same reference goes back to the context,
-        // so the exception leaves this frame exactly as it arrived.
+        // so the exception leaves this frame exactly as it arrived, `location`
+        // included: handing a reference onward is not a second throw site, and
+        // a `None` source is what leaves the first one's answer standing.
         let landing = self.landing_block(&dispatch_env);
         self.seal(
             test_block,
             Terminator::Throw {
                 value: thrown_v,
+                source: None,
                 landing,
             },
         );
@@ -687,8 +679,8 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// spelling (`nvs_hir::errors` owns that reasoning). What each does is small
 /// enough to build by hand: store the message and the `previous` the options
 /// bag flattened into parameter 2, start an empty backtrace, and put a
-/// placeholder in `location` that [`Lowering::write_throw_location`]
-/// overwrites at the `throw`.
+/// placeholder in `location` that `nvs_runtime::nvs_raise` overwrites from the
+/// carrier [`Lowering::throw_source`] hands it at the `throw`.
 ///
 /// Parameter 2 is `Ty::Tagged` because spec § 10 types the option
 /// `Throwable|null`, and a bag omitted whole flattens to that option's own

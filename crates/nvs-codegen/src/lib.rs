@@ -1455,7 +1455,9 @@ struct Signatures {
     /// with that one shape: `nvs_throwable_message`, `nvs_throwable_trace`,
     /// `nvs_take_thrown`.
     ptr_to_ptr: Signature,
-    /// `nvs_raise(ctx, throwable)`.
+    /// `nvs_raise(ctx, throwable, source)` — the third operand is the throw
+    /// site's own carrier, or the zero word where the raise is no site of its
+    /// own. See `nvs_runtime::nvs_raise`.
     raise: Signature,
     /// `nvs_raise_new(ctx, class, message, len)` — the throw compiled code
     /// raises by itself, with no Novis `new` behind it. See
@@ -1986,8 +1988,9 @@ impl Signatures {
         ptr_to_ptr.returns.push(AbiParam::new(ptr));
 
         let mut raise = module.make_signature();
-        raise.params.push(AbiParam::new(ptr));
-        raise.params.push(AbiParam::new(ptr));
+        raise.params.push(AbiParam::new(ptr)); // ctx
+        raise.params.push(AbiParam::new(ptr)); // the exception object
+        raise.params.push(AbiParam::new(ptr)); // the throw site's carrier, or zero
 
         let mut raise_new = module.make_signature();
         raise_new.params.push(AbiParam::new(ptr)); // ctx

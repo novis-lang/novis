@@ -2540,6 +2540,16 @@ pub enum Terminator {
         /// transfers to the context; `crate::lower` retains an aliasing
         /// operand (`throw $e;`) first.
         value: ValueId,
+        /// Where this `throw` is, as [`InstKind::SourceConst`] carries it: the
+        /// constant `nvs_runtime::nvs_raise` fills the raised object's
+        /// `location` from, and the same one a record producer takes as its
+        /// argument 0, so `rule:errors/a-record-names-where-it-was-produced`
+        /// has one datum with two readers rather than two spellings of where.
+        ///
+        /// `None` where the raise is no site of its own — a `catch` matching
+        /// no clause hands the very same reference onward — and the runtime
+        /// then leaves the location standing that the first throw wrote.
+        source: Option<ValueId>,
         /// The landing block this frame's cleanup lives in, exactly the block
         /// [`Inst::on_error`] would name for a call at this same point.
         landing: BlockId,

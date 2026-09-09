@@ -142,6 +142,20 @@ pub unsafe fn of_operand(operand: Value) -> Option<Source> {
     unsafe { decode(operand.as_source_const()?) }
 }
 
+/// The `Throwable::$location` spelling of a [`Source`]: the file as the program
+/// named it and its one-based line, `file:line`.
+///
+/// The property is a *position*, and the enclosing member is deliberately not
+/// repeated in it — the record's envelope carries all three parts beside it,
+/// and every frame label the backtrace collects already reads
+/// `Class::member() at file:line`. What the rule asks for is one construction
+/// rather than one spelling, and this renders the constant the compiler baked
+/// at the throw.
+#[must_use]
+pub fn location(source: &Source) -> String {
+    format!("{}:{}", source.file, source.line)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{decode, encode};

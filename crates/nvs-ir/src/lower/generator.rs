@@ -956,12 +956,13 @@ pub(crate) fn lower_generator_current(
         },
         &Env::default(),
     );
-    low.write_throw_location(outside, thrown);
+    let source = low.throw_source(outside);
     let landing = low.landing_block(&Env::default());
     low.seal(
         outside,
         Terminator::Throw {
             value: thrown,
+            source,
             landing,
         },
     );

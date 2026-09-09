@@ -1058,12 +1058,13 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.write_throw_location(refused, exception);
+        let source = self.throw_source(refused);
         let landing = self.landing_block(env);
         self.seal(
             refused,
             Terminator::Throw {
                 value: exception,
+                source,
                 landing,
             },
         );
@@ -1192,12 +1193,13 @@ impl<'a> Lowering<'a> {
             },
             env,
         );
-        self.write_throw_location(refused, exception);
+        let source = self.throw_source(refused);
         let landing = self.landing_block(env);
         self.seal(
             refused,
             Terminator::Throw {
                 value: exception,
+                source,
                 landing,
             },
         );

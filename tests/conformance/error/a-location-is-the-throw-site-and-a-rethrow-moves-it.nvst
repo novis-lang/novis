@@ -2,10 +2,10 @@
 `$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site — spec § 10
 --FILE--
 <?nvs
-// The synthesized constructor leaves `location` empty and `nvs_ir::lower`'s
-// `write_throw_location` fills it at the `throw` — the site that agrees with
-// the `backtrace` beside it, which holds the frames the exception unwound out
-// of rather than the ones that built it.
+// The synthesized constructor leaves `location` empty and `nvs_raise` fills it
+// at the `throw`, from the same site constant a record producer takes — the
+// site that agrees with the `backtrace` beside it, which holds the frames the
+// exception unwound out of rather than the ones that built it.
 var $unthrown = new RuntimeError("never thrown");
 echo "unthrown=[", $unthrown->location, "]\n";
 

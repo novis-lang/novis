@@ -369,10 +369,15 @@ fn print_term(out: &mut String, term: &Terminator) {
         Terminator::Jump(b) => {
             let _ = writeln!(out, "    jump {}", block_name(*b));
         }
-        Terminator::Throw { value, landing } => {
+        Terminator::Throw {
+            value,
+            source,
+            landing,
+        } => {
+            let at = source.map_or_else(String::new, |v| format!(" at v{}", v.index()));
             let _ = writeln!(
                 out,
-                "    throw v{} -> {}",
+                "    throw v{}{at} -> {}",
                 value.index(),
                 block_name(*landing)
             );

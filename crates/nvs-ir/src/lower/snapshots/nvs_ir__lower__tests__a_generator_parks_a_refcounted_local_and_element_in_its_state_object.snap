@@ -91,11 +91,8 @@ fn G::two$gen::current(object) -> string {
     v6 = const.null  ; null
     v7 = tag v6  ; tagged
     v8 = new LogicError via Throwable::constructor(v5, v7) ! bb3  ; object
-    v9 = field.get v8, Throwable::location  ; string
-    release v9
-    v10 = const.str "t.nvs:3"  ; string
-    field.set v8, Throwable::location, v10
-    throw v8 -> bb4
+    v9 = source t.nvs:3 G::two$gen::current  ; classdesc
+    throw v8 at v9 -> bb4
   bb3:
     propagate "G::two$gen::current() at t.nvs:3"
   bb4:
