@@ -1502,6 +1502,13 @@ pub const CLASSES: &[CoreClass] = &[
     // request carrying it. [`crate::server`]'s module doc owns that gap, and
     // why the bit it reads lives in `nvs-runtime`.
     crate::server::CLASS,
+    // The other end of that same process fact: § 16's `Core\Signal`, which is
+    // what a program runs when the shutdown `isDraining` reports has begun.
+    // `rule:core-api/tier-roster` keeps the class to graceful shutdown alone —
+    // no `kill`, no `alarm` and no signal number — so it registers one member,
+    // and [`crate::signal`]'s module doc is the home of why it holds no reading
+    // of the drain of its own.
+    crate::signal::CLASS,
     // § 15's second request-facing class, and the one every value that came
     // from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
     // `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
