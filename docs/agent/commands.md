@@ -281,6 +281,7 @@ fail over it.
 python tools/reference.py                 # regenerate docs/novis.md from the binary + docs/reference/, run every example
 python tools/reference.py --check         # is the committed docs/novis.md current? (CI)
 python tools/reference.py --examples-only --only 20-types   # one chapter's examples while writing it
+python tools/reference.py --primer --check   # prove `nvs agent primer`: its examples run, its refusal codes exist
 python tools/proof.py --run               # hand novis.md to a blind `claude -p` reader, judge what it writes
 python tools/proof.py --prepare           # the same run directory and PROMPT.md, for any other reader
 python tools/proof.py --judge             # score the latest run; report.md beside the tasks

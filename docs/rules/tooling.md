@@ -3,7 +3,7 @@
 
 # Tooling
 
-*36 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*35 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1112,14 +1112,21 @@ A line carries no behaviour: what `header: true` does to a row is the card's ans
 
 <a id="tooling-a-primer-claim-is-executed"></a>
 
-## The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it  *(designed — not yet in the compiler)*
+## The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it
 
 `rule:tooling/a-primer-claim-is-executed`
 
-Every claim the primer makes is proven against the compiler that ships with it: each spelling it states
-as refused is fed to `nvs check` and must be refused, and each example in it is run and must print what
-the primer says it prints. This is the discipline `docs/novis.md`'s examples already hold, applied to
-the one document that is read by someone who has nothing else.
+Every claim the primer makes is proven against the compiler that ships with it: each example in it is
+run and must print what the primer says it prints, and each refusal it states must name a diagnostic
+code that compiler declares. `python tools/reference.py --primer --check` is that proof, and it is the
+harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
+someone who has nothing else.
+
+A refusal is checked as its code rather than as a program because its PHP cell is a fragment — a
+`list($a) = $b`, an untyped `as $each` — that no `nvs check` can be handed. The `E0xxx` beside it is
+the executable half: it either names a constant in the diagnostic registry or it names nothing, and a
+refusal the compiler cannot raise is the one lie a document generated from marked sections can still
+tell.
 
 The primer is generated — from marked sections of the reference chapters, those chapters' front matter,
 and the registry — so it cannot drift from the language, and a section that stops being true stops being
