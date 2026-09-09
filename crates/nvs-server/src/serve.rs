@@ -5606,6 +5606,72 @@ mod tests {
         );
     }
 
+    /// `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s compression
+    /// row, over the wire: a peer that offers every encoding there is gets back
+    /// exactly what a peer that offered none would get.
+    ///
+    /// One connection, for [`a_response_carries_section_ones_shipped_headers`]'s
+    /// reason — a response leaves by a single point, so a second case over
+    /// another [`Reply`] branch would assert the same absence twice. The length
+    /// is asserted beside the header name because those are the two ways a body
+    /// could arrive encoded: a `Content-Encoding` nobody asked the server for,
+    /// and bytes that are not the handler's own under no header at all.
+    /// `Vary: Accept-Encoding` is asserted absent with them, because a response
+    /// path that negotiates has to say it varies on what it negotiated over, so
+    /// that line is the tell that the wiring exists and happened to choose the
+    /// identity encoding on this request.
+    ///
+    /// A program that compresses its own body with `Core\Compress` is untouched
+    /// by this: what the row forbids is the response path doing it implicitly,
+    /// where the bound the bytes were decompressed under would be a policy the
+    /// server picked rather than the request's own.
+    #[test]
+    fn the_server_still_sets_no_content_encoding_of_its_own() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"GET /hello HTTP/1.1\r\nHost: localhost\r\n\
+                      Accept-Encoding: gzip, deflate, br, zstd\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &echo_the_path(), client);
+        let sent = answer.to_ascii_lowercase();
+        assert!(
+            sent.starts_with("http/1.1 200 ok\r\n"),
+            "the request the assertions below read was not answered: {answer}"
+        );
+        assert!(
+            !sent.contains("content-encoding"),
+            "the response path encoded a body nobody asked it to: {answer}"
+        );
+        assert!(
+            !sent.contains("vary: accept-encoding"),
+            "the response negotiated over the encodings it was offered: {answer}"
+        );
+        assert!(
+            sent.contains("content-length: 12"),
+            "the handler's twelve bytes did not arrive as twelve bytes: {answer}"
+        );
+        assert!(
+            answer.ends_with("hello /hello"),
+            "the body was not the handler's own bytes: {answer}"
+        );
+    }
+
     /// `rule:http-server/cors-is-closed-until-origins-are-named`'s closed default, over the wire: a peer that named an origin
     /// is told nothing about whether it may read the answer, because
     /// `[http.cors] origins` names nobody.
