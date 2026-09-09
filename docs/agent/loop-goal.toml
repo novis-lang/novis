@@ -111,6 +111,10 @@ modules = [
   # Where that label becomes static bytes in the unit's own data. The pattern a producer's constant
   # follows, and the file that says what a call site can be handed for free.
   "crates/nvs-codegen/src/emit.rs",
+  # Lowers one already-checked method body to a `crate::ir::Function` — see the crate's own module
+  # docs for which statement and expression shapes are covered, and why this trusts its input
+  # rather than re-checking it.
+  "crates/nvs-ir/src/lower/mod.rs",
 ]
 
 # The rules every stage of this goal works inside.
