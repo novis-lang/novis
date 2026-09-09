@@ -643,6 +643,44 @@ csv-core = "0.1"
 # what this crate answers.
 fluent-uri = "0.4"
 
+# --- HTML parsing (`rule:core-classes/html-parsing`, ADR 0122) ---
+# The WHATWG parsing algorithm is the specification a browser implements, and
+# `rule:core-classes/html-parsing` takes it whole: `Core\Html::parse` never
+# fails, because implied tags, error recovery and foster parenting are the
+# *specified* output rather than a guess. A hand-written parser could not make
+# that promise -- the value of the algorithm is that every conforming
+# implementation agrees, and agreement is not something a second implementation
+# of ours would have.
+#
+# `rule:packaging/a-c-dependency-answers-two-questions`'s first question is
+# "yes" and its second does not arise: a document reaching this parser is
+# attacker-controlled by definition, and the whole graph is pure Rust with no C
+# in it, so the memory-safety half of the question has nothing to bite on. That
+# is the answer the rule asks for rather than a reason to leave it unasked. It
+# is Servo's parser, driven by a browser and continuously fuzzed, and ADR 0122's
+# *In short* names it as the engine `Novis\Pdf` shares -- so the language and
+# its PDF renderer parse HTML identically, which is one behaviour to document
+# and one parser to fuzz rather than two.
+#
+# Default features, which is the tokenizer and the tree builder alone. It adds
+# seventeen crates to the lock file, MIT or Apache-2.0 every one: `markup5ever`,
+# then the ones that exist to make a tag name cheap to compare and a text cheap
+# to share (`tendril`, `web_atoms`, `string_cache`, `phf`, `precomputed-hash`,
+# `new_debug_unreachable`, `siphasher`) and the mutex behind `string_cache`'s
+# dynamic atom table (`parking_lot`). One build script, `web_atoms`', which runs
+# `phf_codegen` and `string_cache_codegen` over the fixed HTML and SVG name sets
+# to emit a perfect hash -- code generation from a table in the crate, reading
+# nothing from the environment.
+#
+# **The sample DOM is not among them** -- `markup5ever_rcdom` is a separate
+# crate this row does not take, because `crates/nvs-stdlib/src/html.rs` drives
+# the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
+# nodes. That is the boundary `rule:core-classes/html-parsing`'s one-node-family
+# clause needs: building someone else's DOM and walking it into ours would hold
+# the document twice and put a second node family in the crate for the length of
+# a parse.
+html5ever = "0.39"
+
 # --- compression (spec § 17's `Core\Compress`, ADR 0166's bound) ---
 # Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question is "yes" for every one of them: a compressed body is attacker-controlled

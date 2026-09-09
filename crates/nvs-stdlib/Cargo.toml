@@ -10,6 +10,13 @@ repository.workspace = true
 
 [dependencies]
 nvs-runtime.workspace = true
+# `rule:core-classes/html-parsing`: `Core\Html::parse` is the WHATWG algorithm,
+# and the engine is Servo's. The workspace row is where the audit under
+# `rule:packaging/a-c-dependency-answers-two-questions` is written; what belongs
+# here is why the crate is reached at all, which is that `crate::html` drives
+# the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
+# nodes rather than through the sample DOM `markup5ever_rcdom` carries.
+html5ever.workspace = true
 # ADR 0118 § 3: `Cap` is the one place a capability's `nvs.toml` name maps to the
 # field that grants it, so the registry's capability table names that enum rather
 # than a string this crate would have to compare against the configuration's own.
