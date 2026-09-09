@@ -26,6 +26,20 @@ impl Ctx {
         usize::try_from(crate::budget::live_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
     }
 
+    /// The highest [`Self::memory_used`] has been during this request.
+    ///
+    /// The mark [`crate::budget`] recorded, read against the same zero point and
+    /// floored the same way, so it is comparable with
+    /// [`Self::memory_limit`] exactly as the current figure is.
+    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for` is why the
+    /// allocator keeps it rather than this reader sampling: Novis releases on
+    /// the last reference dying, so the current figure has already fallen back
+    /// by the time anything asks, and the spike is the thing worth knowing.
+    #[must_use]
+    pub fn memory_peak(&self) -> usize {
+        usize::try_from(crate::budget::peak_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
+    }
+
     /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
     ///
     /// `[limits] memory` less [`Self::fatal_reserve`], because `rule:errors/on-limit`'s

@@ -78,9 +78,12 @@
 //!
 //! Per `rule:programs/memory-priority`'s *say what
 //! you spend*: the counter cells below, one set per thread — never per request,
-//! and never growing with requests served — and on the allocation path a
-//! thread-local read-modify-write of the live balance per `dealloc`, and of
-//! each memory counter per `alloc`. Each is a register-relative load, an add
+//! and never growing with requests served — plus one `isize` on each
+//! [`Ctx`](crate::Ctx) for the mark it displaced, which
+//! `rule:observability/a-memory-peak-is-recorded-not-asked-for` states. On the
+//! allocation path it is a thread-local read-modify-write of the live balance
+//! per `dealloc`, and of each memory counter per `alloc` — the high-water mark
+//! a compare that stores only when it moves. Each is a register-relative load, an add
 //! and a store against a `const`-initialized cell, a few instructions in front
 //! of an allocation that costs far more than they do even out of the pool. It
 //! is bought deliberately: AGENTS.md's priority ordering puts request
@@ -108,6 +111,14 @@ thread_local! {
     /// *one trap*: a lazily-initialized thread local allocates its own state
     /// from inside the allocator.
     static LIVE: Cell<isize> = const { Cell::new(0) };
+    /// The highest [`LIVE`] has reached since the innermost live
+    /// [`Ctx`](crate::Ctx) rebased this mark —
+    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for`'s recorded
+    /// high-water mark. It moves in [`add`], inside the branch that already
+    /// tests for a positive delta, rather than being sampled by whoever asks:
+    /// deterministic release means a spike is gone by the time a reader
+    /// arrives, and the spike is what the mark exists for.
+    static PEAK: Cell<isize> = const { Cell::new(0) };
     /// Monotonic: how many allocation requests this thread has made.
     static REQUESTS: Cell<usize> = const { Cell::new(0) };
     /// Monotonic: how many bytes those requests asked for.
@@ -124,6 +135,42 @@ thread_local! {
 #[must_use]
 pub fn live_bytes() -> isize {
     LIVE.with(Cell::get)
+}
+
+/// The highest [`live_bytes`] has reached since the innermost live
+/// [`Ctx`](crate::Ctx) rebased the mark.
+///
+/// The absolute mark, not a request's share —
+/// [`Ctx::memory_peak`](crate::Ctx::memory_peak) is the per-request reading and
+/// stands to this exactly as [`Ctx::memory_used`](crate::Ctx::memory_used)
+/// stands to [`live_bytes`].
+/// `rule:observability/a-memory-peak-is-recorded-not-asked-for` is why the
+/// runtime keeps this at all rather than leaving a program to sample the
+/// balance.
+#[must_use]
+pub fn peak_bytes() -> isize {
+    PEAK.with(Cell::get)
+}
+
+/// Starts a fresh mark at the current balance, and hands back the one it
+/// displaced.
+///
+/// [`Ctx::new`](crate::Ctx::new)'s half of the nesting the rule above states:
+/// a context created inside another rebases the mark to its own baseline and
+/// carries the enclosing value, so it measures its own allocation and no
+/// caller's.
+pub(crate) fn rebase_peak() -> isize {
+    let base = LIVE.with(Cell::get);
+    PEAK.with(|peak| peak.replace(base))
+}
+
+/// Restores `enclosing` as the mark, keeping whichever of the two is higher.
+///
+/// The other half, run as a context drops: publishing `max(enclosing, reached)`
+/// is what stops an isolate that allocated little from erasing the peak of the
+/// request that spawned it.
+pub(crate) fn publish_peak(enclosing: isize) {
+    PEAK.with(|peak| peak.set(peak.get().max(enclosing)));
 }
 
 /// How many allocation requests this thread has made, never decreasing.
@@ -176,10 +223,23 @@ pub(crate) fn wrote(bytes: usize) {
 /// `pub(crate)`, and called from [`Accounting`] below and from
 /// `counting_alloc`'s own arithmetic in a test build. A positive delta is one
 /// allocation *request*, which is why the memory counters move together here
-/// rather than at each allocating call site.
+/// rather than at each allocating call site — [`PEAK`] among them, so the
+/// mark is exact for every allocation rather than approximate between two
+/// reads. A release moves the balance and nothing else: bytes given back
+/// cannot raise a high-water mark, and the branch is the one the monotonic
+/// counters already needed.
 pub(crate) fn add(bytes: isize) {
-    LIVE.with(|live| live.set(live.get().wrapping_add(bytes)));
+    let live = LIVE.with(|live| {
+        let now = live.get().wrapping_add(bytes);
+        live.set(now);
+        now
+    });
     if bytes > 0 {
+        PEAK.with(|peak| {
+            if live > peak.get() {
+                peak.set(live);
+            }
+        });
         REQUESTS.with(|count| count.set(count.get().wrapping_add(1)));
         let grew = usize::try_from(bytes).unwrap_or(0);
         TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
@@ -274,5 +334,73 @@ mod tests {
         assert!(live_bytes() >= before + 4096);
         drop(held);
         assert_eq!(live_bytes(), before);
+    }
+
+    /// The mark is what the balance cannot say: it survives the release.
+    ///
+    /// This is the whole case
+    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for` exists for
+    /// — a spike deterministic release has already given back — so both halves
+    /// are asserted together. A reader sampling [`live_bytes`] after the drop
+    /// sees the baseline and would report a request that never grew.
+    ///
+    /// The mark is asserted against the *balance at the spike* and not against
+    /// its own earlier reading: with no [`Ctx`](crate::Ctx) to rebase it, this
+    /// is whatever the test thread has ever reached, which a fresh megabyte
+    /// need not pass. [`Ctx::memory_peak`](crate::Ctx::memory_peak) is where
+    /// the figure becomes a request's, and the case below is where the
+    /// rebasing is asserted.
+    #[test]
+    fn the_mark_keeps_a_spike_the_balance_has_already_given_back() {
+        let spike = 1 << 20;
+        let baseline = live_bytes();
+        let held = vec![0_u8; spike];
+        let raised = live_bytes();
+        assert!(
+            raised >= baseline + isize::try_from(spike).expect("a megabyte fits"),
+            "the balance did not record an allocation, so this asserts nothing"
+        );
+        let reached = peak_bytes();
+        assert!(
+            reached >= raised,
+            "the mark is below a balance the allocator reached"
+        );
+        drop(held);
+        assert!(
+            live_bytes() < reached,
+            "the release did not lower the balance, so this asserts nothing"
+        );
+        assert_eq!(peak_bytes(), reached, "the release lowered the mark");
+    }
+
+    /// A context created inside another measures its own allocation, and gives
+    /// the enclosing mark back no smaller than it found it.
+    ///
+    /// Both directions are the rule's *nesting saves and restores*: without the
+    /// rebase the inner reading would inherit the outer's spike, and without
+    /// the `max` on drop the outer's would come back as whatever the inner
+    /// happened to reach.
+    #[test]
+    fn a_nested_context_measures_its_own_allocation_and_restores_what_it_displaced() {
+        let spike = 1 << 20;
+        let outer = crate::Ctx::new(crate::OutputSink::Sink);
+        let held = vec![0_u8; spike];
+        let reached = outer.memory_peak();
+        assert!(
+            reached >= spike,
+            "the outer context did not see its own spike"
+        );
+        {
+            let inner = crate::Ctx::new(crate::OutputSink::Sink);
+            assert!(
+                inner.memory_peak() < spike,
+                "a nested context inherited the mark of the one that made it"
+            );
+        }
+        assert!(
+            outer.memory_peak() >= reached,
+            "the nested context erased the peak of the one that made it"
+        );
+        drop(held);
     }
 }

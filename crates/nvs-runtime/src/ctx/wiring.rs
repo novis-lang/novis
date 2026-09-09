@@ -100,6 +100,7 @@ impl Ctx {
             statics: std::ptr::null_mut(),
             exit_code: 0,
             memory_base: crate::budget::live_bytes(),
+            memory_peak_saved: crate::budget::rebase_peak(),
             output_base: crate::budget::written_bytes(),
             memory_limit: 0,
             output_limit: 0,

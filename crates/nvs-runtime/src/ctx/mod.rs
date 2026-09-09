@@ -298,6 +298,15 @@ pub struct Ctx {
     /// them moves `statics` and fails them. Nothing below `statics` has that
     /// constraint.
     memory_base: isize,
+    /// The high-water mark this context displaced when it rebased
+    /// [`crate::budget::peak_bytes`] to its own baseline, republished as the
+    /// larger of the two when it drops.
+    /// `rule:observability/a-memory-peak-is-recorded-not-asked-for` owns why a
+    /// nested context saves and restores rather than clobbering: an isolate
+    /// that allocated little would otherwise erase the peak of the request that
+    /// spawned it. Cold, and beside [`Self::memory_base`] for that field's own
+    /// reason.
+    memory_peak_saved: isize,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
     /// [`Self::memory_base`]'s twin in every respect, the reason it sits below
@@ -1106,6 +1115,12 @@ pub struct Ctx {
 /// there is no second owner to coordinate with and no table to clear.
 impl Drop for Ctx {
     fn drop(&mut self) {
+        // First, because what the teardown below allocates is not part of what
+        // this request held: republishing here leaves those bytes to raise the
+        // enclosing context's mark, where they belong. `Ctx::memory_peak_saved`
+        // is the field, and the rule it names owns why the larger of the two
+        // wins.
+        crate::budget::publish_peak(self.memory_peak_saved);
         self.release_statics();
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.
