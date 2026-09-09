@@ -21,3 +21,4 @@ write = ["./out"]
 note
 --EXPECT--
 Core\IO::read needs the capability `fs.read` for ./data/note.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`

@@ -65,4 +65,6 @@ Core\Net::connect refuses `unix:/run/novis/app.sock`: a socket path is not somet
 Core\Net::listen: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
 Core\Net::bindDatagram: `unix:/run/novis/app.sock` is not an address literal — a bind names an endpoint, and a hostname is not one
 Core\Net::connectLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
 Core\Net::listenLocal needs the capability `net.local` for unix:/run/novis/app.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

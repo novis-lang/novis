@@ -28,7 +28,7 @@ for (; $i < $n; $i = $i + 1) {
         echo "isWritable answered for ", $path, "\n";
     } catch (RuntimeError $denied) {
         $refused = $refused + 1;
-        if ($denied->message == "Core\\IO::isWritable" . $needed . $path . ", which is not granted") {
+        if ($denied->message == "Core\\IO::isWritable" . $needed . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
             $namingFsWrite = $namingFsWrite + 1;
         }
     }

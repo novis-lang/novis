@@ -36,7 +36,7 @@ for (; $i < $total; $i = $i + 1) {
         // The capability's own name, in the spelling `nvs.toml` grants it
         // under, is what an operator pastes into a file -- so it is counted
         // rather than assumed from the fact that something threw.
-        if ($refused->message == "Core\\IO::read needs the capability `fs.read` for " . $path . ", which is not granted") {
+        if ($refused->message == "Core\\IO::read needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
             $readsNamingFsRead = $readsNamingFsRead + 1;
         }
     }
@@ -45,7 +45,7 @@ for (; $i < $total; $i = $i + 1) {
         Core\IO::write($path, "x");
     } catch (RuntimeError $refused) {
         $writesRefused = $writesRefused + 1;
-        if ($refused->message == "Core\\IO::write needs the capability `fs.write` for " . $path . ", which is not granted") {
+        if ($refused->message == "Core\\IO::write needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
             $writesNamingFsWrite = $writesNamingFsWrite + 1;
         }
     }

@@ -46,3 +46,4 @@ Core\Http::allowUrl: this text is not a URL, so there is no host in it to approv
 Core\Http::allowUrl: the scheme must be `http` or `https`, and this URL names `ftp`
 Core\Http::allowUrl: the URL names no host, so there is nothing to resolve and pin
 Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

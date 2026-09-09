@@ -47,5 +47,6 @@ echo "still running", "\n";
 open = ["127.0.0.1"]
 --EXPECT--
 Core\Db::open needs the capability `db.open` for db.example.test, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
 Core\Db::open refuses 127.0.0.1: it is loopback (127.0.0.0/8), which `net.internal` does not except
 still running

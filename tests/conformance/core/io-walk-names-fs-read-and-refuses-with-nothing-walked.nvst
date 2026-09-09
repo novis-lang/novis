@@ -37,4 +37,5 @@ read = ["open"]
 --EXPECT--
 open: 3
 shut: Core\IO::walk needs the capability `fs.read` for shut, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 entries seen before the refusal: 0

@@ -36,4 +36,6 @@ try {
 --EXPECT--
 Core\Db::connect: `timeout` must be a positive duration, and this one is 0ns
 Core\Db::connect needs the capability `db.connect` for main, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
 Core\Db::connect needs the capability `db.connect` for main, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`

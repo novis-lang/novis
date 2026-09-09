@@ -26,8 +26,8 @@ int $namingFsWrite = 0;
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
     string $path = $paths[$i];
-    string $read = " needs the capability `fs.read` for " . $path . ", which is not granted";
-    string $write = " needs the capability `fs.write` for " . $path . ", which is not granted";
+    string $read = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
+    string $write = " needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 
     // `exists` is the one whose refusal is worth the most: it has a perfectly
     // good `false` available and must not use it, or a program learns from the

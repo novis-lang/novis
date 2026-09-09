@@ -20,7 +20,7 @@ try {
     Core\IO::copy("outside.txt", "scratch/from-outside.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for outside.txt, which is not granted") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.read` for outside.txt, which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
         echo "source outside the read grant: refused, naming fs.read\n";
     } else {
         echo "source outside the read grant: refused, saying ", $denied->message, "\n";
@@ -34,7 +34,7 @@ try {
     Core\IO::copy("source/note.txt", "source/second.txt");
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for source/second.txt, which is not granted") {
+    if ($denied->message == "Core\\IO::copy needs the capability `fs.write` for source/second.txt, which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
         echo "destination outside the write grant: refused, naming fs.write\n";
     } else {
         echo "destination outside the write grant: refused, saying ", $denied->message, "\n";

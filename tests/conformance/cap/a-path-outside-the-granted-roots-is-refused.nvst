@@ -34,4 +34,6 @@ secret
 --EXPECT--
 note
 Core\IO::read needs the capability `fs.read` for ./secret.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 Core\IO::read needs the capability `fs.read` for ./data/../secret.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`

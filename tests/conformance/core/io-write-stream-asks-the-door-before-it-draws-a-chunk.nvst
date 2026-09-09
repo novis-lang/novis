@@ -15,7 +15,7 @@ Core\IO::writeStream refuses an ungranted path naming `fs.write`, in every spell
 array<bytes> $chunks = ["one " as bytes, "two" as bytes];
 array<bytes> $nothing = [];
 string $path = "stream.bin";
-string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted";
+string $needs = "Core\\IO::writeStream needs the capability `fs.write` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 
 int $calls = 0;
 int $refused = 0;

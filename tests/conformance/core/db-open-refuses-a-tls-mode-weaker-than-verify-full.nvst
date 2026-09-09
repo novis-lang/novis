@@ -45,4 +45,5 @@ echo "still running", "\n";
 --EXPECT--
 Core\Db::open: `tls` asks for `Tls::Disabled`, and this runtime opens every TCP connection at `Tls::VerifyFull` — `rule:core-classes/db-capabilities` has no spelling for verifying less. A private certificate authority is a `tls_ca_file` on a `[db.<name>]` block, which changes whose certificates are believed and not whether they are checked
 Core\Db::open needs the capability `db.open` for /srv/shop/shop.db, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
 still running

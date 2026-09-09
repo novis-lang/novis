@@ -37,4 +37,5 @@ listen = true
 --EXPECT--
 bound: 1
 Core\Net\Datagram::send needs the capability `net.connect` for 127.0.0.1, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
 waited, then gave up

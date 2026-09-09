@@ -29,4 +29,5 @@ echo "still running", "\n";
 open = ["*.tenants.internal"]
 --EXPECT--
 Core\Db::open needs the capability `db.open` for secrets.db, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
 still running

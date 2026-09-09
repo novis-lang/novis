@@ -30,4 +30,6 @@ connect = true
 listen = true
 --EXPECT--
 Core\Net::connectLocal needs the capability `net.local` for /run/novis/app.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`
 Core\Net::listenLocal needs the capability `net.local` for /run/novis/app.sock, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

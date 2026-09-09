@@ -1,0 +1,33 @@
+--TEST--
+a capability denial carries a `help:` line naming `nvs.toml` and the table the grant is written in, and that table is the refused capability's own family — `rule:security/capability-check-at-the-door`, `rule:tooling/an-agent-asks-the-binary`
+--FILE--
+<?nvs
+// Whoever reads a refusal is about to write a grant, so the line under it says
+// where: the file, and the block inside it. The table is the family half of the
+// capability's own name, which is why two refusals from two families point at
+// two different blocks rather than at one constant — and why the `[capabilities.fs]`
+// this configuration already has is still the right place for `read`.
+try {
+    echo Core\IO::read("./data/note.txt");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    var $pinned = Core\Http::allowUrl("https://example.com/status");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+--FILE nvs.toml--
+# The file the help line names, holding a grant neither call needs: the tree
+# resolves, and both refusals are about a capability that is missing rather
+# than about a configuration that is.
+[capabilities.fs]
+write = ["./out"]
+--FILE data/note.txt--
+note
+--EXPECT--
+Core\IO::read needs the capability `fs.read` for ./data/note.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+Core\Http::allowUrl needs the capability `net.connect` for example.com, which is not granted
+help: grant it in nvs.toml under `[capabilities.net]`

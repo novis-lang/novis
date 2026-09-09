@@ -18,7 +18,7 @@ try {
     Core\IO::move($from, $to);
     echo "not reached\n";
 } catch (RuntimeError $denied) {
-    if ($denied->message == "Core\\IO::move needs the capability `fs.write` for " . $from . ", which is not granted") {
+    if ($denied->message == "Core\\IO::move needs the capability `fs.write` for " . $from . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`") {
         echo "move, with the same two paths: refused, naming fs.write for the source\n";
     } else {
         echo "move, with the same two paths: refused, saying ", $denied->message, "\n";

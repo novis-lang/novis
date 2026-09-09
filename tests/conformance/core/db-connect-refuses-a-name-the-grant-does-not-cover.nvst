@@ -41,5 +41,6 @@ driver = "postgres"
 host = "127.0.0.1"
 --EXPECT--
 Core\Db::connect needs the capability `db.connect` for replica, which is not granted
+help: grant it in nvs.toml under `[capabilities.db]`
 Core\Db::connect: [db.main]: the block names no `driver`, so nothing says which database it is
 still running

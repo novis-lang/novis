@@ -26,7 +26,7 @@ int $refusedByTheConversion = 0;
 int $i = 0;
 for (; $i < $total; $i = $i + 1) {
     string $path = $paths[$i];
-    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted";
+    string $needs = " needs the capability `fs.read` for " . $path . ", which is not granted\nhelp: grant it in nvs.toml under `[capabilities.fs]`";
 
     try {
         string $raw = Core\IO::read($path);
