@@ -108,6 +108,7 @@ impl Ctx {
             cpu_limit: 0,
             fatal_reserve_time: 0,
             uncaught_handler: Value::null(),
+            shutdown_handler: Value::null(),
             exit_hooks: Vec::new(),
             exit_hooks_drained: false,
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,

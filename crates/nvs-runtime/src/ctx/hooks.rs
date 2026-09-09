@@ -1,16 +1,22 @@
-//! The user code a limit, an uncaught throw or the request's end runs.
+//! The user code a limit, an uncaught throw, a shutdown or the request's end
+//! runs.
 //!
 //! The callables a context holds for the length of one request:
 //! `rule:errors/handler-script`'s limit handler,
-//! its uncaught handler, the exit hooks a program registers, and
+//! its uncaught handler, `Core\Signal::onShutdown`'s handler, the exit hooks a
+//! program registers, and
 //! `rule:concurrency/after-response-outlives-the-connection`'s
 //! deferred work.
 //!
 //! They share a shape, which is why they share a file: each runs *after*
-//! something has already gone wrong or already finished, so each runs under a
-//! reserve carved out ahead of time — and each has to answer what happens when
-//! the handler itself breaches. [`Ctx::run_limit_handler`] and
+//! something outside the program's control has happened, so each is entered
+//! from a place the program did not write, and each has to answer what happens
+//! when the handler itself breaches. [`Ctx::run_limit_handler`] and
 //! [`Ctx::abandon_exit_hook`] are the two places that answer it.
+//!
+//! [`Ctx::run_shutdown_handler`] is the one of them that is not a failure: the
+//! request keeps running afterwards, so it widens no ceiling and reserves
+//! nothing, and what it costs comes out of the budget the request still has.
 
 use super::*;
 
@@ -547,6 +553,82 @@ impl Ctx {
                 answer.release();
             }
             report.release();
+            handler.release();
+        }
+    }
+
+    /// Takes ownership of the closure `Core\Signal::onShutdown` registered —
+    /// what this request runs when the process is asked to stop.
+    ///
+    /// [`Self::set_limit_handler`]'s contract exactly, and for its reasons:
+    /// last registration wins, there is no unregister but the request ending,
+    /// and the caller passes an **owned** reference because a `Core` helper's
+    /// arguments are borrowed from a call frame this one outlives.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_shutdown_handler(&mut self, handler: Value) {
+        let previous = std::mem::replace(&mut self.shutdown_handler, handler);
+        // SAFETY: `shutdown_handler` holds one owned reference or null, and
+        // nothing else points at it — the field is private and this file is the
+        // only place that writes it.
+        unsafe { previous.release() };
+    }
+
+    /// Whether this request registered a shutdown handler at all.
+    ///
+    /// [`Self::has_limit_handler`]'s question over the third slot, and a method
+    /// for its reason: a `null` slot is the encoding of "none", and nothing
+    /// outside this file should know that.
+    #[must_use]
+    pub fn has_shutdown_handler(&self) -> bool {
+        self.shutdown_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Runs the registered shutdown handler, once, and lets the request carry
+    /// on.
+    ///
+    /// **This is the whole of what a signal delivery does to Novis code.** A
+    /// delivery raises [`SafepointFlags::SHUTDOWN`] and returns; the handler
+    /// itself is entered from [`nvs_safepoint`] between two Novis statements,
+    /// as ordinary code on the request's own stack, with every `Core` member
+    /// reachable and nothing about the frame it runs in a signal context.
+    ///
+    /// **Once, because the slot is taken rather than borrowed.** A drain begins
+    /// once per process, so a second delivery has nothing left to say, and a
+    /// handler re-entered at its own first back edge would be the CPU-limit
+    /// mistake [`Self::run_limit_handler`] lowers a flag to avoid.
+    ///
+    /// No reserve, no widened ceiling and no report: the request has not
+    /// breached anything and is not ending, so the handler runs under what the
+    /// request still has, exactly as [`Self::run_uncaught_handler`] does and for
+    /// a stronger version of the same reason. A handler that throws or that
+    /// exhausts the budget is stopped by the ladder that already owns those two
+    /// answers.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it just took out of the \
+                  slot, and owns the answer the call produced"
+    )]
+    pub fn run_shutdown_handler(&mut self) {
+        if !self.has_shutdown_handler() {
+            return;
+        }
+        // `Value::default()` is the null this leaves behind, which is the
+        // encoding of "nothing registered" [`Self::has_shutdown_handler`] reads.
+        let handler = std::mem::take(&mut self.shutdown_handler);
+        let answer = crate::call_closure(self, handler, &[]);
+        // SAFETY: the slot held one owned reference, which this frame now
+        // holds; `call_closure` took its own for the callee to release, so this
+        // frame's is still this frame's however the call went. An `Ok` answer is
+        // a fresh value this frame owns, and releasing a `null` — which is what
+        // a `void` closure returns — is a no-op.
+        unsafe {
+            if let Ok(answer) = answer {
+                answer.release();
+            }
             handler.release();
         }
     }

@@ -240,6 +240,24 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending("the request was cancelled");
         return crate::FATAL;
     }
+    if ctx.safepoint.contains(SafepointFlags::SHUTDOWN) {
+        // The one branch here that does not stop the request, and the reason
+        // `Core\Signal`'s handler is Novis code rather than a signal handler:
+        // the delivery raised this bit and returned, and *this* frame — between
+        // two Novis statements, on the request's own stack, with the whole
+        // budget and every `Core` member reachable — is where the program's
+        // code runs. `Ctx::run_shutdown_handler` owns the once-only rule.
+        //
+        // Below the cancel branch above, deliberately:
+        // `rule:concurrency/cancellation-runs-no-user-code` runs none of it for
+        // a request already being torn down, and a drain is the case where
+        // there is still a request to hand back to.
+        //
+        // Lowered before the call, so a safepoint the handler's own back edges
+        // reach does not find the request still asked to shut down.
+        ctx.safepoint.remove(SafepointFlags::SHUTDOWN);
+        ctx.run_shutdown_handler();
+    }
     ctx.safepoint
         .remove(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
     crate::OK

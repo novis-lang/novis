@@ -193,6 +193,16 @@ bitflags::bitflags! {
         const COLLECT = 1 << 2;
         /// A debugger wants to break here.
         const DEBUG_BREAK = 1 << 3;
+        /// A terminating signal has been delivered to this process and the
+        /// handler `Core\Signal::onShutdown` registered has not run yet.
+        ///
+        /// The one flag whose branch is not a stop: it runs user code and
+        /// returns [`crate::OK`], because a graceful shutdown asks the request
+        /// to finish rather than ends it where it stands
+        /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`). Raising it
+        /// is what makes the delivery — which is a store in a signal context and
+        /// nothing else — reach Novis code at a safepoint.
+        const SHUTDOWN = 1 << 4;
     }
 }
 
@@ -408,6 +418,25 @@ pub struct Ctx {
     /// closure for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     uncaught_handler: Value,
+    /// Takes ownership of the closure `Core\Signal::onShutdown` registered —
+    /// what this request runs when the process is asked to stop.
+    ///
+    /// The third handler slot, and the one whose *firing* is not a failure:
+    /// [`Self::run_shutdown_handler`] widens no ceiling and returns the request
+    /// to what it was doing, because a drain asks a request to finish rather
+    /// than stops it ([`crate::drain`]).
+    ///
+    /// Request-local for [`Self::limit_handler`]'s reason, and released in the
+    /// same place for it: the request ending is the only unregistration. That a
+    /// process-wide event is answered by a per-request slot is the point —
+    /// `rule:security/no-cross-request-state` leaves no table for a second
+    /// request to inherit a handler from, so the delivery raises a flag on each
+    /// running request and each of them runs its own handler or none.
+    ///
+    /// **What it spends:** one word per request, and one reference to the
+    /// closure for a request that registers one — O(in-flight requests), per
+    /// `rule:programs/memory-priority`.
+    shutdown_handler: Value,
     /// `rule:observability/script-on-exit`
     /// 's end-of-script queue, in registration order — what
     /// `Core\Script::onExit` appends to and [`Self::run_exit_hooks`] drains
@@ -1087,6 +1116,10 @@ impl Drop for Ctx {
         // `rule:errors/on-uncaught-throw`'s handler is request-local for the same reason and is
         // unregistered the same way — see `Ctx::set_uncaught_handler`.
         self.set_uncaught_handler(Value::null());
+        // And the shutdown handler, which is request-local for that reason and
+        // no other: a signal is the process's, but nothing outlives the request
+        // that registered what to run — see `Ctx::set_shutdown_handler`.
+        self.set_shutdown_handler(Value::null());
         // `rule:observability/script-on-exit`'s exit hooks are request-local for the same reason. A
         // script that ended at a `FATAL` or a cancellation reaches here with the
         // queue unrun — § 3 — so this is where those registrations are given
