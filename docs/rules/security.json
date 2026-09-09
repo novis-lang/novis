@@ -381,7 +381,8 @@
         "security/capability-roster-is-closed"
       ],
       "guardedBy": [
-        "crates/nvs-stdlib/tests/capability.rs"
+        "crates/nvs-stdlib/tests/capability.rs",
+        "crates/nvs-cli/tests/meta.rs"
       ]
     },
     {

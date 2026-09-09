@@ -399,3 +399,99 @@ fn a_user_declarations_shape_carries_prose_see_and_example() {
         serde_json::json!({ "short": "Barely audible." })
     );
 }
+
+/// The registry document's rosters, and the one this adds beside them.
+fn roster(document: &serde_json::Value, key: &str) -> Vec<serde_json::Value> {
+    document[key]
+        .as_array()
+        .unwrap_or_else(|| panic!("`{key}` is an array"))
+        .clone()
+}
+
+/// `capabilities` is a top-level roster like the four beside it, and it carries
+/// what `nvs_stdlib::registry::CAPABILITIES` declares: a class, a member, and
+/// the capability only where the row names one. A row naming none has no
+/// `capability` key rather than a `null` one, which is `rule:tooling/meta-json`'s
+/// omission rule and the only spelling of "needs nothing" a consumer can tell
+/// from "not written".
+#[test]
+fn the_meta_document_carries_a_capabilities_roster_beside_its_other_four() {
+    let (doc, ok) = meta(&["--json"]);
+    assert!(ok, "the registry dump succeeds");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+
+    for key in ["exceptions", "interfaces", "attributes", "directives"] {
+        assert!(!roster(&document, key).is_empty(), "`{key}` is populated");
+    }
+    let capabilities = roster(&document, "capabilities");
+    assert!(
+        !capabilities.is_empty(),
+        "`capabilities` is populated beside them"
+    );
+
+    let row = |class: &str, member: &str| {
+        capabilities
+            .iter()
+            .find(|r| r["class"] == class && r["member"] == member)
+            .unwrap_or_else(|| panic!("{class}::{member} has a row"))
+            .clone()
+    };
+
+    // A gated member names the capability in the spelling `nvs.toml` grants it
+    // under, so the string is pasteable into a configuration file as it stands.
+    assert_eq!(
+        row(r"Core\IO", "read"),
+        serde_json::json!({ "class": r"Core\IO", "member": "read", "capability": "fs.read" })
+    );
+    // An ungated member is the same row without the key.
+    assert_eq!(
+        row(r"Core\IO", "stdin"),
+        serde_json::json!({ "class": r"Core\IO", "member": "stdin" })
+    );
+}
+
+/// Every row of the roster resolves inside the same document, so a consumer can
+/// join `(class, member)` onto a member's card without reaching for anything
+/// this command did not print. `nvs-stdlib`'s closure test holds the table
+/// against the registry; this holds the *document* against itself, which is what
+/// a consumer outside the binary actually has.
+#[test]
+fn every_capabilities_row_names_a_class_and_member_the_registry_holds() {
+    let (doc, ok) = meta(&["--json"]);
+    assert!(ok, "the registry dump succeeds");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+
+    for row in roster(&document, "capabilities") {
+        let class = row["class"].as_str().expect("a row names a class");
+        let name = row["member"].as_str().expect("a row names a member");
+        // `member` panics with the pair's own spelling when either half misses,
+        // which is the message this case exists to produce.
+        let found = member(&document, class, name);
+        assert_eq!(
+            found["name"], name,
+            "{class}::{name} resolves in the document"
+        );
+    }
+}
+
+/// The join is at render time and nothing is pushed onto a member row:
+/// `rule:security/capability-declaration-is-one-table`'s second paragraph
+/// rejects a per-member field, and a field appearing here later would be that
+/// shape arriving through the document instead of through the table.
+#[test]
+fn no_member_row_gained_a_capability_field() {
+    let (doc, ok) = meta(&["--json"]);
+    assert!(ok, "the registry dump succeeds");
+    let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+
+    for class in roster(&document, "classes") {
+        let name = class["name"].as_str().expect("a class names itself");
+        for member in class["members"].as_array().into_iter().flatten() {
+            assert!(
+                member["capability"].is_null(),
+                "{name}::{} carries no capability field",
+                member["name"]
+            );
+        }
+    }
+}

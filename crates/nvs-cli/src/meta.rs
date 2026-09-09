@@ -40,12 +40,21 @@
 //! type, qualifier and default, `options` for a trailing bag, and `returns`;
 //! a class carries `typeParams` and `constructor` when it has them, a
 //! constant its `type` and `value`. Beside `classes` and `enums` sit the
-//! rosters the compiler declares outside the registry and a program can
-//! reach: `exceptions` ([`nvs_hir::errors::TREE`]), `interfaces`
+//! rosters declared outside the registry's own class table: `exceptions`
+//! ([`nvs_hir::errors::TREE`]), `interfaces`
 //! ([`nvs_hir::interfaces::RESERVED`]), `attributes`
-//! ([`nvs_types::derive::ATTRIBUTES`]) and `directives`
-//! ([`nvs_config::DIRECTIVES`]). Each is a table already, so this is one
-//! `map` per roster and no second home for any of them.
+//! ([`nvs_types::derive::ATTRIBUTES`]), `directives`
+//! ([`nvs_config::DIRECTIVES`]) and `capabilities`
+//! ([`nvs_stdlib::registry::CAPABILITIES`]). Each is a table already, so this
+//! is one `map` per roster and no second home for any of them.
+//!
+//! `capabilities` is a roster rather than a field on each member row, and
+//! `rule:security/capability-declaration-is-one-table` is why: what this
+//! runtime can do to a machine stays one screen of one file, so a consumer
+//! wanting a member's capability beside its card joins the two rosters on
+//! `(class, member)` at render time. Emitting the table here is what makes
+//! that join possible outside the binary at all — the table is `nvs-stdlib`'s
+//! and a consumer of this document has no other way to read it.
 //!
 //! ## The program half
 //!
@@ -91,8 +100,8 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_stdlib::registry::{
-    CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
+    CAPABILITIES, CLASSES, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy,
+    ENUMS, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
@@ -138,8 +147,10 @@ pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
 /// The whole document — § 2's outermost object.
 ///
 /// Separate from [`run`] so the tests below can assert on it without
-/// capturing standard output.
-fn document() -> Value {
+/// capturing standard output, and reachable from [`crate::agent`], which
+/// renders this document rather than reading the registry a second time
+/// (`rule:tooling/one-json-several-renderers`).
+pub(crate) fn document() -> Value {
     json!({
         "classes": CLASSES.iter().map(class_json).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).collect::<Vec<_>>(),
@@ -147,6 +158,7 @@ fn document() -> Value {
         "interfaces": nvs_hir::interfaces::RESERVED.iter().map(interface_json).collect::<Vec<_>>(),
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
         "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
+        "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
     })
 }
 
@@ -216,6 +228,31 @@ fn directive_json(directive: &nvs_config::Directive) -> Value {
         "class": format!("{:?}", directive.class),
         "apply": format!("{:?}", directive.apply),
     })
+}
+
+/// One capability declaration: the class, the member, and the capability that
+/// member needs when it needs one.
+///
+/// A row declaring no capability says the member needs none, and the key is
+/// absent rather than `null`, which is this document's omission rule
+/// (`rule:tooling/meta-json`) rather than a shape of its own. The capability is
+/// spelled as [`nvs_config::Cap::name`] gives it — `fs.read`, the name an
+/// operator grants it under — so a reader can paste it into a configuration
+/// file without a second mapping.
+///
+/// Nothing here is joined onto the member row itself:
+/// `rule:security/capability-declaration-is-one-table`'s second paragraph
+/// rejects a per-member field, and a consumer wanting one joins these two
+/// rosters on `(class, member)`.
+fn capability_json(row: &(&str, &str, Option<nvs_config::Cap>)) -> Value {
+    let (class, member, capability) = *row;
+    let mut out = Map::new();
+    out.insert("class".into(), Value::from(class));
+    out.insert("member".into(), Value::from(member));
+    if let Some(capability) = capability {
+        out.insert("capability".into(), Value::from(capability.name()));
+    }
+    Value::Object(out)
 }
 
 /// One member: its name, its `kind`, the `$name` each positional parameter is
