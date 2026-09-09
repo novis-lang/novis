@@ -56,13 +56,21 @@
 //! still has a [`Record`] to add a count field to rather than bytes to guess
 //! at, and because a `Ctx` is per request while a fault loop need not be.
 //!
+//! **Both writers of a disk-bounded record coalesce here, and each gets the
+//! window its own traffic needs.** `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`
+//! : the floor keeps [`WINDOW`]'s single slot, because a fault loop reports one
+//! record over and over; `Core\Log::write` goes through [`admit_log_record`]'s
+//! fixed table, because application code interleaves and one slot would
+//! coalesce none of it. They share [`key`] and [`COALESCING_WINDOW`], so what
+//! counts as the same record and how long one holds is decided once for both.
+//!
 //! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
 //! same record is what `rule:config/a-mode-is-five-defaults`
 //! 's `development` default selects, and nothing reads that directive at run
 //! time yet; JSON Lines is § 6's default and the honest single answer until the
 //! reader lands.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
@@ -237,10 +245,11 @@ struct Window {
 }
 
 thread_local! {
-    /// This core's one open window. One is enough: § 10 bounds a *loop*, and a
-    /// loop reports the same record over and over, so a table keyed by record
-    /// would spend memory to bound a case that does not arise and would need an
-    /// eviction rule of its own.
+    /// This core's one open window, which is all the floor needs: what it
+    /// bounds is a fault *loop*, and a loop reports the same record over and
+    /// over, so a second slot here would hold a record no repeat ever arrives
+    /// for. The sink whose traffic interleaves is the log target, and
+    /// [`LOG_WINDOWS`] is the table it gets for it.
     static WINDOW: Cell<Option<Window>> = const { Cell::new(None) };
 }
 
@@ -302,8 +311,111 @@ pub fn expire_coalescing_window() {
     });
 }
 
-/// What makes two reports of one failure *the same record* — everything the
-/// renderings write except the keys that differ per occurrence by design.
+/// How many distinct records the log target holds a window open for at once.
+///
+/// The table is **scanned, not indexed**, so a record's slot never depends on
+/// its hash and two records can never collide into one — a slot holds one key,
+/// and a write is only ever suppressed by an identical write. Sixteen is chosen
+/// so that a handler reporting a handful of distinct failures in a loop
+/// coalesces every one of them, while the whole table stays a scan of a couple
+/// of cache lines and a constant per core.
+pub const LOG_WINDOW_SLOTS: usize = 16;
+
+thread_local! {
+    /// The log target's open windows —
+    /// `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`'s small fixed
+    /// table, where the floor keeps [`WINDOW`]'s single slot.
+    ///
+    /// Per core and holding no record content, for [`Window`]'s own reason: a
+    /// window outlives the request that opened it, so it remembers only that
+    /// something identical was written and how often. The footprint is
+    /// [`LOG_WINDOW_SLOTS`] windows whatever the program goes on to write.
+    static LOG_WINDOWS: RefCell<[Option<Window>; LOG_WINDOW_SLOTS]> =
+        const { RefCell::new([None; LOG_WINDOW_SLOTS]) };
+}
+
+/// Decides whether this `Core\Log::write` writes `record` at all, stamping the
+/// multiplicity onto it when the line stands for more than itself.
+///
+/// [`report`]'s bound, over the table instead of the single slot: the first
+/// write of a record opens a window and goes out at once, repeats inside it are
+/// swallowed, and the first one after it closes carries how many it stands for.
+/// What differs is only how many records can be in that state at the same time,
+/// which is the whole difference between a fault loop and application code.
+///
+/// The count is written here rather than by the caller because it is
+/// `rule:errors/diagnostic-record`'s one sink-written key, and this module is
+/// the sink for both of its writers.
+pub fn admit_log_record(record: &mut Record) -> bool {
+    let Some(count) = admit_to_table(key(record), Instant::now()) else {
+        return false;
+    };
+    if count > 1 {
+        record.envelope.count = Some(count);
+    }
+    true
+}
+
+/// [`admit`]'s decision over [`LOG_WINDOWS`]: `None` to write nothing, or
+/// `Some(count)` for what the line about to be written stands for.
+///
+/// A slot already holding this key answers for the record whether or not its
+/// window is still open, so a closed window's count is carried by the next
+/// occurrence rather than dropped. A record the table holds no slot for takes
+/// the emptiest one — a free slot before any open window, and the window
+/// nearest to closing before any younger one, which is an expired slot wherever
+/// there is one.
+///
+/// An evicted window costs the count of what has *already* been reported and
+/// never a failure: the record it belonged to is written again at once, which
+/// is [`admit`]'s trailing-count cost arriving by a second route.
+fn admit_to_table(key: u64, now: Instant) -> Option<u64> {
+    LOG_WINDOWS.with(|windows| {
+        let mut windows = windows.borrow_mut();
+        if let Some(open) = windows.iter_mut().flatten().find(|open| open.key == key) {
+            if now < open.deadline {
+                open.suppressed += 1;
+                return None;
+            }
+            let carried = open.suppressed + 1;
+            open.deadline = now + COALESCING_WINDOW;
+            open.suppressed = 0;
+            return Some(carried);
+        }
+        // `None` orders before `Some` and an earlier deadline before a later
+        // one, so this one comparison is the whole replacement policy.
+        if let Some(slot) = windows
+            .iter_mut()
+            .min_by_key(|slot| slot.map(|open| open.deadline))
+        {
+            *slot = Some(Window {
+                key,
+                deadline: now + COALESCING_WINDOW,
+                suppressed: 0,
+            });
+        }
+        Some(1)
+    })
+}
+
+/// Closes every window the log target holds open, so that the next write of any
+/// of those records opens a new one and carries its count.
+///
+/// [`expire_coalescing_window`]'s seam for the second table, on the same terms:
+/// a bound whose whole subject is elapsed time is otherwise only assertable by
+/// a test that takes a second to run and is flaky when the machine is loaded.
+pub fn expire_log_windows() {
+    let now = Instant::now();
+    LOG_WINDOWS.with(|windows| {
+        for open in windows.borrow_mut().iter_mut().flatten() {
+            open.deadline = now;
+        }
+    });
+}
+
+/// What makes two records *the same record*, for both of this module's
+/// windows — everything the renderings write except the keys that differ per
+/// occurrence by design.
 ///
 /// Hashed off [`nvs_render::json::render`]'s own output rather than off a walk
 /// of the tree written here, for this module's standing reason: a second walk
@@ -324,4 +436,200 @@ fn key(record: &Record) -> u64 {
     let mut hasher = DefaultHasher::new();
     nvs_render::json::render(&stable).hash(&mut hasher);
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use nvs_render::Source;
+
+    use super::{
+        LOG_WINDOW_SLOTS, LOG_WINDOWS, Level, Window, admit, admit_log_record, expire_log_windows,
+        key, note, text,
+    };
+    use std::time::Instant;
+
+    /// One `Core\Log::write`'s record, as the member and line its call site
+    /// would have named — `rule:errors/a-record-names-where-it-was-produced`'s
+    /// `source`, which the identity below counts.
+    fn written(message: &str, line: u32) -> nvs_render::Record {
+        let mut record = note(Level::Info, message);
+        record.envelope.source = Some(Source {
+            file: "app.nvs".to_owned(),
+            line,
+            member: Some("App::run".to_owned()),
+        });
+        record
+    }
+
+    /// What one write of `record` puts on the wire: `None` for a write the
+    /// table swallowed, `Some(count)` for the line it wrote and how many
+    /// occurrences that line stands for.
+    fn write(record: &nvs_render::Record) -> Option<u64> {
+        let mut carried = record.clone();
+        admit_log_record(&mut carried).then(|| carried.envelope.count.unwrap_or(1))
+    }
+
+    /// The table's reason for existing —
+    /// `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`'s "a single
+    /// slot coalesces none of that": application code interleaves its records,
+    /// and each run of repeats has to be bounded on its own.
+    #[test]
+    fn two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another() {
+        let store = written("the store said no", 12);
+        let queue = written("the queue is full", 30);
+
+        assert_eq!(write(&store), Some(1), "each is written the first time");
+        assert_eq!(write(&queue), Some(1), "each is written the first time");
+
+        for round in 0..4 {
+            assert_eq!(
+                write(&store),
+                None,
+                "round {round}: the repeat is inside its own window"
+            );
+            assert_eq!(
+                write(&queue),
+                None,
+                "round {round}: and the other record did not close it"
+            );
+        }
+    }
+
+    /// `rule:http-server/the-floor-cannot-fill-the-disk`'s "the next occurrence
+    /// after the window carries how many it stands for", asked of the log
+    /// target's table rather than of the floor's slot.
+    #[test]
+    fn the_next_record_after_a_window_closes_carries_how_many_it_stands_for() {
+        let record = written("the store said no", 12);
+
+        assert_eq!(write(&record), Some(1), "the first line stands for itself");
+        for _ in 0..4 {
+            assert_eq!(write(&record), None);
+        }
+
+        expire_log_windows();
+        assert_eq!(
+            write(&record),
+            Some(5),
+            "the four swallowed occurrences and the one being written"
+        );
+        assert_eq!(
+            write(&record),
+            None,
+            "and that write opened a window of its own"
+        );
+    }
+
+    /// The two sinks are two windows: the floor keeps the single slot its own
+    /// traffic needs, and neither table can suppress a write the other made.
+    #[test]
+    fn the_floor_keeps_its_single_slot_and_its_own_window() {
+        let store = written("the store said no", 12);
+        let queue = written("the queue is full", 30);
+
+        // The floor's slot, asked the traffic the table exists for: every write
+        // goes out, because each record displaces the other's window before a
+        // repeat of it can be swallowed.
+        for round in 0..3 {
+            assert_eq!(
+                admit(key(&store), Instant::now()),
+                Some(1),
+                "round {round}: one slot cannot hold two records"
+            );
+            assert_eq!(admit(key(&queue), Instant::now()), Some(1));
+        }
+
+        // The same records through the log target's table, which the floor's
+        // reports have not touched.
+        assert_eq!(write(&store), Some(1));
+        assert_eq!(write(&queue), Some(1));
+        assert_eq!(write(&store), None);
+        assert_eq!(write(&queue), None);
+
+        assert_eq!(
+            admit(key(&queue), Instant::now()),
+            None,
+            "and the floor's window is still where the floor left it"
+        );
+    }
+
+    /// The identity is the floor's: the keys that distinguish two *occurrences*
+    /// of one record are cleared before hashing, because a limiter that let
+    /// them distinguish would never fire.
+    #[test]
+    fn a_record_differing_only_in_request_id_still_coalesces() {
+        let mut first = written("the store said no", 12);
+        first.envelope.request_id = Some("req-1".to_owned());
+        first.envelope.ts = Some("2026-01-01T00:00:00Z".to_owned());
+
+        let mut second = first.clone();
+        second.envelope.request_id = Some("req-2".to_owned());
+        second.envelope.ts = Some("2026-01-01T00:00:01Z".to_owned());
+        second.envelope.trace_id = Some("trace-2".to_owned());
+        second.envelope.span_id = Some("span-2".to_owned());
+        second.envelope.count = Some(9);
+
+        assert_eq!(write(&first), Some(1));
+        assert_eq!(
+            write(&second),
+            None,
+            "one failure reported by two requests is one failure"
+        );
+    }
+
+    /// "Everything else counts, `source` included — two identical messages from
+    /// two lines are two facts", and a record that differs is never held back.
+    #[test]
+    fn a_record_differing_in_its_source_line_is_written_immediately() {
+        let twelve = written("the store said no", 12);
+        let thirty = written("the store said no", 30);
+
+        assert_eq!(write(&twelve), Some(1));
+        assert_eq!(
+            write(&thirty),
+            Some(1),
+            "the same message from another line is another record"
+        );
+        assert_eq!(
+            write(&twelve),
+            None,
+            "and each still bounds its own repeats"
+        );
+
+        let mut with_field = twelve.clone();
+        with_field
+            .envelope
+            .fields
+            .push(("user".to_owned(), text("7")));
+        assert_eq!(
+            write(&with_field),
+            Some(1),
+            "a field the others do not carry is a record they are not"
+        );
+    }
+
+    /// "Memory stays a constant, just a larger one": the table holds
+    /// [`LOG_WINDOW_SLOTS`] windows and no record content, so what a program
+    /// writes cannot grow it.
+    #[test]
+    fn the_windows_footprint_does_not_grow_with_the_number_of_records_written() {
+        for line in 1..=10_000 {
+            assert_eq!(
+                write(&written("the store said no", line)),
+                Some(1),
+                "line {line} is a record of its own, so it is never held back"
+            );
+        }
+
+        let open = LOG_WINDOWS.with(|windows| windows.borrow().iter().flatten().count());
+        assert_eq!(
+            open, LOG_WINDOW_SLOTS,
+            "ten thousand records leave the table full, not ten thousand windows deep"
+        );
+        assert_eq!(
+            size_of::<[Option<Window>; LOG_WINDOW_SLOTS]>(),
+            LOG_WINDOW_SLOTS * size_of::<Option<Window>>(),
+            "the table is its slots inline — a key, a deadline and a count each, no record bytes"
+        );
+    }
 }
