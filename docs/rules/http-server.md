@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*9 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -176,7 +176,7 @@ covers as it covers a client call.
 
 <a id="http-server-the-accept-fan-out-is-one-worker-per-core"></a>
 
-## Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism  *(designed — not yet in the compiler)*
+## Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism
 
 `rule:http-server/the-accept-fan-out-is-one-worker-per-core`
 

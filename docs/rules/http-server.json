@@ -180,7 +180,7 @@
     {
       "id": "http-server/the-accept-fan-out-is-one-worker-per-core",
       "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0161"
       ],
