@@ -243,7 +243,7 @@ def pick_current_next(status_text, milestones):
     (AGENTS.md's *The schedule is the chain* bullet), so **which milestone is current is only
     the chain can answer**. It used to be answered by regexing `**Mn**` out of the Status prose,
     which is how a milestone two thirds landed kept being projected into every session's pack as
-    the next thing to do -- M8 was `done` at goals 4 and 5 and still open at 17, and one bolded id
+    the next thing to do -- M8 was `done` at goals `core-part-ii` and `database` and still open at 17, and one bolded id
     in a paragraph could not say that. That regex survives only as the fallback for a tree with no
     chain on disk."""
     goals = planmod.chain_goals()
@@ -259,7 +259,7 @@ def pick_current_next(status_text, milestones):
         return current, following, live
     if goals:
         warn(
-            "no goal in docs/agent/goals/chain.toml matches the H1 of docs/agent/loop-goal.md, so "
+            "no goal in docs/agent/goals/ matches the H1 of docs/agent/loop-goal.md, so "
             "the schedule cannot say which milestone is current and the Status field is being "
             "read instead. A live goal is a copy of its chain entry: the two H1s should be equal."
         )
@@ -307,7 +307,7 @@ def run_milestones(status_text, plan_text):
     )
     emit("Every milestone, one line each, with the file that holds it and the chain goals that")
     emit("carry its work. The goal is the unit of schedule and the milestone the unit of identity:")
-    emit('say "goal 19", not "in M7". Only the current and next milestones\' opening paragraphs are')
+    emit('say "goal `parses`", not "in M7". Only the current and next milestones\' opening paragraphs are')
     emit("printed; a milestone's full text is deliberately not in this digest -- `python")
     emit("tools/plan.py --show M8` prints one, `--show M8:verify` its acceptance paragraph alone.")
     if live is not None:
@@ -315,18 +315,23 @@ def run_milestones(status_text, plan_text):
         where = live["milestone"] or "no milestone"
         emit()
         emit(f"  LIVE: goal {live['num']} of {total} -- {live['name']}, inside {where}")
-        emit("        docs/agent/goals/chain.toml is the schedule: every earlier goal has passed,")
+        emit("        docs/agent/goals/ is the schedule: every earlier goal has passed,")
         emit("        every later one is not started.")
     emit()
 
-    # The cell is markdown, so `done\*` carries M4's footnote marker escaped. Widened to whatever
-    # the longest one needs rather than a constant, because that is a list now and it grows.
+    # The cell is markdown, so `done\*` carries M4's footnote marker escaped. The goals in it are
+    # named, not numbered, so the cell is a sentence rather than a column: M8's is eleven slugs and
+    # padding every row to it made the map 250 characters wide. So the milestone leads and the
+    # goals that carry it follow on their own indented line, wrapped, and only when there are any.
     cells = {m["id"]: m["entry"]["carried"].replace("\\*", "*") for m in milestones}
-    width = max((len(c) for c in cells.values()), default=0)
     for m in milestones:
-        line = f"{m['id']:<4} {m['title']}"
         marker = "  <- current" if m["id"] == current else ("  <- next" if m["id"] == nxt else "")
-        emit(f"  {m['entry']['rel']:<20} {cells[m['id']]:<{width}} {line}{marker}")
+        emit(f"  {m['entry']['rel']:<20} {m['id']:<4} {m['title']}{marker}")
+        cell = cells[m["id"]]
+        if cell:
+            # A slug is hyphenated, and a break inside one reads as two goals.
+            for line in textwrap.wrap(cell, width=76, break_on_hyphens=False):
+                emit(f"  {'':<20} {line}")
 
     by_id = {m["id"]: m for m in milestones}
 

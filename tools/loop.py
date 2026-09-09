@@ -57,6 +57,7 @@ except ModuleNotFoundError:  # Python < 3.11
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
+import goals as goalsmod  # noqa: E402  -- same directory; the chain has one reader and it is there
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
 import written  # noqa: E402  -- same directory; how a tool reports what it wrote, and why
 
@@ -64,11 +65,12 @@ ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
 GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
-#: The chain, and there is only one. Not a flag and never was two: every goal this project has
-#: lives in it, and a run walking no chain is a run that stops at the first goal to go green and
-#: waits for a person -- the same program with an extra night in it per goal. `tools/chain.py`
-#: edits the file; `Chain` walks it.
-CHAIN_TOML = ROOT / "docs" / "agent" / "goals" / "chain.toml"
+#: The chain, and there is only one: the goals directory itself, walked in numeric order. Not a
+#: flag and never was two -- every goal this project has lives there, and a run walking no chain is
+#: a run that stops at the first goal to go green and waits for a person, the same program with an
+#: extra night in it per goal. `tools/goals.py` reads it, `tools/chain.py` edits it, `Chain` walks
+#: it.
+GOALS_DIR = goalsmod.GOALS
 RUNDIR = ROOT / ".loop"
 LOGDIR = RUNDIR / "logs"
 LEDGER = RUNDIR / "log.md"
@@ -1583,7 +1585,7 @@ def stage_key(check):
     """A check's stage as something sortable: its leading integer, then its text.
 
     Stages are written `"6 the member"`, so the plain string sorts correctly only while the goal
-    has fewer than ten of them -- `"10 x"` sorts before `"2 x"`. Goal 9 already runs to 7 and the
+    has fewer than ten of them -- `"10 x"` sorts before `"2 x"`. Goal `schema` already runs to 7 and the
     floor is stage 1, so this is one goal away from mattering. `"0..."` is the catch-up stage and
     sorts first by the same rule. A stage with no leading integer sorts last, by its text, rather
     than raising: an unlabelled check is a goal-file bug for `validate_spec` to name, not a reason
@@ -1876,7 +1878,7 @@ class Goal:
         # All of them used to run before every cargo check -- they need only the native build --
         # and the sweep stops at the first failure, so a fixture belonging to the goal's LAST
         # stage decided what the driver reported about a goal whose middle stages were the work
-        # in flight. Measured: goal 9's `examples/schema.nvs [6 the member]` failed for eight
+        # in flight. Measured: goal `schema`'s `examples/schema.nvs [6 the member]` failed for eight
         # consecutive sessions with the identical line while stages 3, 4 and 5 landed underneath
         # it. Every one of those sessions was told, at the top of its pack and in the imperative,
         # to close a check that could not pass until three stages it did not name had landed.
@@ -2947,7 +2949,7 @@ def goal_title(chain=None):
         pass
     title = title or f"{rel_to_root(GOAL_MD)} has no heading"
     if chain is not None and chain.current is not None:
-        return f"goal {chain.index + 1}/{len(chain.goals)}{TICKER.sep}{title}"
+        return f"goal {chain.current.num}/{len(chain.goals)}{TICKER.sep}{title}"
     return title
 
 
@@ -3167,7 +3169,7 @@ class SessionFiles:
     rule in `AGENTS.md`: an edit that Write and Edit cannot express goes through `splice.py`. So
     the uncovered case is a broken rule, and the sweep leaving that file dirty is how it surfaces.
 
-    Read tools are deliberately not recorded. Sessions grep `chain.toml` and read the plan
+    Read tools are deliberately not recorded. Sessions grep the goals directory and read the plan
     constantly, and a set counting reads would re-claim every file a person has open.
 
     A subagent's writes are the one real gap: the parent stream carries its prompt, not its edits,
@@ -3241,30 +3243,28 @@ class ChainError(Exception):
 
 
 class Chain:
-    """A sequence of staged goals the driver walks by itself.
+    """The staged goals under `docs/agent/goals/`, walked in numeric order by the driver itself.
 
-    `docs/agent/goals/chain.toml` is the order; each entry names a `.md`, a `.toml` and a
-    `.handoff.md`. When the live goal's acceptance list goes green the driver **advances**: it runs
-    `tools/goal-switch.py` against the next entry -- which folds the goal that just passed into it
-    as its floor -- copies the three files into place, commits that switch, and starts the next
-    session. Without this a six-goal program stops five times and waits for a human, which is the
-    same program with five extra nights in it.
+    **The directory is the schedule.** A goal is `N-<slug>.md` plus, until it is retired, a sibling
+    `.toml` and `.handoff.md`; the number is the position and the numbers run `1..N`. When the live
+    goal's acceptance list goes green the driver **advances**: it runs `tools/goal-switch.py`
+    against the next goal -- which folds the goal that just passed into it as its floor -- copies
+    the three files into place, commits that switch, and starts the next session. Without this a
+    six-goal program stops five times and waits for a human, which is the same program with five
+    extra nights in it.
 
-    Two things are deliberately not automated, and both are in the class of "expensive to get
-    wrong and cheap to do once":
+    `tools/goals.py` is the reader and this holds no second parser. Two things are deliberately not
+    automated, and both are in the class of "expensive to get wrong and cheap to do once":
 
     * **The floor is carried by `goal-switch.py`, as a subprocess.** Re-implementing that text
       splice here would be a second copy of the one operation whose failure mode is silent -- a
       missing floor looks exactly like a passing one.
     * **`goal-switch.py` is not idempotent**: it inserts at a marker it leaves in place, so running
-      it twice inserts the floor twice. `.loop/chain.json` is what makes "exactly once per entry"
+      it twice inserts the floor twice. `.loop/chain.json` is what makes "exactly once per goal"
       a fact rather than an intention, and it survives a driver that is killed mid-run.
     """
 
-    def __init__(self, path):
-        self.path = Path(path)
-        if not self.path.is_file():
-            raise ChainError(f"{rel_to_root(self.path)} does not exist")
+    def __init__(self):
         self.goals = self._load()
         self.index = self._restore()
         fail = self._retired_error(self.goals, self.index)
@@ -3272,134 +3272,119 @@ class Chain:
             raise ChainError(fail)
 
     def _load(self):
-        """Every `[[goal]]` in the file, validated. `ChainError` on anything unwalkable."""
-        try:
-            spec = tomllib.loads(self.path.read_text(encoding="utf-8"))
-        except tomllib.TOMLDecodeError as e:
-            raise ChainError(f"{rel_to_root(self.path)} did not parse: {e}") from e
-        goals = spec.get("goal", [])
-        if not goals:
-            raise ChainError(f"{rel_to_root(self.path)} holds no [[goal]] entry")
-        for i, g in enumerate(goals, 1):
-            # A **retired** entry is one the run has already left. `chain.py --retire` proved its
-            # whole acceptance list had been folded forward, deleted the two files that held it,
-            # and left the block and the `.md` in place so no position moved and nothing citing the
-            # prose broke. So there is one file to validate and no list to run: it is history with
-            # a number, and `install_next` never reaches back for it. `_retired_error` is the other
-            # half -- that it really is behind the run, and not something about to be installed.
-            keys = ("name", "md") if "retired" in g else ("name", "md", "toml", "handoff")
-            for key in keys:
-                if key not in g:
-                    raise ChainError(f"goal {i} in {rel_to_root(self.path)} has no `{key}`")
-            for key in keys[1:]:
-                if not (ROOT / g[key]).is_file():
-                    raise ChainError(f"goal {i} ({g['name']}) names {g[key]}, which does not exist")
-            if "retired" in g:
+        """Every goal on disk, validated. `ChainError` on anything unwalkable."""
+        chain = goalsmod.load()
+        if not chain:
+            raise ChainError(f"{rel_to_root(GOALS_DIR)} holds no goal")
+        fail = goalsmod.numbering_error(chain)
+        if fail:
+            raise ChainError(fail)
+        for g in chain:
+            # A **retired** goal is one the run has already left. `chain.py --retire` proved its
+            # whole acceptance list had been folded forward and deleted the two files that held it,
+            # leaving the `.md` so nothing citing the prose broke. So there is one file to validate
+            # and no list to run: it is history with a number, and `install_next` never reaches
+            # back for it. `_retired_error` is the other half -- that it really is behind the run,
+            # and not something about to be installed.
+            for path in g.files:
+                if not path.is_file():
+                    raise ChainError(f"goal {g.num} ({g.slug}) names {rel_to_root(path)}, which "
+                                     f"does not exist")
+            if g.retired:
                 continue
-            # Existing is not the same as walkable. A misspelled key in entry 20's list is an
+            # Existing is not the same as walkable. A misspelled key in a queued goal's list is an
             # authoring mistake with a three-day fuse: nothing reads that file until the switch
-            # into it, which is hours of sessions after the entry before it went green, and the
+            # into it, which is hours of sessions after the goal before it went green, and the
             # driver's answer there is to stop the run. Read at start-up, it is one line before a
             # single session is launched -- exactly what this class refuses a missing file for.
-            fail = spec_error(ROOT / g["toml"])
+            fail = spec_error(g.toml)
             if fail:
-                raise ChainError(f"goal {i} ({g['name']}) names {g['toml']}, whose acceptance list "
-                                 f"this driver cannot run -- {fail}")
-        return goals
+                raise ChainError(f"goal {g.num} ({g.slug}) names {rel_to_root(g.toml)}, whose "
+                                 f"acceptance list this driver cannot run -- {fail}")
+        return chain
 
     @staticmethod
     def _retired_error(goals, index):
-        """A retired entry the run has not already left, as one line, or `""`.
+        """A retired goal the run has not already left, as one line, or `""`.
 
-        Retirement is only ever true *behind* the run: it deletes the acceptance list an entry was
-        walked on, so an entry at or after the live one is one the driver would be asked to install
+        Retirement is only ever true *behind* the run: it deletes the acceptance list a goal was
+        walked on, so a goal at or after the live one is one the driver would be asked to install
         off files that are gone. `-1` -- a tree with no `.loop/chain.json` -- has left nothing
         behind it at all, and a retired prefix there is refused rather than inferred into a
-        position: which entries have been walked is exactly what that file is for, and guessing it
+        position: which goals have been walked is exactly what that file is for, and guessing it
         from what somebody deleted is how a floor gets folded in twice.
         """
         for i, g in enumerate(goals):
-            if "retired" not in g or i < index:
+            if not g.retired or i < index:
                 continue
-            name = g.get("name", f"entry {i + 1}")
             if index < 0:
-                return (f"goal {i + 1} ({name}) is retired -- the acceptance list it was walked on "
-                        f"has been deleted -- but {rel_to_root(CHAINSTATE)} records no installed "
-                        f"entry, so this run would start by trying to install it. Restore that "
-                        f"file, or start the run against a chain whose first entry still has one.")
-            return (f"goal {i + 1} ({name}) is retired but the run stands at position {index + 1}, "
-                    f"so it is the live goal or ahead of it. Retiring is what says an entry's "
-                    f"checks are already somebody's floor; this one's are not.")
+                return (f"goal {g.num} ({g.slug}) is retired -- the acceptance list it was walked "
+                        f"on has been deleted -- but {rel_to_root(CHAINSTATE)} records no "
+                        f"installed goal, so this run would start by trying to install it. Restore "
+                        f"that file, or start the run against a chain whose first goal still has "
+                        f"one.")
+            return (f"goal {g.num} ({g.slug}) is retired but the run stands on goal "
+                    f"{goals[index].num}, so it is the live goal or ahead of it. Retiring is what "
+                    f"says a goal's checks are already somebody's floor; this one's are not.")
         return ""
 
     def refresh(self):
-        """Re-read the file, so a chain edited under the run is walked as it now stands.
+        """Re-read the directory, so a chain edited under the run is walked as it now stands.
 
         `dossier.py --emit-goals` is the reason this exists: a goal whose whole job
         is to write the next hundred cannot hand them to a driver that read the chain once at
         start-up, and stopping the run for a human to restart is the thing the chain exists to
-        avoid. A hand-written entry *inserted* in front of a later one is the same need arriving
-        from the other side, and it is adopted for the same reason.
+        avoid. A goal *inserted* in front of a later one is the same need arriving from the other
+        side, and it is adopted for the same reason.
 
-        **What is protected is the walked prefix, not the whole list.** `.loop/chain.json` is an
-        index into this list and `goal-switch.py` folds each walked entry's checks into the one
-        after it at switch time, so an entry at or before `self.index` that moved is not something
-        to follow -- the floor those switches built no longer matches the file. Nothing has been
-        folded into an entry the run has not reached, so those may be inserted, edited or appended
-        freely; the guard is the invariant and never more than it. That rewrite, and a file that
-        stops parsing mid-run, both leave the snapshot in place and the run continues on it: every
-        entry it is walking is still on disk, so there is nothing here worth ending three hundred
-        sessions over.
+        **What is protected is the walked prefix, not the whole list.** `goal-switch.py` folds each
+        walked goal's checks into the one after it at switch time, so a goal at or before the live
+        one that changed is not something to follow -- the floor those switches built no longer
+        matches what is on disk. Nothing has been folded into a goal the run has not reached, so
+        those may be inserted, edited or appended freely; the guard is the invariant and never more
+        than it. That rewrite, and a goal file that stops parsing mid-run, both leave the snapshot
+        in place and the run continues on it: every goal it is walking is still on disk, so there
+        is nothing here worth ending three hundred sessions over.
 
         Returns a one-line note for the console, or "" when nothing changed.
         """
+        where = rel_to_root(GOALS_DIR)
         try:
             fresh = self._load()
         except ChainError as e:
-            return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {e}"
+            return f"chain: {where} changed and is not walkable -- {e}"
         fail = self._retired_error(fresh, self.index)
         if fail:
-            return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {fail}"
+            return f"chain: {where} changed and is not walkable -- {fail}"
         # `-1` is "nothing installed yet", which protects nothing: no switch has folded a floor
-        # into anything, so every entry is still free to move.
+        # into anything, so every goal is still free to move.
         walked = max(self.index + 1, 0)
-        if [g["md"] for g in fresh[:walked]] != [g["md"] for g in self.goals[:walked]]:
-            return (f"chain: {rel_to_root(self.path)} was rewritten across the {walked} goal(s) "
-                    f"this run has already walked -- walking the {len(self.goals)} entries it "
-                    f"started with")
+        if [g.slug for g in fresh[:walked]] != [g.slug for g in self.goals[:walked]]:
+            return (f"chain: {where} was rewritten across the {walked} goal(s) this run has "
+                    f"already walked -- walking the {len(self.goals)} goals it started with")
         was, now = len(self.goals), len(fresh)
-        if [g["md"] for g in fresh] == [g["md"] for g in self.goals]:
+        if [g.slug for g in fresh] == [g.slug for g in self.goals]:
             return ""
         self.goals = fresh
         if now != was:
-            return (f"chain: {rel_to_root(self.path)} is {now} goal(s) where it was {was} -- the "
-                    f"run walks it as it stands, without a restart")
-        return (f"chain: {rel_to_root(self.path)} changed ahead of the live goal -- the run walks "
-                f"it as it stands, without a restart")
+            return (f"chain: {where} is {now} goal(s) where it was {was} -- the run walks it as it "
+                    f"stands, without a restart")
+        return (f"chain: {where} changed ahead of the live goal -- the run walks it as it stands, "
+                f"without a restart")
 
     def _restore(self):
-        """Where the chain stands, from `.loop/chain.json`, or -1 for "nothing installed yet".
+        """Where the chain stands: the index of the goal `.loop/chain.json` names, or -1.
 
-        **A position, and nothing else.** The file used to carry the chain's path as well and
-        refuse to resume unless it matched, which was the guard for two chains in one repository
-        -- and there has only ever been one, so the guard could only ever fire on a spelling. It
-        did: the day `CHAIN_TOML` replaced a typed `--chain`, the same file went from relative to
-        absolute and a run ten goals in read itself as never started. `tools/chain.py` reads this
-        the same way, and only ever read the index."""
-        if not CHAINSTATE.exists():
-            return -1
-        try:
-            state = json.loads(CHAINSTATE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return -1
-        i = state.get("index", -1)
-        return i if isinstance(i, int) and -1 <= i < len(self.goals) else -1
+        **The file holds the goal's NUMBER**, which is the number a person says out loud and also
+        its position, so there is no second spelling to keep in step. It held a 0-based index for
+        as long as the order lived in a file whose entries could be reordered under a running
+        driver; a goal inserted ahead of the live one now changes no number at all. `tools/goals.py`
+        is the one reader and writer of it."""
+        num = goalsmod.live()
+        return next((i for i, g in enumerate(self.goals) if g.num == num), -1) if num else -1
 
     def _save(self):
-        CHAINSTATE.write_text(
-            json.dumps({"index": self.index}, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        goalsmod.write_live(self.goals[self.index].num)
 
     @property
     def current(self):
@@ -3414,34 +3399,34 @@ class Chain:
         success or a one-line reason the run should stop."""
         nxt = self.goals[self.index + 1]
         say("")
-        step(f"chain: switching to goal {self.index + 2} of {len(self.goals)} -- {nxt['name']}",
-             C.CYAN)
+        step(f"chain: switching to goal {nxt.num} of {len(self.goals)} -- {nxt.name}", C.CYAN)
 
-        fail = preflight(nxt.get("preflight"))
+        fail = preflight(nxt.preflight)
         if fail:
             return fail
 
-        # The entry as it was authored, before anything on disk moves. `_load` reads the same file
+        # The goal as it was authored, before anything on disk moves. `_load` reads the same file
         # at start-up, which is where an authoring error should surface and cost nothing; this is
         # that read again against what is on disk now, since a session may have edited a queued
-        # entry since the run began. What the fold then does to it is judged separately below.
-        fail = spec_error(ROOT / nxt["toml"])
+        # goal since the run began. What the fold then does to it is judged separately below.
+        fail = spec_error(nxt.toml)
         if fail:
-            return f"chain: {nxt['name']}'s acceptance list is not runnable -- {fail}"
+            return f"chain: {nxt.name}'s acceptance list is not runnable -- {fail}"
 
         # The floor. `goal-switch.py` reads the LIVE goal, so this has to happen before the copy.
-        # On the first entry there is no previous chain goal and the live one is whatever the run
-        # started against -- which is exactly the floor that entry wants.
+        # On the first goal there is no previous chain goal and the live one is whatever the run
+        # started against -- which is exactly the floor that goal wants.
         #
         # The pre-fold bytes are held because the fold is the one step here that cannot be repeated:
-        # `goal-switch.py` inserts at a marker it leaves in place, so an entry left folded by a
+        # `goal-switch.py` inserts at a marker it leaves in place, so a goal left folded by a
         # refusal below gets the same floor a second time on the next run. Putting these back is the
         # whole of that repair, and it is only the whole of it while nothing else has moved yet.
-        goal_path = ROOT / nxt["toml"]
+        goal_path = nxt.toml
         unfolded = goal_path.read_bytes()
-        r = capture(sys.executable, [str(ROOT / "tools" / "goal-switch.py"), nxt["toml"]])
+        r = capture(sys.executable, [str(ROOT / "tools" / "goal-switch.py"),
+                                     rel_to_root(goal_path)])
         if r.code != 0:
-            return f"chain: goal-switch failed for {nxt['name']} -- {r.first_err_line}"
+            return f"chain: goal-switch failed for {nxt.name} -- {r.first_err_line}"
         for line in stdout_lines(r.out):
             say(f"  {line}", C.GRAY)
 
@@ -3453,7 +3438,7 @@ class Chain:
             Goal(tomllib.loads(goal_path.read_text(encoding="utf-8")))
         except (tomllib.TOMLDecodeError, GoalError) as e:
             goal_path.write_bytes(unfolded)
-            return (f"chain: {nxt['name']}'s acceptance list is not runnable once the floor is "
+            return (f"chain: {nxt.name}'s acceptance list is not runnable once the floor is "
                     f"folded into it -- {e}")
 
         shutil.copyfile(goal_path, GOAL_TOML)
@@ -3462,11 +3447,11 @@ class Chain:
         # bytes verbatim breaks every one of them, which `check-links.py` reports and nothing else
         # notices, because orient.py prints link *text* and a session never follows one to find out.
         GOAL_MD.write_text(
-            relocate_links(read_text(ROOT / nxt["md"]), Path(nxt["md"]).parent.name),
+            relocate_links(read_text(nxt.md), nxt.md.parent.name),
             encoding="utf-8", newline="\n",
         )
         (ROOT / "docs" / "agent" / "handoff.md").write_text(
-            relocate_links(read_text(ROOT / nxt["handoff"]), Path(nxt["handoff"]).parent.name),
+            relocate_links(read_text(nxt.handoff), nxt.handoff.parent.name),
             encoding="utf-8", newline="\n",
         )
 
@@ -3477,54 +3462,51 @@ class Chain:
         # switch would let a check the previous goal memoized stand in for one the new goal names.
         GOALCACHE.unlink(missing_ok=True)
 
-        # The entry the run has just LEFT. Every one of its checks is in the file above -- that is
+        # The goal the run has just LEFT. Every one of its checks is in the file above -- that is
         # what the fold did four calls ago -- so this is the one moment its own copy is provably
         # redundant, and `chain.py --retire` re-proves it before unlinking anything. Without this
-        # the goals directory keeps a full floor per walked entry forever: six of them were 830K of
-        # text no tool reads, and `dossier.py` is about to append 93 more entries.
+        # the goals directory keeps a full floor per walked goal forever: six of them were 830K of
+        # text no tool reads, and `dossier.py` is about to append 93 more.
         #
         # It is hygiene, so a refusal is printed and the run goes on. Nothing downstream needs the
         # file to be gone, and stopping a three-hundred-session run over a deleted file that is
         # still there would be the tail wagging the dog.
         retired = []
         prev = self.goals[self.index - 1] if self.index >= 1 else None
-        num = (prev or {}).get("name", "").split(" ", 1)[0]
-        if prev is not None and "retired" not in prev and num.isdigit():
-            r = capture(sys.executable, [str(ROOT / "tools" / "chain.py"), "--retire", num])
+        if prev is not None and not prev.retired:
+            gone = [rel_to_root(prev.toml), rel_to_root(prev.handoff)]
+            r = capture(sys.executable, [str(ROOT / "tools" / "chain.py"), "--retire",
+                                         str(prev.num)])
             for line in stdout_lines(r.out):
                 say(f"  {line}", C.GRAY)
             if r.code == 0:
-                retired = [prev["toml"], prev["handoff"], self.path.as_posix()]
-                # The snapshot has to stop naming files that are no longer there: `refresh` leaves
-                # `self.goals` alone when only keys changed, and `_retired_error` reads this list.
-                prev.pop("toml", None)
-                prev.pop("handoff", None)
-                prev["retired"] = True
+                # `retired` is derived from the `.toml` being gone, so the snapshot follows the
+                # disk with no flag to set: what has to be staged is the two deletions.
+                retired = gone
             else:
-                say(f"  chain: goal {num} was not retired -- {r.first_err_line}", C.GRAY)
+                say(f"  chain: goal {prev.num} was not retired -- {r.first_err_line}", C.GRAY)
 
         message = (
-            f"docs(loop): the chain advances to {nxt['name']}\n\n"
-            f"Written by tools/loop.py from {rel_to_root(self.path)}. The previous goal's\n"
+            f"docs(loop): the chain advances to {nxt.name}\n\n"
+            f"Written by tools/loop.py from {rel_to_root(GOALS_DIR)}. The previous goal's\n"
             f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
             f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
         )
         if retired:
             message += (
-                f"\nThe entry it left is retired in the same commit: every check of {prev['name']}\n"
-                f"is in the floor above, so the copy it kept is deleted and its block keeps only\n"
-                f"the prose. chain.py --retire is what proved that before unlinking anything.\n"
+                f"\nThe goal it left is retired in the same commit: every check of {prev.name}\n"
+                f"is in the floor above, so the copy it kept is deleted and only its prose stays.\n"
+                f"chain.py --retire is what proved that before unlinking anything.\n"
             )
         msg_file = ROOT / ".agent-tmp" / "chain-switch.txt"
         msg_file.parent.mkdir(parents=True, exist_ok=True)
         msg_file.write_text(message, encoding="utf-8", newline="\n")
-        # `git add` on a path that is gone stages the deletion, so the retirement -- two removals
-        # and the chain edit that stopped naming them -- rides in this commit rather than sitting
-        # in the tree for whichever session commits next.
-        git("add", nxt["toml"], "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
+        # `git add` on a path that is gone stages the deletion, so the retirement rides in this
+        # commit rather than sitting in the tree for whichever session commits next.
+        git("add", rel_to_root(nxt.toml), "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
             "docs/agent/handoff.md", *retired)
         git("commit", "-F", str(msg_file))
-        say(f"chain: goal {self.index + 1} of {len(self.goals)} is live -- {nxt['name']}", C.GREEN)
+        say(f"chain: goal {nxt.num} of {len(self.goals)} is live -- {nxt.name}", C.GREEN)
         return ""
 
     def bring_up_services(self):
@@ -4037,7 +4019,7 @@ def mark_interrupted(index, why=None):
     way that matters: the next session finds those files and cannot tell them from the state it
     was supposed to start in, and if the RUN ends there -- `s` at the console, the last session of
     a `--max-sessions` batch -- nothing ever picks them up. That is not a hypothetical; it is how
-    1,200 lines of goal 9 stage 6 sat uncommitted across a stopped run on 2026-09-06, including a
+    1,200 lines of goal `schema` stage 6 sat uncommitted across a stopped run on 2026-09-06, including a
     `docs/novis.md` that `verify.py` had regenerated under a session that then never wrapped.
 
     An unverified commit is the right trade here and the asymmetry is not close. The work is on a
@@ -4495,7 +4477,7 @@ def run_cli():
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
     ap.add_argument(
         "--chain-install", action="store_true",
-        help="install the next staged goal from docs/agent/goals/chain.toml and exit, without "
+        help="install the next staged goal from docs/agent/goals/ and exit, without "
              "running a session. The switch on its own -- run it when you want the new goal live "
              "before deciding when to start the run, and a run then resumes at it rather than "
              "installing it again."
@@ -4634,12 +4616,12 @@ def run_cli():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
-    # The chain. Always `CHAIN_TOML` and never a flag: there is one, every goal is in it, and a
-    # run that walked none would stop at the first goal to go green. Built before `make_room` so a
-    # chain file with a typo in it costs a line rather than a log prune, and before `claim_run` so
-    # it cannot leave `.loop/running` behind on a refusal.
+    # The chain. Always `GOALS_DIR` and never a flag: there is one, every goal is in it, and a run
+    # that walked none would stop at the first goal to go green. Built before `make_room` so a goal
+    # file with a typo in it costs a line rather than a log prune, and before `claim_run` so it
+    # cannot leave `.loop/running` behind on a refusal.
     try:
-        chain = Chain(CHAIN_TOML)
+        chain = Chain()
     except ChainError as e:
         say(str(e), C.RED)
         return 2
@@ -4648,8 +4630,8 @@ def run_cli():
         # change to the repository that gets committed, and deciding when to spend three hundred
         # sessions against it is a different decision made at a different moment.
         if chain.finished:
-            say(f"chain: {chain.current['name']} is the last goal in "
-                f"{rel_to_root(chain.path)} and is already installed", C.YELLOW)
+            say(f"chain: {chain.current.name} is the last goal in "
+                f"{rel_to_root(GOALS_DIR)} and is already installed", C.YELLOW)
             return 0
         fail = chain.install_next()
         if fail:
@@ -4664,9 +4646,9 @@ def run_cli():
     # against them -- every leg does it, so the run doing it as well would only ever do it twice.
     if opts.leg:
         if chain.index < 0:
-            # Nothing installed yet: entry 0 takes its floor from whatever goal the repository is
-            # currently running, which is what the first switch is for. Everything after it takes
-            # its floor from the entry before.
+            # Nothing installed yet: the first goal takes its floor from whatever goal the
+            # repository is currently running, which is what the first switch is for. Everything
+            # after it takes its floor from the goal before.
             fail = chain.install_next()
             if fail:
                 say(fail, C.RED)
@@ -4677,9 +4659,9 @@ def run_cli():
                 say(f"{rel_to_root(GOAL_TOML)}: {e}", C.RED)
                 return 2
         else:
-            say(f"chain: resuming at goal {chain.index + 1} of {len(chain.goals)} -- "
-                f"{chain.current['name']}", C.CYAN)
-            fail = preflight(chain.current.get("preflight"))
+            say(f"chain: resuming at goal {chain.current.num} of {len(chain.goals)} -- "
+                f"{chain.current.name}", C.CYAN)
+            fail = preflight(chain.current.preflight)
             if fail:
                 say(fail, C.RED)
                 return 2
@@ -5253,8 +5235,8 @@ def drive(opts, goal, chain):
             if switch:
                 reason, kind = switch, "chain-error"
                 break
-            ledger(f"## run continues on {chain.current['name']} "
-                   f"(goal {chain.index + 1} of {len(chain.goals)})")
+            ledger(f"## run continues on {chain.current.name} "
+                   f"(goal {chain.current.num} of {len(chain.goals)})")
             # A new goal is a new worklist, so a stall streak from the old one says nothing about
             # it -- and the first session of any goal is the one most likely to spend itself
             # reading rather than committing.
@@ -5266,7 +5248,7 @@ def drive(opts, goal, chain):
                 kind = "chain-error"
                 break
             TICKER.set(loop_goal=goal_title(chain))
-            verdict(False, f"goal reached -- the run carries on with {chain.current['name']}")
+            verdict(False, f"goal reached -- the run carries on with {chain.current.name}")
             continue
         ledger(f"       goal check: {fail}")
 
@@ -5543,7 +5525,7 @@ def run_goal_row():
     """The goal row between two legs. Rebuilt from disk rather than kept, because a chain switch
     happens inside a leg and a row still naming the goal before last is worse than none at all."""
     try:
-        return goal_title(Chain(CHAIN_TOML))
+        return goal_title(Chain())
     except (ChainError, OSError):
         return goal_title()
 

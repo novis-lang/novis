@@ -34,7 +34,7 @@ inline (they replace one `peek.py` call each) while the traps are narrowed to th
 a file the item never opens removes no call at all).
 
 And a goal is narrowed again, by the **stage** of it in flight. A goal runs five to twelve stages
-and a session works in one: goal 14's stage 8 argues from ADR 0101's redaction sections, which say
+and a session works in one: goal `lsp-server`'s stage 8 argues from ADR 0101's redaction sections, which say
 nothing at all to the session writing its stage 4. So `[context]` may carry a `[context.stage.N]`
 table per prose stage, `orient.py` applies the one `handoff.md`'s `## Next group` names, and the
 base holds only what every stage needs. `Manifest` is where that merge lives and why it only ever
@@ -49,7 +49,7 @@ naming something that no longer exists, and that prints as a loud warning rather
     python tools/orient.py --item N     # pin a specific checklist item instead of the first unticked
     python tools/orient.py --stage N    # price a stage the run has not reached, instead of the live one
     python tools/orient.py --full       # ignore the manifest and print everything it could select
-    python tools/orient.py --goal docs/agent/goals/50-dossier.toml --audit  # price a STAGED manifest
+    python tools/orient.py --goal docs/agent/goals/43-dossier.toml --audit  # price a STAGED manifest
 
 `--audit` reports. It never exits non-zero over a size, and nothing in this repository does:
 see docs/agent/doc-style.md on why a length tripwire costs more than it saves.
@@ -351,7 +351,7 @@ class Manifest:
     one selects nothing rather than everything, because a goal that forgot to name its modules
     should print a short pack and a loud warning, not the whole repository.
 
-    A goal is a finite contained group of work, and a *stage* of one is finite again: goal 14 runs
+    A goal is a finite contained group of work, and a *stage* of one is finite again: goal `lsp-server` runs
     twelve, and the ADR sections its stage 8 argues from say nothing to the session writing its
     stage 4. Measured on that goal, 13,120 of 17,746 B of sliced ADR text belonged to a stage that
     was either already landed or not yet open. So `[context]` may carry per-stage tables:
@@ -376,7 +376,7 @@ class Manifest:
     The stage number is the one the goal's **prose** uses -- `docs/agent/goals/<goal>.md`'s
     `## Stage N` headings, which is what `handoff.md`'s `## Next group` names. It is deliberately
     *not* a `[[check]]`'s `stage = "4 the requests"` label: those are coarser on purpose, one
-    acceptance label spanning several prose stages ("Goal prose stages 4 to 9" says so in goal 14's
+    acceptance label spanning several prose stages ("Goal prose stages 4 to 9" says so in goal `lsp-server`'s
     own comment), and making the two agree would mean giving up that grouping for nothing.
     """
 
@@ -1281,7 +1281,7 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
     #
     # The first is stated as "your prose is held to a rule your manifest cannot reach", not as "you
     # named no rule id", so it clears the moment it is acted on and never fires on a goal that has
-    # no rule to name. Goal 27 is that goal: a process gate over documents whose own standing
+    # no rule to name. Goal `gap-owners` is that goal: a process gate over documents whose own standing
     # decisions say it opens no ADR, and the blunt form accused it of a shortfall it cannot fix.
     prose_text = read(path.with_suffix(".md"))
     if prose_text and m.rules:
@@ -1305,7 +1305,7 @@ def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
     prose = path.with_suffix(".md")
     stages = len(re.findall(r"^## Stage ", read(prose), flags=re.M)) if prose.is_file() else 0
     # Only where there is something a stage could take. A process goal that opens no ADR and names
-    # four records -- goal 27 is the worked example -- has a base that IS what every stage needs,
+    # four records -- goal `gap-owners` is the worked example -- has a base that IS what every stage needs,
     # and "a stage with nothing of its own needs no table" is the design rather than a shortfall.
     # A signal that cannot clear schedules a pass whether or not anything drifted.
     if stages >= 3 and not m.stages and (m.adrs or len(m.rules) >= 5):

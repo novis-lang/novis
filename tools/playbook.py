@@ -49,7 +49,7 @@ A needle is a plain substring, never a regex, and may not hold `]`. The same tra
 same kinds, is what `docs/agent/guard-name-debt.md`'s bullets, `docs/agent/carried-gaps.md`'s
 § *Unowned* bullets and `docs/agent/carried-refusals.md`'s numbered entries carry; a row in
 carried-gaps' § *Owned* table declares through its *Owner* column instead, and `--check` flags a
-row whose owner has been retired in `chain.toml` without the row being struck. This paragraph is
+row whose owner has been retired in the goals directory without the row being struck. This paragraph is
 the only home of the syntax: `session.py --wrap` refuses a `## playbook:` bullet without a
 trailer and points here, and `session-prompt.md` and `commands.md` point here rather than
 restating it.
@@ -406,7 +406,7 @@ def holds(kind: str, arg: str, today: date) -> tuple[bool | None, str]:
 
 
 def chain_retired() -> set[int]:
-    """The goal numbers `chain.toml` marks retired -- the owners carried-gaps may no longer name."""
+    """The goal numbers the goals directory marks retired -- the owners carried-gaps may no longer name."""
     if not CHAIN.exists():
         return set()
     try:
@@ -559,7 +559,7 @@ def spellings(term: str) -> tuple[set[str], set[str]]:
     off, and stripping is what turns a path into an ordinary English word --
     `crates/nvs-lsp/src/server.rs` yields `server`, which appears in bullets about `nvs-server`,
     about `nvs-db`'s wire and about the loop driver, none of which is the LSP server. Measured on
-    goal 14's stage-4 item, that stem promoted nine bullets to full text and **not one of them**
+    goal `lsp-server`'s stage-4 item, that stem promoted nine bullets to full text and **not one of them**
     matched `nvs-lsp`: 4,992 bytes of every session's pack, spent on the wrong crate.
 
     A term with no `/` is a word the caller typed rather than one this derived, so all of its

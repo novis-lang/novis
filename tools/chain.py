@@ -1,79 +1,67 @@
 #!/usr/bin/env python3
-"""The loop's goal chain, edited by a tool instead of by hand.
+"""The loop's goal chain, edited by renaming files instead of by editing a list.
 
     python tools/chain.py                            # the order, with where the run stands
-    python tools/chain.py --show 20                  # one entry, its files, its stages
-    python tools/chain.py --new unix-sockets --title "a configured store is authorized by its configuring"
-    python tools/chain.py --set 20 --milestone M8 --preflight docker
-    python tools/chain.py --why 20 --text "Before the dossier because that entry turns the chain around."
-    python tools/chain.py --move 18 --after 19
-    python tools/chain.py --renumber 21 --to 22       # or --retitle 21 --to unix-sockets
-    python tools/chain.py --remove 21 --delete-files
-    python tools/chain.py --retire 6                 # walked: drop the acceptance list it already folded on
+    python tools/chain.py --show 29                  # one goal, its files, its stages
+    python tools/chain.py --new xml-stream --after 31 --title "a document walked once"
+    python tools/chain.py --new xml-stream --before 31        # or --end
+    python tools/chain.py --move 33 --to 22           # or --after 31, --before 31, --next
+    python tools/chain.py --remove 33 --delete-files
+    python tools/chain.py --retitle 31 --to unowned-sweep
+    python tools/chain.py --set 31 --milestone M8
+    python tools/chain.py --retire 29                # walked: drop the acceptance list it folded on
+    python tools/chain.py --renumber                 # repair: close a hole, break a duplicate
     python tools/chain.py --check
 
-`docs/agent/goals/chain.toml` is the schedule the driver walks, and adding an entry to it is five
-edits in four files that are easy to get half-right: three goal files nobody has a template for, a
-`[[goal]]` block, a `README.md` table row, and a `plan.py --sync` for the milestone's `Carried by`
-cell. This does the mechanical four and names the fifth.
+**A goal's number is its position, and `docs/agent/goals/` is the whole schedule.** The numbers run
+`1..N` with no gaps; sorting on them is walking the chain. So moving a goal *is* renaming its files,
+and this tool is what makes that one operation instead of thirty.
 
-**Every mutation is a text splice, never a TOML round-trip.** Half of this file is prose -- the
-comment above an entry says *why the order is what it is*, which is the one thing about a chain that
-cannot be re-derived -- and `tomllib` reads none of it. So an entry is parsed as (leading comment
-run, `[[goal]]` block) and written back as the same lines, and everything the tool did not
-deliberately change is byte-for-byte what it was. `--check` re-renders the file it just read and
-says so if that is ever untrue.
+A renumber is cheap for exactly one reason, and it is a rule rather than an accident: **prose names
+a goal by its slug, never by its number** (AGENTS.md, *The schedule is the chain*). A slug does not
+move; a number moves whenever anything is inserted in front of it. So the only text carrying a
+number is the text this tool owns -- each goal's two file headers, and the link targets that are
+filenames -- and a move rewrites those and nothing else. `--check` is the gate that keeps it true:
+a `goal 29` written into prose is reported there, because the day one exists is the day a renumber
+starts lying. `tools/goals.py` is the reader; this is the only writer.
 
-Three rules are enforced rather than documented, because all three fail silently:
+Two rules are enforced rather than documented, because both fail silently:
 
-* **The walked prefix is frozen.** `.loop/chain.json` is an index into this list, and every switch
-  has folded one walked entry's checks into the next as its floor (`goal-switch.py`). An entry at or
-  before the live one that moves, is renumbered or is removed invalidates a floor that has already
-  been built, and nothing downstream notices. Refused without `--force`.
-* **A number is an identity, not a position.** `21-49` is deliberately free space in front of the
-  dossier: `dossier.py` numbers what it appends from `max(number) + 1`, so a hand-written entry that
-  takes 51 collides with a generated one. `--new` picks the next free number below 50 and `--check`
-  says so when something is sitting in the emitter's range.
-* **A walked entry is retired, never removed.** `--retire N` deletes goal N's `.toml` and
-  `.handoff.md` and marks the entry `retired = true`; the `[[goal]]` block and the `.md` stay,
-  so no position shifts and nothing that cites the prose breaks. It is refused unless every
-  `[[check]]` of that goal is *provably* in the live goal already -- which is the whole safety
-  argument, and the reason this is a check rather than a note in a doc. See `--retire` below.
+* **The walked prefix is frozen.** `goal-switch.py` has folded each walked goal's checks into the
+  one after it as its floor, and `.loop/chain.json` names the goal the run stands on. A goal at or
+  before the live one that is moved, renumbered or removed invalidates a floor that is already
+  built. Refused without `--force`, and so is a landing position inside that prefix.
+* **A walked goal is retired, never removed.** `--retire N` deletes goal N's `.toml` and
+  `.handoff.md` -- the `.md` stays, so the plan and the milestone files keep resolving -- and it is
+  refused unless every `[[check]]` of that goal is *provably* in the live goal already. That is the
+  whole safety argument for deleting an acceptance list, and it is a check rather than a note in a
+  doc. Retirement is the `.toml` being gone; there is no flag to disagree with it.
 
-Retirement exists because the fold is cumulative: goal 1's 80 checks are in goal 2's file, and its
-267-deep descendant is the live goal today. Six walked `.toml`s were 830K of text that no tool reads
-and every `grep` over `docs/` hits eight times. The driver retires each entry as it leaves it, so the
-93 goals `dossier.py` appends cost that once each instead of forever.
-
-What this deliberately does not do: rewrite the prose that *cites* a goal. `--renumber` and
-`--retitle` move the files and fix the two headers that carry the number mechanically, then print
-every other place the old name appears for a human to read. A tool that rewrites sentences it
-cannot read is how a doc tree stops meaning anything.
+Retirement exists because the fold is cumulative: goal `core-depth`'s checks are in goal `concurrency`'s file and in its
+267-deep descendant, so a walked `.toml` is text that no tool reads and every `grep` over `docs/`
+hits twice. The driver retires each goal as it leaves it.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
-import textwrap
 import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import goals as goalsmod  # noqa: E402  -- the chain's one reader
 import loop  # noqa: E402  -- same directory; the check schema has one home and it is `loop.py`
 import orient as orientmod  # noqa: E402  -- the `[context]` manifest's one reader, likewise
 
-ROOT = Path(__file__).resolve().parent.parent
-GOALS = ROOT / "docs" / "agent" / "goals"
-CHAIN = GOALS / "chain.toml"
+ROOT = goalsmod.ROOT
+GOALS = goalsmod.GOALS
 README = GOALS / "README.md"
-STATE = ROOT / ".loop" / "chain.json"
 
-#: The goal the driver is actually running. `--retire` proves a walked entry's checks are in here
-#: before deleting the file they came from; every switch since that entry left has folded them
+#: The goal the driver is actually running. `--retire` proves a walked goal's checks are in here
+#: before deleting the file they came from; every switch since that goal left has folded them
 #: forward one more time, so this is where all of them end up.
 LIVE_GOAL = ROOT / "docs" / "agent" / "loop-goal.toml"
 
@@ -82,26 +70,27 @@ LIVE_GOAL = ROOT / "docs" / "agent" / "loop-goal.toml"
 #: this tool writes carries it, and `--check` is what says a hand-written goal forgot it.
 MARKER = "# <<< goal-switch: floor checks are inserted below this line >>>"
 
-#: The first number `dossier.py --emit-goals` may take. 50 is the dossier's own entry and 21-49 is
-#: the gap it left in front of itself on purpose, so inserting a hand-written goal costs one
-#: `[[goal]]` block and renumbers nothing. See `goals/README.md`.
-DOSSIER_NUM = 50
+SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 
-#: The keys a `[[goal]]` may carry, in the order they are written. `loop.py`'s `Chain._load`
-#: requires the first four; `preflight` is optional and `milestone` is what `plan.py` derives every
-#: `Carried by` cell from. `retired` says a walked entry's acceptance list has been dropped, and
-#: it is the one key whose PRESENCE removes two others -- a retired entry names no `toml` and no
-#: `handoff`, because there are none. It is a flag and not a date: when the fold happened is what
-#: `git log` answers, and nothing here has ever read the day back.
-KEYS = ("name", "md", "toml", "handoff", "milestone", "preflight", "retired")
+#: A goal named by its number in prose. Every one is a defect, because the number it names is a
+#: position and moves. `--check` reports them; nothing here rewrites one, since a sentence built
+#: around a number rarely survives having the number swapped out and a tool cannot tell which ones
+#: do.
+#:
+#: The lookbehind is the one exception, and it is deliberate rather than incidental: a backtick
+#: immediately in front means the text is a literal being *shown* -- the rule in AGENTS.md quotes
+#: the wrong form to name it -- and quoting a spelling is not spelling it.
+NUMBER_CITE_RE = re.compile(r"(?<![`\w])[Gg]oals?\s+\d+")
 
-WIDTH = 100
+#: The two headers that carry a goal's number, and the only text this tool rewrites besides the
+#: filenames themselves. Both are the goal naming *itself*, which is the one place a number belongs.
+H1_RE = re.compile(r"^(#\s*Loop goal )\d+", re.M)
+TOML_HEAD_RE = re.compile(r"^(#\s*Goal )\d+( --)", re.M)
+HANDOFF_RE = re.compile(r"^(\*\*Goal )\d+( —)", re.M)
 
-GOAL_NUM_RE = re.compile(r"^\s*(\d+)\b")
-#: A `key = value` line, where the value is a quoted string or the bare `true` that `retired` is
-#: written as. Group 4 is the literal as written, quotes included; `get` is what strips them.
-KEY_RE = re.compile(r'^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)("(?:[^"]*)"|true)\s*$')
-HEADER = "[[goal]]"
+#: `29-xml-tree` inside a link or a path. Rewritten from the stem map alone, so a string that merely
+#: looks like one -- a date, a version -- is left exactly as it was.
+STEM_RE = re.compile(r"\b\d+-[a-z0-9]+(?:-[a-z0-9]+)*\b")
 
 
 def die(message):
@@ -110,218 +99,192 @@ def die(message):
 
 
 def rel(path):
-    try:
-        return Path(path).resolve().relative_to(ROOT).as_posix()
-    except ValueError:
-        return Path(path).as_posix()
+    return goalsmod.rel(path)
 
 
-# ---------------------------------------------------------------------------------------------------
-# The file, as text
-# ---------------------------------------------------------------------------------------------------
+def git(*args, check=True):
+    r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    if check and r.returncode != 0:
+        raise SystemExit(die(f"git {' '.join(args)} failed -- {r.stderr.strip()}"))
+    return r.stdout
 
 
-class Entry:
-    """One `[[goal]]` block plus the comment run above it, as the lines they are.
+def find(chain, num):
+    g = goalsmod.find(chain, num)
+    if g is None:
+        raise SystemExit(die(f"no goal {num} on the chain -- `python tools/chain.py` lists it"))
+    return g
 
-    The comment travels with the block through a move, because it is the sentence explaining why
-    that goal sits where it does -- which is worthless attached to its neighbour.
+
+def generated(goal):
+    """A goal `dossier.py` wrote, which is edited in the emitter and never here.
+
+    The directory it sits in, and not a marker in its prose: `dossier.py --emit-goals` writes into
+    `goals/dossier/` and nothing else does. Reading it off the word "generated" in the opening
+    paragraph found a hand-written goal whose subject happened to be generated files.
     """
-
-    def __init__(self, lead, body):
-        self.lead = list(lead)      # comment lines, no blanks at either end
-        self.body = list(body)      # "[[goal]]" through its last key line
-
-    # -- reading -------------------------------------------------------------------------------
-
-    def get(self, key, default=""):
-        for line in self.body:
-            m = KEY_RE.match(line)
-            if m and m.group(2) == key:
-                raw = m.group(4)
-                return raw[1:-1] if raw.startswith('"') else raw
-        return default
-
-    @property
-    def name(self):
-        return self.get("name")
-
-    @property
-    def num(self):
-        m = GOAL_NUM_RE.match(self.name)
-        return int(m.group(1)) if m else None
-
-    @property
-    def slug(self):
-        rest = self.name.split(None, 1)
-        return rest[1] if len(rest) > 1 else ""
-
-    @property
-    def generated(self):
-        """A goal `dossier.py` wrote, which is edited in the emitter and never here."""
-        return ("GENERATED" in "\n".join(self.lead).upper()
-                or (self.num is not None and self.num > DOSSIER_NUM))
-
-    @property
-    def retired(self):
-        """Whether this entry's acceptance list has been dropped."""
-        return bool(self.get("retired"))
-
-    @property
-    def files(self):
-        """The keys naming a file that must be on disk -- two fewer once the entry is retired."""
-        return ("md",) if self.retired else ("md", "toml", "handoff")
-
-    # -- writing -------------------------------------------------------------------------------
-
-    def set(self, key, value):
-        """Overwrite a key in place, or append it in `KEYS` order. `None` removes it; `True`
-        writes the bare TOML `true`, which is how `retired` is spelled."""
-        literal = "true" if value is True else f'"{value}"'
-        for i, line in enumerate(self.body):
-            m = KEY_RE.match(line)
-            if m and m.group(2) == key:
-                if value is None:
-                    del self.body[i]
-                else:
-                    self.body[i] = f"{m.group(1)}{key}{m.group(3)}{literal}"
-                return
-        if value is None:
-            return
-        after = KEYS[:KEYS.index(key)] if key in KEYS else KEYS
-        at = len(self.body)
-        for i, line in enumerate(self.body):
-            m = KEY_RE.match(line)
-            if m and m.group(2) in after:
-                at = i + 1
-        self.body.insert(at, f"{key} = {literal}")
-
-    def why(self, text):
-        """Replace the leading comment run. `""` drops it."""
-        self.lead = wrap_comment(text) if text else []
-
-    @property
-    def text(self):
-        return "\n".join([*self.lead, *self.body])
+    return goal.folder != GOALS
 
 
-def wrap_comment(text):
-    """A paragraph as `# `-prefixed lines at the file's width. Blank lines survive as `#`."""
+# ---------------------------------------------------------------------------------------------------
+# Renumbering, which is the whole tool
+# ---------------------------------------------------------------------------------------------------
+
+
+def tracked_files():
+    """Every tracked text file, which is the set a citation can live in."""
+    skip = {".png", ".jpg", ".jpeg", ".ico", ".svg", ".lock", ".woff", ".woff2"}
+    for line in git("ls-files").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        path = ROOT / line
+        if path.is_file() and path.suffix.lower() not in skip:
+            yield path
+
+
+def rewrite_stems(text, stems):
+    """`26-xml-tree` -> `29-xml-tree`, in a link target or a path and nowhere else."""
+    return STEM_RE.sub(lambda m: stems.get(m.group(0), m.group(0)), text)
+
+
+def rewrite_headers(goal, num):
+    """Renumber the headers in which a goal names itself. Nothing else in the file is touched."""
+    for path, pattern, repl in ((goal.md, H1_RE, rf"\g<1>{num}"),
+                                (goal.toml, TOML_HEAD_RE, rf"\g<1>{num}\g<2>"),
+                                (goal.handoff, HANDOFF_RE, rf"\g<1>{num}\g<2>")):
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            out = pattern.sub(repl, text, count=1)
+            if out != text:
+                path.write_text(out, encoding="utf-8", newline="\n")
+
+
+def number_citations():
+    """Every `goal 29` written into prose, as `(path, line number, text)`.
+
+    A finding, never a fix. AGENTS.md's *The schedule is the chain* is the rule -- a goal is named
+    by its slug, because a number is a position and a position moves -- and this is what makes the
+    rule a gate instead of a hope. `docs/agent/goals/README.md`'s own table is the one exception:
+    it is a listing of the chain in order, so the number IS what it is showing.
+    """
     out = []
-    for para in re.split(r"\n\s*\n", text.strip()):
-        if out:
-            out.append("#")
-        out += textwrap.wrap(" ".join(para.split()), width=WIDTH - 2,
-                             initial_indent="# ", subsequent_indent="# ")
+    for path in tracked_files():
+        if path == README:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for i, line in enumerate(text.split("\n"), 1):
+            if H1_RE.match(line) or TOML_HEAD_RE.match(line) or HANDOFF_RE.match(line):
+                continue
+            for m in NUMBER_CITE_RE.finditer(line):
+                out.append((rel(path), i, m.group(0)))
     return out
 
 
-def parse(text):
-    """`(head, [Entry, ...])` for a chain file.
+def apply_renumber(chain, mapping, dry_run):
+    """Rename every goal the map moves, and fix up the text that names a number.
 
-    Everything above the first `[[goal]]` is the head, comments and all: the file's preamble and
-    the first entry's own comment run are not distinguishable by shape, and the first entry is the
-    one thing on the chain that never moves.
+    `mapping` is `{old number: new number}`, and the callers below build it by rebuilding the whole
+    order rather than by reasoning about which goals in between shift -- so it is always a
+    permutation, and a move never has to know which direction it went.
+
+    Three kinds of text carry a number and all three are this tool's: the filenames, each goal's
+    own headers, and a link target that is a filename. Prose carries none, by the rule in this
+    module's docstring, which is why this is a rename and not a rewrite.
+
+    Returns `(renamed, rewritten, stale)`: files moved, files whose link targets changed, and every
+    `goal 29` found in prose -- a rule violation this reports and does not touch.
     """
-    lines = text.split("\n")
-    starts = [i for i, ln in enumerate(lines) if ln.strip() == HEADER]
-    if not starts:
-        return "\n".join(lines).rstrip("\n"), []
+    moves = {old: new for old, new in mapping.items() if old != new}
+    by_num = {g.num: g for g in chain}
+    if not moves:
+        return 0, 0, []
+    stems = {by_num[old].stem: f"{new}-{by_num[old].slug}" for old, new in moves.items()}
 
-    leads = {}
-    for s in starts[1:]:
-        i = s
-        while i > 0 and (not lines[i - 1].strip() or lines[i - 1].lstrip().startswith("#")):
-            i -= 1
-        leads[s] = i
-
-    head = "\n".join(lines[:starts[0]]).rstrip("\n")
-    entries = []
-    for n, s in enumerate(starts):
-        stop = leads[starts[n + 1]] if n + 1 < len(starts) else len(lines)
-        lead = [ln for ln in lines[leads.get(s, s):s]]
-        while lead and not lead[0].strip():
-            lead.pop(0)
-        while lead and not lead[-1].strip():
-            lead.pop()
-        body = lines[s:stop]
-        while body and not body[-1].strip():
-            body.pop()
-        entries.append(Entry(lead, body))
-    return head, entries
-
-
-def render(head, entries):
-    """The file back as text. Round-trips byte for byte when nothing was touched."""
-    out = head.rstrip("\n") + "\n\n" if head.strip() else ""
-    return out + "\n\n".join(e.text for e in entries) + "\n"
-
-
-def load():
-    if not CHAIN.is_file():
-        raise SystemExit(die(f"{rel(CHAIN)} does not exist"))
-    text = CHAIN.read_text(encoding="utf-8")
-    head, entries = parse(text)
-    return text, head, entries
-
-
-def live_index():
-    """The 0-based position of the entry the run has installed, or -1 for "nothing yet"."""
-    if not STATE.is_file():
-        return -1
-    try:
-        return int(json.loads(STATE.read_text(encoding="utf-8")).get("index", -1))
-    except (ValueError, OSError):
-        return -1
-
-
-def find(entries, num):
-    """The entry numbered `num`, by its name's leading integer -- which is what a person says."""
-    hits = [e for e in entries if e.num == num]
-    if not hits:
-        raise SystemExit(die(f"no goal {num} on the chain -- `python tools/chain.py` lists it"))
-    if len(hits) > 1:
-        raise SystemExit(die(f"goal {num} appears {len(hits)} times; fix the duplicate first"))
-    return hits[0]
-
-
-def frozen(entries, entry, force, what):
-    """Refuse a mutation of an entry the run has already walked. True when it is refused."""
-    pos = entries.index(entry)
-    live = live_index()
-    if pos > live or force:
-        return False
-    where = "is the live goal" if pos == live else "has already been walked"
-    die(f"goal {entry.num} ({entry.name}) {where} -- {what} it invalidates the floor "
-        f"goal-switch.py already folded into the entries after it.\n"
-        f"       {rel(STATE)} says the run stands at position {live + 1}. Pass --force if "
-        f"the run is over or was never started.")
-    return True
-
-
-def landing(at, force, what):
-    """Refuse a landing position at or before the live entry. True when it is refused.
-
-    `.loop/chain.json` is a positional index, so an entry that lands in front of the live one
-    renumbers the walked prefix under a running driver: `Chain.refresh` then sees a prefix that
-    moved, refuses to adopt the file at all, and the run finishes on the list it started with.
-    """
-    live = live_index()
-    if at > live or force:
-        return False
-    die(f"position {at + 1} is at or before the live entry (position {live + 1}) -- {what} there "
-        f"shifts goals the run has already walked, and {rel(STATE)} indexes this list by position. "
-        f"Pass --force if the run is over or was never started.")
-    return True
-
-
-def write(text, dry_run, note):
     if dry_run:
-        print(f"chain: --dry-run, nothing written -- {note}")
-        return 0
-    CHAIN.write_text(text, encoding="utf-8", newline="\n")
-    print(f"chain: {note}")
-    return 0
+        for old, new in sorted(moves.items()):
+            print(f"       goal {old} -> {new}  {by_num[old].slug}")
+        return 0, 0, number_citations()
+
+    # The rename goes through a temporary name because the map is a permutation: 21 -> 7 and 7 -> 9
+    # both want the same directory, and either order overwrites one of them going straight across.
+    pairs = []
+    for old, new in moves.items():
+        g = by_num[old]
+        for suffix in (".md", ".toml", ".handoff.md"):
+            if (GOALS / f"{g.stem}{suffix}").is_file():
+                pairs.append((f"{g.stem}{suffix}", f"{new}-{g.slug}{suffix}"))
+    for src, dst in pairs:
+        git("mv", f"docs/agent/goals/{src}", f"docs/agent/goals/__renumber__{dst}")
+    for _, dst in pairs:
+        git("mv", f"docs/agent/goals/__renumber__{dst}", f"docs/agent/goals/{dst}")
+
+    for old, new in moves.items():
+        rewrite_headers(goalsmod.Goal(new, by_num[old].slug), new)
+
+    rewritten = 0
+    # The live copies are copies of the live goal and hold the same link targets, so they are
+    # rewritten beside the tracked tree rather than after it.
+    live_copies = [ROOT / "docs" / "agent" / n
+                   for n in ("loop-goal.md", "loop-goal.toml", "handoff.md")]
+    for path in list(tracked_files()) + [p for p in live_copies if p.is_file()]:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        out = rewrite_stems(text, stems)
+        if out != text:
+            path.write_text(out, encoding="utf-8", newline="\n")
+            rewritten += 1
+
+    live = goalsmod.live()
+    if live in moves:
+        goalsmod.write_live(moves[live])
+    return len(pairs), rewritten, number_citations()
+
+
+def report(renamed, rewritten, stale):
+    print(f"       {renamed} file(s) renamed, {rewritten} file(s) had a link target rewritten")
+    if stale:
+        print()
+        print(f"       {len(stale)} place(s) name a goal by NUMBER, which this did not touch and")
+        print("       which a renumber has just made wrong. A goal is named by its slug:")
+        for path, line, text in stale[:20]:
+            print(f"         {path}:{line}  {text}")
+        if len(stale) > 20:
+            print(f"         ... and {len(stale) - 20} more")
+    print("       `python tools/plan.py --sync` -- `Carried by` cells hold the numbers.")
+
+
+def order_after(order):
+    """`{old: new}` for a chain rewritten into `order`, the goals in their new sequence."""
+    return {g.num: i for i, g in enumerate(order, 1)}
+
+
+def frozen(num, force, what):
+    """Refuse to touch a goal the run has already walked. True when it is refused."""
+    live = goalsmod.live()
+    if force or not live or num > live:
+        return False
+    where = "is the live goal" if num == live else "has already been walked"
+    die(f"goal {num} {where} -- {what} it invalidates the floor goal-switch.py already folded into "
+        f"the goals after it.\n"
+        f"       {rel(goalsmod.STATE)} says the run stands on goal {live}. Pass --force if the run "
+        f"is over or was never started.")
+    return True
+
+
+def landing(num, force, what):
+    """Refuse a landing position at or before the live goal. True when it is refused."""
+    live = goalsmod.live()
+    if force or not live or num > live:
+        return False
+    die(f"goal {num} is at or before the live goal ({live}) -- {what} there renumbers goals the run "
+        f"has already walked. Pass --force if the run is over or was never started.")
+    return True
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -329,71 +292,67 @@ def write(text, dry_run, note):
 # ---------------------------------------------------------------------------------------------------
 
 
-def cmd_list(entries, show_all):
-    live = live_index()
-    hand = [e for e in entries if not e.generated]
-    shown = entries if show_all else hand
-    print(f"chain: {rel(CHAIN)} -- {len(entries)} goal(s), "
-          f"{len(entries) - len(hand)} of them generated"
-          + ("" if show_all or len(hand) == len(entries) else " (--all to list those too)"))
-    if live >= 0:
-        print(f"       {rel(STATE)}: the run stands at position {live + 1} "
-              f"({entries[live].name if live < len(entries) else '?'})")
+def cmd_list(chain, show_all):
+    live = goalsmod.live()
+    hand = [g for g in chain if not generated(g)]
+    shown = chain if show_all else hand
+    print(f"chain: {rel(GOALS)} -- {len(chain)} goal(s), {len(chain) - len(hand)} of them generated"
+          + ("" if show_all or len(hand) == len(chain) else " (--all to list those too)"))
+    if live:
+        print(f"       {rel(goalsmod.STATE)}: the run stands on goal {live}")
     else:
-        print(f"       {rel(STATE)}: no run has installed an entry yet")
+        print(f"       {rel(goalsmod.STATE)}: no run has installed a goal yet")
+    fail = goalsmod.numbering_error(chain)
+    if fail:
+        print(f"       !! {fail}")
     print()
-    print(f"  {'pos':>3}  {'goal':<26} {'milestone':<12} {'preflight':<9} state")
-    for i, e in enumerate(entries):
-        if e not in shown:
+    print(f"  {'goal':<26} {'milestone':<12} {'preflight':<9} state")
+    for g in chain:
+        if g not in shown:
             continue
-        state = "walked" if i < live else "LIVE" if i == live else "ahead"
-        if e.retired:
+        state = "walked" if g.num < live else "LIVE" if g.num == live else "ahead"
+        if g.retired:
             state += ", retired"
-        missing = [k for k in e.files if not (ROOT / e.get(k)).is_file()]
+        missing = [p.name for p in g.files if not p.is_file()]
         if missing:
             state += f"  !! {', '.join(missing)} missing"
-        print(f"  {i + 1:>3}  {e.name:<26} {e.get('milestone'):<12} "
-              f"{e.get('preflight'):<9} {state}")
+        print(f"  {g.name:<26} {g.milestone:<12} {g.preflight:<9} {state}")
     print()
-    print("  An entry at or before the live one is frozen: its checks are already somebody's floor.")
+    print("  A goal at or before the live one is frozen: its checks are already somebody's floor.")
     print("  A retired one has had that list dropped -- it is in the live goal, not in its own file.")
     return 0
 
 
-def cmd_show(entries, num):
-    e = find(entries, num)
-    live = live_index()
-    pos = entries.index(e)
-    print(f"chain: position {pos + 1} of {len(entries)} -- "
-          f"{'walked' if pos < live else 'LIVE' if pos == live else 'ahead of the run'}"
-          + (", retired (its checks are the live goal's floor)" if e.retired else ""))
+def cmd_show(chain, num):
+    g = find(chain, num)
+    live = goalsmod.live()
+    print(f"chain: goal {g.num} of {len(chain)} -- "
+          + ("walked" if g.num < live else "LIVE" if g.num == live else "ahead of the run")
+          + (", retired (its checks are the live goal's floor)" if g.retired else ""))
+    print(f"       {g.title}")
+    print(f"       milestone {g.milestone or '(none)'}"
+          + (f", preflight {g.preflight}" if g.preflight else ""))
     print()
-    print(e.text)
-    print()
-    for key in e.files:
-        path = ROOT / e.get(key)
-        mark = " " if path.is_file() else "!"
-        head = ""
-        if path.is_file():
-            for line in path.read_text(encoding="utf-8").split("\n"):
-                if line.strip() and not line.lstrip().startswith("#") or line.startswith("# "):
-                    head = line.strip()
-                    break
-        print(f"  {mark} {key:<8} {rel(path)}")
-        if head:
-            print(f"             {head[:WIDTH - 14]}")
-    toml_path = ROOT / e.get("toml")
-    if toml_path.is_file():
-        text = toml_path.read_text(encoding="utf-8")
+    for path in (g.md, g.toml, g.handoff):
+        mark = " " if path.is_file() else ("-" if g.retired else "!")
+        print(f"  {mark} {rel(path)}")
+    if g.toml.is_file():
+        text = g.toml.read_text(encoding="utf-8")
         stages = []
         for m in re.finditer(r'^\s*stage\s*=\s*"([^"]*)"', text, re.M):
             if m.group(1) not in stages:
                 stages.append(m.group(1))
-        floor = ("marker present" if MARKER in text else
-                 "NO MARKER -- goal-switch.py will refuse this entry")
         print()
         print(f"  stages   {', '.join(stages) if stages else '(no [[check]] yet)'}")
-        print(f"  floor    {floor}")
+        print("  floor    " + ("marker present" if MARKER in text else
+                               "NO MARKER -- goal-switch.py will refuse this goal"))
+    why = re.search(r"^## Why here\n\n(.*?)(?=\n## |\Z)", g.md.read_text(encoding="utf-8"),
+                    re.S | re.M)
+    if why:
+        print()
+        print("  why here")
+        for line in why.group(1).strip().split("\n"):
+            print(f"    {line}")
     return 0
 
 
@@ -464,12 +423,13 @@ def scaffold_toml(num, slug, title, prev_toml, docker):
         got = table(prev, "[docker]")
         # The keys carry over -- the floor's containers are this goal's containers -- but the
         # comment above them says why the *previous* goal needed them, which is not a sentence to
-        # inherit silently.
+        # inherit silently. The table is also what `goals.py` reads the preflight off, so it is not
+        # decoration: a goal with no `[docker]` table is a goal the driver will not preflight.
         keys = "\n".join(ln for ln in got.split("\n") if not ln.lstrip().startswith("#")) if got \
             else '[docker]\ncompose = "tests/db/compose.yaml"\nservices = []\nmemoize_on = []'
-        tables.append("# TODO: why this goal preflights a daemon -- its own checks, its floor's, or\n"
-                      "# both. The driver stops the run before the first session when it is absent.\n"
-                      + keys.strip("\n"))
+        tables.append("# TODO: why this goal needs a daemon -- its own checks, its floor's, or\n"
+                      "# both. The driver preflights it before this goal's first session, and this\n"
+                      "# table being here is what says so.\n" + keys.strip("\n"))
     return f"""# Goal {num} -- {title}
 # The acceptance test, as data.
 #
@@ -550,52 +510,49 @@ tests = [
 """
 
 
-def scaffold_md(num, slug, title, prev_num):
+def scaffold_md(num, slug, title, milestone, prev_num):
     floor = (f"Goal {prev_num}'s whole acceptance list" if prev_num
              else "The live goal's whole acceptance list")
-    return f"""# Loop goal {num} — {title}
+    return f"""---
+milestone: {milestone}
+---
+# Loop goal {num} — {title}
 
 TODO: the target, in two or three sentences — what is different about the language, the runtime or
-the tooling once this goal is green. Not the work; the outcome. Then one sentence on why this goal
-sits where it does on the chain, which is the same sentence as the comment above its `[[goal]]`
-block in [chain.toml](chain.toml).
+the tooling once this goal is green. Not the work; the outcome.
 
-{floor} is this goal's floor, and it is never traded.
+## Why here
+
+TODO: why this goal sits at {num} rather than anywhere else on the chain. The order is a dependency
+chain, not a preference, and this section is the only home of the reason. Say what it needs that is
+already built, and what after it needs this — not what it does, which is above.
 
 ## Stage 0 — the catch-up
 
-TODO: what is already on disk that contradicts this goal's rule, and is therefore rewritten before
-anything new is written. `Nothing. No fixture predates the rule.` is a complete answer.
+TODO: the sentences already on disk that this goal makes wrong, each with the file that holds them.
+Delete this stage if there are none.
 
 ## Stage 1 — the floor
 
-{floor}, carried in verbatim by `tools/goal-switch.py`. Never traded for anything above it.
+{floor}, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the keystone: TODO
+## Stage 2 — TODO, the keystone
 
-TODO: the item list, **already grouped by file set** ([loop-authoring.md](../loop-authoring.md)
-§ 7) — one numbered item per edit, each naming the file and the symbol it lands at
-(`crates/<crate>/src/<module>.rs:@symbol`), so a session can open the group in one `peek.py` call.
+TODO: the one thing that, once it exists, makes every stage after it mechanical.
 
 ## Standing decisions
 
-- TODO: every tradeoff this goal will meet, decided here rather than by a session at 2am
-  ([loop-authoring.md](../loop-authoring.md) § 5). Anything not pre-authorized is what makes a run
-  stop.
-- TODO: **this goal opens no ADR number**, or **opens ADR NNNN, whose `changes:` block names the
-  rules it creates and modifies** — a record is frozen on acceptance and never amended in place,
-  and the chain contract in [README.md](README.md) is that each goal names its slots.
-- TODO: where ambiguity resolves to, so it is decided-and-recorded and never `BLOCKED`.
+TODO: the calls a session will meet and must not stop to ask about. loop-authoring.md § 5 is the
+shape; a goal without this section is a goal that eventually holds the run on `BLOCKED`.
 """
 
 
-def scaffold_handoff(num, slug, title, prev_num, next_num):
+def scaffold_handoff(num, title, prev_num, next_num):
     prev = (f"Goal {prev_num}'s whole list is this goal's Stage 1 floor." if prev_num else
             "The previous goal's whole list is this goal's Stage 1 floor.")
-    tail = (f"- When this goal's last check goes green the driver takes goal {next_num}.\n"
-            f"  `docs/agent/goals/chain.toml` is the schedule and this does not restate it."
+    tail = (f"- When this goal's last check goes green the driver takes goal {next_num}."
             if next_num else
-            "- When this goal's last check goes green the driver takes the next chain entry.")
+            "- When this goal's last check goes green the driver takes the next goal on the chain.")
     return f"""# Handoff
 
 ## State
@@ -621,211 +578,215 @@ of the answer, the one thing a session must not re-decide.
 """
 
 
-def cmd_new(text, head, entries, opts):
-    slug = opts.new.strip().strip("/")
-    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
-        return die(f"{slug!r} is not a goal slug -- lowercase words joined by hyphens, as in "
-                   f"`unix-sockets`; it becomes the filenames and the entry's name")
+# ---------------------------------------------------------------------------------------------------
+# Editing the order
+# ---------------------------------------------------------------------------------------------------
 
-    # Position. Default: in front of the dossier, which is where the 21-49 gap exists for.
+
+def target_position(chain, opts, moving):
+    """The number a `--new`/`--move` lands on, from `--after`/`--before`/`--next`/`--to`/`--end`.
+
+    `moving` says whether the goal is already on the chain: an insert may land one past the end, a
+    move may not, because the goal it would go after is itself.
+    """
+    if opts.end:
+        return len(chain) if moving else len(chain) + 1
+    if opts.next:
+        live = goalsmod.live()
+        if not live:
+            raise SystemExit(die("--next means \"directly after the live goal\", and "
+                                 f"{rel(goalsmod.STATE)} records none"))
+        return live + 1
     if opts.after is not None:
-        at = entries.index(find(entries, opts.after)) + 1
-    elif opts.before is not None:
-        at = entries.index(find(entries, opts.before))
-    elif opts.end:
-        at = len(entries)
-    else:
-        gen = [i for i, e in enumerate(entries) if e.num and e.num >= DOSSIER_NUM]
-        at = gen[0] if gen else len(entries)
+        return find(chain, opts.after).num + 1
+    if opts.before is not None:
+        return find(chain, opts.before).num
+    if opts.to is not None:
+        try:
+            return int(opts.to)
+        except ValueError:
+            raise SystemExit(die(f"--to takes a goal number, not {opts.to!r}"))
+    return None
+
+
+def cmd_new(chain, opts):
+    slug = opts.new.strip().strip("/")
+    if not SLUG_RE.fullmatch(slug):
+        return die(f"{slug!r} is not a goal slug -- lowercase words joined by hyphens, as in "
+                   f"`unix-sockets`; it becomes the filenames and the goal's name")
+    if any(g.slug == slug for g in chain):
+        return die(f"a goal named {slug!r} already exists")
+
+    at = target_position(chain, opts, moving=False)
+    if at is None:
+        return die("say where it goes: --after N, --before N, --next, --end, or --to N")
+    if at < 1 or at > len(chain) + 1:
+        return die(f"goal {at} is outside 1..{len(chain) + 1}")
     if landing(at, opts.force, "inserting"):
         return 2
 
-    # Number. Default: the next free one below the emitter's range.
-    taken = {e.num for e in entries if e.num is not None}
-    if opts.number is not None:
-        num = opts.number
-        if num in taken:
-            return die(f"goal {num} already exists -- a number is an identity and is never reused")
-    else:
-        below = [n for n in taken if n < DOSSIER_NUM]
-        num = max(below) + 1 if below else 1
-        if num >= DOSSIER_NUM:
-            return die(f"the {DOSSIER_NUM - 1}-and-below range is full, and {DOSSIER_NUM} onward "
-                       f"belongs to `dossier.py --emit-goals`. Renumber the dossier's own entry "
-                       f"upward before adding another hand-written goal.")
-    if num >= DOSSIER_NUM:
-        print(f"chain: warning -- {num} is in `dossier.py`'s numbering range ({DOSSIER_NUM}+); a "
-              f"generated goal may collide with it.")
-
-    prev = entries[at - 1] if at > 0 else None
-    nxt = entries[at] if at < len(entries) else None
+    prev = goalsmod.find(chain, at - 1)
+    nxt = goalsmod.find(chain, at)
     title = opts.title or f"TODO ({slug})"
-    milestone = opts.milestone or (prev.get("milestone") if prev else "post-parity")
-    preflight = opts.preflight if opts.preflight is not None else (
-        prev.get("preflight") if prev else "")
-    if preflight == "none":
-        preflight = ""
+    milestone = opts.milestone or (prev.milestone if prev else "post-parity")
+    docker = opts.docker if opts.docker is not None else bool(prev and prev.preflight)
 
-    stem = f"{num}-{slug}"
-    paths = {
-        "md": GOALS / f"{stem}.md",
-        "toml": GOALS / f"{stem}.toml",
-        "handoff": GOALS / f"{stem}.handoff.md",
+    # Everything from the landing position on shifts up one, so the new number is free.
+    order = [g for g in chain if g.num < at] + [g for g in chain if g.num >= at]
+    mapping = {g.num: (i if g.num < at else i + 1) for i, g in enumerate(order, 1)}
+
+    if opts.dry_run:
+        print(f"chain: --dry-run -- goal {at} {slug} would be inserted, "
+              f"{sum(1 for o, n in mapping.items() if o != n)} goal(s) shifting up")
+        apply_renumber(chain, mapping, dry_run=True)
+        return 0
+
+    renamed, rewritten, ranges = apply_renumber(chain, mapping, dry_run=False)
+
+    stem = f"{at}-{slug}"
+    files = {
+        GOALS / f"{stem}.md": scaffold_md(at, slug, title, milestone, prev.num if prev else None),
+        GOALS / f"{stem}.toml": scaffold_toml(at, slug, title,
+                                              prev.toml if prev and not prev.retired else None,
+                                              docker),
+        GOALS / f"{stem}.handoff.md": scaffold_handoff(at, title, prev.num if prev else None,
+                                                       at + 1 if nxt else None),
     }
-    existing = [rel(p) for p in paths.values() if p.exists()]
+    existing = [rel(p) for p in files if p.exists()]
     if existing:
         return die(f"refusing to overwrite: {', '.join(existing)}")
-
-    entry = Entry([], [HEADER])
-    entry.set("name", f"{num} {slug}")
-    for key, path in paths.items():
-        entry.set(key, rel(path))
-    entry.set("milestone", milestone)
-    if preflight:
-        entry.set("preflight", preflight)
-    entry.why(opts.text or
-              f"TODO: why this goal sits here rather than anywhere else on the chain. The order is "
-              f"a dependency chain, not a preference, and this comment is the only home of the "
-              f"reason -- goal {num} ({title}).")
-
-    fresh = list(entries)
-    fresh.insert(at, entry)
-    out = render(head, fresh)
-
-    files = {
-        paths["md"]: scaffold_md(num, slug, title, prev.num if prev else None),
-        paths["toml"]: scaffold_toml(num, slug, title,
-                                     ROOT / prev.get("toml") if prev else None,
-                                     preflight == "docker"),
-        paths["handoff"]: scaffold_handoff(num, slug, title, prev.num if prev else None,
-                                           nxt.num if nxt else None),
-    }
-    if opts.dry_run:
-        print(f"chain: --dry-run -- would insert goal {num} at position {at + 1} and write "
-              f"{', '.join(rel(p) for p in files)}")
-        print()
-        print(entry.text)
-        return 0
     for path, body in files.items():
         path.write_text(body, encoding="utf-8", newline="\n")
-    CHAIN.write_text(out, encoding="utf-8", newline="\n")
 
-    print(f"chain: goal {num} {slug} inserted at position {at + 1} of {len(fresh)}"
-          + (f", between {prev.name} and {nxt.name}" if prev and nxt else ""))
+    print(f"chain: goal {at} {slug} inserted; the chain is {len(chain) + 1} goal(s)")
     for path in files:
         print(f"       wrote {rel(path)}")
+    report(renamed, rewritten, ranges)
     print()
     print("Next, in this order:")
-    print(f"  1. Fill the TODOs in {rel(paths['md'])} -- the target, the stages, the standing")
-    print("     decisions. loop-authoring.md is how; the goal prose is what the TOML is derived from.")
-    print(f"  2. Fill {rel(paths['toml'])}: the `[context]` manifest first (it is the session's")
-    print("     whole read budget), then one `[[check]]` per stage. Leave the marker line alone.")
-    print(f"  3. Add its row to {rel(README)}:")
-    print(f"       | [{num} {slug}]({stem}.md) | {milestone or 'TODO'} | TODO: the crates it opens |")
-    print("  4. `python tools/plan.py --sync` -- the milestone's `Carried by` cell is derived from")
-    print("     this file and drifts the moment an entry lands.")
-    print("  5. `python tools/chain.py --check`")
-    if live_index() >= 0:
-        print()
-        print("The driver adopts an entry inserted ahead of the live goal without a restart "
-              "(`Chain.refresh`).")
+    print(f"  1. Fill the TODOs in {rel(GOALS / (stem + '.md'))} -- the target, `## Why here`, the")
+    print("     stages, the standing decisions. loop-authoring.md is how.")
+    print(f"  2. Fill {rel(GOALS / (stem + '.toml'))}: the `[context]` manifest first (it is the")
+    print("     session's whole read budget), then one `[[check]]` per stage. Leave the marker.")
+    print(f"  3. Add its row to {rel(README)}.")
+    print("  4. `python tools/plan.py --sync`, then `python tools/chain.py --check`.")
     return 0
 
 
-# ---------------------------------------------------------------------------------------------------
-# Editing what is there
-# ---------------------------------------------------------------------------------------------------
-
-
-def cmd_set(text, head, entries, opts):
-    e = find(entries, opts.set)
-    if frozen(entries, e, opts.force, "editing"):
+def cmd_move(chain, opts):
+    g = find(chain, opts.move)
+    at = target_position(chain, opts, moving=True)
+    if at is None:
+        return die("say where it goes: --to N, --after N, --before N, --next, or --end")
+    if at < 1 or at > len(chain):
+        return die(f"goal {at} is outside 1..{len(chain)}")
+    if frozen(g.num, opts.force, "moving") or landing(min(at, g.num), opts.force, "landing"):
         return 2
-    changed = []
-    for key, value in (("milestone", opts.milestone), ("preflight", opts.preflight)):
-        if value is None:
-            continue
-        was = e.get(key)
-        new = "" if value == "none" else value
-        if was == new:
-            continue
-        e.set(key, new or None)
-        changed.append(f"{key}: {was or '(none)'} -> {new or '(none)'}")
-    if opts.text:
-        e.why(opts.text)
-        changed.append("the comment above it")
-    if not changed:
-        return die("nothing to change -- pass --milestone, --preflight or --text")
-    rc = write(render(head, entries), opts.dry_run,
-               f"goal {e.num} ({e.name}): " + "; ".join(changed))
-    if opts.milestone is not None and not opts.dry_run:
-        print("       `python tools/plan.py --sync` -- the milestone's `Carried by` cell follows "
-              "this key.")
-    return rc
+    if at == g.num:
+        return die(f"goal {g.num} is already there")
 
-
-def cmd_why(text, head, entries, opts):
-    e = find(entries, opts.why_of)
-    if frozen(entries, e, opts.force, "rewriting the comment above"):
-        return 2
-    body = opts.text
-    if opts.from_file:
-        body = Path(opts.from_file).read_text(encoding="utf-8")
-    if body is None:
-        print("\n".join(e.lead) if e.lead else f"chain: goal {e.num} carries no comment")
-        return 0
-    e.why(body)
-    return write(render(head, entries), opts.dry_run,
-                 f"goal {e.num} ({e.name}): comment rewritten")
-
-
-def cmd_move(text, head, entries, opts):
-    e = find(entries, opts.move)
-    if frozen(entries, e, opts.force, "moving"):
-        return 2
-    if opts.after is None and opts.before is None:
-        return die("--move needs --after N or --before N")
-    anchor = find(entries, opts.after if opts.after is not None else opts.before)
-    if anchor is e:
-        return die("an entry cannot be moved relative to itself")
-    fresh = [x for x in entries if x is not e]
-    at = fresh.index(anchor) + (1 if opts.after is not None else 0)
-    if landing(at, opts.force, "landing an entry"):
-        return 2
-    fresh.insert(at, e)
-    if [x.name for x in fresh] == [x.name for x in entries]:
-        return die(f"goal {e.num} is already there")
-    rc = write(render(head, fresh), opts.dry_run,
-               f"goal {e.num} ({e.name}) moved to position {fresh.index(e) + 1} of {len(fresh)}")
-    if not opts.dry_run:
-        print("       The comment above it travelled with it, and it is now probably wrong: the "
-              "order is a dependency chain, so say why it moved (`--why`).")
-    return rc
-
-
-def cmd_remove(text, head, entries, opts):
-    e = find(entries, opts.remove)
-    if frozen(entries, e, opts.force, "removing"):
-        return 2
-    fresh = [x for x in entries if x is not e]
-    files = [ROOT / e.get(k) for k in ("md", "toml", "handoff")]
+    rest = [x for x in chain if x.num != g.num]
+    mapping = order_after(rest[:at - 1] + [g] + rest[at - 1:])
     if opts.dry_run:
-        print(f"chain: --dry-run -- would drop goal {e.num} ({e.name})"
-              + (f" and delete {', '.join(rel(p) for p in files)}" if opts.delete_files else
-                 f" (its three files stay on disk; --delete-files removes them)"))
+        print(f"chain: --dry-run -- goal {g.num} ({g.slug}) would become goal {at}")
+        apply_renumber(chain, mapping, dry_run=True)
         return 0
-    CHAIN.write_text(render(head, fresh), encoding="utf-8", newline="\n")
-    print(f"chain: goal {e.num} ({e.name}) dropped from the chain")
-    if opts.delete_files:
-        for path in files:
-            if path.is_file():
-                path.unlink()
-                print(f"       deleted {rel(path)}")
-    else:
-        print("       its three files are still on disk -- --delete-files removes them")
-    print(f"       Check {rel(README)} for a row that now names nothing, and run "
-          f"`python tools/plan.py --sync`: a `Carried by` cell went with it.")
+    renamed, rewritten, ranges = apply_renumber(chain, mapping, dry_run=False)
+    print(f"chain: goal {g.num} ({g.slug}) is now goal {at}")
+    report(renamed, rewritten, ranges)
     return 0
+
+
+def cmd_remove(chain, opts):
+    g = find(chain, opts.remove)
+    if frozen(g.num, opts.force, "removing"):
+        return 2
+    on_disk = [p for p in (g.md, g.toml, g.handoff) if p.is_file()]
+    if not opts.delete_files:
+        return die(f"goal {g.num} ({g.slug}) owns {len(on_disk)} file(s). Removing it deletes them "
+                   f"and closes the hole its number leaves:\n"
+                   + "".join(f"       {rel(p)}\n" for p in on_disk)
+                   + "       Pass --delete-files to mean it. A goal the run has WALKED is retired "
+                     "instead (--retire), which keeps its prose.")
+    if opts.dry_run:
+        print(f"chain: --dry-run -- would delete {len(on_disk)} file(s) and close the hole at "
+              f"goal {g.num}")
+        return 0
+    for path in on_disk:
+        git("rm", "-q", "--", rel(path))
+    rest = [x for x in chain if x.num != g.num]
+    renamed, rewritten, ranges = apply_renumber(rest, order_after(rest), dry_run=False)
+    print(f"chain: goal {g.num} ({g.slug}) removed, {len(on_disk)} file(s) deleted, hole closed")
+    report(renamed, rewritten, ranges)
+    print(f"       Prose naming `{g.slug}` now names a goal that is gone -- `git grep -n "
+          f"'{g.slug}'` is that list, and this tool does not write sentences.")
+    return 0
+
+
+def cmd_renumber(chain, opts):
+    """Repair: force `1..N` over whatever is on disk, in the order the numbers already imply."""
+    mapping = order_after(sorted(chain, key=lambda g: g.num))
+    if not any(o != n for o, n in mapping.items()):
+        print(f"chain: the {len(chain)} goal(s) are already numbered 1..{len(chain)}")
+        return 0
+    renamed, rewritten, ranges = apply_renumber(chain, mapping, dry_run=opts.dry_run)
+    if not opts.dry_run:
+        print(f"chain: renumbered to 1..{len(chain)}")
+        report(renamed, rewritten, ranges)
+    return 0
+
+
+def cmd_retitle(chain, opts):
+    g = find(chain, opts.retitle)
+    if frozen(g.num, opts.force, "renaming"):
+        return 2
+    slug = opts.to.strip()
+    if not SLUG_RE.fullmatch(slug):
+        return die(f"{slug!r} is not a goal slug -- lowercase words joined by hyphens")
+    if slug == g.slug:
+        return die("that is the slug it already has")
+    old_stem, new_stem = g.stem, f"{g.num}-{slug}"
+    if opts.dry_run:
+        print(f"chain: --dry-run -- would rename {old_stem} -> {new_stem}")
+        return 0
+    for suffix in (".md", ".toml", ".handoff.md"):
+        if (GOALS / f"{old_stem}{suffix}").is_file():
+            git("mv", f"docs/agent/goals/{old_stem}{suffix}",
+                f"docs/agent/goals/{new_stem}{suffix}")
+    rewritten = 0
+    for path in tracked_files():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        out = text.replace(old_stem, new_stem)
+        if out != text:
+            path.write_text(out, encoding="utf-8", newline="\n")
+            rewritten += 1
+    print(f"chain: {old_stem} -> {new_stem}; {rewritten} file(s) had the stem rewritten")
+    print("       The number did not move, so no citation changed meaning.")
+    return 0
+
+
+def cmd_set(chain, opts):
+    g = find(chain, opts.set)
+    if not opts.milestone:
+        return die("--set takes --milestone; everything else a goal carries is in its own files")
+    text = g.md.read_text(encoding="utf-8")
+    m = goalsmod.FRONT_RE.match(text)
+    block = f"---\nmilestone: {opts.milestone}\n---\n"
+    if opts.dry_run:
+        print(f"chain: --dry-run -- goal {g.num} milestone {g.milestone!r} -> {opts.milestone!r}")
+        return 0
+    g.md.write_text(block + (text[m.end():] if m else text), encoding="utf-8", newline="\n")
+    print(f"chain: goal {g.num} ({g.slug}) is milestone {opts.milestone}")
+    print("       `python tools/plan.py --sync` -- the `Carried by` cell is derived from this.")
+    return 0
+
+
+# ---------------------------------------------------------------------------------------------------
+# Retiring a walked goal
+# ---------------------------------------------------------------------------------------------------
 
 
 def check_ids(path):
@@ -841,8 +802,8 @@ def check_ids(path):
             for c in spec.get("check", [])}
 
 
-def cmd_retire(text, head, entries, opts):
-    """Drop a walked entry's acceptance list, keeping its block and its prose.
+def cmd_retire(chain, opts):
+    """Drop a walked goal's acceptance list, keeping its prose.
 
     The deletion is safe for one reason and it is checked rather than asserted: `goal-switch.py`
     folded every `[[check]]` of this goal into the next one at the switch, and each switch since
@@ -850,33 +811,22 @@ def cmd_retire(text, head, entries, opts):
     anything, and the proof is not `--force`-able -- a floor that has gone missing is the one thing
     retirement must never hide, and `--force` is for a run whose position bookkeeping is stale.
     """
-    # Every other command here is run by a person who reads the diff. This one is run by the driver
-    # at every switch, so a file that does not round-trip would be reformatted unreviewed, in a
-    # commit nobody opened. Refuse instead, and let `--check` say what is wrong with it.
-    if render(head, entries) != text:
-        return die(f"{rel(CHAIN)} does not round-trip through this tool's parser, so retiring an "
-                   f"entry would reformat lines nobody touched -- `--check` says what is wrong")
-    e = find(entries, opts.retire)
-    pos, live = entries.index(e), live_index()
-    if e.retired:
-        return die(f"goal {e.num} ({e.name}) is already retired")
-    if pos >= live and not opts.force:
-        where = ("is the live goal -- its `.toml` is the file the driver runs" if pos == live else
-                 "is ahead of the run" if live >= 0 else
-                 f"cannot be retired: {rel(STATE)} says no run has installed an entry")
-        return die(f"goal {e.num} ({e.name}) {where}. Only an entry the run has LEFT may be "
-                   f"retired, because leaving it is what folded its checks forward.\n"
+    g = find(chain, opts.retire)
+    live = goalsmod.live()
+    if g.retired:
+        return die(f"goal {g.num} ({g.slug}) is already retired")
+    if g.num >= live and not opts.force:
+        where = ("is the live goal -- its `.toml` is the file the driver runs" if g.num == live else
+                 "is ahead of the run" if live else
+                 f"cannot be retired: {rel(goalsmod.STATE)} says no run has installed a goal")
+        return die(f"goal {g.num} ({g.slug}) {where}. Only a goal the run has LEFT may be retired, "
+                   f"because leaving it is what folded its checks forward.\n"
                    f"       Pass --force if the run is over and this position is stale.")
-
-    toml_path, live_path = ROOT / e.get("toml", "x"), LIVE_GOAL
-    if not toml_path.is_file():
-        return die(f"goal {e.num} names {e.get('toml')}, which is not on disk -- nothing to prove "
-                   f"a fold against. Fix the entry before retiring it.")
-    if not live_path.is_file():
-        return die(f"{rel(live_path)} does not exist, so there is nothing to prove the fold into")
-    lost = sorted(check_ids(toml_path) - check_ids(live_path))
+    if not LIVE_GOAL.is_file():
+        return die(f"{rel(LIVE_GOAL)} does not exist, so there is nothing to prove the fold into")
+    lost = sorted(check_ids(g.toml) - check_ids(LIVE_GOAL))
     if lost:
-        die(f"goal {e.num} ({e.name}) holds {len(lost)} check(s) that {rel(live_path)} does not, "
+        die(f"goal {g.num} ({g.slug}) holds {len(lost)} check(s) that {rel(LIVE_GOAL)} does not, "
             f"so its acceptance list was NOT folded all the way forward:")
         for kind, name in lost[:12]:
             print(f"       [{kind}] {name}", file=sys.stderr)
@@ -886,15 +836,12 @@ def cmd_retire(text, head, entries, opts):
               file=sys.stderr)
         return 2
 
-    victims = [ROOT / e.get(k) for k in ("toml", "handoff")]
+    victims = [g.toml, g.handoff]
 
     # The other way this deletion goes wrong, and the one the fold proof says nothing about: a
     # markdown link to a file that is about to stop existing. `check-links.py` is a CI gate and
     # `session.py --wrap` runs it in-process, so a switch that committed one would refuse the NEXT
-    # session's wrap -- unattended, hours later, in a file that session never touched. The six
-    # parity goals each said their checks lived in a sibling `.toml` "and only there", which is
-    # exactly the sentence retirement falsifies; the scaffold writes no such link, so this is a
-    # guard against a hand-written goal rather than a routine step. Refusing costs a stale file.
+    # session's wrap -- unattended, hours later, in a file that session never touched.
     names = {p.name for p in victims}
     cites = []
     for doc in sorted((ROOT / "docs").rglob("*.md")):
@@ -902,7 +849,7 @@ def cmd_retire(text, head, entries, opts):
             if Path(target.split("#", 1)[0]).name in names:
                 cites.append(f"{rel(doc)} -> {target}")
     if cites:
-        die(f"goal {e.num} ({e.name}) cannot be retired yet: {len(cites)} link(s) name a file it "
+        die(f"goal {g.num} ({g.slug}) cannot be retired yet: {len(cites)} link(s) name a file it "
             f"would delete, and check-links.py is a gate:")
         for line in cites[:8]:
             print(f"       {line}", file=sys.stderr)
@@ -912,241 +859,135 @@ def cmd_retire(text, head, entries, opts):
 
     freed = sum(p.stat().st_size for p in victims if p.is_file())
     if opts.dry_run:
-        print(f"chain: --dry-run -- would retire goal {e.num} ({e.name}): every one of its "
-              f"{len(check_ids(toml_path))} distinct checks is in {rel(live_path)}, so "
+        print(f"chain: --dry-run -- would retire goal {g.num} ({g.slug}): every one of its "
+              f"{len(check_ids(g.toml))} distinct checks is in {rel(LIVE_GOAL)}, so "
               f"{', '.join(rel(p) for p in victims)} ({freed // 1024}K) would go")
         return 0
-
-    e.set("toml", None)
-    e.set("handoff", None)
-    e.set("retired", True)
-    CHAIN.write_text(render(head, entries), encoding="utf-8", newline="\n")
-    print(f"chain: goal {e.num} ({e.name}) retired -- its whole acceptance list is in "
-          f"{rel(live_path)}")
     for path in victims:
         if path.is_file():
             path.unlink()
-            print(f"       deleted {rel(path)}")
-    print(f"       {freed // 1024}K freed. {rel(ROOT / e.get('md'))} stays: {rel(README)}, the "
-          f"plan and the milestone files cite it.")
+    print(f"chain: goal {g.num} ({g.slug}) retired -- its whole acceptance list is in "
+          f"{rel(LIVE_GOAL)}, and its `.toml` being gone is what records that")
+    print(f"       {freed // 1024}K freed. {rel(g.md)} stays: {rel(README)}, the plan and the "
+          f"milestone files cite it.")
     return 0
 
 
-def cmd_rename(text, head, entries, opts):
-    """`--renumber N --to M` and `--retitle N --to slug`: the same move, two halves of one name."""
-    num = opts.renumber if opts.renumber is not None else opts.retitle
-    e = find(entries, num)
-    if frozen(entries, e, opts.force, "renaming"):
-        return 2
-    new_num, new_slug = e.num, e.slug
-    if opts.renumber is not None:
-        try:
-            new_num = int(opts.to)
-        except ValueError:
-            return die(f"--renumber --to takes an integer, not {opts.to!r}")
-        if new_num in {x.num for x in entries if x is not e}:
-            return die(f"goal {new_num} already exists")
-        if new_num >= DOSSIER_NUM:
-            print(f"chain: warning -- {new_num} is in `dossier.py`'s range ({DOSSIER_NUM}+)")
-    else:
-        new_slug = opts.to.strip()
-        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", new_slug):
-            return die(f"{new_slug!r} is not a goal slug -- lowercase words joined by hyphens")
-    old_stem, new_stem = f"{e.num}-{e.slug}", f"{new_num}-{new_slug}"
-    if old_stem == new_stem:
-        return die("that is the name it already has")
-
-    moves = []
-    for key, suffix in (("md", ".md"), ("toml", ".toml"), ("handoff", ".handoff.md")):
-        src = ROOT / e.get(key)
-        dst = GOALS / f"{new_stem}{suffix}"
-        if dst.exists():
-            return die(f"refusing to overwrite {rel(dst)}")
-        moves.append((key, src, dst))
-
-    if opts.dry_run:
-        print(f"chain: --dry-run -- would rename goal {old_stem} -> {new_stem}")
-        for _, src, dst in moves:
-            print(f"       {rel(src)} -> {rel(dst)}")
-        return 0
-
-    for key, src, dst in moves:
-        if src.is_file():
-            body = src.read_text(encoding="utf-8")
-            # The two headers that carry the number mechanically. Everything else is prose.
-            body = re.sub(r"^# Loop goal \d+ —", f"# Loop goal {new_num} —", body, count=1,
-                          flags=re.M)
-            body = re.sub(r"^# Goal \d+ --", f"# Goal {new_num} --", body, count=1, flags=re.M)
-            body = body.replace(f"{old_stem}.md", f"{new_stem}.md")
-            dst.write_text(body, encoding="utf-8", newline="\n")
-            src.unlink()
-        e.set(key, rel(dst))
-    e.set("name", f"{new_num} {new_slug}")
-    CHAIN.write_text(render(head, entries), encoding="utf-8", newline="\n")
-    print(f"chain: goal {old_stem} -> {new_stem}; three files moved, two headers rewritten")
-
-    cites = references(old_stem, e.num)
-    if cites:
-        print()
-        print(f"       These still say {old_stem!r} or `goal {e.num}` and this tool does not "
-              f"rewrite prose it cannot read:")
-        for path, n in cites:
-            print(f"         {path}: {n} line(s)")
-    print(f"       `python tools/plan.py --sync` -- `Carried by` cells hold the number.")
-    return 0
-
-
-def references(stem, num):
-    """Every tracked file still naming the old goal, as (path, hits). Reported, never rewritten."""
-    pattern = rf"{re.escape(stem)}|goal {num}\b|goals {num}\b"
-    try:
-        out = subprocess.run(["git", "grep", "-cEi", pattern, "--", "docs", "tools", "AGENTS.md"],
-                             cwd=ROOT, capture_output=True, text=True, timeout=60)
-    except (OSError, subprocess.SubprocessError):
-        return []
-    hits = []
-    for line in out.stdout.splitlines():
-        if ":" in line:
-            path, _, count = line.rpartition(":")
-            hits.append((path, count))
-    return hits
-
-
 # ---------------------------------------------------------------------------------------------------
-# --check
+# The gate
 # ---------------------------------------------------------------------------------------------------
 
 
-def cmd_check(text, head, entries):
+def cmd_check(chain):
     problems, notes = [], []
+    live = goalsmod.live()
 
-    if render(head, entries) != text:
-        problems.append(
-            f"{rel(CHAIN)} does not round-trip through this tool's parser, so an edit here could "
-            f"reformat lines it did not mean to touch. Likely cause: an entry's keys are separated "
-            f"by a blank line, or a `[[goal]]` header is indented.")
+    fail = goalsmod.numbering_error(chain)
+    if fail:
+        problems.append(fail)
+    if not chain:
+        problems.append(f"{rel(GOALS)} holds no goal -- the driver has nothing to walk")
 
-    try:
-        tomllib.loads(text)
-    except tomllib.TOMLDecodeError as exc:
-        problems.append(f"{rel(CHAIN)} does not parse as TOML: {exc}")
-
-    seen_nums, last_num = {}, 0
-    live = live_index()
-    for i, e in enumerate(entries):
-        where = f"position {i + 1} ({e.name or 'unnamed'})"
-        if e.num is None:
-            problems.append(f"{where}: the name does not start with a number, and the number is "
-                            f"what every other file calls this goal by")
-        else:
-            if e.num in seen_nums:
-                problems.append(f"{where}: goal {e.num} is also at position {seen_nums[e.num]}")
-            seen_nums[e.num] = i + 1
-            if e.num < last_num:
-                notes.append(f"{where}: numbered below the entry before it ({last_num}) -- legal, "
-                             f"since a number is an identity, but `--list` reads oddly")
-            last_num = e.num
-            if e.num > DOSSIER_NUM and not e.generated:
-                notes.append(f"{where}: sits in `dossier.py`'s numbering range ({DOSSIER_NUM}+), "
-                             f"where an emitted goal may collide with it")
-        if not e.get("milestone"):
-            problems.append(f"{where}: names no milestone -- `plan.py --check` derives every "
-                            f"`Carried by` cell from that key")
-        for key in ("name", *e.files):
-            if not e.get(key):
-                problems.append(f"{where}: has no `{key}` -- loop.py refuses the whole chain")
-        if e.retired:
-            # Both halves, because either one alone is a lie the driver would act on: an entry that
-            # still names a deleted file stops the chain loading, and one marked retired while its
-            # list is still on disk is a floor nobody folded pretending it was folded.
-            for key, suffix in (("toml", "toml"), ("handoff", "handoff.md")):
-                if e.get(key):
-                    problems.append(f"{where}: is retired but still names `{key}` -- a retired "
-                                    f"entry has no acceptance list and no seed")
-                elif (GOALS / f"{e.num}-{e.slug}.{suffix}").is_file():
-                    notes.append(f"{where}: retired, but {e.num}-{e.slug}.{suffix} is still on "
-                                 f"disk -- `--retire` deletes it and something put it back")
-            # `live` is -1 in a tree with no `.loop/chain.json` at all, which is every fresh clone
-            # and every CI job: a retired entry there is history, not a contradiction.
-            if live >= 0 and i >= live:
-                problems.append(f"{where}: is retired but the run stands at position {live + 1} -- "
-                                f"only an entry the run has LEFT may be retired, since retiring is "
-                                f"what says its checks are already somebody's floor")
-        for key in e.files:
-            path = ROOT / e.get(key, "x")
+    for g in chain:
+        where = f"goal {g.num} ({g.slug})"
+        for path in g.files:
             if not path.is_file():
-                problems.append(f"{where}: names {e.get(key)}, which does not exist")
-                continue
-            body = path.read_text(encoding="utf-8")
-            if key == "toml":
-                if MARKER not in body:
-                    problems.append(f"{rel(path)}: no goal-switch marker line, so the switch into "
-                                    f"this goal refuses and the run stops. Add:\n      {MARKER}")
-                for need, why in (("files", "goal-switch.py unions the previous goal's fixtures "
-                                            "into it and refuses when the key is absent"),
-                                  ("skip", "`[valgrind] skip` is unioned the same way")):
-                    if not re.search(rf"^\s*{need}\s*=\s*\[", body, re.M):
-                        problems.append(f"{rel(path)}: no `{need} = [...]` -- {why}")
-                if "[[check]]" not in body:
-                    problems.append(f"{rel(path)}: holds no `[[check]]`, so nothing can turn it "
-                                    f"green and the run stalls on it")
-                # The list has to be one the DRIVER can run, not just one that greps right.
-                # Everything above is a text search; this is `loop.py`'s own schema, so a
-                # misspelled key is a problem printed here rather than a dead run on the night the
-                # chain reaches the entry.
-                fail = loop.spec_error(path)
-                if fail:
-                    problems.append(f"{rel(path)}: the driver cannot run this list -- {fail}")
-                # The other half of walkable: the driver can run the checks, and the SESSION gets
-                # the pack. A manifest naming a heading that is not there costs nothing until the
-                # chain reaches the entry, and then costs one session the section it needed.
-                bad, said = orientmod.manifest_findings(path)
-                problems.extend(bad)
-                notes.extend(said)
-            if key == "md" and e.num is not None:
-                h1 = body.split("\n", 1)[0]
-                if not h1.startswith(f"# Loop goal {e.num} "):
-                    notes.append(f"{rel(path)}: its H1 is {h1[:60]!r}, which `plan.py`'s "
-                                 f"`live_goal()` matches the live copy against")
-                # loop-authoring.md § 5: anything a session could reasonably stop and ask about
-                # eventually holds the run on `BLOCKED`, and this section is the only place a goal
-                # says a call is already made. A goal without one is not unwalkable -- goals whose
-                # whole design is an accepted ADR read tightly without it -- but it leaves a session
-                # nothing to check its question against, which is how goal 19 spent a session
-                # deriving a decision at the point of implementing it.
-                if i > live and "\n## Standing decisions" not in body:
-                    notes.append(f"{rel(path)}: no `## Standing decisions` section -- "
-                                 f"loop-authoring.md § 5 is where a goal pre-authorizes the calls "
-                                 f"its stages reach, and a session that meets one with no answer "
-                                 f"holds the run")
-            if key == "handoff" and not body.startswith("# Handoff"):
-                notes.append(f"{rel(path)}: does not start with `# Handoff`")
-            if "TODO" in body:
+                problems.append(f"{where}: {rel(path)} does not exist")
+        if not g.md.is_file():
+            continue
+
+        text = g.md.read_text(encoding="utf-8")
+        if not goalsmod.FRONT_RE.match(text):
+            problems.append(f"{rel(g.md)}: no front matter -- the milestone has nowhere to live")
+        if not g.milestone:
+            problems.append(f"{where}: its `.md` front matter names no `milestone` -- `plan.py "
+                            f"--check` derives every `Carried by` cell from that key")
+        h1 = goalsmod.FRONT_RE.sub("", text, count=1).split("\n", 1)[0]
+        if not h1.startswith(f"# Loop goal {g.num} "):
+            notes.append(f"{rel(g.md)}: its H1 is {h1[:60]!r}, which `plan.py`'s `live_goal()` "
+                         f"matches the live copy against")
+        if g.num > live and "\n## Why here" not in text and not generated(g):
+            notes.append(f"{rel(g.md)}: no `## Why here` section. The order is a dependency chain "
+                         f"and that section is the only home of the reason this goal sits at "
+                         f"{g.num}")
+        # loop-authoring.md § 5: anything a session could reasonably stop and ask about eventually
+        # holds the run on `BLOCKED`, and this section is the only place a goal says a call is
+        # already made.
+        if g.num > live and "\n## Standing decisions" not in text:
+            notes.append(f"{rel(g.md)}: no `## Standing decisions` section -- loop-authoring.md "
+                         f"§ 5 is where a goal pre-authorizes the calls its stages reach")
+
+        if g.retired:
+            if g.handoff.is_file():
+                notes.append(f"{where}: retired, but {g.handoff.name} is still on disk -- "
+                             f"`--retire` deletes it and something put it back")
+            # `live` is 0 in a tree with no `.loop/chain.json` at all, which is every fresh clone
+            # and every CI job: a retired goal there is history, not a contradiction.
+            if live and g.num >= live:
+                problems.append(f"{where}: is retired but the run stands on goal {live} -- only a "
+                                f"goal the run has LEFT may be retired, since retiring is what "
+                                f"says its checks are already somebody's floor")
+            continue
+
+        body = g.toml.read_text(encoding="utf-8")
+        if MARKER not in body:
+            problems.append(f"{rel(g.toml)}: no goal-switch marker line, so the switch into this "
+                            f"goal refuses and the run stops. Add:\n      {MARKER}")
+        for need, why in (("files", "goal-switch.py unions the previous goal's fixtures into it "
+                                    "and refuses when the key is absent"),
+                          ("skip", "`[valgrind] skip` is unioned the same way")):
+            if not re.search(rf"^\s*{need}\s*=\s*\[", body, re.M):
+                problems.append(f"{rel(g.toml)}: no `{need} = [...]` -- {why}")
+        if "[[check]]" not in body:
+            problems.append(f"{rel(g.toml)}: holds no `[[check]]`, so nothing can turn it green "
+                            f"and the run stalls on it")
+        # The list has to be one the DRIVER can run, not just one that greps right. Everything
+        # above is a text search; this is `loop.py`'s own schema, so a misspelled key is a problem
+        # printed here rather than a dead run on the night the chain reaches the goal.
+        fail = loop.spec_error(g.toml)
+        if fail:
+            problems.append(f"{rel(g.toml)}: the driver cannot run this list -- {fail}")
+        # The other half of walkable: the driver can run the checks, and the SESSION gets the pack.
+        # A manifest naming a heading that is not there costs nothing until the chain reaches the
+        # goal, and then costs one session the section it needed.
+        bad, said = orientmod.manifest_findings(g.toml)
+        problems.extend(bad)
+        notes.extend(said)
+        if not g.handoff.read_text(encoding="utf-8").startswith("# Handoff"):
+            notes.append(f"{rel(g.handoff)}: does not start with `# Handoff`")
+        for path in g.files:
+            if "TODO" in path.read_text(encoding="utf-8"):
                 notes.append(f"{rel(path)}: still carries TODO markers -- a scaffold nobody has "
                              f"filled in yet")
-        if i > live and not e.lead and not e.generated:
-            notes.append(f"{where}: no comment above it. The order is a dependency chain and this "
-                         f"is the only home of the reason -- `--why {e.num} --text '...'`")
 
     if README.is_file():
         readme = README.read_text(encoding="utf-8")
-        for e in entries:
-            if e.generated:
-                continue
-            name = Path(e.get("md", "")).name
-            if name and name not in readme:
-                notes.append(f"{rel(README)}: no row for {e.name} -- the table there is what a "
-                             f"reader reads instead of the TOML")
+        for g in chain:
+            if not generated(g) and f"{g.stem}.md" not in readme:
+                notes.append(f"{rel(README)}: no row for {g.name} -- the table there is what a "
+                             f"reader reads instead of the directory")
+
+    # The rule that makes a renumber cheap, as a gate. A number is a position; naming a goal by one
+    # writes a sentence that a later insert silently falsifies, and nothing else in this repository
+    # would notice. AGENTS.md, *The schedule is the chain*, is the rule's home.
+    stale = number_citations()
+    if stale:
+        problems.append(f"{len(stale)} place(s) name a goal by its NUMBER. A goal is named by its "
+                        f"slug -- `goal `xml-tree``, never `goal 29` -- because a number is a "
+                        f"position and moves whenever anything is inserted in front of it:")
+        for path, line, text in stale[:15]:
+            problems.append(f"    {path}:{line}  {text}")
+        if len(stale) > 15:
+            problems.append(f"    ... and {len(stale) - 15} more")
 
     for label, items in (("", problems), ("note: ", notes)):
         for item in items:
             print(f"  {label}{item}")
     if problems:
         print()
-        print(f"chain: {len(problems)} problem(s), {len(notes)} note(s) over "
-              f"{len(entries)} entries")
+        print(f"chain: {len(problems)} problem(s), {len(notes)} note(s) over {len(chain)} goals")
         return 1
-    print(f"chain: {len(entries)} entries, all walkable"
+    print(f"chain: {len(chain)} goals numbered 1..{len(chain)}, all walkable"
           + (f" -- {len(notes)} note(s) above" if notes else ""))
     print("       `python tools/plan.py --check` is the other half: milestone tags and "
           "`Carried by` cells.")
@@ -1158,77 +999,57 @@ def cmd_check(text, head, entries):
 
 def main(argv=None):
     p = argparse.ArgumentParser(
-        prog="chain.py",
-        description=__doc__.split("\n\n")[0],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__[__doc__.index("`docs/agent/goals/chain.toml`"):],
-    )
-    p.add_argument("--all", action="store_true",
-                   help="list the generated goals too (default: hand-written entries only)")
-    p.add_argument("--show", type=int, metavar="N", help="one entry, its files and its stages")
-    p.add_argument("--new", metavar="SLUG",
-                   help="scaffold a goal (three files) and insert it; defaults to the next free "
-                        "number below the dossier and the position in front of it")
-    p.add_argument("--set", type=int, metavar="N", help="edit goal N's keys")
-    p.add_argument("--why", dest="why_of", type=int, metavar="N", nargs="?", const=-1,
-                   help="print or rewrite the comment above goal N (with --text or --from)")
-    p.add_argument("--move", type=int, metavar="N", help="reorder goal N (with --after/--before)")
-    p.add_argument("--remove", type=int, metavar="N", help="drop goal N from the chain")
-    p.add_argument("--retire", type=int, metavar="N",
-                   help="walked goal N: delete its .toml and .handoff.md, keep its block and .md")
-    p.add_argument("--renumber", type=int, metavar="N", help="give goal N a new number (--to M)")
-    p.add_argument("--retitle", type=int, metavar="N", help="give goal N a new slug (--to SLUG)")
-    p.add_argument("--check", action="store_true", help="every entry is one the driver can walk")
+        prog="chain.py", description=__doc__.split("\n\n")[0],
+        formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
+    p.add_argument("--show", type=int, metavar="N", help="one goal, its files and its stages")
+    p.add_argument("--all", action="store_true", help="list generated goals too")
+    p.add_argument("--new", metavar="SLUG", help="scaffold a goal and insert it")
+    p.add_argument("--move", type=int, metavar="N", help="move goal N somewhere else")
+    p.add_argument("--remove", type=int, metavar="N", help="delete goal N and close the hole")
+    p.add_argument("--renumber", action="store_true", help="repair the numbering to 1..N")
+    p.add_argument("--retitle", type=int, metavar="N", help="change goal N's slug, not its number")
+    p.add_argument("--set", type=int, metavar="N", help="set goal N's milestone")
+    p.add_argument("--retire", type=int, metavar="N", help="drop a walked goal's acceptance list")
+    p.add_argument("--check", action="store_true", help="the gate")
 
-    p.add_argument("--title", help="--new: the goal's one-line title, as its H1 reads")
-    p.add_argument("--number", type=int, help="--new: take this number instead of the next free one")
-    p.add_argument("--milestone", help="the milestone tag this goal carries (M7, post-parity, ...)")
-    p.add_argument("--preflight", help="`docker`, or `none` to drop the key")
-    p.add_argument("--after", type=int, metavar="N", help="position: directly after goal N")
-    p.add_argument("--before", type=int, metavar="N", help="position: directly before goal N")
-    p.add_argument("--end", action="store_true", help="position: on the end of the chain")
-    p.add_argument("--to", help="--renumber/--retitle: the new number or slug")
-    p.add_argument("--text", help="the comment above the entry, as one paragraph")
-    p.add_argument("--from", dest="from_file", metavar="FILE",
-                   help="--why: read the comment from a file instead")
-    p.add_argument("--delete-files", action="store_true",
-                   help="--remove: delete the goal's three files as well")
-    p.add_argument("--force", action="store_true",
-                   help="edit an entry the run has already walked (invalidates a folded floor)")
-    p.add_argument("--dry-run", action="store_true", help="say what would change, write nothing")
+    p.add_argument("--to", metavar="N|SLUG", help="the number to land on, or the new slug")
+    p.add_argument("--after", type=int, metavar="N", help="land directly after goal N")
+    p.add_argument("--before", type=int, metavar="N", help="land directly before goal N")
+    p.add_argument("--next", action="store_true", help="land directly after the LIVE goal")
+    p.add_argument("--end", action="store_true", help="land at the end of the chain")
+
+    p.add_argument("--title", help="the goal's H1, for --new")
+    p.add_argument("--milestone", help="the milestone tag")
+    p.add_argument("--docker", action=argparse.BooleanOptionalAction, default=None,
+                   help="whether the new goal declares a [docker] table")
+    p.add_argument("--delete-files", action="store_true", help="--remove really deletes")
+    p.add_argument("--force", action="store_true", help="touch the walked prefix anyway")
+    p.add_argument("--dry-run", action="store_true", help="say what would happen")
     opts = p.parse_args(argv)
-    # A goal's title is prose and carries em dashes; the consoles here are cp1252.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", newline="\n", errors="replace")
 
-    text, head, entries = load()
-    if not entries:
-        return die(f"{rel(CHAIN)} holds no [[goal]] entry")
-
+    chain = goalsmod.load()
     if opts.check:
-        return cmd_check(text, head, entries)
+        return cmd_check(chain)
     if opts.show is not None:
-        return cmd_show(entries, opts.show)
+        return cmd_show(chain, opts.show)
     if opts.new:
-        return cmd_new(text, head, entries, opts)
-    if opts.set is not None:
-        return cmd_set(text, head, entries, opts)
-    if opts.why_of is not None:
-        if opts.why_of == -1:
-            return die("--why takes a goal number")
-        return cmd_why(text, head, entries, opts)
+        return cmd_new(chain, opts)
     if opts.move is not None:
-        return cmd_move(text, head, entries, opts)
+        return cmd_move(chain, opts)
     if opts.remove is not None:
-        return cmd_remove(text, head, entries, opts)
-    if opts.retire is not None:
-        return cmd_retire(text, head, entries, opts)
-    if opts.renumber is not None or opts.retitle is not None:
+        return cmd_remove(chain, opts)
+    if opts.renumber:
+        return cmd_renumber(chain, opts)
+    if opts.retitle is not None:
         if not opts.to:
-            return die("--renumber/--retitle needs --to")
-        return cmd_rename(text, head, entries, opts)
-    return cmd_list(entries, opts.all)
+            return die("--retitle takes --to <slug>")
+        return cmd_retitle(chain, opts)
+    if opts.set is not None:
+        return cmd_set(chain, opts)
+    if opts.retire is not None:
+        return cmd_retire(chain, opts)
+    return cmd_list(chain, opts.all)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
