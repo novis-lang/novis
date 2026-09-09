@@ -314,7 +314,7 @@ def run_milestones(status_text, plan_text):
         total = len(planmod.chain_goals())
         where = live["milestone"] or "no milestone"
         emit()
-        emit(f"  LIVE: goal {live['num']} of {total} -- {live['name']}, inside {where}")
+        emit(f"  LIVE: goal `{live['slug']}`, {live['num']} of {total}, inside {where}")
         emit("        docs/agent/goals/ is the schedule: every earlier goal has passed,")
         emit("        every later one is not started.")
     emit()

@@ -53,7 +53,14 @@ FRONT_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 
 
 class Goal:
-    """One entry: its number, its files, and the two facts that are not either of those."""
+    """One entry: its number, its files, and the two facts that are not either of those.
+
+    **There is no `name`.** A goal is its `slug`, and its `num` is where the chain currently runs
+    it; the two used to be joined into `"29 xml-tree"` for the console, which put a number in front
+    of every line the driver printed and in the switch's commit message -- the one place a stale
+    number outlives everything. Anything naming a goal names `slug`; anything reporting progress
+    prints `num` beside a total, where it reads as the position it is.
+    """
 
     def __init__(self, num, slug, folder=None):
         self.num = num
@@ -68,11 +75,6 @@ class Goal:
     @property
     def stem(self):
         return f"{self.num}-{self.slug}"
-
-    @property
-    def name(self):
-        """`29 xml-tree` -- how the chain used to spell it, and how the console still prints it."""
-        return f"{self.num} {self.slug}"
 
     @property
     def md(self):
@@ -133,7 +135,7 @@ class Goal:
         return re.sub(r"^#\s*Loop goal \d+\s*[—-]\s*", "", h1).strip()
 
     def __repr__(self):
-        return f"<Goal {self.name}>"
+        return f"<Goal {self.slug} at {self.num}>"
 
 
 def load():

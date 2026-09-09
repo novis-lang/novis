@@ -253,7 +253,6 @@ def chain_goals():
         {
             "pos": g.num,
             "num": g.num,
-            "name": g.name,
             "slug": g.slug,
             "md": goalsmod.rel(g.md),
             "milestone": g.milestone,

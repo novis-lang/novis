@@ -191,11 +191,13 @@ Step 5 above, in detail:
   `parses`, `per-core`, `serve-runs-the-queue` and `event-streams`. `brief.py` prints the live
   goal; `plan.py --check` gates it.
 - **Name a goal by its slug, never by its number.** Say goal `parses`, never `goal 21` — in prose,
-  in a code comment, in a commit message, in an owner column. **The number is the goal's position**, so
-  it moves the moment anything is inserted in front of it, and a sentence naming one silently comes
-  to mean a different goal; the slug never moves. The two places a number belongs are the goal's
-  own two file headers and a link target that is a filename, and `chain.py` rewrites both when it
-  renames. `python tools/chain.py --check` fails on any other one.
+  in a code comment, in a commit message, in an owner column, **and in what a tool prints**. A
+  number is fine as a *position* beside a total (`29 of 43`), which is what it is; what is never
+  fine is a number where the goal's name goes. **The number moves** the moment anything is
+  inserted in front of it, and a line naming one silently comes to mean a different goal; the slug
+  never moves. The two places a number belongs are the goal's own two file headers and a link
+  target that is a filename, and `chain.py` rewrites both when it renames.
+  `python tools/chain.py --check` fails on any other one in a file.
 - **Reordering the chain is renaming files, and `python tools/chain.py` is what does it.**
   `--new <slug> --after N` / `--before N`, `--move N --to M` (or `--after`/`--before`/`--next`),
   `--remove N --delete-files`: each renumbers everything it displaces so `1..N` still holds, and

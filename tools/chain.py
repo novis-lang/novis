@@ -306,7 +306,10 @@ def cmd_list(chain, show_all):
     if fail:
         print(f"       !! {fail}")
     print()
-    print(f"  {'goal':<26} {'milestone':<12} {'preflight':<9} state")
+    # The number is its own column rather than a prefix on the name. This listing is the one place
+    # a goal's position is the subject, and joining the two is what taught every other line in the
+    # driver to print `29 xml-tree` as though that were what the goal is called.
+    print(f"  {'#':>3}  {'goal':<24} {'milestone':<12} {'preflight':<9} state")
     for g in chain:
         if g not in shown:
             continue
@@ -316,7 +319,7 @@ def cmd_list(chain, show_all):
         missing = [p.name for p in g.files if not p.is_file()]
         if missing:
             state += f"  !! {', '.join(missing)} missing"
-        print(f"  {g.name:<26} {g.milestone:<12} {g.preflight:<9} {state}")
+        print(f"  {g.num:>3}  {g.slug:<24} {g.milestone:<12} {g.preflight:<9} {state}")
     print()
     print("  A goal at or before the live one is frozen: its checks are already somebody's floor.")
     print("  A retired one has had that list dropped -- it is in the live goal, not in its own file.")
@@ -326,7 +329,7 @@ def cmd_list(chain, show_all):
 def cmd_show(chain, num):
     g = find(chain, num)
     live = goalsmod.live()
-    print(f"chain: goal {g.num} of {len(chain)} -- "
+    print(f"chain: goal `{g.slug}`, {g.num} of {len(chain)} -- "
           + ("walked" if g.num < live else "LIVE" if g.num == live else "ahead of the run")
           + (", retired (its checks are the live goal's floor)" if g.retired else ""))
     print(f"       {g.title}")
@@ -688,11 +691,11 @@ def cmd_move(chain, opts):
     rest = [x for x in chain if x.num != g.num]
     mapping = order_after(rest[:at - 1] + [g] + rest[at - 1:])
     if opts.dry_run:
-        print(f"chain: --dry-run -- goal {g.num} ({g.slug}) would become goal {at}")
+        print(f"chain: --dry-run -- goal `{g.slug}` ({g.num}) would become goal {at}")
         apply_renumber(chain, mapping, dry_run=True)
         return 0
     renamed, rewritten, ranges = apply_renumber(chain, mapping, dry_run=False)
-    print(f"chain: goal {g.num} ({g.slug}) is now goal {at}")
+    print(f"chain: goal `{g.slug}` ({g.num}) is now goal {at}")
     report(renamed, rewritten, ranges)
     return 0
 
@@ -703,7 +706,7 @@ def cmd_remove(chain, opts):
         return 2
     on_disk = [p for p in (g.md, g.toml, g.handoff) if p.is_file()]
     if not opts.delete_files:
-        return die(f"goal {g.num} ({g.slug}) owns {len(on_disk)} file(s). Removing it deletes them "
+        return die(f"goal `{g.slug}` ({g.num}) owns {len(on_disk)} file(s). Removing it deletes them "
                    f"and closes the hole its number leaves:\n"
                    + "".join(f"       {rel(p)}\n" for p in on_disk)
                    + "       Pass --delete-files to mean it. A goal the run has WALKED is retired "
@@ -720,7 +723,7 @@ def cmd_remove(chain, opts):
         path.unlink(missing_ok=True)
     rest = [x for x in chain if x.num != g.num]
     renamed, rewritten, ranges = apply_renumber(rest, order_after(rest), dry_run=False)
-    print(f"chain: goal {g.num} ({g.slug}) removed, {len(on_disk)} file(s) deleted, hole closed")
+    print(f"chain: goal `{g.slug}` ({g.num}) removed, {len(on_disk)} file(s) deleted, hole closed")
     report(renamed, rewritten, ranges)
     print(f"       Prose naming `{g.slug}` now names a goal that is gone -- `git grep -n "
           f"'{g.slug}'` is that list, and this tool does not write sentences.")
@@ -783,7 +786,7 @@ def cmd_set(chain, opts):
         print(f"chain: --dry-run -- goal {g.num} milestone {g.milestone!r} -> {opts.milestone!r}")
         return 0
     g.md.write_text(block + (text[m.end():] if m else text), encoding="utf-8", newline="\n")
-    print(f"chain: goal {g.num} ({g.slug}) is milestone {opts.milestone}")
+    print(f"chain: goal `{g.slug}` ({g.num}) is milestone {opts.milestone}")
     print("       `python tools/plan.py --sync` -- the `Carried by` cell is derived from this.")
     return 0
 
@@ -818,19 +821,19 @@ def cmd_retire(chain, opts):
     g = find(chain, opts.retire)
     live = goalsmod.live()
     if g.retired:
-        return die(f"goal {g.num} ({g.slug}) is already retired")
+        return die(f"goal `{g.slug}` ({g.num}) is already retired")
     if g.num >= live and not opts.force:
         where = ("is the live goal -- its `.toml` is the file the driver runs" if g.num == live else
                  "is ahead of the run" if live else
                  f"cannot be retired: {rel(goalsmod.STATE)} says no run has installed a goal")
-        return die(f"goal {g.num} ({g.slug}) {where}. Only a goal the run has LEFT may be retired, "
+        return die(f"goal `{g.slug}` ({g.num}) {where}. Only a goal the run has LEFT may be retired, "
                    f"because leaving it is what folded its checks forward.\n"
                    f"       Pass --force if the run is over and this position is stale.")
     if not LIVE_GOAL.is_file():
         return die(f"{rel(LIVE_GOAL)} does not exist, so there is nothing to prove the fold into")
     lost = sorted(check_ids(g.toml) - check_ids(LIVE_GOAL))
     if lost:
-        die(f"goal {g.num} ({g.slug}) holds {len(lost)} check(s) that {rel(LIVE_GOAL)} does not, "
+        die(f"goal `{g.slug}` ({g.num}) holds {len(lost)} check(s) that {rel(LIVE_GOAL)} does not, "
             f"so its acceptance list was NOT folded all the way forward:")
         for kind, name in lost[:12]:
             print(f"       [{kind}] {name}", file=sys.stderr)
@@ -853,7 +856,7 @@ def cmd_retire(chain, opts):
             if Path(target.split("#", 1)[0]).name in names:
                 cites.append(f"{rel(doc)} -> {target}")
     if cites:
-        die(f"goal {g.num} ({g.slug}) cannot be retired yet: {len(cites)} link(s) name a file it "
+        die(f"goal `{g.slug}` ({g.num}) cannot be retired yet: {len(cites)} link(s) name a file it "
             f"would delete, and check-links.py is a gate:")
         for line in cites[:8]:
             print(f"       {line}", file=sys.stderr)
@@ -863,14 +866,14 @@ def cmd_retire(chain, opts):
 
     freed = sum(p.stat().st_size for p in victims if p.is_file())
     if opts.dry_run:
-        print(f"chain: --dry-run -- would retire goal {g.num} ({g.slug}): every one of its "
+        print(f"chain: --dry-run -- would retire goal `{g.slug}` ({g.num}): every one of its "
               f"{len(check_ids(g.toml))} distinct checks is in {rel(LIVE_GOAL)}, so "
               f"{', '.join(rel(p) for p in victims)} ({freed // 1024}K) would go")
         return 0
     for path in victims:
         if path.is_file():
             path.unlink()
-    print(f"chain: goal {g.num} ({g.slug}) retired -- its whole acceptance list is in "
+    print(f"chain: goal `{g.slug}` ({g.num}) retired -- its whole acceptance list is in "
           f"{rel(LIVE_GOAL)}, and its `.toml` being gone is what records that")
     print(f"       {freed // 1024}K freed. {rel(g.md)} stays: {rel(README)}, the plan and the "
           f"milestone files cite it.")
@@ -893,7 +896,7 @@ def cmd_check(chain):
         problems.append(f"{rel(GOALS)} holds no goal -- the driver has nothing to walk")
 
     for g in chain:
-        where = f"goal {g.num} ({g.slug})"
+        where = f"goal `{g.slug}` ({g.num})"
         for path in g.files:
             if not path.is_file():
                 problems.append(f"{where}: {rel(path)} does not exist")
@@ -968,7 +971,7 @@ def cmd_check(chain):
         readme = README.read_text(encoding="utf-8")
         for g in chain:
             if not generated(g) and f"{g.stem}.md" not in readme:
-                notes.append(f"{rel(README)}: no row for {g.name} -- the table there is what a "
+                notes.append(f"{rel(README)}: no row for `{g.slug}` -- the table there is what a "
                              f"reader reads instead of the directory")
 
     # The rule that makes a renumber cheap, as a gate. A number is a position; naming a goal by one

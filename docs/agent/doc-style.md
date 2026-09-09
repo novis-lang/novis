@@ -33,14 +33,17 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   [docs/rules/](../rules/), and [docs/ground-rules.md](../ground-rules.md) — one line per rule — is
   generated from it by `python tools/rules.py --render`, never written.
 - **Name a goal by its slug, never by its number.** Goal `parses`, never `goal 21` — here, in a `//!`
-  header, in a commit message, in a test's owner column. A goal's number is its **position** on the
-  chain, so inserting anything in front of it renumbers it and every sentence naming the old number
-  now names whichever goal moved into it, silently, in files nobody opened; the slug is the half of
-  the filename that never moves. Two places take a number and `python tools/chain.py` rewrites both
-  when it renames: the goal's own `# Loop goal N —` and `# Goal N --` headers, and a link target,
-  which is a filename. `chain.py --check` fails on any other — except inside backticks, where the
-  wrong form is being quoted rather than used, as it is twice in this bullet. AGENTS.md § *The
-  schedule is the chain* is the rule's home.
+  header, in a commit message, in a test's owner column, and in a line a tool prints to a console.
+  A goal's number is its **position** on the chain, so inserting anything in front of it renumbers
+  it and every sentence naming the old number now names whichever goal moved into it, silently, in
+  files nobody opened; the slug is the half of the filename that never moves. A number beside a
+  total — `29 of 43` — is that position and is fine; a number standing where the name goes is not.
+  Two places take a number and `python tools/chain.py` rewrites both when it renames: the goal's own
+  `# Loop goal N —` and `# Goal N --` headers, and a link target, which is a filename.
+  `chain.py --check` fails on any other in a file — except inside backticks, where the wrong form is
+  being quoted rather than used, as it is twice in this bullet. It cannot see a tool's `f`-string,
+  which is how the driver came to print `29 xml-tree` as though that were the goal's name; AGENTS.md
+  § *The schedule is the chain* is the rule's home, and it binds both.
 - Crates for later milestones are created when their milestone starts, not left sitting empty.
 
 ## Length targets, and why nothing enforces them

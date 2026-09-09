@@ -2936,20 +2936,26 @@ def load_goal():
 
 def goal_title(chain=None):
     """The loop-goal half of the status line's goal row: the H1 of `docs/agent/loop-goal.md`,
-    behind `goal 2/6` when a chain is driving. Read from disk each time, for the reason
+    behind `goal <slug> 29/43` when a chain is driving. Read from disk each time, for the reason
     `load_goal()` is: a chain switch rewrites the file, and the row has to follow it. A file that
-    cannot be read, or has no heading, leaves the row saying so rather than ending the run."""
+    cannot be read, or has no heading, leaves the row saying so rather than ending the run.
+
+    The H1's own `Loop goal N — ` prefix is cut. That header is the one place a goal states its
+    number, and it belongs there -- but the row already names the goal to the left of it, so
+    leaving it in printed the number twice and the name not at all.
+    """
     title = ""
     try:
         for line in GOAL_MD.read_text(encoding="utf-8").splitlines():
             if line.startswith("# "):
-                title = line[2:].strip()
+                title = re.sub(r"^Loop goal \d+\s*[—-]\s*", "", line[2:].strip())
                 break
     except OSError:
         pass
     title = title or f"{rel_to_root(GOAL_MD)} has no heading"
     if chain is not None and chain.current is not None:
-        return f"goal {chain.current.num}/{len(chain.goals)}{TICKER.sep}{title}"
+        return (f"goal {chain.current.slug} {chain.current.num}/{len(chain.goals)}"
+                f"{TICKER.sep}{title}")
     return title
 
 
@@ -3399,7 +3405,7 @@ class Chain:
         success or a one-line reason the run should stop."""
         nxt = self.goals[self.index + 1]
         say("")
-        step(f"chain: switching to goal {nxt.num} of {len(self.goals)} -- {nxt.name}", C.CYAN)
+        step(f"chain: switching to goal `{nxt.slug}`, {nxt.num} of {len(self.goals)}", C.CYAN)
 
         fail = preflight(nxt.preflight)
         if fail:
@@ -3411,7 +3417,7 @@ class Chain:
         # goal since the run began. What the fold then does to it is judged separately below.
         fail = spec_error(nxt.toml)
         if fail:
-            return f"chain: {nxt.name}'s acceptance list is not runnable -- {fail}"
+            return f"chain: goal `{nxt.slug}`'s acceptance list is not runnable -- {fail}"
 
         # The floor. `goal-switch.py` reads the LIVE goal, so this has to happen before the copy.
         # On the first goal there is no previous chain goal and the live one is whatever the run
@@ -3426,7 +3432,7 @@ class Chain:
         r = capture(sys.executable, [str(ROOT / "tools" / "goal-switch.py"),
                                      rel_to_root(goal_path)])
         if r.code != 0:
-            return f"chain: goal-switch failed for {nxt.name} -- {r.first_err_line}"
+            return f"chain: goal-switch failed for `{nxt.slug}` -- {r.first_err_line}"
         for line in stdout_lines(r.out):
             say(f"  {line}", C.GRAY)
 
@@ -3438,7 +3444,7 @@ class Chain:
             Goal(tomllib.loads(goal_path.read_text(encoding="utf-8")))
         except (tomllib.TOMLDecodeError, GoalError) as e:
             goal_path.write_bytes(unfolded)
-            return (f"chain: {nxt.name}'s acceptance list is not runnable once the floor is "
+            return (f"chain: goal `{nxt.slug}`'s acceptance list is not runnable once the floor is "
                     f"folded into it -- {e}")
 
         shutil.copyfile(goal_path, GOAL_TOML)
@@ -3484,17 +3490,20 @@ class Chain:
                 # disk with no flag to set: what has to be staged is the two deletions.
                 retired = gone
             else:
-                say(f"  chain: goal {prev.num} was not retired -- {r.first_err_line}", C.GRAY)
+                say(f"  chain: goal `{prev.slug}` was not retired -- {r.first_err_line}", C.GRAY)
 
+        # The one line here that outlives the run. It names the goal and never its number: `git log`
+        # is read long after a later insert has moved every number, and a subject line saying
+        # `advances to 29 xml-tree` would by then name a different goal with no way to tell.
         message = (
-            f"docs(loop): the chain advances to {nxt.name}\n\n"
+            f"docs(loop): the chain advances to `{nxt.slug}`\n\n"
             f"Written by tools/loop.py from {rel_to_root(GOALS_DIR)}. The previous goal's\n"
             f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
             f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
         )
         if retired:
             message += (
-                f"\nThe goal it left is retired in the same commit: every check of {prev.name}\n"
+                f"\nThe goal it left is retired in the same commit: every check of `{prev.slug}`\n"
                 f"is in the floor above, so the copy it kept is deleted and only its prose stays.\n"
                 f"chain.py --retire is what proved that before unlinking anything.\n"
             )
@@ -3506,7 +3515,7 @@ class Chain:
         git("add", rel_to_root(nxt.toml), "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
             "docs/agent/handoff.md", *retired)
         git("commit", "-F", str(msg_file))
-        say(f"chain: goal {nxt.num} of {len(self.goals)} is live -- {nxt.name}", C.GREEN)
+        say(f"chain: goal `{nxt.slug}` is live, {nxt.num} of {len(self.goals)}", C.GREEN)
         return ""
 
     def bring_up_services(self):
@@ -4630,7 +4639,7 @@ def run_cli():
         # change to the repository that gets committed, and deciding when to spend three hundred
         # sessions against it is a different decision made at a different moment.
         if chain.finished:
-            say(f"chain: {chain.current.name} is the last goal in "
+            say(f"chain: goal `{chain.current.slug}` is the last in "
                 f"{rel_to_root(GOALS_DIR)} and is already installed", C.YELLOW)
             return 0
         fail = chain.install_next()
@@ -4659,8 +4668,8 @@ def run_cli():
                 say(f"{rel_to_root(GOAL_TOML)}: {e}", C.RED)
                 return 2
         else:
-            say(f"chain: resuming at goal {chain.current.num} of {len(chain.goals)} -- "
-                f"{chain.current.name}", C.CYAN)
+            say(f"chain: resuming at goal `{chain.current.slug}`, "
+                f"{chain.current.num} of {len(chain.goals)}", C.CYAN)
             fail = preflight(chain.current.preflight)
             if fail:
                 say(fail, C.RED)
@@ -5235,8 +5244,8 @@ def drive(opts, goal, chain):
             if switch:
                 reason, kind = switch, "chain-error"
                 break
-            ledger(f"## run continues on {chain.current.name} "
-                   f"(goal {chain.current.num} of {len(chain.goals)})")
+            ledger(f"## run continues on goal `{chain.current.slug}` "
+                   f"({chain.current.num} of {len(chain.goals)})")
             # A new goal is a new worklist, so a stall streak from the old one says nothing about
             # it -- and the first session of any goal is the one most likely to spend itself
             # reading rather than committing.
@@ -5248,7 +5257,7 @@ def drive(opts, goal, chain):
                 kind = "chain-error"
                 break
             TICKER.set(loop_goal=goal_title(chain))
-            verdict(False, f"goal reached -- the run carries on with {chain.current.name}")
+            verdict(False, f"goal reached -- the run carries on with `{chain.current.slug}`")
             continue
         ledger(f"       goal check: {fail}")
 
