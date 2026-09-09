@@ -306,10 +306,9 @@ retired = true
 [[goal]]
 name = "38 encoder-cycles"
 md = "docs/agent/goals/38-encoder-cycles.md"
-toml = "docs/agent/goals/38-encoder-cycles.toml"
-handoff = "docs/agent/goals/38-encoder-cycles.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # It follows goal 38 because both close a gap in shipped surface found in one review and neither
 # shares the other's file set, and it precedes everything that would otherwise inherit that gap:
