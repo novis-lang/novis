@@ -4,11 +4,13 @@
 //!
 //! § 3 writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
 //! *the* worked example of what a launderer is allowed to be: one member, one
-//! sink, and a contract naming it. This module is that member. There is
-//! deliberately no `sanitize()` here yet and no generic `clean()` ever — a
-//! value safe for HTML text is not safe for a shell argument, and § 3's whole
-//! argument is that a catch-all buys the false confidence the qualifier exists
-//! to prevent.
+//! sink, and a contract naming it. `sanitize` is the second member of that
+//! shape here and the last — it names the same sink and launders the other
+//! thing that arrives at it, untrusted markup rather than untrusted text. What
+//! § 3 refuses is a launderer naming **no** sink, and there is no generic
+//! `clean()` here ever: a value safe for HTML text is not safe for a shell
+//! argument, and a catch-all buys the false confidence the qualifier exists to
+//! prevent.
 //!
 //! # Why the answer is a carrier and not a `string`
 //!
@@ -42,12 +44,18 @@
 //! the element, a declarative shadow root refused — is on each of [`Sink`]'s
 //! own members.
 //!
-//! # Known gaps
+//! # The rebuild, and where its policy is
 //!
-//! `rule:core-api/tier-roster` gives this class one more thing than it has:
-//! `sanitize`, the rebuild that answers a [`MARKUP`]. It waits on nothing now
-//! that the parse is here, since rebuilding a document means walking the tree
-//! this member already answers.
+//! [`nvs_core_html_sanitize`] is `rule:core-classes/html-sanitize`'s member and
+//! is three things in a row, each of which can be read without the others:
+//! [`parse`] reads the document, [`rebuilt`] decides what of it survives
+//! [`ELEMENTS`], and [`source`] writes what is left back out under the
+//! serialisation half of `rule:core-classes/html-parsing` — WHATWG's rules
+//! through this door, [`crate::xml`]'s writer through the other. Only the
+//! middle one holds a policy, and that policy is a closed list rather than an
+//! argument, so what a caller can change about it is nothing.
+//!
+//! # Known gaps
 //!
 //! `rule:core-classes/html-to-source` asks two things of [`nvs_core_html_to_source`]'s `$reason` and
 //! each is enforced in the one place that can answer it. **A computed reason is
@@ -156,6 +164,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(crate::xml::NODE_NAME),
             symbol: "nvs_core_html_parse",
             doc: Some(&PARSE_DOC),
+        },
+        CoreMethod {
+            name: "sanitize",
+            names: &["document"],
+            params: &[CoreTy::Text(Qual::Launder)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MARKUP_NAME),
+            symbol: "nvs_core_html_sanitize",
+            doc: Some(&SANITIZE_DOC),
         },
     ],
     instance: &[],
@@ -297,12 +314,34 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Html::sanitize`'s reference card — `rule:core-api/reference-card`.
+const SANITIZE_DOC: MethodDoc = MethodDoc {
+    short: "Parses `$document` as HTML and answers a document rebuilt from the elements and \
+            attributes the allowlist holds — the launderer for untrusted markup, as opposed to \
+            untrusted text, which is `escape`'s.",
+    params: &[ParamDoc {
+        name: "document",
+        desc: "The markup to rebuild. Any text at all is a document, since the parse behind this \
+               has no way to refuse one.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Html\\Markup` carrying the rebuilt document, which is why the result may be \
+          written into a page without being escaped again. Nothing is filtered and nothing is \
+          escaped in place: an element the allowlist does not hold contributes no tag, an \
+          attribute it does not hold is not written, and a `script`, `style` or other raw-text \
+          element is gone with its content. The allowlist is closed — there is no argument that \
+          extends it, because a policy the caller writes is a policy whose holes are the \
+          caller's. Text, and the order of what is kept, are the document's own.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
         "nvs_core_html_parse" => (nvs_core_html_parse as *const ()).cast(),
+        "nvs_core_html_sanitize" => (nvs_core_html_sanitize as *const ()).cast(),
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
         MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
         MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
@@ -1021,6 +1060,472 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+// ============================================================================
+// Serialization — the WHATWG half of the two doors
+// ============================================================================
+
+/// The elements written as a start tag and nothing else.
+///
+/// WHATWG's void set, whole. An end tag for one of these is not a close but a
+/// parse error, so writing one would change what the output means rather than
+/// pad it: `<br></br>` reparses as two line breaks. The list is the
+/// algorithm's and is deliberately not shortened to the elements anyone still
+/// writes — `basefont` and `bgsound` are obsolete to *write* and are still
+/// void to *read*, and reading is what a serialiser answers to.
+const VOID: &[&str] = &[
+    "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img", "input",
+    "keygen", "link", "meta", "param", "source", "track", "wbr",
+];
+
+/// The elements whose character data is written back literally.
+///
+/// The parsing algorithm gives each of these a raw-text content model, so
+/// their text never held markup and escaping it would change what it says:
+/// `&amp;` inside a `<script>` is five characters of program, not one
+/// ampersand. `noscript` belongs here because [`parse`] runs with scripting
+/// enabled, which is the reading that member is written against.
+///
+/// **This list is where a tree no parse produced stops round-tripping**, and
+/// the boundary is WHATWG's rather than one drawn here: text put inside a
+/// `<script>` by hand comes back out as source a reparse reads as elements
+/// again. Nothing this module serialises can be in that position —
+/// [`ELEMENTS`] holds none of these names, so [`rebuilt`] drops every one of
+/// them with its content — and anything that ever serialises a tree from
+/// somewhere other than the sanitizer owes the same answer before it does.
+const RAW_TEXT: &[&str] = &[
+    "style",
+    "script",
+    "xmp",
+    "iframe",
+    "noembed",
+    "noframes",
+    "plaintext",
+    "noscript",
+];
+
+/// One thing the walk in [`source`] has left to write.
+///
+/// A stack of these rather than a recursive walk, for the reason
+/// [`crate::xml::instance_of`] is iterative too: the tree this reads is
+/// [`DEPTH_CEILING`] deep at its deepest, and a native frame per node at that
+/// depth is a crash where a bound was supposed to be.
+enum Step<'a> {
+    /// A node to write, and whether its parent's content model makes character
+    /// data under it literal.
+    Write(&'a Parsed, bool),
+    /// The end tag of an element whose children are already on the stack.
+    End(&'a str),
+}
+
+/// `tree`'s children as HTML source, by the WHATWG fragment serialisation
+/// algorithm.
+///
+/// The children rather than the node, which is that algorithm's own shape and
+/// the one both callers want: a document node serialises to the document, and
+/// an element serialises to what is inside it.
+///
+/// **This is written here rather than in [`crate::xml`] because serialization
+/// follows the door** (`rule:core-classes/html-parsing`): the two parsers share
+/// a node family, not a set of writing rules. `<br>` has no end tag here and
+/// must have one there, an unescaped `>` is text here and is refused there, and
+/// a member that took a flag to pick between them would be the one ambiguity
+/// that rule retired.
+fn source(tree: &Parsed) -> String {
+    let mut out = String::new();
+    let mut work = Vec::new();
+    stacked(tree, false, &mut work);
+    while let Some(step) = work.pop() {
+        match step {
+            Step::End(name) => {
+                out.push_str("</");
+                out.push_str(name);
+                out.push('>');
+            }
+            Step::Write(node, literal) => written_out(node, literal, &mut out, &mut work),
+        }
+    }
+    out
+}
+
+/// `node`'s children pushed onto `work` so that popping yields them in
+/// document order, where `literal` is what `node`'s content model makes of
+/// character data under it.
+fn stacked<'a>(node: &'a Parsed, literal: bool, work: &mut Vec<Step<'a>>) {
+    work.extend(
+        node.children
+            .iter()
+            .rev()
+            .map(|child| Step::Write(child, literal)),
+    );
+}
+
+/// `node` written to `out`, with whatever it leaves for later pushed onto
+/// `work`.
+fn written_out<'a>(node: &'a Parsed, literal: bool, out: &mut String, work: &mut Vec<Step<'a>>) {
+    match node.kind {
+        // A document inside a document is not something either parser builds;
+        // if one is ever handed here it is a bag of children, which is what
+        // the document node is at the top too.
+        Kind::Document => stacked(node, false, work),
+        Kind::Text => {
+            if literal {
+                out.push_str(&node.text);
+            } else {
+                escape_into(&node.text, false, out);
+            }
+        }
+        // Comment data is written as it stands, which is the algorithm: there
+        // is no escape defined for it, and inventing one would make the
+        // comment say something the tree does not.
+        Kind::Comment => {
+            out.push_str("<!--");
+            out.push_str(&node.text);
+            out.push_str("-->");
+        }
+        Kind::ProcessingInstruction => {
+            out.push_str("<?");
+            out.push_str(&node.name);
+            out.push(' ');
+            out.push_str(&node.text);
+            out.push('>');
+        }
+        Kind::Element => {
+            out.push('<');
+            out.push_str(&node.name);
+            for (name, value) in &node.attributes {
+                out.push(' ');
+                out.push_str(name);
+                out.push_str("=\"");
+                escape_into(value, true, out);
+                out.push('"');
+            }
+            out.push('>');
+            if VOID.contains(&node.name.as_str()) {
+                return;
+            }
+            // The parse of one of these three drops a leading newline, so a
+            // serialiser that did not put one back would shorten the text by
+            // one character every round trip.
+            if matches!(node.name.as_str(), "pre" | "textarea" | "listing")
+                && node
+                    .children
+                    .first()
+                    .is_some_and(|first| first.kind == Kind::Text && first.text.starts_with('\n'))
+            {
+                out.push('\n');
+            }
+            work.push(Step::End(&node.name));
+            stacked(node, RAW_TEXT.contains(&node.name.as_str()), work);
+        }
+    }
+}
+
+/// `text` appended to `out` under the algorithm's escape, where `attribute`
+/// says which of its two sets applies.
+///
+/// **Not [`escaped`]'s five**, and the difference is not an oversight in
+/// either direction. That set is a *launderer's*: it answers text that is safe
+/// wherever it is dropped, including inside an unquoted attribute, so it
+/// escapes both quote characters. This one is the *serialiser's*: it writes
+/// every attribute value between double quotes itself, so a `'` in one means
+/// an apostrophe and escaping it would put `&#39;` where the document said a
+/// character. Escaping `<` and `>` in an attribute would do the same, which is
+/// why the two sets are disjoint on four of the six characters between them.
+fn escape_into(text: &str, attribute: bool, out: &mut String) {
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            // The one non-delimiter in either set: a no-break space is
+            // indistinguishable from a space in source, and a round trip that
+            // wrote it raw would turn it into one.
+            '\u{A0}' => out.push_str("&nbsp;"),
+            '"' if attribute => out.push_str("&quot;"),
+            '<' if !attribute => out.push_str("&lt;"),
+            '>' if !attribute => out.push_str("&gt;"),
+            _ => out.push(ch),
+        }
+    }
+}
+
+// ============================================================================
+// The allowlist, and the rebuild that is `sanitize`
+// ============================================================================
+
+/// Every element `sanitize` writes, and the attributes each may carry beyond
+/// [`GLOBAL`]'s.
+///
+/// **Closed, and sorted, and neither is incidental.** Closed is
+/// `rule:core-classes/html-sanitize`: a sanitizer whose policy its caller
+/// writes is a sanitizer whose holes are the caller's, and this member takes no
+/// argument that could reach this list. An element a real application needs is
+/// added here, in a commit that says why. Sorted is what makes
+/// [`allowed`]'s binary search total, and
+/// `the_allowlist_is_closed_and_is_not_configurable_by_a_caller` is what holds
+/// the order.
+///
+/// What is *not* here is as decided as what is. No `class` and no `id`: `id`
+/// is the DOM-clobbering surface, where an attribute name shadows a property
+/// a page's own script reads. No `style`, which is a second grammar with its
+/// own injection story and no parser here. No `target`, whose `_blank` hands
+/// the opened page a reference back. Nothing from SVG or MathML, whose
+/// namespaces are where mXSS lives, since a name that case-corrects on parse
+/// is a name whose serialisation and reparse can disagree.
+const ELEMENTS: &[(&str, &[&str])] = &[
+    ("a", &["href"]),
+    ("abbr", &[]),
+    ("b", &[]),
+    ("blockquote", &["cite"]),
+    ("br", &[]),
+    ("caption", &[]),
+    ("cite", &[]),
+    ("code", &[]),
+    ("col", &["span"]),
+    ("colgroup", &["span"]),
+    ("dd", &[]),
+    ("del", &["cite", "datetime"]),
+    ("dfn", &[]),
+    ("div", &[]),
+    ("dl", &[]),
+    ("dt", &[]),
+    ("em", &[]),
+    ("figcaption", &[]),
+    ("figure", &[]),
+    ("h1", &[]),
+    ("h2", &[]),
+    ("h3", &[]),
+    ("h4", &[]),
+    ("h5", &[]),
+    ("h6", &[]),
+    ("hr", &[]),
+    ("i", &[]),
+    ("img", &["alt", "height", "src", "width"]),
+    ("ins", &["cite", "datetime"]),
+    ("kbd", &[]),
+    ("li", &["value"]),
+    ("mark", &[]),
+    ("ol", &["start"]),
+    ("p", &[]),
+    ("pre", &[]),
+    ("q", &["cite"]),
+    ("s", &[]),
+    ("samp", &[]),
+    ("small", &[]),
+    ("span", &[]),
+    ("strong", &[]),
+    ("sub", &[]),
+    ("sup", &[]),
+    ("table", &[]),
+    ("tbody", &[]),
+    ("td", &["colspan", "rowspan"]),
+    ("tfoot", &[]),
+    ("th", &["colspan", "rowspan", "scope"]),
+    ("thead", &[]),
+    ("tr", &[]),
+    ("u", &[]),
+    ("ul", &[]),
+    ("var", &[]),
+    ("wbr", &[]),
+];
+
+/// The attributes any allowlisted element may carry.
+///
+/// Three, and each says something about the text rather than about the page:
+/// what it is called, what language it is in, and which way it reads. None of
+/// them is a URL, a script or a style, so none needs a value test.
+const GLOBAL: &[&str] = &["dir", "lang", "title"];
+
+/// The attributes whose value is a URL, and therefore the ones [`addressable`]
+/// has an opinion about.
+const URL: &[&str] = &["cite", "href", "src"];
+
+/// The schemes a URL attribute may name.
+///
+/// The two that fetch and the one that composes a message. `javascript:` and
+/// `data:` are the two that *run*, and there is no version of this list that
+/// admits either — which is why the test is a list of what may run rather than
+/// a list of what may not, the same shape as the element list one level up.
+const SCHEMES: &[&str] = &["http", "https", "mailto"];
+
+/// The attributes `name` may carry, or `None` for an element the allowlist
+/// does not hold.
+fn allowed(name: &str) -> Option<&'static [&'static str]> {
+    ELEMENTS
+        .binary_search_by(|(element, _)| (*element).cmp(name))
+        .ok()
+        .map(|at| ELEMENTS[at].1)
+}
+
+/// Whether `value` names an address the rebuild is willing to write.
+///
+/// The test is on the **scheme**, because that is the whole of what makes a URL
+/// attribute a code-execution sink. A value naming no scheme at all is a
+/// relative reference: it resolves against the page that received it and can
+/// reach nothing the page could not already.
+///
+/// Tab, line feed and carriage return come out before the scheme is read,
+/// because every browser removes them from a URL and `java&#9;script:` is the
+/// oldest bypass there is. A colon that arrives after a `/`, `?` or `#` is
+/// punctuation inside a path rather than a scheme's own, which is how a URL
+/// parser reads it too.
+fn addressable(value: &str) -> bool {
+    let value: String = value
+        .chars()
+        .filter(|ch| !matches!(ch, '\t' | '\n' | '\r'))
+        .collect();
+    let value = value.trim_start_matches(|ch: char| ch <= ' ');
+    let Some(colon) = value.find(':') else {
+        return true;
+    };
+    let scheme = &value[..colon];
+    scheme.contains(['/', '?', '#'])
+        || SCHEMES
+            .iter()
+            .any(|allowed| scheme.eq_ignore_ascii_case(allowed))
+}
+
+/// What the rebuild does with one node it has reached.
+enum Verdict {
+    /// The node is not written, and neither is anything under it.
+    Dropped,
+    /// The node is written whole and has nothing under it to walk.
+    Leaf(Parsed),
+    /// The node opens: what is written is here, and its children are still to
+    /// be decided. A [`Kind::Document`] is the tree's own word for a bag of
+    /// children with no element of its own, which is what an unwrapped node
+    /// leaves behind.
+    Opened(Parsed),
+}
+
+/// What [`rebuilt`] does with `node`.
+fn verdict(node: &Parsed) -> Verdict {
+    match node.kind {
+        Kind::Text => {
+            let mut built = Parsed::new(Kind::Text);
+            built.text.push_str(&node.text);
+            Verdict::Leaf(built)
+        }
+        // A comment is not content, and its data is written back with no
+        // escape at all ([`written_out`]), so a `-->` inside one would close
+        // it early and everything after it would reparse as markup. That is
+        // the mXSS shape exactly, and dropping comments is what makes the
+        // round trip a fixed point rather than something to argue about.
+        Kind::Comment | Kind::ProcessingInstruction => Verdict::Dropped,
+        Kind::Document => Verdict::Opened(Parsed::new(Kind::Document)),
+        Kind::Element => match allowed(&node.name) {
+            Some(attributes) => {
+                let mut built = Parsed::new(Kind::Element);
+                built.name.push_str(&node.name);
+                built.attributes = node
+                    .attributes
+                    .iter()
+                    .filter(|(name, value)| {
+                        (GLOBAL.contains(&name.as_str()) || attributes.contains(&name.as_str()))
+                            && (!URL.contains(&name.as_str()) || addressable(value))
+                    })
+                    .cloned()
+                    .collect();
+                Verdict::Opened(built)
+            }
+            // A raw-text element's children are neither markup nor text —
+            // [`RAW_TEXT`] is where that is written down — so keeping them
+            // would be writing a program's source into a document as if it
+            // were prose. A `<template>` goes the same way: its content is
+            // inert where it sits and is markup again the moment anything
+            // clones it.
+            None if RAW_TEXT.contains(&node.name.as_str()) || node.name == "template" => {
+                Verdict::Dropped
+            }
+            // Everything else is unwrapped rather than dropped, and that is
+            // what keeps the member usable: `html`, `head` and `body` are
+            // elements the algorithm inserts around any fragment at all, so
+            // dropping an unknown element with its content would drop every
+            // document. What is under one is ordinary content that has been
+            // decided on its own terms one turn of the walk later.
+            None => Verdict::Opened(Parsed::new(Kind::Document)),
+        },
+    }
+}
+
+/// `tree` rebuilt from [`ELEMENTS`] — every node that survives, in the order
+/// it was written, and nothing else.
+///
+/// **A rebuild rather than a filter**, which `rule:core-classes/html-sanitize`
+/// is about: nothing here reads the source text, deletes from it or repairs
+/// it. A node either has a place in the grammar this list describes, in which
+/// case it is built afresh from its name and the attributes that list holds, or
+/// it has none and contributes no element. What comes back is therefore
+/// something this module could have built from nothing, which is what makes the
+/// serialisation of it predictable — the property "what looks dangerous" can
+/// never have, since that list is one an attacker extends.
+///
+/// Iterative for [`Step`]'s reason: the tree under it is a parse's, so it is
+/// [`DEPTH_CEILING`] deep at its deepest.
+fn rebuilt(tree: &Parsed) -> Parsed {
+    let mut stack = vec![(tree.children.iter(), Parsed::new(Kind::Document))];
+    loop {
+        let next = stack
+            .last_mut()
+            .expect("the root frame is popped by the return below")
+            .0
+            .next();
+        if let Some(node) = next {
+            match verdict(node) {
+                Verdict::Dropped => {}
+                Verdict::Leaf(built) => stack
+                    .last_mut()
+                    .expect("the frame the child was read from is still open")
+                    .1
+                    .children
+                    .push(built),
+                Verdict::Opened(built) => stack.push((node.children.iter(), built)),
+            }
+            continue;
+        }
+        let (_, built) = stack.pop().expect("the frame just read to its end");
+        let Some(parent) = stack.last_mut() else {
+            return built;
+        };
+        if built.kind == Kind::Document {
+            parent.1.children.extend(built.children);
+        } else {
+            parent.1.children.push(built);
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Html::sanitize(tainted string $document): Core\Html\Markup` —
+    /// `rule:core-classes/html-sanitize`'s launderer, and the second one on
+    /// this class.
+    ///
+    /// Three members in a row and each is one of the three things a document
+    /// can be: [`parse`] reads it, [`rebuilt`] decides what of it survives, and
+    /// [`source`] writes what is left. The middle one is the only one with a
+    /// policy in it, which is why the other two are written against the
+    /// algorithm alone and can be read without it.
+    ///
+    /// **Why the answer is a carrier** is `rule:security/launderer-answers-a-carrier`,
+    /// the same predicate [`nvs_core_html_escape`] answers: the HTML sink
+    /// launders on its own, so a `string` answer here would be escaped a second
+    /// time and a rebuilt document would arrive as its own source text.
+    ///
+    /// **What it spends:** the parse's tree, plus a second tree holding what
+    /// survived, plus the source it is written back to — all three proportional
+    /// to the document, all three attributed to the request, and the first two
+    /// dropped before this returns. `rule:programs/memory-priority` is what
+    /// buys that: the rebuild is a tree operation because the alternative is a
+    /// pass over text, and a pass over text is what every sanitizer that has
+    /// been bypassed was.
+    fn nvs_core_html_sanitize(_ctx, args: [1]) {
+        let document = text(&args[0], r"`Core\Html::sanitize`'s `$document`")?;
+        let out = source(&rebuilt(&parse(document)));
+        Ok(crate::instance::build(
+            &MARKUP,
+            [Value::str(NvsStr::new(out.as_bytes()))],
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1059,13 +1564,21 @@ mod tests {
     /// `tainted` and not the other axis.
     ///
     /// The **and for no other** half is what makes this more than a row read
-    /// back. § 3's rule is that a launderer is narrow and sink-named, so the
-    /// claim under test is a *set*: exactly one member of the whole registry
-    /// is spelled for the HTML sink, and it is this one. A second `Core\Html`
-    /// row that also laundered — a `sanitize` written as a launderer, which is
-    /// what § 3 spends a paragraph refusing — fails here on the day it is
-    /// added, which is the day the decision to widen the sink's escape hatch
-    /// is actually being made.
+    /// back. § 3's rule is that a launderer is narrow and *sink-named*, so the
+    /// claim under test is a set: the members spelled for the HTML sink are
+    /// [`CLASS`]'s `escape` and `sanitize` and nothing else in the registry,
+    /// and a third row here fails this on the day it is added — which is the
+    /// day the decision to widen the sink's escape hatch is actually being
+    /// made.
+    ///
+    /// Two launderers on one class is not the catch-all § 3 refuses, and the
+    /// distinction is the one that section draws: what it forbids is a
+    /// `sanitize()` or `clean()` that names *no* sink, on the argument that a
+    /// value safe for HTML text is not safe for a shell argument. Both of
+    /// these name this sink, and they launder different things into it —
+    /// `escape` takes text that must arrive as text, `sanitize` takes markup
+    /// that must arrive as markup (`rule:core-classes/html-sanitize`). Neither
+    /// would do the other's job, which is what "narrow" means.
     #[test]
     fn html_escape_launders_for_the_html_sink_and_for_no_other() {
         let escape = CLASS
@@ -1100,9 +1613,9 @@ mod tests {
         );
 
         // The set claim. Every launderer in the registry names its own sink in
-        // its own doc comment; this asserts that exactly one of them is the
-        // HTML sink's, so `Core\Html` gaining a second one is a failure here
-        // rather than a quiet widening.
+        // its own doc comment; this asserts which of them are the HTML sink's,
+        // so a launderer appearing anywhere else for this sink — or a third one
+        // here — is a failure rather than a quiet widening.
         let html_launderers: Vec<&'static str> = CLASSES
             .iter()
             .filter(|class| class.name == r"Core\Html")
@@ -1117,8 +1630,8 @@ mod tests {
             .collect();
         assert_eq!(
             html_launderers,
-            vec!["escape"],
-            "`rule:security/launderers-are-sink-named`'s launderer for the HTML sink is one member and is named for it"
+            vec!["escape", "sanitize"],
+            "`rule:security/launderers-are-sink-named`'s launderers for the HTML sink are these two, and both are named for it"
         );
     }
 
@@ -1173,9 +1686,11 @@ mod tests {
     /// its sink launders on its own **and** its transform is not idempotent,
     /// and the plain unqualified type otherwise. So the roster below is the
     /// table in that section, transcribed, and the test asserts agreement in
-    /// both directions. `Core\Html::escape` is the only yes: the HTML sink
-    /// auto-escapes and `&` → `&amp;` → `&amp;amp;` changes under a second
-    /// application. `Core\Cli::escape` is the near miss the name-half of this
+    /// both directions. The HTML sink's two are the only yes, and for one
+    /// reason: that sink auto-escapes, and neither transform is idempotent —
+    /// `&` → `&amp;` → `&amp;amp;` for `escape`, and a rebuilt document
+    /// arriving as its own source text for `sanitize`. `Core\Cli::escape` is
+    /// the near miss the name-half of this
     /// test exists for — the terminal *also* launders on its own, and its
     /// escape is idempotent because the glyph it substitutes holds no `ESC`,
     /// so it keeps its `string` (`rule:tooling/terminal-output-is-a-sink`).
@@ -1211,6 +1726,7 @@ mod tests {
             (r"Core\Cli\Text::styled", true),
             (r"Core\Db::quoteIdentifier", false),
             (r"Core\Html::escape", true),
+            (r"Core\Html::sanitize", true),
             (r"Core\Http::allowUrl", false),
             (r"Core\IO::within", false),
             (r"Core\Regex::quote", false),
@@ -1467,6 +1983,296 @@ mod tests {
             1,
             "one WHATWG entry, not a parse plus a parseFragment or a \
              parseWithOptions — the second would be the mode under another name"
+        );
+    }
+
+    /// `rule:core-classes/html-sanitize`'s member as `rule:security/tainted-qualifier`
+    /// sees it: the qualifier comes off a `tainted` argument, and what it
+    /// answers is the sink's carrier rather than a `string`.
+    ///
+    /// *Beside* `escape` is the part worth asserting. § 3 admits a launderer
+    /// only when it is narrow and names its sink, so this row has to be the
+    /// same *shape* as the one that section works through — same qualifier on
+    /// the way in, same carrier on the way out — and differ only in what it
+    /// launders. A `sanitize` answering a plain `string` would be the shape
+    /// `rule:security/launderer-answers-a-carrier` refuses for this sink, and
+    /// its output would be escaped a second time on the way into a page.
+    ///
+    /// The last assertion is the one that fails at *run* time when it is
+    /// missed: a symbol with no [`address`] arm links and then panics naming
+    /// itself the first time a program calls the member.
+    #[test]
+    fn sanitize_is_an_adr_0024_launderer_beside_escape() {
+        let sanitize = CLASS
+            .members()
+            .find(|method| method.name == "sanitize")
+            .expect("`Core\\Html::sanitize` is registered");
+
+        assert!(
+            matches!(sanitize.params, [CoreTy::Text(Qual::Launder)]),
+            "`sanitize` takes one `Qual::Launder` text parameter, not {}",
+            sanitize.params.len()
+        );
+        assert!(
+            matches!(sanitize.return_ty, CoreTy::Instance(name) if name == MARKUP_NAME),
+            "`sanitize` answers the HTML sink's carrier — `rule:security/launderer-answers-a-carrier`"
+        );
+        assert!(
+            !sanitize
+                .params
+                .iter()
+                .any(|param| matches!(param, CoreTy::Text(Qual::Reveal))),
+            "rebuilding a document neutralizes injection, not confidentiality"
+        );
+        assert!(
+            sanitize.doc.is_some(),
+            "`rule:core-api/reference-card` gives every row a card"
+        );
+        assert!(
+            address(sanitize.symbol).is_some(),
+            "`{}` resolves, or the first call to the member panics naming it",
+            sanitize.symbol
+        );
+    }
+
+    /// `rule:core-classes/html-sanitize`'s *closed* half, which is a property
+    /// of the table and of the row together rather than of any one line.
+    ///
+    /// The row half is that nothing a caller writes can reach the policy: one
+    /// parameter, which is the document, and no default — so there is no
+    /// options bag, no flag and no list to pass. The table half is four
+    /// invariants, each of which a plausible-looking edit breaks silently.
+    /// Sorted is what makes [`allowed`]'s binary search total, and an
+    /// out-of-order name is not refused anywhere — it is simply never found.
+    /// Disjoint from [`RAW_TEXT`] is what keeps the serialiser's literal-text
+    /// branch unreachable from this member's own output, which is the mXSS
+    /// property one level down. The name test is the denylist that would
+    /// otherwise be a *policy*: an `on…` handler, a `style`, an `id` or a
+    /// `target` cannot be added to a row without failing here, so widening the
+    /// list stays a decision rather than a typo. And every URL attribute has to
+    /// appear in the table, or [`addressable`] is guarding a name nothing grants.
+    #[test]
+    fn the_allowlist_is_closed_and_is_not_configurable_by_a_caller() {
+        let sanitize = CLASS
+            .members()
+            .find(|method| method.name == "sanitize")
+            .expect("`Core\\Html::sanitize` is registered");
+        assert_eq!(
+            sanitize.names,
+            ["document"],
+            "the document, and nothing that describes what to do with it"
+        );
+        assert!(
+            sanitize.defaults.is_empty(),
+            "a default is a knob, and this member has none"
+        );
+
+        let sorted = ELEMENTS
+            .windows(2)
+            .filter(|pair| pair[0].0 < pair[1].0)
+            .count();
+        assert_eq!(
+            sorted,
+            ELEMENTS.len() - 1,
+            "the list is searched by bisection, so an unsorted name is one that is never found"
+        );
+
+        let overlapping: Vec<&str> = ELEMENTS
+            .iter()
+            .map(|(element, _)| *element)
+            .filter(|element| RAW_TEXT.contains(element) || *element == "template")
+            .collect();
+        assert!(
+            overlapping.is_empty(),
+            "an element whose content model is raw text is dropped, never kept: {overlapping:?}"
+        );
+
+        let named: Vec<&str> = ELEMENTS
+            .iter()
+            .flat_map(|(_, attributes)| attributes.iter().copied())
+            .chain(GLOBAL.iter().copied())
+            .filter(|attribute| {
+                attribute.starts_with("on")
+                    || matches!(*attribute, "style" | "id" | "class" | "target" | "srcdoc")
+            })
+            .collect();
+        assert!(
+            named.is_empty(),
+            "a handler, a second grammar, a clobbering surface or a window \
+             reference is not an attribute this list grants: {named:?}"
+        );
+
+        let guarded = URL
+            .iter()
+            .filter(|url| {
+                ELEMENTS
+                    .iter()
+                    .any(|(_, attributes)| attributes.contains(url))
+            })
+            .count();
+        assert_eq!(
+            guarded,
+            URL.len(),
+            "every attribute the scheme test guards is one some element may carry"
+        );
+    }
+
+    /// The acceptance property, and the reason
+    /// `rule:core-classes/html-sanitize` asks for a rebuild rather than a
+    /// filter: **mutation XSS**.
+    ///
+    /// Every payload below is a document whose *parse* differs from its
+    /// source — a sanitizer that reads text and deletes from it approves the
+    /// source, and the browser then builds elements the sanitizer never saw.
+    /// The corpus is the shapes that class comes in: raw-text elements whose
+    /// content reparses as markup (`listing`, `xmp`, `noscript`, `style`), the
+    /// foreign-content integration points where namespace switching does the
+    /// same, comments and CDATA that close early, and URL schemes that run.
+    ///
+    /// Two properties are asserted over the whole corpus by **counting**, so a
+    /// member that answers plausibly for nineteen payloads and mutates on the
+    /// twentieth fails here rather than reading correctly line by line.
+    /// *Closed* is that reparsing the answer yields nothing outside
+    /// [`ELEMENTS`] — the wrapper the algorithm puts round any fragment aside —
+    /// which is the property that makes the answer safe to write into a page.
+    /// *Fixed point* is that sanitizing the answer again changes nothing, which
+    /// is the property that says the first answer is what a browser will
+    /// actually build: if the two ever differ, the document the sanitizer
+    /// approved is not the document that renders.
+    #[test]
+    fn parse_sanitize_serialise_reparse_reaches_a_fixed_point_over_the_mxss_corpus() {
+        const CORPUS: &[&str] = &[
+            "<listing>&lt;img src=x onerror=alert(1)&gt;</listing>",
+            "<xmp><p>&lt;/xmp&gt;&lt;img src=x onerror=alert(1)&gt;</p></xmp>",
+            "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+            "<style><img src=x onerror=alert(1)></style>",
+            "<svg></p><style><a id=\"</style><img src=x onerror=alert(1)>\">",
+            "<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>",
+            "<form><math><mtext></form><form><mglyph><style></math><img src onerror=alert(1)>",
+            "<!--><img src=x onerror=alert(1)>-->",
+            "<![CDATA[<img src=x onerror=alert(1)>]]>",
+            "<a href=\"javascript&colon;alert(1)\">x</a>",
+            "<a href=\"java\tscript:alert(1)\">x</a>",
+            "<a href=\"  JaVaScRiPt:alert(1)\">x</a>",
+            "<img src=\"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\">",
+            "<p title=\"&quot;><img src=x onerror=alert(1)>\">t</p>",
+            "<div><p>&lt;/div&gt;&lt;script&gt;alert(1)&lt;/script&gt;</p></div>",
+            "<template><script>alert(1)</script></template>",
+            "<iframe srcdoc=\"&lt;script&gt;alert(1)&lt;/script&gt;\"></iframe>",
+            "<table><td background=\"javascript:alert(1)\">x",
+            "<b><noembed></b><img src=x onerror=alert(1)></noembed>",
+            "<p>a\u{a0}b &amp;lt;img src=x onerror=alert(1)&amp;gt;</p>",
+            "<pre>\n\nkept</pre>",
+            "<textarea><p>&lt;/textarea&gt;&lt;img src=x onerror=alert(1)&gt;</p>",
+        ];
+
+        // The wrapper `Core\Html::parse` puts round any fragment at all, which
+        // is in the reparse of every answer including the empty one and is not
+        // in the answer itself.
+        const WRAPPER: &[&str] = &["html", "head", "body"];
+
+        let cleaned = |document: &str| source(&rebuilt(&parse(document)));
+
+        // What failed rather than what printed: a crate the language server
+        // links may write to neither stream, so the detail a counting test owes
+        // its reader rides on the assertion itself
+        // (`rule:ide/stdout-belongs-to-the-protocol`).
+        let mut mutating = Vec::new();
+        let mut escaping = Vec::new();
+        let mut closed = 0;
+        let mut fixed = 0;
+        for payload in CORPUS {
+            let once = cleaned(payload);
+            let twice = cleaned(&once);
+            if once == twice {
+                fixed += 1;
+            } else {
+                mutating.push(format!("{payload:?}: {once:?} then {twice:?}"));
+            }
+
+            let reparsed = parse(&once);
+            let mut escapes = vec![&reparsed];
+            let mut stray = Vec::new();
+            while let Some(node) = escapes.pop() {
+                if node.kind == Kind::Element && !WRAPPER.contains(&node.name.as_str()) {
+                    match allowed(&node.name) {
+                        Some(attributes) => stray.extend(
+                            node.attributes
+                                .iter()
+                                .map(|(name, _)| name.clone())
+                                .filter(|name| {
+                                    !GLOBAL.contains(&name.as_str())
+                                        && !attributes.contains(&name.as_str())
+                                }),
+                        ),
+                        None => stray.push(node.name.clone()),
+                    }
+                }
+                escapes.extend(node.children.iter());
+            }
+            if stray.is_empty() {
+                closed += 1;
+            } else {
+                escaping.push(format!("{payload:?} -> {stray:?} in {once:?}"));
+            }
+        }
+
+        assert_eq!(
+            fixed,
+            CORPUS.len(),
+            "sanitizing an answer again must change nothing, or the document \
+             approved is not the document that renders: {mutating:?}"
+        );
+        assert_eq!(
+            closed,
+            CORPUS.len(),
+            "the reparse of an answer holds nothing outside the allowlist: {escaping:?}"
+        );
+    }
+
+    /// `rule:core-classes/html-sanitize`'s *rebuild, never filter* half, in the
+    /// one behaviour that tells the two designs apart from outside.
+    ///
+    /// A filter that escapes what it does not like leaves the source in the
+    /// page as visible text: `<script>alert(1)</script>` becomes
+    /// `&lt;script&gt;…`, which a reader sees. A rebuild has nowhere to put it —
+    /// the element simply has no place in the grammar, so it contributes no
+    /// tag at all. The two halves below are the two answers that are *not* the
+    /// same: a raw-text element goes with its content, because its character
+    /// data was never text, and every other unlisted element is unwrapped,
+    /// because `html`, `head` and `body` are elements the algorithm inserts
+    /// round any fragment and dropping their content would drop every document.
+    #[test]
+    fn an_element_outside_the_allowlist_is_dropped_rather_than_escaped_in_place() {
+        const CASES: &[(&str, &str)] = &[
+            ("<script>alert(1)</script>", ""),
+            ("<p>a<script>alert(1)</script>b</p>", "<p>ab</p>"),
+            ("<style>p{color:red}</style><p>t</p>", "<p>t</p>"),
+            ("<marquee>hello</marquee>", "hello"),
+            ("<p onclick=\"boom()\">hi</p>", "<p>hi</p>"),
+            ("<a href=\"javascript:alert(1)\">x</a>", "<a>x</a>"),
+            ("<a href=\"/page\">x</a>", "<a href=\"/page\">x</a>"),
+            ("<img src=x onerror=alert(1)>", "<img src=\"x\">"),
+            ("<!-- <b>c</b> --><p>t</p>", "<p>t</p>"),
+        ];
+
+        for (document, want) in CASES {
+            assert_eq!(
+                &source(&rebuilt(&parse(document))),
+                want,
+                "sanitizing {document:?}"
+            );
+        }
+
+        let escaped: Vec<&str> = CASES
+            .iter()
+            .filter(|(_, want)| want.contains("&lt;") || want.contains("&gt;"))
+            .map(|(document, _)| *document)
+            .collect();
+        assert!(
+            escaped.is_empty(),
+            "an element with no place in the grammar leaves no tag, escaped or \
+             otherwise: {escaped:?}"
         );
     }
 }
