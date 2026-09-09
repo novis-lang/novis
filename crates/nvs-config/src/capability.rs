@@ -272,6 +272,21 @@ impl Cap {
         }
     }
 
+    /// The `[capabilities.<family>]` table a grant for it is written under, without the brackets —
+    /// `fs` for `fs.read`, which a refusal points the operator at.
+    ///
+    /// It is the family half of [`name`](Self::name) rather than a table of its own, because a
+    /// dotted capability name *is* that nesting
+    /// (`rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`): `fs.read = [...]`
+    /// under `[capabilities]` and a `read` key under `[capabilities.fs]` are the same input. A
+    /// second list here would be one more thing to keep in step with the one above it, and would
+    /// buy nothing the split does not.
+    #[must_use]
+    pub fn family(self) -> &'static str {
+        let name = self.name();
+        name.split_once('.').map_or(name, |(family, _)| family)
+    }
+
     /// The capability that [`name`](Self::name) spells, or `None` for a name no capability has.
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {

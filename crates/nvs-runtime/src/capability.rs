@@ -52,7 +52,8 @@ use crate::{Fault, ThrownClass};
 /// # Errors
 ///
 /// [`Fault::thrown`] — a `RuntimeError`, catchable, naming the capability in the spelling `nvs.toml`
-/// grants it under and, for a scoped check, the argument that fell outside the grant. It is never a
+/// grants it under and, for a scoped check, the argument that fell outside the grant, over a second
+/// line naming the file and the table that grant is written in ([`denial`]). It is never a
 /// `FATAL`: a denial is known before any work is done and leaves nothing behind, so a program that
 /// degrades when a capability is missing is a reasonable program (`rule:security/denial-is-a-runtime-error`).
 pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<(), Fault> {
@@ -103,9 +104,20 @@ pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
 
 /// § 5's message. The capability's name comes first after the member because the reader is usually
 /// the operator, and that string is what they are about to paste into a configuration file.
+///
+/// **The second line says where to paste it**: `nvs.toml`, and the table the grant is written in,
+/// which is [`Cap::family`] because a dotted capability name and a `[capabilities.<family>]` block
+/// are the same TOML input. A refusal is the documentation its reader is already looking at, and
+/// naming the file is what turns "which is not granted" into an instruction.
+///
+/// It rides on the message rather than on the record an uncaught throw renders, which is what
+/// `rule:security/denial-is-a-runtime-error` costs: a denial is catchable, so most of them are read
+/// by a program rather than by the floor, and a help line the floor owned would be absent from
+/// exactly the path — `catch`, then log `$e->message` — that an operator debugs from. The price is
+/// that a program comparing `$e->message` against a literal compares two lines.
 fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
     let name = cap.name();
-    match scope {
+    let subject = match scope {
         Scope::Unscoped => format!("{member} needs the capability `{name}`, which is not granted"),
         Scope::Path(path) => format!(
             "{member} needs the capability `{name}` for {}, which is not granted",
@@ -117,7 +129,9 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
         Scope::Endpoint(endpoint) => {
             format!("{member} needs the capability `{name}` for {endpoint}, which is not granted")
         }
-    }
+    };
+    let family = cap.family();
+    format!("{subject}\nhelp: grant it in nvs.toml under `[capabilities.{family}]`")
 }
 
 /// `rule:http-server/allow-url-pins-the-address`'s outbound door: the one address
@@ -1082,6 +1096,113 @@ mod tests {
                 && message.contains("convert"),
             "the denial names the capability, who wanted it and what for: {message}"
         );
+    }
+
+    /// The refusal's second line, which is the only part of it an operator can act on: the file a
+    /// grant is written in, and the table inside it. Four capabilities by hand for the exact
+    /// sentence, then every one of them, so that a capability added to a family with no
+    /// `[capabilities.<family>]` block of its own fails here rather than pointing a reader at a
+    /// table that does not exist.
+    #[test]
+    fn an_ungranted_call_names_the_config_file_and_the_capability_table() {
+        let ctx = Ctx::buffered();
+        for (cap, table) in [
+            (Cap::FsRead, "[capabilities.fs]"),
+            (Cap::ScriptSpawn, "[capabilities.script]"),
+            (Cap::DbOpen, "[capabilities.db]"),
+            (Cap::CacheShared, "[capabilities.cache]"),
+        ] {
+            let denied = require(&ctx, cap, Scope::Unscoped, MEMBER)
+                .expect_err("a context with no configuration grants nothing");
+            let Fault::Thrown(class, message) = denied else {
+                panic!(
+                    "a denial is a throw and never a fatal — `rule:security/denial-is-a-runtime-error`"
+                );
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            let want = format!("help: grant it in nvs.toml under `{table}`");
+            assert_eq!(
+                message.lines().nth(1),
+                Some(want.as_str()),
+                "the line under the refusal says where the grant goes: {message}"
+            );
+        }
+
+        for cap in Cap::ALL.iter().copied() {
+            let denied = require(&ctx, cap, Scope::Unscoped, MEMBER)
+                .expect_err("a context with no configuration grants nothing");
+            let Fault::Thrown(_, message) = denied else {
+                panic!("every door's denial is the same throw")
+            };
+            let help = message
+                .lines()
+                .nth(1)
+                .expect("every denial carries the help line, whatever the capability");
+            let named = help
+                .strip_prefix("help: grant it in nvs.toml under `[capabilities.")
+                .and_then(|rest| rest.strip_suffix("]`"))
+                .unwrap_or_else(|| panic!("one wording for every capability: {help}"));
+            assert_eq!(
+                named,
+                cap.family(),
+                "the table is the capability's own family half: {}",
+                cap.name()
+            );
+        }
+    }
+
+    /// The line above it does not move. Every scope's wording, character for character, because the
+    /// conformance corpus compares this sentence against a literal a program built — so a refusal
+    /// that gained a line is what this change is, and a refusal that gained a word is a break.
+    #[test]
+    fn the_denials_own_subject_and_wording_are_unchanged() {
+        let ctx = Ctx::buffered();
+        let endpoint: std::net::SocketAddr = "127.0.0.1:8080"
+            .parse()
+            .expect("a literal endpoint, not a name to resolve");
+        for (cap, scope, want) in [
+            (
+                Cap::ProcessExec,
+                Scope::Unscoped,
+                "Core\\Process::run needs the capability `process.exec`, which is not granted",
+            ),
+            (
+                Cap::FsRead,
+                Scope::Path(Path::new("./data/note.txt")),
+                "Core\\Process::run needs the capability `fs.read` for ./data/note.txt, which is not granted",
+            ),
+            (
+                Cap::NetConnect,
+                Scope::Host("example.com"),
+                "Core\\Process::run needs the capability `net.connect` for example.com, which is not granted",
+            ),
+            (
+                Cap::DbConnect,
+                Scope::Name("main"),
+                "Core\\Process::run needs the capability `db.connect` for main, which is not granted",
+            ),
+            (
+                Cap::NetListen,
+                Scope::Endpoint(endpoint),
+                "Core\\Process::run needs the capability `net.listen` for 127.0.0.1:8080, which is not granted",
+            ),
+        ] {
+            let denied = require(&ctx, cap, scope, MEMBER)
+                .expect_err("a context with no configuration grants nothing");
+            let Fault::Thrown(_, message) = denied else {
+                panic!("every door's denial is the same throw")
+            };
+            assert_eq!(
+                message.lines().next(),
+                Some(want),
+                "the subject is untouched: {message}"
+            );
+            assert_eq!(
+                message.lines().count(),
+                2,
+                "a refusal is its sentence and one line under it: {message}"
+            );
+        }
     }
 
     /// `rule:core-classes/process-refuses-a-shell-target`, on a context that grants everything: the refusal is about the kind of target,
