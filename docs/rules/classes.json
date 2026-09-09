@@ -522,6 +522,15 @@
       ]
     },
     {
+      "id": "classes/an-encoder-ends-a-cycle-by-identity",
+      "title": "Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap",
+      "status": "designed",
+      "because": ["0164"],
+      "divergesFromPhp": "`json_encode` reports a recursive reference by returning `false` and setting `JSON_ERROR_RECURSION`, and names no path; here the encoder throws and the message carries the property chain that closed the cycle",
+      "seeAlso": ["classes/graph-copy", "classes/serialize-is-a-closed-format", "errors/record-transformations"],
+      "guardedBy": []
+    },
+    {
       "id": "classes/no-class-alias",
       "title": "A class is reachable under its declared name and nowhere else",
       "status": "shipped",
