@@ -370,6 +370,7 @@ try {
 ```
 ```output
 `spawn script` needs the capability `script.spawn` for child.nvs, which is not granted
+help: grant it in nvs.toml under `[capabilities.script]`
 ```
 
 # What does not exist

@@ -438,7 +438,8 @@ a channel built with capacity `0`. Neither reaches a `catch`.
 
 Reading a file, writing one, or spawning a script needs a capability granted in `nvs.toml`. A call
 without the grant throws a `RuntimeError` whose message names the member, the capability and the
-path — it is an ordinary throw, so the program can catch it and continue. With no `nvs.toml` at all,
+path, over a `help:` line naming `nvs.toml` and the table a grant for that capability is written in
+— it is an ordinary throw, so the program can catch it and continue. With no `nvs.toml` at all,
 nothing is granted.
 
 ```nvs
@@ -452,6 +453,7 @@ echo "still running\n";
 ```
 ```output
 denied: Core\IO::read needs the capability `fs.read` for data.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 still running
 ```
 
@@ -479,6 +481,7 @@ try {
 ```output
 hello from disk
 denied: Core\IO::write needs the capability `fs.write` for out.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 ```
 
 `spawn script` needs `script.spawn` the same way; the [concurrency](#lang-concurrency) chapter

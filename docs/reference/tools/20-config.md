@@ -236,7 +236,9 @@ try {
 ```output
 hello from data
 Core\IO::write needs the capability `fs.write` for data/out.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 Core\IO::read needs the capability `fs.read` for main.nvs, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
 ```
 
 # Network grants: the addresses and endpoints they reach
