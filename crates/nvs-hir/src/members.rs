@@ -1262,13 +1262,15 @@ fn check_member_ref(
     if member_declared(&qname, name, kind, env.table, env.graph) {
         return;
     }
-    env.diags.report(
-        Diagnostic::error(
-            code::E_UNDEFINED_MEMBER,
-            format!("`{qname}` has no {} named `{name}`", kind.describe()),
-        )
-        .with_primary(class_expr.span, "referenced here"),
-    );
+    let mut diag = Diagnostic::error(
+        code::E_UNDEFINED_MEMBER,
+        format!("`{qname}` has no {} named `{name}`", kind.describe()),
+    )
+    .with_primary(class_expr.span, "referenced here");
+    if let Some(nearest) = nearest_member(&qname, name, kind, env.table, env.graph) {
+        diag = diag.with_help(format!("did you mean `{nearest}`?"));
+    }
+    env.diags.report(diag);
 }
 
 /// Checks `$this->name` against the enclosing class and its
@@ -1339,6 +1341,101 @@ fn member_declared_rec(
         .any(|parent| member_declared_rec(parent, name, kind, table, graph, seen))
 }
 
+/// The member `name` was probably meant to be, or `None` when nothing
+/// declared is close enough to be worth naming.
+///
+/// The candidates are exactly the names a reference on this class side could
+/// have resolved to: the same kind of member, on `qname` or on an ancestor
+/// [`member_declared`] would have reached. A member of an unrelated class is
+/// never among them, because a suggestion the reader cannot write costs more
+/// than the reference already did. Distance is Levenshtein distance in
+/// characters, and ties go to the alphabetically first name so the same
+/// source always produces the same help line.
+fn nearest_member(
+    qname: &QName,
+    name: &str,
+    kind: MemberKind,
+    table: &MemberTable,
+    graph: &ClassGraph,
+) -> Option<String> {
+    let mut candidates = Vec::new();
+    let mut seen = FxHashSet::default();
+    collect_candidates(qname, kind, table, graph, &mut seen, &mut candidates);
+    let budget = suggestion_budget(name);
+    candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            let distance = edit_distance(name, &candidate);
+            (distance <= budget).then_some((distance, candidate))
+        })
+        .min()
+        .map(|(_, candidate)| candidate)
+}
+
+/// How many edits a suggestion may sit from what was written: one for a short
+/// name, two once the name is long enough for a transposition to cost that
+/// much, and never more. A name of one character gets no budget at all, since
+/// no edit of it is a typo rather than a different name.
+///
+/// Two is the ceiling because a third edit is where a prefix stops being a
+/// slip and starts being a word: `disconnect` is three edits from `connect`,
+/// and an agent that is handed `connect` will write it. A suggestion this
+/// diagnostic declines to make costs one more read of the class; a wrong one
+/// it makes confidently costs the compile that follows.
+fn suggestion_budget(name: &str) -> usize {
+    let len = name.chars().count();
+    (len / 3).clamp(1, 2).min(len.saturating_sub(1))
+}
+
+/// Every `kind` member declared on `qname` or reached from it through
+/// `extends`/`implements`, walked the way [`member_declared_rec`] walks it and
+/// guarded against a cycle the same way.
+fn collect_candidates(
+    qname: &QName,
+    kind: MemberKind,
+    table: &MemberTable,
+    graph: &ClassGraph,
+    seen: &mut FxHashSet<QName>,
+    out: &mut Vec<String>,
+) {
+    if !seen.insert(qname.clone()) {
+        return;
+    }
+    if let Some(members) = table.get(qname) {
+        let names = match kind {
+            MemberKind::Method => &members.methods,
+            MemberKind::Const => &members.consts,
+            MemberKind::StaticProp => &members.static_props,
+            MemberKind::Prop => &members.props,
+        };
+        out.extend(names.iter().cloned());
+    }
+    let Some(links) = graph.get(qname) else {
+        return;
+    };
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        collect_candidates(parent, kind, table, graph, seen, out);
+    }
+}
+
+/// Levenshtein distance in characters, two rows wide: the number of single
+/// character insertions, deletions and substitutions that turn `a` into `b`.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut row = vec![0; b.len() + 1];
+    for (i, from) in a.chars().enumerate() {
+        row[0] = i + 1;
+        for (j, &to) in b.iter().enumerate() {
+            row[j + 1] = (prev[j] + usize::from(from != to))
+                .min(prev[j + 1] + 1)
+                .min(row[j] + 1);
+        }
+        std::mem::swap(&mut prev, &mut row);
+    }
+    prev[b.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_diagnostics::SourceMap;
@@ -1381,6 +1478,56 @@ mod tests {
             diags
                 .iter()
                 .any(|d| d.code == Some(code::E_UNDEFINED_MEMBER))
+        );
+    }
+
+    /// Every `E_UNDEFINED_MEMBER` a fixture reported. A reference reached from
+    /// two walks is reported once per walk, so a suggestion is asserted over
+    /// the whole set rather than off one item.
+    fn undefined_member(diags: &Diagnostics) -> Vec<&Diagnostic> {
+        let reported: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_UNDEFINED_MEMBER))
+            .collect();
+        assert!(!reported.is_empty(), "{diags:?}");
+        reported
+    }
+
+    #[test]
+    fn an_unknown_member_one_edit_from_a_registered_one_suggests_it() {
+        let diags = check(
+            "<?nvs\nclass Foo { function a(): void { self::grett(); } function greet(): void {} }\n",
+        );
+        assert!(
+            undefined_member(&diags).iter().all(|d| d
+                .notes
+                .iter()
+                .any(|note| note == "help: did you mean `greet`?")),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_member_far_from_every_registered_one_suggests_nothing() {
+        let diags = check(
+            "<?nvs\nclass Foo { function a(): void { self::disconnect(); } function greet(): void {} }\n",
+        );
+        assert!(
+            undefined_member(&diags).iter().all(|d| d.notes.is_empty()),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_suggestion_never_names_a_member_of_a_different_class() {
+        let diags = check(
+            "<?nvs\n\
+             class Other { function greet(): void {} }\n\
+             class Foo { function a(): void { self::grett(); } }\n",
+        );
+        assert!(
+            undefined_member(&diags).iter().all(|d| d.notes.is_empty()),
+            "{diags:?}"
         );
     }
 

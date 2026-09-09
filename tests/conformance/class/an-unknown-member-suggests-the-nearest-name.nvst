@@ -1,0 +1,49 @@
+--TEST--
+An unknown member names the nearest member its own class side declares, and names nothing when the nearest one is a different word — `rule:tooling/an-agent-asks-the-binary`
+--FILE--
+<?nvs
+// A diagnostic is the documentation an agent reads after it guesses a name
+// wrong, so this one carries the name it should have written. The candidates
+// are what the reference could have resolved to — the same kind of member, on
+// this class or on an ancestor — never a member of an unrelated class, which
+// is why `refrsh` gets nothing while `Cache` declares `refresh`. And nothing
+// past two edits: `disconnect` is three from `connect`, which is a different
+// method rather than a slip, and an agent handed a confident wrong name will
+// write it.
+class Session {
+    public function connect(): void {}
+}
+class Cache {
+    public function refresh(): void {}
+}
+class Client extends Session {
+    public function go(): void {
+        self::conect();
+        self::disconnect();
+        self::refrsh();
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0309]: `Client` has no method named `conect`
+   --> case.nvs:18:9
+   |
+18 |         self::conect();
+   |         ^^^^ referenced here
+   = help: did you mean `connect`?
+
+error[E0309]: `Client` has no method named `disconnect`
+   --> case.nvs:19:9
+   |
+19 |         self::disconnect();
+   |         ^^^^ referenced here
+
+error[E0309]: `Client` has no method named `refrsh`
+   --> case.nvs:20:9
+   |
+20 |         self::refrsh();
+   |         ^^^^ referenced here
+
+error: aborting due to 3 errors
