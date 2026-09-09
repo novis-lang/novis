@@ -6801,6 +6801,230 @@ mod tests {
         idle_worker.join().expect("the idle core panicked");
     }
 
+    /// One core that registers with the fleet's watchdog and then keeps
+    /// serving: the control the case needs, because "the report named the
+    /// wedged core" says nothing unless a second core was watched under the
+    /// same watchdog and went unreported.
+    ///
+    /// It registers itself, from its own thread and right after installing its
+    /// reactor, which is where a `DeadlineView` comes from and what
+    /// `nvs-cli`'s `serve_on_worker` does at the same point.
+    fn one_watched_core(
+        watchdog: Arc<nvs_host::Watchdog>,
+        cpu: nvs_host::CpuId,
+        listener: std::net::TcpListener,
+        connections: usize,
+    ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+        move |sched| {
+            let mut listener =
+                NvsListener::from_std(listener).expect("the OS refused a non-blocking listener");
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let _watched = watchdog.register(
+                cpu,
+                nvs_host::reactor::with_current(|reactor| reactor.deadline_view())
+                    .expect("the reactor was installed on the line above"),
+            );
+            let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let (inbound, supply) = carrying(request);
+                let program: Program = Box::new(|run: &mut Ctx, _args| {
+                    run.write_output(b"served").expect("a buffer");
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                )
+            });
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                let left = Cell::new(connections);
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &wide_open(),
+                    &Draining::detached(),
+                    |_note| {},
+                    || {
+                        left.set(left.get() - 1);
+                        if left.get() == 0 {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    },
+                )
+                .expect("the accept loop failed");
+            });
+            run_the_core(sched);
+        }
+    }
+
+    /// One core that arms a deadline and then stops turning, which is the fault
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` exists for
+    /// and the one no other bound in this file answers.
+    ///
+    /// The wedge is a blocking read on its task's own stack: a coroutine that
+    /// does not yield is a thread that does not poll, so the deadline it filed
+    /// one line earlier stays published and no later turn takes it back. That
+    /// is a state rather than a race — the core is held there until the test
+    /// drops the other end.
+    fn one_wedged_core(
+        watchdog: Arc<nvs_host::Watchdog>,
+        cpu: nvs_host::CpuId,
+        wedged: std::sync::mpsc::Sender<()>,
+        released: std::sync::mpsc::Receiver<()>,
+    ) -> impl FnOnce(&mut nvs_host::Scheduler) + Send + 'static {
+        move |sched| {
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let _watched = watchdog.register(
+                cpu,
+                nvs_host::reactor::with_current(|reactor| reactor.deadline_view())
+                    .expect("the reactor was installed on the line above"),
+            );
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+                let id = nvs_host::current_task().expect("a task always runs on a core");
+                nvs_host::reactor::with_current(|reactor| {
+                    reactor.timers().arm(id, Instant::now());
+                })
+                .expect("the reactor was installed above");
+                let _ = wedged.send(());
+                let _ = released.recv();
+            });
+            run_the_core(sched);
+        }
+    }
+
+    /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s detector
+    /// is **one watchdog for the process with one entry per running core**, so
+    /// what it reports is a core rather than the fleet.
+    ///
+    /// Both halves are asserted against two workers registered with the same
+    /// watchdog. One arms a deadline and stops turning; the report names that
+    /// core's CPU and no second report arrives for the neighbour, which is
+    /// answering its deadlines and is watched by the same thread. The
+    /// neighbour keeps serving throughout — before the report and after it —
+    /// which is the other half: `rule:http-server/a-wedged-core-is-shed-never-killed`
+    /// bounds firing to a record, so a stall must cost the fleet a core and
+    /// never the process.
+    #[test]
+    fn the_watchdog_fires_per_worker_and_a_stalled_core_does_not_stall_the_fleet() {
+        /// Short enough that this case is not a wait, and still far longer than
+        /// the gap between two of a turning core's polls.
+        const MARGIN: Duration = Duration::from_millis(150);
+        /// Read every core this often, which sets the detection latency and
+        /// nothing else.
+        const SWEEP: Duration = Duration::from_millis(10);
+
+        /// One request on its own connection, answered in full.
+        fn ask(addr: std::net::SocketAddr, path: &str) -> String {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(
+                    format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                        .as_bytes(),
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        }
+
+        let cpus = nvs_host::cpus();
+        let (Some(serving_cpu), Some(wedged_cpu)) = (cpus.first().copied(), cpus.get(1).copied())
+        else {
+            // A report carries the CPU its core was pinned to and no other
+            // name, so on a host with fewer than two both workers would
+            // register under one and "which core was reported" is not a
+            // question this fixture could ask.
+            return;
+        };
+
+        let (reported, stalls) = std::sync::mpsc::channel();
+        // A sink of its own rather than `Watchdog::new`'s floor, because what
+        // is under test is which core is reported and how long it took, and
+        // both of those are the record's fields rather than its wording.
+        let watchdog = Arc::new(nvs_host::Watchdog::with(MARGIN, SWEEP, move |stall| {
+            let _ = reported.send(*stall);
+        }));
+
+        let socket = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = socket
+            .local_addr()
+            .expect("a bound listener had no address");
+        let (wedged, is_wedged) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+
+        let serving_worker = nvs_host::Worker::spawn(
+            serving_cpu,
+            one_watched_core(Arc::clone(&watchdog), serving_cpu, socket, 2),
+        )
+        .expect("the OS refused a worker thread");
+        let wedged_worker = nvs_host::Worker::spawn(
+            wedged_cpu,
+            one_wedged_core(Arc::clone(&watchdog), wedged_cpu, wedged, released),
+        )
+        .expect("the OS refused a worker thread");
+
+        is_wedged
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("the second core never reached the deadline it was to stop turning on");
+        let answer = ask(addr, "/while-wedged");
+        assert!(
+            answer.starts_with("HTTP/1.1 200 OK\r\n"),
+            "a core that was not the wedged one stopped answering, so a stall costs the fleet \
+             rather than a core: {answer}"
+        );
+        assert_eq!(
+            watchdog.watching(),
+            2,
+            "the fleet is not watched one entry per running core"
+        );
+
+        let stall = stalls
+            .recv_timeout(CLIENT_PATIENCE)
+            .expect("a core that had stopped turning was never reported");
+        assert_eq!(
+            stall.cpu.raw(),
+            wedged_cpu.raw(),
+            "the report named a core that was answering its deadlines"
+        );
+        assert!(
+            stall.overdue_by >= MARGIN,
+            "a core was reported before it was overdue by the margin: {:?}",
+            stall.overdue_by
+        );
+        assert!(
+            matches!(
+                stalls.recv_timeout(MARGIN * 3),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ),
+            "a second report arrived: either the turning core was reported as wedged, or one \
+             episode was reported once per sweep"
+        );
+
+        let after = ask(addr, "/after-the-report");
+        assert!(
+            after.starts_with("HTTP/1.1 200 OK\r\n"),
+            "firing did more than report: the neighbouring core stopped serving too: {after}"
+        );
+
+        // The wedge is held until here on purpose: every assertion above is
+        // made while the core really is stuck, and dropping the sender is what
+        // lets its turn end.
+        drop(release);
+        wedged_worker.join().expect("the wedged core panicked");
+        serving_worker.join().expect("the serving core panicked");
+    }
+
     /// The condition, spelled the way the OS spells it on this platform.
     fn exhausted() -> io::Error {
         io::Error::from_raw_os_error(EXHAUSTED[0])

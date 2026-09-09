@@ -2,44 +2,52 @@
 
 ## State
 
-**Goal 23 — stage 4's first two checks are green.** `the_state_bleed_suite_passes_across_a_core_boundary`
-and `the_in_flight_ceiling_is_fleet_wide_so_a_hot_core_cannot_refuse_while_neighbours_idle` are on disk
-beside the stage 3 drain checks, and stages 1–3 stay green. The watchdog is the only stage 4 item left.
+**Goal 23 — stage 4 is closed.** All three tests the `4 isolation` check names pass, and stages 1–3 stay
+green. Stage 5 is next and neither of its two tests exists yet under the name the check gives it.
 
-The bleed suite is one suite with three arms: the rows are untouched and `nothing_bled`
-(`crates/nvs-server/src/serve.rs:4695`) is the assertion every arm is held to. The core arm **joins the
-planting worker** before the probing request is written, so the first run has ended by construction
-rather than by timing, and the two workers take two listeners rather than one for the tally fixture's
-reason — which core the OS hands a connection to is the OS's choice.
+`nvs serve` now watches its fleet: the process holds one `nvs_host::Watchdog` in the fan-out frame
+(`crates/nvs-cli/src/serve.rs:383`), each `Core` carries the CPU it will be pinned to and a clone of it,
+and a worker registers itself from its own thread on the line after it installs its reactor — which is
+where a `DeadlineView` comes from. The handle deregisters on drop, so the watched set is the cores
+running rather than the cores started. The no-CPU fallback path is unwatched by construction: a `CpuId`
+only ever comes from `nvs_host::cpus()`, so an unpinned thread has no name a report could carry.
 
-A place in the in-flight count is held by a body three bytes short, which parks the run in
-`crate::body::Pull` with the place still taken. That is what lets one core hold **both** places of a
-fleet ceiling of two while its neighbour, having served nothing, answers `503`.
-
-**Nothing registers `nvs_host::Watchdog` anywhere yet** — not `crates/nvs-server/` and not
-`crates/nvs-cli/src/serve.rs` — so the last item is code plus a test, and the two live in different
-crates: the check is filed `-p nvs-server` while the registration belongs where a worker is built.
+**The registration call site itself is held by compilation alone.** The acceptance check is filed
+`-p nvs-server`, and that crate cannot reach `nvs serve`; the fixture registers its own two cores, so
+what the test holds is the mechanism — one entry per running core, a report that names the wedged core
+and not its turning neighbour, and a fleet that keeps serving through both.
 
 ## Next group
 
-**Stage 4: nothing leaks across a core** — one file set: `crates/nvs-cli/src/serve.rs` with
-`crates/nvs-host/src/watchdog.rs`, and `crates/nvs-server/src/serve.rs` for the test, which is where
-the two-worker fixtures already are.
+**Stage 5: the number** — one file set: `crates/nvs-cli/src/serve.rs` with `crates/nvs-cli/src/script.rs`,
+which are the two files the `5 measured` check's tests are filed against.
 
-- [ ] **Register one watchdog per worker**, where the worker is built —
-      `crates/nvs-cli/src/serve.rs:454` (`serve_on_worker`) — through
-      `crates/nvs-host/src/watchdog.rs:243`'s `register(cpu, view)`, over the deadline each accept loop
-      already keeps. `rule:http-server/a-wedged-core-is-detected-by-its-deadline` is the specification
-      and `rule:http-server/a-wedged-core-is-shed-never-killed` bounds what firing may do.
-- [ ] **`the_watchdog_fires_per_worker_and_a_stalled_core_does_not_stall_the_fleet`** — the check is
-      `-p nvs-server`, so the test goes in `crates/nvs-server/src/serve.rs` beside `one_admitting_core`
-      (`crates/nvs-server/src/serve.rs:6612`), which is the two-worker fixture to copy: one core's
-      registration fires on its deadline while the neighbour keeps answering.
-      `rule:http-server/a-wedged-core-is-detected-by-its-deadline` is what a firing means.
+- [ ] **`ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once`** —
+      `crates/nvs-cli/src/script.rs:790` already holds
+      `ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`, which is one scheduler on
+      one core; the acceptance name is the fleet's version of it, so the slice is the same assertion
+      made across workers sharing one `Arc<Compiler>`. `rule:security/isolate-shares-nothing`'s "shares
+      immutable compiled code" is the specification, and the goal's § *Standing decisions* settles that
+      the cache is shared rather than per-core.
+- [ ] **`serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names`** — new, beside
+      the fan-out tests at `crates/nvs-cli/src/serve.rs:1285`
+      (`one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle` is the fixture shape).
+      `rule:http-server/the-accept-fan-out-is-one-worker-per-core` is what it measures; the margin is
+      the test's own to name, and a host with fewer than four CPUs is the early return the neighbouring
+      fleet tests already take.
+
+**The pack has no `[context.stage.5]`.** `docs/agent/loop-goal.toml` defines overlays for stages 2, 3 and
+4 only, so a group naming stage 5 gets the goal's base manifest — wider, not broken. Add one naming
+`crates/nvs-cli/src/script.rs` when the group above is taken.
 
 ## Backlog
 
 - Stage 5 and after are `docs/agent/goals/chain.toml`'s order, not this file's.
-- `one_bleeding_core` and `one_admitting_core` (`crates/nvs-server/src/serve.rs:4495`, `:6612`) are the
-  same worker skeleton twice; a third would be the point to extract one helper.
+- The third copy of the worker skeleton now exists — `one_bleeding_core`, `one_admitting_core` and
+  `one_watched_core` (`crates/nvs-server/src/serve.rs:4495`, `:6612`, `:6812`) — so the extraction that
+  backlog item was waiting for is due.
+- `rule:http-server/a-wedged-core-is-shed-never-killed` stays `designed`: nothing subscribes to a stall
+  report, and `crates/nvs-host/src/watchdog.rs` § *Report and shed, never kill* owns why.
+- The watchdog's margin and interval are compiled-in until the `[limits]` block lands
+  (`crates/nvs-host/src/watchdog.rs:53`).
 - Anything that must survive a goal switch goes in `docs/agent/carried-gaps.md`.

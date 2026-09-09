@@ -1203,7 +1203,8 @@
         "errors/engine-floor"
       ],
       "guardedBy": [
-        "crates/nvs-host/src/watchdog.rs"
+        "crates/nvs-host/src/watchdog.rs",
+        "crates/nvs-server/src/serve.rs"
       ]
     },
     {
