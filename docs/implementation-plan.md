@@ -145,13 +145,14 @@ and the server sits on all of them.
 | [6 server](agent/goals/6-server.md) | M7 | `nvs serve`, the request-facing `Core` classes, mounts, uploads, `Core\Session`, the control socket |
 
 **The program's own stop condition is `python tools/check-migration.py` reporting 100% classified** —
-every one of the oracle build's **1151 functions and 253 types** accounted for as a `member`, `language`
+every one of the oracle build's **1167 functions and 255 types** accounted for as a `member`, `language`
 or `dropped` row, every `member` row's member registered, and every one of them carrying a conformance
 case. It was 25% when the program was scheduled. A count of conformance cases is a proxy for parity; a
 table that enumerates the source of truth is not.
 
-**The oracle build gained `mysqli`, `pgsql` and `sqlite3`**, which is why that inventory is
-1151 rather than the 925 the program was first sized against. It is a better program for it: 236 of the
+**The oracle build gained `mysqli`, `pgsql`, `sqlite3`, `fileinfo` and `zip`**, which is why that
+inventory is 1167 rather than the 925 the program was first sized against. It is a better program for
+it: 236 of the
 new names are the three APIs `rule:core-classes/db-one-api` exists to replace, so *"one API replaces
 `PDO`, `mysqli`, `pgsql` and `sqlite3`"* stops being an assertion about four APIs and becomes an audit of
 236 functions, each with a row saying what became of it. The floors in each goal were re-derived against

@@ -278,11 +278,12 @@ TOML for a doubled floor before restarting.
 - **The last goal goes green** — which, since goal 50, means the last *generated* one: every group on
   `rule:testing/four-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
   The parity program's own gate is still goal 6's final check —
-  `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
-  functions and 253 types** accounted for, every `member` row registered, every one of them cased. The
-  inventory grew from 925 when the oracle build gained `mysqli`, `pgsql` and `sqlite3`:
-  the three APIs `rule:core-classes/db-one-api` replaces are now inside the audit rather than a
-  named hole beside it. Goals 7 through 11 going green, in chain order, is then what ends the run.
+  `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1167
+  functions and 255 types** accounted for, every `member` row registered, every one of them cased. The
+  inventory grew from 925 when the oracle build gained `mysqli`, `pgsql`, `sqlite3`, `fileinfo` and
+  `zip`: the APIs `rule:core-classes/db-one-api`, `Core\Zip` and `Core\Mime` replace are now inside the
+  audit rather than a named hole beside it. Goals 7 through 11 going green, in chain order, is then what
+  ends the run.
 - **A goal reports `BLOCKED`.** Reserved for a decision that is expensive to reverse *and* has no safe
   default. Every goal's standing decisions exist to make this rare.
 - **`--max-stalls` consecutive sessions move `HEAD` nowhere.**

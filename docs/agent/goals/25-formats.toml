@@ -4144,7 +4144,7 @@ args = ["test", "tests/differential/"]
 min_passing = 275
 
 # ---------------------------------------------------------------------------------------------------
-# THE PARITY PROGRAM'S STOP CONDITION. Every one of the oracle build's 1151 functions and 253 types is a
+# THE PARITY PROGRAM'S STOP CONDITION. Every one of the oracle build's 1167 functions and 255 types is a
 # `member`, `language` or `dropped` row; every `member` row's member is registered; every one of them has
 # a conformance case. When this goes green the chain has no next goal.
 #

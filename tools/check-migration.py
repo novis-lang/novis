@@ -49,18 +49,19 @@ OUTCOMES = {"member", "language", "dropped", "open"}
 # cannot be audited. Named here rather than left implicit: an unaudited extension is a known hole,
 # not an empty one. Regenerating the inventory against a fuller build shrinks this list.
 #
-# **The three database extensions came off it on 2026-08-29**, when the oracle build gained `mysqli`,
-# `pgsql` and `sqlite3` and the inventory was regenerated: 925 functions became 1151. That is the
-# point at which `rule:core-classes/db-one-api`'s central claim -- one API replaces `PDO`,
-# `mysqli`, `pgsql` and `sqlite3` -- stops being an assertion about four APIs and becomes an audit of
-# 236 named functions. Everything still on this list is either a Tier 1 extension (`gd`, `intl`,
-# `exif`) or a subsystem whose replacement is `Core`'s own -- `fileinfo` and `zip` are `Core\Mime`
-# and `Core\Zip`, both Tier 0 under `rule:core-api/tier-roster` and both registered, so what a name
-# like `finfo_open` or `zip_open` is still owed here is the audit and not the answer. None of it is
-# parity work.
+# Five extensions have come off it, each when the oracle build gained it and the inventory was
+# regenerated. `mysqli`, `pgsql` and `sqlite3` are why the denominator is 1167 rather than the 925 the
+# parity program was first sized against, and they are what turns `rule:core-classes/db-one-api`'s
+# central claim -- one API replaces `PDO`, `mysqli`, `pgsql` and `sqlite3` -- from an assertion about
+# four APIs into an audit of 236 named functions. `fileinfo` and `zip` do the same for `Core\Mime` and
+# `Core\Zip`, both Tier 0 under `rule:core-api/tier-roster`: `finfo_open` and `zip_open` are rows PHP's
+# own names are checked against rather than a prose claim standing beside a hole.
+#
+# Everything still on this list is either a Tier 1 extension (`gd`, `intl`, `exif`) or a subsystem whose
+# replacement is `Core`'s own, and none of it is parity work.
 UNAUDITED = [
-    "mbstring", "curl", "openssl", "sodium", "sockets", "intl", "gd", "exif", "fileinfo",
-    "zip", "posix", "pcntl", "gettext", "ftp", "ldap", "soap",
+    "mbstring", "curl", "openssl", "sodium", "sockets", "intl", "gd", "exif",
+    "posix", "pcntl", "gettext", "ftp", "ldap", "soap",
     "bz2", "xsl", "tidy", "shmop", "sysvsem", "imap", "snmp", "dba", "enchant",
 ]
 

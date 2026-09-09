@@ -31,7 +31,7 @@
 //! member nothing ever ran. The two are the parity program's stop condition
 //! stated as a test: when
 //! [`tests/migration-members-outstanding.txt`](migration-members-outstanding.txt)
-//! is empty, every member 1,151 PHP functions were pointed at exists.
+//! is empty, every member 1,167 PHP functions were pointed at exists.
 //!
 //! They are here rather than in `conformance_coverage.rs` because the walk is a
 //! spec walk — the table is the enumerable set and the registry is what it is

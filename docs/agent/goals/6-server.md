@@ -210,8 +210,8 @@ suite gains connections as its third parameterisation rather than a second suite
     life of the process; numbered out of sequence because item 30 was already written as the program's
     last gate and stays it.
 29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
-30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1151
-    functions and 253 types is a `member`, `language` or `dropped` row; every `member` row's member is
+30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1167
+    functions and 255 types is a `member`, `language` or `dropped` row; every `member` row's member is
     registered; every one of them has a conformance case. **This is the parity program's stop condition**
     and the last check in the chain.
 
