@@ -3,7 +3,7 @@
 
 # Errors
 
-*3 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 28 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -567,7 +567,7 @@ counter that is exported**, because a silently dropped log line is worse than a 
 
 <a id="errors-a-repeat-is-bounded-at-the-sink-that-suffers"></a>
 
-## A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time  *(designed — not yet in the compiler)*
+## A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time
 
 `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`
 
