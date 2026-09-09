@@ -1,0 +1,37 @@
+--TEST--
+`Core\Signal::onShutdown` registers a handler, replaces it when called again, and runs neither while nothing has asked this process to stop — `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// The class is a registration and nothing else: what runs the closure is a
+// delivered terminating signal reaching the request's next safepoint, and no
+// signal has been delivered to this program. So the boundary worth pinning is
+// the one a registration may not cross — handing the closure over is not
+// allowed to call it, and a class that ran it to "check" it prints a line here
+// the expectation does not have.
+Core\Signal::onShutdown(fn (): void => {
+    echo "first ran\n";
+});
+echo "registered\n";
+
+// One slot rather than a queue, exactly as the two `Core\Fatal` handlers are:
+// a second registration replaces the first. That is asserted here by the same
+// silence, because a queue and a replacement are only told apart when a
+// shutdown arrives and neither may run now.
+Core\Signal::onShutdown(fn (): void => {
+    echo "second ran\n";
+});
+echo "replaced\n";
+
+// The statements after a registration are the ordinary ones. Every safepoint
+// this loop crosses is a place the handler *would* run had a signal arrived,
+// so a class that raised its own shutdown flag on registration would print
+// inside this loop rather than after it.
+var $total = 0;
+for (var $i = 0; $i < 3; $i = $i + 1) {
+    $total = $total + $i;
+}
+echo "ran on: ", $total, "\n";
+--EXPECT--
+registered
+replaced
+ran on: 3

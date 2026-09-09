@@ -1,0 +1,37 @@
+--TEST--
+Registering a shutdown handler asks for no shutdown, and the drain it will run inside is still `Core\Server::isDraining`'s to report — `rule:core-api/tier-roster`, `rule:concurrency/a-drain-closes-a-connection-cleanly`
+--FILE--
+<?nvs
+// `Core\Signal` composes with the drain that already exists rather than
+// carrying a second one, and the two halves of that are asked here in order.
+// First: this program has begun no shutdown, so the one bit both classes read
+// answers `false`.
+if (Core\Server::isDraining()) {
+    echo "draining\n";
+} else {
+    echo "accepting\n";
+}
+
+// Second, and the part only this case asks: registering a handler is not a way
+// to start what the handler is for. A class that began the drain when it took
+// the closure — or that kept a bit of its own for the handler to run inside —
+// changes the answer below, which is the same question asked again with a
+// registration between the two askings.
+Core\Signal::onShutdown(fn (): void => {
+    echo "shutting down\n";
+});
+
+if (Core\Server::isDraining()) {
+    echo "draining after registering\n";
+} else {
+    echo "accepting after registering\n";
+}
+
+// Asked with no `nvs.toml` and no grant: a shutdown is a fact about the process
+// rather than a door, so nothing has to be configured or granted for a program
+// to say what it would like to run when one begins.
+echo "registered with nothing configured\n";
+--EXPECT--
+accepting
+accepting after registering
+registered with nothing configured
