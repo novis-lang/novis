@@ -1,0 +1,107 @@
+<?nvs
+// `Core\Xml::parse` reads a whole document and answers a tree — one node family
+// that both this parser and `Core\Html`'s WHATWG one produce, so a walk written
+// here works unchanged over parsed HTML (`rule:core-classes/xml-tree-and-stream`).
+// A tree is walked in any order, as many times as a program likes; what it
+// spends is the document, held for the request that parsed it and released with
+// its arena (`rule:programs/memory-priority`).
+//
+// Everything read out of it is `tainted`, whatever the argument was: a document
+// is input, and a name or a value out of one reaches a sink only through a
+// launderer (`rule:security/tainted-sources`).
+
+// The five kinds are a closed enum, so this `match` names all of them and needs
+// no `default` — a sixth kind would stop this program compiling rather than
+// quietly fall into a case that does not describe it.
+class Kind {
+    public static function name(Core\Xml\NodeKind $kind): string {
+        return match ($kind) {
+            Core\Xml\NodeKind::Document => "document",
+            Core\Xml\NodeKind::Element => "element",
+            Core\Xml\NodeKind::Text => "text",
+            Core\Xml\NodeKind::Comment => "comment",
+            Core\Xml\NodeKind::ProcessingInstruction => "instruction",
+        };
+    }
+}
+
+// The whole tree, one line per node. Each member is a slot read — the document
+// was read by the time a node exists — so a walk computes nothing and cannot
+// fail partway through.
+class Outline {
+    public static function show(Core\Xml\Node $node, string $indent): void {
+        echo $indent, Kind::name($node->kind());
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            echo " ", $node->name();
+            foreach ($node->attributes() as string $name => tainted string $value) {
+                echo " ", $name, "=\"", $value, "\"";
+            }
+        }
+        if ($node->kind() != Core\Xml\NodeKind::Element) {
+            echo " \"", $node->text(), "\"";
+        }
+        echo "\n";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Outline::show($child, $indent . "  ");
+        }
+    }
+}
+
+// One document holding every kind: a processing instruction beside the root, a
+// comment, elements with attributes, character data, and a CDATA section, which
+// is text because the two spell the same characters. Whitespace between
+// elements is content as well, and a pretty-printed document carries a text
+// node for each run of it — dropping it would be a guess about which of it
+// mattered.
+Core\Xml\Node $document = Core\Xml::parse(
+    "<?render fast?><order id=\"7\" zone='west'>" .
+    "<!--the customer wrote this--><item sku=\"a &amp; b\">two</item>" .
+    "<note><![CDATA[<raw>]]></note></order>"
+);
+Outline::show($document, "");
+
+// The document node is the one a program is handed rather than one it reaches,
+// so the root element is found by its kind: the prolog's instruction is a child
+// of the document as well.
+class Root {
+    public static function of(Core\Xml\Node $document): Core\Xml\Node {
+        foreach ($document->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                return $child;
+            }
+        }
+        return $document;
+    }
+}
+
+Core\Xml\Node $order = Root::of($document);
+echo "root: ", $order->name(), ", children: ", Core\Arr::count($order->children()), "\n";
+
+// The same question asked twice answers the same way, because the tree is
+// materialised and nothing behind it is a cursor.
+echo "again: ", Core\Arr::count($order->children()), "\n";
+
+// The other half of the contract: this parser refuses rather than repairs, so
+// input that is not well-formed produces nothing at all — never as much of a
+// tree as could be built (`rule:errors/ambiguous-input-refused`). That is the
+// opposite of `Core\Html::parse`, whose WHATWG algorithm has no failure mode,
+// and the reason the two are separate doors rather than one flag.
+try {
+    Core\Xml::parse("<order><item></order>");
+    echo "an unclosed element was repaired\n";
+} catch (ParseError $malformed) {
+    echo "malformed: refused\n";
+}
+
+// And the refusal worth printing whole, because it is this class's answer to
+// XXE: a document type declaration is refused by construction
+// (`rule:core-classes/xml-refuses-by-construction`). There is no code path here
+// that resolves an entity, so an external subset is never something that could
+// have been fetched, and a billion-laughs internal subset defines nothing that
+// could be expanded.
+try {
+    Core\Xml::parse("<!DOCTYPE order SYSTEM \"http://example.invalid/o.dtd\"><order/>");
+    echo "a document type declaration was read\n";
+} catch (ParseError $doctype) {
+    echo $doctype->message, "\n";
+}
