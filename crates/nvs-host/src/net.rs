@@ -558,10 +558,18 @@ impl NvsStream<mio::net::UdpSocket> {
     /// Receives one datagram, parking the task while none is waiting, and
     /// answers what arrived together with who sent it.
     ///
-    /// A datagram is delivered whole or not at all, so a buffer shorter than the
-    /// message keeps the bytes that fit and **the rest are gone**: there is no
-    /// second call that returns the tail, which is the difference from a stream
-    /// and is the caller's to size for.
+    /// A datagram is delivered whole or not at all, and a buffer shorter than
+    /// the message is where the platforms part company: the Unixes keep the
+    /// bytes that fit and drop the rest, while **Windows refuses the call**
+    /// with `WSAEMSGSIZE` and hands back neither a count nor a sender. Neither
+    /// is bent here — this is the syscall's own answer, and a wrapper that
+    /// invented a count for the Windows case would be inventing the sender
+    /// beside it.
+    ///
+    /// A caller that needs one behaviour on both hosts therefore hands this a
+    /// buffer no datagram can overflow and does its own cutting.
+    /// `Core\Net\Datagram::receive` is the caller in this tree that does, and
+    /// `nvs_stdlib::net`'s `DATAGRAM_CEILING` is the home of that reading.
     ///
     /// # Errors
     ///

@@ -2,17 +2,18 @@
 //! surface, over the runtime's own reactor and nothing else.
 //!
 //! Spec § 16's one class replacing `socket_*`, `stream_socket_*` and
-//! `fsockopen`. What is here is the TCP half: an outbound connection, a
+//! `fsockopen`. What is here is the TCP half — an outbound connection, a
 //! listening socket, and the accept on the listener that is a member rather
-//! than a sixth way in. UDP and the two Unix-domain entry points are the same
-//! rule's remaining three and are not on disk.
+//! than a sixth way in — and the bound datagram socket beside it. The two
+//! Unix-domain entry points are the same rule's remaining two and are not on
+//! disk.
 //!
 //! # Decision: the surface is members, not spellings of one member
 //!
 //! A host and a socket path are separate members taking separately-typed
 //! arguments, so `rule:security/a-path-is-not-a-url`'s refusal holds by
 //! construction: nothing here reads the *content* of its argument to decide
-//! which transport it opens. That is why [`CLASS`] will end at five entry
+//! which transport it opens. That is why [`CLASS`] ends at five entry
 //! points where PHP has two, and it is the reason a `unix:` prefix handed to
 //! [`nvs_core_net_connect`] is a hostname that will not resolve rather than a
 //! second door.
@@ -49,6 +50,24 @@
 //! pointer pair in the request's table, released with the request's arena.
 //! Nothing per process, and nothing that grows with sockets served.
 //!
+//! # Decision: a receive answers a message, not octets
+//!
+//! [`nvs_core_net_datagram_receive`] hands back a `Core\Net\Datagram\Message` —
+//! what arrived and who sent it, as three slot-reading members over one object.
+//! The migration row it answers is `stream_socket_recvfrom`, which delivers the
+//! sender through an out-parameter; Novis has neither out-parameters nor
+//! tuples, so an object is the narrowest thing that answers that row at all. A
+//! `receive` handing back octets alone would be a datagram socket that cannot
+//! reply, which is most of what a datagram socket is for.
+//!
+//! The sender's address is answered as a plain `string` and not a `tainted`
+//! one, and that is what makes the reply compile rather than an oversight:
+//! `send`'s `$host` is a sink, a sink refuses a qualified argument, and there is
+//! no launderer for an address to pass it through. What guards a reply instead
+//! is the grant — every send asks `net.connect` and the denied-range table of
+//! the address it was handed, this one included — so an address arriving off the
+//! network buys a program nothing its configuration had not already granted.
+//!
 //! # Which grant each door asks
 //!
 //! `rule:security/net-listen-is-a-separate-grant-from-net-connect`: reaching
@@ -63,13 +82,23 @@
 //! is what `Scope::Endpoint` being a `SocketAddr` already requires: the grant is
 //! matched exactly against an endpoint, and a name that resolved to two
 //! addresses would be a bind the operator could not have named.
+//! `Core\Net::bindDatagram` is the same door under the same grant and takes its
+//! address the same way: what decides which capability an opening asks is what
+//! the program is doing, never the transport it does it over.
+//!
+//! A datagram socket then asks the *other* grant at a different moment. It is
+//! bound and never connected, so there is no opening at which an outbound
+//! address could be named — every `Core\Net\Datagram::send` asks `net.connect`
+//! of the address it was handed, which is `rule:security/net-address-policy` in
+//! its own words: a datagram sent to a program-supplied address is asked at the
+//! send what a TCP connect is asked at the connect.
 
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 
 use nvs_config::capability::{Cap, Scope};
-use nvs_host::{NvsListener, NvsTcp};
+use nvs_host::{NvsListener, NvsTcp, NvsUdp};
 use nvs_runtime::{Ctx, Fault, HeldSocket, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -83,9 +112,25 @@ pub(crate) const STREAM_NAME: &str = r"Core\Net\Stream";
 /// What [`nvs_core_net_listen`] answers.
 pub(crate) const LISTENER_NAME: &str = r"Core\Net\Listener";
 
-/// The one slot both handle classes hold: the key their socket is filed under
-/// in the request (`nvs_runtime::Ctx::hold_open_socket`).
+/// What [`nvs_core_net_bind_datagram`] answers.
+pub(crate) const DATAGRAM_NAME: &str = r"Core\Net\Datagram";
+
+/// What [`nvs_core_net_datagram_receive`] answers — this module's fourth
+/// decision is why a receive answers one of these rather than octets.
+pub(crate) const MESSAGE_NAME: &str = r"Core\Net\Datagram\Message";
+
+/// The one slot all three handle classes hold: the key their socket is filed
+/// under in the request (`nvs_runtime::Ctx::hold_open_socket`).
 const SOCKET_SLOT: usize = 0;
+
+/// [`MESSAGE`]'s first slot: the octets that arrived.
+const PAYLOAD_SLOT: usize = 0;
+
+/// [`MESSAGE`]'s second slot: the address they arrived from, written out.
+const HOST_SLOT: usize = 1;
+
+/// [`MESSAGE`]'s third slot: the port they arrived from.
+const PORT_SLOT: usize = 2;
 
 /// The largest buffer one [`nvs_core_net_stream_read`] allocates, whatever
 /// `$max` says.
@@ -99,13 +144,34 @@ const SOCKET_SLOT: usize = 0;
 /// number a program picks is not a footprint the runtime chose.
 const READ_CEILING: u64 = 256 * 1024;
 
+/// The buffer every [`nvs_core_net_datagram_receive`] allocates, and the ceiling
+/// on that member's `$max`.
+///
+/// **This is a correctness figure and not a footprint one.** A buffer shorter
+/// than the datagram waiting on the socket is where the platforms part company:
+/// the Unixes keep what fits and drop the rest, while Windows refuses the call
+/// outright with `WSAEMSGSIZE` and hands back neither a count nor a sender. A
+/// `Core` member cannot observably do two different things on two hosts
+/// (`rule:programs/memory-priority`'s ordering puts language semantics above
+/// footprint), so the kernel is always handed a buffer no datagram can overflow
+/// and the `$max` cut is made here afterwards.
+///
+/// 64 KiB is that size because a UDP payload cannot exceed 65,507 octets — the
+/// length field is sixteen bits — so this is not a policy the way
+/// [`READ_CEILING`] is, and a `$max` above it is capped rather than honoured
+/// because nothing could ever fill it.
+///
+/// A `usize` where [`READ_CEILING`] is a `u64`, because this one is a buffer
+/// length before it is a bound on an argument.
+const DATAGRAM_CEILING: usize = 64 * 1024;
+
 /// `Core\Time\Duration` as this module's parameter type, since every waiting
 /// member takes one — see this module's second decision.
 const WITHIN: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
-/// Spec § 16's `Core\Net`, TCP-shaped so far —
-/// `rule:core-classes/net-one-api-three-transports`'s first two entry points of
-/// five, with the datagram and Unix-domain three still to land.
+/// Spec § 16's `Core\Net` —
+/// `rule:core-classes/net-one-api-three-transports`'s first three entry points
+/// of five, with the two Unix-domain ones still to land.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -133,6 +199,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(LISTENER_NAME),
             symbol: "nvs_core_net_listen",
             doc: Some(&LISTEN_DOC),
+        },
+        CoreMethod {
+            name: "bindDatagram",
+            names: &["address", "port"],
+            // `listen`'s classification and for `listen`'s reason: an address
+            // written here decides which network this program is reachable
+            // from, and a tainted one is how a program is made to expose a
+            // surface its operator never chose.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATAGRAM_NAME),
+            symbol: "nvs_core_net_bind_datagram",
+            doc: Some(&BIND_DATAGRAM_DOC),
         },
     ],
     instance: &[],
@@ -206,6 +285,41 @@ const LISTEN_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "A bound `Core\\Net\\Listener`, closed with this request if the program does not close it \
+          first.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `net.listen` for this endpoint, `$address` is \
+                   not an address literal, or `$port` is not a port.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system refused the bind — the port is taken, or the address is \
+                   not one of this host's.",
+        },
+    ],
+};
+
+/// `Core\Net::bindDatagram`'s reference card — `rule:core-api/reference-card`.
+const BIND_DATAGRAM_DOC: MethodDoc = MethodDoc {
+    short: "Binds a datagram socket to `$address` on `$port`. Needs `net.listen` for that exact \
+            endpoint, exactly as a TCP bind does; sending to anywhere is a separate grant asked at \
+            `Core\\Net\\Datagram::send`.",
+    params: &[
+        ParamDoc {
+            name: "address",
+            desc: "An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname, for \
+                   `Core\\Net::listen`'s reason: a grant names one endpoint.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "port",
+            desc: "The port to bind, or `0` to let the operating system pick one — which \
+                   `Core\\Net\\Datagram::port` then reports.",
+            shape: &[],
+        },
+    ],
+    ret: "A bound `Core\\Net\\Datagram`, closed with this request if the program does not close it \
           first.",
     errors: &[
         ErrorDoc {
@@ -445,18 +559,282 @@ const LISTENER_CLOSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `rule:core-classes/net-one-api-three-transports`'s third transport, which
+/// answers neither `Read` nor `Write` because a datagram socket has no stream
+/// to read: it sends and receives whole messages, addressed one at a time.
+///
+/// Its slot is the two above's — a key into the request's own table of open
+/// sockets — and it is the one handle class here whose members do not all reach
+/// what the bind already granted. See this module's grant section for why
+/// [`nvs_core_net_datagram_send`] asks a second one.
+pub(crate) const DATAGRAM: CoreClass = CoreClass {
+    name: DATAGRAM_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "send",
+            names: &["host", "port", "payload", "within"],
+            // `Core\Net::connect`'s classification on the same argument, and
+            // for the whole of its reason: this is the outbound address, and it
+            // is where a tainted value must not arrive.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Uint,
+                CoreTy::Blob(Qual::Neutral),
+                WITHIN,
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_net_datagram_send",
+            doc: Some(&DATAGRAM_SEND_DOC),
+        },
+        CoreMethod {
+            name: "receive",
+            names: &["max", "within"],
+            params: &[CoreTy::Uint, WITHIN],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MESSAGE_NAME),
+            symbol: "nvs_core_net_datagram_receive",
+            doc: Some(&DATAGRAM_RECEIVE_DOC),
+        },
+        CoreMethod {
+            name: "port",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_net_datagram_port",
+            doc: Some(&DATAGRAM_PORT_DOC),
+        },
+        CoreMethod {
+            name: "close",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_net_datagram_close",
+            doc: Some(&DATAGRAM_CLOSE_DOC),
+        },
+    ],
+    slots: &["socket"],
+    constants: &[],
+};
+
+/// `Core\Net\Datagram::send`'s reference card — `rule:core-api/reference-card`.
+const DATAGRAM_SEND_DOC: MethodDoc = MethodDoc {
+    short: "Sends one datagram to `$host` on `$port` and answers how many octets went. Needs \
+            `net.connect` for the host, and the address it resolves to must not be one the address \
+            policy denies — the same question a TCP connect is asked, asked here because this is \
+            where the address is named.",
+    params: &[
+        ParamDoc {
+            name: "host",
+            desc: "A hostname or an address literal. It is checked against the grant before it is \
+                   resolved, and the datagram goes to the one address it resolved to.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "port",
+            desc: "The port to send to, 1 to 65535.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "payload",
+            desc: "The octets of one message. There is no partial send: a message too large for \
+                   the path is refused rather than split.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "within",
+            desc: "How long to wait for the socket to take the message. It bounds this call alone.",
+            shape: &[],
+        },
+    ],
+    ret: "How many octets went, which is `$payload`'s length on every success.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The configuration does not grant `net.connect` for this host, the host resolves \
+                   to no address, the address it resolves to is in a denied range, `$port` is not \
+                   a port, or this handle is closed.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "The socket would not take the message within `$within`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system refused the send — the message is over the maximum size, \
+                   or the network is unreachable.",
+        },
+    ],
+};
+
+/// `Core\Net\Datagram::receive`'s reference card — `rule:core-api/reference-card`.
+const DATAGRAM_RECEIVE_DOC: MethodDoc = MethodDoc {
+    short: "Waits for one datagram, no longer than `$within`, and answers it together with who \
+            sent it. It asks no capability: the bind was granted when this socket was opened, and \
+            who sent the message was not this program's choice.",
+    params: &[
+        ParamDoc {
+            name: "max",
+            desc: "How many octets to keep, capped at 64 KiB because no datagram is larger. A \
+                   datagram arrives whole or not at all, so a message longer than this keeps what \
+                   fits and the rest are gone — there is no second call that answers the tail.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "within",
+            desc: "How long to wait for a message. It bounds this call alone.",
+            shape: &[],
+        },
+    ],
+    ret: "A `Core\\Net\\Datagram\\Message` carrying the octets and the endpoint they came from.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This handle is closed.",
+        },
+        ErrorDoc {
+            error: "TimeoutError",
+            desc: "No datagram arrived within `$within`.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system failed the receive — on Windows, this is also how an \
+                   earlier send of this socket's is reported unreachable.",
+        },
+    ],
+};
+
+/// `Core\Net\Datagram::port`'s reference card — `rule:core-api/reference-card`.
+const DATAGRAM_PORT_DOC: MethodDoc = MethodDoc {
+    short: "The port this socket is bound to, which is how a program that asked for `0` learns the \
+            one the operating system picked.",
+    params: &[],
+    ret: "The bound port, 1 to 65535.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This handle is closed.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system would not answer for this socket.",
+        },
+    ],
+};
+
+/// `Core\Net\Datagram::close`'s reference card — `rule:core-api/reference-card`.
+const DATAGRAM_CLOSE_DOC: MethodDoc = MethodDoc {
+    short: "Closes this socket and gives its port and its reactor registration back. A request \
+            that forgets closes every socket it opened when it ends.",
+    params: &[],
+    ret: "Nothing.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "This handle is already closed.",
+    }],
+};
+
+/// One received datagram: what arrived, and the endpoint it arrived from.
+///
+/// Three slots and three readers, because this module's fourth decision is that
+/// a receive cannot answer octets alone — a program that could not name the
+/// sender could not reply to it, and replying is most of what a datagram socket
+/// is for. Nothing here waits and nothing here reaches anything: the values are
+/// already in hand by the time one of these exists.
+pub(crate) const MESSAGE: CoreClass = CoreClass {
+    name: MESSAGE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "payload",
+            names: &[],
+            params: &[],
+            // `rule:security/tainted-qualifier`, on `Core\Net\Stream::read`'s
+            // reading: octets off a socket are as untrusted as a request
+            // body's, and a datagram's sender is even less accountable for
+            // them.
+            return_ty: CoreTy::TaintedBytes,
+            defaults: &[],
+            symbol: "nvs_core_net_message_payload",
+            doc: Some(&MESSAGE_PAYLOAD_DOC),
+        },
+        CoreMethod {
+            name: "host",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_net_message_host",
+            doc: Some(&MESSAGE_HOST_DOC),
+        },
+        CoreMethod {
+            name: "port",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_net_message_port",
+            doc: Some(&MESSAGE_PORT_DOC),
+        },
+    ],
+    slots: &["payload", "host", "port"],
+    constants: &[],
+};
+
+/// `Core\Net\Datagram\Message::payload`'s reference card —
+/// `rule:core-api/reference-card`.
+const MESSAGE_PAYLOAD_DOC: MethodDoc = MethodDoc {
+    short: "The octets this datagram carried, as `tainted bytes`. Truncated to the `$max` the \
+            receive named, if the message was longer than that.",
+    params: &[],
+    ret: "What arrived, which may be empty: a zero-length datagram is a message and not an \
+          absence.",
+    errors: &[],
+};
+
+/// `Core\Net\Datagram\Message::host`'s reference card —
+/// `rule:core-api/reference-card`.
+const MESSAGE_HOST_DOC: MethodDoc = MethodDoc {
+    short: "The address this datagram came from, written out — `127.0.0.1`, `::1`. A plain \
+            `string`, so it can be handed straight back to `send`, which asks the grant and the \
+            address policy about it exactly as it would about any other address.",
+    params: &[],
+    ret: "An address literal, never a hostname: nothing here is resolved backwards.",
+    errors: &[],
+};
+
+/// `Core\Net\Datagram\Message::port`'s reference card —
+/// `rule:core-api/reference-card`.
+const MESSAGE_PORT_DOC: MethodDoc = MethodDoc {
+    short: "The port this datagram came from, which is where a reply goes.",
+    params: &[],
+    ret: "The sender's port, 1 to 65535.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_net_connect" => (nvs_core_net_connect as *const ()).cast(),
         "nvs_core_net_listen" => (nvs_core_net_listen as *const ()).cast(),
+        "nvs_core_net_bind_datagram" => (nvs_core_net_bind_datagram as *const ()).cast(),
         "nvs_core_net_stream_read" => (nvs_core_net_stream_read as *const ()).cast(),
         "nvs_core_net_stream_write" => (nvs_core_net_stream_write as *const ()).cast(),
         "nvs_core_net_stream_close" => (nvs_core_net_stream_close as *const ()).cast(),
         "nvs_core_net_listener_accept" => (nvs_core_net_listener_accept as *const ()).cast(),
         "nvs_core_net_listener_port" => (nvs_core_net_listener_port as *const ()).cast(),
         "nvs_core_net_listener_close" => (nvs_core_net_listener_close as *const ()).cast(),
+        "nvs_core_net_datagram_send" => (nvs_core_net_datagram_send as *const ()).cast(),
+        "nvs_core_net_datagram_receive" => (nvs_core_net_datagram_receive as *const ()).cast(),
+        "nvs_core_net_datagram_port" => (nvs_core_net_datagram_port as *const ()).cast(),
+        "nvs_core_net_datagram_close" => (nvs_core_net_datagram_close as *const ()).cast(),
+        "nvs_core_net_message_payload" => (nvs_core_net_message_payload as *const ()).cast(),
+        "nvs_core_net_message_host" => (nvs_core_net_message_host as *const ()).cast(),
+        "nvs_core_net_message_port" => (nvs_core_net_message_port as *const ()).cast(),
         _ => return None,
     })
 }
@@ -483,6 +861,17 @@ impl HeldSocket for Connected {
 struct Bound(NvsListener);
 
 impl HeldSocket for Bound {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+/// A bound datagram socket, in the shape the request's table holds — the third
+/// of [`Connected`]'s family, whose doc is the home of why each is a newtype.
+#[derive(Debug)]
+struct Datagrams(NvsUdp);
+
+impl HeldSocket for Datagrams {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -518,16 +907,14 @@ fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, F
 fn port_of(args: &[Value], at: usize, member: &str, zero: bool) -> Result<u16, Fault> {
     let asked = args[at].as_uint().ok_or_else(|| {
         Fault::fatal(format!(
-            "{NAME}::{member} expected {:?} for its port, got tag {}",
+            "{member} expected {:?} for its port, got tag {}",
             Tag::Uint,
             args[at].tag_byte()
         ))
     })?;
     let port = u16::try_from(asked).unwrap_or(0);
     if u64::from(port) != asked || (port == 0 && !zero) {
-        return Err(Fault::thrown(format!(
-            "{NAME}::{member}: {asked} is not a port"
-        )));
+        return Err(Fault::thrown(format!("{member}: {asked} is not a port")));
     }
     Ok(port)
 }
@@ -552,7 +939,7 @@ fn within(args: &[Value], at: usize, member: &str) -> Result<Duration, Fault> {
         .map(Duration::from_nanos)
         .ok_or_else(|| {
             Fault::thrown(format!(
-                "{NAME}::{member}: a bound must be a positive length of time"
+                "{member}: a bound must be a positive length of time"
             ))
         })
 }
@@ -626,6 +1013,44 @@ fn listener_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut N
         })
 }
 
+/// The datagram socket `key` names, borrowed for one call — [`stream_of`]'s
+/// twin over the third transport, with its errors.
+fn datagram_of<'a>(ctx: &'a mut Ctx, key: u64, member: &str) -> Result<&'a mut NvsUdp, Fault> {
+    let held = ctx
+        .open_socket_mut(key)
+        .ok_or_else(|| already_closed(&DATAGRAM, member))?;
+    held.as_any_mut()
+        .downcast_mut::<Datagrams>()
+        .map(|datagrams| &mut datagrams.0)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{DATAGRAM_NAME}::{member} found a connected socket at its key"
+            ))
+        })
+}
+
+/// A slot of the receiving [`MESSAGE`], retained because it is being answered.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not an object — unreachable from
+/// source, since an instance member's receiver is typed and the checker refuses
+/// a call on anything else.
+fn message_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &MESSAGE, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot's reference belongs to the receiver, which is live for \
+                  the length of the call, and this value is being handed to the \
+                  caller — which is exactly `Value::retain`'s obligation"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
 /// One socket failure, as the thing a program catches.
 ///
 /// A bound that ran out is a `TimeoutError` and everything else an `IOError`,
@@ -674,8 +1099,8 @@ nvs_runtime::nvs_helper! {
         const MEMBER: &str = r"Core\Net::connect";
 
         let host = text(&args[0], MEMBER, "host")?;
-        let port = port_of(args, 1, "connect", false)?;
-        let bound = within(args, 2, "connect")?;
+        let port = port_of(args, 1, MEMBER, false)?;
+        let bound = within(args, 2, MEMBER)?;
         let address = nvs_runtime::capability::pin_host(ctx, host, MEMBER)?;
         let socket = NvsTcp::connect_timeout(SocketAddr::new(address, port), bound)
             .map_err(|err| failed(MEMBER, &err))?;
@@ -707,7 +1132,7 @@ nvs_runtime::nvs_helper! {
         const MEMBER: &str = r"Core\Net::listen";
 
         let written = text(&args[0], MEMBER, "address")?;
-        let port = port_of(args, 1, "listen", true)?;
+        let port = port_of(args, 1, MEMBER, true)?;
         let address: IpAddr = written.parse().map_err(|_| {
             Fault::thrown(format!(
                 "{MEMBER}: `{written}` is not an address literal — a bind names an endpoint, and \
@@ -751,7 +1176,7 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let bound = within(args, 2, "read")?;
+        let bound = within(args, 2, MEMBER)?;
         let wanted = usize::try_from(max.min(READ_CEILING)).unwrap_or(0);
         let stream = stream_of(ctx, key, "read")?;
         let mut buffer = vec![0u8; wanted];
@@ -784,7 +1209,7 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let bound = within(args, 2, "write")?;
+        let bound = within(args, 2, MEMBER)?;
         let stream = stream_of(ctx, key, "write")?;
         stream.set_deadline(Some(Instant::now() + bound));
         let outcome = stream.write(payload);
@@ -833,7 +1258,7 @@ nvs_runtime::nvs_helper! {
         const MEMBER: &str = r"Core\Net\Listener::accept";
 
         let key = key_of(args[0], &LISTENER, "accept")?;
-        let bound = within(args, 1, "accept")?;
+        let bound = within(args, 1, MEMBER)?;
         let listener = listener_of(ctx, key, "accept")?;
         listener.set_deadline(Some(Instant::now() + bound));
         let outcome = listener.accept();
@@ -881,11 +1306,215 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Net::bindDatagram(string $address, uint $port): Core\Net\Datagram`
+    /// — replacing `stream_socket_server`'s `udp://` half and `socket_bind`.
+    ///
+    /// [`nvs_core_net_listen`]'s body over [`NvsUdp`], asking the same grant of
+    /// the same parsed endpoint and resolving no name for the same reason. What
+    /// decides the capability is what the program is doing —
+    /// `rule:security/net-listen-is-a-separate-grant-from-net-connect` — and
+    /// binding an endpoint is binding an endpoint whatever transport is bound
+    /// at it.
+    ///
+    /// **A datagram socket is bound and never connected**, which is why there
+    /// is no outbound entry point beside this one: the address a program sends
+    /// to is named at the send, and [`nvs_core_net_datagram_send`] is where the
+    /// outbound grant is therefore asked.
+    fn nvs_core_net_bind_datagram(ctx, args: [2]) {
+        const MEMBER: &str = r"Core\Net::bindDatagram";
+
+        let written = text(&args[0], MEMBER, "address")?;
+        let port = port_of(args, 1, MEMBER, true)?;
+        let address: IpAddr = written.parse().map_err(|_| {
+            Fault::thrown(format!(
+                "{MEMBER}: `{written}` is not an address literal — a bind names an endpoint, and \
+                 a hostname is not one"
+            ))
+        })?;
+        let endpoint = SocketAddr::new(address, port);
+        nvs_runtime::capability::require(ctx, Cap::NetListen, Scope::Endpoint(endpoint), MEMBER)?;
+        let socket = NvsUdp::bind(endpoint).map_err(|err| failed(MEMBER, &err))?;
+        Ok(handle(ctx, &DATAGRAM, Box::new(Datagrams(socket))))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram::send(string $host, uint $port, bytes $payload, Core\Time\Duration $within): uint`
+    /// — replacing `stream_socket_sendto` and `socket_sendto`.
+    ///
+    /// **The outbound grant is asked here rather than at the bind**, which is
+    /// `rule:security/net-address-policy`'s own sentence: a datagram sent to an
+    /// address the program supplied is asked at the send what a TCP connect is
+    /// asked at the connect. `nvs_runtime::capability::pin_host` is the one call
+    /// [`nvs_core_net_connect`] makes and does the same three things in the same
+    /// order — `net.connect` about the host, resolve, then the denied-range
+    /// table about the one address that came back — and the datagram goes to
+    /// **that address** rather than to the name again.
+    ///
+    /// One call is one datagram and there is no partial send. The count comes
+    /// back rather than being asserted because it is what the platform said, and
+    /// a message too large for the path is refused rather than split — so unlike
+    /// [`nvs_core_net_stream_write`], a caller has nothing to loop over.
+    fn nvs_core_net_datagram_send(ctx, args: [5]) {
+        const MEMBER: &str = r"Core\Net\Datagram::send";
+
+        let key = key_of(args[0], &DATAGRAM, "send")?;
+        let host = text(&args[1], MEMBER, "host")?;
+        let port = port_of(args, 2, MEMBER, false)?;
+        let payload = args[3].as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{MEMBER} expected {:?} for its payload, got tag {}",
+                Tag::Bytes,
+                args[3].tag_byte()
+            ))
+        })?;
+        let bound = within(args, 4, MEMBER)?;
+        let address = nvs_runtime::capability::pin_host(ctx, host, MEMBER)?;
+        let target = SocketAddr::new(address, port);
+        let socket = datagram_of(ctx, key, "send")?;
+        socket.set_deadline(Some(Instant::now() + bound));
+        let outcome = socket.send_to(payload, target);
+        socket.set_deadline(None);
+        let sent = outcome.map_err(|err| failed(MEMBER, &err))?;
+        Ok(Value::uint(sent as u64))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram::receive(uint $max, Core\Time\Duration $within): Core\Net\Datagram\Message`
+    /// — replacing `stream_socket_recvfrom` and `socket_recvfrom`.
+    ///
+    /// **It asks no capability**, for [`nvs_core_net_listener_accept`]'s reason
+    /// over the transport that has no accept: the bind was granted when this
+    /// socket was opened, and who sent a datagram that arrived was not this
+    /// program's choice to make.
+    ///
+    /// A datagram is delivered whole or not at all, so a message longer than
+    /// `$max` keeps what fits and **the rest are gone**. That is the difference
+    /// from [`nvs_core_net_stream_read`], where a short answer is ordinary
+    /// because the remainder arrives next time, and it is the caller's to size
+    /// for.
+    ///
+    /// **The cut is made here rather than by the kernel**, which is
+    /// [`DATAGRAM_CEILING`]'s whole reason: handed a short buffer, the Unixes
+    /// truncate and Windows refuses the call, and a member answering differently
+    /// on two hosts is the one thing this may not do. So the socket is always
+    /// given a buffer no datagram can overflow, and `$max` is applied to what
+    /// came back.
+    ///
+    /// **What it spends:** one [`DATAGRAM_CEILING`] buffer for the length of the
+    /// call, plus the message it answers with, both charged to the request that
+    /// asked. It is a fixed 64 KiB rather than the `$max` a program named,
+    /// because that is what the paragraph above costs.
+    fn nvs_core_net_datagram_receive(ctx, args: [3]) {
+        const MEMBER: &str = r"Core\Net\Datagram::receive";
+
+        let key = key_of(args[0], &DATAGRAM, "receive")?;
+        let max = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{MEMBER} expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let bound = within(args, 2, MEMBER)?;
+        let wanted = usize::try_from(max)
+            .unwrap_or(DATAGRAM_CEILING)
+            .min(DATAGRAM_CEILING);
+        let socket = datagram_of(ctx, key, "receive")?;
+        let mut buffer = vec![0u8; DATAGRAM_CEILING];
+        socket.set_deadline(Some(Instant::now() + bound));
+        let outcome = socket.recv_from(&mut buffer);
+        socket.set_deadline(None);
+        let (read, from) = outcome.map_err(|err| failed(MEMBER, &err))?;
+        let kept = read.min(wanted);
+        let sender = from.ip().to_string();
+        Ok(crate::instance::build(
+            &MESSAGE,
+            [
+                Value::bytes(NvsStr::new(&buffer[..kept])),
+                Value::str(NvsStr::new(sender.as_bytes())),
+                Value::uint(u64::from(from.port())),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram::port(): uint` — replacing `stream_socket_get_name`'s
+    /// local half over the third transport.
+    ///
+    /// [`nvs_core_net_listener_port`]'s member and its reasoning: it is what
+    /// makes a `0` port usable, and the address is deliberately not answered
+    /// beside it because the program wrote that itself.
+    fn nvs_core_net_datagram_port(ctx, args: [1]) {
+        const MEMBER: &str = r"Core\Net\Datagram::port";
+
+        let key = key_of(args[0], &DATAGRAM, "port")?;
+        let socket = datagram_of(ctx, key, "port")?;
+        let bound = socket.local_addr().map_err(|err| failed(MEMBER, &err))?;
+        Ok(Value::uint(u64::from(bound.port())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram::close(): void` — replacing `fclose` on a datagram
+    /// socket.
+    ///
+    /// [`nvs_core_net_stream_close`]'s body and its reasoning over the third
+    /// handle class. Messages already received are untouched: each is an object
+    /// holding copies of what arrived, and nothing in one points at the socket.
+    fn nvs_core_net_datagram_close(ctx, args: [1]) {
+        let key = key_of(args[0], &DATAGRAM, "close")?;
+        let socket = ctx
+            .take_open_socket(key)
+            .ok_or_else(|| already_closed(&DATAGRAM, "close"))?;
+        drop(socket);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram\Message::payload(): tainted bytes` — the octets half
+    /// of what `stream_socket_recvfrom` returns.
+    ///
+    /// A slot read and nothing else: the truncation `$max` decides happened at
+    /// the receive, so what is here is already the whole of the answer.
+    fn nvs_core_net_message_payload(_ctx, args: [1]) {
+        message_slot(args, PAYLOAD_SLOT, "payload")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram\Message::host(): string` — the address half of what
+    /// `stream_socket_recvfrom` delivers through an out-parameter.
+    ///
+    /// A plain `string` rather than a `tainted` one, which this module's fourth
+    /// decision is the home of: `send`'s host is a sink and there is no
+    /// launderer for an address, so a qualified answer here would be a datagram
+    /// socket that cannot reply. The grant is what guards the reply instead.
+    fn nvs_core_net_message_host(_ctx, args: [1]) {
+        message_slot(args, HOST_SLOT, "host")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Net\Datagram\Message::port(): uint` — the other half of the
+    /// endpoint a reply is addressed to.
+    fn nvs_core_net_message_port(_ctx, args: [1]) {
+        message_slot(args, PORT_SLOT, "port")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CLASS, LISTENER, LISTENER_NAME, NAME, STREAM, STREAM_NAME, nvs_core_net_connect,
-        nvs_core_net_listen,
+        CLASS, DATAGRAM, DATAGRAM_NAME, LISTENER, LISTENER_NAME, MESSAGE, MESSAGE_NAME, NAME,
+        STREAM, STREAM_NAME, nvs_core_net_bind_datagram, nvs_core_net_connect,
+        nvs_core_net_datagram_close, nvs_core_net_datagram_port, nvs_core_net_datagram_receive,
+        nvs_core_net_datagram_send, nvs_core_net_listen, nvs_core_net_message_host,
+        nvs_core_net_message_payload, nvs_core_net_message_port,
     };
     use nvs_runtime::{Ctx, NvsStr, Value};
 
@@ -897,7 +1526,7 @@ mod tests {
     }
 
     /// Gives back the references a case built for its arguments.
-    fn released(values: [Value; 3]) {
+    fn released<const N: usize>(values: [Value; N]) {
         #[expect(unsafe_code, reason = "each value owns the reference it releases")]
         unsafe {
             for value in values {
@@ -1034,15 +1663,135 @@ mod tests {
         assert_eq!(asked("connect"), Some(nvs_config::Cap::NetConnect));
     }
 
+    /// The datagram half, end to end and through the doors a program uses: two
+    /// bound sockets, a message from one to the other, and a reply addressed
+    /// with what the message answered.
+    ///
+    /// **Off a core there is no coroutine to suspend**, so what waits here is
+    /// `nvs_host::net`'s blocking path rather than the reactor's park — the same
+    /// four functions either way, which is the whole of why `NvsUdp` is an alias
+    /// over `NvsStream` rather than a second transport. That the park itself
+    /// works is `nvs-host`'s own
+    /// `a_udp_socket_registers_with_the_reactor_and_parks_the_coroutine`; what
+    /// is asserted here is that `Core\Net`'s doors reach it.
+    ///
+    /// The reply leg is not a second copy of the first: it is what makes
+    /// `Core\Net\Datagram\Message::host` a plain `string` rather than a
+    /// `tainted` one, since a qualified answer could not be handed to `send`'s
+    /// sink at all.
+    #[test]
+    fn a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(crate::tests::granting(
+            "[capabilities.net]\nlisten = true\nconnect = [\"127.0.0.1\"]\ninternal = [\"127.0.0.1\"]\n",
+        ));
+
+        // Five seconds rather than [`a_second`]: this case genuinely waits on a
+        // socket, and the bound is a ceiling on a failure rather than a figure
+        // anything here is measuring.
+        let within = crate::time::duration_of(5_000_000_000);
+        let loopback = Value::str(NvsStr::new(b"127.0.0.1"));
+        let bind = |ctx: &mut Ctx| {
+            nvs_runtime::call(nvs_core_net_bind_datagram, ctx, &[loopback, Value::uint(0)])
+                .expect("a granted bind on an ephemeral port")
+        };
+        let bound_port = |ctx: &mut Ctx, socket: Value| {
+            nvs_runtime::call(nvs_core_net_datagram_port, ctx, &[socket])
+                .expect("a bound socket answers its port")
+                .as_uint()
+                .expect("a port is a uint")
+        };
+
+        let alpha = bind(&mut ctx);
+        let beta = bind(&mut ctx);
+        let alpha_port = bound_port(&mut ctx, alpha);
+        let beta_port = bound_port(&mut ctx, beta);
+        assert!(
+            alpha_port > 0 && beta_port > 0 && alpha_port != beta_port,
+            "port `0` asks the operating system to pick, and it picks two"
+        );
+
+        let ping = Value::bytes(NvsStr::new(b"ping"));
+        let sent = nvs_runtime::call(
+            nvs_core_net_datagram_send,
+            &mut ctx,
+            &[alpha, loopback, Value::uint(beta_port), ping, within],
+        )
+        .expect("a granted send to a granted address")
+        .as_uint()
+        .expect("a count is a uint");
+        assert_eq!(
+            sent, 4,
+            "one call is one datagram, sent whole or not at all"
+        );
+
+        let message = nvs_runtime::call(
+            nvs_core_net_datagram_receive,
+            &mut ctx,
+            &[beta, Value::uint(64), within],
+        )
+        .expect("the datagram that was just sent");
+        let heard = nvs_runtime::call(nvs_core_net_message_payload, &mut ctx, &[message])
+            .expect("a message answers its payload");
+        assert_eq!(heard.as_bytes(), Some(&b"ping"[..]));
+        let from = nvs_runtime::call(nvs_core_net_message_host, &mut ctx, &[message])
+            .expect("a message answers where it came from");
+        assert_eq!(from.as_text(), Some("127.0.0.1"));
+        let from_port = nvs_runtime::call(nvs_core_net_message_port, &mut ctx, &[message])
+            .expect("a message answers the port it came from")
+            .as_uint();
+        assert_eq!(
+            from_port,
+            Some(alpha_port),
+            "a receive that could not name its sender could not be replied to"
+        );
+
+        let pong = Value::bytes(NvsStr::new(b"pong"));
+        nvs_runtime::call(
+            nvs_core_net_datagram_send,
+            &mut ctx,
+            &[beta, from, Value::uint(alpha_port), pong, within],
+        )
+        .expect("the reply goes back to the endpoint the message named");
+        let back = nvs_runtime::call(
+            nvs_core_net_datagram_receive,
+            &mut ctx,
+            &[alpha, Value::uint(64), within],
+        )
+        .expect("the reply arrived");
+        let echoed = nvs_runtime::call(nvs_core_net_message_payload, &mut ctx, &[back])
+            .expect("a message answers its payload");
+        assert_eq!(echoed.as_bytes(), Some(&b"pong"[..]));
+
+        // Closing is taking the socket out of the request's table, and a second
+        // close finds nothing there: a key is never reused, so this can only be
+        // the same handle twice.
+        nvs_runtime::call(nvs_core_net_datagram_close, &mut ctx, &[alpha])
+            .expect("an open socket closes");
+        nvs_runtime::call(nvs_core_net_datagram_close, &mut ctx, &[beta])
+            .expect("an open socket closes");
+        nvs_runtime::call(nvs_core_net_datagram_close, &mut ctx, &[alpha])
+            .expect_err("a second close throws rather than succeeding quietly");
+
+        released([within, loopback, ping, pong, heard, from, echoed]);
+        released([message, back, alpha, beta]);
+    }
+
     /// The layout each handle class declares and the index its bodies read by
     /// are one decision written twice — the pairing
     /// [`crate::registry::CoreClass::slots`] exists to keep honest.
     #[test]
-    fn both_handle_classes_hold_their_socket_in_the_slot_they_declare() {
+    fn every_handle_class_holds_its_socket_in_the_slot_it_declares() {
         assert_eq!(super::SOCKET_SLOT, STREAM.slot("socket"));
         assert_eq!(super::SOCKET_SLOT, LISTENER.slot("socket"));
+        assert_eq!(super::SOCKET_SLOT, DATAGRAM.slot("socket"));
+        assert_eq!(super::PAYLOAD_SLOT, MESSAGE.slot("payload"));
+        assert_eq!(super::HOST_SLOT, MESSAGE.slot("host"));
+        assert_eq!(super::PORT_SLOT, MESSAGE.slot("port"));
         assert_eq!(STREAM.name, STREAM_NAME);
         assert_eq!(LISTENER.name, LISTENER_NAME);
+        assert_eq!(DATAGRAM.name, DATAGRAM_NAME);
+        assert_eq!(MESSAGE.name, MESSAGE_NAME);
         assert_eq!(CLASS.name, NAME);
     }
 }

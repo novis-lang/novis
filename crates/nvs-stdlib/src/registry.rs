@@ -1700,8 +1700,8 @@ pub const CLASSES: &[CoreClass] = &[
     // replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
     // three transports, and `rule:security/net-listen-is-a-separate-grant-from-net-connect`
     // is why reaching outward and binding are two grants rather than one
-    // widened. Two of the five entry points so far; [`crate::net`]'s module doc
-    // is the home of what each one asks.
+    // widened. Three of the five entry points so far; [`crate::net`]'s module
+    // doc is the home of what each one asks.
     crate::net::CLASS,
     // The connected transport those entry points answer with — a `Read` and a
     // `Write` shaped like every other stream in the language, whose one slot
@@ -1712,6 +1712,16 @@ pub const CLASSES: &[CoreClass] = &[
     // rather than six: taking the next connection off a socket the program
     // already holds is a member on that socket, not another way to open one.
     crate::net::LISTENER,
+    // The third transport, which answers neither `Read` nor `Write` because a
+    // datagram socket has no stream to read. It is the one handle class here
+    // whose members do not all reach what its bind already granted:
+    // `rule:security/net-address-policy` asks the outbound grant at the send,
+    // because that is where a datagram's address is named at all.
+    crate::net::DATAGRAM,
+    // And what a receive answers with — the octets and the endpoint they came
+    // from, as one object because Novis has neither out-parameters nor tuples
+    // and `stream_socket_recvfrom`'s row has to be answered by something.
+    crate::net::MESSAGE,
     // `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
     // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
     // state, and the one place a value outlives the request that made it.
@@ -2024,6 +2034,13 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::NetConnect),
     ),
     (crate::net::NAME, "listen", Some(nvs_config::Cap::NetListen)),
+    // A bind is a bind whatever transport is bound at it: what decides the
+    // grant is what the program is doing, not the protocol it does it over.
+    (
+        crate::net::NAME,
+        "bindDatagram",
+        Some(nvs_config::Cap::NetListen),
+    ),
     // `Core\Net\Stream`'s and `Core\Net\Listener`'s members need no grant of
     // their own, and these `None` rows are the declaration that says so —
     // `Core\IO\File`'s rows one class over are the same reading. The socket was
@@ -2038,6 +2055,25 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::net::LISTENER_NAME, "accept", None),
     (crate::net::LISTENER_NAME, "port", None),
     (crate::net::LISTENER_NAME, "close", None),
+    // `Core\Net\Datagram` is the one handle class here with a member declaring a
+    // grant of its own, and it is not an exception to the reading above but the
+    // same reading applied: a datagram socket is bound and never connected, so
+    // the outbound address is named at the send rather than at the opening, and
+    // `rule:security/net-address-policy` says that is where it is asked about.
+    // The other three reach nothing the bind had not already granted.
+    (
+        crate::net::DATAGRAM_NAME,
+        "send",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (crate::net::DATAGRAM_NAME, "receive", None),
+    (crate::net::DATAGRAM_NAME, "port", None),
+    (crate::net::DATAGRAM_NAME, "close", None),
+    // A received message is three values already in hand: nothing it answers
+    // reaches anything, and there is no socket behind it to reach with.
+    (crate::net::MESSAGE_NAME, "payload", None),
+    (crate::net::MESSAGE_NAME, "host", None),
+    (crate::net::MESSAGE_NAME, "port", None),
     // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, and
     // `shared()` is the door — it dials the store the deployment configured, while
     // `Core\Cache\Store`'s two operations run on what it opened and so declare
