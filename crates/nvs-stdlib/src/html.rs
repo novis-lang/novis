@@ -28,8 +28,10 @@
 //! `rule:core-api/tier-roster` gives
 //! this class two more things than it has: `sanitize` and
 //! `rule:core-classes/html-parsing`'s
-//! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
-//! existing at all.
+//! WHATWG parser over `Core\Xml`'s tree. Neither waits on that tree any
+//! longer — [`crate::xml`] holds the parse and the node family both doors
+//! produce — so what is left here is a tree builder driving `html5ever` into
+//! those nodes, and the rebuild `sanitize` answers a [`MARKUP`] with.
 //!
 //! `rule:core-classes/html-to-source` asks two things of [`nvs_core_html_to_source`]'s `$reason` and
 //! each is enforced in the one place that can answer it. **A computed reason is
