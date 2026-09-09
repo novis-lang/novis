@@ -1,0 +1,57 @@
+<?nvs
+// What this host is, as five facts about the process asking.
+//
+// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Os` in Tier 0 as the
+// answer to `posix_*` minus fork, `php_uname`, `getrusage` and
+// `sys_getloadavg`. One member per fact and never one string or one array to
+// take apart: `php_uname`'s migration row is the whole argument, since a
+// program that wanted the host's name had to parse it out of a sentence whose
+// shape differed by platform.
+//
+// **Nothing here asks a capability.** A pid, a hostname, a core count, this
+// process's own memory and the machine's load are facts about the process
+// doing the asking — a program learns nothing about anything it does not
+// already inhabit — so there is nothing to grant, and this file runs under a
+// deployment that grants nothing at all.
+//
+// Every figure differs on every machine, so what this prints is properties
+// rather than values, the way `examples/program-id.nvs` does for a digest it
+// cannot print.
+
+// The process, and the fleet it is one of. `cpuCount` reads the affinity mask
+// and the container quota where either narrows the machine, which is why it is
+// the right number for a program sizing a pool of its own: it is the same
+// number `nvs serve` fans its workers out over, so the two agree instead of
+// oversubscribing a two-CPU cgroup on a 96-core host.
+uint $pid = Core\Os::pid();
+string $host = Core\Os::hostname();
+uint $cores = Core\Os::cpuCount();
+
+echo $pid > 0 ? "pid is a number" : "pid answered nothing", "\n";
+echo Core\Str::length($host) > 0 ? "hostname is a name" : "hostname answered nothing", "\n";
+echo $cores > 0 ? "cpuCount is at least one core" : "cpuCount answered nothing", "\n";
+
+// The *process's* resident set, and never the request's held bytes — those are
+// `Core\Budget::memoryHeld`, measured against a ceiling this figure has nothing
+// to do with ([ADR 0148](/docs/decisions/0148.md) § 12). It is a high-water
+// mark, so it only ever grows; two reads with work between them can differ,
+// and the second is never the smaller.
+uint $before = Core\Os::residentBytes();
+uint $after = Core\Os::residentBytes();
+echo $after >= $before ? "residentBytes only grows" : "residentBytes fell", "\n";
+
+// The one fact a platform can keep none of. Windows has no load average, and
+// the processor-time percentage suggested in its place answers a different
+// question — how busy the cores were, not how many processes were waiting for
+// one — so the member refuses and names the platform rather than answering
+// three zeroes a program would act on.
+try {
+    var $load = Core\Os::loadAverage();
+    echo Core\Arr::count($load) == 3
+        ? "loadAverage is one, five and fifteen minutes"
+        : "loadAverage answered the wrong number of figures", "\n";
+} catch (RuntimeError $refused) {
+    echo Core\Str::contains($refused->message, "keeps no load average")
+        ? "loadAverage has no answer on this platform, and says so"
+        : "loadAverage refused for another reason: " . $refused->message, "\n";
+}

@@ -1,0 +1,63 @@
+--TEST--
+`Core\Os` answers five facts about the host, each the shape its type promises, and `loadAverage` is the one a platform may keep nothing to answer from — `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// Every figure here differs on every machine this runs on, so what a case can
+// pin is the shape and not the value. That is not a weak assertion: a member
+// wired to the wrong primitive answers a zero, an empty string or nothing at
+// all, and each of the five lines below is what refuses one of those.
+uint $pid = Core\Os::pid();
+if ($pid > 0) {
+    echo "pid: a number\n";
+} else {
+    echo "pid: none\n";
+}
+
+string $host = Core\Os::hostname();
+if (Core\Str::length($host) > 0) {
+    echo "hostname: a name\n";
+} else {
+    echo "hostname: empty\n";
+}
+
+uint $cores = Core\Os::cpuCount();
+if ($cores > 0) {
+    echo "cpuCount: at least one core\n";
+} else {
+    echo "cpuCount: none\n";
+}
+
+// This is the *process's* resident set and never the request's held bytes,
+// which are `Core\Budget`'s (ADR 0148 § 12). A running process holds memory,
+// so a zero here is a member reading a counter nobody writes.
+uint $resident = Core\Os::residentBytes();
+if ($resident > 0) {
+    echo "residentBytes: bytes held\n";
+} else {
+    echo "residentBytes: nothing\n";
+}
+
+// The one member with a platform that keeps nothing to answer from. Both arms
+// print the same line on purpose: what this pins is that the member either
+// answers three figures or says the platform has none, and never a plausible
+// `[0.0, 0.0, 0.0]` a program would go on to act on.
+try {
+    var $load = Core\Os::loadAverage();
+    if (Core\Arr::count($load) == 3) {
+        echo "loadAverage: three figures or none\n";
+    } else {
+        echo "loadAverage: the wrong number of figures\n";
+    }
+} catch (RuntimeError $refused) {
+    if (Core\Str::contains($refused->message, "keeps no load average")) {
+        echo "loadAverage: three figures or none\n";
+    } else {
+        echo "loadAverage: ", $refused->message, "\n";
+    }
+}
+--EXPECT--
+pid: a number
+hostname: a name
+cpuCount: at least one core
+residentBytes: bytes held
+loadAverage: three figures or none

@@ -1,0 +1,73 @@
+--TEST--
+Every `Core\Os` fact is stable across two reads in one program — the three identities are equal, `residentBytes` only ever grows, and `loadAverage` answers both times or neither — `rule:core-api/tier-roster`
+--FILE--
+<?nvs
+// The invariance the shape case cannot see: a member that read a fresh figure
+// out of the wrong place, or cached one it should not have, still answers
+// plausibly the first time. Asked twice in one process, a pid, a hostname and
+// a core count are the same answer or the member is wrong.
+uint $firstPid = Core\Os::pid();
+uint $secondPid = Core\Os::pid();
+if ($firstPid == $secondPid) {
+    echo "pid: the same process\n";
+} else {
+    echo "pid: two processes\n";
+}
+
+string $firstHost = Core\Os::hostname();
+string $secondHost = Core\Os::hostname();
+if ($firstHost == $secondHost) {
+    echo "hostname: the same host\n";
+} else {
+    echo "hostname: two hosts\n";
+}
+
+uint $firstCores = Core\Os::cpuCount();
+uint $secondCores = Core\Os::cpuCount();
+if ($firstCores == $secondCores) {
+    echo "cpuCount: the same fleet\n";
+} else {
+    echo "cpuCount: a fleet that changed size\n";
+}
+
+// The one fact here that is *not* required to be equal, and the difference is
+// the member's whole reading: a resident high-water mark can only grow, so a
+// second answer below the first would mean this reports what the process holds
+// right now — which is `Core\Budget::memoryHeld`'s question and not this one
+// (ADR 0148 § 12).
+uint $firstResident = Core\Os::residentBytes();
+uint $secondResident = Core\Os::residentBytes();
+if ($secondResident >= $firstResident) {
+    echo "residentBytes: a high-water mark\n";
+} else {
+    echo "residentBytes: a figure that fell\n";
+}
+
+// A member does not answer sometimes: whether this platform keeps a load
+// average is a fact about the platform, so two calls agree even here. Summing
+// the figures counted is what makes one answer and one refusal visible — 3 is
+// the sum neither branch below accepts.
+uint $counted = 0;
+try {
+    var $first = Core\Os::loadAverage();
+    $counted = $counted + Core\Arr::count($first);
+} catch (RuntimeError $refused) {
+    echo "";
+}
+try {
+    var $second = Core\Os::loadAverage();
+    $counted = $counted + Core\Arr::count($second);
+} catch (RuntimeError $refused) {
+    echo "";
+}
+if ($counted == 6 || $counted == 0) {
+    echo "loadAverage: both times or neither\n";
+} else {
+    echo "loadAverage: once\n";
+}
+--EXPECT--
+pid: the same process
+hostname: the same host
+cpuCount: the same fleet
+residentBytes: a high-water mark
+loadAverage: both times or neither
