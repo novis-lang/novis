@@ -1,0 +1,110 @@
+--TEST--
+`Core\Html::parse` and `Core\Xml::parse` answer the same node family, so one walk reads either and only the contract that got a document through the door differs — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The claim under test is *agreement*, so this file has exactly one walk and
+// both doors are asked to satisfy it. A door that grew a node of its own — an
+// attribute node, a fragment, a doctype — would have nothing here to print it
+// with, and a walk written per door is what `rule:core-classes/html-parsing`'s
+// one-node-family clause exists to prevent.
+class Walk {
+    public static function show(Core\Xml\Node $node, uint $depth): void {
+        echo $depth, " ", Walk::kind($node), " ", $node->name(), " \"", $node->text(), "\"";
+        foreach ($node->attributes() as string $name => tainted string $value) {
+            echo " ", $name, "=", $value;
+        }
+        echo "\n";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::show($child, $depth + 1);
+        }
+    }
+
+    public static function kind(Core\Xml\Node $node): string {
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            return "element";
+        }
+        if ($node->kind() == Core\Xml\NodeKind::Text) {
+            return "text";
+        }
+        if ($node->kind() == Core\Xml\NodeKind::Comment) {
+            return "comment";
+        }
+        if ($node->kind() == Core\Xml\NodeKind::ProcessingInstruction) {
+            return "instruction";
+        }
+        return "document";
+    }
+
+    // How many nodes of one kind a whole tree holds — the shape that makes
+    // "the families agree" a count rather than a line-by-line read.
+    public static function census(Core\Xml\Node $node, string $kind): uint {
+        uint $seen = 0;
+        if (Walk::kind($node) == $kind) {
+            $seen = 1;
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $seen = $seen + Walk::census($child, $kind);
+        }
+        return $seen;
+    }
+}
+
+// The same content written for each door, in the spelling that door accepts:
+// an element with an attribute, character data, a comment and a nested empty
+// element. HTML implies `html`, `head` and `body`; XML implies nothing. That
+// difference is *placement*, and it is the only one — every node below is one
+// of the same five kinds.
+echo "-- through Core\\Html\n";
+Walk::show(Core\Html::parse("<page id=\"7\">text<!--note--><line></line></page>"), 0);
+echo "-- through Core\\Xml\n";
+Walk::show(Core\Xml::parse("<page id=\"7\">text<!--note--><line/></page>"), 0);
+
+// Asked as a count over the whole tree rather than read off a line: strip the
+// tags HTML implies and the two doors hold the same census. A door that
+// answered a kind of its own would show up here even if every line above still
+// printed plausibly.
+Core\Xml\Node $html = Core\Html::parse("<p>a<!--c-->b</p>");
+Core\Xml\Node $xml = Core\Xml::parse("<p>a<!--c-->b</p>");
+array<string> $kinds = ["text", "comment", "document", "instruction"];
+foreach ($kinds as string $at => string $kind) {
+    echo $kind, ": html ", Walk::census($html, $kind),
+         " xml ", Walk::census($xml, $kind), "\n";
+}
+// The elements differ by exactly the three HTML implies and XML does not, which
+// is the one difference between the two trees and is placement, not family.
+echo "elements: html ", Walk::census($html, "element"),
+     " xml ", Walk::census($xml, "element"), "\n";
+
+// The one thing that is *not* shared, and the reason there is no mode on
+// either door: the same malformed text is a tree through one and a refusal
+// through the other. A flag choosing between them is what this pair replaces.
+try {
+    Core\Xml::parse("<a><b></a>");
+    echo "xml accepted it\n";
+} catch (ParseError $refused) {
+    echo "xml refused it\n";
+}
+echo "html kind: ", Walk::kind(Core\Html::parse("<a><b></a>")), "\n";
+--EXPECT--
+-- through Core\Html
+0 document  ""
+1 element html ""
+2 element head ""
+2 element body ""
+3 element page "" id=7
+4 text  "text"
+4 comment  "note"
+4 element line ""
+-- through Core\Xml
+0 document  ""
+1 element page "" id=7
+2 text  "text"
+2 comment  "note"
+2 element line ""
+text: html 2 xml 2
+comment: html 1 xml 1
+document: html 1 xml 1
+instruction: html 0 xml 0
+elements: html 4 xml 1
+xml refused it
+html kind: document

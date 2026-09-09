@@ -1,6 +1,6 @@
-//! `Core\Html` — `rule:security/launderers-are-sink-named`
-//! 's narrow, sink-named launderer, over the sink § 5 makes out of HTML
-//! text.
+//! `Core\Html` — `rule:security/launderers-are-sink-named`'s narrow,
+//! sink-named launderer over the sink § 5 makes out of HTML text, and
+//! `rule:core-classes/html-parsing`'s WHATWG parser onto `Core\Xml`'s tree.
 //!
 //! § 3 writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
 //! *the* worked example of what a launderer is allowed to be: one member, one
@@ -23,15 +23,31 @@
 //! other launderer in the registry keeps its plain type, which is the same
 //! predicate answering no.
 //!
+//! # The WHATWG parse, and where its boundary is
+//!
+//! [`nvs_core_html_parse`] is `rule:core-classes/html-parsing`'s second door
+//! onto [`crate::xml`]'s tree, and it **cannot fail**: implied tags, misnested
+//! formatting and foster parenting are the algorithm's *specified* output
+//! rather than a guess, so there is nothing for
+//! `rule:errors/ambiguous-input-refused` to refuse. That is the opposite
+//! contract to `Core\Xml::parse` over the same nodes, and the pair is what
+//! replaces one object flipping between the two under a flag.
+//!
+//! The engine is `html5ever` and the tree builder is [`Sink`], ours. The
+//! boundary between the two is where the one-node-family clause is enforced:
+//! [`crate::xml::Parsed`] and [`Kind`] are the only things [`Sink`] builds, so
+//! a construct this door could produce that the other could not would have to
+//! be a sixth kind, which there is no way to write. What that costs in
+//! placement decisions — the doctype dropped, a `<template>`'s contents kept on
+//! the element, a declarative shadow root refused — is on each of [`Sink`]'s
+//! own members.
+//!
 //! # Known gaps
 //!
-//! `rule:core-api/tier-roster` gives
-//! this class two more things than it has: `sanitize` and
-//! `rule:core-classes/html-parsing`'s
-//! WHATWG parser over `Core\Xml`'s tree. Neither waits on that tree any
-//! longer — [`crate::xml`] holds the parse and the node family both doors
-//! produce — so what is left here is a tree builder driving `html5ever` into
-//! those nodes, and the rebuild `sanitize` answers a [`MARKUP`] with.
+//! `rule:core-api/tier-roster` gives this class one more thing than it has:
+//! `sanitize`, the rebuild that answers a [`MARKUP`]. It waits on nothing now
+//! that the parse is here, since rebuilding a document means walking the tree
+//! this member already answers.
 //!
 //! `rule:core-classes/html-to-source` asks two things of [`nvs_core_html_to_source`]'s `$reason` and
 //! each is enforced in the one place that can answer it. **A computed reason is
@@ -98,9 +114,16 @@
 //! code points are for, and `rule:security/bidi-predicate`'s whole position is that banning them
 //! breaks Arabic and Hebrew.
 
+use std::borrow::Cow;
+use std::cell::{Ref, RefCell};
+
+use html5ever::tendril::{StrTendril, TendrilSink};
+use html5ever::tree_builder::{ElementFlags, NodeOrText, QuirksMode, TreeSink};
+use html5ever::{Attribute, QualName};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::xml::{DEPTH_CEILING, Kind, Parsed};
 
 /// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
@@ -124,6 +147,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "nvs_core_html_to_source",
             doc: Some(&TO_SOURCE_DOC),
+        },
+        CoreMethod {
+            name: "parse",
+            names: &["document"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(crate::xml::NODE_NAME),
+            symbol: "nvs_core_html_parse",
+            doc: Some(&PARSE_DOC),
         },
     ],
     instance: &[],
@@ -243,11 +275,34 @@ const TO_SOURCE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Html::parse`'s reference card — `rule:core-api/reference-card`.
+const PARSE_DOC: MethodDoc = MethodDoc {
+    short: "Parses `$document` as HTML by the WHATWG algorithm — the one browsers run — and answers \
+            the document node of the same tree `Core\\Xml::parse` builds.",
+    params: &[ParamDoc {
+        name: "document",
+        desc: "The document text. Any text at all is a document: this member has no way to refuse \
+               one.",
+        shape: &[],
+    }],
+    ret: "The `Core\\Xml\\Node` of kind `Document` whose children are what the algorithm put at the \
+          top level — for all but an empty input, one `html` element with `head` and `body` under \
+          it, whether or not the text wrote those tags. Implied tags, misnested tags and \
+          stray content are placed exactly where a browser places them, so what comes back is what \
+          a page would have rendered rather than a reading of what was written. A `<!DOCTYPE …>` \
+          leaves no node, since the tree has no kind for one. Names are lower-cased in the HTML \
+          namespace and case-corrected in the SVG and MathML ones, as the algorithm specifies. \
+          Nesting deeper than a thousand elements is flattened onto the thousandth rather than \
+          held, so no document can make the walk of the answer exhaust the stack.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_html_escape" => (nvs_core_html_escape as *const ()).cast(),
+        "nvs_core_html_parse" => (nvs_core_html_parse as *const ()).cast(),
         "nvs_core_html_to_source" => (nvs_core_html_to_source as *const ()).cast(),
         MARKUP_SYMBOL => (nvs_core_html_markup as *const ()).cast(),
         MARKUP_CONCAT_SYMBOL => (nvs_core_html_markup_concat as *const ()).cast(),
@@ -515,6 +570,456 @@ nvs_runtime::nvs_helper! {
 /// `&#8235;` in the output would be an escaped payload rather than a neutral
 /// one.
 const REPLACEMENT: char = '\u{FFFD}';
+
+// ============================================================================
+// The WHATWG parse
+// ============================================================================
+
+/// One node of the arena [`Sink`] fills, before the whole of it becomes a
+/// [`Parsed`] tree.
+///
+/// A flat `Vec` with indices for edges rather than a tree of owned nodes,
+/// because the tree builder *moves* nodes between parents — the adoption agency
+/// algorithm, which is most of what HTML's error recovery is — and reparenting
+/// a subtree here is an index write rather than a walk.
+#[derive(Debug)]
+struct Node {
+    /// Which of [`Kind`]'s five this is.
+    kind: Kind,
+    /// An element's qualified name, kept whole because [`TreeSink::elem_name`]
+    /// hands it back to the tree builder, which reads the namespace as well as
+    /// the local name to decide what foreign content means.
+    qual: Option<QualName>,
+    /// The name the [`Parsed`] node carries: an element's tag or a processing
+    /// instruction's target, with the prefix the document wrote.
+    name: String,
+    /// The character data this node carries itself.
+    text: String,
+    /// An element's attributes, in written order.
+    attributes: Vec<(String, String)>,
+    /// This node's children, in document order.
+    children: Vec<usize>,
+    /// What this node hangs off, or `None` for the document and for a node the
+    /// builder has detached.
+    parent: Option<usize>,
+    /// Whether this is a MathML `annotation-xml` acting as an HTML integration
+    /// point, which is a property of the attributes it was created with and
+    /// decides how content nested inside it is parsed.
+    integration_point: bool,
+}
+
+impl Node {
+    /// An empty node of `kind`.
+    fn new(kind: Kind) -> Self {
+        Self {
+            kind,
+            qual: None,
+            name: String::new(),
+            text: String::new(),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            parent: None,
+            integration_point: false,
+        }
+    }
+
+    /// A text node carrying `text`.
+    fn text(text: &str) -> Self {
+        let mut node = Self::new(Kind::Text);
+        node.text.push_str(text);
+        node
+    }
+}
+
+/// The tree builder `html5ever` drives — the whole of the boundary between that
+/// crate and Novis's own nodes.
+///
+/// `markup5ever_rcdom` is the sample DOM this replaces, and not taking it is
+/// what `rule:core-classes/html-parsing`'s one-node-family clause needs: a
+/// parse that built someone else's DOM and walked the result into [`Parsed`]
+/// would hold the document twice and put a second node family in this crate for
+/// the length of every parse, which is the drift the clause exists to prevent.
+/// Nothing below decides what a node *is* — [`Kind`] and [`Parsed`] are
+/// [`crate::xml`]'s, and a construct HTML could produce that XML could not would
+/// have to be a sixth kind, which there is no way to write.
+#[derive(Debug)]
+struct Sink {
+    /// Every node built so far. Index 0 is the document, and an index is what
+    /// [`TreeSink::Handle`] is.
+    ///
+    /// A `RefCell` because [`TreeSink`] takes `&self` throughout: the tree
+    /// builder holds handles into this while it calls, so the interior
+    /// mutability is the trait's shape rather than a choice made here. Every
+    /// borrow below is one statement long for that reason.
+    nodes: RefCell<Vec<Node>>,
+}
+
+impl Sink {
+    /// A sink holding nothing but the document node every handle is relative
+    /// to.
+    fn new() -> Self {
+        Self {
+            nodes: RefCell::new(vec![Node::new(Kind::Document)]),
+        }
+    }
+
+    /// `node`, added to the arena, as the handle the builder will refer to it
+    /// by.
+    fn push(&self, node: Node) -> usize {
+        let mut nodes = self.nodes.borrow_mut();
+        nodes.push(node);
+        nodes.len() - 1
+    }
+
+    /// Which parent `target` hangs off and where among its children it sits, or
+    /// `None` for a node with no parent.
+    fn locate(&self, target: usize) -> Option<(usize, usize)> {
+        let nodes = self.nodes.borrow();
+        let parent = nodes[target].parent?;
+        let at = nodes[parent].children.iter().position(|&n| n == target)?;
+        Some((parent, at))
+    }
+
+    /// Makes `child` the last of `parent`'s children.
+    fn attach(&self, parent: usize, child: usize) {
+        self.detach(child);
+        let mut nodes = self.nodes.borrow_mut();
+        nodes[child].parent = Some(parent);
+        nodes[parent].children.push(child);
+    }
+
+    /// Puts `child` among `parent`'s children at `at`.
+    fn insert(&self, parent: usize, at: usize, child: usize) {
+        let mut nodes = self.nodes.borrow_mut();
+        nodes[child].parent = Some(parent);
+        nodes[parent].children.insert(at, child);
+    }
+
+    /// Takes `target` out of whatever it hangs off, leaving it in the arena
+    /// with no parent.
+    fn detach(&self, target: usize) {
+        let Some((parent, at)) = self.locate(target) else {
+            return;
+        };
+        let mut nodes = self.nodes.borrow_mut();
+        nodes[parent].children.remove(at);
+        nodes[target].parent = None;
+    }
+
+    /// Appends `text` to the node at `at` if there is one and it is text, and
+    /// reports whether it did.
+    ///
+    /// [`TreeSink`]'s contract is that adjacent text is one node, so this is
+    /// what keeps a document that arrived in ten buffers from producing ten
+    /// text nodes where a browser holds one.
+    fn merged(&self, at: Option<usize>, text: &str) -> bool {
+        let Some(at) = at else {
+            return false;
+        };
+        let mut nodes = self.nodes.borrow_mut();
+        if nodes[at].kind != Kind::Text {
+            return false;
+        }
+        nodes[at].text.push_str(text);
+        true
+    }
+}
+
+impl TreeSink for Sink {
+    type Handle = usize;
+    type Output = Parsed;
+    type ElemName<'a> = Ref<'a, QualName>;
+
+    fn finish(self) -> Parsed {
+        let mut nodes = self.nodes.into_inner();
+        let mut document = taken(&mut nodes[0]);
+        fill(&mut nodes, 0, 1, &mut document.children);
+        document
+    }
+
+    /// Discarded, and that is `rule:core-classes/html-parsing` rather than a
+    /// gap: every one of these names a place the algorithm has already said
+    /// what to do, so the recovery is the specified output and there is nothing
+    /// a caller could act on. A parse that reported them would be offering a
+    /// failure this member does not have.
+    fn parse_error(&self, _why: Cow<'static, str>) {}
+
+    fn get_document(&self) -> usize {
+        0
+    }
+
+    fn elem_name<'a>(&'a self, target: &'a usize) -> Ref<'a, QualName> {
+        Ref::map(self.nodes.borrow(), |nodes| {
+            nodes[*target]
+                .qual
+                .as_ref()
+                .expect("the tree builder asks only an element for its name")
+        })
+    }
+
+    fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> usize {
+        let mut node = Node::new(Kind::Element);
+        node.name = written(&name);
+        node.attributes = attrs
+            .into_iter()
+            .map(|attr| (written(&attr.name), attr.value.to_string()))
+            .collect();
+        node.integration_point = flags.mathml_annotation_xml_integration_point;
+        node.qual = Some(name);
+        self.push(node)
+    }
+
+    fn create_comment(&self, text: StrTendril) -> usize {
+        let mut node = Node::new(Kind::Comment);
+        node.text = text.to_string();
+        self.push(node)
+    }
+
+    /// Unreachable from an HTML document — the tokenizer reads `<?…>` as a
+    /// bogus comment — and written out anyway because the node family has this
+    /// kind and `xml5ever` drives the same trait onto it.
+    fn create_pi(&self, target: StrTendril, data: StrTendril) -> usize {
+        let mut node = Node::new(Kind::ProcessingInstruction);
+        node.name = target.to_string();
+        node.text = data.to_string();
+        self.push(node)
+    }
+
+    fn append(&self, parent: &usize, child: NodeOrText<usize>) {
+        match child {
+            NodeOrText::AppendNode(node) => self.attach(*parent, node),
+            NodeOrText::AppendText(text) => {
+                let last = self.nodes.borrow()[*parent].children.last().copied();
+                if !self.merged(last, &text) {
+                    let node = self.push(Node::text(&text));
+                    self.attach(*parent, node);
+                }
+            }
+        }
+    }
+
+    fn append_before_sibling(&self, sibling: &usize, new_node: NodeOrText<usize>) {
+        match new_node {
+            NodeOrText::AppendNode(node) => {
+                // The detach comes first and the position is read after it:
+                // `node` may have an old parent, and if that parent is this one
+                // then removing it moves every sibling after it down one.
+                self.detach(node);
+                if let Some((parent, at)) = self.locate(*sibling) {
+                    self.insert(parent, at, node);
+                }
+            }
+            NodeOrText::AppendText(text) => {
+                let Some((parent, at)) = self.locate(*sibling) else {
+                    return;
+                };
+                let before = at
+                    .checked_sub(1)
+                    .map(|before| self.nodes.borrow()[parent].children[before]);
+                if !self.merged(before, &text) {
+                    let node = self.push(Node::text(&text));
+                    self.insert(parent, at, node);
+                }
+            }
+        }
+    }
+
+    fn append_based_on_parent_node(
+        &self,
+        element: &usize,
+        prev_element: &usize,
+        child: NodeOrText<usize>,
+    ) {
+        if self.nodes.borrow()[*element].parent.is_some() {
+            self.append_before_sibling(element, child);
+        } else {
+            self.append(prev_element, child);
+        }
+    }
+
+    /// Dropped, because [`Kind`] is closed at five and none of them is a
+    /// doctype. `Core\Xml` refuses a `<!DOCTYPE …>` outright rather than
+    /// reading one, so neither door lets a document type declaration mean
+    /// anything, and this is that same answer where refusing is not allowed:
+    /// the declaration names no entity that could be expanded and leaves no
+    /// node that could be read.
+    fn append_doctype_to_document(
+        &self,
+        _name: StrTendril,
+        _public: StrTendril,
+        _system: StrTendril,
+    ) {
+    }
+
+    /// A `<template>`'s contents are the element's own children.
+    ///
+    /// The DOM keeps them in a separate fragment, and the family has no
+    /// fragment node to keep them in. Handing the element back as its own
+    /// contents puts them where a program walking the tree would look for them
+    /// — `$template->children()` — instead of nowhere, which is what a fragment
+    /// nothing is attached to would mean here.
+    fn get_template_contents(&self, target: &usize) -> usize {
+        *target
+    }
+
+    fn same_node(&self, x: &usize, y: &usize) -> bool {
+        x == y
+    }
+
+    /// Discarded: quirks mode changes how a *renderer* lays a document out and
+    /// changes nothing about the tree, and this member answers a tree.
+    fn set_quirks_mode(&self, _mode: QuirksMode) {}
+
+    fn add_attrs_if_missing(&self, target: &usize, attrs: Vec<Attribute>) {
+        let mut nodes = self.nodes.borrow_mut();
+        let node = &mut nodes[*target];
+        for attr in attrs {
+            let name = written(&attr.name);
+            if node.attributes.iter().all(|(had, _)| *had != name) {
+                node.attributes.push((name, attr.value.to_string()));
+            }
+        }
+    }
+
+    fn remove_from_parent(&self, target: &usize) {
+        self.detach(*target);
+    }
+
+    fn reparent_children(&self, node: &usize, new_parent: &usize) {
+        let moved = std::mem::take(&mut self.nodes.borrow_mut()[*node].children);
+        let mut nodes = self.nodes.borrow_mut();
+        for &child in &moved {
+            nodes[child].parent = Some(*new_parent);
+        }
+        nodes[*new_parent].children.extend(moved);
+    }
+
+    fn is_mathml_annotation_xml_integration_point(&self, handle: &usize) -> bool {
+        self.nodes.borrow()[*handle].integration_point
+    }
+
+    /// Refused, so a `<template shadowrootmode>` stays the template element it
+    /// was written as. A shadow root is a sixth kind of node under another
+    /// name, and the family is closed at five; a program that wants what the
+    /// template holds reads its children.
+    fn allow_declarative_shadow_roots(&self, _intended_parent: &usize) -> bool {
+        false
+    }
+}
+
+/// A qualified name as the document wrote it — `prefix:local` where there is a
+/// prefix and `local` where there is not.
+///
+/// The namespace URI is deliberately not in it. It is not what a tag looks like
+/// in the source, `Core\Xml`'s own parse puts the written name in the same
+/// field, and a name that differed between the two doors would be the drift
+/// `rule:core-classes/html-parsing` forbids.
+fn written(name: &QualName) -> String {
+    match &name.prefix {
+        Some(prefix) => format!("{prefix}:{}", name.local),
+        None => name.local.to_string(),
+    }
+}
+
+/// The node at `node` as a childless [`Parsed`], moving its text out of the
+/// arena rather than copying it.
+///
+/// Every node is visited exactly once, so what is left behind is never read
+/// again — which is what keeps a parse from holding the document's text a third
+/// time while it converts.
+fn taken(node: &mut Node) -> Parsed {
+    let mut built = Parsed::new(node.kind);
+    built.name = std::mem::take(&mut node.name);
+    built.text = std::mem::take(&mut node.text);
+    built.attributes = std::mem::take(&mut node.attributes);
+    built
+}
+
+/// Every child of `at`, converted into `into`, where those children sit at
+/// `depth`.
+///
+/// **Recursion here is bounded by [`DEPTH_CEILING`], and the bound is
+/// load-bearing rather than tidy.** `rule:core-classes/html-parsing` gives this
+/// parse no way to fail, so `<div>` written ten thousand times is a document
+/// that must produce a tree; a walk that recursed over it would exhaust the
+/// native stack, and a crash is not something AGENTS.md's priority 1 trades for
+/// fidelity. `Core\Xml` holds the same ceiling from the other side by refusing
+/// a document past it, which it is allowed to do and this is not.
+///
+/// Nothing is dropped. A node deeper than the ceiling is attached to the
+/// deepest ancestor still inside it, so all of the document's content arrives
+/// and only its nesting flattens — and it flattens a thousand elements past
+/// where any document a person wrote ends.
+fn fill(nodes: &mut [Node], at: usize, depth: usize, into: &mut Vec<Parsed>) {
+    let children = std::mem::take(&mut nodes[at].children);
+    for child in children {
+        let mut node = taken(&mut nodes[child]);
+        if depth < DEPTH_CEILING {
+            fill(nodes, child, depth + 1, &mut node.children);
+            into.push(node);
+        } else {
+            into.push(node);
+            flatten(nodes, child, into);
+        }
+    }
+}
+
+/// Every descendant of `at`, appended to `into` as siblings rather than as a
+/// nesting — the ceiling's own walk.
+///
+/// Iterative, which is the whole point: the depth it is reading is the depth
+/// [`fill`] refused to recurse over.
+fn flatten(nodes: &mut [Node], at: usize, into: &mut Vec<Parsed>) {
+    let mut work = Vec::new();
+    stack(nodes, at, &mut work);
+    while let Some(child) = work.pop() {
+        into.push(taken(&mut nodes[child]));
+        stack(nodes, child, &mut work);
+    }
+}
+
+/// `at`'s children pushed onto `work` so that popping yields them in document
+/// order, and their own children after each of them.
+fn stack(nodes: &mut [Node], at: usize, work: &mut Vec<usize>) {
+    let children = std::mem::take(&mut nodes[at].children);
+    work.extend(children.into_iter().rev());
+}
+
+/// `document`, parsed by the WHATWG algorithm.
+///
+/// `ParseOpts::default()` leaves scripting *enabled*, which is what a browser
+/// with JavaScript on does and therefore what the agreement this member is
+/// built on is about: `<noscript>`'s content is raw text rather than markup.
+/// It is also the safer of the two readings for anything built over this, since
+/// content a scripting browser would never build elements from does not become
+/// elements here either.
+fn parse(document: &str) -> Parsed {
+    html5ever::parse_document(Sink::new(), html5ever::ParseOpts::default()).one(document)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Html::parse(string $document): Core\Xml\Node` — replacing
+    /// `DOMDocument::loadHTML` and PHP 8.4's `Dom\HTMLDocument::createFromString`.
+    ///
+    /// There is no error path, and that is the member's contract rather than an
+    /// omission: `rule:core-classes/html-parsing` takes the WHATWG algorithm
+    /// whole, and under it implied tags, misnested tags and stray content have
+    /// a *specified* placement that every conforming parser agrees on. Nothing
+    /// is guessed, so `rule:errors/ambiguous-input-refused` has no ambiguity to
+    /// refuse. [`crate::xml::nvs_core_xml_parse`] keeps the opposite contract
+    /// over the same tree, which is the pair the rule is about.
+    fn nvs_core_html_parse(_ctx, args: [1]) {
+        // unreachable from source: the parameter is `CoreTy::Text`, so anything
+        // that is not a `string` is `E0401` at the call site.
+        let Some(document) = args[0].as_text() else {
+            return Err(Fault::fatal(format!(
+                "Core\\Html::parse expected a `string`, got tag {}",
+                args[0].tag_byte()
+            )));
+        };
+        Ok(crate::xml::instance_of(parse(document)))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -826,5 +1331,142 @@ mod tests {
             .filter(|c| escaped(*c).is_some())
             .collect();
         assert_eq!(escaped_set, vec!['"', '&', '\'', '<', '>']);
+    }
+
+    /// Every node of `tree`, in document order, as `(depth, kind, name)`.
+    fn walked(tree: &Parsed) -> Vec<(usize, Kind, &str)> {
+        let mut seen = vec![(0, tree.kind, tree.name.as_str())];
+        let mut work: Vec<(usize, &Parsed)> = tree.children.iter().rev().map(|c| (1, c)).collect();
+        while let Some((depth, node)) = work.pop() {
+            seen.push((depth, node.kind, node.name.as_str()));
+            work.extend(node.children.iter().rev().map(|c| (depth + 1, c)));
+        }
+        seen
+    }
+
+    /// `rule:core-classes/html-parsing`'s never-fails half, over the inputs a
+    /// parser that *could* fail would fail on.
+    ///
+    /// Counted rather than read off a line, because what is under test is a
+    /// property of the whole table: a member with one refusal in it takes the
+    /// count down, and a member that answered plausibly for eleven of twelve
+    /// still fails here. The signature carries the same claim at compile time —
+    /// [`parse`] answers a [`Parsed`] and not a `Result`, so there is no error
+    /// path to leave untested — and this is the runtime half, that no input
+    /// reaches a panic or an empty answer either.
+    #[test]
+    fn tag_soup_produces_a_document_because_the_parser_has_no_failure_mode() {
+        let soup = [
+            "",
+            "<",
+            "<<<<",
+            "</>",
+            "<p<p<p>",
+            "<a href=\"unterminated>text",
+            "<!-- unterminated comment",
+            "<![CDATA[not xml]]>",
+            "<?not a processing instruction?>",
+            "<script>var a = '</p>';</script>",
+            "&notanentity;",
+            "<table><td><table><td>",
+            "\u{0}\u{FFFF}",
+            "<!DOCTYPE html SYSTEM \"http://example.invalid/dtd\">",
+            "<svg><foreignObject><div><table><tr>",
+            "</html></body><p>after the end",
+        ];
+        let documents = soup
+            .iter()
+            .filter(|text| parse(text).kind == Kind::Document)
+            .count();
+        assert_eq!(
+            documents,
+            soup.len(),
+            "every one of these is a document, because the WHATWG algorithm \
+             specifies an answer for each of them"
+        );
+    }
+
+    /// `rule:core-classes/html-parsing`'s one-node-family half.
+    ///
+    /// The strongest half of it is not asserted here at all — [`parse`]'s
+    /// return type is [`crate::xml::Parsed`], so a node of this door's own
+    /// invention would not compile. What is left for a test is that the *kinds*
+    /// this door reaches are the family's and no wider, asked as a set over a
+    /// document written to produce every one of them that HTML can, so a parse
+    /// that grew a sixth ordinal fails here rather than at the door a program
+    /// walks the tree through.
+    #[test]
+    fn the_parser_produces_core_xmls_own_node_family() {
+        let tree = parse("<!DOCTYPE html><!--note--><p id=x>text<br></p>");
+        let mut kinds: Vec<Kind> = walked(&tree).into_iter().map(|(_, kind, _)| kind).collect();
+        kinds.sort_by_key(|kind| kind.ordinal());
+        kinds.dedup();
+        assert_eq!(
+            kinds,
+            vec![Kind::Element, Kind::Text, Kind::Comment, Kind::Document],
+            "the four kinds an HTML document can hold, and the fifth — a \
+             processing instruction — is one the tokenizer reads as a comment, \
+             which is why it is absent rather than missing"
+        );
+        assert!(
+            Kind::ALL.contains(&Kind::ProcessingInstruction),
+            "the family is `Core\\Xml`'s whole family and not the subset this \
+             door reaches; a kind only the other door produces is still one \
+             a program walking either tree may meet"
+        );
+        assert_eq!(
+            walked(&tree)
+                .iter()
+                .filter(|(_, kind, _)| *kind == Kind::Element)
+                .map(|(_, _, name)| *name)
+                .collect::<Vec<_>>(),
+            vec!["html", "head", "body", "p", "br"],
+            "a doctype leaves no node: the family has no kind for one, so this \
+             door drops what `Core\\Xml` refuses"
+        );
+    }
+
+    /// `rule:core-classes/html-parsing`'s placement, asked of the registry: the
+    /// WHATWG parse is an entry on **this** class, and neither door carries the
+    /// other's mode.
+    ///
+    /// The mode half is what makes this more than a row read back. § 1 retired
+    /// `DOMDocument`'s `loadXML`/`loadHTML` pair — one object flipping between
+    /// refuse-hard and recover-always — so the claim under test is that neither
+    /// `parse` has anywhere to put a flag: one parameter each, no default and no
+    /// options bag, which is the shape a mode would have to arrive in. The
+    /// return types agreeing is the other half, and it is the one-node-family
+    /// clause: two doors, one `Core\Xml\Node`.
+    #[test]
+    fn it_is_an_entry_on_core_html_and_there_is_no_html_mode_on_the_xml_parser() {
+        let doors = [(r"Core\Html", &CLASS), (r"Core\Xml", &crate::xml::CLASS)];
+        for (class, roster) in doors {
+            let parse = roster
+                .members()
+                .find(|member| member.name == "parse")
+                .unwrap_or_else(|| panic!("{class} parses"));
+            assert!(
+                matches!(parse.params, [CoreTy::Text(Qual::Neutral)]),
+                "{class}::parse takes the document and nothing else — an options \
+                 bag or a second parameter is where a mode would arrive, and \
+                 `rule:core-classes/html-parsing` is that neither door has one"
+            );
+            assert_eq!(parse.names, ["document"]);
+            assert!(parse.defaults.is_empty());
+            assert!(
+                matches!(parse.return_ty, CoreTy::Instance(node) if node == crate::xml::NODE_NAME),
+                "{class}::parse answers the one node family both parsers \
+                 produce, which is what lets a walk be written once"
+            );
+        }
+        assert_eq!(
+            CLASS
+                .members()
+                .filter(|member| member.name.contains("arse"))
+                .count(),
+            1,
+            "one WHATWG entry, not a parse plus a parseFragment or a \
+             parseWithOptions — the second would be the mode under another name"
+        );
     }
 }

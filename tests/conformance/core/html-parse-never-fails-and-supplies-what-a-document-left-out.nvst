@@ -1,0 +1,110 @@
+--TEST--
+`Core\Html::parse` has no failing input: every document answers a tree, and the tags the text left out are the ones the WHATWG algorithm implies — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The shape of every case below: a document in, one line of tree out. The walk
+// is a class because `rule:classes/no-free-functions-or-constants` makes every
+// callable one, and it prints the element names alone, since what these cases
+// pin is *structure* — which tags exist and where — rather than character data.
+// A tag name is `tainted`, whatever the argument to the parse was — the
+// ordinary rule that what a parser over untrusted bytes produces is untrusted —
+// so the outline this builds out of names carries the qualifier too.
+class Outline {
+    public static function of(Core\Xml\Node $node): tainted string {
+        tainted string $out = "";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                $out = $out . " " . $child->name();
+                tainted string $under = Outline::of($child);
+                if ($under != "") {
+                    $out = $out . "(" . Core\Str::trim($under) . ")";
+                }
+            }
+        }
+        return $out;
+    }
+
+    public static function show(string $label, string $document): void {
+        echo $label, ":", Outline::of(Core\Html::parse($document)), "\n";
+    }
+}
+
+// The boundary, and the one input a hand-written parser is most likely to have
+// no answer for: nothing at all still answers a document, because the algorithm
+// implies `html`, `head` and `body` before it has read a character.
+Outline::show("empty", "");
+
+// A fragment with none of the three structural tags written gets all three.
+Outline::show("fragment", "<p>hi");
+
+// A tag left open closes where the algorithm says it closes, rather than
+// swallowing the rest of the document or refusing it.
+Outline::show("unclosed", "<ul><li>one<li>two</ul>");
+
+// A tag that closes something never opened is dropped, not an error.
+Outline::show("stray-close", "</div><p>after");
+
+// `<tr>` outside a table has no place to go, so its content is placed and the
+// tag is not.
+Outline::show("orphan-row", "<tr><td>cell");
+
+// Bytes that are not markup at all are a document whose body is text.
+Outline::show("not-markup", "{\"json\": true}");
+
+// A `<!DOCTYPE …>` leaves no node: `rule:core-classes/html-parsing` gives both
+// doors one node family and `rule:core-classes/xml-refuses-by-construction`
+// gives it no kind for a document type declaration, so this door drops what
+// the other door refuses.
+class Kinds {
+    public static function count(Core\Xml\Node $node): uint {
+        uint $seen = Core\Arr::count($node->children());
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $seen = $seen + Kinds::count($child);
+        }
+        return $seen;
+    }
+}
+echo "doctype adds: ",
+     Kinds::count(Core\Html::parse("<!DOCTYPE html><p>x")) -
+     Kinds::count(Core\Html::parse("<p>x")),
+     "\n";
+
+// Asked over a whole table of documents rather than read off one line: none of
+// them refuses, whatever it is. A member that threw on any one of these would
+// take the count down with it, so the count is the assertion.
+class Every {
+    public static function parses(array<string> $documents): uint {
+        uint $parsed = 0;
+        foreach ($documents as string $at => string $document) {
+            Core\Xml\Node $tree = Core\Html::parse($document);
+            if ($tree->kind() == Core\Xml\NodeKind::Document) {
+                $parsed = $parsed + 1;
+            }
+        }
+        return $parsed;
+    }
+}
+array<string> $hostile = [
+    "<",
+    "<<<<",
+    "</>",
+    "<p<p<p>",
+    "<a href=\"unterminated>text",
+    "<!-- unterminated comment",
+    "<![CDATA[not xml]]>",
+    "<?not a processing instruction?>",
+    "<script>var a = '</p>';</script>",
+    "&notanentity;",
+    "<table><td><table><td>",
+    "\u{0}\u{FFFF}",
+];
+echo "documents: ", Core\Arr::count($hostile), ", parsed: ", Every::parses($hostile), "\n";
+--EXPECT--
+empty: html(head body)
+fragment: html(head body(p))
+unclosed: html(head body(ul(li li)))
+stray-close: html(head body(p))
+orphan-row: html(head body)
+not-markup: html(head body)
+doctype adds: 0
+documents: 12, parsed: 12

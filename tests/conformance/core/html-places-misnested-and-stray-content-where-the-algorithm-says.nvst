@@ -1,0 +1,89 @@
+--TEST--
+`Core\Html::parse` recovers by the WHATWG algorithm rather than by guessing: misnested formatting is reconstructed and content stray inside a table is fostered out of it, at the exact place every browser puts it — `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// One line per node, indented by depth, so this case pins *placement* — the
+// half of the algorithm a hand-written parser cannot agree with, since there is
+// nothing to agree with except the specification.
+class Tree {
+    public static function show(Core\Xml\Node $node, string $indent): void {
+        foreach ($node->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Element) {
+                echo $indent, $child->name(), "\n";
+            }
+            if ($child->kind() == Core\Xml\NodeKind::Text) {
+                echo $indent, "\"", $child->text(), "\"\n";
+            }
+            Tree::show($child, $indent . "  ");
+        }
+    }
+
+    // The `body` of a parsed document, which is where every case below puts its
+    // content — reached rather than assumed, so a document that placed it
+    // somewhere else prints nothing and fails loudly.
+    public static function body(string $document): Core\Xml\Node {
+        foreach (Core\Html::parse($document)->children() as Core\Xml\Node $html) {
+            foreach ($html->children() as Core\Xml\Node $child) {
+                if ($child->name() == "body") {
+                    return $child;
+                }
+            }
+        }
+        throw new LogicError("a parsed document has a body");
+    }
+}
+
+// The adoption agency algorithm: `<b>` is still open when `</p>` closes the
+// paragraph, so the formatting is *reconstructed* outside it. A parser that
+// simply closed everything would put "after" at the top of the body, and one
+// that ignored the mismatch would leave it inside the paragraph. Neither is
+// what a browser shows.
+echo "-- misnested formatting\n";
+Tree::show(Tree::body("<p><b>bold<i>both</p>after"), "");
+
+// Foster parenting: text and elements that cannot live in a table are moved to
+// just before it, not dropped and not left inside. `tbody` is implied on the
+// way, which is the same algorithm supplying a tag the document omitted.
+echo "-- fostered out of a table\n";
+Tree::show(Tree::body("<table>stray<tr><td>cell"), "");
+
+// The other half of the same rule, and the half a "close everything on a block
+// tag" parser gets wrong: a block start tag closes an open paragraph and
+// nothing else, so a `div` written inside open formatting *nests inside it* and
+// the text after the block is still bold. Reconstruction happens where an
+// element was closed out of order, not wherever a block begins.
+echo "-- a block inside open formatting\n";
+Tree::show(Tree::body("<b>one<div>two</div>three"), "");
+
+// Character data around markup is one text node per run, not one per buffer the
+// tokenizer happened to fill — `TreeSink`'s adjacent-text contract, which is
+// what makes the shape of a tree independent of how the bytes arrived.
+echo "-- adjacent text is one node\n";
+Tree::show(Tree::body("a&amp;b<br>c&#100;d"), "");
+--EXPECT--
+-- misnested formatting
+p
+  b
+    "bold"
+    i
+      "both"
+b
+  i
+    "after"
+-- fostered out of a table
+"stray"
+table
+  tbody
+    tr
+      td
+        "cell"
+-- a block inside open formatting
+b
+  "one"
+  div
+    "two"
+  "three"
+-- adjacent text is one node
+"a&b"
+br
+"cdd"
