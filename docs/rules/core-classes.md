@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*27 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
+*28 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -447,6 +447,80 @@ builds this parse in the same milestone, because the tree and the builder interf
 implementation and the second one built would otherwise be shaped by whichever landed first.
 
 <sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
+
+<a id="core-classes-xml-tree-and-stream"></a>
+
+## `Core\Xml` is a materialising tree beside a one-window stream, and no operation is available through both  *(designed — not yet in the compiler)*
+
+`rule:core-classes/xml-tree-and-stream`
+
+`Core\Xml` is one subsystem in two shapes — a tree that materialises the whole document and a
+reader and writer that hold one window — and **no operation is available through both**, so a program
+picks the shape that fits how much of the document it needs at once and pays for that shape only.
+
+The two are not two spellings of one capability. The tree's defining property is that a program may
+walk it in any order and any number of times; the stream's is that memory is O(one window) rather than
+O(document). Neither shape can offer the other's property, so a program with a large export and a
+program with a small configuration file are not being offered a preference — they are being offered the
+only two answers that exist.
+
+Spec § 17 names this outright as "the one place in this file where two shapes of the same subsystem
+coexist", so it is the **named** exception to [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) rather than a
+quiet one, and the naming is what stops it spreading: a subsystem that wants two shapes has to earn its
+own sentence. The disjointness is what makes it survivable — an operation reachable through both would
+put a seam in the API where the memory story stops being a property of the door a program came in
+through, and every member added afterwards would have to answer which side it belongs to.
+
+Both shapes answer the same node family, the one [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing) makes both parsers
+produce, so a program that outgrows the tree does not learn a second vocabulary. The split is stated
+once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
+
+What it spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): the tree is proportional to the document,
+attributed to the request that parsed it and released with its arena; the stream holds one window.
+
+<sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0168](../decisions/0168.md).</sub>
+
+<a id="core-classes-xml-refuses-by-construction"></a>
+
+## `Core\Xml` refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded
+
+`rule:core-classes/xml-refuses-by-construction`
+
+`Core\Xml` refuses a `<!DOCTYPE …>` whole and resolves no entity beyond the five predefined ones, so
+the three classic XML attacks are **absent code paths rather than bounded ones** — there is no flag to
+have defaulted to off, because there is nothing for a flag to have switched.
+
+Each of the three is answered by subtraction rather than by a limit:
+
+- **External entity resolution** does not exist. One function in the module resolves a reference, its
+  vocabulary is closed at `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and numeric character references,
+  and no branch anywhere reaches a filesystem, a network or another document. This is
+  [`security/no-runtime-grant`](security.md#security-no-runtime-grant) applied to a parser: the authority is not withheld, it was never
+  wired.
+- **A DTD naming an external subset** is refused at the `<!DOCTYPE` token, before the identifier is
+  read, so the refusal cannot depend on telling a `SYSTEM` identifier from a `PUBLIC` one.
+- **A billion-laughs expansion** needs an internal subset to declare its entities in. There is no
+  internal subset, so there is no expansion, so there is no expansion factor to meter — this is closed
+  at the declaration rather than metered by [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)'s ratio and ceiling,
+  and refusal is one comparison where metering would be a DTD parser, an entity table, a substitution
+  pass and a bound over it.
+
+The five predefined entities and numeric character references still expand, and they are not an
+exception: they are the document's own characters written another way, they resolve without consulting
+anything, and refusing them would be refusing well-formed XML rather than refusing an attack.
+
+**Depth is the one bound that stays a number.** Element nesting is written by a document rather than
+declared by it, so there is no token to refuse: `DEPTH_CEILING` caps how deeply elements may nest, at
+the same figure `Core\Json::decode` carries and for the same reason — a document engineered to be deep
+costs work before any value exists, and a stated bound is one a caller can reason about. The parse loop
+is iterative, so it is a policy rather than a guard over the native stack.
+
+A program that needs to fetch something fetches it with `Core\Http\Client` and parses the bytes it got
+back. Both refusals are `ParseError` throws naming what was written, per
+[`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused); `Core\Html`'s WHATWG entry is the door for input that is
+HTML-shaped rather than well-formed, and it never fails ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
+
+<sub>See also [`core-classes/xml-tree-and-stream`](core-classes.md#core-classes-xml-tree-and-stream), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0168](../decisions/0168.md).</sub>
 
 <a id="core-classes-validate-has-no-type-predicates"></a>
 

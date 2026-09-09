@@ -40,10 +40,12 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule for the AST: no
    path back into execution, no entity expansion that reaches a filesystem or a network, and no
    `XSLTProcessor` shape at all.
-4. **The three classic XML attacks are refused by construction**: external entity resolution does not
-   exist as a code path (not a flag that defaults to off), the billion-laughs expansion is bounded by
-   goal 25's ratio-and-ceiling rule, and a DTD that names an external subset is refused rather than
-   fetched.
+4. **The three classic XML attacks are refused by construction**, per
+   `rule:core-classes/xml-refuses-by-construction`: external entity resolution does not exist as a code
+   path (not a flag that defaults to off), a DTD that names an external subset is refused rather than
+   fetched, and a billion-laughs expansion is closed at its `<!DOCTYPE` rather than metered — the
+   declaration is refused whole, so there is no internal subset to declare entities in and no expansion
+   factor for goal 25's ratio-and-ceiling rule to bound.
 5. **A parsed value is `tainted`**, every string that comes out of it, on the ordinary rule that a
    return from a parser over untrusted bytes is untrusted.
 
