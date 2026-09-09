@@ -71,13 +71,26 @@
 //! `python tools/db-matrix.py` is what makes these assertions happen —
 //! [`nvs_db::matrix`]'s module doc owns that rule and why a field that is *set
 //! but unusable* panics instead.
+//!
+//! # Either transport, one case list
+//!
+//! `rule:core-classes/db-unix-socket-path` gives PostgreSQL, MySQL and MariaDB
+//! a second way to reach the same server, and the only thing a case here has to
+//! say about it is that the driver answers the same over both. So the leg the
+//! harness pointed this process at is read once into a [`Leg`] — an
+//! [`Endpoint`] and the credentials — and every case below runs whichever
+//! transport was published without naming which it was. The anchor is the one
+//! field that differs, because a socket has no TLS session to anchor and
+//! `nvs_db::pg::PgStream` owns why.
 
 use std::cell::Cell;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use nvs_db::conn::Endpoint;
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
 use nvs_db::tds::{TdsScalar, scalar as tds_scalar};
@@ -117,44 +130,104 @@ const MYSQL_QUIET: &str = "SELECT CAST(SLEEP(0.5) AS CHAR)";
 /// is making.
 const TURN: Duration = Duration::from_millis(10);
 
-/// This process's PostgreSQL server, or `None` because nothing pointed it at
-/// one.
+/// The published server or the socket this process was pointed at, as
+/// everything a case needs to reach it.
+///
+/// One shape for the two transports, so the second one runs the whole case
+/// list rather than a copy of it: what differs between the legs is an
+/// [`Endpoint`] and an anchor, and every case is written against the
+/// credentials, which do not differ at all.
+struct Leg {
+    /// What a driver's target carries as its host: over TCP the published name
+    /// the certificate is checked against, and over a socket the path an
+    /// operator wrote, which nothing on that arm reads — `nvs_db::pg::PgStream`
+    /// owns why there is no session there to check it against.
+    host: String,
+    /// The role the connection authenticates as, and what `current_user` and
+    /// its twins below must answer.
+    user: String,
+    /// The password that opens this leg; the cases offer a wrong one beside it.
+    password: String,
+    /// The database the connection names.
+    database: String,
+    /// The anchor the harness exported for this run — `matrix`'s module doc
+    /// owns why a published server's required group holds it rather than
+    /// carrying it beside — and `None` over a socket, which has no session to
+    /// anchor.
+    ca: Option<PathBuf>,
+    /// Where the driver dials, already the shape its `connect` takes.
+    endpoint: Endpoint,
+}
+
+/// This process's leg for `driver`, or `None` because nothing pointed it at
+/// that one.
 ///
 /// Two shapes of `None` and neither is a failure: no harness at all, and a leg
 /// testing one of the other drivers, which runs every test in this crate
 /// including these.
-fn postgres() -> Option<Server> {
+///
+/// `socket_endpoint` is the driver's own, because
+/// `rule:core-classes/db-unix-socket-path` keeps each derivation with the
+/// driver it belongs to — a directory for PostgreSQL, the file as written for
+/// the two MySQL protocols — and a spelling here would be its second home.
+fn leg_for(driver: Driver, socket_endpoint: fn(&str, u16) -> io::Result<Endpoint>) -> Option<Leg> {
     let endpoint = matrix::endpoint()?;
-    if endpoint.driver != Driver::Postgres {
+    if endpoint.driver != driver {
         return None;
     }
-    let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
-    };
-    Some(server)
+
+    Some(match endpoint.location {
+        Location::Server(server) => Leg {
+            endpoint: address(&server).into(),
+            host: server.host,
+            user: server.user,
+            password: server.password,
+            database: server.database,
+            ca: Some(server.ca),
+        },
+        Location::Socket(socket) => Leg {
+            endpoint: socket_endpoint(&socket.path, socket.port)
+                .expect("the harness published a socket, so this build has that transport"),
+            host: socket.path,
+            user: socket.user,
+            password: socket.password,
+            database: socket.database,
+            ca: None,
+        },
+        Location::File(path) => {
+            unreachable!("SQLite is the only driver reached by a file, and {path:?} is not it")
+        }
+    })
 }
 
-/// One handshake against `server`, offering `password`, answering the way the
+/// This process's PostgreSQL leg, or `None` because nothing pointed it at one.
+fn postgres() -> Option<Leg> {
+    leg_for(Driver::Postgres, nvs_db::pg::socket_endpoint)
+}
+
+/// One handshake against `leg`, offering `password`, answering the way the
 /// caller of a connection that may not open needs it.
 ///
 /// The password is a parameter because the wrong one is half of what
 /// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]
 /// asserts: the two calls differ in that field alone, so what the server
 /// refuses is the credential and nothing else about the connection.
-fn connect_as(server: &Server, password: &str) -> io::Result<PgConn> {
+fn connect_as(leg: &Leg, password: &str) -> io::Result<PgConn> {
     let target = PgTarget {
-        host: &server.host,
-        user: &server.user,
+        host: &leg.host,
+        user: &leg.user,
         password,
-        database: &server.database,
-        // The anchor the harness exported for this run — `matrix`'s module doc
-        // owns why it is in the required group rather than beside it.
-        tls_ca_file: Some(server.ca.as_path()),
+        database: &leg.database,
+        tls_ca_file: leg.ca.as_deref(),
         time_zone: 0,
         statement_cache: 8,
     };
 
-    PgConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+    PgConn::connect(
+        leg.endpoint.clone(),
+        &target,
+        Some(Instant::now() + DEADLINE),
+    )
 }
 
 /// Where the harness published `server`, as the address a driver connects to.
@@ -163,7 +236,8 @@ fn connect_as(server: &Server, password: &str) -> io::Result<PgConn> {
 /// the target because that is what the certificate is checked against, and the
 /// address arrives separately because in a request it is the one the
 /// `db.connect` capability approved. A test that handed a driver a name to
-/// resolve would be exercising a path no program can reach.
+/// resolve would be exercising a path no program can reach. A socket leg
+/// resolves nothing at all, which is what the other arm of an [`Endpoint`] is.
 fn address(server: &Server) -> SocketAddr {
     (server.host.as_str(), server.port)
         .to_socket_addrs()
@@ -172,10 +246,10 @@ fn address(server: &Server) -> SocketAddr {
         .expect("the matrix host resolves to somewhere")
 }
 
-/// A connection to `server`, as a request that found the pool empty opens one.
-fn open(server: &Server) -> PgConn {
-    connect_as(server, &server.password)
-        .expect("the matrix server accepts a handshake verified against its own anchor")
+/// A connection to `leg`, as a request that found the pool empty opens one.
+fn open(leg: &Leg) -> PgConn {
+    connect_as(leg, &leg.password)
+        .expect("the matrix server accepts a handshake on the leg the harness published")
 }
 
 /// The first column of the first row `sql` returns, `None` for SQL `NULL` and
@@ -206,41 +280,38 @@ fn one_value(conn: &mut PgConn, sql: &str) -> Option<String> {
 /// [`postgres`]'s twin, and the twinning is what makes the skip rule one rule:
 /// every case in this crate runs on every leg of the matrix, and each asks for
 /// the one driver it can assert about.
-fn mysql() -> Option<Server> {
-    let endpoint = matrix::endpoint()?;
-    if endpoint.driver != Driver::MySql {
-        return None;
-    }
-    let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
-    };
-    Some(server)
+fn mysql() -> Option<Leg> {
+    leg_for(Driver::MySql, nvs_db::mysql::socket_endpoint)
 }
 
-/// One MySQL handshake against `server`, offering `password`.
+/// One MySQL handshake against `leg`, offering `password`.
 ///
 /// [`connect_as`]'s twin, down to the password being a parameter for the same
 /// reason: the refused credential below differs from the accepted one in that
 /// field alone.
-fn mysql_connect_as(server: &Server, password: &str) -> io::Result<MySqlConn> {
+fn mysql_connect_as(leg: &Leg, password: &str) -> io::Result<MySqlConn> {
     let target = MySqlTarget {
-        host: &server.host,
-        user: &server.user,
+        host: &leg.host,
+        user: &leg.user,
         password,
-        database: &server.database,
-        tls_ca_file: Some(server.ca.as_path()),
+        database: &leg.database,
+        tls_ca_file: leg.ca.as_deref(),
         time_zone: 0,
         statement_cache: 8,
     };
 
-    MySqlConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+    MySqlConn::connect(
+        leg.endpoint.clone(),
+        &target,
+        Some(Instant::now() + DEADLINE),
+    )
 }
 
-/// A MySQL connection to `server`, as a request that found the pool empty opens
+/// A MySQL connection to `leg`, as a request that found the pool empty opens
 /// one.
-fn mysql_open(server: &Server) -> MySqlConn {
-    mysql_connect_as(server, &server.password)
-        .expect("the matrix server accepts a handshake verified against its own anchor")
+fn mysql_open(leg: &Leg) -> MySqlConn {
+    mysql_connect_as(leg, &leg.password)
+        .expect("the matrix server accepts a handshake on the leg the harness published")
 }
 
 /// The first column of the first row `sql` returns, as text.
@@ -311,15 +382,11 @@ fn mysql_try(conn: &mut MySqlConn, sql: &str) -> io::Result<()> {
 /// [`mysql`]'s twin, and the one line that differs is the whole point of the
 /// pair: the matrix runs one driver per process, and a MariaDB leg is not a
 /// MySQL one however alike the wire is.
-fn mariadb() -> Option<Server> {
-    let endpoint = matrix::endpoint()?;
-    if endpoint.driver != Driver::MariaDb {
-        return None;
-    }
-    let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
-    };
-    Some(server)
+fn mariadb() -> Option<Leg> {
+    // The socket derivation is `mysql`'s own, handed to both drivers rather
+    // than written twice — `rule:core-classes/db-unix-socket-path` says so, and
+    // the file as written is what either server binds.
+    leg_for(Driver::MariaDb, nvs_db::mysql::socket_endpoint)
 }
 
 /// The zone [`a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it`]
@@ -337,24 +404,28 @@ const ZONE: i32 = 5_400;
 /// [`mysql_connect_as`]'s twin, with § 9's zone lifted into a parameter for the
 /// same reason the password is one: the two cases below differ in exactly one
 /// field each, so what the server then reports is attributable to that field.
-fn mariadb_connect_as(server: &Server, password: &str, time_zone: i32) -> io::Result<MariaConn> {
+fn mariadb_connect_as(leg: &Leg, password: &str, time_zone: i32) -> io::Result<MariaConn> {
     let target = MariaTarget {
-        host: &server.host,
-        user: &server.user,
+        host: &leg.host,
+        user: &leg.user,
         password,
-        database: &server.database,
-        tls_ca_file: Some(server.ca.as_path()),
+        database: &leg.database,
+        tls_ca_file: leg.ca.as_deref(),
         time_zone,
         statement_cache: 8,
     };
 
-    MariaConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+    MariaConn::connect(
+        leg.endpoint.clone(),
+        &target,
+        Some(Instant::now() + DEADLINE),
+    )
 }
 
 /// A MariaDB connection that opened, in UTC.
-fn mariadb_open(server: &Server) -> MariaConn {
-    mariadb_connect_as(server, &server.password, 0)
-        .expect("the matrix server accepts a handshake verified against its own anchor")
+fn mariadb_open(leg: &Leg) -> MariaConn {
+    mariadb_connect_as(leg, &leg.password, 0)
+        .expect("the matrix server accepts a handshake on the leg the harness published")
 }
 
 /// The first column of the first row `sql` returns, as text.
@@ -383,13 +454,18 @@ fn mariadb_run(conn: &mut MariaConn, sql: &str) {
 /// [`mysql`]'s twin once more, and the twinning is the whole of the skip rule:
 /// the matrix runs one driver per process, so this case runs on the MariaDB leg
 /// as well and returns there without asserting.
+///
+/// It answers a [`Server`] where the three above answer a [`Leg`], because this
+/// driver has one transport: `rule:core-classes/db-unix-socket-path` refuses a
+/// path for TDS, and [`TdsConn::connect`] takes an address rather than an
+/// [`Endpoint`] because of it.
 fn mssql() -> Option<Server> {
     let endpoint = matrix::endpoint()?;
     if endpoint.driver != Driver::SqlServer {
         return None;
     }
     let Location::Server(server) = endpoint.location else {
-        unreachable!("SQLite is the only driver reached by path, and this is not it")
+        unreachable!("TDS speaks over TCP alone, and `matrix` stops a run scheduled otherwise")
     };
     Some(server)
 }
