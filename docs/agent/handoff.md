@@ -2,59 +2,54 @@
 
 ## State
 
-**Goal 39 — a record names the line it came from, and a repeat is bounded at the sink that suffers.
-Stage 0 is closed; nothing of stages 1–3 has landed.** Goal 38's whole list is still this goal's
-Stage 1 floor. The design is settled by [0165](../decisions/0165.md) and its § *Standing decisions*
-are not a session's to re-open.
+**Goal 39 — stage 0 is closed and stage 2's first slice is on disk; nothing else of stages 1–3 has
+landed.** Goal 38's whole list is still this goal's Stage 1 floor. The design is settled by
+[0165](../decisions/0165.md) and its § *Standing decisions* are not a session's to re-open.
 
-Stage 0's question is answered, and the answer is on disk in the one doc that owns it —
-`Lowering::frame_label` (`crates/nvs-ir/src/lower/mod.rs:2127`). The existing call-site constant
-**does** carry file, one-based line and `Class::method`, but pre-rendered into one `String` and
-built only where a landing block is. So `rule:errors/a-record-names-where-it-was-produced`'s datum
-reuses that *derivation* — `fn_label`, the source name and `cur_stmt_span`, no second position
-table — and never the string itself. Three reasons, spelled out in that doc comment: the string is
-presentation, which `rule:errors/diagnostic-record`'s envelope does not carry; its leading half is
-a *frame* name, `script` or `file#<id>$script`, exactly where `Source::member` is `None`; and it
-reaches compiled code through `Terminator::Propagate` alone, so a producer on a statement needing
-no error path has no constant there at all.
+`Lowering::source` (`crates/nvs-ir/src/lower/mod.rs:2170`) is the one derivation of
+`rule:errors/a-record-names-where-it-was-produced`'s datum — `nvs_render::Source`'s file, one-based
+line and `Option<Class::member>` — and `frame_label` (`crates/nvs-ir/src/lower/mod.rs:2152`) now
+renders its backtrace string from it rather than deriving a position of its own. `member` is
+`Some(fn_label)` for every frame but the script one, closures and generators included, because their
+labels are `Class::member` shaped too. `nvs-ir` depends on `nvs-render` directly now.
 
-That resolves the goal's standing "reuse it / add a sibling" branch to both halves at once: one
-derivation, and a constant emitted at the producer's own call the way
-`crates/nvs-codegen/src/emit.rs:3381` already does with `emit_bytes`. The only other per-statement
-mechanism in codegen, `emit_stmt_probe` (`crates/nvs-codegen/src/emit.rs:1040`), sits behind the
-debug-flags branch and is not a standing current location — reaching for it would build the `Ctx`
-word 0165 refuses.
+**Stage 2's remaining anchor was wrong, and the corrected one is below.** A producer's call is
+`InstKind::CoreCall`, not `InstKind::Call`, and it goes through `rule:errors/propagation`'s fixed
+`(ctx, args, out) -> i32` signature — so no extra machine operand is available at one, and the
+constant has to arrive as one more `Value` in `args`. That is a solved problem in this tree, not a
+new one: `Core\Json::decodeAs` already takes three compiler-supplied operands ahead of its declared
+parameters.
 
 ## Next group
 
-**Stage 2: one derivation, and the constant at the producer's call** — one file set:
-`crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/emit.rs`.
+**Stage 2: the carrier, and the constant at the producer's call** — one file set:
+`crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-codegen/src/emit.rs`,
+`crates/nvs-stdlib/src/debug.rs`, `crates/nvs-stdlib/src/log.rs`.
 
-- [ ] **A sibling of `frame_label` returns the three parts** — `crates/nvs-ir/src/lower/mod.rs:2127`
-      — in `nvs_render::Source`'s `file`/`line`/`member` shape
-      (`crates/nvs-render/src/lib.rs:414`), with `frame_label` rendering *from* it so one
-      derivation still feeds both readers. `member` is `None` for the two script spellings at
-      `crates/nvs-ir/src/lower/mod.rs:517`. `rule:errors/a-record-names-where-it-was-produced`.
-- [ ] **Decide the IR carrier, then add it** — `crates/nvs-ir/src/ir.rs:490`'s `InstKind::Call` is
-      the variant a producer's call lowers to and it carries no source today;
-      `Terminator::Propagate` (`crates/nvs-ir/src/ir.rs:2533`) is the shape that already works,
-      a plain field on the node that codegen materialises.
+- [ ] **Add the carrier as a `ShapeCodecConst` sibling** — `crates/nvs-ir/src/ir.rs:553` is the
+      variant to copy, holding the `Source` `crates/nvs-ir/src/lower/mod.rs:2170` returns; codegen
+      bakes it with `emit_bytes` (`crates/nvs-codegen/src/emit.rs:1108`) and materialises one
+      address the way `crates/nvs-codegen/src/emit.rs:2243` does.
       `rule:errors/a-record-names-where-it-was-produced`.
-- [ ] **Emit it** — `crates/nvs-codegen/src/emit.rs:3381` is the pattern to copy, and `emit_bytes`
-      (`crates/nvs-codegen/src/emit.rs:1108`) is the primitive: bytes into the data section,
-      address and length into the call. `rule:errors/propagation` fixes the signature any extra
-      operand has to live beside.
+- [ ] **Append it at the producer's own call, and decode it there** — one slice, because the arity
+      moves on both sides at once: lowering appends the operand as
+      `crates/nvs-ir/src/lower/mod.rs:2001` appends a codec, and `nvs_core_debug_dump`
+      (`crates/nvs-stdlib/src/debug.rs:174`), `nvs_core_debug_render`
+      (`crates/nvs-stdlib/src/debug.rs:200`) and `nvs_core_log_write`
+      (`crates/nvs-stdlib/src/log.rs:214`) read it off `args` the way
+      `crates/nvs-stdlib/src/json.rs:1128` reads its codec — a `Tag::Null` payload carrying an
+      address, decoded by `Value::as_shape_codec` (`crates/nvs-runtime/src/value.rs:588`), which is
+      the shape a `*const` source constant travels by. Closes the stage's first check.
+- [ ] **A throw's location is that same datum** — `crates/nvs-runtime/src/throwable.rs:347`'s
+      `new_as` stores the empty string into `LOCATION_SLOT`
+      (`crates/nvs-runtime/src/throwable.rs:56`); it takes the constant the raising site carries
+      instead. Closes the stage's second check.
+      `rule:errors/a-record-names-where-it-was-produced`.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/debug.rs:220` — `record_of` fills `Envelope.source`; blocked on the
-  carrier above. (goal 39 stage 3)
-- `crates/nvs-stdlib/src/log.rs` — the same on `Core\Log::write`'s record. (goal 39 stage 3)
-- `crates/nvs-runtime/src/throwable.rs:56` — `LOCATION_SLOT` stores that datum instead of the
-  empty string. (goal 39 stage 3)
-- The `count` half: the log target's small fixed window per
-  `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`; `crates/nvs-runtime/src/floor.rs`
-  holds the single-slot precedent the rule says is too narrow here. (goal 39, later stage)
-- `[context] modules` did not name `crates/nvs-ir/src/lower/**`, where stage 0's whole answer and
-  all of stage 2's first slice live; this session's commit touches it, so the driver's sweep should
-  close it — check the next pack prints it.
+- Stage 1's floor is goal 38's whole list, still unlanded — `docs/agent/loop-goal.toml` stage 1.
+- Stage 3 bounds a repeat at the log sink only — `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`.
+- The stage's conformance cases under `tests/conformance/` are unwritten — stage 2's third check.
+- `Core\Debug::render` may not want the operand at all if it renders a record it was handed rather
+  than producing one — decide it with the slice above, `rule:errors/debug-dump`.

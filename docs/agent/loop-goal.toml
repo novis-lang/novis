@@ -184,7 +184,10 @@ rules = ["errors/propagation"]
 # The keystone reads the record that argues one datum with two readers, and the trace-id rule that
 # is why no stack is captured beside it.
 [context.stage.2]
-adrs = ["0165"]
+# Not the whole record: §1 is the one-datum-two-readers argument the carrier is built to, and
+# §Options considered is why the constant travels at the call rather than in `Ctx` -- a session
+# deciding the carrier reads both, and paid to slice them by hand before they were named here.
+adrs = ["0165", "0165 §1", "0165 §Options considered"]
 rules = ["observability/a-log-record-carries-trace-ids-when-a-trace-is-active"]
 
 # Stage 3 works inside the floor's own bound, which is where the sink-not-the-caller argument is
