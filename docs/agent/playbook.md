@@ -3741,6 +3741,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exercise `Scope::Endpoint`'s address comparison is the IPv4-mapped v6 one,
   `[::ffff:127.0.0.1]:8080`, which parses and unmaps onto the granted v4 address.
   [until: reviewed 2026-09-09]
+- **A `#[cfg(test)]` `Ctx::stdout()` in a crate the language server links fails `nvs-lsp`, not the
+  crate you wrote it in.** `crates/nvs-lsp/tests/stdout_policy.rs` greps the *source text* of every
+  linked crate, so a unit test that builds a context the obvious way leaves `cargo test -p
+  nvs-stdlib` green and turns two `-p nvs-lsp` tests red, naming
+  `rule:ide/stdout-belongs-to-the-protocol` rather than the member you were writing. Build a test
+  context as `Ctx::new(OutputSink::Sink)`, which is what every other `nvs-stdlib` unit test already
+  does. [until: gone crates/nvs-lsp/tests/stdout_policy.rs]
 
 ## Splitting a file that got too big
 

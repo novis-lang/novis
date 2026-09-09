@@ -114,6 +114,7 @@ Conventions the whole file uses:
 | [`Core\Env`](#core-core-env) |  |
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
+| [`Core\Signal`](#core-core-signal) |  |
 | [`Core\Request`](#core-core-request) | the request a program is answering — `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` and `php://input` as one class, every answer of it `tainted` |
 | [`Core\Request\Mount`](#core-core-request-mount) | the door a request came through — the prefix the server stripped and the glob captures of the mount row that took it, so one compiled program serves many tenants |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) | the request body as a walk over its chunks — `bodyStream()`'s answer, consumed once, holding one chunk at a time |
@@ -16220,6 +16221,30 @@ Core\Server::isDraining(): bool
 Reports whether this server has begun a graceful shutdown — the same fact `[server] health_path` answers a proxy with, for an application endpoint of its own.
 
 **Returns** `bool` — `true` once the server has stopped accepting connections, `false` while it is still accepting and in any process that is not serving.
+
+<a id="core-core-signal"></a>
+### `Core\Signal`
+
+Keywords: onShutdown
+
+| Member | Signature |
+|---|---|
+| [`Core\Signal::onShutdown`](#core-core-signal-onshutdown) | `onShutdown(callable(): mixed $handler): void` |
+
+<a id="core-core-signal-onshutdown"></a>
+#### `Core\Signal::onShutdown`
+
+```nvs skip
+Core\Signal::onShutdown(callable(): mixed $handler): void
+```
+
+Registers the closure this request runs when the process is asked to stop — a terminating signal, or an operator's graceful shutdown. It runs as ordinary code between two statements, once, while `Core\Server::isDraining()` already answers `true`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$handler` | `callable(): mixed` | What to run. It is handed nothing and answers nothing: which signal arrived is not a question this class answers, because every terminating signal means the same thing to a program that may only shut down gracefully. A handler that throws, or that exhausts what the request has left, is abandoned where it stands. |
+
+**Returns** `void` — Nothing. Registering is request-local and a second call replaces the first: the handler is gone when the request ends, and no other request on this core can see it. It does not stop the shutdown or delay it — the drain has already begun by the time the handler runs.
 
 <a id="core-core-request"></a>
 ### `Core\Request`
