@@ -18619,12 +18619,13 @@ The IANA media type `$type` is spelled with, for a `Content-Type` header or a st
 <a id="core-core-zip"></a>
 ### `Core\Zip`
 
-Keywords: entries, read
+Keywords: entries, read, extract
 
 | Member | Signature |
 |---|---|
 | [`Core\Zip::entries`](#core-core-zip-entries) | `entries(bytes $archive): array<tainted string>` |
 | [`Core\Zip::read`](#core-core-zip-read) | `read(bytes $archive, string $name, uint $maxBytes = 67108864, uint $maxRatio = 1000): tainted bytes` |
+| [`Core\Zip::extract`](#core-core-zip-extract) | `extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint` |
 
 <a id="core-core-zip-entries"></a>
 #### `Core\Zip::entries`
@@ -18662,6 +18663,26 @@ One entry's octets, decompressed **under a bound that cannot be switched off** �
 **Returns** `tainted bytes` — The entry's octets, never a truncation — an entry that would pass either half of the bound throws instead of answering the prefix it had reached. Tainted, for the reason the names are: octets out of an archive are somebody else's.
 
 **Throws** `ParseError` — Everything `entries` refuses, plus: no entry has that name, the entry is compressed by a method this class does not read, its stream is not well formed, or its output would pass either half of the bound.
+
+<a id="core-core-zip-extract"></a>
+#### `Core\Zip::extract`
+
+```nvs skip
+Core\Zip::extract(bytes $archive, string $destination, uint $maxBytes = 67108864, uint $maxRatio = 1000): uint
+```
+
+Writes an archive's entries under `$destination` and answers how many files it wrote — replacing `ZipArchive::extractTo`, which wrote whatever names it had been handed. The archive is judged whole before an octet is written, and every directory is created and then resolved and proved to be under the destination before anything is created inside it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$archive` | `bytes` (neutral) | The archive's octets, judged by the same reader `entries` uses: a hostile entry anywhere in it refuses this call before it writes anything at all. |
+| `$destination` | `string` (sink) | The directory to write under, created if it is not there. `fs.write` is shown for it and `fs.read` as well, because resolving a name is reading the directories above it. |
+| `$maxBytes` | `uint` (default `67108864`) | The most output this call will produce **across the whole archive**, in octets, and not a per-entry allowance: an archive whose entries are each within it and whose total is not is the same attack one level up. A call may ask for less than `[limits] max_decompressed` and never for more. |
+| `$maxRatio` | `uint` (default `1000`) | The most output per octet of an entry's compressed size. This half is per entry, because a ratio is a property of the stream being decoded. |
+
+**Returns** `uint` — The number of files written. A directory entry is created and not counted, since what a caller compares against is the number of files it now has.
+
+**Throws** `ParseError` — Everything `entries` refuses, plus an entry whose output would pass either half of the bound — per entry or across the archive, which is one rule.; `RuntimeError` — `fs.read` or `fs.write` is not granted for the destination, or a directory under it resolved to somewhere outside it, which is a link that appeared while the extraction was running.; `IOError` — The creation or the write itself failed: a name an entry asked for is already taken, since a file is created exclusively rather than overwritten, or the disk refused. Never a refusal this class made — those name the rule.
 
 <a id="core-core-http"></a>
 ### `Core\Http`

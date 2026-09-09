@@ -1,0 +1,39 @@
+--TEST--
+`Core\Zip::extract` charges one bound across the whole archive rather than one per entry, and the breach is a `ParseError` naming the rule — `rule:core-classes/decompression-bound`
+--FILE--
+<?nvs
+// `notes/one.txt` holding `first` (5 octets) and `notes/two.txt` holding
+// `second` (6), so 11 octets is everything this archive decompresses to.
+bytes $ordinary = Core\Encoding::fromBase64("UEsDBBQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAbm90ZXMvb25lLnR4dGZpcnN0UEsDBBQAAAAAAAAAAABpER+2BgAAAAYAAAANAAAAbm90ZXMvdHdvLnR4dHNlY29uZFBLAQIeAxQAAAAAAAAAAABX7nGSBQAAAAUAAAANAAAAAAAAAAAAAACkgQAAAABub3Rlcy9vbmUudHh0UEsBAh4DFAAAAAAAAAAAAGkRH7YGAAAABgAAAA0AAAAAAAAAAAAAAKSBMAAAAG5vdGVzL3R3by50eHRQSwUGAAAAAAIAAgB2AAAAYQAAAAAA");
+
+// The bound on both sides of the boundary. At 11 the whole archive fits...
+echo "at 11 octets: ", Core\Zip::extract($ordinary, "fits", 11), " file(s)\n";
+
+// ...and at 5 the first entry is within the bound on its own, which is exactly
+// what a per-entry allowance would have granted the second one as well. It is
+// refused because the *archive* has nothing left, which is the same attack one
+// level up from a single bomb.
+try {
+    Core\Zip::extract($ordinary, "spent", 5);
+    echo "at 5 octets: wrote them all\n";
+} catch (ParseError $bomb) {
+    echo $bomb->message, "\n";
+}
+
+// A refusal part way leaves what it had already written rather than pretending
+// to unwind: the first entry is on the disk and the second never reached it.
+echo "spent/notes/one.txt: ", Core\IO::read("spent/notes/one.txt"), "\n";
+if (Core\IO::exists("spent/notes/two.txt")) {
+    echo "spent/notes/two.txt: written\n";
+} else {
+    echo "spent/notes/two.txt: never written\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+at 11 octets: 2 file(s)
+Core\Zip: an entry decompressing past the 0 octets this archive had left of its 5 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound): "notes/two.txt". Lower `$maxBytes` or `$maxRatio` to read less; neither can be raised past `[limits] max_decompressed` and `[limits] max_decompression_ratio`.
+spent/notes/one.txt: first
+spent/notes/two.txt: never written
