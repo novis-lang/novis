@@ -154,6 +154,15 @@
       "guardedBy": []
     },
     {
+      "id": "errors/a-record-names-where-it-was-produced",
+      "title": "A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum",
+      "status": "designed",
+      "because": ["0165"],
+      "divergesFromPhp": "no stack is captured per record, where `getTrace` snapshots the whole stack at construction; the call path is the trace's answer and a record carries only where it was produced",
+      "seeAlso": ["errors/diagnostic-record", "errors/record-producers", "errors/propagation", "observability/a-log-record-carries-trace-ids-when-a-trace-is-active"],
+      "guardedBy": []
+    },
+    {
       "id": "errors/record-transformations",
       "title": "Redaction, control bytes, bidi and elision are decided in the record",
       "status": "shipped",
@@ -226,6 +235,14 @@
         "tests/conformance/core/log-write-omits-an-empty-fields-object.nvst",
         "tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst"
       ]
+    },
+    {
+      "id": "errors/a-repeat-is-bounded-at-the-sink-that-suffers",
+      "title": "A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time",
+      "status": "designed",
+      "because": ["0165"],
+      "seeAlso": ["http-server/the-floor-cannot-fill-the-disk", "errors/log-write", "errors/log-fields", "testing/the-ingester-runs-whether-or-not-anyone-is-looking"],
+      "guardedBy": []
     },
     {
       "id": "errors/ambiguous-input-refused",
