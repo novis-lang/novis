@@ -1064,6 +1064,58 @@ pub struct ClassTable {
     shape_codecs: Vec<Box<ShapeCodec>>,
 }
 
+/// A table is `Send` and `Sync` because a compiled unit is read by every core.
+///
+/// `rule:security/isolate-shares-nothing` lets exactly one thing cross an
+/// isolate boundary — immutable compiled code — and this table is the runtime
+/// half of it: `nvs_codegen::Unit` owns one behind a `std::sync::Arc`, and every
+/// core resolving a request against that unit reads the same descriptors through
+/// the same pointers. Without these two impls the `Arc` cannot leave the core
+/// that compiled it, and the unit cache would have to be one per core.
+///
+/// The claim these make, and each half of why it holds:
+///
+/// - **Nothing here is interiorly mutable.** Every field of a [`ClassDesc`], a
+///   [`MethodRow`] and a [`ShapeCodec`] is a plain owned value or a raw pointer;
+///   the `Cell`s in this module are all in [`ObjHeader`] and [`LiveList`], which
+///   are per-instance and per-request and reach nothing a table owns. So two
+///   cores holding `&ClassTable` are two readers of frozen memory.
+/// - **Mutation needs exclusive access, and the compiler is done before the
+///   sharing starts.** Every method on this table that writes a descriptor takes
+///   `&mut self` — an `Arc` hands that out only through `Arc::get_mut`, and only
+///   while it is the sole handle. `nvs-codegen` runs all of them before it wraps
+///   the table, so no core ever observes a half-filled descriptor.
+/// - **The `*const ClassDesc` pointers cannot dangle on another thread**, because
+///   they point into *this* table's own boxed descriptors ([`ClassDesc`]'s own
+///   doc is the home of that invariant) and each box is individually allocated,
+///   so the address a reader follows is alive for exactly as long as the handle
+///   it followed it from.
+/// - **A [`MethodRow::code`] address is executable pages the same unit keeps
+///   mapped**, and moving the address between threads is not the operation that
+///   needs a contract — calling through it is, and every caller already carries
+///   that `unsafe` itself.
+///
+/// What this does **not** say is that a `ClassDesc` may cross on its own: a bare
+/// `*const ClassDesc` is still `!Send`, and the table is the unit of sharing
+/// precisely because it is the thing that owns what the pointers point at.
+#[expect(
+    unsafe_code,
+    reason = "the table is frozen before it is shared and owns everything its \
+              raw pointers address; the four paragraphs above are the argument"
+)]
+// SAFETY: see the doc comment above — no interior mutability, every mutator
+// takes `&mut self` and runs before the table is wrapped, and every pointer
+// addresses memory this same table owns.
+unsafe impl Send for ClassTable {}
+
+#[expect(
+    unsafe_code,
+    reason = "shared reads of a frozen table, on `Send`'s argument above"
+)]
+// SAFETY: as `Send` above. `&ClassTable` exposes reads only, so N concurrent
+// readers see the same immutable descriptors.
+unsafe impl Sync for ClassTable {}
+
 impl ClassTable {
     /// An empty table.
     #[must_use]
@@ -4383,5 +4435,23 @@ mod tests {
         table.define("One", &[] as &[&str], &[]);
         assert_eq!(table.len(), 1);
         assert!(!table.is_empty());
+    }
+
+    /// The one thing `rule:security/isolate-shares-nothing` lets cross has to
+    /// be able to: a compiled unit's descriptors are shared by every core, so
+    /// an `Arc<ClassTable>` is what a second core resolves a request through.
+    ///
+    /// A compile-time assertion rather than a runtime one, because what it
+    /// pins is a trait bound — if either `unsafe impl` above is removed, this
+    /// stops building rather than staying green while the cache quietly
+    /// becomes one per core.
+    #[test]
+    fn a_class_table_crosses_a_core_boundary_behind_an_arc() {
+        const fn crosses<T: Send + Sync>() {}
+        crosses::<ClassTable>();
+        crosses::<std::sync::Arc<ClassTable>>();
+        // The recipes travel with it, and are plain data — no `unsafe impl`
+        // buys this one, so a `FieldDefault` growing a pointer fails here.
+        crosses::<std::sync::Arc<[Option<FieldDefault>]>>();
     }
 }
