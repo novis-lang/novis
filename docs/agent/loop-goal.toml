@@ -111,6 +111,12 @@ modules = [
   "crates/nvs-stdlib/src/net.rs",
   # Seeding the checker's signature table with `Core`.
   "crates/nvs-types/src/core_lib.rs",
+  # The host's own facts: the process's identity, the cores it may run on, the memory the
+  # operating system says it holds, and the load the kernel reports.
+  "crates/nvs-runtime/src/os.rs",
+  # `Core\Os` — the five facts a program may ask about the host it is running on, replacing
+  # `posix_*` minus fork, `php_uname`, `getrusage` and `sys_getloadavg`.
+  "crates/nvs-stdlib/src/os.rs",
 ]
 
 # 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
