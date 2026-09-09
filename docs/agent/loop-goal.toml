@@ -101,6 +101,11 @@ modules = [
   "crates/nvs-stdlib/src/bytes.rs",
   # Stages 2-5 -- the band a refusal that names its rule is declared in.
   "crates/nvs-diagnostics/src/lib.rs",
+  # `Core\Xml` — spec § 17's one API for documents, and the node family
+  # `rule:core-classes/html-parsing` makes both parsers produce.
+  "crates/nvs-stdlib/src/xml.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
 ]
 
 # 0122 is the parser and the shared tree; 0024 owns both launderers; 0051 is the tier row; 0019 is the
