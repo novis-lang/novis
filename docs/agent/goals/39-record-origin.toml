@@ -2722,11 +2722,19 @@ name = "nvs-types (the open-typed argument that is still checked)"
 args = ["test", "-p", "nvs-types"]
 tests = ["a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type"]
 
+# The envelope carries `source` since this goal's stage 2 filled it
+# (`rule:errors/a-record-names-where-it-was-produced`), so the floor's own example says where each
+# record was produced. Both writes are top-level statements, which is why neither names a `member`,
+# and the lines are the ones the example's `Core\Log::write` calls sit on.
 [[check]]
 kind = "exact"
 stage = "1 floor"
 file = "examples/logging.nvs"
-want = ['{"level":"info","msg":"started"}', '{"level":"error","msg":"boom"}', "handler ran"]
+want = [
+  '{"level":"info","msg":"started","source":{"file":"examples/logging.nvs","line":27}}',
+  '{"level":"error","msg":"boom","source":{"file":"examples/logging.nvs","line":34}}',
+  "handler ran",
+]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- introspection. `rule:tooling/reflection-and-source-parsing-are-core-features`'s two rules are the whole item: reflection obeys the same visibility
