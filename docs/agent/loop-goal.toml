@@ -99,6 +99,14 @@ modules = [
   "crates/nvs-diagnostics/src/lib.rs",
   # Stage 3 -- the taint axis a detected type does not launder.
   "crates/nvs-stdlib/src/taint.rs",
+  # The directive registry: what class a `nvs.toml` directive is, and what applying a change to it
+  # requires.
+  "crates/nvs-config/src/directive.rs",
+  # [ADR 0064 § 5]'s one parser: what a `Setting` means as a quantity, and how two of them compare.
+  "crates/nvs-config/src/value.rs",
+  # `Core\Compress` — spec § 17's codec class, and the decompression bound that cannot be switched
+  # off (`rule:core-classes/decompression-bound`, ADR 0166).
+  "crates/nvs-stdlib/src/compress.rs",
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
