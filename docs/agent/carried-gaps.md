@@ -45,29 +45,29 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 | Gap | Owner | Where the detail lives |
 |---|---|---|
-| `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | 21 | `crates/nvs-types/src/intrinsics.rs` gap 6 |
-| A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
-| `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
-| `{timeout?: Duration}` is in both spec signatures and in neither registry row | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
-| `scope = "fleet"` parses, boots and is not armed | 21 | `crates/nvs-server/src/schedule.rs` § *What is not armed*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
-| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
-| `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
-| Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
-| `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | 17 | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
-| `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | 17 | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
-| `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
-| `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
-| `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | 24 | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
-| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | 25 | the same file; `rule:core-api/tier-roster` puts all three at Tier 0 |
-| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and `rule:core-classes/html-parsing`'s parser | 26 | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, `rule:core-classes/html-parsing` |
-| ~110 module-doc `# Known gaps` items name no owner and are in no index | 27 | this file's own contract, applied one level down |
-| `Core\Uri::with` replaces a component and cannot remove one | 28 | `crates/nvs-stdlib/src/uri.rs` gap 1 |
-| `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | 28 | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
-| `array<T>` is invariant — **decided: widen to a covariant read** | 28 | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
-| No custom panic hook — `rule:errors/helper-abi`; its blocker went away in M5 | 28 | `crates/nvs-runtime/src/lib.rs` gap 4 |
-| `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | 28 | `crates/nvs-stdlib/src/process.rs` gap 1 |
-| The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | 20 | `crates/nvs-db/src/matrix.rs` gap 1 |
-| An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | 37 | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
+| `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | `carried-gaps` | `crates/nvs-types/src/intrinsics.rs` gap 6 |
+| A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | `carried-gaps` | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
+| `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
+| `{timeout?: Duration}` is in both spec signatures and in neither registry row | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
+| `scope = "fleet"` parses, boots and is not armed | `carried-gaps` | `crates/nvs-server/src/schedule.rs` § *What is not armed*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
+| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `carried-gaps` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
+| `queryAs<T>`'s three refusals are at run time — same blocker, same band | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
+| Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `carried-gaps` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
+| `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `test-request` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
+| `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
+| `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | `doc-comments` | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
+| `nvs serve` runs on one core, and no path in the process starts a second | `per-core` | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
+| `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | `net-os-signal` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
+| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | `formats` | the same file; `rule:core-api/tier-roster` puts all three at Tier 0 |
+| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and `rule:core-classes/html-parsing`'s parser | `xml-tree` | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, `rule:core-classes/html-parsing` |
+| ~110 module-doc `# Known gaps` items name no owner and are in no index | `gap-owners` | this file's own contract, applied one level down |
+| `Core\Uri::with` replaces a component and cannot remove one | `unowned-sweep` | `crates/nvs-stdlib/src/uri.rs` gap 1 |
+| `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | `unowned-sweep` | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
+| `array<T>` is invariant — **decided: widen to a covariant read** | `unowned-sweep` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
+| No custom panic hook — `rule:errors/helper-abi`; its blocker went away in M5 | `unowned-sweep` | `crates/nvs-runtime/src/lib.rs` gap 4 |
+| `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | `unowned-sweep` | `crates/nvs-stdlib/src/process.rs` gap 1 |
+| The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `input-shapes` | `crates/nvs-db/src/matrix.rs` gap 1 |
+| An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | `config-is-written` | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
 
 ## Unowned
 

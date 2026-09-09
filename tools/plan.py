@@ -81,14 +81,6 @@ GOALS = goalsmod.GOALS
 LIVE_GOAL = ROOT / "docs" / "agent" / "loop-goal.md"
 
 
-def h1_of(text):
-    """A goal file's H1, with its front matter stripped off first.
-
-    The milestone sits in front matter above the H1, so the first line of a goal file is `---` and
-    not its title. Everything that identifies a goal by its H1 -- and `live_goal()` below is the
-    reason there is anything -- goes through this rather than through `split("\\n", 1)[0]`."""
-    return goalsmod.FRONT_RE.sub("", text, count=1).split("\n", 1)[0].strip()
-
 WIDTH = 100  # including the "> " prefix, matching what is already in the file
 FIELD_RE = re.compile(r"^> \*\*([^*:]+):\*\*\s*(.*)$")
 
@@ -128,6 +120,15 @@ FIELD_AIM_FALLBACK = 400
 #: and bigger than it was -- and it is a gate on growth rather than on size on purpose: a field
 #: already over it can always be shrunk or held, so there is never prose to shave to clear it.
 FIELD_CEILING_X_FALLBACK = 5
+
+
+def h1_of(text):
+    """A goal file's H1, with its front matter stripped off first.
+
+    The milestone sits in front matter above the H1, so the first line of a goal file is `---` and
+    not its title. Everything that identifies a goal by its H1 -- and `live_goal()` below is the
+    only thing that does -- goes through this rather than through `split("\\n", 1)[0]`."""
+    return goalsmod.FRONT_RE.sub("", text, count=1).split("\n", 1)[0].strip()
 
 
 def load():
@@ -562,13 +563,13 @@ def run_check(fields, index, aim):
         for g in goals:
             if not g["milestone"]:
                 problems.append(
-                    f"chain.toml: goal {g['num']} ({g['name']}) names no milestone -- give it one, "
-                    f'or `milestone = "{POST_PARITY}"` if it lands in none'
+                    f"goal `{g['slug']}`: its `.md` front matter names no milestone -- give it "
+                    f'one, or `milestone: {POST_PARITY}` if it lands in none'
                 )
             elif MILESTONE_TAG_RE.match(g["milestone"]) and g["milestone"] not in ids:
                 problems.append(
-                    f"chain.toml: goal {g['num']} ({g['name']}) is tagged {g['milestone']}, which "
-                    "is spelled like a milestone id but is not a row in the milestone table"
+                    f"goal `{g['slug']}`: tagged {g['milestone']}, which is spelled like a "
+                    "milestone id but is not a row in the milestone table"
                 )
         for m in index:
             nums = by.get(m["id"])
@@ -576,7 +577,7 @@ def run_check(fields, index, aim):
                 want = schedule_cell(nums)
                 if m["carried"] != want:
                     problems.append(
-                        f"{m['id']}: the index row and chain.toml have drifted apart\n"
+                        f"{m['id']}: the index row and the goals directory have drifted apart\n"
                         f"      index: {m['carried'] or '(empty)'}\n      chain: {want}"
                     )
             elif not UNCHAINED_CELL_RE.match(m["carried"]):
@@ -709,13 +710,13 @@ def main():
         out, moved = sync_schedule(out)
         if not changed and not moved:
             print(f"plan.py: {len(index)} rows, every title already matching its file's H1 and "
-                  "every `Carried by` cell already matching chain.toml -- nothing to write")
+                  "every `Carried by` cell already matching the chain -- nothing to write")
             return 0
         PLAN.write_text("\n".join(out), encoding="utf-8", newline="")
         for mid, rel, was, now in changed:
             print(f"plan.py: {mid} title synced from {rel}\n      was: {was}\n      now: {now}")
         for mid, was, now in moved:
-            print(f"plan.py: {mid} carried-by synced from chain.toml\n"
+            print(f"plan.py: {mid} carried-by synced from the goals directory\n"
                   f"      was: {was or '(empty)'}\n      now: {now}")
         print(f"plan.py: {len(changed) + len(moved)} cell(s) rewritten in "
               f"{PLAN.relative_to(ROOT).as_posix()}")

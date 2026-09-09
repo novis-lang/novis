@@ -112,13 +112,13 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import goals as goalsmod  # noqa: E402  -- the chain's one reader
 import orient as orientmod  # noqa: E402  -- bullet parsing lives there and is not reimplemented
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 HANDOFF = ROOT / "docs" / "agent" / "handoff.md"
-CHAIN = ROOT / "docs" / "agent" / "goals" / "chain.toml"
 GUARD_DEBT = ROOT / "docs" / "agent" / "guard-name-debt.md"
 CARRIED_GAPS = ROOT / "docs" / "agent" / "carried-gaps.md"
 CARRIED_REFUSALS = ROOT / "docs" / "agent" / "carried-refusals.md"
@@ -405,21 +405,14 @@ def holds(kind: str, arg: str, today: date) -> tuple[bool | None, str]:
     return None, f"unknown kind {kind!r}"
 
 
-def chain_retired() -> set[int]:
-    """The goal numbers the goals directory marks retired -- the owners carried-gaps may no longer name."""
-    if not CHAIN.exists():
-        return set()
-    try:
-        import tomllib
-        goals = tomllib.loads(CHAIN.read_text(encoding="utf-8")).get("goal", [])
-    except Exception:  # noqa: BLE001 -- a chain that will not parse is chain.py --check's finding
-        return set()
-    out = set()
-    for g in goals:
-        m = re.match(r"^(\d+)\b", str(g.get("name", "")))
-        if m and g.get("retired"):
-            out.add(int(m.group(1)))
-    return out
+def chain_retired() -> set[str]:
+    """The slugs of the retired goals -- the owners carried-gaps may no longer name.
+
+    Retired is the goal's `.toml` being gone, and `tools/goals.py` is what reads that. A slug and
+    not a number, because the Owner cell holds a slug: a number there would name whichever goal had
+    moved into it by the time anyone read the table.
+    """
+    return {g.slug for g in goalsmod.load() if g.retired}
 
 
 def owned_rows(text: str) -> list[tuple[int, str, str]]:
@@ -468,9 +461,11 @@ def expiry_report(today: date | None = None) -> tuple[list[dict], list[dict], li
         if path == CARRIED_GAPS:
             gone = chain_retired()
             for line, gap, owner in owned_rows(text):
-                if owner.isdigit() and int(owner) in gone:
+                slug = owner.strip().strip("`")
+                if slug in gone:
                     rows.append({"file": rel, "line": line + 1, "lead": gap[:70],
-                                 "why": f"owner goal {owner} is retired in chain.toml; close the gap or strike the owner"})
+                                 "why": f"owner goal `{slug}` is retired; close the gap or strike "
+                                        f"the owner"})
     return expired, owed, bad, rows
 
 
