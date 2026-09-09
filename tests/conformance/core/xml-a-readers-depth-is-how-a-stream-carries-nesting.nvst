@@ -1,0 +1,69 @@
+--TEST--
+A closing tag is not a node, so `Core\Xml\Reader::depth` is what carries a document's nesting through a walk: a depth no greater than an earlier one means every element opened since has closed — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+// The tree carries nesting in its shape — a node holds its children — and a
+// walk cannot, because it holds one node. What it carries instead is the depth
+// of the node it just answered: the count of elements open around it, `0` for
+// the root and for anything written beside it.
+Core\Xml\Reader $reader = Core\Xml::reader(
+    "<order><lines><line n=\"1\">two</line><line n=\"2\"/></lines><note>ship</note></order>"
+);
+
+// Before the first `read` there is no node to have a depth, and the answer is
+// `0` rather than an error: a reader is positioned before the document, not
+// inside it.
+echo "before: ", $reader->depth(), "\n";
+
+while (true) {
+    ?Core\Xml\Node $node = $reader->read();
+    if ($node != null) {
+        echo $reader->depth(), " ", $node->name(), $node->text(), "\n";
+    } else {
+        break;
+    }
+}
+
+// And after the last one, for the same reason: the depth belongs to the node
+// `read` answered, and there is no longer one.
+echo "after: ", $reader->depth(), "\n";
+
+// What a program does with it: the depth going back to where it was, or below
+// it, is where an element ended. This counts the order's own lines by taking
+// every `line` written one deep — a child of the root — which is the query the
+// tree would answer by asking the root for its children. The `line` nested
+// inside the note is two deep and is not one of them, and a walk with no depth
+// could not tell the two apart.
+class Lines {
+    public static function count(Core\Xml\Reader $reader, string $name): uint {
+        uint $found = 0;
+        while (true) {
+            ?Core\Xml\Node $node = $reader->read();
+            if ($node != null) {
+                if ($node->kind() == Core\Xml\NodeKind::Element && $node->name() == $name
+                    && $reader->depth() == 1) {
+                    $found = $found + 1;
+                }
+            } else {
+                break;
+            }
+        }
+        return $found;
+    }
+}
+
+echo "lines: ", Lines::count(
+    Core\Xml::reader("<order><line/><line/><line/><note><line/></note></order>"),
+    "line"
+), "\n";
+--EXPECT--
+before: 0
+0 order
+1 lines
+2 line
+3 two
+2 line
+1 note
+2 ship
+after: 0
+lines: 3

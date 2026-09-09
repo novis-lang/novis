@@ -1,0 +1,66 @@
+--TEST--
+`Core\Xml::reader` walks a document a node at a time, in document order, and an element arrives carrying its own name and attributes and none of what is inside it — `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+class Kind {
+    public static function name(Core\Xml\NodeKind $kind): string {
+        return match ($kind) {
+            Core\Xml\NodeKind::Document => "document",
+            Core\Xml\NodeKind::Element => "element",
+            Core\Xml\NodeKind::Text => "text",
+            Core\Xml\NodeKind::Comment => "comment",
+            Core\Xml\NodeKind::ProcessingInstruction => "instruction",
+        };
+    }
+}
+
+// The stream half of § 17. `read` answers the next node or `null`, so the walk
+// is a loop that stops when the document is finished rather than a tree a
+// program is handed whole — what it holds is one node, not the document.
+class Walk {
+    public static function show(Core\Xml\Reader $reader): void {
+        while (true) {
+            ?Core\Xml\Node $node = $reader->read();
+            if ($node != null) {
+                echo Kind::name($node->kind()), " name=\"", $node->name(), "\" text=\"",
+                     $node->text(), "\" attributes=", Core\Arr::count($node->attributes()),
+                     " children=", Core\Arr::count($node->children()), "\n";
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+// The nodes arrive in the order the document writes them, and an element
+// arrives when its opening tag is read: `children` is empty on every one of
+// them, because what is inside has not been read yet and arrives as the nodes
+// that follow. That is the whole difference from the tree, which answers the
+// root with everything under it already built.
+Core\Xml\Reader $reader = Core\Xml::reader(
+    "<?xml version=\"1.0\"?><!--the customer wrote this--><order id=\"7\" zone='west'>" .
+    "<item sku=\"a &amp; b\">two</item></order>"
+);
+Walk::show($reader);
+
+// A document the walk has finished is a state and not an error: `read` keeps
+// answering `null`, as many times as it is asked.
+?Core\Xml\Node $after = $reader->read();
+echo "after the end: ", ($after == null ? "null" : "a node"), ", depth ", $reader->depth(), "\n";
+
+// A reader is one-way, so reading the document again is a second reader over
+// the same text rather than a rewind — the tree is the shape that is walked
+// twice.
+Core\Xml\Reader $again = Core\Xml::reader("<a><b/></a>");
+Walk::show($again);
+Walk::show(Core\Xml::reader("<a><b/></a>"));
+--EXPECT--
+comment name="" text="the customer wrote this" attributes=0 children=0
+element name="order" text="" attributes=2 children=0
+element name="item" text="" attributes=1 children=0
+text name="" text="two" attributes=0 children=0
+after the end: null, depth 0
+element name="a" text="" attributes=0 children=0
+element name="b" text="" attributes=0 children=0
+element name="a" text="" attributes=0 children=0
+element name="b" text="" attributes=0 children=0

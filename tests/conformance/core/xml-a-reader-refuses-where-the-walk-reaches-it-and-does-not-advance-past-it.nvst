@@ -1,0 +1,86 @@
+--TEST--
+A walk refuses everything `Core\Xml::parse` refuses, but where the walk reaches it: the nodes before the refusal were answered, and the reader does not advance past what it refused — `rule:core-classes/xml-tree-and-stream`, `rule:errors/ambiguous-input-refused`
+--FILE--
+<?nvs
+// The stream is the same strict parser as the tree, read one node at a time, so
+// the refusals are the same sentences. What differs is *when*: a tree is all or
+// nothing, and a walk has already answered every node before the one it
+// refuses. Neither repairs anything.
+class Walk {
+    public static function upTo(Core\Xml\Reader $reader): void {
+        try {
+            while (true) {
+                ?Core\Xml\Node $node = $reader->read();
+                if ($node != null) {
+                    echo "  node \"", $node->name(), $node->text(), "\"\n";
+                } else {
+                    echo "  end\n";
+                    break;
+                }
+            }
+        } catch (ParseError $malformed) {
+            echo "  refused: ", $malformed->message, "\n";
+        }
+    }
+}
+
+// A second root element: the first one and everything in it are already the
+// program's, and the refusal arrives at the tag that cannot be there.
+echo "a second root:\n";
+Core\Xml\Reader $second = Core\Xml::reader("<order><line/></order><invoice/>");
+Walk::upTo($second);
+
+// The walk does not advance past what it refused, so asking again reports the
+// same sentence rather than reading on from the other side of it. A refused
+// document stays refused.
+try {
+    $second->read();
+    echo "  the walk read past its own refusal\n";
+} catch (ParseError $again) {
+    echo "  asked again: ", $again->message, "\n";
+}
+
+// A refusal writes nothing, and the depth is part of that: it still belongs to
+// the last node the walk answered rather than to the tag it refused.
+echo "  depth after the refusal: ", $second->depth(), "\n";
+
+// An element closes as what it opened as, and the walk knows what is open
+// because that is the one thing it keeps.
+echo "a mismatched closing tag:\n";
+Walk::upTo(Core\Xml::reader("<a><b>t</a>"));
+
+// The end of a document with something still open is not the end of a
+// document.
+echo "an element left open:\n";
+Walk::upTo(Core\Xml::reader("<a><b>t"));
+
+// The refusals a walk makes before it answers anything at all: this class's
+// answer to XXE is that no code path resolves an entity, so a document type
+// declaration is refused whole rather than read with fetching turned off.
+echo "a document type declaration:\n";
+Walk::upTo(Core\Xml::reader("<!DOCTYPE order SYSTEM \"http://example.invalid/o.dtd\"><order/>"));
+
+echo "an entity that names nothing:\n";
+Walk::upTo(Core\Xml::reader("<a>&xxe;</a>"));
+--EXPECT--
+a second root:
+  node "order"
+  node "line"
+  refused: Core\Xml\Reader::read(): a document has one root element, and this is a second one.
+  asked again: Core\Xml\Reader::read(): a document has one root element, and this is a second one.
+  depth after the refusal: 1
+a mismatched closing tag:
+  node "a"
+  node "b"
+  node "t"
+  refused: Core\Xml\Reader::read(): `<b>` is closed by `</a>`, and an element closes as what it opened as.
+an element left open:
+  node "a"
+  node "b"
+  node "t"
+  refused: Core\Xml\Reader::read(): `<b>` is never closed.
+a document type declaration:
+  refused: Core\Xml\Reader::read(): a document type declaration is not read at all — no entity is resolved from an external subset, from an internal subset or from the network, so there is nothing a `<!DOCTYPE …>` could mean here.
+an entity that names nothing:
+  node "a"
+  refused: Core\Xml\Reader::read(): `&xxe;` is not one of the five predefined entities, and no entity is resolved from a document type declaration, an internal subset or the network.
