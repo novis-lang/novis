@@ -910,7 +910,7 @@ fn sweep_orphans(config: &nvs_config::Config) {
 ///
 /// A path that cannot be canonicalized — absent, or unreadable — and one that is
 /// a filesystem root and so has no directory to be a mount root. Both are a
-/// sentence rather than a [`nvs_diagnostics::Diagnostic`], for [`address`]'s
+/// sentence rather than a [`nvs_diagnostics::Diagnostic`], for [`addresses`]'s
 /// reason: the value came from a command line and there is no span to point into.
 fn one_mount(path: &Path) -> Result<Mounted, String> {
     let entry = nvs_config::trust::canonical(path)
