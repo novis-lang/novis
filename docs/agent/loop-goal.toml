@@ -107,6 +107,9 @@ modules = [
   # `Core\Compress` — spec § 17's codec class, and the decompression bound that cannot be switched
   # off (`rule:core-classes/decompression-bound`, ADR 0166).
   "crates/nvs-stdlib/src/compress.rs",
+  # `Core\Mime` — spec § 17's detection class: what a run of octets *is*, read from the octets and
+  # from nothing else.
+  "crates/nvs-stdlib/src/mime.rs",
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
