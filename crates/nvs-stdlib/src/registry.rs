@@ -1695,6 +1695,23 @@ pub const CLASSES: &[CoreClass] = &[
     // with the transport that fills them, and [`crate::http`]'s module doc is
     // the home of that list.
     crate::http::RESPONSE,
+    // § 16's socket half, beside the HTTP client because the two are the same
+    // door at two heights: `rule:core-classes/net-one-api-three-transports`
+    // replaces `socket_*`, `stream_socket_*` and `fsockopen` with one class over
+    // three transports, and `rule:security/net-listen-is-a-separate-grant-from-net-connect`
+    // is why reaching outward and binding are two grants rather than one
+    // widened. Two of the five entry points so far; [`crate::net`]'s module doc
+    // is the home of what each one asks.
+    crate::net::CLASS,
+    // The connected transport those entry points answer with — a `Read` and a
+    // `Write` shaped like every other stream in the language, whose one slot
+    // holds a key into the request's own table of open sockets. `Core\IO\File`
+    // is the same shape over a descriptor and landed first.
+    crate::net::STREAM,
+    // The accepting half, and the reason `Core\Net` has five entry points
+    // rather than six: taking the next connection off a socket the program
+    // already holds is a member on that socket, not another way to open one.
+    crate::net::LISTENER,
     // `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
     // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
     // state, and the one place a value outlives the request that made it.
@@ -1823,15 +1840,14 @@ pub const CLASSES: &[CoreClass] = &[
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
 /// `every_capability_entry_names_a_member` fails on one naming neither.
 ///
-/// Thirteen rows name a capability, and they are the whole of what this runtime
-/// can currently do to a machine: read a file, decode one as text, split one
-/// into lines, measure one, ask whether one is there, resolve one inside a
-/// base, write one, open one as a handle, remove a file or an empty directory,
-/// make a temporary directory, start another program — and resolve a hostname
-/// while approving an outbound URL. Every other `Core` member reaches no
-/// spelling that performs an effect, which
-/// `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically rather
-/// than by this table being kept honest.
+/// The rows naming a capability are the whole of what this runtime can do to a
+/// machine — the filesystem, another program, a socket, and the endpoints an
+/// operator configured. Every other `Core` member reaches no spelling that
+/// performs an effect, which `nvs_stdlib_reaches_the_os_only_through_the_gate`
+/// holds mechanically rather than by this table being kept honest. There is no
+/// count here on purpose: a number in a comment beside a list that grows is one
+/// that is wrong between every pair of additions, and `nvs meta` renders the
+/// table itself.
 ///
 /// **A `None` row is a declaration, not an exemption**, and that is § 7's
 /// closure as a *shape* rather than as a promise to keep a list short. A class
@@ -1994,6 +2010,34 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "allowUrl",
         Some(nvs_config::Cap::NetConnect),
     ),
+    // `rule:security/net-listen-is-a-separate-grant-from-net-connect`: the two
+    // rows below are the whole of that rule in this table. Which grant a door
+    // asks is decided by what the program is *doing* and never by the transport
+    // it does it over, so reaching outward names `net.connect` and binding names
+    // `net.listen` — and neither widens the other, which is what makes them two
+    // rows rather than one with a wider grant in it. The address policy behind
+    // the first is not a third row for `allowUrl`'s reason: it is deny-by-default
+    // over every grant, and it deliberately does not apply to the second at all.
+    (
+        crate::net::NAME,
+        "connect",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (crate::net::NAME, "listen", Some(nvs_config::Cap::NetListen)),
+    // `Core\Net\Stream`'s and `Core\Net\Listener`'s members need no grant of
+    // their own, and these `None` rows are the declaration that says so —
+    // `Core\IO\File`'s rows one class over are the same reading. The socket was
+    // checked where it was opened, which is what makes a door hand back a
+    // handle at all; `accept` is the one worth reading twice, since a connection
+    // arriving is not this program reaching anywhere, and asking `net.connect`
+    // of a peer's address would make a granted listener unable to serve anyone
+    // outside its *outbound* grant.
+    (crate::net::STREAM_NAME, "read", None),
+    (crate::net::STREAM_NAME, "write", None),
+    (crate::net::STREAM_NAME, "close", None),
+    (crate::net::LISTENER_NAME, "accept", None),
+    (crate::net::LISTENER_NAME, "port", None),
+    (crate::net::LISTENER_NAME, "close", None),
     // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, and
     // `shared()` is the door — it dials the store the deployment configured, while
     // `Core\Cache\Store`'s two operations run on what it opened and so declare

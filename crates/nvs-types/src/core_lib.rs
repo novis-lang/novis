@@ -1230,6 +1230,13 @@ mod tests {
     /// share: a request can arrive with no address to report and can name no
     /// authority, so the mark sits on the arm that carries a value and the
     /// `null` says the fact is missing rather than empty.
+    /// The newest is `Core\Net\Stream::read`, and it is the first row here the
+    /// program opened the door for itself: every other entry is something the
+    /// runtime handed it. That changes nothing — a peer on the far end of a
+    /// socket this program dialled is exactly as much somebody else as one that
+    /// dialled in, and `Core\Request::body` is the same octets one layer up.
+    /// It answers `bytes` rather than `string` because a socket carries octets
+    /// and `rule:types/bytes` makes `string` valid UTF-8 by construction.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1277,6 +1284,7 @@ mod tests {
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
+                (r"Core\Net\Stream", "read", "tainted bytes".to_owned()),
                 (r"Core\Request", "body", "tainted string".to_owned()),
                 (
                     r"Core\Request",
@@ -1331,15 +1339,15 @@ mod tests {
                     "null|tainted string".to_owned(),
                 ),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at \
-             twenty-five — a verified claim, an outbound reply's body, the two environment \
+            "the roster of members whose *answer* is qualified `tainted` is closed — a \
+             verified claim, an outbound reply's body, the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \
              the request being answered, the three facts it arrived on, the three \
              declarations one of its uploaded parts made, the bytes of that part held \
              whole, the two readers of the captures the matched route filled, the captures \
-             of the mount serving the request, and the two payloads a connection's peer \
-             sent. \
+             of the mount serving the request, the two payloads a connection's peer \
+             sent, and what a socket the program opened itself read back. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \
