@@ -3780,6 +3780,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `every_migration_member_row_names_a_registered_member` and its conformance twin passed over it
   vacuously. Grep a family's rows for `::` before believing the table has them pinned, and spell the
   member into the cell in the slice that registers the class. [until: reviewed 2026-09-09]
+- **A `.nvst` case that nests a value deep enough to reach `Core\Json::encode`'s ceiling aborts the
+  process instead of throwing.** The walk recurses through `serde_json`'s serializer and the native
+  stack gives out far below `DEPTH_CEILING`, so the runner reports a stack overflow and no
+  `--EXPECT--` can be written for that refusal at all. Assert depth with a chain small enough to
+  encode; `crates/nvs-stdlib/src/json.rs`'s known gap 7 owns the rest.
+  [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 
 ## Splitting a file that got too big
 
