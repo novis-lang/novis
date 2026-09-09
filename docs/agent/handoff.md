@@ -2,48 +2,36 @@
 
 ## State
 
-**Goal 25 is green.** `Core\Compress`, `Core\Mime` and `Core\Zip` are on disk and registered, all five
-stages' acceptance checks pass, and `python tools/verify.py` is 9 of 9 — 3762 unit, 1655 conformance,
-276 differential.
+**Goal 25 is green and its audit is closed.** `Core\Compress`, `Core\Mime` and `Core\Zip` are on disk and
+registered, every stage's acceptance check passes, and `python tools/check-migration.py --min 100` now
+reads 1167 functions and 255 types with none open.
 
-**Stage 5 closed three ways.** The § 17 keys were struck from
-`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` by the slices that registered the
-classes, so `Core\Xml` (goal 26) is the only § 17 line left; the migration table's zlib rows now answer
-`Core\Compress::compress` and `::decompress` rather than naming the class in prose; and
-`the_server_still_sets_no_content_encoding_of_its_own` is in `crates/nvs-server/src/serve.rs`, beside
-the shipped-header case and asserting the absence over one connection for the same reason that one
-does.
+**The oracle inventory carries `fileinfo` and `zip`.** How it is regenerated is
+`tools/dump-php-builtins.php`'s own comment; the sixteen names that arrived with them are rows under
+`docs/spec/02-php-migration.md` § *Archives* and § *Content types*, and `check-migration.py`'s `UNAUDITED`
+is 23 extensions, every one either Tier 1 or answered by `Core`'s own.
 
-**The stage's check named a test no crate declares.** `every_migration_member_is_registered` was a
-shorthand for `every_migration_member_row_names_a_registered_member`, which has carried that walk
-throughout; `docs/agent/loop-goal.toml`'s stage 5 block now spells it as the tree does, the same
-correction its stage 1 floor copy already carried.
-
-**`fileinfo` and `zip` are on `tools/check-migration.py:61`'s `UNAUDITED` list**, so the migration
-table can carry no `finfo_*` or `zip_*` row at all — a row for a name the inventory does not list is a
-structural error, not an unfilled one. Stage 5's "the table's `zlib`, `fileinfo` and `zip` rows answer
-a `Core` spelling" is therefore met for `zlib` and unreachable for the other two until the inventory is
-regenerated against a build that loads them. That list's own comment is where the hole is named, and it
-no longer calls `zip` a Tier 1 extension.
+**The last § 17 line is `Core\Xml`**, goal 26's, in
+`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`. The chain advances there and
+`tools/loop.py` reseeds this file, so the group below is only what this tree owes if the run continues
+here.
 
 ## Next group
 
-**Stage 5 — goal 25 is green, so the chain advances to goal 26 and `tools/loop.py` reseeds this file;
-these two are what this tree still owes if the run continues here** — one file set:
-`tools/check-migration.py` and `docs/spec/02-php-migration.md`, with the second item alone in
-`crates/nvs-stdlib/src/compress.rs`.
+**Stage 5 — the incremental half of `Core\Compress`, which nothing in the chain builds; both are one
+file set: `crates/nvs-stdlib/src/compress.rs`, with the second reaching into
+`docs/spec/02-php-migration.md`.**
 
-- [ ] **The PHP inventory is regenerated against a build that loads `fileinfo` and `zip`**, so the two
-      classes this goal built are audited against PHP's own names instead of being absent from the
-      table — `tools/check-migration.py:61` is the list they come off, `tools/dump-php-builtins.php`
-      is what writes the inventory, and `docs/spec/02-php-migration.md:1727` is the paragraph that
-      states the hole. Needs a PHP build carrying both extensions; `docs/setup.md` owns what this
-      machine's PHP is. `rule:core-api/tier-roster`.
 - [ ] **`Core\Compress\Stream`, the incremental half**, which `deflate_init`, `deflate_add` and
-      `inflate_init` are pointed at — `crates/nvs-stdlib/src/compress.rs:38` states its shape and that
-      it carries the same `Bound` per chunk, because a bound applied per call rather than per stream is
-      not a bound. `rule:core-classes/decompression-bound`. No chain entry builds it, so it is a
+      `inflate_init` are pointed at — `crates/nvs-stdlib/src/compress.rs:38` states its shape and that it
+      carries the same `Bound` per chunk, because a bound applied per call rather than per stream is not
+      a bound. `rule:core-classes/decompression-bound`. No chain entry builds it, so taking it is a
       scheduling question rather than a session's.
+- [ ] **The four incremental rows name a member spelling once that object exists** —
+      `docs/spec/02-php-migration.md:1078` is `deflate_init`'s row and the three after it are its family;
+      each says `Core\Compress` in prose today because there is no `Core\Compress\Stream::` member to
+      name, and `crates/nvs-stdlib/tests/spec_registry_coverage.rs`'s walk is what holds the spelling to
+      the registry. `rule:php-migration/every-php-builtin-is-a-completion-candidate`.
 
 ## Backlog
 
@@ -53,3 +41,5 @@ these two are what this tree still owes if the run continues here** — one file
   only where the host creates links; passing under WSL, skipped with a reason on the Windows leg —
   `docs/agent/playbook.md` § *Writing a test case*.
 - `Core\Process::spawn` and `Core\Metrics` stay unowned — `docs/agent/carried-gaps.md` § *Unowned*.
+- `mbstring`, `curl`, `intl`, `gd` and 19 more are still off the inventory; each becomes rows the day a
+  build that loads them regenerates it — `tools/check-migration.py`'s `UNAUDITED`.

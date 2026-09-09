@@ -23564,6 +23564,22 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
 | `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
+| `zip_open` | dropped | an archive is a value rather than a handle, and a handle would be a `resource` (`rule:core-api/shape-rules` R14). It is also what lets a caller hold an archive open and never ask it any of the questions above |
+| `zip_close` | dropped | there is no second roster to close; the archive's lifetime is the value's |
+| `zip_read` | member | `Core\Zip::entries`, which answers with every name at once. The refusals are decided over the whole archive, so there is no half-listed archive to iterate |
+| `zip_entry_open` | dropped | a per-entry handle on top of the per-archive one. An entry is read by name (R14) |
+| `zip_entry_close` | dropped | the same, closing |
+| `zip_entry_read` | member | `Core\Zip::read`, which takes the entry by name and returns its bytes whole, under the output bound *Compression* above states |
+| `zip_entry_name` | member | `Core\Zip::entries` is where the names come from, `tainted` (`rule:security/tainted-sources`) |
+| `zip_entry_filesize` | dropped | the uncompressed size an entry *declares*, which is the number a bomb lies about. What bounds a read is `Core\Zip::read`'s own ceiling rather than a figure taken from the archive |
+| `zip_entry_compressedsize` | dropped | the other half of the ratio a caller was expected to compute by hand. `Core\Zip::extract` charges that ratio itself, per entry and across the archive |
+| `zip_entry_compressionmethod` | dropped | which codec an entry used is the reader's business. A caller reads it to decide whether decoding is safe, and deciding that is the whole of what `Core\Zip` does |
+| `finfo_open` | dropped | it loads a magic database and hands back a `resource` (`rule:core-api/shape-rules` R14). The table is compiled in and is the same table for every program, so there is nothing to open, nothing to configure, and no path to a rule file for anyone to point elsewhere |
+| `finfo_close` | dropped | there is no handle to close |
+| `finfo_set_flags` | dropped | the flags choose between a media type, a character encoding and an English description of the format. `Core\Mime::detect` answers one closed enum instead, and a sentence about a format is not a value a program should be branching on |
+| `finfo_buffer` | member | `Core\Mime::detect`, which takes the bytes directly and returns a case rather than a string; `Core\Mime::mediaType` spells that case when a string is what the program needs |
+| `finfo_file` | member | `Core\IO::read` for the bytes and `Core\Mime::detect` for the type. Reading a file and identifying bytes are two jobs, and only the second is about the format (`rule:core-api/shape-rules` R17) |
+| `mime_content_type` | member | the same pair, with `Core\Mime::mediaType` spelling the case as the string PHP returns |
 | `xml_parser_free` | dropped | a reader's lifetime is its object's (R14). There is no handle to free, and nothing observes the difference |
 | `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary (`rule:types/bytes`) |
 | `xml_parser_get_option` | dropped | reads back what nothing sets |
