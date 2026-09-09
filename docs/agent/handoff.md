@@ -2,55 +2,58 @@
 
 ## State
 
-**Goal 40 — An agent learns Novis from the binary, in three calls — has just started; nothing of it
-has landed yet.** Goal 39's whole list is this goal's Stage 1 floor.
+**Goal 40 — an agent learns Novis from the binary, in three calls. Stages 0 and 2 are landed;
+stage 1 is goal 39's floor and carries.** Nothing is blocked, and no design question is open — the
+goal's § *Standing decisions* pre-authorizes every call the remaining stages reach.
 
-The design is settled and frozen: [0167](../decisions/0167.md) holds it, and the goal's
-§ *Standing decisions* names every tradeoff a session would otherwise stop on. Three things a session
-must not re-decide:
+On disk: `nvs agent index|find|show`, rendering `crate::meta::document()` and holding nothing, and a
+`capabilities` roster as a seventh top-level key of `nvs meta --json`. `nvs agent primer` is stage 3
+and is not built, so `rule:tooling/an-agent-asks-the-binary` stays `designed` while
+`rule:tooling/the-index-is-one-line-per-member` is now `shipped`.
 
-- **`nvs agent`, not an extension of `nvs doc`.** A symbol is not a path, and `nvs doc` takes one
-  positionally.
-- **No per-member capability field.** `rule:security/capability-declaration-is-one-table` refuses
-  that shape for a security-review reason, and stage 2 joins against the table at render time
-  instead. The table itself is read and never edited.
-- **Nothing cached, nothing written to disk** by the four read verbs. An answer that can be stale is
-  the failure the surface exists to remove.
+The stage 0 audit's verdicts, so no session re-runs it: `nvs doc <entry> --out <dir>` and
+`nvs meta --json <entry>`'s `program` key both ship and are guarded, and both rules are flipped.
+`registry::CAPABILITIES` had exactly one reader — `crates/nvs-stdlib/tests/capability.rs` — so
+`rule:security/capability-declaration-is-one-table`'s sentence naming three consumers was false on
+two; it now names the closure test and the metadata command, and `tools/reference.py` still prints no
+capability beside a member's card (backlog below).
 
-Stage 0 is an audit and is cheap: two `tooling` rules are marked `designed` over surface the binary
-appears to ship (`nvs doc <entry> --out <dir>` writes pages today; `nvs meta --json <entry>` emits a
-`program` key today), and one `shipped` rule — `security/capability-declaration-is-one-table` — names
-two renderers that do not exist. Confirm each against the binary before stage 2 builds on it.
+The `[context]` manifest had no gap: stage 2's overlay already names every rule this needed. The
+handoff it was read against named stage 0 while the group's second slice was stage 2, so the pack
+opened one overlay short — name the *later* stage when a group spans two.
 
 ## Next group
 
-**Stage 0 then stage 2** — one file set: `crates/nvs-cli/src/{main,meta}.rs`, reading
-`crates/nvs-stdlib/src/registry.rs`. Stage 0 is an audit with no edit outside the rulebook, so it is
-cheap to take in front of the keystone rather than in a session of its own.
+**Stage 3: the primer, generated** — one file set: `crates/nvs-cli/src/agent.rs`,
+`crates/nvs-cli/src/main.rs` and `tools/reference.py`, reading the chapters under `docs/spec/`.
+`docs/novis.md` is generated from those and is not where a marker goes.
 
-- [ ] **Audit the three rules named above** against the release binary — `nvs doc`, `nvs meta --json
-      <entry>`, and whether any renderer reads `CAPABILITIES`. Flip the `designed` ones that hold;
-      write down, and leave `designed`, any that does not.
-- [ ] **`crates/nvs-cli/src/meta.rs`** — the document gains a `capabilities` roster rendered from
-      `crates/nvs-stdlib/src/registry.rs`'s `CAPABILITIES`: class, member, capability. A seventh
-      top-level key beside `exceptions`, `interfaces`, `attributes` and `directives`. No field is
-      added to a member row.
-- [ ] **`crates/nvs-cli/src/agent.rs`** (new) with `index`, and `crates/nvs-cli/src/main.rs:186`'s
-      `Command` enum gaining `Agent`. One line per member joined to that roster, so
-      `Core\IO::read(string $path): string  [fs.read]` is what a line looks like.
-- [ ] **`find` and `show`** beside it, if the group still has room — same file, and the tests for all
-      three are one `-p nvs-cli` run.
+- [ ] **Mark the chapter sections the primer lifts**, in `docs/spec/`, with
+      `tools/reference.py:106`'s `parse_front` and `tools/reference.py:122`'s `load_chapters` as the
+      readers. `rule:tooling/a-primer-claim-is-executed` fixes what it carries — the lookup
+      protocol, one complete worked program, the capability model with the smallest `nvs.toml` that
+      grants a file read, the refusal table, the chapter map. A section is lifted because it is
+      marked and for no other reason: `an_unmarked_chapter_section_is_not_lifted_into_the_primer` is
+      that guard, and the primer is never hand-written.
+- [ ] **`crates/nvs-cli/src/agent.rs:156`'s `index` gains `primer` beside it**, and
+      `crates/nvs-cli/src/main.rs:550`'s `AgentCommand` gains a `Primer` variant. It assembles the
+      marked sections and the registry at the call and caches nothing, like the three verbs already
+      there. Landing it is what flips `rule:tooling/an-agent-asks-the-binary` to `shipped`.
+- [ ] **`python tools/reference.py --primer --check`**, whose flags go beside the others at
+      `tools/reference.py:712`'s `main` — every spelling the primer states as refused is fed to
+      `nvs check` and must be refused, and every example in it is run and must print what the primer
+      says (`rule:tooling/a-primer-claim-is-executed`). This is a `command` check in the goal file,
+      not a `#[test]`, so it fails on the tool's own exit status.
 
 ## Backlog
 
-- **Stage 3, the primer** — `crates/nvs-cli/src/agent.rs`, `docs/reference/lang/*.md` markers and
-  `tools/reference.py`. Shares one file with the group above and adds two; take it next.
-- **Stage 4, the two diagnostics** — `crates/nvs-hir/src/members.rs:1014` and
-  `crates/nvs-runtime/src/capability.rs:109`. Shares nothing with the rest of this goal; it is a
-  session of its own and that is the right outcome.
-- **Stage 5, the install** — `crates/nvs-cli/src/agent.rs` again, plus a new
-  `docs/reference/tools/50-agents.md`.
-- **Stage 6, the rulebook** — including `rule:tooling/meta-json`'s "Four rosters" sentence, which
-  stage 2 makes five and which stays true until then.
-- When this goal's last check goes green the driver takes goal 26.
-  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
+- `tools/reference.py` prints no capability beside a member's card though `nvs meta --json` now
+  emits the roster to join — `docs/rules/security/capability-declaration-is-one-table.md` is the
+  rule that used to claim it did.
+- `nvs agent show` renders no card for a *class*; `show Core\IO` answers with the nearest matches,
+  which is that class's members. No rule asks for one — `rule:tooling/an-agent-asks-the-binary`.
+- Stage 4's two diagnostics: the runtime capability refusal's wording,
+  `crates/nvs-runtime/src/capability.rs`, and `E0309` for a member that does not resolve.
+- Stage 5's adapters — `rule:tooling/an-adapter-carries-protocol-and-never-language`, and
+  `nvs agent init --embed` is decided against and not to be revisited.
+- Static capability checking stays a carried gap owned elsewhere — [carried-gaps.md](carried-gaps.md).

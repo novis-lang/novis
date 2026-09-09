@@ -1394,6 +1394,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   an example only below its last producer, or run `target/debug/nvs.exe run <example>` afterwards and
   move the `want` with it — the check reports stdout line for line and says nothing about why a
   number moved. [until: reviewed 2026-09-09]
+- **A `Core` member's `signature` in `nvs meta --json` carries its type parameters, so the leading
+  token of a rendered line is not the member's name.** `Core\Json::decodeAs<T>(string $json): T` is
+  the spec's own spelling, and a symbol read as "everything before the first `(`" keeps the `<T>` and
+  then resolves to nothing — three of `nvs agent`'s cases went red on the ten `…As` members at once.
+  Split on `['(', '<', ' ']` when reading a name back out of a rendered signature, and check
+  `Core\Arr::shapeAs` and `Core\Request::queryAs` before believing a walk over the registry is
+  complete. [until: reviewed 2026-09-09]
 
 ## Running things
 

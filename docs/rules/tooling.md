@@ -3,7 +3,7 @@
 
 # Tooling
 
-*40 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
+*37 of 60 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -955,7 +955,7 @@ sentence — that is a lint's design and belongs with the publisher.
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 
-## `nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own  *(designed — not yet in the compiler)*
+## `nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own
 
 `rule:tooling/nvs-doc-renders-and-decides-nothing`
 
@@ -1032,7 +1032,7 @@ never as an error. `docs/novis.md` and the website's core data are both built fr
 
 <a id="tooling-meta-json-takes-a-program"></a>
 
-## `nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape  *(designed — not yet in the compiler)*
+## `nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape
 
 `rule:tooling/meta-json-takes-a-program`
 
@@ -1083,7 +1083,7 @@ that got something wrong — so the check loop is part of the surface rather tha
 
 <a id="tooling-the-index-is-one-line-per-member"></a>
 
-## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on  *(designed — not yet in the compiler)*
+## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on
 
 `rule:tooling/the-index-is-one-line-per-member`
 

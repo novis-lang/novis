@@ -734,7 +734,7 @@
     {
       "id": "tooling/nvs-doc-renders-and-decides-nothing",
       "title": "`nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0137"
       ],
@@ -743,7 +743,9 @@
         "tooling/one-json-several-renderers",
         "tooling/meta-json-takes-a-program"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/doc.rs"
+      ]
     },
     {
       "id": "tooling/one-json-several-renderers",
@@ -787,7 +789,7 @@
     {
       "id": "tooling/meta-json-takes-a-program",
       "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0137",
         "0117"
@@ -798,7 +800,9 @@
         "tooling/doc-comment-tags-are-see-and-example",
         "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/meta.rs"
+      ]
     },
     {
       "id": "tooling/an-agent-asks-the-binary",
@@ -814,12 +818,14 @@
         "tooling/a-primer-claim-is-executed",
         "tooling/an-adapter-carries-protocol-and-never-language"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/agent.rs"
+      ]
     },
     {
       "id": "tooling/the-index-is-one-line-per-member",
       "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0167"
       ],
@@ -829,7 +835,9 @@
         "testing/roster-is-derived",
         "security/capability-check-at-the-door"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/agent.rs"
+      ]
     },
     {
       "id": "tooling/a-primer-claim-is-executed",

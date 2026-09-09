@@ -429,10 +429,12 @@ capability is not a promise about any one argument; the scope is asked every tim
 `rule:security/capability-declaration-is-one-table`
 
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the metadata command renders
-it, the reference documentation prints it beside a member's card, and the closure test reads it.
-Enforcement is the doors ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so
-the table cannot be the thing an attacker edits to gain a permission.
+capability. **The table is never read at run time.** It is audit data — the closure test reads it, and
+the metadata command renders it as a roster of its own, which is how any renderer that wants a
+member's capability beside its card gets one ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers); the join is
+on `(class, member)` at render time). Enforcement is the doors
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so the table cannot be the
+thing an attacker edits to gain a permission.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
