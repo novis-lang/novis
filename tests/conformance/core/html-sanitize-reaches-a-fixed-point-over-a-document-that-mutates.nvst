@@ -1,0 +1,77 @@
+--TEST--
+Sanitizing a `Core\Html::sanitize` answer again changes nothing, over the documents whose parse differs from their source — `rule:core-classes/html-sanitize`, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// Every payload below reads one way to a scanner over the text and another way
+// to the parser a browser runs: the content of a raw-text element reparses as
+// markup, a comment closes early, an attribute value closes its own quote. A
+// sanitizer that read the source and deleted from it would approve a document
+// it never saw, which is the whole of the mutation-XSS class. Rebuilding from
+// the parsed tree is what closes it — `rule:core-classes/html-sanitize`.
+// Asked of the *answer's own parse* rather than of its text, because that is
+// the question: a handler is dangerous when it is an attribute a browser
+// builds, and the same characters sitting in element content or inside a
+// granted `title` are prose. `Core\Html::parse` is the same door the sanitizer
+// itself went through, so this walks what a browser would build.
+class Handlers {
+    public static function count(Core\Xml\Node $node): int {
+        int $found = 0;
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            foreach ($node->attributes() as string $name => tainted string $value) {
+                if (Core\Str::startsWith($name, "on")) {
+                    $found = $found + 1;
+                }
+            }
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $found = $found + Handlers::count($child);
+        }
+        return $found;
+    }
+}
+
+array<string> $mutating = [
+    "<listing>&lt;img src=x onerror=alert(1)&gt;</listing>",
+    "<xmp><p>&lt;/xmp&gt;&lt;img src=x onerror=alert(1)&gt;</p></xmp>",
+    "<noscript><p title=\"</noscript><img src=x onerror=alert(1)>\">",
+    "<style><img src=x onerror=alert(1)></style>",
+    "<!--><img src=x onerror=alert(1)>-->",
+    "<a href=\"java\tscript:alert(1)\">x</a>",
+    "<p title=\"&quot;><img src=x onerror=alert(1)>\">t</p>",
+];
+
+// Counted rather than read off a line, because what is under test is a
+// property of the whole set: a member that reaches a fixed point on six of
+// seven has the bug this case exists for, and printing the six would look
+// right.
+int $fixed = 0;
+int $inert = 0;
+foreach ($mutating as string $payload) {
+    string $once = Core\Html::toSource(
+        Core\Html::sanitize($payload),
+        "comparing an answer against the answer's own answer"
+    );
+    string $twice = Core\Html::toSource(
+        Core\Html::sanitize($once),
+        "the second pass, which is the one that must change nothing"
+    );
+    if ($once == $twice) {
+        $fixed = $fixed + 1;
+    }
+    // The fixed point is the interesting half, but it would also be reached by
+    // a member that answered its argument unchanged. What makes it mean
+    // something is that nothing a browser builds out of the answer carries a
+    // handler. Some of these answers *do* still say `onerror` — as escaped
+    // characters in element content, or inside a `title` the list does grant —
+    // and that is the right answer rather than a near miss: what a document
+    // says is its own business, and what it may run is this member's.
+    if (Handlers::count(Core\Html::parse($once)) == 0) {
+        $inert = $inert + 1;
+    }
+}
+
+echo "fixed ", $fixed, " of ", Core\Arr::count($mutating), "\n";
+echo "no handler ", $inert, " of ", Core\Arr::count($mutating), "\n";
+--EXPECT--
+fixed 7 of 7
+no handler 7 of 7
