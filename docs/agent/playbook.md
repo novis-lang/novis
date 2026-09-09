@@ -5396,6 +5396,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   take it away and leave every test green. Pin each foreign clause with its own assertion —
   `const fn sends<T: Send>() {} sends::<JITModule>();` beside the type's own crossing test, and
   deliberately *not* the clause the argument does not need. [until: reviewed 2026-09-09]
+- **A short buffer on a datagram receive is two different syscall answers.** `recv_from` on Windows
+  refuses the call with `WSAEMSGSIZE` and hands back neither a count nor a sender, where the Unixes
+  keep what fits and answer normally, so a case pinning truncation is green on CI's Linux legs and
+  red locally. Hand the kernel a buffer no datagram can overflow and make the `$max` cut in the
+  member — `nvs_stdlib::net`'s `DATAGRAM_CEILING` is that shape.
+  [until: reviewed 2026-09-09]
 
 ## Divergences and refusals already pinned
 

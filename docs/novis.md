@@ -148,6 +148,8 @@ Conventions the whole file uses:
 | [`Core\Net`](#core-core-net) |  |
 | [`Core\Net\Stream`](#core-core-net-stream) |  |
 | [`Core\Net\Listener`](#core-core-net-listener) |  |
+| [`Core\Net\Datagram`](#core-core-net-datagram) |  |
+| [`Core\Net\Datagram\Message`](#core-core-net-datagram-message) |  |
 | [`Core\Cache`](#core-core-cache) |  |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
@@ -18656,12 +18658,13 @@ The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_
 <a id="core-core-net"></a>
 ### `Core\Net`
 
-Keywords: connect, listen
+Keywords: connect, listen, bindDatagram
 
 | Member | Signature |
 |---|---|
 | [`Core\Net::connect`](#core-core-net-connect) | `connect(string $host, uint $port, Core\Time\Duration $within): Core\Net\Stream` |
 | [`Core\Net::listen`](#core-core-net-listen) | `listen(string $address, uint $port): Core\Net\Listener` |
+| [`Core\Net::bindDatagram`](#core-core-net-binddatagram) | `bindDatagram(string $address, uint $port): Core\Net\Datagram` |
 
 <a id="core-core-net-connect"></a>
 #### `Core\Net::connect`
@@ -18697,6 +18700,24 @@ Binds a listening TCP socket to `$address` on `$port`. Needs `net.listen` for th
 | `$port` | `uint` | The port to bind, or `0` to let the operating system pick one — which `Core\Net\Listener::port` then reports. |
 
 **Returns** `Core\Net\Listener` — A bound `Core\Net\Listener`, closed with this request if the program does not close it first.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
+
+<a id="core-core-net-binddatagram"></a>
+#### `Core\Net::bindDatagram`
+
+```nvs skip
+Core\Net::bindDatagram(string $address, uint $port): Core\Net\Datagram
+```
+
+Binds a datagram socket to `$address` on `$port`. Needs `net.listen` for that exact endpoint, exactly as a TCP bind does; sending to anywhere is a separate grant asked at `Core\Net\Datagram::send`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$address` | `string` (sink) | An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname, for `Core\Net::listen`'s reason: a grant names one endpoint. |
+| `$port` | `uint` | The port to bind, or `0` to let the operating system pick one — which `Core\Net\Datagram::port` then reports. |
+
+**Returns** `Core\Net\Datagram` — A bound `Core\Net\Datagram`, closed with this request if the program does not close it first.
 
 **Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
 
@@ -18813,6 +18834,126 @@ Stops listening and gives the port back. Connections already accepted are unaffe
 **Returns** `void` — Nothing.
 
 **Throws** `RuntimeError` — This handle is already closed.
+
+<a id="core-core-net-datagram"></a>
+### `Core\Net\Datagram`
+
+Keywords: send, receive, port, close
+
+| Member | Signature |
+|---|---|
+| [`Core\Net\Datagram->send`](#core-core-net-datagram-send) | `send(string $host, uint $port, bytes $payload, Core\Time\Duration $within): uint` |
+| [`Core\Net\Datagram->receive`](#core-core-net-datagram-receive) | `receive(uint $max, Core\Time\Duration $within): Core\Net\Datagram\Message` |
+| [`Core\Net\Datagram->port`](#core-core-net-datagram-port) | `port(): uint` |
+| [`Core\Net\Datagram->close`](#core-core-net-datagram-close) | `close(): void` |
+
+<a id="core-core-net-datagram-send"></a>
+#### `Core\Net\Datagram->send`
+
+```nvs skip
+$datagram->send(string $host, uint $port, bytes $payload, Core\Time\Duration $within): uint
+```
+
+Sends one datagram to `$host` on `$port` and answers how many octets went. Needs `net.connect` for the host, and the address it resolves to must not be one the address policy denies — the same question a TCP connect is asked, asked here because this is where the address is named.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$host` | `string` (sink) | A hostname or an address literal. It is checked against the grant before it is resolved, and the datagram goes to the one address it resolved to. |
+| `$port` | `uint` | The port to send to, 1 to 65535. |
+| `$payload` | `bytes` (neutral) | The octets of one message. There is no partial send: a message too large for the path is refused rather than split. |
+| `$within` | `Core\Time\Duration` | How long to wait for the socket to take the message. It bounds this call alone. |
+
+**Returns** `uint` — How many octets went, which is `$payload`'s length on every success.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, `$port` is not a port, or this handle is closed.; `TimeoutError` — The socket would not take the message within `$within`.; `IOError` — The operating system refused the send — the message is over the maximum size, or the network is unreachable.
+
+<a id="core-core-net-datagram-receive"></a>
+#### `Core\Net\Datagram->receive`
+
+```nvs skip
+$datagram->receive(uint $max, Core\Time\Duration $within): Core\Net\Datagram\Message
+```
+
+Waits for one datagram, no longer than `$within`, and answers it together with who sent it. It asks no capability: the bind was granted when this socket was opened, and who sent the message was not this program's choice.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | How many octets to keep, capped at 64 KiB because no datagram is larger. A datagram arrives whole or not at all, so a message longer than this keeps what fits and the rest are gone — there is no second call that answers the tail. |
+| `$within` | `Core\Time\Duration` | How long to wait for a message. It bounds this call alone. |
+
+**Returns** `Core\Net\Datagram\Message` — A `Core\Net\Datagram\Message` carrying the octets and the endpoint they came from.
+
+**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — No datagram arrived within `$within`.; `IOError` — The operating system failed the receive — on Windows, this is also how an earlier send of this socket's is reported unreachable.
+
+<a id="core-core-net-datagram-port"></a>
+#### `Core\Net\Datagram->port`
+
+```nvs skip
+$datagram->port(): uint
+```
+
+The port this socket is bound to, which is how a program that asked for `0` learns the one the operating system picked.
+
+**Returns** `uint` — The bound port, 1 to 65535.
+
+**Throws** `RuntimeError` — This handle is closed.; `IOError` — The operating system would not answer for this socket.
+
+<a id="core-core-net-datagram-close"></a>
+#### `Core\Net\Datagram->close`
+
+```nvs skip
+$datagram->close(): void
+```
+
+Closes this socket and gives its port and its reactor registration back. A request that forgets closes every socket it opened when it ends.
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — This handle is already closed.
+
+<a id="core-core-net-datagram-message"></a>
+### `Core\Net\Datagram\Message`
+
+Keywords: payload, host, port
+
+| Member | Signature |
+|---|---|
+| [`Core\Net\Datagram\Message->payload`](#core-core-net-datagram-message-payload) | `payload(): tainted bytes` |
+| [`Core\Net\Datagram\Message->host`](#core-core-net-datagram-message-host) | `host(): string` |
+| [`Core\Net\Datagram\Message->port`](#core-core-net-datagram-message-port) | `port(): uint` |
+
+<a id="core-core-net-datagram-message-payload"></a>
+#### `Core\Net\Datagram\Message->payload`
+
+```nvs skip
+$message->payload(): tainted bytes
+```
+
+The octets this datagram carried, as `tainted bytes`. Truncated to the `$max` the receive named, if the message was longer than that.
+
+**Returns** `tainted bytes` — What arrived, which may be empty: a zero-length datagram is a message and not an absence.
+
+<a id="core-core-net-datagram-message-host"></a>
+#### `Core\Net\Datagram\Message->host`
+
+```nvs skip
+$message->host(): string
+```
+
+The address this datagram came from, written out — `127.0.0.1`, `::1`. A plain `string`, so it can be handed straight back to `send`, which asks the grant and the address policy about it exactly as it would about any other address.
+
+**Returns** `string` — An address literal, never a hostname: nothing here is resolved backwards.
+
+<a id="core-core-net-datagram-message-port"></a>
+#### `Core\Net\Datagram\Message->port`
+
+```nvs skip
+$message->port(): uint
+```
+
+The port this datagram came from, which is where a reply goes.
+
+**Returns** `uint` — The sender's port, 1 to 65535.
 
 <a id="core-core-cache"></a>
 ### `Core\Cache`
