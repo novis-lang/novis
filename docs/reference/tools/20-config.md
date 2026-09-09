@@ -2,7 +2,7 @@
 id: config
 title: "Configuration: nvs.toml, limits and capabilities"
 summary: the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config`
-keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
+keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 ---
 
 # The file and where it is read from
@@ -177,6 +177,7 @@ deny. The roster is closed:
 | `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
+| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly; it carries no address policy, and `net.connect` does not imply it |
 | `net.local` | connecting to or binding a socket path | the paths or directories reachable; it follows from `net.connect` no more than `net.connect` follows from it |
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
@@ -202,6 +203,18 @@ internal = ["10.4.0.9"]          # the denied addresses this deployment reaches 
 An `internal` entry is an IP address literal — never a hostname, never a range, and `true` is not a
 spelling it has. It grants nothing on its own: an address named there is still only reached under a
 host `connect` grants.
+
+`net.listen` has no such key, because the policy's terms invert under a bind: binding loopback is
+the contained case and binding the unspecified address is the exposed one, so `connect`'s denied
+ranges would refuse the safe spelling and admit the dangerous one. An entry is an `address:port`
+literal instead, matched as the endpoint it names rather than as the string it was written as, and
+one that does not parse as an endpoint matches nothing. `true` is every endpoint this process may
+bind.
+
+```toml
+[capabilities.net]
+listen = ["0.0.0.0:8080", "[::1]:9000"]   # the endpoints bindable
+```
 
 Both questions are about an endpoint a *program* names. A store an operator wrote into
 `[cache.shared] url` is authorized by that writing, so `cache.shared` grants it and neither the host

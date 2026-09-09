@@ -114,6 +114,9 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
         Scope::Host(host) | Scope::Name(host) => {
             format!("{member} needs the capability `{name}` for {host}, which is not granted")
         }
+        Scope::Endpoint(endpoint) => {
+            format!("{member} needs the capability `{name}` for {endpoint}, which is not granted")
+        }
     }
 }
 
@@ -212,9 +215,10 @@ pub fn resolve_host(host: &str, member: &str) -> Result<std::net::IpAddr, Fault>
 ///
 /// # Errors
 ///
-/// A `RuntimeError` when `host` is a socket path, which is a target nothing on the roster can
-/// authorize; a `RuntimeError` when the name resolves to no address at all; and a `RuntimeError`
-/// naming the range when the address it resolves to is one § 3 denies and this deployment's
+/// A `RuntimeError` when `host` is a socket path, which is a target this door cannot authorize
+/// whatever the roster holds — the grant over one is `Cap::NetLocal`, asked of a path by the member
+/// that takes a path; a `RuntimeError` when the name resolves to no address at all; and a
+/// `RuntimeError` naming the range when the address it resolves to is one § 3 denies and this deployment's
 /// `net.internal` does not except.
 pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr, Fault> {
     // `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`: a socket path is a
@@ -226,9 +230,10 @@ pub fn pinned_address(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::I
     // sockets a host keeps would be wrong on the machine nobody tested.
     if host.contains('/') || host.contains('\\') {
         return Err(Fault::thrown(format!(
-            "{member} refuses `{host}`: a socket path is a target this deployment has no way to \
-             authorize, since the address policy `net.connect` carries has no address to read — \
-             the grant that would answer it is `net.local`, which is named and not on the roster"
+            "{member} refuses `{host}`: a socket path is not something this door can authorize, \
+             since the address policy `net.connect` carries has no address to read — the grant \
+             that answers a socket path is `net.local`, and it is asked by the member that takes \
+             a path rather than by this one, which takes a host"
         )));
     }
 

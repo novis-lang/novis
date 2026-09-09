@@ -66,6 +66,22 @@ pub enum Cap {
     ScriptSpawn,
     /// `net.connect` — the hosts an outbound connection may reach.
     NetConnect,
+    /// `net.listen` — the endpoints a program may bind
+    /// (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
+    ///
+    /// Asked at [`Scope::Endpoint`] and carrying no address policy, because the policy's terms
+    /// **invert** under a bind: binding loopback is the contained case and binding the unspecified
+    /// address is the exposed one, so [`NetConnect`](Self::NetConnect)'s table would deny the safe
+    /// spelling and permit the dangerous one. What a bind risks — occupying a port another service
+    /// expects, or exposing a surface to a network nobody intended — is answered by naming the
+    /// endpoint instead, which is also what makes it legible in a review.
+    ///
+    /// It is a grant of its own for [`NetLocal`](Self::NetLocal)'s reason: reaching a host and
+    /// binding one are different powers, so holding either says nothing about the other. One socket
+    /// can need two of them, because it does two things — a datagram socket asks this once for its
+    /// own port and `net.connect` for every destination it sends to, since granting the whole
+    /// address policy away at the bind is what would make UDP the way around it.
+    NetListen,
     /// `net.local` — the socket paths a program may connect to or bind
     /// (`rule:config/net-local-is-named-and-not-on-the-roster`).
     ///
@@ -129,6 +145,15 @@ pub enum Scope<'a> {
     Path(&'a Path),
     /// A hostname, matched case-insensitively because DNS is.
     Host(&'a str),
+    /// An endpoint an opening would bind, matched against entries **parsed as endpoints** rather
+    /// than against the strings they were written as.
+    ///
+    /// A `SocketAddr` and not a `&str` because that is what "matched exactly" has to mean of an
+    /// address: `127.0.0.1:80` and `[::ffff:127.0.0.1]:80` are one endpoint and would be two grants
+    /// under a string comparison, and the caller has resolved one before it can bind anything
+    /// anyway. An entry that does not parse as an endpoint matches nothing,
+    /// which is `rule:security/net-listen-is-a-separate-grant-from-net-connect`'s own last sentence.
+    Endpoint(std::net::SocketAddr),
     /// A configured name — a `[db.<name>]` block — matched exactly, because a name is not a hostname
     /// and two blocks differing only in case are two blocks.
     Name(&'a str),
@@ -213,6 +238,7 @@ impl Cap {
         Self::FsWrite,
         Self::ScriptSpawn,
         Self::NetConnect,
+        Self::NetListen,
         Self::NetLocal,
         Self::ProcessExec,
         Self::DebugTrace,
@@ -233,6 +259,7 @@ impl Cap {
             Self::FsWrite => "fs.write",
             Self::ScriptSpawn => "script.spawn",
             Self::NetConnect => "net.connect",
+            Self::NetListen => "net.listen",
             Self::NetLocal => "net.local",
             Self::ProcessExec => "process.exec",
             Self::DebugTrace => "debug.trace",
@@ -287,6 +314,7 @@ impl Cap {
             Self::FsWrite => caps.fs.as_ref()?.write.as_ref(),
             Self::ScriptSpawn => caps.script.as_ref()?.spawn.as_ref(),
             Self::NetConnect => caps.net.as_ref()?.connect.as_ref(),
+            Self::NetListen => caps.net.as_ref()?.listen.as_ref(),
             Self::NetLocal => caps.net.as_ref()?.local.as_ref(),
             Self::ProcessExec => caps.process.as_ref()?.exec.as_ref(),
             Self::DebugTrace => caps.debug.as_ref()?.trace.as_ref(),
@@ -310,6 +338,7 @@ impl Cap {
             Self::FsWrite => caps.fs.as_mut()?.write.as_mut(),
             Self::ScriptSpawn => caps.script.as_mut()?.spawn.as_mut(),
             Self::NetConnect => caps.net.as_mut()?.connect.as_mut(),
+            Self::NetListen => caps.net.as_mut()?.listen.as_mut(),
             Self::NetLocal => caps.net.as_mut()?.local.as_mut(),
             Self::ProcessExec => caps.process.as_mut()?.exec.as_mut(),
             Self::DebugTrace => caps.debug.as_mut()?.trace.as_mut(),
@@ -386,6 +415,28 @@ fn wildcard_granted(entry: &str, host: &str) -> bool {
     dot > 0 && host[dot] == b'.' && host[dot + 1..].eq_ignore_ascii_case(suffix)
 }
 
+/// Whether `list` grants `endpoint`, per
+/// `rule:security/net-listen-is-a-separate-grant-from-net-connect`: an entry is an `address:port`
+/// literal, matched exactly, and an entry that does not parse as one matches nothing.
+///
+/// **Both sides are parsed**, which is what exact matching means here and is the whole reason
+/// [`Scope::Endpoint`] carries a `SocketAddr`. A string comparison would make an operator's
+/// `127.0.0.1:80` miss a program binding `[::ffff:127.0.0.1]:80` — and, worse, would read a typo as
+/// a grant of whatever the typo happens to equal rather than as the nothing it is.
+///
+/// The two halves are compared separately rather than as whole `SocketAddr`s: a v6 endpoint carries
+/// a flow label and a scope id, neither of which an operator writes into `nvs.toml` and neither of
+/// which is part of which endpoint this is. The address goes through [`unmapped`] for
+/// [`Capabilities::address_refused`]'s reason — the same machine is reachable under two spellings,
+/// and a grant that matched one and not the other would be the same hole from the other side.
+fn endpoint_granted(list: &[String], endpoint: std::net::SocketAddr) -> bool {
+    list.iter().any(|entry| {
+        entry.parse::<std::net::SocketAddr>().is_ok_and(|granted| {
+            granted.port() == endpoint.port() && unmapped(granted.ip()) == unmapped(endpoint.ip())
+        })
+    })
+}
+
 impl Capabilities {
     /// § 1's question: does this configuration grant `cap` for `scope`?
     ///
@@ -403,6 +454,7 @@ impl Capabilities {
             (Grant::Everything, _) => true,
             (Grant::These(_), Scope::Unscoped) => true,
             (Grant::These(list), Scope::Host(host)) => host_granted(cap, list, host),
+            (Grant::These(list), Scope::Endpoint(endpoint)) => endpoint_granted(list, endpoint),
             (Grant::These(list), Scope::Name(name)) => list.iter().any(|entry| entry == name),
             (Grant::These(list), Scope::Path(path)) => {
                 let Some(path) = resolved(path, files) else {

@@ -28,6 +28,12 @@ fn raw(path: &str) -> PathBuf {
     out
 }
 
+/// An endpoint written the way an operator writes one into `nvs.toml`, as the address a program
+/// binds: [`Scope::Endpoint`] carries a resolved endpoint and never the string it was spelled with.
+fn ep(endpoint: &str) -> std::net::SocketAddr {
+    endpoint.parse().expect("the case wrote an endpoint")
+}
+
 /// `path` with its `.` and `..` components resolved away — every escape a fake filesystem has to
 /// answer for, since it has no symlink of its own until [`Disk::linking`] gives it one.
 fn lexical(path: &Path) -> PathBuf {
@@ -543,38 +549,29 @@ fn db_schema_names_blocks_and_does_not_follow_from_db_connect() {
     assert_eq!(Cap::parse("db.schema"), Some(Cap::DbSchema));
 }
 
-/// `net.local` and `net.connect` are two grants, and neither is the other's shorthand
-/// (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
+/// `net.listen` and `net.local` are rows on the roster, and each is denied until an operator has
+/// written one (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
 ///
-/// Asserted from both sides, because the failure this guards against is asymmetric: a program that
-/// may reach the network reaching a socket path is the way onto the local machine
-/// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` spends a whole rule
-/// refusing, and a program that may open one socket reaching the internet is the widening
-/// `rule:config/net-local-is-named-and-not-on-the-roster` declined to write.
-///
-/// The path half is path-scoped like every other one, so § 4's canonicalise-then-prefix governs it
-/// and a `..` out of a granted directory is refused rather than resolved.
+/// Two grants and two shapes. `net.local` is path-scoped like every other path grant, so § 4's
+/// canonicalise-then-prefix governs it and a `..` out of a granted directory is refused rather than
+/// resolved. `net.listen` is asked of an **endpoint**, and both sides of the comparison are parsed:
+/// what a program binds is an address, not the string an operator typed, so one address's several
+/// spellings are one endpoint and an entry that is not an endpoint at all matches nothing.
 #[test]
-fn net_local_and_net_connect_are_separate_grants() {
+fn net_listen_and_net_local_are_on_the_roster_and_denied_by_default() {
     let disk = Disk::of(&["/run", "/run/redis.sock", "/var/run", "/var/run/other.sock"]);
     let sock = p("/run/redis.sock");
+    let bound = ep("127.0.0.1:8080");
 
-    // A path grant is not a host grant, even at its widest spelling.
-    let local = granting("[net]\nlocal = true\n", &disk);
-    assert!(local.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
-    assert!(!local.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk));
-
-    // And a host grant is not a path grant, at its widest spelling either.
-    let connect = granting("[net]\nconnect = true\n", &disk);
-    assert!(connect.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk));
-    assert!(!connect.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
-
-    // Deny by default, one spelling of "nothing granted" per row.
+    // Deny by default, one spelling of "nothing granted" per row, asked of both grants.
     for (why, text) in [
         ("no `[capabilities]` block at all", ""),
         ("a `net` block granting nothing", "[net]\n"),
-        ("`local = false`", "[net]\nlocal = false\n"),
-        ("an empty list", "[net]\nlocal = []\n"),
+        (
+            "a grant of `false`",
+            "[net]\nlocal = false\nlisten = false\n",
+        ),
+        ("an empty list", "[net]\nlocal = []\nlisten = []\n"),
     ] {
         let caps = granting(text, &disk);
         assert!(
@@ -583,13 +580,20 @@ fn net_local_and_net_connect_are_separate_grants() {
             sock.display(),
         );
         assert!(
-            !caps.allows(Cap::NetLocal, Scope::Unscoped, &disk),
-            "{why} granted `net.local` unscoped",
+            !caps.allows(Cap::NetListen, Scope::Endpoint(bound), &disk),
+            "{why} granted `net.listen` for {bound}",
         );
+        for cap in [Cap::NetListen, Cap::NetLocal] {
+            assert!(
+                !caps.allows(cap, Scope::Unscoped, &disk),
+                "{why} granted `{}` unscoped",
+                cap.name(),
+            );
+        }
     }
 
-    // Granted at a directory prefix, but not outside it — including through the `..` a program
-    // supplies rather than an operator.
+    // A path is granted at a directory prefix, but not outside it — including through the `..` a
+    // program supplies rather than an operator.
     let rooted = granting("[net]\nlocal = [\"/run\"]\n", &disk);
     assert!(rooted.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk));
     for (why, outside) in [
@@ -606,10 +610,112 @@ fn net_local_and_net_connect_are_separate_grants() {
         );
     }
 
-    // A path grant, so canonicalization has work to do on it, and no host wildcard: there is no
-    // host in it to pattern-match.
+    // An endpoint is granted where it was written and nowhere else. The three granted spellings
+    // below are two endpoints, which is the whole reason the comparison is of addresses: a grant
+    // that matched the operator's spelling alone would be defeated by the program writing another.
+    let listening = granting(
+        "[net]\nlisten = [\"127.0.0.1:8080\", \"[::1]:9000\", \"10.4.0.9\"]\n",
+        &disk,
+    );
+    for granted in ["127.0.0.1:8080", "[::ffff:127.0.0.1]:8080", "[::1]:9000"] {
+        assert!(
+            listening.allows(Cap::NetListen, Scope::Endpoint(ep(granted)), &disk),
+            "`net.listen` refused {granted}, which is an endpoint it names",
+        );
+    }
+    for (why, refused) in [
+        ("another port at a granted address", "127.0.0.1:9000"),
+        ("another address at a granted port", "192.168.1.4:8080"),
+        (
+            "the unspecified address, which is the exposed endpoint and not the loopback one",
+            "0.0.0.0:8080",
+        ),
+        ("a bare address, which is not an endpoint", "10.4.0.9:8080"),
+        ("a bare address, asked at port zero", "10.4.0.9:0"),
+    ] {
+        assert!(
+            !listening.allows(Cap::NetListen, Scope::Endpoint(ep(refused)), &disk),
+            "`net.listen` reached {refused} through {why}",
+        );
+    }
+
+    // `true` is every endpoint this process may bind, which is the one spelling that says so.
+    let anywhere = granting("[net]\nlisten = true\n", &disk);
+    assert!(anywhere.allows(Cap::NetListen, Scope::Endpoint(ep("0.0.0.0:443")), &disk));
+
+    // Both are on the roster, spelled the way a refusal prints them, and neither takes a host
+    // wildcard: neither grant has a host in it to pattern-match. Only the path one is
+    // path-scoped, which is what decides whether canonicalization has work to do.
     assert!(Cap::NetLocal.is_path_scoped());
-    assert!(!Cap::NetLocal.takes_host_wildcard());
-    assert_eq!(Cap::NetLocal.name(), "net.local");
-    assert_eq!(Cap::parse("net.local"), Some(Cap::NetLocal));
+    assert!(!Cap::NetListen.is_path_scoped());
+    for (cap, name) in [(Cap::NetListen, "net.listen"), (Cap::NetLocal, "net.local")] {
+        assert!(!cap.takes_host_wildcard(), "`{name}` took a host wildcard");
+        assert_eq!(cap.name(), name);
+        assert_eq!(Cap::parse(name), Some(cap));
+        assert!(Cap::ALL.contains(&cap), "`{name}` is not on the roster");
+    }
+}
+
+/// `net.connect` is still the grant over a **host**, and neither of the grants beside it widens it
+/// (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
+///
+/// Asked of all three at each one's widest spelling, because the failure this guards against is
+/// that a grant is read as another's shorthand, and it is asymmetric in every direction: a program
+/// that may reach the network reaching a socket path is the way onto the local machine
+/// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it` spends a whole rule
+/// refusing; a program that may open one socket reaching the internet is the widening
+/// `rule:config/net-local-is-named-and-not-on-the-roster` declined to write; and a program that may
+/// bind its own port reaching a host would hand the address policy away at the bind, which is what
+/// would make a datagram socket the way around it.
+#[test]
+fn net_connect_still_carries_its_host_scope_and_neither_new_grant_widens_it() {
+    let disk = Disk::of(&["/run", "/run/redis.sock"]);
+    let sock = p("/run/redis.sock");
+    let bound = ep("127.0.0.1:8080");
+
+    // The host scope, unchanged: matched against the list and case-insensitively, because DNS is.
+    let listed = granting("[net]\nconnect = [\"Reports.Internal\"]\n", &disk);
+    assert!(listed.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk));
+    assert!(!listed.allows(Cap::NetConnect, Scope::Host("other.internal"), &disk));
+
+    // And none of the three follows from either of the others, each granted as wide as it goes.
+    for (granted, text) in [
+        ("net.connect", "[net]\nconnect = true\n"),
+        ("net.listen", "[net]\nlisten = true\n"),
+        ("net.local", "[net]\nlocal = true\n"),
+    ] {
+        let caps = granting(text, &disk);
+        for (asked, held) in [
+            (
+                "net.connect",
+                caps.allows(Cap::NetConnect, Scope::Host("reports.internal"), &disk),
+            ),
+            (
+                "net.listen",
+                caps.allows(Cap::NetListen, Scope::Endpoint(bound), &disk),
+            ),
+            (
+                "net.local",
+                caps.allows(Cap::NetLocal, Scope::Path(sock.as_path()), &disk),
+            ),
+        ] {
+            assert_eq!(
+                held,
+                asked == granted,
+                "`{granted} = true` answered {held} for `{asked}`",
+            );
+        }
+    }
+
+    // A datagram socket is why the split has to hold in both directions at once: it asks
+    // `net.listen` for its own port and `net.connect` for every destination it sends to, so the
+    // bind grant reaching a host would be the whole address policy handed away at the bind.
+    let both = granting(
+        "[net]\nlisten = [\"0.0.0.0:5353\"]\nconnect = [\"resolver.internal\"]\n",
+        &disk,
+    );
+    assert!(both.allows(Cap::NetListen, Scope::Endpoint(ep("0.0.0.0:5353")), &disk));
+    assert!(both.allows(Cap::NetConnect, Scope::Host("resolver.internal"), &disk));
+    assert!(!both.allows(Cap::NetConnect, Scope::Host("elsewhere.internal"), &disk));
+    assert!(!both.allows(Cap::NetListen, Scope::Endpoint(ep("0.0.0.0:53")), &disk));
 }

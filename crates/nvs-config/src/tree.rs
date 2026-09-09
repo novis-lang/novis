@@ -294,6 +294,14 @@ pub struct CapNet {
     /// `connect` grants. `true` is not a spelling it has — an exception names the address it wants,
     /// so that what a deployment gave back is legible in review.
     pub internal: Option<Setting>,
+    /// The endpoints a program may bind, written as `address:port` literals and matched exactly
+    /// (`rule:security/net-listen-is-a-separate-grant-from-net-connect`). An entry that does not
+    /// parse as an endpoint matches nothing, and `true` is every endpoint this process may bind.
+    ///
+    /// It carries no address policy, because the policy's terms invert under a bind: loopback is
+    /// the contained endpoint and the unspecified address the exposed one, so `connect`'s denied
+    /// ranges would refuse the safe spelling and admit the dangerous one.
+    pub listen: Option<Setting>,
     /// The socket paths a program may connect to or bind, written as absolute paths or directory
     /// prefixes and canonicalized before matching like every other path-scoped grant
     /// (`rule:config/net-local-is-named-and-not-on-the-roster`).
