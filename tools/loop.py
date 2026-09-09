@@ -2260,7 +2260,7 @@ class Goal:
         # claim a platform cannot make rather than for one that is merely slow or awkward there.
         need = c.get("needs")
         if need and not LEG_NEEDS[need](leg):
-            trace(f"{leg.name} {c['file']} -- skipped: this leg has no {need}")
+            self.trace(f"{leg.name} {c['file']} -- skipped: this leg has no {need}")
             return ""
 
         label = f"{leg.name} {c['file']} [{c.get('stage', '?')}]"
