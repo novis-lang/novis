@@ -2,52 +2,52 @@
 
 ## State
 
-**Goal 23 — stage 4 is closed.** All three tests the `4 isolation` check names pass, and stages 1–3 stay
-green. Stage 5 is next and neither of its two tests exists yet under the name the check gives it.
+**Goal 23 — stage 5 is half closed.** The `5 measured` check names two tests;
+`ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once` now exists and passes,
+and `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names` does not exist
+yet. Stages 1–4 stay green.
 
-`nvs serve` now watches its fleet: the process holds one `nvs_host::Watchdog` in the fan-out frame
-(`crates/nvs-cli/src/serve.rs:383`), each `Core` carries the CPU it will be pinned to and a clone of it,
-and a worker registers itself from its own thread on the line after it installs its reactor — which is
-where a `DeadlineView` comes from. The handle deregisters on drop, so the watched set is the cores
-running rather than the cores started. The no-CPU fallback path is unwatched by construction: a `CpuId`
-only ever comes from `nvs_host::cpus()`, so an unpinned thread has no name a report could carry.
+The module doc's first known gap is closed: `crates/nvs-cli/src/script.rs` single-flights a compile.
+`CompileState` has the third state `rule:config/an-edit-reaches-the-next-request-without-a-restart`
+specifies, one caller claims a content's key under the write guard and compiles it, and every other
+caller waits on the `Flight` it left in the table and is then answered out of that table. The wait
+is a condition variable, so it stops a worker thread for as long as one compile — which is what it
+replaces, that same worker running the same front end itself. `Landing` is a drop guard, so a panic
+beneath the front end wakes the waiters instead of wedging them; what they find then is a table with
+nothing under the key, which sends them to compile it themselves.
 
-**The registration call site itself is held by compilation alone.** The acceptance check is filed
-`-p nvs-server`, and that crate cannot reach `nvs serve`; the fixture registers its own two cores, so
-what the test holds is the mechanism — one entry per running core, a report that names the wedged core
-and not its turning neighbour, and a fleet that keeps serving through both.
+Measured, not argued: with `Claim::Behind` short-circuited to `Claim::Mine` the new test reports 4
+compiles, and with it in place, 1.
+
+The rule still asks for one thing this tree does not do — that compile runs on the worker that
+needed it, not on a compile pool. That divergence predates this session and is unchanged.
 
 ## Next group
 
-**Stage 5: the number** — one file set: `crates/nvs-cli/src/serve.rs` with `crates/nvs-cli/src/script.rs`,
-which are the two files the `5 measured` check's tests are filed against.
+**Stage 5: the number** — one file set: `crates/nvs-cli/src/serve.rs`, whose test module already runs
+a booted fleet, with `crates/nvs-cli/src/script.rs` for the cache the workers share.
 
-- [ ] **`ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once`** —
-      `crates/nvs-cli/src/script.rs:790` already holds
-      `ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`, which is one scheduler on
-      one core; the acceptance name is the fleet's version of it, so the slice is the same assertion
-      made across workers sharing one `Arc<Compiler>`. `rule:security/isolate-shares-nothing`'s "shares
-      immutable compiled code" is the specification, and the goal's § *Standing decisions* settles that
-      the cache is shared rather than per-core.
-- [ ] **`serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names`** — new, beside
-      the fan-out tests at `crates/nvs-cli/src/serve.rs:1285`
-      (`one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle` is the fixture shape).
-      `rule:http-server/the-accept-fan-out-is-one-worker-per-core` is what it measures; the margin is
-      the test's own to name, and a host with fewer than four CPUs is the early return the neighbouring
-      fleet tests already take.
-
-**The pack has no `[context.stage.5]`.** `docs/agent/loop-goal.toml` defines overlays for stages 2, 3 and
-4 only, so a group naming stage 5 gets the goal's base manifest — wider, not broken. Add one naming
-`crates/nvs-cli/src/script.rs` when the group above is taken.
+- [ ] **`serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names`** — the second
+      and last test the `5 measured` check names, and nothing in the tree measures throughput yet:
+      `crates/nvs-cli/src/serve.rs:1103` is where its test module opens,
+      `crates/nvs-cli/src/serve.rs:383` is the fan-out frame that builds one watchdog and one
+      `Arc<Compiler>` (`crates/nvs-cli/src/serve.rs:307`) for N cores,
+      `crates/nvs-cli/src/serve.rs:475` is `serve_on_worker` — the whole of what one core does — and
+      `crates/nvs-cli/src/serve.rs:436` is the `Core` a worker is handed. One core is the
+      `serve_on_worker` call at `crates/nvs-cli/src/serve.rs:372`, which runs on the caller's own
+      scheduler; four is `nvs_host::Worker::spawn` at `crates/nvs-cli/src/serve.rs:402`.
+- [ ] **Name the margin in the test, and make it survive a loaded box** —
+      `crates/nvs-cli/src/serve.rs:402` is what the four-core half is measured over. The check's own
+      name says the test names its margin, so the number is that slice's decision and belongs in the
+      test's comment beside what it was measured against. The loop driver is compiling on this
+      machine while the test runs, so a margin near 4× will flake; one that only says "more than a
+      single core's worth" is the safe option, and `AGENTS.md` § *Session workflow* wants the safe
+      option taken and said rather than a `BLOCKED`.
 
 ## Backlog
 
-- Stage 5 and after are `docs/agent/goals/chain.toml`'s order, not this file's.
-- The third copy of the worker skeleton now exists — `one_bleeding_core`, `one_admitting_core` and
-  `one_watched_core` (`crates/nvs-server/src/serve.rs:4495`, `:6612`, `:6812`) — so the extraction that
-  backlog item was waiting for is due.
-- `rule:http-server/a-wedged-core-is-shed-never-killed` stays `designed`: nothing subscribes to a stall
-  report, and `crates/nvs-host/src/watchdog.rs` § *Report and shed, never kill* owns why.
-- The watchdog's margin and interval are compiled-in until the `[limits]` block lands
-  (`crates/nvs-host/src/watchdog.rs:53`).
-- Anything that must survive a goal switch goes in `docs/agent/carried-gaps.md`.
+- A compile still runs on the worker that needed it —
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` says "on the compile pool, never
+  on a request-serving core". No pool exists anywhere in the tree; unowned, and not stage 5's.
+- `docs/plan/m7.md`'s acceptance paragraph is what both stage-5 tests are filed against; nothing
+  reads it into the plan's status block.

@@ -60,23 +60,37 @@
 //! whole of what keeps a serving core free where that rule keeps a thread free
 //! with a compile pool.
 //!
-//! **Known gap: nothing here single-flights a compile in progress.** That rule
+//! **A compile is single-flighted, so the fleet pays for one.** That rule
 //! specifies a `Compiling`/`Ready`/`Failed` broadcast every racing caller waits
-//! on. [`CompileState`] has the two states a *finished* compile leaves behind
-//! and no spelling for the third, so two resolves of the same cold content
-//! that overlap both compile it. Step 4 is no longer part of that gap —
-//! [`Compiler::advance`] publishes only where the pointer still names what the
-//! resolve read on its way in, so the slower of two revalidations cannot roll
-//! the fresher one back — but a loser has still paid for a front end nobody
-//! wanted, and its [`Compiler::record`] can sweep the winner's entry out of
-//! the unit table on the way past, costing the next resolve of that path one
-//! recompile. On one accepting core neither is reachable: there is
-//! no second resolve of a path between an observation and the write that
-//! follows it. Both become reachable the moment a second core accepts, and the
-//! broadcast entry is what `docs/plan/m7.md`'s "ten thousand cold requests
-//! compile it exactly once" then rests on. What already holds either way is the
-//! cheaper half: a resolve landing on content that has already failed is
-//! answered from the table rather than compiled again.
+//! on, and [`CompileState`] holds all three. The caller that claims a content's
+//! key under the write guard is the one that compiles it; every caller that
+//! arrives while that runs finds the [`Flight`] it left in the table, waits on
+//! that, and is then answered out of the table like any other hit. This is what
+//! makes `docs/plan/m7.md`'s "ten thousand cold requests compile it exactly
+//! once" a claim about the fleet rather than about one core, and why
+//! [`Compiler::compiles`] counts contents rather than workers.
+//!
+//! **A waiter gives up its thread, and that is the cheaper of its two
+//! options.** The wait is a condition variable rather than a suspension, so the
+//! core stops for as long as one compile — but what it replaces is that same
+//! core running the same front end itself, which stops it for at least as long
+//! and burns a whole compile doing it. Neither map's guard is held across
+//! either, so nothing else this cache answers waits behind a flight.
+//!
+//! **What it spends:** one mutex and one condition variable per compile in
+//! flight, dropped with the entry that compile's result replaces —
+//! O(contents being compiled right now), which the cores bound, and never
+//! O(requests waiting behind one).
+//!
+//! Step 4 races on the same terms: [`Compiler::advance`] publishes only where
+//! the pointer still names what the resolve read on its way in, so the slower
+//! of two revalidations cannot roll the fresher one back. Two revalidations
+//! that observed *different* content are two compiles by definition, and the
+//! loser's [`Compiler::record`] can still sweep the winner's entry out of the
+//! unit table on the way past, costing the next resolve of that path one
+//! recompile. What holds however a resolve arrives is the cheaper half of the
+//! same claim: one landing on content that has already failed is answered from
+//! the table rather than compiled again.
 //!
 //! **A `Ready` entry is one unit, published rather than copied.** [`Compiled`]
 //! holds an [`Arc`] of an [`nvs_codegen::Unit`], and that `Unit` is [`Send`]
@@ -86,11 +100,10 @@
 //! the shape of a shared cache into one: nothing in an entry is thread-affine,
 //! and what a resolve hands back is a clone of the published pointer.
 //!
-//! **Known gap: there is one accepting core to publish to.** `crate::serve`
-//! builds one of these before it binds anything and hands it out by [`Arc`],
-//! which is the fleet's shape already; what has not landed is the second core
-//! that takes a clone of it. So the sharing this module does is correct and
-//! currently unexercised outside its own tests.
+//! **Every worker publishes to and reads from one of these.** `crate::serve`
+//! builds it before it binds anything and hands each core it spawns a clone of
+//! the [`Arc`], so the sharing above is what a served request actually reaches
+//! rather than a shape only this module's own tests exercise.
 //!
 //! **A failure renders its spans once.** The front end writes diagnostics to
 //! standard error as it compiles (see [`Resolver::resolve`]), so the resolve
@@ -111,7 +124,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime};
 
 use nvs_config::cache::{Digest, EnvHash, Revalidation, UnitKey, Validate, content_hash, env_hash};
@@ -171,11 +184,13 @@ struct Stamp {
     len: u64,
 }
 
-/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 3's state machine, less the state one core
-/// cannot be in — the module doc owns why `Compiling` has no spelling here.
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 3's state machine, whole.
 ///
 #[derive(Debug)]
 enum CompileState {
+    /// A compile of this content that some caller is running now, and the thing
+    /// every other caller of it waits on instead of running a second one.
+    Compiling(Arc<Flight>),
     /// The unit, and the route table beside it — one pointer, which is what
     /// every core resolving this content is handed a clone of.
     Ready(Arc<Compiled>),
@@ -183,6 +198,81 @@ enum CompileState {
     /// resolve landing on the same [`UnitKey`] is answered rather than
     /// recompiled.
     Failed(String),
+}
+
+/// One compile in flight, as the two things a caller waiting on it needs: a
+/// flag it can read and a signal it can sleep on.
+///
+/// **It is only ever waited on from another thread.** Nothing between the claim
+/// and the landing runs Novis code — the front end and the backend compile a
+/// program, they do not execute one — so the caller holding a flight cannot
+/// re-enter this resolver for the content it is compiling, which is the one
+/// shape that would have it wait on itself.
+///
+/// It deliberately carries **no result**. What the compile publishes is the
+/// [`CompileState`] under its own key, which is where every other path through
+/// [`Compiler::compiled`] reads an answer from, and this only says when to go
+/// and look. One copy of an answer cannot disagree with itself, and it is what
+/// lets a caller woken by a compile that died mid-flight simply find nothing
+/// and compile the content for itself.
+#[derive(Debug, Default)]
+struct Flight {
+    landed: Mutex<bool>,
+    lands: Condvar,
+}
+
+impl Flight {
+    /// Blocks until the compile behind this flight has finished, whatever it
+    /// finished as.
+    ///
+    /// Poison is stepped over for [`shared`]'s reason: the only thing under
+    /// this mutex is a `bool` that goes one way, so a thread that panicked
+    /// elsewhere has not made it untrue — and refusing to read it would wedge
+    /// every later resolve of this content on a compile that already ended.
+    fn wait(&self) {
+        let mut landed = self.landed.lock().unwrap_or_else(PoisonError::into_inner);
+        while !*landed {
+            landed = self
+                .lands
+                .wait(landed)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+
+    /// Releases everyone waiting. Set under the mutex and signalled after it,
+    /// so a caller between its read of the flag and its `wait` cannot miss this.
+    fn land(&self) {
+        *self.landed.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.lands.notify_all();
+    }
+}
+
+/// The landing a compile owes the callers waiting on its flight, taken on the
+/// way in so that it is paid on the way out.
+///
+/// A guard rather than a call because the way out includes a panic beneath the
+/// front end: `Cargo.toml`'s profiles all unwind, so this drop runs, and what a
+/// caller woken by it finds is a table with nothing under the key — which sends
+/// it to compile the content itself rather than to wait again on a compile that
+/// is not happening.
+struct Landing<'a>(&'a Flight);
+
+impl Drop for Landing<'_> {
+    fn drop(&mut self) {
+        self.0.land();
+    }
+}
+
+/// What a caller that reached step 3 does about the content it is there to
+/// compile — [`Compiler::claim`]'s answer, decided under one write guard.
+enum Claim {
+    /// Nobody holds this content: this caller compiles it, and the flight it
+    /// left in the table is what everyone arriving meanwhile waits on.
+    Mine,
+    /// Someone else's compile of it is already running.
+    Behind(Arc<Flight>),
+    /// It landed between this caller's own lookup and its claim.
+    Landed,
 }
 
 /// What one resolve saw of the file behind a path.
@@ -285,8 +375,8 @@ impl Compiler {
     /// what a server needs and what [`Resolver::resolve`]'s own signature has
     /// nowhere to put.
     ///
-    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, in order, with the module doc's
-    /// note about what a single core collapses.
+    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, in order, with step 3's
+    /// single flight: one caller compiles a content and every other waits on it.
     ///
     /// # Errors
     ///
@@ -334,10 +424,11 @@ impl Compiler {
             }
         };
 
-        // Step 2's second half and step 3's single-flight in one lookup: an
+        // Step 2's second half and step 3's content key in one lookup: an
         // observation that did not move addresses the entry the last one wrote,
         // and one that did may still name content this process compiled before
-        // — a reverted edit, or a broken one being re-observed.
+        // — a reverted edit, or a broken one being re-observed. Either way this
+        // resolve is answered without reaching a flight at all.
         if let Some(answer) = self.answer(&written, observed.content_hash) {
             if answer.is_ok() {
                 self.advance(&written, &observed, since);
@@ -345,8 +436,34 @@ impl Compiler {
             return answer;
         }
 
-        // 3. The compile itself, which is the only step that costs anything.
+        // 3. The compile itself, which is the only step that costs anything —
+        //    and which the fleet pays for once. The caller that claims this
+        //    content's key is the one that runs it; a caller that arrives while
+        //    it runs waits behind the same flight, so a cold path stormed by
+        //    every core at once costs one front end rather than one per core.
         let key = UnitKey::new(&written, observed.content_hash, self.env);
+        let flight = Arc::new(Flight::default());
+        let claimed = match self.claim(&key, &flight) {
+            Claim::Mine => true,
+            Claim::Behind(ahead) => {
+                ahead.wait();
+                false
+            }
+            Claim::Landed => false,
+        };
+        // Every caller but that one reads what the compile published. Finding
+        // nothing there takes a panic beneath it — [`Landing`] wakes a waiter
+        // either way rather than leaving it here — or a [`Self::record`] for
+        // another content of this path sweeping the entry out in between. Both
+        // fall through and compile on this caller's own account, which is what
+        // every caller did before there was a flight to wait behind.
+        if !claimed && let Some(answer) = self.answer(&written, observed.content_hash) {
+            if answer.is_ok() {
+                self.advance(&written, &observed, since);
+            }
+            return answer;
+        }
+        let landing = Landing(&flight);
         let state = match self.compile(path, &written) {
             Ok(compiled) => CompileState::Ready(compiled),
             Err(message) => CompileState::Failed(message),
@@ -361,6 +478,10 @@ impl Compiler {
             known.map(|entry| entry.content_hash)
         };
         self.record(key, state, keep);
+        // The waiters, released once the answer is in the table and not before.
+        // The explicit drop is the ordering; the guard is for the path where
+        // the line above never ran at all.
+        drop(landing);
         if ready {
             self.advance(&written, &observed, since);
         }
@@ -376,11 +497,37 @@ impl Compiler {
         content: Digest,
     ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
         match shared(&self.units).get(&UnitKey::new(path, content, self.env))? {
+            // A compile in flight is not an answer, and saying so here is what
+            // sends a step-1 hit on this content down to step 3 to wait for it
+            // rather than reporting that the cache holds nothing.
+            CompileState::Compiling(_) => None,
             CompileState::Ready(compiled) => Some(Ok((
                 program_over(Arc::clone(compiled)),
                 Arc::clone(&compiled.routes),
             ))),
             CompileState::Failed(message) => Some(Err(message.clone())),
+        }
+    }
+
+    /// Who compiles `key`, decided under the write guard so that exactly one
+    /// caller can be told to: this one, which found the table holding nothing
+    /// for it and left `flight` there for whoever arrives next, or the caller
+    /// already running it, or nobody because it has already landed.
+    ///
+    /// The two answers that are not [`Claim::Mine`] hand back no unit, and the
+    /// caller re-reads the table through [`Self::answer`] instead. That keeps
+    /// one place where a [`CompileState`] becomes a caller's answer, and it is
+    /// also the honest shape: what a waiter wants is what the table holds when
+    /// it wakes, which is not what it held when it went to sleep.
+    fn claim(&self, key: &UnitKey, flight: &Arc<Flight>) -> Claim {
+        let mut units = exclusive(&self.units);
+        match units.get(key) {
+            Some(CompileState::Compiling(ahead)) => Claim::Behind(Arc::clone(ahead)),
+            Some(CompileState::Ready(_) | CompileState::Failed(_)) => Claim::Landed,
+            None => {
+                units.insert(key.clone(), CompileState::Compiling(Arc::clone(flight)));
+                Claim::Mine
+            }
         }
     }
 
@@ -845,6 +992,87 @@ mod tests {
     }
 
     #[test]
+    fn ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once() {
+        // The test above's claim, made about the fleet — which is the shape
+        // `docs/plan/m7.md` states it in and the only shape a served request
+        // meets. One core collapses the race by construction: no second resolve
+        // of a path runs between an observation and the write that follows it.
+        // Here the ten thousand requests are spread over four workers sharing
+        // one `Arc<Compiler>`, as `serve::run` hands every core a clone of one,
+        // and every request is cold — so what holds the count at one is step
+        // 3's flight rather than anything about the shape of the test.
+        //
+        // A worker is an OS thread driving a `Scheduler` of its own, because
+        // that is what a worker is: a `Scheduler` is `!Send`, and every request
+        // on it reaches the cache from that thread. The barrier is what makes
+        // the requests concurrent rather than merely numerous — each worker has
+        // its whole queue spawned before any worker takes a turn of one, so the
+        // fleet arrives at a cold cache together.
+        //
+        // `[opcache]` is `hash`/`0s` for the reason the test above names: the
+        // default would answer requests 2..N without looking at the file, which
+        // would make this a test of the rate cap.
+        const WORKERS: usize = 4;
+        const PER_WORKER: usize = 2_500;
+
+        let entry = a_file_saying("fleet-cold", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = Arc::new(revalidating());
+        let answered = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let ready = std::sync::Barrier::new(WORKERS);
+
+        let finished: usize = std::thread::scope(|fleet| {
+            let workers: Vec<_> = (0..WORKERS)
+                .map(|_| {
+                    fleet.spawn(|| {
+                        let mut sched = nvs_host::Scheduler::new();
+                        for _ in 0..PER_WORKER {
+                            let compiler = Arc::clone(&compiler);
+                            let answered = Arc::clone(&answered);
+                            let path = path.clone();
+                            sched.spawn(
+                                Ctx::new(OutputSink::Buffer(Vec::new())),
+                                nvs_runtime::TaskRoot::Request,
+                                move |_ctx| {
+                                    let (_program, _routes) =
+                                        compiler.compiled(&path).expect("the entry compiles");
+                                    answered.fetch_add(1, Ordering::Relaxed);
+                                },
+                            );
+                        }
+                        ready.wait();
+                        sched.run().finished
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .map(|worker| worker.join().expect("a worker ran its queue"))
+                .sum()
+        });
+
+        assert_eq!(
+            finished,
+            WORKERS * PER_WORKER,
+            "a request never reached its end"
+        );
+        assert_eq!(
+            answered.load(Ordering::Relaxed),
+            WORKERS * PER_WORKER,
+            "a request was answered with no unit"
+        );
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            1,
+            "a worker put the file through the front end for itself"
+        );
+        // And what the fleet holds afterwards is one entry rather than one per
+        // worker: the flight they waited behind was replaced by the unit every
+        // one of them was answered with.
+        assert_eq!(shared(&compiler.units).len(), 1);
+    }
+
+    #[test]
     fn a_compiled_unit_is_read_by_every_core_through_one_arc() {
         // The same "compile exactly once" claim as the test above, stated
         // about the fleet rather than about one core, and the half a
@@ -852,10 +1080,10 @@ mod tests {
         // what each of them is handed is a clone of the *one* published
         // `Arc<Compiled>` rather than a unit of its own.
         //
-        // The compile is warmed on this thread first, deliberately. Nothing
-        // here single-flights a compile already in flight — the module doc's
-        // first known gap — so four cold resolves racing would be a test of
-        // that gap and not of the publishing this one is about.
+        // The compile is warmed on this thread first, deliberately. Four cold
+        // resolves racing would be a test of the flight step 3 puts them behind
+        // — which is the test above — rather than of the publishing this one is
+        // about.
         const CORES: usize = 4;
 
         let entry = a_file_saying("one-arc", "served");
@@ -993,9 +1221,9 @@ mod tests {
         // inside the window a single compile occupies.
         //
         // The readers resolve a path nobody edits, deliberately. A reader
-        // landing on the edited one would compile it for itself — nothing here
-        // single-flights a compile in flight, the module doc's first known gap
-        // — and that is a test of the gap rather than of the publish.
+        // landing on the edited one would wait behind step 3's flight for the
+        // revalidation's own compile, and that is a test of the wait rather
+        // than of the publish.
         const READERS: usize = 3;
 
         let read = a_file_saying("winner-read", "one");
@@ -1150,10 +1378,9 @@ mod tests {
         drop(warm);
         assert_eq!(compiler.compiles.load(Ordering::Relaxed), 1);
 
-        // The cores resolve warm on purpose. Nothing here single-flights a
-        // compile already in flight — the module doc's first known gap — so
-        // four *cold* resolves racing would be counting that gap rather than
-        // this claim.
+        // The cores resolve warm on purpose: four *cold* resolves racing would
+        // be counting the flight they wait behind, which has its own test,
+        // rather than this claim about what moves the counter at all.
         let read_by_every_core = || {
             std::thread::scope(|cores| {
                 for _ in 0..CORES {
@@ -1205,14 +1432,17 @@ mod tests {
         // back and be resumed once the unit existed, and `RunReport::resumes`
         // counts precisely that: a task that runs from its first turn to its
         // end without ever yielding costs one resume, and every wait costs
-        // another. So `resumes == REQUESTS` is "nobody waited", asserted
-        // rather than argued from the absence of a `Compiling` state.
+        // another. So `resumes == REQUESTS` is "nobody waited", asserted rather
+        // than argued from what step 3 does.
         //
-        // This is the ADR's single-flight seen from the other side. `rule:config/an-edit-reaches-the-next-request-without-a-restart`
-        // gives racing callers a broadcast to wait on because its cache is
-        // reached from many cores; the module doc's § *what one core
-        // collapses* says why there is nothing to wait on here, and a resume
-        // count is what turns that paragraph into a test.
+        // It stays true now that step 3 has a flight to wait behind, and this
+        // is why: on one accepting core no second resolve of a path runs
+        // between an observation and the write that follows it, so the flight
+        // is never contended and the wait it exists for is one only a second
+        // worker can reach. That wait is a thread block rather than a
+        // suspension in any case, so it could never show up in this count —
+        // `ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once`
+        // is where it is asserted instead.
         const REQUESTS: usize = 64;
 
         let entry = a_file_saying("unstalled", "served");
