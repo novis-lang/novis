@@ -294,10 +294,9 @@ retired = true
 [[goal]]
 name = "25 formats"
 md = "docs/agent/goals/25-formats.md"
-toml = "docs/agent/goals/25-formats.toml"
-handoff = "docs/agent/goals/25-formats.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # It sits in front of goal 26 because `Core\Xml` is the next encoder that will be written and does
 # not exist yet: `rule:classes/an-encoder-ends-a-cycle-by-identity` landing after it would make
