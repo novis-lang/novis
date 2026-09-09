@@ -2,62 +2,57 @@
 
 ## State
 
-**Goal 23 — stage 3 is open, and one of its five checks is green.** Stages 1 and 2 stay green: the
-compiled unit is shared behind one `Arc` with one publisher, and `nvs serve` still accepts on one
-core.
+**Goal 23 — stage 3's fan-out is on disk and all five of its `nvs-cli` checks are green. What is
+left of stage 3 is the drain, which is `-p nvs-server` and a different file set.** Stages 1 and 2
+stay green.
 
-**What landed:** `[server] workers` exists. `nvs_config::server::workers_for`
-(`crates/nvs-config/src/server.rs:331`) answers this machine's `available_parallelism` with the key
-left out and the written count as written in both directions — never raised to the machine's
-parallelism and never clamped down to it — with `0` refused under `E0636`. It is part of `validate`,
-so `nvs config check` refuses the zero too, and `nvs serve` re-reads it at boot beside the waits and
-the valve (`crates/nvs-cli/src/serve.rs:148`) for that refusal alone, because this loop still runs
-one core.
+`nvs serve` binds every `[server] listen` entry before any worker exists and then runs one worker
+per core, each holding its own handle on every listener —
+`rule:http-server/the-accept-fan-out-is-one-worker-per-core`, whose status this session flipped from
+`designed` to `shipped` on ADR 0161's own instruction.
 
-**ADR 0161 is this goal's one permitted record, and it is written for the whole of stage 3.** It
-creates `rule:http-server/the-accept-fan-out-is-one-worker-per-core` — `designed` until the fan-out
-is on disk, and the slice that lands it flips the status — and modifies
-`rule:http-server/the-server-block-is-boot-class`, which now carries the `workers` row. The
-remaining slices need no second record; they are that rule's own text.
+**What landed in `crates/nvs-cli/src/serve.rs`:** `addresses` answers the whole configured set
+rather than its first entry and takes the Unix-domain refusal once over it; `bind_all` binds `std`
+listeners at the boot; `handles_for` duplicates each of them once per worker; `serve_on_worker` is
+one core's whole server — its own `Table`, its handler, one accept task per listener, its reactor
+and its scheduler — and `run` spawns the workers over `nvs_host::cpus()` and joins them for the exit
+code. A host that enumerates no CPU has no `CpuId` to pin to and is served from the boot thread.
+
+**Two things worth knowing before the next change here.** The `[[schedule]]` ticker rides worker 0
+and arms *there* rather than at the boot, because `nvs_server::Armed` holds an `Rc` (playbook, §
+*Running things*). And nothing asserts that a connection is taken by whichever core reaches it
+first: the tests assert the handles and a hand-run `nvs serve` answered six requests across the
+fan-out, so stage 5's throughput check is still the measurement.
 
 ## Next group
 
-**Stage 3: the fan-out itself — every entry bound, one worker per core** — one file set:
-`crates/nvs-cli/src/serve.rs`, with `crates/nvs-host/src/net.rs` and `crates/nvs-host/src/lib.rs`
-read for their two primitives and `crates/nvs-server/src/serve.rs` for the loop's signature.
+**Stage 3: the drain is fleet-wide** — one file set: `crates/nvs-server/src/serve.rs`, with
+`crates/nvs-runtime/src/drain.rs` read for the process's own bit. Nothing in `nvs-cli` is in this
+group.
 
-- [ ] **The listeners, and `every_entry_of_server_listen_is_bound_rather_than_the_first` plus
-      `a_unix_domain_entry_is_refused_once_rather_than_once_per_core`** — bind every entry
-      `listen_on` returned rather than `address`'s first: `crates/nvs-cli/src/serve.rs:292`
-      (`NvsListener::bind`) is the one binding site and `crates/nvs-cli/src/serve.rs:758`
-      (`address`) is what narrows the set to one today. Classification stays
-      `nvs_config::server::classify`'s, so the Unix-domain refusal is taken once here before any
-      worker exists. `rule:http-server/the-accept-fan-out-is-one-worker-per-core` § 1 is the
-      specification.
-- [ ] **The workers, and `one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle`** —
-      `nvs_host::Worker::spawn(cpu, body)` (`crates/nvs-host/src/lib.rs:168`) is the pinned thread
-      and `NvsListener::from_std` (`crates/nvs-host/src/net.rs:371`) is how each core takes its own
-      handle on a bound `std::net::TcpListener`. Everything from the scheduler down —
-      `crates/nvs-cli/src/serve.rs:534` (`serve_on_this_core`) and the `run_until_idle` loop at
-      `crates/nvs-cli/src/serve.rs:573` — moves into a per-core body that must be `Send + 'static`,
-      so `Rc<Table>` and the handler closure are built **inside** each worker out of the `Arc`s
-      (`snapshot`, `Compiler`, `Serving`) rather than captured. `workers_for`'s count is what says
-      how many. `rule:http-server/the-accept-fan-out-is-one-worker-per-core` § 2 and ADR 0161 § 3
-      are the specification; the ticker (`Scheduled`, `crates/nvs-cli/src/serve.rs:606`) is armed by
-      one core, not each.
-- [ ] **The flags, and `listen_and_port_flags_still_override_the_file_and_still_conflict`** — a
-      `--listen` replaces the whole configured set with one address rather than its first entry, and
-      `--port` keeps each configured host; the two already conflict at the parser
-      (`crates/nvs-cli/src/main.rs:294`, `conflicts_with = "listen"`), so this is the case that pins
-      it against the fan-out. `crates/nvs-cli/src/serve.rs:758` (`address`) is the function the
-      first item leaves behind or rewrites.
+- [ ] **The drain's two ends, `is_draining_answers_the_same_on_every_core` and
+      `the_process_exits_when_the_last_cores_in_flight_count_reaches_zero`** — `Draining` is the
+      process's bit and every worker takes its own handle on it
+      (`crates/nvs-server/src/serve.rs:318`, over `crates/nvs-runtime/src/drain.rs:58`), so the
+      first half is that two handles answer alike; the second is the in-flight count each loop
+      keeps (`crates/nvs-server/src/serve.rs:1288`) reaching zero on the last core rather than on
+      one. `rule:http-server/the-accept-fan-out-is-one-worker-per-core` § *what a core holds of its
+      own* is the specification.
+- [ ] **The backoff, and `the_accept_backoff_runs_per_core_and_one_cores_backoff_does_not_stall_another`**
+      — `crates/nvs-server/src/serve.rs:1458` (`AcceptBackoff`) is per accept loop already; the
+      case is that one loop's wait does not hold another's, which is
+      `rule:http-server/the-accept-loop-backs-off` read across cores.
+- [ ] **`a_disconnected_clients_isolates_are_left_behind_on_no_core`** — a peer that goes away must
+      leave nothing behind on any core; the connection's own task is the root the isolates hang off
+      (`crates/nvs-server/src/serve.rs:1288`, the outstanding counter, and the accept loop above
+      it).
 
 ## Backlog
 
-- Stage "3 drain" — the four `-p nvs-server` checks (`is_draining_answers_the_same_on_every_core`
-  and its three neighbours) need a fleet to be fleet-wide over; they follow the group above.
-  `docs/agent/loop-goal.toml:6073`.
-- The `[context] playbook` selector missed `playbook.md:1773` (`cargo test -p nvs-cli --lib` is
-  `no library targets`; the unit tests run under `--bin nvs`) even though the item's two paths are
-  `nvs-cli`'s — the bullet is filed against `crates/nvs-cli/src/main.rs` and my item named neither.
-- `crates/nvs-cli/src/script.rs:63`'s first known gap is single-flighting alone.
+- Stage 4's state-bleed suite across a core boundary, and the fleet-wide in-flight ceiling —
+  `docs/agent/loop-goal.toml`, stage 4.
+- Stage 5's measurement: `serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names`.
+- `--port` over a set mixing TCP and Unix-domain entries collapses to one loopback address;
+  `addresses` dedupes it rather than binding twice — `crates/nvs-cli/src/serve.rs:@addresses`.
+- The per-core watchdog `rule:http-server/a-wedged-core-is-detected-by-its-deadline` names is still
+  written against one core.
