@@ -1,7 +1,7 @@
 # Every `Core\X::member` spelling a `member` row of `docs/spec/02-php-migration.md`
 # names that `nvs_stdlib::registry::CLASSES` does not declare yet. One key per
 # line, spelled exactly as the table's Novis cell spells it, then the goal that
-# will strike it: `Core\Os::pid  # 24`, read against docs/agent/goals/chain.toml
+# will strike it, named by its slug: `Core\Os::pid  # net-os-signal`, read against docs/agent/goals/
 # by `every_outstanding_key_names_an_owner`. That test's doc owns the column,
 # and `unowned` is the answer for a member no entry on the chain builds.
 #

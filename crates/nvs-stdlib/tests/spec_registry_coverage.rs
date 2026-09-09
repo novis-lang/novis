@@ -66,7 +66,7 @@
 //! # An outstanding key names its owner, in a column
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
-//! from [chain.toml](/docs/agent/goals/chain.toml) that will strike the line, or
+//! from [the goals directory](/docs/agent/goals/) that will strike the line, or
 //! the word `unowned` for a key that is nobody's yet and is a scheduling
 //! question for the user. [`every_outstanding_key_names_an_owner`] is what
 //! makes that a field rather than a note — it reads the chain and fails on an
@@ -77,8 +77,8 @@
 //! owned eight keys and could not say which was which.
 //! [docs/agent/carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* is
 //! the rule this is the ratchet-file spelling of, and the failure it exists to
-//! stop is on record in its own opening: `§18 stream` read as "goal 5's" for six
-//! goals after goal 5 closed.
+//! stop is on record in its own opening: `§18 stream` read as "goal `database`'s" for six
+//! goals after goal `database` closed.
 //!
 //! What the gate deliberately does not check is whether an owner is still
 //! *ahead*. A chain entry that goes green without striking its key is the more
@@ -374,26 +374,46 @@ fn outstanding_file(name: &str) -> Ratchet {
     Ratchet { path, keys, owners }
 }
 
-/// [docs/agent/goals/chain.toml](/docs/agent/goals/chain.toml), read for the one
-/// thing an owner column is checked against: which goal numbers the chain still
-/// lists.
+/// The chain — [docs/agent/goals/](/docs/agent/goals/) — read for the one thing
+/// an owner column is checked against: which goals it still holds.
 ///
-/// The text is taken by the caller so that a `&str` key can borrow from it —
-/// and a goal's *number* is its name up to the first space, because
-/// `AGENTS.md`'s own rule is that a goal is said as "goal 19" and a milestone
-/// tag says nothing about order.
-fn chain_goals(text: &str) -> BTreeSet<&str> {
-    text.lines()
-        .map(str::trim)
-        .filter_map(|line| line.strip_prefix("name = \""))
-        .map(|name| name.split(' ').next().unwrap_or(name))
-        .collect()
-}
-
-/// Read the chain, for [`chain_goals`] to walk.
-fn chain_text() -> String {
-    let chain = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/agent/goals/chain.toml");
-    fs::read_to_string(&chain).unwrap_or_else(|err| panic!("{}: {err}", chain.display()))
+/// A goal is `<number>-<slug>.md`, and the **slug** is what an owner column
+/// names. `AGENTS.md`'s *The schedule is the chain* is why: the number is the
+/// goal's position and moves whenever anything is inserted in front of it, so an
+/// owner written as a number would silently come to mean a different goal. The
+/// `dossier/` subdirectory is walked too — `dossier.py` emits ninety goals into
+/// it and they are on the chain like any other.
+fn chain_goals() -> BTreeSet<String> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/agent/goals");
+    let mut out = BTreeSet::new();
+    let mut dirs = vec![root];
+    while let Some(dir) = dirs.pop() {
+        let entries = fs::read_dir(&dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            // `29-xml-tree.handoff.md` is the seed beside the goal, not a second goal.
+            if name.ends_with(".handoff.md") {
+                continue;
+            }
+            let Some(stem) = name.strip_suffix(".md") else {
+                continue;
+            };
+            let Some((num, slug)) = stem.split_once('-') else {
+                continue;
+            };
+            if !num.is_empty() && num.bytes().all(|b| b.is_ascii_digit()) {
+                out.insert(slug.to_owned());
+            }
+        }
+    }
+    out
 }
 
 /// What is wrong with one key's owner column, or `None` if nothing is.
@@ -401,39 +421,38 @@ fn chain_text() -> String {
 /// Two kinds of owner pass where
 /// [carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* allows three.
 /// A milestone tag is an owner for a *gap*, which a plan can cover; a key here
-/// is struck by a session, and only a chain entry runs sessions. A milestone
-/// nobody has cut into goals therefore reads here as `unowned`, which is what it
-/// is — that is the correction spec § 17's four classes needed, having been
-/// filed under an M9 whose plan carries none of them.
+/// is struck by a session, and only a goal runs sessions. A milestone nobody has
+/// cut into goals therefore reads here as `unowned`, which is what it is — that
+/// is the correction spec § 17's four classes needed, having been filed under an
+/// M9 whose plan carries none of them.
 ///
 /// It is a function rather than a `match` inside the gate so that
 /// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
 /// no file on disk writes: a refusal nothing ever exercises is a refusal that
 /// can stop refusing without anything going red.
-fn owner_problem(owner: Option<&String>, goals: &BTreeSet<&str>) -> Option<String> {
+fn owner_problem(owner: Option<&String>, goals: &BTreeSet<String>) -> Option<String> {
     match owner {
         Some(owner) if owner == "unowned" || goals.contains(owner.as_str()) => None,
         Some(owner) => Some(format!(
-            "names goal {owner}, which is no `[[goal]]` on the chain"
+            "names goal `{owner}`, which is no goal under docs/agent/goals/"
         )),
         None => Some("names no owner".to_owned()),
     }
 }
 
 /// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
-/// `[[goal]]` [chain.toml](/docs/agent/goals/chain.toml) still lists, or the
-/// word `unowned`.
+/// goal [docs/agent/goals/](/docs/agent/goals/) still holds, named by its slug,
+/// or the word `unowned`.
 ///
 /// [`owner_problem`] owns which two those are, and the module doc owns why the
 /// owner is a column rather than a header sentence.
 #[test]
 fn every_outstanding_key_names_an_owner() {
-    let text = chain_text();
-    let goals = chain_goals(&text);
+    let goals = chain_goals();
     assert!(
         goals.len() > 10,
-        "docs/agent/goals/chain.toml yielded only {} `[[goal]]` name(s) — the chain's shape has \
-         changed under this walk, and every owner below is being accepted against almost nothing",
+        "docs/agent/goals/ yielded only {} goal(s) — the chain's shape has changed under this \
+         walk, and every owner below is being accepted against almost nothing",
         goals.len()
     );
 
@@ -452,7 +471,7 @@ fn every_outstanding_key_names_an_owner() {
     assert!(
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
-         Write `# <goal>` after the key, taking the goal from docs/agent/goals/chain.toml, or \
+         Write `# <goal-slug>` after the key, taking the slug from docs/agent/goals/, or \
          `# unowned` with a bullet in docs/agent/carried-gaps.md § Unowned saying why it is \
          nobody's. An owner that went green without striking its key is struck, not renamed.",
         wrong.len(),
@@ -470,28 +489,27 @@ fn every_outstanding_key_names_an_owner() {
 /// and no column at all.
 #[test]
 fn an_owner_that_is_not_a_live_chain_entry_fails() {
-    let text = chain_text();
-    let goals = chain_goals(&text);
-    let live = "21".to_owned();
+    let goals = chain_goals();
+    let live = "carried-gaps".to_owned();
     let unowned = "unowned".to_owned();
-    let orphan = "99".to_owned();
+    let orphan = "no-such-goal".to_owned();
 
     assert!(
         goals.contains(live.as_str()),
-        "goal {live} is not on the chain, so this case is asserting nothing — take a live entry \
-         from docs/agent/goals/chain.toml"
+        "goal `{live}` is not on the chain, so this case is asserting nothing — take a slug from \
+         docs/agent/goals/"
     );
     assert!(
         !goals.contains(orphan.as_str()),
-        "goal {orphan} is on the chain now, so it is no longer an orphan — pick a number no \
-         `[[goal]]` uses"
+        "goal `{orphan}` is on the chain now, so it is no longer an orphan — pick a slug no goal \
+         file uses"
     );
 
     assert_eq!(owner_problem(Some(&live), &goals), None);
     assert_eq!(owner_problem(Some(&unowned), &goals), None);
     assert!(
         owner_problem(Some(&orphan), &goals).is_some(),
-        "an owner naming goal {orphan}, which the chain does not list, was accepted — a key can \
+        "an owner naming goal `{orphan}`, which the chain does not hold, was accepted — a key can \
          point at nothing again"
     );
     assert!(
