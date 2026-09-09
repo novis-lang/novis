@@ -2,53 +2,49 @@
 
 ## State
 
-**Goal 40 — an agent learns Novis from the binary, in three calls.** Stages 0, 2, 3 and 4 are on
-disk, stage 1 is goal 39's floor, and stage 5 is now two thirds landed: both of its `cargo-named`
-checks are green. `nvs agent init` writes the `AGENTS.md` stanza and, beside it, one adapter for each
-harness the tree shows — `.claude/skills/novis/SKILL.md` when `.claude/` is present, and every
-adapter under `--all`. What is left of stage 5 is the chapter and the cold-start walk. Nothing is
-blocked, and the goal's § *Standing decisions* still pre-authorizes every call the rest of it reaches.
+**Goal 40 — an agent learns Novis from the binary, in three calls.** Stage 1 is goal 39's floor;
+stages 0, 2, 3 and 4 are on disk, and stage 5's three acceptance checks now all pass. `nvs agent`
+is the four read commands plus `init`, the surface has a chapter of its own at
+`docs/reference/tools/50-agents.md`, and `python tools/reference.py --agent-walk` walks it cold —
+primer, `find`, `show`, `nvs check` — handing each step only what the step before it printed.
 
-**How the adapter rule is kept mechanical rather than remembered:** the protocol prose is one const,
-`PROTOCOL` in `crates/nvs-cli/src/agent.rs`, and an `Adapter` row contributes only the header its own
-harness reads the file through. There is nowhere for a language fact to be written per harness, which
-is `rule:tooling/an-adapter-carries-protocol-and-never-language` as a shape instead of a rule to obey.
+**The primer opens on the new chapter.** The lookup-protocol section moved out of
+`docs/reference/tools/10-cli.md`, which keeps only its subcommand row, and `PRIMER_FIRST` in
+`crates/nvs-cli/src/agent.rs` names `agents` where it named `cli`. A `<!-- primer -->` marker
+decides *that* a section is lifted; that list decides *where* it lands, so a section moved between
+chapters without it reorders the primer silently.
 
-**`init` never overwrites.** A stanza or an adapter that still reads as this binary would write it is
-left alone; anything else is a refusal naming the file and the way out. An upgrade and a reader's own
-edit are indistinguishable from the file, so both refuse — the module doc at
-`crates/nvs-cli/src/agent.rs`'s § *The install* is that decision's home.
-
-**This repository has not installed the stanza into its own `AGENTS.md`.** That is stage 5 item 4 and
-it is deliberately left for a session that takes it on purpose: it changes what every session reads.
+**One item of the goal is left and no check names it**: `docs/agent/loop-goal.md` § *Stage 5*
+item 4, this repository installing the stanza into its own `AGENTS.md`. It stays deliberate because
+it changes what every session reads, and because `init` in this tree also writes
+`.claude/skills/novis/SKILL.md`, which is a file in the user's own harness directory. Nothing is
+blocked.
 
 ## Next group
 
-**Stage 5: the chapter, and the cold-start walk** — one file set: a new
-`docs/reference/tools/50-agents.md`, `tools/reference.py`'s leg table, and `CHAPTERS` in
-`crates/nvs-cli/src/agent.rs`.
+**Stage 5: the install, in this repository** — one file set: `AGENTS.md`,
+`crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/tests/agent.rs`.
 
-- [ ] **The chapter `docs/reference/tools/50-agents.md`**, at `crates/nvs-cli/src/agent.rs:98`,
-      which is the `CHAPTERS` table the new file joins so the primer's chapter map carries it.
-      Front matter and runnable examples in the shape its four siblings under
-      `docs/reference/tools/` have; `docs/agent/loop-goal.md` § *Stage 5* item 3 is the
-      specification and `rule:tooling/an-agent-asks-the-binary` is what it documents.
-- [ ] **`python tools/reference.py --agent-walk`**, at `tools/reference.py:791`, where `--primer`
-      declares the leg beside it. The walk is primer, `find`, `show`, `nvs check`, and it fails when
-      any step returns nothing that resolves. The leg does not exist yet;
-      `docs/agent/loop-goal.toml:6652` is the check that names it.
-- [ ] **This repository installs it too**, at `crates/nvs-cli/src/agent.rs:674`, which is the `init`
-      that writes it — run the built `nvs agent init` at the repository root so the root `AGENTS.md`
-      gains the stanza and the Claude skill lands beside it.
-      `docs/agent/loop-goal.md` § *Stage 5* item 4. Take it deliberately: it widens the file that is
-      inlined into every session's context.
+- [ ] **This repository installs the stanza**, at `crates/nvs-cli/src/agent.rs:675`, which is
+      `init` — run the built binary at the repo root rather than writing `AGENTS.md` by hand, so
+      what lands is byte-for-byte what `init` writes and re-running stays a no-op.
+      `docs/agent/loop-goal.md` § *Stage 5* item 4 is the specification and
+      `rule:tooling/an-adapter-carries-protocol-and-never-language` is what the stanza carries.
+      The same run writes `.claude/skills/novis/SKILL.md` because `.claude/` is present: take that
+      on purpose and say which way in the commit.
+- [ ] **A test that this tree's own stanza has not drifted**, at
+      `crates/nvs-cli/tests/agent.rs:414`, beside the `init` cases: this repository's `AGENTS.md`
+      still holds the block this binary writes, so an edit to `PROTOCOL` that forgets the installed
+      copy fails here rather than in a reader's context. `init` refuses to overwrite one it did not
+      write, so the way out is delete-and-re-run — name it in the failure message.
 
 ## Backlog
 
-- `rule:tooling/an-adapter-carries-protocol-and-never-language` is still `status: designed` with no
-  `guardedBy`; `crates/nvs-cli/tests/agent.rs` now holds it — `docs/rules/tooling.json`.
-- `rule:tooling/an-agent-asks-the-binary` flips to `shipped` when stage 5's chapter lands —
-  `docs/rules/tooling.json`.
-- Adapters for harnesses other than Claude Code: one row in `ADAPTERS`, decides nothing —
-  `crates/nvs-cli/src/agent.rs`.
-- Carried gaps that outlive this goal are in `docs/agent/carried-gaps.md`.
+- `nvs agent init --embed` is not built and is not to be built — `docs/decisions/0167.md`
+  § *Revisiting*.
+- The goal's `[context]` manifest can print a rule, a record section, a module doc, a playbook
+  bullet or a `conventions.md` shape, and no other `docs/` section: writing a reference chapter
+  needed `docs/reference/README.md` § *Examples: the fence grammar* and one sibling chapter, both
+  read by hand — `docs/agent/loop-goal.toml:88`.
+- `AGENTS.md` § *Where to look* routes three questions, and "what does this `Core` member do" is
+  not one of them; the stanza's arrival is when to decide whether it should be — `AGENTS.md`.
