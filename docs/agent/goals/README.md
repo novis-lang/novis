@@ -139,6 +139,20 @@ correct Novis quickly, and all then lost most of their budget to the same wall �
 `rule:security/capability-declaration-is-one-table`'s table, `shipped`, naming two renderers that do
 not exist. Stage 0 is that audit, and stage 2 gives the table the renderer it always claimed.
 
+**Then one more the user asked for**, after reading what `Core\Sse` actually does.
+[41 event-streams](41-event-streams.md) is M7's last unlanded piece and the one goal 6 left behind.
+`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between a streaming
+response and a connection isolate, and **neither side of it is built**: `Answer` is an `Option<Bytes>`
+with an exact `size_hint`, so nothing in this workspace can write a byte to a client after the head has
+gone out. That is what makes `Core\Sse::upgrade` — registered, cell-carried and started in the right
+order since goal 6 — a door onto nothing, and it is why ADR 0083 § 5's aside that a streaming response
+is something "M7 already builds" has been false since it was written. The goal builds the body cell once
+and spends it twice, on the two spellings the rule already names, plus `Core\Response::stream` for the
+untyped case. It sits after goal 36 because a long-lived connection isolate is exactly the runaway shape
+that goal's ceilings exist to stop — an event stream whose budget is declared and unenforced is priority
+1 spent to buy priority 3 — and its own § 5 amendment is the interesting half: "send and no `receive`"
+becomes "no *peer*", so an event stream can wait on a topic and fan-out stops being a poll.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
 which puts `rule:testing/four-proofs`'s
@@ -214,7 +228,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [34 workspace-index](34-workspace-index.md) | M10, `rule:ide/five-features-are-one-reference-index` | `nvs-lsp` — one index, its five readers, and the requests M4B's closed list left out |
 | [35 editor-surfaces](35-editor-surfaces.md) | M10, `rule:ide/tasks-carry-a-problem-matcher` | `editors/vscode` and the two CLI surfaces it queries — Tasks, the AST panel, a Test Explorer, template regions |
 | [36 resource-ceilings](36-resource-ceilings.md) | M6, `rule:errors/on-limit` | `nvs-runtime`, `nvs-host`'s watchdog and the poll's emit site — a runaway is stopped whether it burns a core, allocates in a loop, or asks for everything at once |
-| 38–48 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [41 event-streams](41-event-streams.md) | M7, one ADR slot — 0083 § 5 amended, and its streaming-response claim corrected | `nvs-server`, `nvs-runtime`, `nvs-stdlib`, `nvs-types`, `nvs-config` — one body cell, two doors onto it |
+| 42–48 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [49 gap-zero](49-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written entries, because a gap register is emptied after everything that adds to it has run |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |

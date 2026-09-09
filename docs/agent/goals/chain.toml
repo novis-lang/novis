@@ -526,6 +526,28 @@ handoff = "docs/agent/goals/37-config-is-written.handoff.md"
 milestone = "M6"
 preflight = "docker"
 
+# M7's last unlanded piece, and the one goal 6 left behind: `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+# draws a line between a streaming response and a connection isolate, and **neither side of it is
+# built**. `Answer` is an `Option<Bytes>` with an exact `size_hint`, so nothing in this workspace can
+# write a byte to a client after the head has gone out -- which makes `Core\Sse::upgrade`, registered
+# and cell-carried and started in the right order since goal 6, a door onto nothing. This builds the
+# body cell once and spends it twice: `Core\Sse::stream` for a stream that ends with its request,
+# `Core\Sse::current` for one that outlives it, and `Core\Response::stream` for the untyped case. It
+# is placed after goal 36 because a long-lived connection isolate is exactly the runaway shape that
+# goal's ceilings exist to stop -- an event stream whose budget is declared and unenforced is
+# priority 1 spent to buy priority 3 -- and after 37 because it is inserted rather than appended and
+# 37 is where the hand-written run ends. Nothing after it depends on it. It opens one record: § 5's
+# "no receive" becomes "no peer" so an event stream can wait on a topic, and § 5's claim that a
+# streaming response is something M7 already builds is corrected there rather than in 0083, which is
+# frozen.
+[[goal]]
+name = "41 event-streams"
+md = "docs/agent/goals/41-event-streams.md"
+toml = "docs/agent/goals/41-event-streams.toml"
+handoff = "docs/agent/goals/41-event-streams.handoff.md"
+milestone = "M7"
+preflight = "docker"
+
 # Last of the hand-written entries, because a gap register can only be emptied after everything
 # that would add to it has run: goals 21 and 27 build the two gates, goal 28 closes five items,
 # and every entry from 23 to 37 closes more, so emptying it in front of them is emptying it twice.
