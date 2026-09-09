@@ -110,6 +110,11 @@ modules = [
   # `Core\Mime` — spec § 17's detection class: what a run of octets *is*, read from the octets and
   # from nothing else.
   "crates/nvs-stdlib/src/mime.rs",
+  # `Core\Zip` — spec § 17's archive class: what an archive is allowed to contain, decided when it
+  # is *read* and not when a program gets around to writing it somewhere.
+  "crates/nvs-stdlib/src/zip.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
