@@ -2,49 +2,44 @@
 
 ## State
 
-**Goal 40 — an agent learns Novis from the binary, in three calls.** Stage 1 is goal 39's floor;
-stages 0, 2, 3 and 4 are on disk, and stage 5's three acceptance checks now all pass. `nvs agent`
-is the four read commands plus `init`, the surface has a chapter of its own at
-`docs/reference/tools/50-agents.md`, and `python tools/reference.py --agent-walk` walks it cold —
-primer, `find`, `show`, `nvs check` — handing each step only what the step before it printed.
+**Goal 26 — `Core\Xml`'s tree and stream, and the WHATWG parser over it — has just started; nothing of
+it has landed yet.** Goal 25's whole list is this goal's Stage 1 floor.
 
-**The primer opens on the new chapter.** The lookup-protocol section moved out of
-`docs/reference/tools/10-cli.md`, which keeps only its subcommand row, and `PRIMER_FIRST` in
-`crates/nvs-cli/src/agent.rs` names `agents` where it named `cli`. A `<!-- primer -->` marker
-decides *that* a section is lifted; that list decides *where* it lands, so a section moved between
-chapters without it reorders the primer silently.
-
-**One item of the goal is left and no check names it**: `docs/agent/loop-goal.md` § *Stage 5*
-item 4, this repository installing the stanza into its own `AGENTS.md`. It stays deliberate because
-it changes what every session reads, and because `init` in this tree also writes
-`.claude/skills/novis/SKILL.md`, which is a file in the user's own harness directory. Nothing is
-blocked.
+**This is the largest single unowned item in the repository**, because it is not free-standing.
+`crates/nvs-stdlib/src/html.rs`'s *Known gaps* says `Core\Html::sanitize` and
+`rule:core-classes/html-parsing`'s WHATWG
+parser "both wait on that tree existing at all", and `rule:core-classes/html-parsing` is titled *Unscheduled, and lands
+with `Core\Xml`*. Three gaps, one tree, one goal — and this entry existing is what makes that § 4
+wrong, so the fold into `rule:core-classes/html-parsing`'s body is stage 0's work.
 
 ## Next group
 
-**Stage 5: the install, in this repository** — one file set: `AGENTS.md`,
-`crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/tests/agent.rs`.
+**Stage 2: the tree** — one file set: the new `crates/nvs-stdlib/src/xml.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] **This repository installs the stanza**, at `crates/nvs-cli/src/agent.rs:675`, which is
-      `init` — run the built binary at the repo root rather than writing `AGENTS.md` by hand, so
-      what lands is byte-for-byte what `init` writes and re-running stays a no-op.
-      `docs/agent/loop-goal.md` § *Stage 5* item 4 is the specification and
-      `rule:tooling/an-adapter-carries-protocol-and-never-language` is what the stanza carries.
-      The same run writes `.claude/skills/novis/SKILL.md` because `.claude/` is present: take that
-      on purpose and say which way in the commit.
-- [ ] **A test that this tree's own stanza has not drifted**, at
-      `crates/nvs-cli/tests/agent.rs:414`, beside the `init` cases: this repository's `AGENTS.md`
-      still holds the block this binary writes, so an edit to `PROTOCOL` that forgets the installed
-      copy fails here rather than in a reader's context. `init` refuses to overwrite one it did not
-      write, so the way out is delete-and-re-run — name it in the failure message.
+- [ ] **One node family** — element, text, comment, processing instruction, document (`rule:core-classes/html-parsing`).
+      `Core\Html`'s parser and `Core\Xml`'s produce the same nodes, which is the whole reason this is
+      one goal rather than two.
+- [ ] **The tree materialises and the stream does not, and no operation is available through both.**
+      Spec § 17 states this as the one place two shapes of a subsystem coexist, so it is not read as an
+      exception to R17. Say it once in the module doc; member cards never re-argue it.
+- [ ] **A parsed tree is inert data**, on `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule for the AST: no path back into execution, no
+      `XSLTProcessor` shape at all.
+- [ ] **The three classic attacks are refused by construction** — external entity resolution is *not a
+      code path* rather than a flag defaulting to off, billion-laughs is bounded by goal 25's ceiling,
+      and a DTD naming an external subset is refused rather than fetched.
+- [ ] **Every string out of a parsed tree is `tainted`.**
 
 ## Backlog
 
-- `nvs agent init --embed` is not built and is not to be built — `docs/decisions/0167.md`
-  § *Revisiting*.
-- The goal's `[context]` manifest can print a rule, a record section, a module doc, a playbook
-  bullet or a `conventions.md` shape, and no other `docs/` section: writing a reference chapter
-  needed `docs/reference/README.md` § *Examples: the fence grammar* and one sibling chapter, both
-  read by hand — `docs/agent/loop-goal.toml:88`.
-- `AGENTS.md` § *Where to look* routes three questions, and "what does this `Core` member do" is
-  not one of them; the stanza's arrival is when to decide whether it should be — `AGENTS.md`.
+- **Stage 3 (the stream)** is a reader and a writer holding one window rather than the document — the
+  property that makes the split worth having. The writer enforces nesting from its own state, so an
+  unclosed element at the end is an error and not a document.
+- **Stage 4 (the parser)** is `html5ever` through a Novis-owned tree builder (`rule:core-classes/html-parsing`), and it is
+  **never-failing**: tag soup produces a document, because a parser that can throw makes sanitizing
+  untrusted markup conditional on the attacker's cooperation. It is an entry on `Core\Html`, never a
+  mode of `Core\Xml` (§ 1).
+- **Stage 5 (`sanitize`)** is the second `rule:security/tainted-qualifier` launderer on `Core\Html` — parse, walk a **closed**
+  allowlist, serialise. The acceptance property is mXSS: parse-sanitize-serialise-reparse reaches a
+  fixed point. It also strikes the last of the eight keys, so
+  `spec-classes-part-two-outstanding.txt` holds none and spec §§ 16–17 is registered whole.

@@ -338,10 +338,9 @@ retired = true
 [[goal]]
 name = "40 agent-surface"
 md = "docs/agent/goals/40-agent-surface.md"
-toml = "docs/agent/goals/40-agent-surface.toml"
-handoff = "docs/agent/goals/40-agent-surface.handoff.md"
 milestone = "M10"
 preflight = "docker"
+retired = true
 
 # The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
 # and `rule:core-classes/html-parsing`'s WHATWG parser both wait on `Core\Xml`'s tree, and `rule:core-classes/html-parsing` is titled

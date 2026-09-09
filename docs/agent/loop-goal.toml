@@ -1,14 +1,13 @@
-# Goal 40 -- An agent learns Novis from the binary, in three calls
+# Goal 26 -- `Core\Xml`'s tree and stream, and the WHATWG parser over it.
 # The acceptance test, as data.
 #
-# `40-agent-surface.md` is the prose. One home each.
+# `26-xml-tree.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # goal-switch.py unions the previous goal's list into this one. This goal writes no
-  # `examples/*.nvs` fixture of its own: what it ships is a CLI surface and a generated document,
-  # both asserted from Rust and from the reference generator's own example harness.
+  "examples/xml-tree.nvs",
+  "examples/html-sanitize.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/compress-roundtrip.nvs",
   "examples/zip-refuses.nvs",
@@ -88,58 +87,41 @@ files = [
 [context]
 
 modules = [
-  # The subcommand enum every verb of `nvs agent` is added to, and the file that says what a
-  # subcommand costs the CLI's surface.
-  "crates/nvs-cli/src/main.rs",
-  # The renderer over the registry document today. Stage 2 gives it the `capabilities` roster and
-  # reads it from here; the four verbs join against what it emits.
-  "crates/nvs-cli/src/meta.rs",
-  # `CAPABILITIES` -- the one table saying what each member needs, written and tested and read by no
-  # renderer. Stage 2 reads it. It is never edited: its shape is a security-review property.
+  # Stages 4-5 -- the class that gains `sanitize` and the parser, and whose gaps say they wait on the tree.
+  "crates/nvs-stdlib/src/html.rs",
+  # Stages 2-5 -- every new class and member declares its row here.
   "crates/nvs-stdlib/src/registry.rs",
-  # Where `E0309` is reported for a member that does not resolve, and so where stage 4's
-  # did-you-mean is decided.
-  "crates/nvs-hir/src/members.rs",
-  # The capability denial's wording -- the four `format!`s that name the member, the capability and
-  # the resource, and never name `nvs.toml`.
-  "crates/nvs-runtime/src/capability.rs",
-  # `nvs agent` — the surface a coding agent reads the language through.
-  "crates/nvs-cli/src/agent.rs",
-  # `rule:security/capability-question-is-grant-and-scope`'s capability question: a grant, a
-  # scope, and the `bool` the two of them answer.
-  "crates/nvs-config/src/capability.rs",
+  # Stage 5 -- `escape` and `Markup` are the launderers `sanitize` joins.
+  "crates/nvs-stdlib/src/taint.rs",
+  # Stage 2 -- the inert-data precedent: a parsed tree with no path back into execution.
+  "crates/nvs-stdlib/src/ast.rs",
+  # Stage 2 -- the bytes/string boundary a parser reads across, and where encoding is decided.
+  "crates/nvs-stdlib/src/encoding.rs",
+  # Stage 2 -- the expansion ceiling goal 25 landed, which billion-laughs is bounded by.
+  "crates/nvs-stdlib/src/bytes.rs",
+  # Stages 2-5 -- the band a refusal that names its rule is declared in.
+  "crates/nvs-diagnostics/src/lib.rs",
 ]
 
-# The rules every stage of this goal works inside.
-rules = [
-  # This goal's first rule: what the surface is, what answers, and why the check loop is part of it.
-  "tooling/an-agent-asks-the-binary",
-  # The shape every renderer here joins, and the reason none of them is a source of truth.
-  "tooling/one-json-several-renderers",
-  # The table stage 2 reads and must not reshape -- its second paragraph is why a per-member field is
-  # refused, and that argument is a security-review one rather than a taste.
-  "security/capability-declaration-is-one-table",
-]
+# 0122 is the parser and the shared tree; 0024 owns both launderers; 0051 is the tier row; 0019 is the
+# inert-data rule a parsed tree inherits; 0009 is the bytes/string boundary.
+rules = ["0122", "0024", "0051", "0019", "0009", "0133", "0004"]
 
-adrs = []
+# 0122 whole -- it is half this goal's design, and its § 4 is what this entry makes wrong.
+adrs = ["0122", "0024 §1", "0051 §3"]
 
-shapes = [
-  "A commit message",
-  "A code comment",
-  "A diagnostic",
-  "A rule fragment",
-]
-
-milestones = ["M10:verify"]
+shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]
 
 playbook = [
-  # This goal's own file set and tools.
+  'Writing Novis itself > core is',
   'Tooling > a core class',
-  'Tooling > A moved module takes',
-  'Tooling > Making a type `pub`',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
   'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -159,59 +141,28 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `40-agent-surface.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `26-xml-tree.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
-# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
-# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
-# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
 # ---------------------------------------------------------------------------------------------------
 
-# Stage 0 audits two `designed` rules against a binary that appears to ship them, and confirms the
-# table's missing renderer. It needs the two rules themselves, not an argument about them.
 [context.stage.0]
-rules = [
-  "tooling/nvs-doc-renders-and-decides-nothing",
-  "tooling/meta-json-takes-a-program",
-  "tooling/meta-json",
-]
+rules = ["core-classes/html-parsing"]
 
-# The keystone argues from 0167's shape sections: what the four verbs are, and why the capability
-# roster is a join rather than a field.
 [context.stage.2]
-adrs = ["0167 §1", "0167 §3"]
-rules = [
-  "tooling/the-index-is-one-line-per-member",
-  "core-api/reference-card",
-  "security/capability-check-at-the-door",
-]
+rules = ["core-classes/html-parsing", "tooling/reflection-and-source-parsing-are-core-features"]
 
-# Stage 3 writes the one document that ships to a stranger, and the harness that executes its claims
-# is the reference generator's own.
-[context.stage.3]
-adrs = ["0167 §2"]
-rules = [
-  "tooling/a-primer-claim-is-executed",
-  "types/grammar",
-  "core-api/options-bag",
-]
-
-# Stage 4 writes two diagnostics, so it needs the shape a diagnostic takes and the band its codes
-# come from.
 [context.stage.4]
-rules = [
-  "errors/diagnostic-record",
-  "security/capability-check-at-the-door",
-]
+rules = ["core-classes/html-parsing"]
 
-# Stage 5 installs into someone else's tree. The precedent is the editor extension's install rule,
-# which settled the same question one surface over: guide, never bundle.
 [context.stage.5]
-adrs = ["0167 §4"]
-rules = [
-  "tooling/an-adapter-carries-protocol-and-never-language",
-  "ide/the-extension-guides-an-install-and-never-bundles-one",
-]
+rules = ["security/tainted-qualifier"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
@@ -219,13 +170,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Its floor's, not this goal's own: nothing here touches a database. The daemon is needed because
-# goal 39's acceptance list -- carried in as stage 1 -- reaches the driver suites that do.
+# Its own checks parse byte buffers in process. The floor is goal 25's.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
-memoize_on = ["crates/nvs-cli", "crates/nvs-stdlib", "crates/nvs-hir"]
+memoize_on = ["crates/nvs-stdlib"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 440 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6516,16 +6472,13 @@ stage = "1 floor"
 name = "the record and the rulebook still agree on what this decision created"
 argv = ["python", "tools/decisions.py", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the catch-up. Two rules marked `designed` over surface the binary already ships, and one
 # `shipped` rule naming two renderers that do not exist. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "0 the catch-up"
+stage = "1 floor"
 name = "the rulebook validates, so no rule audited in stage 0 was left in a state that contradicts it"
 argv = ["python", "tools/rules.py", "--check"]
 
@@ -6533,10 +6486,9 @@ argv = ["python", "tools/rules.py", "--check"]
 # Stage 2 -- the keystone. The registry answers a query, and the capability table finally has a
 # renderer. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the surface"
+stage = "1 floor"
 name = "the registry document carries the capability roster, and a member joins to its row"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6547,7 +6499,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the surface"
+stage = "1 floor"
 name = "the index is one line per member, and every line resolves through show"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6559,7 +6511,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the surface"
+stage = "1 floor"
 name = "find answers a namespaced query the shell would have mangled, and show refuses an unknown symbol"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6572,10 +6524,9 @@ tests = [
 # Stage 3 -- the primer. Generated from marked chapter sections, and every claim in it executed
 # against the compiler that ships with it. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the primer"
+stage = "1 floor"
 name = "the primer is assembled from marked sections and carries each part the investigation named"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6587,23 +6538,22 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "3 the primer"
+stage = "1 floor"
 name = "every refusal the primer states is refused, and every example in it runs and prints what it says"
 argv = ["python", "tools/reference.py", "--primer", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the two diagnostics. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the diagnostics"
+stage = "1 floor"
 name = "the conformance tree, including this goal's did-you-mean and capability-help cases"
 args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the diagnostics"
+stage = "1 floor"
 name = "a near-miss member suggests the registered name, and a distant one suggests nothing"
 args = ["test", "-p", "nvs-hir"]
 tests = [
@@ -6614,7 +6564,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the diagnostics"
+stage = "1 floor"
 name = "a capability denial names nvs.toml and the table the grant is written in"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -6625,10 +6575,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the install, and the adapters. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the install"
+stage = "1 floor"
 name = "init writes exactly the declared files, is idempotent, and clobbers nothing a user edited"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6640,7 +6589,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the install"
+stage = "1 floor"
 name = "no adapter states a language fact, and each one parses as its harness's format"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -6651,28 +6600,117 @@ tests = [
 
 [[check]]
 kind = "command"
-stage = "5 the install"
+stage = "1 floor"
 name = "a cold-start walk -- primer, find, show, check -- returns a resolving answer at every step"
 argv = ["python", "tools/reference.py", "--agent-walk"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the rulebook. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "6 the rulebook"
+stage = "1 floor"
 name = "the rulebook validates, and none of this goal's four rules is still designed"
 argv = ["python", "tools/rules.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "6 the rulebook"
+stage = "1 floor"
 name = "every generated chapter is current with the fragments and their topic entries"
 argv = ["python", "tools/rules.py", "--render", "--check"]
 
 [[check]]
 kind = "command"
-stage = "6 the rulebook"
+stage = "1 floor"
 name = "the record and the rulebook still agree on what this decision created"
 argv = ["python", "tools/decisions.py", "--gate"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the tree, and it is one node family. `rule:core-classes/html-parsing`.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 tree"
+name = "nvs-stdlib (one node family, and it is inert)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "element_text_comment_processing_instruction_and_document_are_the_whole_family",
+  "a_parsed_tree_has_no_path_back_into_execution",
+  "an_external_entity_is_not_a_code_path_rather_than_a_flag_defaulting_to_off",
+  "a_dtd_naming_an_external_subset_is_refused_rather_than_fetched",
+  "a_billion_laughs_expansion_is_bounded_by_the_ceiling_goal_25_landed",
+  "every_string_read_out_of_a_parsed_tree_is_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the stream: one window, never the document.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 stream"
+name = "nvs-stdlib (the reader holds a window and the writer cannot emit ill-formed output)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_reader_answers_stage_twos_node_family_one_node_at_a_time",
+  "the_reader_holds_one_window_rather_than_the_document",
+  "the_writer_enforces_nesting_from_its_own_state_and_not_from_the_caller",
+  "an_unclosed_element_at_the_end_is_an_error_and_not_a_document",
+  "no_operation_is_available_through_both_the_tree_and_the_stream",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the WHATWG parser, on `Core\Html`. `rule:core-classes/html-parsing`.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 parser"
+name = "nvs-stdlib (never-failing, and an entry rather than a mode)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "tag_soup_produces_a_document_because_the_parser_has_no_failure_mode",
+  "the_parser_produces_core_xmls_own_node_family",
+  "it_is_an_entry_on_core_html_and_there_is_no_html_mode_on_the_xml_parser",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `sanitize`, which is why the tree matters. The acceptance property is mXSS.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 sanitize"
+name = "nvs-stdlib (a second launderer on Core\\Html, and it reaches a fixed point)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "sanitize_is_an_adr_0024_launderer_beside_escape",
+  "the_allowlist_is_closed_and_is_not_configurable_by_a_caller",
+  "parse_sanitize_serialise_reparse_reaches_a_fixed_point_over_the_mxss_corpus",
+  "an_element_outside_the_allowlist_is_dropped_rather_than_escaped_in_place",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (the eighth key, and the file holds none)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
