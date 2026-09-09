@@ -2774,4 +2774,122 @@ mod tests {
         );
         assert!(!why.contains("already inside"), "{why}");
     }
+
+    /// The audit's finding, asserted rather than described: one cyclic object
+    /// graph is handed to every `Core` member whose walk could meet an object,
+    /// and each of them ends where it stands.
+    ///
+    /// [`nvs_core_json_encode`] is the only one that descends into an object,
+    /// so it is the only one a cycle can close inside — and it answers with the
+    /// property that closed it. `Core\Csv::format`, `Core\Uri::buildQuery` and
+    /// `Core\Encoding::toHex` are handed that same object as a **leaf** and
+    /// refuse it by tag where it sits, which is what each of those modules' own
+    /// docs records about its walk. `Core\Serialize` is not asked here: it
+    /// reaches the same property through `rule:classes/graph-copy`.
+    #[test]
+    fn every_encoder_that_reaches_an_object_graph_refuses_a_cycle_rather_than_recursing() {
+        /// One member the question is put to: the argument list it takes the
+        /// object in, and the words its own refusal is written with.
+        struct Asked {
+            member: &'static str,
+            function: nvs_runtime::NvsFn,
+            refusal: &'static str,
+            args: fn(Value) -> Vec<Value>,
+        }
+
+        let holder = instance(holder_class("Holder", &["self"]));
+        #[expect(unsafe_code, reason = "the property below owns a second reference")]
+        unsafe {
+            holder.retain();
+        }
+        set_property(holder, 0, holder);
+
+        let asked = [
+            Asked {
+                member: r"Core\Json::encode",
+                function: nvs_core_json_encode,
+                refusal: "`self`",
+                args: |object| vec![object, Value::bool(false), Value::bool(false)],
+            },
+            Asked {
+                member: r"Core\Csv::format",
+                function: crate::csv::nvs_core_csv_format,
+                refusal: "is not a `string`",
+                args: |object| {
+                    let mut record = NvsArray::new();
+                    record.set(NvsStr::new(b"0"), object);
+                    let mut rows = NvsArray::new();
+                    rows.set(NvsStr::new(b"0"), Value::array(record));
+                    vec![
+                        Value::array(rows),
+                        Value::str(NvsStr::new(b",")),
+                        Value::str(NvsStr::new(b"\"")),
+                        Value::null(),
+                    ]
+                },
+            },
+            Asked {
+                member: r"Core\Uri::buildQuery",
+                function: crate::uri::nvs_core_uri_build_query,
+                refusal: "neither a scalar nor a nested array",
+                args: |object| {
+                    let mut parameters = NvsArray::new();
+                    parameters.set(NvsStr::new(b"a"), object);
+                    vec![Value::array(parameters)]
+                },
+            },
+            Asked {
+                member: r"Core\Encoding::toHex",
+                function: crate::encoding::nvs_core_encoding_to_hex,
+                refusal: "expected a `bytes`",
+                args: |object| vec![object],
+            },
+        ];
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut answers: Vec<(&str, String)> = Vec::new();
+        for asked in asked {
+            #[expect(unsafe_code, reason = "the argument list below owns this reference")]
+            unsafe {
+                holder.retain();
+            }
+            let args = (asked.args)(holder);
+            let refused = nvs_runtime::call(asked.function, &mut ctx, &args).is_err();
+            let why = ctx
+                .take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default();
+            for argument in args {
+                #[expect(
+                    unsafe_code,
+                    reason = "the argument list holds exactly the references its \
+                              builder took, and the cycle keeps the object alive"
+                )]
+                unsafe {
+                    argument.release();
+                }
+            }
+
+            assert!(refused, "{} encoded a cyclic object", asked.member);
+            assert!(why.contains(asked.member), "{why}");
+            assert!(why.contains(asked.refusal), "{why}");
+            answers.push((asked.member, why));
+        }
+
+        // The agreement, counted rather than read off a line: only a walk that
+        // is *inside* an object can meet it again, so exactly one of these
+        // answers by identity and the rest never entered it at all.
+        let by_identity: Vec<&str> = answers
+            .iter()
+            .filter(|(_, why)| why.contains("already inside"))
+            .map(|(member, _)| *member)
+            .collect();
+        assert_eq!(by_identity, [r"Core\Json::encode"], "{answers:?}");
+
+        set_property(holder, 0, Value::null());
+        #[expect(unsafe_code, reason = "this frame now holds the only reference")]
+        unsafe {
+            holder.release();
+        }
+    }
 }
