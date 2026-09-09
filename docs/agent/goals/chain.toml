@@ -255,10 +255,9 @@ retired = true
 [[goal]]
 name = "20 unix-sockets"
 md = "docs/agent/goals/20-unix-sockets.md"
-toml = "docs/agent/goals/20-unix-sockets.toml"
-handoff = "docs/agent/goals/20-unix-sockets.handoff.md"
 milestone = "M8"
 preflight = "docker"
+retired = true
 
 # M7's own stated scope, shipped around: goal 6 built the single-core server and closed, and until
 # this entry existed no `[[goal]]` owned "per-core accept and dispatch". It is first of the

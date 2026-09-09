@@ -1,13 +1,15 @@
-# Goal 20 -- a configured store is authorized by its configuring, and may be a Unix socket.
+# Goal 23 -- `nvs serve` takes every core, and the compiled unit is shared.
 # The acceptance test, as data.
 #
-# `20-unix-sockets.md` is the prose. One home each.
+# `23-per-core.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  "examples/cache-shared-socket.nvs",
+  # No new fixture: every check here is a unit test or a measurement, and what a fan-out must not
+  # change is the output of every fixture the floor already froze.
   # carried from the previous goal by tools/goal-switch.py
+  "examples/cache-shared-socket.nvs",
   "examples/parses.nvs",
   "examples/input-shapes.nvs",
   "examples/request-fields.nvs",
@@ -81,83 +83,58 @@ files = [
 [context]
 
 modules = [
-  # The roster `cache.shared` joins, and `Scope`/`denied_by_default` beside it.
-  "crates/nvs-config/src/capability.rs",
-  # `[cache.shared]` and `[db.<name>]`'s typed blocks -- where the two spellings are accepted.
-  "crates/nvs-config/src/tree.rs",
-  # The door: `open_configured`, `endpoint`, `open_shared`, and the tier the local half holds.
-  "crates/nvs-stdlib/src/cache.rs",
-  # The wire -- three commands over the parking stream, handed a transport rather than choosing one.
-  "crates/nvs-stdlib/src/cache/redis.rs",
-  # The door's second caller; its refusal sentence is its own.
-  "crates/nvs-stdlib/src/ratelimit.rs",
-  # `pin_host`/`pinned_address` -- what stage 2 stops calling, and why it could not answer a path.
-  "crates/nvs-runtime/src/capability.rs",
-  # `NvsUnix`, already carried: connect, connect_timeout, and why there is no Windows fallback.
+  # Stage 3 -- the command that binds one socket today, and the module doc stating the rule that goes.
+  "crates/nvs-cli/src/serve.rs",
+  # Stage 2 -- the compiled-unit cache: the `RefCell`, the revalidation policy, the compile counter.
+  "crates/nvs-cli/src/script.rs",
+  # Stages 2-3 -- `NvsListener::from_std` at :336, the constructor written for exactly this fan-out.
   "crates/nvs-host/src/net.rs",
-  # Where the two transports meet for a driver.
-  "crates/nvs-db/src/conn.rs",
-  # The three drivers that gain an AF_UNIX connect, and the one that refuses a path.
-  "crates/nvs-db/src/pg.rs",
-  "crates/nvs-db/src/mysql.rs",
-  "crates/nvs-db/src/tds/mod.rs",
-  # `is_relative_file` -- the neighbouring predicate, and deliberately not the answer.
-  "crates/nvs-config/src/db.rs",
-  # The configuration tree, resolved: which file is the root, which files it pulls in, and the one
-  # ordered stream they flatten to.
-  "crates/nvs-config/src/resolve.rs",
-  # `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s boot half: what a
-  # configuration already says about the coherent tier before any request asks for it.
-  "crates/nvs-config/src/store.rs",
-  # The `Core` signature registry: what the compiler resolves a `Core\Class::member(...)` call
-  # against.
-  "crates/nvs-stdlib/src/registry.rs",
-  # `Core\Storage` — `rule:programs/framework-core-half`'s object storage: four members that put,
-  # get, delete and enumerate **named objects on a disk an operator configured**, over the `fs.*`
-  # capabilities `rule:core-api/tier-roster` already grants and no capability of its own.
-  "crates/nvs-stdlib/src/storage.rs",
-  # `rule:http-server/a-session-store-answers-four-operations`'s session store: the identifier a
-  # store issues, the record it keeps under it, and the two directives that decide where that
-  # store is and how long a record survives.
-  "crates/nvs-stdlib/src/session.rs",
-  # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
-  # settings, and the two members that need no connection at all.
-  "crates/nvs-stdlib/src/db/open.rs",
+  # Stage 3 -- `Worker::spawn(cpu, ...)` at :273 and the pinning handshake priced per process start.
+  "crates/nvs-host/src/lib.rs",
+  # Stage 3 -- the accept loop, the backoff and the drain probe that each become per core.
+  "crates/nvs-server/src/serve.rs",
+  # Stage 4 -- admission: where a connection is taken or refused, per core.
+  "crates/nvs-server/src/admit.rs",
+  # Stage 2 -- `UnitKey`, the digests and `[opcache] validate`, which the swap is addressed by.
+  "crates/nvs-config/src/cache.rs",
+  # Stage 3 -- `[server] listen`, and where a `workers` key joins it.
+  "crates/nvs-config/src/server.rs",
+  # Stage 4 -- the in-flight ceiling's relaxed atomic, already written for a fleet.
+  "crates/nvs-server/src/bounds.rs",
 ]
 
+# 0017 is the swap the shared unit must keep working; 0006 is what an isolate may share; 0061 is the
+# other reader of the same digests; 0116 is the arena a per-core worker owns; 0004 is what it spends.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADRs 0067, 0097 came out: each created more than eight rules, so naming
+# decision. ADRs 0097, 0042 came out: each created more than eight rules, so naming
 # them here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  "http-server/the-server-block-is-boot-class",
-  "0142",
-  "0058",
-  "0059",
-  "0075",
-  "0132",
-  "0118",
-  "0005",
+  "0017",
+  "0006",
+  "0061",
+  "0116",
   "0004",
 ]
 
-# 0142 whole: it is this goal's design, already written, and every question the goal meets is in it.
-adrs = ["0142", "0058", "0059"]
+# 0097's *In short* block, because its ceiling, its backoff and its h2c refusal all argue from
+# balanced cores and no one stage owns that. 0017 -- the lazy revalidation and the pointer swap --
+# moved into stage 3, the only stage whose prose names it.
+adrs = ["0097"]
 
-# The diagnostic shape sits with stage 3, the only stage that adds a code (E0627).
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
+shapes = ["A rule fragment", "A decision record", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
   'Tooling > a core class',
   'Running things > adding a',
   'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
   'Writing a test case > a test binary',
   'Writing a test case > a multi-file',
-  'Running things > a leak whose',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -177,7 +154,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `20-unix-sockets.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `23-per-core.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -188,29 +165,35 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
+[context.stage.2]
+rules = ["config/an-edit-reaches-the-next-request-without-a-restart"]
+
 [context.stage.3]
-shapes = ["A diagnostic"]
+rules = ["http-server/the-body-is-read-on-demand-under-two-caps", "http-server/the-server-block-is-boot-class"]
+adrs = ["0017"]
 
 [context.stage.4]
-rules = ["core-classes/db-drivers-are-an-enum"]
+rules = ["http-server/two-deployments-and-nothing-a-proxy-owns"]
 
 [valgrind]
-# `cache-shared-socket.nvs` is here because the sweep runs a fixture by path and passes no `args`,
-# so it would run this one under the repository's own `nvs.toml` -- against the loopback store,
-# printing "across the socket" at a TCP connection. What it would then leak-check is the path
-# `examples/cache.nvs` already sweeps.
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor carries the whole parity program, so every container it needs is already here. The socket
-# legs of stage 4 run against the same services over a mounted socket rather than a published port.
+# Its own checks need no container. The floor is goal 22's, which is goals 4-6's -- the drivers, the
+# Redis tier and the session store -- so the daemon is the floor's requirement and not this goal's.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["postgres", "mysql", "mariadb", "redis"]
-memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-cli", "crates/nvs-host"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 388 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -5973,15 +5956,12 @@ stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the grant names the store, not a host. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the grant"
+stage = "1 floor"
 name = "nvs-stdlib (the configured store's grant)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -5993,7 +5973,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the grant"
+stage = "1 floor"
 name = "nvs-config (the roster)"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -6003,10 +5983,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the transport for the cache tier. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the cache transport"
+stage = "1 floor"
 name = "nvs-stdlib (a store over a socket)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6017,7 +5996,7 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "3 the cache transport"
+stage = "1 floor"
 file = "examples/cache-shared-socket.nvs"
 # Its own tree, because `[cache.shared]` is unscoped and a second store cannot be spelled beside the
 # first in the repository's `nvs.toml`; `--config` disables the search for that file entirely, which
@@ -6034,10 +6013,9 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the transport for the drivers. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the driver transport"
+stage = "1 floor"
 name = "nvs-db (a driver over a socket)"
 args = ["test", "-p", "nvs-db"]
 tests = [
@@ -6046,3 +6024,96 @@ tests = [
   "a_tds_target_refuses_a_socket_path",
   "a_driver_answers_the_same_over_either_transport",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the unit is shared and the swap has one publisher.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 shared unit"
+name = "nvs-cli (one unit, many readers, one publisher)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_compiled_unit_is_read_by_every_core_through_one_arc",
+  "a_revalidation_that_wins_publishes_and_readers_never_block_on_a_compile",
+  "a_reader_holding_the_old_unit_keeps_answering_until_it_drops_it",
+  "a_stale_revalidation_does_not_overwrite_a_fresher_published_one",
+  "the_compile_counter_counts_compiles_and_not_cores",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the fan-out.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 fan-out"
+name = "nvs-cli (every listen entry is bound, on every core)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "every_entry_of_server_listen_is_bound_rather_than_the_first",
+  "one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle",
+  "a_server_workers_key_bounds_the_count_and_defaults_to_available_parallelism",
+  "a_unix_domain_entry_is_refused_once_rather_than_once_per_core",
+  "listen_and_port_flags_still_override_the_file_and_still_conflict",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 drain"
+name = "nvs-server (the drain is fleet-wide)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "is_draining_answers_the_same_on_every_core",
+  "the_process_exits_when_the_last_cores_in_flight_count_reaches_zero",
+  "a_disconnected_clients_isolates_are_left_behind_on_no_core",
+  "the_accept_backoff_runs_per_core_and_one_cores_backoff_does_not_stall_another",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- nothing leaks across a core.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 isolation"
+name = "nvs-server (the state-bleed suite, parameterised by core)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_state_bleed_suite_passes_across_a_core_boundary",
+  "the_in_flight_ceiling_is_fleet_wide_so_a_hot_core_cannot_refuse_while_neighbours_idle",
+  "the_watchdog_fires_per_worker_and_a_stalled_core_does_not_stall_the_fleet",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the number. The measurement is the check: a fan-out that does not scale is one to delete.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 measured"
+name = "nvs-cli (serve scales with cores, by the margin the bench names)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names",
+  "ten_thousand_concurrent_cold_requests_for_one_file_compile_it_exactly_once",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- nothing a fan-out does changes an answer.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
