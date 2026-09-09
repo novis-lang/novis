@@ -643,6 +643,38 @@ csv-core = "0.1"
 # what this crate answers.
 fluent-uri = "0.4"
 
+# --- compression (spec § 17's `Core\Compress`, ADR 0166's bound) ---
+# Three crates for five codec cases, and `rule:packaging/a-c-dependency-answers-two-questions`'s first
+# question is "yes" for every one of them: a compressed body is attacker-controlled
+# by definition, which is the whole reason the class is Tier 0. So the second
+# question does not arise -- all three are pure Rust with no build script and no
+# C to audit, and none takes the audited-C exception.
+#
+# `flate2` carries three of the five: gzip (RFC 1952), zlib (RFC 1950) and raw
+# deflate (RFC 1951), which differ only in the header around one stream.
+# `default-features = false` with `rust_backend` named back on is load-bearing
+# rather than tidy: the default set is `flate2/zlib`, which resolves onto
+# `libz-sys` and would put a C library in the default binary's graph. It is also
+# what `mysql_common` needs -- that crate selects a backend through its own
+# default set, so turning its defaults off leaves `flate2` with a
+# `compile_error!` until this row picks `miniz-oxide` by feature unification.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# Brotli (RFC 7932), from the Dropbox implementation, whose own summary is that
+# all included code is safe. `default-features = false` keeps the C ABI shims
+# (`ffi-api`) and the benchmark harness out of the graph; `std` is the allocator
+# and the `Read`/`Write` wrappers `crates/nvs-stdlib/src/compress.rs` decodes
+# through, which is how the output bound is applied *during* the decode rather
+# than to a buffer that has already been allocated.
+brotli = { version = "9", default-features = false, features = ["std"] }
+# Zstandard (RFC 8878), and the one place the pure-Rust answer costs something:
+# `zstd` is the reference C library behind bindings, and `ruzstd` is a Rust
+# decoder with a younger encoder beside it. That trade is priority 1 over
+# priority 3 in AGENTS.md's ordering and is not a close call -- a zstd frame
+# reaching this crate is untrusted input, and the C library's own history of
+# out-of-bounds reads is what the first question is asking about. `hash` is on
+# with the default set: a frame's checksum is verified rather than skipped.
+ruzstd = "0.9"
+
 # --- database wire (ADR 0132 § 2) ---
 # The rule that picked these: a codec is borrowed, a state machine is written.
 # Message framing, value encoding and authentication mechanisms are large,
@@ -686,15 +718,6 @@ mysql_common = { version = "0.38", default-features = false, features = [
   "client_ed25519",
   "client_parsec",
 ] }
-# Not a codec of ours and not one we call: this entry exists to *choose*
-# `mysql_common`'s compression backend. That crate takes `flate2` with no
-# default features and selects one through its own `default` set, which names
-# `flate2/zlib` -- so turning its defaults off leaves `flate2` with no backend
-# at all and a `compile_error!`. Naming it here with `rust_backend` picks the
-# `miniz-oxide` one by feature unification, which is the answer this project
-# wants anyway: `zlib` would resolve onto `libz-sys` and put C in the default
-# binary's graph.
-flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # The two crates a sans-IO codec is *called through*, rather than codecs of their
 # own. `postgres-protocol` frames into a `BytesMut` and hands back its message
 # bodies as fallible iterators, so a caller that does not name these two cannot

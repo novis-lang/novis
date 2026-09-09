@@ -1688,6 +1688,11 @@ pub const CLASSES: &[CoreClass] = &[
     // layout the slot lives in. [`crate::html`] owns why it has no
     // constructor.
     crate::html::MARKUP,
+    // § 17's codec class, beside `Core\Html` because that is the section both
+    // are rows of. Tier 0 for a reason that is not the other three's:
+    // `rule:core-classes/decompression-bound`'s bound is policy, and a policy
+    // a program can decline is not one — see [`crate::compress`].
+    crate::compress::CLASS,
     // `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
     // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
@@ -2378,6 +2383,10 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::time::UNIT,
     crate::time::WEEKDAY,
     crate::hash::DIGEST,
+    // Beside `Core\Digest` because it is the same decision on a second
+    // subsystem: a format chosen at the call site is a closed enum, never a
+    // name in a string that a run-time comparison has to validate.
+    crate::compress::CODEC,
     crate::log::LEVEL,
     crate::env::MODE,
     crate::router::METHOD,

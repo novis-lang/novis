@@ -200,6 +200,7 @@ mod channel;
 pub mod cldr;
 pub mod cli;
 mod command;
+mod compress;
 mod config;
 mod crypto;
 mod csrf;
@@ -366,6 +367,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| cldr::address(symbol))
         .or_else(|| cli::address(symbol))
         .or_else(|| command::address(symbol))
+        .or_else(|| compress::address(symbol))
         .or_else(|| config::address(symbol))
         .or_else(|| crypto::address(symbol))
         .or_else(|| csrf::address(symbol))

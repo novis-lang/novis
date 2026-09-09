@@ -70,6 +70,12 @@ data-encoding.workspace = true
 encoding_rs.workspace = true
 csv-core.workspace = true
 fluent-uri.workspace = true
+# `Core\Compress`'s five codec cases, three crates. The root manifest's
+# compression block owns why each is the pure-Rust one; `crate::compress` owns
+# which case reaches which.
+flate2.workspace = true
+brotli.workspace = true
+ruzstd.workspace = true
 
 # `tests/conformance_coverage.rs` reads the `.nvst` suite's `--FILE--`
 # sections, and the format's parser already exists. `nvs-test` depends on
