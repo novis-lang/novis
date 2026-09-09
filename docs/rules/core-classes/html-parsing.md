@@ -15,6 +15,8 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
-**Not shipped**, and neither half may land alone: the milestone that schedules `Core\Xml`'s tree API
-builds this parse in the same milestone, because the tree and the builder interface are one
-implementation and the second one built would otherwise be shaped by whichever landed first.
+**Half shipped, and the halves do not separate.** `Core\Xml`'s door and the node family both parsers
+produce are on disk; the WHATWG parse over them is not, and the goal that landed the tree builds it.
+The tree and the builder interface are one implementation, so whichever was built second would
+otherwise have been shaped by the first — which is why the tree came first and this parse is written
+against it rather than beside it.

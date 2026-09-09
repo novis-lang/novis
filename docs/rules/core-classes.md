@@ -442,9 +442,11 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
-**Not shipped**, and neither half may land alone: the milestone that schedules `Core\Xml`'s tree API
-builds this parse in the same milestone, because the tree and the builder interface are one
-implementation and the second one built would otherwise be shaped by whichever landed first.
+**Half shipped, and the halves do not separate.** `Core\Xml`'s door and the node family both parsers
+produce are on disk; the WHATWG parse over them is not, and the goal that landed the tree builds it.
+The tree and the builder interface are one implementation, so whichever was built second would
+otherwise have been shaped by the first — which is why the tree came first and this parse is written
+against it rather than beside it.
 
 <sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
 
