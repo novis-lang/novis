@@ -67,6 +67,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | No custom panic hook — `rule:errors/helper-abi`; its blocker went away in M5 | 28 | `crates/nvs-runtime/src/lib.rs` gap 4 |
 | `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | 28 | `crates/nvs-stdlib/src/process.rs` gap 1 |
 | The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | 20 | `crates/nvs-db/src/matrix.rs` gap 1 |
+| An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | 37 | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
 
 ## Unowned
 
