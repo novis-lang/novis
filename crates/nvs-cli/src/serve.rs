@@ -1,5 +1,6 @@
-//! `nvs serve`: one core, one listening socket, and every request running one
-//! entry file as `rule:security/isolate-shares-nothing`'s isolate.
+//! `nvs serve`: one worker per core, every socket `[server] listen` names, and
+//! every request running one entry file as
+//! `rule:security/isolate-shares-nothing`'s isolate.
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
 //! `rule:concurrency/one-future-per-connection`
@@ -39,19 +40,26 @@
 //! selection is answered by [`nvs_server::statics`]: one static policy, the same
 //! one a proxied origin serves under.
 //!
-//! # Decision: one socket, and the flag is the last word
+//! # Decision: every entry is bound, and the flag is the last word
 //!
-//! `[server] listen` is a flat array (§ 5) and this loop is *one core*, so it
-//! binds the first entry and says on standard error what it left. Binding all of
-//! them is [`nvs_host::NvsListener::from_std`]'s fan-out, which is the slice that
-//! gives this command a core count. `--listen` and `--port` override the file, on
-//! § 5's own sentence; they conflict with each other, because two spellings of
-//! one address is a question guessing an answer to would be worse than refusing.
+//! `[server] listen` is a flat array (§ 5) and
+//! `rule:http-server/the-accept-fan-out-is-one-worker-per-core` binds **every**
+//! entry of it, in the order written, before anything accepts: [`addresses`]
+//! resolves the set and [`bind_all`] binds it, so a deployment answering on two
+//! ports is two listening sockets rather than one and a note about the other.
+//! [`handles_for`] then gives every worker its own handle on every one of them
+//! and [`serve_on_worker`] is what a core does with them — one accept loop per
+//! socket, on that core's own scheduler. `--listen` and `--port` override the
+//! file, on § 5's own sentence; they conflict with each other, because two
+//! spellings of one address is a question guessing an answer to would be worse
+//! than refusing.
 //!
 //! A Unix-domain entry classifies (`nvs_config::server::Listen::Unix`) and is
-//! then refused here, because [`nvs_host::NvsListener`] accepts on TCP alone
-//! today. That refusal moves the day there is a listener for one; the
-//! classification does not.
+//! then refused **once**, over the whole set and before a socket exists,
+//! because [`nvs_host::NvsListener`] accepts on TCP alone today. A refusal
+//! taken where a listener is bound would report one deployment mistake once per
+//! core and leave the process half-listening while it did. That refusal moves
+//! the day there is a listener for one; the classification does not.
 //!
 //! **What it spends**, per `rule:programs/memory-priority`:
 //! one compiled unit per mounted entry, held for the life of the process and
@@ -149,10 +157,11 @@ pub(crate) fn run(
     // beside the valve because the key is `Boot`-class with the rest of the block. It is a bound
     // and not a request for one — a written count is neither raised to this machine's parallelism
     // nor clamped down to it — so the only thing it can refuse is the `0` that leaves nothing
-    // accepting, and this loop accepts on one core.
-    if let Err(diagnostic) = workers_for(&snapshot.config, &origins) {
-        return report(diagnostic, &sources);
-    }
+    // accepting.
+    let workers = match workers_for(&snapshot.config, &origins) {
+        Ok(workers) => workers,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
     // written under `[http.headers]` it is the whole of what every response this
     // server writes carries beside its body, and `nvs_server::secure` owns the
@@ -187,8 +196,8 @@ pub(crate) fn run(
         Arc::new(trusted),
         Arc::new(Cors::of(snapshot.config.http.as_ref())),
     );
-    let addr = match address(&configured, listen, port) {
-        Ok(addr) => addr,
+    let wanted = match addresses(&configured, listen, port) {
+        Ok(wanted) => wanted,
         Err(refusal) => {
             eprintln!("error: {refusal}");
             return ExitCode::FAILURE;
@@ -201,9 +210,10 @@ pub(crate) fn run(
     //
     // A warning and not a refusal, because the same three facts also describe a
     // correct single-machine deployment that has no proxy at all, and this
-    // server cannot tell those apart. It is asked of the address actually
-    // bound rather than of `[server] listen`, so `--listen 0.0.0.0:80` — a
-    // deployment reachable on its own — is not warned at, and it is asked only
+    // server cannot tell those apart. It is asked of the addresses actually
+    // bound and of all of them, rather than of `[server] listen`, so a set with
+    // one entry reachable off this machine — `--listen 0.0.0.0:80`, or a second
+    // written line — is not warned at, and it is asked only
     // of a tree that wrote a `[server]` block, because a directive can only be
     // forgotten out of a block somebody wrote. `nvs serve app.nvs` with no
     // configuration at all is § 1's *development* server and matches all three
@@ -218,12 +228,17 @@ pub(crate) fn run(
     if nobody_trusted
         && snapshot.config.server.is_some()
         && started_in == nvs_config::mode::PRODUCTION
-        && addr.ip().is_loopback()
+        && wanted.iter().all(|addr| addr.ip().is_loopback())
     {
         eprintln!(
-            "warning: [server] trusted_proxies is empty and {addr} is loopback, so no forwarded \
-             header is read and the proxy's own address is what `Core\\Request::clientIp()` will \
-             answer; write the proxy's address or network there"
+            "warning: [server] trusted_proxies is empty and every address this server binds ({}) \
+             is loopback, so no forwarded header is read and the proxy's own address is what \
+             `Core\\Request::clientIp()` will answer; write the proxy's address or network there",
+            wanted
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
 
@@ -264,7 +279,10 @@ pub(crate) fn run(
         );
         return ExitCode::FAILURE;
     }
-    let table = Rc::new(Table::from_config(mounts, &snapshot.config));
+    // This thread's table, for the enumeration below alone. Every worker builds
+    // its own from the same mounts, because a `Table` is an `Rc` graph and
+    // belongs to the thread that reads it.
+    let table = Rc::new(Table::from_config(mounts.clone(), &snapshot.config));
 
     // § 2, kept before the socket exists: **every** path this server can execute
     // is compiled now, so a program that does not compile is a start that fails
@@ -289,23 +307,165 @@ pub(crate) fn run(
         }
     }
 
-    let mut listener = match NvsListener::bind(addr) {
-        Ok(listener) => listener,
-        Err(error) => {
-            eprintln!("error: could not listen on {addr}: {error}");
+    // Every address the set named, bound here and all of it before any worker
+    // exists. That order is the rule's: a bind taken by the core that reached
+    // the entry would report one wrong address once per core, and would leave
+    // the process listening on whichever entries it got to first.
+    let bound = match bind_all(&wanted) {
+        Ok(bound) => bound,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
             return ExitCode::FAILURE;
         }
     };
-    // The path as it was written, not the canonical one the table holds: an
-    // operator reads this line against the command they typed.
-    println!("listening on http://{addr} — {}", path.display());
-    if configured.len() > 1 && listen.is_none() {
-        eprintln!(
-            "note: `[server] listen` names {} addresses and this core binds the first; \
-             one listener per core is the fan-out",
-            configured.len()
-        );
+    // One line per socket, and the path as it was written rather than the
+    // canonical one the table holds: an operator reads these against the
+    // command they typed. The address is the listener's own, so an entry
+    // written with port `0` prints the port the platform chose; the address
+    // asked for is the fallback for a platform that will not answer.
+    for (listener, requested) in bound.iter().zip(&wanted) {
+        let addr = listener.local_addr().unwrap_or(*requested);
+        println!("listening on http://{addr} — {}", path.display());
     }
+
+    // The fan-out itself: one worker per core, each taking its own handle on
+    // every socket bound above, so a connection is accepted by whichever core
+    // reaches it first rather than by one core that hands it on.
+    let mut rows = match handles_for(&bound, workers) {
+        Ok(rows) => rows,
+        Err(error) => {
+            eprintln!("error: could not give every worker its own listener handle: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // The workers' sockets now: this thread accepts on nothing and keeps no
+    // descriptor it does not use.
+    drop(bound);
+    let cpus = nvs_host::cpus();
+    if cpus.is_empty() {
+        // A host that enumerates no CPU offers no `CpuId` to pin to, and that
+        // is the one shape this fan-out cannot take. Every listener is then
+        // accepted on by this thread, which is a server — rather than a start
+        // that failed over a number the platform would not answer.
+        eprintln!(
+            "note: this host enumerates no CPU, so `[server] workers` cannot be honoured and this \
+             thread accepts on every listener alone"
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let core = Core {
+            listeners: rows.swap_remove(0),
+            compiler,
+            mounts,
+            snapshot,
+            waits,
+            serving,
+            ticks: true,
+        };
+        return if serve_on_worker(&mut sched, core) {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+    let mut running = Vec::with_capacity(rows.len());
+    for (index, listeners) in rows.into_iter().enumerate() {
+        let core = Core {
+            listeners,
+            compiler: Arc::clone(&compiler),
+            mounts: mounts.clone(),
+            snapshot: Arc::clone(&snapshot),
+            waits,
+            serving: serving.clone(),
+            // One roster and so one ticker, on the first worker: a schedule
+            // armed per core would fire every entry once per core.
+            ticks: index == 0,
+        };
+        // A count above this machine's parallelism is started rather than
+        // clamped, so two workers can share a CPU: honouring the number the
+        // operator wrote is what the key means, and the cores cycle.
+        let cpu = cpus[index % cpus.len()];
+        match nvs_host::Worker::spawn(cpu, move |sched| serve_on_worker(sched, core)) {
+            Ok(worker) => running.push(worker),
+            Err(error) => {
+                eprintln!(
+                    "error: could not start a worker on CPU {}: {error}",
+                    cpu.raw()
+                );
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    // Every worker's own answer, and this process's is all of them: a core that
+    // stopped on its listener is a failed run however its neighbours ended.
+    let mut served = true;
+    for worker in running {
+        match worker.join() {
+            Ok(ended) => served &= ended,
+            Err(_) => {
+                eprintln!("error: a worker thread ended in a panic");
+                served = false;
+            }
+        }
+    }
+    if served {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+/// What one worker is handed, and the whole of it: everything a core holds of
+/// its own is built from this on the worker's own thread rather than moved onto
+/// it, because the table, the handler and the scheduler's tasks are all `!Send`
+/// by construction ([`nvs_host::Worker`]).
+struct Core {
+    /// This core's own handle on every socket the boot bound, one per
+    /// `[server] listen` entry.
+    listeners: Vec<std::net::TcpListener>,
+    /// The fleet's one compiled-unit cache, so a source compiles once for the
+    /// process rather than once per core.
+    compiler: Arc<Compiler>,
+    /// § 4's mounts, which every core turns into its own [`Table`].
+    mounts: Vec<Mounted>,
+    /// The tree this process booted on, read by every core and written by none.
+    snapshot: Arc<nvs_config::Snapshot>,
+    /// § 5's waits, copied because they are `Boot`-class and nothing reloads
+    /// them under a connection.
+    waits: nvs_config::server::Waits,
+    /// The valve, the header set and the proxy list — one of each for the
+    /// process, shared by clone rather than one per core.
+    serving: Serving,
+    /// Whether this worker arms `rule:config/a-scheduled-run-is-a-root-isolate`'s
+    /// roster and ticks it. True on exactly one of them: a schedule armed per
+    /// core would fire every entry once per core.
+    ///
+    /// A flag rather than the roster itself, because an `Armed` holds an `Rc`
+    /// and so is one of the things a worker builds rather than is handed.
+    ticks: bool,
+}
+
+/// One core's whole server: its own mount table over the fleet's compiler, one
+/// accept loop per listener, the reactor those loops park on, and the schedule
+/// ticker if this is the worker the roster went to.
+///
+/// Answers whether this core ended cleanly, which is what the boot's exit code
+/// is made of — a core that stopped on its own listener is a failed run
+/// whatever its neighbours did.
+fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
+    let Core {
+        listeners,
+        compiler,
+        mounts,
+        snapshot,
+        waits,
+        serving,
+        ticks,
+    } = core;
+    let stopped = Rc::new(Cell::new(false));
+    // This core's own table over § 4's set, which is the same set on every
+    // core: what is per-core is the structure, because an `Rc` graph belongs to
+    // the thread that reads it.
+    let table = Rc::new(Table::from_config(mounts, &snapshot.config));
 
     // Every request goes through § 4's five steps, and what they chose is either
     // a file to send — `nvs_server::statics`, the same policy a configured
@@ -470,13 +630,13 @@ pub(crate) fn run(
     // to run anywhere else. Its own context writes nothing — a connection's
     // bytes are its request's isolate's, captured and handed back as data (ADR
     // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
-    let mut sched = nvs_host::Scheduler::new();
-    let stopped = Rc::new(Cell::new(false));
-    // `rule:config/a-scheduled-run-is-a-root-isolate`'s roster, armed before anything is spawned so that a `fleet`
-    // entry this host will not run is named while an operator is still reading
-    // the boot. `nvs_server::arm` is where that refusal and its reason live; a
-    // tree with no `[[schedule]]` arms nothing and spawns no ticker, which is why
-    // this costs a boot-time walk of an empty vector and no task at all.
+    // `rule:config/a-scheduled-run-is-a-root-isolate`'s roster, armed on the one
+    // worker that ticks it and armed here rather than at the boot, because an
+    // `Armed` holds an `Rc` and cannot cross onto this thread. `nvs_server::arm`
+    // is where the refusal for a `fleet` entry this host will not run lives, and
+    // it is still named while an operator is reading the start; a tree with no
+    // `[[schedule]]` arms nothing and spawns no ticker, which is why this costs
+    // a walk of an empty vector and no task at all.
     //
     // `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and this binary is the one place that
     // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
@@ -487,9 +647,13 @@ pub(crate) fn run(
     // with yet, and § 3's fallback holds: every fleet entry is left unarmed and
     // named. The moment that tier gains a compare-and-set, the implementation
     // is a few lines here and no change at all in the ticker.
-    let mut armed = nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), None, |note| {
-        eprintln!("note: {note}");
-    });
+    let mut armed = if ticks {
+        nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), None, |note| {
+            eprintln!("note: {note}");
+        })
+    } else {
+        Vec::new()
+    };
     if !armed.is_empty() {
         println!(
             "arming {} scheduled entr{}",
@@ -516,38 +680,60 @@ pub(crate) fn run(
             }
         });
     }
-    sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
-        let stopped = Rc::clone(&stopped);
-        let draining = draining.clone();
-        move |_ctx| {
-            // `ControlFlow::Continue` forever: nothing yet asks this command to
-            // stop. Both of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
-            // deployments run until the process ends — the proxied production
-            // origin as much as the laptop — so this is not a development
-            // shortcut but the absence of a caller. The two that will ask are
-            // each their own slice: `Core\Signal`'s handler, which enters this
-            // same drain rather than a second state machine, and the control
-            // socket `rule:config/the-config-is-an-immutable-snapshot` gives
-            // this command. Until one lands, the tail below is unreachable,
-            // `Draining::begin` is never called, and an instance ends by being
-            // killed mid-request.
-            let served = nvs_server::serve_on_this_core(
-                &mut listener,
-                &handler,
-                waits,
-                &serving,
-                &draining,
-                // The same place the boot's own notes go: this command is the
-                // logger the server crate deliberately is not.
-                |note| eprintln!("note: {note}"),
-                || ControlFlow::Continue(()),
-            );
-            if let Err(error) = served {
-                eprintln!("error: the accept loop stopped: {error}");
-                stopped.set(true);
+    // One task per listener, because a parked accept loop answers one socket
+    // and every entry of `[server] listen` is bound. They share this core, its
+    // handler and the units behind it; the other cores are running this same
+    // set of loops on their own handles on these same descriptors, and the
+    // kernel's accept queue is what decides which of them takes a connection.
+    for handle in listeners {
+        let addr = handle.local_addr().ok();
+        let mut listener = match NvsListener::from_std(handle) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("error: this core could not take its handle on a socket: {error}");
+                return false;
             }
-        }
-    });
+        };
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let stopped = Rc::clone(&stopped);
+            let draining = draining.clone();
+            let handler = Rc::clone(&handler);
+            let serving = serving.clone();
+            move |_ctx| {
+                // `ControlFlow::Continue` forever: nothing yet asks this command to
+                // stop. Both of `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
+                // deployments run until the process ends — the proxied production
+                // origin as much as the laptop — so this is not a development
+                // shortcut but the absence of a caller. The two that will ask are
+                // each their own slice: `Core\Signal`'s handler, which enters this
+                // same drain rather than a second state machine, and the control
+                // socket `rule:config/the-config-is-an-immutable-snapshot` gives
+                // this command. Until one lands, the tail below is unreachable,
+                // `Draining::begin` is never called, and an instance ends by being
+                // killed mid-request.
+                let served = nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    waits,
+                    &serving,
+                    &draining,
+                    // The same place the boot's own notes go: this command is the
+                    // logger the server crate deliberately is not.
+                    |note| eprintln!("note: {note}"),
+                    || ControlFlow::Continue(()),
+                );
+                if let Err(error) = served {
+                    match addr {
+                        Some(addr) => {
+                            eprintln!("error: the accept loop on {addr} stopped: {error}");
+                        }
+                        None => eprintln!("error: an accept loop stopped: {error}"),
+                    }
+                    stopped.set(true);
+                }
+            }
+        });
+    }
 
     // The reactor is what a parked coroutine is woken by, and every connection
     // parks; the resolver is installed for the whole run so that a served
@@ -557,7 +743,7 @@ pub(crate) fn run(
         Ok(reactor) => reactor,
         Err(error) => {
             eprintln!("error: could not start the reactor: {error}");
-            return ExitCode::FAILURE;
+            return false;
         }
     };
     let installed = nvs_host::reactor::install(reactor);
@@ -572,7 +758,7 @@ pub(crate) fn run(
     // returned.
     let ran = nvs_runtime::script::scoped(compiler.as_ref(), || {
         loop {
-            match nvs_host::run_until_idle(&mut sched) {
+            match nvs_host::run_until_idle(sched) {
                 Ok(report) if report.parked > 0 => {}
                 Ok(_) => return Ok(()),
                 Err(error) => return Err(error),
@@ -582,12 +768,9 @@ pub(crate) fn run(
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
-        return ExitCode::FAILURE;
+        return false;
     }
-    if stopped.get() {
-        return ExitCode::FAILURE;
-    }
-    ExitCode::SUCCESS
+    !stopped.get()
 }
 
 /// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
@@ -746,51 +929,131 @@ fn one_mount(path: &Path) -> Result<Mounted, String> {
     })
 }
 
-/// The one address this core binds: the file's first entry, then whichever flag
-/// had the last word.
+/// Every address this server binds: the file's entries in the order written,
+/// then whichever flag had the last word.
+///
+/// `--listen` names one address and replaces the whole set, because that is
+/// what overriding an array with a single spelling means. `--port` is the last
+/// word for its own key alone and keeps each entry's host.
 ///
 /// # Errors
 ///
 /// A `--listen` that is not a literal address, and a Unix-domain entry there is
-/// no listener for yet — the module doc owns both. The refusal is a sentence
-/// rather than a [`nvs_diagnostics::Diagnostic`] when it came from a flag,
-/// because a command line has no file and no span to point into.
-fn address(
+/// no listener for yet — the module doc owns both. **One refusal names every
+/// entry it applies to**, because the set is read here, once, before any
+/// listener is bound. The refusal is a sentence rather than a
+/// [`nvs_diagnostics::Diagnostic`] when it came from a flag, because a command
+/// line has no file and no span to point into.
+fn addresses(
     configured: &[Listen],
     listen: Option<&str>,
     port: Option<u16>,
-) -> Result<SocketAddr, String> {
+) -> Result<Vec<SocketAddr>, String> {
     if let Some(written) = listen {
-        return written.parse::<SocketAddr>().map_err(|_| {
-            format!(
-                "`--listen {written}` is not an address and a port; write `127.0.0.1:8000` or \
-                 `[::1]:8000`"
-            )
-        });
+        return written
+            .parse::<SocketAddr>()
+            .map(|addr| vec![addr])
+            .map_err(|_| {
+                format!(
+                    "`--listen {written}` is not an address and a port; write `127.0.0.1:8000` or \
+                     `[::1]:8000`"
+                )
+            });
+    }
+    let mut bound = Vec::with_capacity(configured.len());
+    let mut unsupported = Vec::new();
+    for entry in configured {
+        let addr = match (entry, port) {
+            (Listen::Tcp(addr), None) => *addr,
+            // The flag is the last word for its own key alone: a port written
+            // here keeps the host the file chose, so `--port` over a `0.0.0.0:80`
+            // does not quietly narrow the deployment to loopback.
+            (Listen::Tcp(addr), Some(port)) => SocketAddr::new(addr.ip(), port),
+            // And over a Unix entry it names a whole address, since there is no
+            // host in one to keep. `127.0.0.1` because that is § 5's own default
+            // and the one a development machine means.
+            (Listen::Unix(_), Some(port)) => {
+                SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port))
+            }
+            (Listen::Unix(path), None) => {
+                unsupported.push(format!("`{}`", path.display()));
+                continue;
+            }
+        };
+        // Two entries that resolve to one address are one socket: the platform
+        // has no second one to give, and `--port` over a mixed set is how two
+        // entries collapse into one. Port `0` is never a duplicate — it asks
+        // for another free port, and the platform answers a different one.
+        if addr.port() == 0 || !bound.contains(&addr) {
+            bound.push(addr);
+        }
+    }
+    if !unsupported.is_empty() {
+        return Err(format!(
+            "`[server] listen` asks for the Unix-domain socket{} {}, and this server accepts on \
+             TCP alone today; write `--listen 127.0.0.1:8000` or a `host:port` entry",
+            if unsupported.len() == 1 { "" } else { "s" },
+            unsupported.join(", ")
+        ));
     }
     // `listen_on` never answers with an empty list — an empty array is its own
-    // refusal — so the first entry is the configured one.
-    let first = configured
-        .first()
-        .ok_or_else(|| "`[server] listen` named no address".to_owned())?;
-    match (first, port) {
-        (Listen::Tcp(addr), None) => Ok(*addr),
-        // The flag is the last word for its own key alone: a port written here
-        // keeps the host the file chose, so `--port` over a `0.0.0.0:80` does
-        // not quietly narrow the deployment to loopback.
-        (Listen::Tcp(addr), Some(port)) => Ok(SocketAddr::new(addr.ip(), port)),
-        // And over a Unix entry it names a whole address, since there is no
-        // host in one to keep. `127.0.0.1` because that is § 5's own default
-        // and the one a development machine means.
-        (Listen::Unix(_), Some(port)) => {
-            Ok(SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port)))
-        }
-        (Listen::Unix(path), None) => Err(format!(
-            "`[server] listen` asks for the Unix-domain socket `{}`, and this server accepts on \
-             TCP alone today; write `--listen 127.0.0.1:8000` or a `host:port` entry",
-            path.display()
-        )),
+    // refusal — so this is the file's set and not a server that accepts nothing.
+    if bound.is_empty() {
+        return Err("`[server] listen` named no address".to_owned());
     }
+    Ok(bound)
+}
+
+/// Every address bound, in the order [`addresses`] gave them.
+///
+/// One call and one place, so a start that cannot have all of its sockets is a
+/// start that fails: the listeners already bound are dropped on the way out of
+/// the error, and nothing has accepted on any of them yet. They are `std`
+/// listeners because a socket is bound before any core exists and each core
+/// then takes its own handle on it ([`handles_for`],
+/// [`nvs_host::NvsListener::from_std`]).
+///
+/// # Errors
+///
+/// The platform's, for the first address it refuses — already in use, or not
+/// one of this host's — with that address named, because a refusal an operator
+/// has to guess the subject of is one they read the configuration twice for.
+fn bind_all(wanted: &[SocketAddr]) -> Result<Vec<std::net::TcpListener>, String> {
+    wanted
+        .iter()
+        .map(|addr| {
+            std::net::TcpListener::bind(addr)
+                .map_err(|error| format!("could not listen on {addr}: {error}"))
+        })
+        .collect()
+}
+
+/// One row of handles per worker: every socket the boot bound, duplicated once
+/// for each core that will accept on it.
+///
+/// A duplicate is the same socket — [`std::net::TcpListener::try_clone`] — so
+/// the cores share one accept queue per listener and a connection goes to
+/// whichever of them reaches it first, which is
+/// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s first
+/// sentence rather than a core handing work on. Taken here, before any worker
+/// exists, so a platform that refuses is a start that fails rather than a core
+/// quietly missing a listener.
+///
+/// # Errors
+///
+/// The platform's, for the first handle it will not duplicate.
+fn handles_for(
+    bound: &[std::net::TcpListener],
+    workers: usize,
+) -> std::io::Result<Vec<Vec<std::net::TcpListener>>> {
+    (0..workers)
+        .map(|_| {
+            bound
+                .iter()
+                .map(std::net::TcpListener::try_clone)
+                .collect::<std::io::Result<Vec<_>>>()
+        })
+        .collect()
 }
 
 /// One configuration refusal, rendered with the line it came from.
@@ -803,7 +1066,7 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 
 #[cfg(test)]
 mod tests {
-    use super::{Listen, SocketAddr, address, sweep_orphans, workers_for};
+    use super::{Listen, SocketAddr, addresses, bind_all, handles_for, sweep_orphans, workers_for};
     use std::collections::BTreeMap;
     use std::num::NonZeroUsize;
     use std::path::PathBuf;
@@ -871,43 +1134,194 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// `rule:http-server/the-server-block-is-boot-class`'s own sentence: the flag overrides the file. Asserted
-    /// against a configured entry that is nothing like it, so a reading that
-    /// merged the two rather than replacing would fail here.
+    /// `rule:http-server/the-server-block-is-boot-class`'s own sentence, in
+    /// both directions the flags have and the one refusal between them —
+    /// unchanged by the fan-out, which is the half this case exists to hold.
+    ///
+    /// `--listen` replaces the configured set whole rather than merging into
+    /// it, which is what overriding an array with one spelling means; it is
+    /// asserted against a set that is nothing like it and longer than it, so a
+    /// reading that kept the entries the flag did not mention would fail here.
+    /// `--port` is the last word for its own key alone, so every entry keeps
+    /// the host the file chose — the half a flag replacing whole addresses
+    /// would get wrong, since a deployment listening on every interface still
+    /// is one after it. And the two conflict at the command line, so there is
+    /// never a set the two of them would have to be merged into.
     #[test]
-    fn a_listen_flag_is_the_last_word_over_the_configured_address() {
-        let configured = vec![tcp("0.0.0.0:80")];
+    fn listen_and_port_flags_still_override_the_file_and_still_conflict() {
+        use clap::Parser as _;
+
+        let configured = vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000")];
         assert_eq!(
-            address(&configured, Some("127.0.0.1:9001"), None).expect("a literal address"),
-            "127.0.0.1:9001".parse::<SocketAddr>().expect("parses")
+            addresses(&configured, Some("127.0.0.1:9001"), None).expect("a literal address"),
+            vec!["127.0.0.1:9001".parse::<SocketAddr>().expect("parses")]
         );
-        assert!(address(&configured, Some("localhost:9001"), None).is_err());
+        assert!(addresses(&configured, Some("localhost:9001"), None).is_err());
+        assert_eq!(
+            addresses(&configured, None, Some(9001)).expect("an address per entry"),
+            vec![
+                "0.0.0.0:9001".parse::<SocketAddr>().expect("parses"),
+                "127.0.0.1:9001".parse::<SocketAddr>().expect("parses"),
+            ]
+        );
+        assert_eq!(
+            addresses(&configured, None, None).expect("the file's own set"),
+            vec![
+                "0.0.0.0:80".parse::<SocketAddr>().expect("parses"),
+                "127.0.0.1:8000".parse::<SocketAddr>().expect("parses"),
+            ]
+        );
+
+        assert!(
+            crate::Cli::try_parse_from([
+                "nvs",
+                "serve",
+                "app.nvs",
+                "--listen",
+                "127.0.0.1:9001",
+                "--port",
+                "9002",
+            ])
+            .is_err(),
+            "two spellings of one address are refused rather than merged"
+        );
+        assert!(
+            crate::Cli::try_parse_from(["nvs", "serve", "app.nvs", "--listen", "127.0.0.1:9001"])
+                .is_ok(),
+            "`--listen` alone is the last word"
+        );
+        assert!(
+            crate::Cli::try_parse_from(["nvs", "serve", "app.nvs", "--port", "9002"]).is_ok(),
+            "`--port` alone is the last word"
+        );
     }
 
-    /// `--port` is the last word for the port and for nothing else, which is
-    /// the half a flag replacing the whole address would get wrong: a
-    /// deployment listening on every interface still is one after it.
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s first
+    /// sentence, from both of the ends it has: the set every entry resolves to,
+    /// and the sockets that set leaves listening.
+    ///
+    /// The bind half is what a resolution answering three addresses and a boot
+    /// binding the first of them would still pass without, so the case connects
+    /// to each listener's own address — which no unbound port answers. Port `0`
+    /// for each, so the platform picks three free ones and this case races
+    /// nothing else on the machine running it.
     #[test]
-    fn a_port_flag_keeps_the_host_the_file_chose() {
-        let bound = address(&[tcp("0.0.0.0:80")], None, Some(9001)).expect("an address");
-        assert_eq!(bound, "0.0.0.0:9001".parse::<SocketAddr>().expect("parses"));
+    fn every_entry_of_server_listen_is_bound_rather_than_the_first() {
+        let configured = vec![tcp("0.0.0.0:80"), tcp("127.0.0.1:8000"), tcp("[::1]:8100")];
         assert_eq!(
-            address(&[tcp("127.0.0.1:8000")], None, None).expect("an address"),
-            "127.0.0.1:8000".parse::<SocketAddr>().expect("parses")
+            addresses(&configured, None, None).expect("a literal set"),
+            vec![
+                "0.0.0.0:80".parse::<SocketAddr>().expect("parses"),
+                "127.0.0.1:8000".parse::<SocketAddr>().expect("parses"),
+                "[::1]:8100".parse::<SocketAddr>().expect("parses"),
+            ]
         );
+
+        let ephemeral = vec![tcp("127.0.0.1:0"), tcp("127.0.0.1:0"), tcp("127.0.0.1:0")];
+        let wanted = addresses(&ephemeral, None, None).expect("three loopback entries");
+        assert_eq!(wanted.len(), 3);
+        let listeners = bind_all(&wanted).expect("three free ports on the loopback");
+        let mut answered = Vec::new();
+        for listener in &listeners {
+            let addr = listener
+                .local_addr()
+                .expect("a bound socket knows its own address");
+            std::net::TcpStream::connect(addr)
+                .unwrap_or_else(|error| panic!("nothing is listening on {addr}: {error}"));
+            answered.push(addr);
+        }
+        answered.sort();
+        answered.dedup();
+        assert_eq!(answered.len(), 3, "three entries are three sockets");
     }
 
-    /// The refusal that moves the day there is a Unix listener, and the flag
-    /// that gets past it in the meantime — both here, because a configuration a
-    /// proxy should prefer must not simply fail to start with nothing to try.
+    /// `rule:http-server/the-accept-fan-out-is-one-worker-per-core`'s second
+    /// half: the count is `[server] workers`, and every one of those workers
+    /// holds its own handle on every socket the boot bound.
+    ///
+    /// Driven through `nvs_host::Worker` rather than asserted on the rows
+    /// alone, because a handle that does not survive the move onto another
+    /// thread is exactly the failure this shape exists to avoid: each worker
+    /// answers with the addresses it can see from its own core, and they are
+    /// the same sockets in the same order. The sockets outliving every worker
+    /// is the other half — a row is a duplicate of the descriptor and not the
+    /// only one, so a core that ends closes nothing for its neighbours.
     #[test]
-    fn a_unix_entry_is_refused_until_there_is_a_listener_for_one() {
-        let configured = vec![Listen::Unix(PathBuf::from("/run/nvs.sock"))];
-        let refusal = address(&configured, None, None).expect_err("a socket was bound");
-        assert!(refusal.contains("/run/nvs.sock"), "unhelpful: {refusal}");
+    fn one_worker_is_spawned_per_core_and_each_takes_its_own_listener_handle() {
+        let configured = vec![tcp("127.0.0.1:0"), tcp("127.0.0.1:0")];
+        let bound = bind_all(&addresses(&configured, None, None).expect("two loopback entries"))
+            .expect("two free ports on the loopback");
+        let listening: Vec<SocketAddr> = bound
+            .iter()
+            .map(|listener| listener.local_addr().expect("a bound socket"))
+            .collect();
+
+        let workers = workers_for(&config_of("[server]\nworkers = 3\n"), &BTreeMap::new())
+            .expect("a written count was refused");
+        let rows = handles_for(&bound, workers).expect("a handle per socket per worker");
+        assert_eq!(rows.len(), 3, "one row of handles per worker");
+
+        let cpus = nvs_host::cpus();
+        if cpus.is_empty() {
+            // No `CpuId` to pin to is the one host `run` serves from this
+            // thread instead, and there is no worker here to assert about.
+            return;
+        }
+        let mut running = Vec::new();
+        for (index, row) in rows.into_iter().enumerate() {
+            let cpu = cpus[index % cpus.len()];
+            running.push(
+                nvs_host::Worker::spawn(cpu, move |_sched| {
+                    row.iter()
+                        .map(|listener| listener.local_addr().expect("this core's own handle"))
+                        .collect::<Vec<_>>()
+                })
+                .expect("the platform started a worker"),
+            );
+        }
+        for worker in running {
+            assert_eq!(
+                worker.join().expect("a worker ended in a panic"),
+                listening,
+                "every worker sees every socket, in the order they were bound"
+            );
+        }
+        for addr in &listening {
+            std::net::TcpStream::connect(addr)
+                .unwrap_or_else(|error| panic!("{addr} stopped listening: {error}"));
+        }
+    }
+
+    /// The Unix-domain refusal, taken over the whole set before any listener
+    /// exists rather than by the core that reached the entry: two entries are
+    /// one message naming both, and the flag still gets past it in the
+    /// meantime, because a configuration a proxy should prefer must not simply
+    /// fail to start with nothing to try.
+    #[test]
+    fn a_unix_domain_entry_is_refused_once_rather_than_once_per_core() {
+        let configured = vec![
+            tcp("127.0.0.1:8000"),
+            Listen::Unix(PathBuf::from("/run/nvs.sock")),
+            Listen::Unix(PathBuf::from("/run/nvs-admin.sock")),
+        ];
+        let refusal = addresses(&configured, None, None).expect_err("a socket was bound");
+        assert!(
+            refusal.contains("/run/nvs.sock") && refusal.contains("/run/nvs-admin.sock"),
+            "one refusal names every entry it applies to: {refusal}"
+        );
         assert_eq!(
-            address(&configured, None, Some(8080)).expect("the flag is the last word"),
-            "127.0.0.1:8080".parse::<SocketAddr>().expect("parses")
+            refusal.matches("accepts on TCP alone").count(),
+            1,
+            "one deployment mistake is one refusal: {refusal}"
+        );
+        assert_eq!(
+            addresses(
+                &[Listen::Unix(PathBuf::from("/run/nvs.sock"))],
+                None,
+                Some(8080)
+            )
+            .expect("the flag is the last word"),
+            vec!["127.0.0.1:8080".parse::<SocketAddr>().expect("parses")]
         );
     }
 

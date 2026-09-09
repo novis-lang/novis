@@ -62,8 +62,9 @@
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of § 4, which is the same walk at boot.
-//! * `nvs serve <file>` — one core, one listening socket, every request
-//!   running the entry file as its own isolate; see [`serve`].
+//! * `nvs serve <file>` — one worker per core, every socket `[server] listen`
+//!   names, every request running the entry file as its own isolate; see
+//!   [`serve`].
 //! * `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s
 //!   two tables, created by the operator's explicit command; see [`queue`],
 //!   and [`worker`] for the in-process worker `[queue] workers` starts.
