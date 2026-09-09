@@ -126,6 +126,26 @@ entry = "examples/http.nvs"
 connect = ["127.0.0.1", "169.254.169.254"]
 internal = ["127.0.0.1"]
 
+# `examples/net-echo.nvs` binds a port and then dials it, and ADR 0162 § 8 is
+# why that is three keys rather than one. `net.listen` is the bind, matched
+# against the endpoint exactly; `net.connect` is the dial, matched against the
+# host; and `net.internal` is ADR 0058 § 3's exception, because loopback is one
+# of the ranges the address policy denies by default and the program supplies
+# that address itself. None of the three widens either of the others, which is
+# the whole of what the fixture demonstrates from the configuration's side.
+#
+# `listen` is `true` and not an endpoint literal because the program asks for
+# port `0`: the endpoint it binds is picked by the operating system, and there
+# is no `127.0.0.1:0` a reviewer could read as the port it ended up on. A
+# deployment that binds a port it chose writes that endpoint out instead.
+[[app]]
+entry = "examples/net-echo.nvs"
+
+[app.capabilities.net]
+listen = true
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
+
 # `examples/cache.nvs` reaches the store `[cache.shared] url` names at the foot of
 # this file, and one line grants it: `cache.shared` names the *store* an operator
 # configured, not the address it is at, which is ADR 0142 § 1. That the store is

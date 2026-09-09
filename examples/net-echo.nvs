@@ -1,0 +1,70 @@
+<?nvs
+// `Core\Net` over TCP, as a program: one process binds a port, dials itself,
+// and sends a line back the way it came.
+//
+// [ADR 0162](/docs/decisions/0162.md) § 7 is the surface — one class over three
+// transports, five entry points, and `accept` as a member on the listener
+// rather than a sixth way in. Two of those five are on disk and this file is
+// both of them.
+//
+// The whole program runs in one task and never deadlocks, which is worth
+// knowing rather than guessing at: a TCP connect completes into the listener's
+// backlog, so `connect` below returns before anything has accepted, and the
+// `accept` that follows finds a connection already waiting.
+//
+// `nvs.toml` grants this file three things and the header of its block says
+// why each is separate. `net.listen` is the bind, `net.connect` is the dial,
+// and `net.internal` is what lets the dial reach `127.0.0.1` at all — ADR 0058
+// § 3 denies loopback by default, and § 8 of ADR 0162 is why holding the first
+// of those three does not buy the second.
+
+// 1. The bind. Port `0` asks the operating system to pick, which is the only
+// way a fixture can take a port without racing whatever else is on this
+// machine — and `port()` is how the program learns which one it got. The
+// number is deliberately not printed: it is different on every run, and the
+// output of this file is frozen.
+var $door = Core\Net::listen("127.0.0.1", 0);
+uint $port = $door->port();
+echo "listening: ", ($port > 0) as string, "\n";
+
+// 2. The dial, which is the other grant. Every wait here names its own bound —
+// there is no spelling for waiting forever, because a socket's peer is not
+// this program and a read with no bound is a wait somebody else decides the
+// length of.
+var $client = Core\Net::connect("127.0.0.1", $port, 5s);
+var $served = $door->accept(5s);
+
+// 3. The round trip. `write` answers how many octets the socket took and
+// `read` answers what had arrived, so neither pretends to have moved the whole
+// buffer — on a loopback connection of five octets both do, which is what
+// makes these two lines a constant.
+uint $sent = $client->write("ping\n" as bytes, 5s);
+echo "sent: ", $sent as string, "\n";
+
+tainted bytes $heard = $served->read(64, 5s);
+uint $echoed = $served->write($heard, 5s);
+echo "echoed: ", $echoed as string, "\n";
+
+tainted bytes $back = $client->read(64, 5s);
+echo "back: ", Core\Str::trim($back as string), "\n";
+
+// 4. The end of the stream is an empty answer and not an error: the peer
+// closed its writing half, and a program looping until there is nothing left
+// needs to be able to tell that from a failure.
+$client->close();
+tainted bytes $eof = $served->read(64, 5s);
+echo "eof: ", (Core\Bytes::length($eof) == 0) as string, "\n";
+
+$served->close();
+$door->close();
+
+// 5. And the refusal, which is the half of this class that has nothing to do
+// with sockets. `example.invalid` is granted by nothing, so it is refused
+// before it is resolved — the door asks the capability first precisely so that
+// an ungranted program cannot use `connect` as a resolver.
+try {
+    var $nowhere = Core\Net::connect("example.invalid", 80, 1s);
+    echo "reached it", "\n";
+} catch (RuntimeError $refused) {
+    echo "refused: ", $refused->message, "\n";
+}

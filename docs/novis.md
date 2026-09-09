@@ -145,6 +145,9 @@ Conventions the whole file uses:
 | [`Core\Http\Target`](#core-core-http-target) |  |
 | [`Core\Http\Client`](#core-core-http-client) |  |
 | [`Core\Http\Response`](#core-core-http-response) |  |
+| [`Core\Net`](#core-core-net) |  |
+| [`Core\Net\Stream`](#core-core-net-stream) |  |
+| [`Core\Net\Listener`](#core-core-net-listener) |  |
 | [`Core\Cache`](#core-core-cache) |  |
 | [`Core\Cache\Store`](#core-core-cache-store) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
@@ -18649,6 +18652,167 @@ $response->text(): tainted string
 The reply's body as text, replacing `curl_exec`'s return value and the `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.
 
 **Returns** `tainted string` — The body, `tainted`: it is bytes another host chose, and a pinned address settles where they came from rather than what is in them. A sink's own launderer is the way out of it, and there is no generic one.
+
+<a id="core-core-net"></a>
+### `Core\Net`
+
+Keywords: connect, listen
+
+| Member | Signature |
+|---|---|
+| [`Core\Net::connect`](#core-core-net-connect) | `connect(string $host, uint $port, Core\Time\Duration $within): Core\Net\Stream` |
+| [`Core\Net::listen`](#core-core-net-listen) | `listen(string $address, uint $port): Core\Net\Listener` |
+
+<a id="core-core-net-connect"></a>
+#### `Core\Net::connect`
+
+```nvs skip
+Core\Net::connect(string $host, uint $port, Core\Time\Duration $within): Core\Net\Stream
+```
+
+Opens a TCP connection to `$host` on `$port`, parking on the runtime's reactor while the handshake is in flight. Needs `net.connect` for the host, and the address it resolves to must not be one the address policy denies.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$host` | `string` (sink) | A hostname or an address literal. It is checked against the grant before it is resolved, and the one address it resolves to is what the connection is made to. |
+| `$port` | `uint` | The port to connect to, 1 to 65535. |
+| `$within` | `Core\Time\Duration` | How long the handshake may take. The bound is lifted once the connection is up, so a later read takes whatever bound its own caller names. |
+
+**Returns** `Core\Net\Stream` — An open `Core\Net\Stream`, closed with this request if the program does not close it first.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.connect` for this host, the host resolves to no address, the address it resolves to is in a denied range, or `$port` is not a port.; `TimeoutError` — The handshake was still in flight when `$within` ran out.; `IOError` — The connection failed — refused, unreachable, or reset while it was being established.
+
+<a id="core-core-net-listen"></a>
+#### `Core\Net::listen`
+
+```nvs skip
+Core\Net::listen(string $address, uint $port): Core\Net\Listener
+```
+
+Binds a listening TCP socket to `$address` on `$port`. Needs `net.listen` for that exact endpoint; the address policy `net.connect` carries does not apply, because its terms invert under a bind.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$address` | `string` (sink) | An address literal — `127.0.0.1`, `::1`, `0.0.0.0`. Not a hostname: the grant is matched against one endpoint, and a name resolving to two could not be the one an operator named. |
+| `$port` | `uint` | The port to bind, or `0` to let the operating system pick one — which `Core\Net\Listener::port` then reports. |
+
+**Returns** `Core\Net\Listener` — A bound `Core\Net\Listener`, closed with this request if the program does not close it first.
+
+**Throws** `RuntimeError` — The configuration does not grant `net.listen` for this endpoint, `$address` is not an address literal, or `$port` is not a port.; `IOError` — The operating system refused the bind — the port is taken, or the address is not one of this host's.
+
+<a id="core-core-net-stream"></a>
+### `Core\Net\Stream`
+
+Keywords: read, write, close
+
+| Member | Signature |
+|---|---|
+| [`Core\Net\Stream->read`](#core-core-net-stream-read) | `read(uint $max, Core\Time\Duration $within): tainted bytes` |
+| [`Core\Net\Stream->write`](#core-core-net-stream-write) | `write(bytes $payload, Core\Time\Duration $within): uint` |
+| [`Core\Net\Stream->close`](#core-core-net-stream-close) | `close(): void` |
+
+<a id="core-core-net-stream-read"></a>
+#### `Core\Net\Stream->read`
+
+```nvs skip
+$stream->read(uint $max, Core\Time\Duration $within): tainted bytes
+```
+
+Reads whatever has arrived, up to `$max` octets, waiting no longer than `$within`. A short answer is ordinary and not an error: a socket reports what arrived, never what was asked for.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$max` | `uint` | The most octets to answer with. The buffer is capped below this where `$max` is larger than one read can usefully be. |
+| `$within` | `Core\Time\Duration` | How long to wait for the first octet. It bounds this call alone. |
+
+**Returns** `tainted bytes` — The octets that arrived, as `tainted bytes`, or an empty `bytes` once the peer has closed its half — which is how the end of a stream is spelled.
+
+**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — Nothing arrived within `$within`.; `IOError` — The connection failed — reset by the peer, or dropped by the network.
+
+<a id="core-core-net-stream-write"></a>
+#### `Core\Net\Stream->write`
+
+```nvs skip
+$stream->write(bytes $payload, Core\Time\Duration $within): uint
+```
+
+Writes `$payload` to the peer, waiting no longer than `$within`, and answers how many octets the socket took. A write that took only some of them is ordinary: the caller sends the rest.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$payload` | `bytes` (neutral) | The octets to send. |
+| `$within` | `Core\Time\Duration` | How long to wait for the socket to take octets. It bounds this call alone. |
+
+**Returns** `uint` — How many octets of `$payload` were written, which is between `0` and its length.
+
+**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — The socket took nothing within `$within`.; `IOError` — The connection failed — reset by the peer, or its reading half closed.
+
+<a id="core-core-net-stream-close"></a>
+#### `Core\Net\Stream->close`
+
+```nvs skip
+$stream->close(): void
+```
+
+Closes this connection and gives its reactor registration back. A request that forgets closes every socket it opened when it ends.
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — This handle is already closed.
+
+<a id="core-core-net-listener"></a>
+### `Core\Net\Listener`
+
+Keywords: accept, port, close
+
+| Member | Signature |
+|---|---|
+| [`Core\Net\Listener->accept`](#core-core-net-listener-accept) | `accept(Core\Time\Duration $within): Core\Net\Stream` |
+| [`Core\Net\Listener->port`](#core-core-net-listener-port) | `port(): uint` |
+| [`Core\Net\Listener->close`](#core-core-net-listener-close) | `close(): void` |
+
+<a id="core-core-net-listener-accept"></a>
+#### `Core\Net\Listener->accept`
+
+```nvs skip
+$listener->accept(Core\Time\Duration $within): Core\Net\Stream
+```
+
+Takes the next connection off this listener, waiting no longer than `$within`, and answers it as a stream. It asks no capability: the bind was granted when `Core\Net::listen` opened this socket.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$within` | `Core\Time\Duration` | How long to wait for a connection. It bounds this call alone. |
+
+**Returns** `Core\Net\Stream` — The accepted connection, closed with this request if the program does not close it first.
+
+**Throws** `RuntimeError` — This handle is closed.; `TimeoutError` — No connection arrived within `$within`.; `IOError` — The operating system failed the accept.
+
+<a id="core-core-net-listener-port"></a>
+#### `Core\Net\Listener->port`
+
+```nvs skip
+$listener->port(): uint
+```
+
+The port this listener is bound to, which is how a program that asked for `0` learns the one the operating system picked.
+
+**Returns** `uint` — The bound port, 1 to 65535.
+
+**Throws** `RuntimeError` — This handle is closed.; `IOError` — The operating system would not answer for this socket.
+
+<a id="core-core-net-listener-close"></a>
+#### `Core\Net\Listener->close`
+
+```nvs skip
+$listener->close(): void
+```
+
+Stops listening and gives the port back. Connections already accepted are unaffected: each is its own socket.
+
+**Returns** `void` — Nothing.
+
+**Throws** `RuntimeError` — This handle is already closed.
 
 <a id="core-core-cache"></a>
 ### `Core\Cache`
