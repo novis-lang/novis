@@ -41,10 +41,12 @@
 //!    a column needs a decoder that records positions
 //!    ([`crate::string_lit`] is where that would live). The message quotes the
 //!    offending placeholder instead, which is what a reader searches for.
+//!    — owner: unowned
 //! 2. **Nothing is prepared yet.** § 3's second effect — the compiled pattern
 //!    and the parsed plan stored in `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache — needs a
 //!    channel from here to `nvs-ir`; validation is the half that pays for
 //!    itself without one, and is what `nvs check` reports.
+//!    — owner: unowned
 //! 3. **A member's own restriction on a well-formed pattern is left to run
 //!    time.** `Core\Time::parse` refuses a *zonal* field in a pattern the
 //!    grammar reads perfectly well (`nvs_stdlib::cldr`'s `civil_fields_only`),
@@ -54,10 +56,12 @@
 //!    refusing it here would need a per-row restriction the table does not
 //!    have a column for. Leaving it leaves § 4 intact: everything this pass
 //!    refuses, the runtime refuses too.
+//!    — owner: unowned
 //! 4. **A named or spread argument is not read.** `Core\Str::format(template:
 //!    "…")` folds nothing and runs unvalidated, exactly as
 //!    [`crate::links`]' own gap 1 describes: reading one needs the slot
 //!    mapping `check_args_typed` built and this pass is not handed.
+//!    — owner: unowned
 //! 5. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
 //!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
 //!    module doc declines it in the other direction, because an unterminated
@@ -66,6 +70,7 @@
 //!    Refusing it here would be the one thing this pass refuses that the
 //!    rewriter does not, which is § 4 read backwards. It waits on which of the
 //!    two docs is right, not on a scan.
+//!    — owner: unowned
 //! 6. **`rule:core-classes/db-literal-query-checking`'s host check reaches only a caller that hands over a
 //!    configuration**, and `nvs check` is not yet one. [`crate::Env::grants`]
 //!    is the channel and [`crate::check::check_program_granted`] is how a
@@ -74,6 +79,7 @@
 //!    is a decision about `nvs check` rather than about this pass — a command
 //!    that reads configuration is a command a broken `nvs.toml` can fail — and
 //!    it belongs where that command's own errors are decided.
+//!    — owner: unowned
 
 use nvs_config::capability::Cap;
 use nvs_diagnostics::{Diagnostic, SourceFile, code};
