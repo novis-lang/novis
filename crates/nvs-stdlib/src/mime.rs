@@ -35,22 +35,25 @@
 //! outlives the call. `detect` copies no part of its argument and allocates
 //! nothing; the answer is an integer.
 //!
+//! **What a prefix cannot say, this class does not say**, and the two places
+//! that shows are the table's shape rather than holes in it. A format
+//! serialized as text — SVG, JSON, CSV, HTML, plain text — opens with whatever
+//! its author wrote, so naming one from a prefix is guessing, and the members
+//! that decide such a format decide it by parsing: `Core\Json::isValid` and
+//! `Core\Xml`'s reader. A zip container answers `Zip`, because what
+//! distinguishes `.docx`, `.xlsx`, `.odt` and `.jar` is a named entry inside,
+//! which is `Core\Zip`'s reading and not a signature. Spec § 17's row defers
+//! *what deliberately has no case* to this doc
+//! ([01-core-library.md](/docs/spec/01-core-library.md) § 17), and these two
+//! are it: `Unknown` and `Zip` are the honest answers about the octets.
+//!
 //! # Known gaps
 //!
-//! 1. **A format serialized as text has no signature, and answers `Unknown`.**
-//!    SVG, JSON, CSV, HTML and plain text open with whatever their author
-//!    wrote. Naming one from a prefix is guessing, and the members that decide
-//!    such a format decide it by parsing — `Core\Json::isValid` and
-//!    `Core\Xml`'s reader — which is an answer this class cannot give in a
-//!    prefix comparison.
-//! 2. **EBML's magic is shared, so neither WebM nor Matroska has a case.**
+//! 1. **EBML's magic is shared, so neither WebM nor Matroska has a case.**
 //!    Telling them apart means reading the `DocType` element, which is a parse
 //!    rather than a prefix, and a table that answered `video/webm` for a `.mkv`
 //!    would be confidently wrong rather than usefully silent.
-//! 3. **A zip container answers `Zip`.** `.docx`, `.xlsx`, `.odt` and `.jar`
-//!    *are* zip archives, and what distinguishes them is a named entry inside —
-//!    which is `Core\Zip`'s reading and not a signature. `Zip` is the honest
-//!    answer about the octets.
+//!    — owner: unowned
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
