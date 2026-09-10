@@ -54,9 +54,12 @@ Five kinds of finding:
 
 *absolute* a markdown file wrote `/docs/…`, which resolves to the site root on GitHub and 404s.
 
-*retired*  a `.py` file's prose names a repository path that is not on disk. A line that names a
-           deleted file on purpose carries `check-links:retired` and is passed over — the marker
-           goes on the line the path is on, since the check reads one line at a time.
+*retired*  a `.py` file's prose names a repository path that is not on disk. Two markers pass a
+           line over, and each says something different about *why* the path is absent:
+           `check-links:retired` for a file the repository deliberately no longer has, and
+           `check-links:written` for one a tool creates on demand — a `--record` artifact is
+           absent from every clean checkout and is not a stale citation. Either marker goes on
+           the line the path is on, since the check reads one line at a time.
 
 Two link shapes in a source file are not paths and are skipped: a rustdoc intra-doc link naming an
 item (`[the store](Cache::store)`, `[CLASS]`) has no `/` in it, and a link to a rustdoc page
@@ -116,6 +119,14 @@ MENTION_PLACEHOLDER = re.compile(r"NNNN|\bmN\b|<|\{|\*|\?")
 #: `rules-py:examples`, which is the same idea for the same reason: a document that *talks about*
 #: a token is not citing it.
 MENTION_RETIRED = "check-links:retired"
+#: The other reason a named path is legitimately absent: the tool *writes* it. A usage block's
+#: `--record benches/serve-load.json` (check-links:written) names an artifact no clean checkout has
+#: therefore reads as a dead citation -- which is how one red `docs` job got here. Kept apart from
+#: `MENTION_RETIRED` because the two say opposite things about the file: that one is gone, this one
+#: is not there yet, and a marker whose name is false is worse than no marker.
+MENTION_WRITTEN = "check-links:written"
+#: Both markers do the same thing to the line, so the scan asks about them together.
+MENTION_SKIPS = (MENTION_RETIRED, MENTION_WRITTEN)
 
 
 def tracked_files(paths):
@@ -216,10 +227,12 @@ def dead_mentions(text):
     page rather than from `tools/`, and checking it there would be wrong in both directions. A bare
     mention has no such ambiguity: it is prose, it is anchored at a top-level directory, and either
     the file is there or the sentence is stale. Two lines in the tree legitimately name a file that
-    is gone, both in the past tense, and both carry `MENTION_RETIRED`.
+    is gone, both in the past tense, and both carry `MENTION_RETIRED`; a usage block naming an
+    artifact the tool writes carries `MENTION_WRITTEN` instead, because that path is not stale but
+    unborn.
     """
     for lineno, line in enumerate(text.split("\n"), start=1):
-        if MENTION_RETIRED in line:
+        if any(marker in line for marker in MENTION_SKIPS):
             continue
         for m in MENTION_RE.finditer(line):
             target = m.group(0)

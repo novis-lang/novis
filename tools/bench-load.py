@@ -2,7 +2,7 @@
 """The load leg: what `nvs serve` saturates at on this machine, with every answer verified.
 
     python tools/bench-load.py                          # the sweep, then the in-flight leg
-    python tools/bench-load.py --record benches/serve-load.json   # append the run to the artifact
+    python tools/bench-load.py --record benches/serve-load.json   # append the run (check-links:written)
     python tools/bench-load.py --concurrency 1,16,256   # drive exactly these widths
     python tools/bench-load.py --seconds 30             # longer points, for a figure worth keeping
     python tools/bench-load.py --in-flight 0            # the sweep alone
