@@ -4012,6 +4012,26 @@ mod tests {
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
 
+    /// [`super::runs`] is the roster § 4 has statements for, and the one driver it answers `false`
+    /// for is SQL Server. Pinned by name because every other reader of that roster takes it as an
+    /// oracle — the case below, and `crates/nvs-stdlib/tests/queue.rs`'s leg gate — so a driver
+    /// dropped out of it moves those with it rather than failing them.
+    ///
+    /// One equality over `Driver::ALL` rather than an assertion per driver: what the predicate owes
+    /// is that the refusal is SQL Server's *alone*, and a list of the drivers somebody remembered
+    /// says nothing about the one they did not.
+    #[test]
+    fn runs_answers_false_for_sql_server_alone() {
+        for driver in nvs_db::Driver::ALL {
+            assert_eq!(
+                super::runs(driver),
+                driver != nvs_db::Driver::SqlServer,
+                "{driver:?}: SQL Server is the one driver `Core\\Queue` sends no statement to, and \
+                 `rule:core-classes/queue-storage-is-a-table` is what it is still waiting on"
+            );
+        }
+    }
+
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
     /// shape one module over: what this file must not do is tell an operator to fix the wrong thing.
     /// The roster behind it is [`crate::db::rendering_for`]'s `None` rather than a second list of
@@ -4397,6 +4417,39 @@ mod tests {
             texts.push(text);
         }
         texts
+    }
+
+    /// The third dialect's texts are held to what a transcription of another one would spell, and
+    /// the list is [`DELETE_POSTGRES`]'s own vocabulary plus the clause [`CLAIM_POSTGRES`] carries:
+    /// a text spelling any of them came from the first dialect rather than from this one.
+    ///
+    /// Two of them this backend cannot parse — `::` is a cast operator it does not have, and `for
+    /// update` a locking clause it does not need, since the exclusion is the immediate transaction
+    /// (`rule:concurrency/claiming-is-one-statement`). The other three it would accept and no
+    /// statement here reaches for: `$1` is a name this driver binds nothing into, because a
+    /// [`Split`] is sent as owned values by position; an insert's id is
+    /// `sqlite3_last_insert_rowid` and a delete's answer is its affected count, both for
+    /// [`CANCEL_SQLITE`]'s reason, so nothing needs a `returning`; and the CTE [`DELETE_POSTGRES`]
+    /// carries its two tables in is [`DELETE_SQLITE`]'s pair here.
+    ///
+    /// Asked of [`sqlite_texts`] rather than of the three that are interesting, so a statement
+    /// added to this backend is covered on the day it lands. The second half is what the name says
+    /// outright: every text binds by position, and one that binds nothing is not the statement it
+    /// replaces.
+    #[test]
+    fn no_sqlite_statement_binds_another_dialects_placeholder() {
+        for (member, sql) in sqlite_texts() {
+            for absent in ["$1", "::", "returning", "with ", "for update"] {
+                assert!(
+                    !sql.contains(absent),
+                    "{member}'s SQLite text spells `{absent}`, which is another dialect's: {sql}"
+                );
+            }
+            assert!(
+                sql.contains('?'),
+                "{member}'s SQLite text binds nothing, so it is not the statement it replaces"
+            );
+        }
     }
 
     /// `delete … limit` is a build option, and this backend's roster asks for none.
