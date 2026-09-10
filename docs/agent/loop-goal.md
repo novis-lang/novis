@@ -1,208 +1,166 @@
 ---
-milestone: M8
+milestone: M7
 ---
-# Loop goal 35 — the queue runs on SQLite
+# Loop goal 36 — `nvs serve` runs the queue's workers, and the drain stops them
 
-`Core\Queue`'s members and the in-process worker run on SQLite, so `runs` answers true for three of
-the five drivers and a deployment gets a working queue out of a file with no server to run at all.
-Nothing about the queue's guarantees is different there: a job is claimed once, attempts are finite,
-a dead-letter is kept, and `purge` is bounded. What changes is that the backend a small deployment
-already has is one of the backends the queue admits.
+`[[schedule]]` fires under `nvs serve`. `[queue] workers = 4` under `nvs serve` arms nothing, reports
+nothing and refuses nothing — the workers are wired into `run_run` and nowhere else, so the key is
+read, validated at boot, and then silently ignored by the binary a deployment actually runs. Every
+production deployment therefore needs a second `nvs run` process it was never told about.
 
-SQL Server stays out, and this goal does not narrow the gap it leaves. Its refusal is not the same
-refusal: two nulls are equal there, so `dedupe_pending`'s plain unique key admits one released row
-rather than any number of them, and the filtered index that fixes it is vocabulary the schema plan
-keeps out of v1. That is a schema question in front of a statement question, and it is not this
-goal's.
+[ADR 0154](../decisions/0154.md) is the whole design and this goal is its implementation: one
+`Option` and one call in `serve.rs`, one predicate in `worker.rs`, four rows in the directive table,
+and one sentence of help text that stops being wrong.
+`rule:concurrency/one-process-serves-requests-schedules-and-jobs` is what this ships, and
+`rule:concurrency/who-runs-a-job-is-configuration` is what it finally makes true. **Neither is this
+goal's to re-open**, and neither is the command's name: § 6 of the record settles that `nvs serve`
+stays, because `nvs service` is already the platform-service-manager namespace, `daemon` is a noun in
+a list of verbs, and `rule:packaging/a-service-is-one-stored-argv` makes the argv a thing already
+written into units on disk.
+
+Its floor is goal `queue-purge`'s whole list.
 
 ## Why here
 
-After goal `queue-purge` because that goal adds `delete` and `purge`, and a third dialect written in
-front of them would be written twice — once for four members and again for six. Before goal
-`serve-runs-the-queue` because that goal arms workers under `nvs serve`, and a dialect landing after
-it would leave the served path proven on two backends and shipped on three.
+Directly after goal `queue-purge` because the two are one file set and one subject: goal `queue-purge` is the entry that
+gives the queue its missing member, while this is the one that gives it its missing process. M7
+rather than M8: nothing here is `Core` surface — it is where a subsystem runs and what stops it.
 
-It needs nothing that is not already built. `SqliteConn` is a complete driver — `query`,
-`execute_many`, `begin`/`commit`/`roll_back` and § 13's `reset`
-(`crates/nvs-db/src/sqlite.rs:595-823`) — `Core\Db` already runs SQLite through execute, the pool
-and schema, and `nvs queue migrate` already converges § 2's two tables on it, because `migration`
-emits `schema` in whichever dialect `nvs_db::ddl` speaks for the driver it was handed
-(`crates/nvs-stdlib/src/queue.rs:216-228`). What is missing is § 4's texts, one transaction
-primitive underneath them, and the three seams that reach them. Nothing else.
+## The shape, in one block
 
-## Stage 0 — the catch-up
+```toml
+# One process. One unit. One thing to supervise.
+[queue]
+connection = "main"
+workers    = 4        # armed once per INSTANCE, on the core the ticker is armed on
 
-The sentences already on disk that this goal makes wrong, each with the file that holds it.
+[[schedule]]
+name = "nightly"
+cron = "0 3 * * *"
+```
 
-1. **`crates/nvs-cli/src/worker.rs:903-911` is wrong today, not only after this goal.** It tells an
-   operator that SQLite "runs no statement at all yet — `Core\Db`'s own known gaps are the list".
-   `Core\Db` runs SQLite everywhere: `crates/nvs-stdlib/src/db/execute.rs`,
-   `crates/nvs-stdlib/src/db/pool.rs:71` and `crates/nvs-stdlib/src/db/schema.rs:287` each hold a
-   `Connection::Sqlite` arm. The gap was only ever `Core\Queue`'s statements, which is what
-   `no_dialect`'s own arm says correctly. **Fix that sentence in the first slice that opens the
-   file**, whatever stage it belongs to: an operator acting on it today looks in the wrong crate.
-2. `runs`'s doc and `no_dialect`'s SQLite arm (`crates/nvs-stdlib/src/queue.rs:2122-2143` and
-   `2226-2232`) both describe a two-dialect module. So does `queue_connection`'s "Two arms and not
-   five, because that is how many dialects this module has".
-3. `crates/nvs-cli/src/worker.rs`'s module doc prices a claim as "a transaction's worth of round
-   trips on MySQL and MariaDB where it costs a single statement on PostgreSQL"; a third backend
-   joins that sentence. `Wire`'s own doc says "The drivers with no send path are not arms", and
-   `report`'s says the affected count is discarded "on both drivers".
-4. This directory's `README.md` row and the plan's `Carried by` cell, which `python tools/plan.py
-   --sync` writes.
+```
+$ nvs serve app.nvs
+arming 1 scheduled entry
+arming 4 queue workers
+```
 
 ## Stage 1 — the floor
 
-Goal `queue-purge`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never
-traded. It runs against PostgreSQL and MySQL, which is why this goal declares a `[docker]` table
-even though its own half needs no daemon.
+Goal `queue-purge`'s whole acceptance list, never traded.
 
-## Stage 2 — the keystone: an immediate transaction, and the claim on top of it
+## Stage 2 — the keystone: the drain stops a worker
 
-One file set: `crates/nvs-db/src/sqlite.rs`, `crates/nvs-stdlib/src/queue.rs`.
+One file: `crates/nvs-cli/src/worker.rs`.
 
-`rule:concurrency/claiming-is-one-statement` already names this backend's mechanism — "an immediate
-transaction on SQLite, whose single-writer model makes contention moot" — and `CLAIM_POSTGRES`'s own
-doc names it a second time. **The mechanism does not exist yet.** `SqliteConn::begin` emits a bare
-`BEGIN` at depth 0 and ignores its `isolation` argument entirely
-(`crates/nvs-db/src/sqlite.rs:707-720`), which SQLite reads as `DEFERRED`.
+**Before anything is armed under `serve`, the stop condition has to be able to come from the drain.**
+Nothing begins a drain under `nvs serve` as this goal is written — `Draining::begin` is called only in
+the accept loop's tail after `keep_serving` breaks, this command's seam continues forever, and there
+is no signal handler in either crate — so a killed process is how a served instance ends right now.
+**That will not still be true when this goal is walked**: goal `net-os-signal`'s stage 4 lands `Core\Signal` as the
+entry into this same drain, and it is ahead of this entry on the chain. So a `SIGTERM` will be asking
+this command to drain, and workers that ignore it turn that graceful shutdown back into a kill. The
+goal's own acceptance case is the other reason for the order: a **test** breaks that seam too, so a
+check that arms workers before they can be stopped **hangs rather than fails**, and a check that hangs
+when the feature regresses reports nothing.
 
-**Why that is the whole stage.** A deferred transaction that reads and then writes takes a shared
-lock and asks to upgrade it, and SQLite answers an upgrade it cannot grant with `SQLITE_BUSY`
-*immediately, without honouring the busy timeout* — a busy handler cannot back off a transaction
-that is already holding a read lock without breaking that reader's own snapshot. So `CLAIM_MYSQL`'s
-shape transcribed onto this backend — a locking `select`, then an `update` — is a claim that fails
-under exactly the concurrency it exists to survive, and it fails in the way that is hardest to see:
-never on one connection, only under two.
+1. **`Workers` gains a second way to be stopped**, or `Workers::stop` gains a second writer: a
+   `Draining` handle read at the top of each turn beside the existing flag. `nvs_server::Draining` is
+   `Clone` and its `is_draining()` is the whole of what a worker needs.
+2. **`nvs run` is unchanged.** Its workers still stop when the script's task exits, for the reason
+   `worker.rs`'s own module doc gives. The two binaries share `start` and differ in one predicate.
+3. **A claimed job runs to completion.** A drain means stop taking *new* work, and claiming is taking
+   new work — the same contract an accepted request and an in-flight `[[schedule]]` fire have. The
+   tail a shutdown pays is the one that module doc already prices: one `IDLE_TURN` ordinarily, one
+   statement's round trip mid-claim, one `CONNECT_DEADLINE` at worst.
 
-1. **The primitive is its own entry point, not a new `Isolation` case.** `Isolation` is the SQL
-   standard's five levels and none of them means "take the write lock now"; SQLite's isolation is
-   already serializable and the question here is *when* the lock is acquired, which that enum does
-   not describe. A dedicated `SqliteConn` entry point keeps `Core\Db::transaction`'s behaviour for
-   every existing caller exactly where it is — this goal changes no language surface — and leaves
-   the queue as the one caller that asks. A session that finds a better placement records it in the
-   ADR slot below rather than widening the enum quietly.
-2. **The depth accounting is the part to get right, not the keyword.** `begin` moves `depth` only
-   after a command SQLite accepted, `commit` deliberately leaves the depth where it was on a refused
-   outermost commit, and a nested call is a `SAVEPOINT`. An immediate transaction is an outermost
-   one by definition, so asking for one at depth greater than zero is the refusal to write, beside
-   the two that type already has.
-3. **The claim is then `CLAIM_MYSQL`'s two statements inside it**, answering `CLAIM_POSTGRES`'s six
-   columns in its order — `crates/nvs-cli/src/worker.rs` reads them by position and
-   `both_dialects_answer_a_claim_with_the_same_columns` is the test that holds them together.
-   Extend that test to a third dialect rather than writing a second one. `attempts + 1 as attempts`
-   is `CLAIM_MYSQL`'s reason and not PostgreSQL's: the `update` has not run when the `select`
-   answers, so the column is read as the value it is about to have.
-4. **`skip locked` has no spelling here and needs none.** The mutual exclusion is the database's
-   single writer: inside an immediate transaction no second connection is writing at all, so two
-   workers cannot come back with one row. That is stronger than a row lock, not weaker, and it is
-   the sentence the statement's own comment owes — a later contributor reading a claim with no
-   locking clause will otherwise try to add one.
+## Stage 3 — the arming
 
-**The check that decides this stage runs two connections against one file**, not one connection
-twice. A claim proven on a single connection is a claim whose whole failure mode was not exercised.
+One file: `crates/nvs-cli/src/serve.rs`.
 
-## Stage 3 — the worker's other statements
+`nvs_config::queue::queue_for` off the boot snapshot exactly as `run_run` reads it, then
+`worker::start` on the scheduler this command already creates — beside `nvs_server::arm` and **before**
+the accept loop is spawned, which is where the ticker goes and for the ticker's reason.
 
-One file: `crates/nvs-stdlib/src/queue.rs`.
+1. **`TaskRoot::Worker`, not `TaskRoot::Request`.** The ticker holds `Request` because a fire is a
+   child of the loop that serves; a worker has no request beneath it to charge a panic to
+   (`rule:http-server/containment-does-not-end-at-the-helper`). **This is the one line of this change
+   that looks right when it is wrong** — the ticker is three lines above and holds the other one.
+2. **No lease, and no `Leases` argument.** `arm` takes `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease
+   because `Core\Cache`'s shared tier has no set-if-absent. That blocker does not touch the queue:
+   `rule:concurrency/claiming-is-one-statement` puts the mutual exclusion in the database, so a fleet
+   of instances each running workers is the intended deployment.
+3. **Armed once, on one core.** `workers` is per instance. Today `serve` turns one scheduler on one
+   core so the two coincide; the per-core slice is where this has to be honoured rather than
+   discovered, and § 3 of the record is the decision it inherits rather than one it may re-take.
+4. **A tree with no `[queue]` block arms nothing and spawns no task**, which is the ticker's shape:
+   an `Option` read at boot and no cost at all when it is absent.
 
-`INSERT`, `DEAD_LETTER`, `SUCCEEDED`, `RETRY` and `QUEUES` in the third dialect.
+## Stage 4 — `[queue]` joins the directive table
 
-1. **`SUCCEEDED`, `RETRY` and `QUEUES` are one-table statements with no construct behind them** —
-   near-copies of the MySQL texts, differing in the placeholder spelling and nothing else.
-2. **`INSERT` is the dedupe, and stage 2's ordering rule is what governs it.** `INSERT_MYSQL` reads
-   first and writes second; inside an immediate transaction that is safe here, because the write
-   lock was taken before the read. Written outside one it is the upgrade this backend refuses.
-3. **`DEAD_LETTER` copies MySQL's order and not PostgreSQL's** — the copy before the delete, both
-   halves keyed on the lease, for exactly the reason `DEAD_LETTER_MYSQL`'s doc gives: the columns
-   have to be read while they still exist, and a worker that overran § 4's visibility window matches
-   no row in either half. Both halves are writes, which is what makes the transaction around them
-   cheap.
+One file set: `crates/nvs-config/src/directive.rs`, `crates/nvs-config/tests/directives.rs`.
 
-## Stage 4 — the six members' statements
+`directive::lookup` answers `Option` and no row governs `queue`, so the block has no changeability
+class and no apply class at all. Four rows, `System` throughout, split the way `[deferred]` is split:
 
-One file: `crates/nvs-stdlib/src/queue.rs`.
+| Key | Apply |
+|---|---|
+| `queue.connection` | `Boot` — a connection swapped under running workers strands every claim in flight |
+| `queue.workers` | `Boot` — a worker is a spawned task, and applying a count means starting or stopping tasks |
+| `queue.max_attempts` | `Reload` — read per job out of the snapshot, re-creating nothing |
+| `queue.visibility` | `Reload` — the same, a lease length read when a claim is taken |
 
-`STATUS`, `CANCEL`, `COUNTS`, `DELETE`, `PURGE` and `PURGE_DEAD`.
+**No new diagnostic.** `rule:config/a-reload-names-what-it-could-not-apply` already carries a changed
+`Boot` key forward and names it; this only gives that mechanism rows to find. The census in
+`crates/nvs-config/tests/directives.rs` is what holds the pairs, and it gains four entries.
 
-1. **`STATUS`, `CANCEL` and `COUNTS` are portable** — the state ordinals stay literals for
-   `PENDING`'s reason, and `queue_statements_agree_with_the_state_enum` is extended to the third
-   list rather than joined by a second test.
-2. **`DELETE` is the one member with no single-statement shape on this backend.** PostgreSQL's is a
-   data-modifying CTE and SQLite has `RETURNING` but no data-modifying CTE; MySQL's is a multi-table
-   `delete j, d` and SQLite has no spelling for that either. So it is a `Split` of two deletes, and
-   `DELETE_MYSQL`'s doc is the argument for why they must be one moment rather than two: § 6's
-   dead-letter move can land between them and take away the one row the member exists to leave
-   alone. Stage 2's transaction is what holds it.
-3. **`PURGE` copies PostgreSQL's bound and not MySQL's.** `delete … limit` needs
-   `SQLITE_ENABLE_UPDATE_DELETE_LIMIT` set at compile time and `libsqlite3-sys`'s bundled build does
-   not set it; `delete … where id in (select id … order by id limit ?)` is `PURGE_POSTGRES`'s shape
-   and needs no build option at all. `order by id` carries over with it, for that constant's reason:
-   it is `created_at`'s order without a sort, over the one table in the runtime that grows without
-   bound.
+## Stage 5 — the sentence that stops being wrong
 
-## Stage 5 — the three seams
+One file: `crates/nvs-cli/src/main.rs`.
 
-One file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-cli/src/worker.rs`.
+> *Serve a Novis file over HTTP, on one core, until stopped.*
 
-1. **`runs` gains SQLite in its true arm**, and the refusal test at
-   `crates/nvs-stdlib/src/queue.rs:3410-3435` moves with the seam rather than after it — it is
-   already written to read `runs` rather than a second list, and its `driver ==
-   nvs_db::Driver::SqlServer` assertion about the filtered index is already written to survive this
-   goal. `no_dialect` keeps its SQL Server arm, spelled, and loses its SQLite one.
-2. **`Queued` gains a third arm of its own rather than joining `Framed`.** `SqliteConn::query` takes
-   an owned `Vec<SqliteValue>` where the framed drivers take `&[Option<&[u8]>]` of already-encoded
-   wire bytes, and `crates/nvs-db/src/sqlite.rs:304`'s `encode` is the conversion. That difference
-   is a type and not a dialect, which is why it cannot be flattened the way MySQL and MariaDB are.
-3. **The worker's `Wire` and its own local `Dialect` gain a third arm**, and `open`'s `SqlServer |
-   Sqlite` refusal arm keeps SQL Server alone — still spelled rather than left to a `_`, so a
-   driver gaining a send path arrives as a build failure instead of a refusal that has stopped being
-   true.
+That describes one of three subsystems and, after this goal, the least of them. The command's help
+names the accept loop, the `[[schedule]]` ticker and the queue's workers, because the mental model an
+operator forms of one process is what stops them looking for a second one. **The command's name does
+not change** — § 6 of ADR 0154 is why, and it is not this stage's to revisit.
 
-## Stage 6 — the cases, the matrix leg, and the reference
+## Stage 6 — the fixture and the cases
 
-1. **`tools/db-matrix.py` already has the SQLite leg** — "a scratch file, no container"
-   (`tools/db-matrix.py:165`) — so this is the first queue work whose own half runs on a machine
-   with no daemon at all. The suite list that leg runs is what this stage extends.
-2. `crates/nvs-stdlib/tests/queue.rs` holds its own two-armed `Dialect` at line 313, beside the
-   worker's; both become three.
-3. The conformance cases for the members, beside goal `queue-purge`'s. **No differential case** —
-   PHP has no queue, which is `examples/queue.nvs`'s own reason for having none.
-4. `examples/queue.nvs` is goal `database`'s and its lines are frozen; a fixture this goal needs is
-   its own file beside it.
+`examples/queue.nvs`'s properties under the **served** binary rather than only under `nvs run`: a job
+pushed to a server with `workers = 1` is claimed, runs, and reaches `Succeeded`.
+
+The shutdown case is the one that matters and it must be **bounded**: a served process with workers
+exits once its drain begins. Written as a test with a deadline rather than as a smoke run, because the
+failure mode of stage 2 being missed is a hang, and a check that hangs when the feature regresses is
+worse than one that fails — it has nothing to report.
+
+**No differential case**: PHP has no queue, which is the same reason `examples/queue.nvs` has none.
 
 ## Standing decisions
 
-- **This goal has one ADR slot**, taken by the first slice of stage 2: SQLite's claim, the
-  transaction primitive underneath it, and where that primitive sits. It is worth a number rather
-  than a statement comment because "the mutual exclusion is the single writer, and that is why there
-  is no locking clause" is precisely the sentence a later contributor will try to correct toward
-  `skip locked`. Nothing else in this goal opens one.
-- **`rule:concurrency/claiming-is-one-statement` names the mechanism and this goal implements it
-  rather than re-opening it.** A session that believes a single `update … where id = (select …)
-  returning …` is the better claim has found a real alternative, and it is still not this goal's to
-  take unilaterally: the fragment names the immediate transaction, so changing it is an edit to that
-  fragment through a record whose `changes:` block names it. The default is the rule.
-- **Every `Split` this goal writes runs inside stage 2's transaction, and none outside one.** The
-  deferred-`BEGIN` upgrade is the trap that costs a session a day, because it never reproduces on
-  one connection. If a statement can be written as one statement it does not need the transaction —
-  but a pair always does.
-- **No build option is turned on.** A queue statement that parses only under a non-default
-  `libsqlite3-sys` build is a statement that stops parsing the day the dependency moves, and the
-  bound `purge` owes has a portable spelling already written on the PostgreSQL side.
-- **The bound on `purge` is the rule and the dialect spelling is not**, carried unchanged from goal
-  `queue-purge`: dropping it is the one answer that is not available.
-- **SQL Server stays out**, and `no_dialect`'s SQL Server arm and its "filtered index" sentence stay
-  exactly as they are. A session that finds itself writing a fourth dialect has left the goal.
-- **What this spends**, per `rule:programs/memory-priority`: nothing per job on the request path and
-  no new allocation the queue was not already making. The claim costs one transaction's worth of
-  round trips where PostgreSQL costs one statement, which is `Split`'s existing trade and already
-  paid on MySQL and MariaDB; here the round trips are function calls into a file rather than a
-  socket, so it is the cheaper end of that trade rather than a new one.
-- **The concurrency tradeoff is stated, not designed around.** SQLite has one writer. Workers above
-  one against a SQLite block serialize on the database's write lock and wait out the busy timeout
-  rather than proceeding in parallel, so `[queue] workers` buys throughput there only up to the
-  point the file's single writer allows. That is a property of the database and not a defect of the
-  queue, and this goal adds no lock, no shard and no second file to work around it. What it owes is
-  a sentence where an operator reads `workers`, saying where the number stops buying anything — not
-  a new configuration key.
+- **This goal opens no new ADR number.** [ADR 0154](../decisions/0154.md) is accepted and is the
+  whole design: one `Option` and one call in `serve.rs`, one predicate in `worker.rs`, four rows in the
+  directive table, one sentence of help. The two rules the lead paragraph names are not this goal's to
+  re-open.
+- **The command keeps its name.** § 6 of the record settles it, and it is the question this goal is
+  most likely to be asked on the way past: `nvs service` is the platform-service-manager namespace,
+  `daemon` is a noun in a list of verbs, and `rule:packaging/a-service-is-one-stored-argv` makes the
+  argv a thing already written into units on disk. Not a stage's to revisit.
+- **The drain comes from goal `net-os-signal`, which is ahead of this entry on the chain.** `Core\Signal` is what
+  makes a `SIGTERM` a drain rather than a kill, and stage 2 is written so that workers answer that
+  drain when it arrives. If this goal is somehow reached with that path absent, stage 2 is still the
+  first slice and the acceptance case is still deadline-bounded — the order exists so a check that
+  regresses fails instead of hanging, and that property does not depend on which goal landed first.
+- **No lease, and that is not the lease blocker one file over.**
+  `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` waits on a set-if-absent `Core\Cache`
+  has not got; the queue does not need it, because `rule:concurrency/claiming-is-one-statement` puts
+  the mutual exclusion in the database. A fleet of instances each running workers is the intended
+  deployment, so `arm` takes `None` deliberately.
+- **`TaskRoot::Worker`, and the ticker three lines above holds the other one.** This is the one line of
+  the change that looks right when it is wrong; `rule:http-server/containment-does-not-end-at-the-helper`
+  is why a worker has no request beneath it to charge a panic to.
+- **What this spends**, per `rule:programs/memory-priority`: nothing at all in a tree with no `[queue]`
+  block — an `Option` read at boot and no task spawned, which is the ticker's shape. Where the block is
+  present it is `workers` tasks per instance, armed on the core the ticker is armed on, and the tail a
+  shutdown pays is the one `worker.rs`'s module doc already prices.
