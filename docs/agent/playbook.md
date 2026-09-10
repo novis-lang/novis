@@ -1493,6 +1493,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   files, because a gap has no name — only a position. Grep `gap [0-9]`, `crate::<module>` and the
   module's own path across `crates/` and `docs/` *before* the edit, and put the doc and the whole
   sweep in one `splice.py --patch`. [until: reviewed 2026-09-10]
+- **A `# Known gaps` item's claims about the rest of the tree go stale, and an attribution pass
+  reads them as current.** `crates/nvs-stdlib/src/uuid.rs`'s gap 1 waited on a
+  `nvs_runtime::Tag::Bytes` variant that is live (`crates/nvs-runtime/src/value.rs:307`), and
+  `docs/agent/playbook.md` spelled out `json.rs`'s gap *number*, which a moved item silently
+  re-points. Grep the blocker a gap names, and the module's own path, before tagging or renumbering
+  one. [until: reviewed 2026-09-10]
 
 ## Running things
 
@@ -3898,12 +3904,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   process instead of throwing.** The walk recurses through `serde_json`'s serializer and the native
   stack gives out far below `DEPTH_CEILING`, so the runner reports a stack overflow and no
   `--EXPECT--` can be written for that refusal at all. Assert depth with a chain small enough to
-  encode; `crates/nvs-stdlib/src/json.rs`'s known gap 7 owns the rest.
+  encode; `crates/nvs-stdlib/src/json.rs`'s known gap 5 owns the rest.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 - **A test that *encodes* at `DEPTH_CEILING` overflows the default test-thread stack, where the
   decode twin at the same depth passes.** `Encodable` recurses through `serde_json`'s serializer,
   whose frames are fatter than the visitor's, so `a_document_at_the_ceiling_decodes` says nothing
-  about the encode half — `crates/nvs-stdlib/src/json.rs`'s gap 7 is that difference. Build the
+  about the encode half — `crates/nvs-stdlib/src/json.rs`'s gap 5 is that difference. Build the
   document inside a `std::thread::Builder::new().stack_size(…)` thread and return the message out
   of it rather than a value, since a refcount is a per-thread fact.
   [until: gone crates/nvs-stdlib/src/json.rs:real bound is the native stack]

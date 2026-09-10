@@ -69,7 +69,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Twenty-four entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Twenty-eight entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -226,8 +226,9 @@ where taking it is the work and the code that follows it is not.
   not this pass's: its host check fires for nobody because `nvs check` reads no `nvs.toml`, and
   whether that command reads configuration — and so can be failed by a broken one — is a decision
   about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags, and
-  `crates/nvs-stdlib/src/time.rs` is the same question one layer down: `format` and `parse` compile
-  their pattern per call and can prepare nothing until that channel exists.
+  `crates/nvs-stdlib/src/time.rs` and `crates/nvs-stdlib/src/cldr.rs` are the same question one
+  layer down: `format` and `parse` compile their pattern per call, through the one `compile` that
+  module owns, and neither can prepare anything until that channel exists.
   [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
 - **The third of `rule:core-classes/derive-attribute`'s rule that lives at run time, and whether it
   moves.** `nvs-types`' derive pass checks a `#[Json\Derive]`/`#[Db\Derive]` class whole and asks the
@@ -240,6 +241,31 @@ where taking it is the work and the code that follows it is not.
   is written and the other only where it runs.
   `crates/nvs-types/src/derive.rs` § *Known gaps* carries the tag.
   [until: gone crates/nvs-types/src/derive.rs:owner: unowned]
+- **A derived field's type roster stops where `nvs_runtime::CodecTy` does.** A `decimal`, a
+  `Core\Time\Instant`, an inline shape reached as a field and an `array<T>` of one of those are all
+  codec-reachable by `rule:core-classes/derive-field-list` and all land on `CodecTy::Opaque`, which
+  both doors refuse. What has to be decided is what each of those types *is* on the wire — a
+  `decimal` as a JSON string or as a number, an `Instant` as its RFC 3339 text — because no variant
+  can be carried before the encoding it stands for is chosen, and the same answer binds `Core\Db`'s
+  row codec. `crates/nvs-stdlib/src/json.rs` gap 1, with `crates/nvs-stdlib/src/db/mod.rs` gap 4 the
+  other door on the same knot. [until: gone crates/nvs-stdlib/src/json.rs:type roster is narrower]
+- **The derive machinery is a descriptor read by native Rust**, where
+  `rule:core-classes/derive-generates-what-is-missing` costs it as straight-line code emitted per
+  class. Both halves of `Core\Json` walk a per-class `nvs_runtime::CodecField` list instead, and two
+  narrower holes wait on which of the two it stays: a constructor parameter's default is a constant
+  `nvs_types::defaults` evaluates at a *call site*, which a native decoder is not, and a hand-written
+  `toJson()` needs a `ClassDesc::method` lookup back into compiled code. Both are free in emitted
+  code and both a widening of the descriptor otherwise, so the decision is one and the code that
+  follows it is two. `crates/nvs-stdlib/src/json.rs` gaps 2, 3 and 4.
+  [until: gone crates/nvs-stdlib/src/json.rs:rather than straight-line]
+- **`Core\Json::encode`'s real bound is the native stack rather than its own `DEPTH_CEILING`**, so a
+  document that is legal and merely very deep aborts the process where every other refusal throws.
+  Goal `resource-ceilings` names the stack ceiling out of its own scope, so this is nobody's: what
+  has to be decided is whether the walk carries an explicit stack, which makes the bound an
+  allocation the request is charged for, or the ceiling is read from the space
+  `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
+  `crates/nvs-stdlib/src/json.rs` gap 5.
+  [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 - **`nvs-db`'s § 5 normalization, which both directions of the schema plan record as owed and
   which nothing on the chain writes.** The emitter's map into a dialect is lossy — one `BYTEA` for
   both bytes widths, `CHAR(36)` for a `UUID`, the next width up and a `CHECK` for a `uint` no
