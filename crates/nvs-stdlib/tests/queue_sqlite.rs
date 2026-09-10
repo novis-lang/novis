@@ -1,5 +1,6 @@
-//! `rule:concurrency/claiming-is-one-statement`'s claim on SQLite, run against a
-//! real engine by two connections at once.
+//! `rule:concurrency/claiming-is-one-statement`'s claim on SQLite, and the
+//! statements the worker runs beside it, against a real engine by two
+//! connections at once.
 //!
 //! **This is the one queue suite that needs no server, and that is why it is
 //! not `queue.rs` beside it.** That file's cases assert nothing at
@@ -289,4 +290,150 @@ fn a_sqlite_claim_takes_a_job_whose_visibility_window_has_passed() {
         2,
         "the returning attempt is the one the retry ladder is about to count"
     );
+}
+
+/// `INSERT_SQLITE`'s pair, taken whole: the dedupe read and the insert inside one
+/// immediate transaction, answering the job's id and whether the key was already
+/// pending.
+///
+/// This is `push_in_two` one crate over in the shape a test can hold — the same
+/// two statements in the same order, with `then` not running at all when `first`
+/// answered a row. The new id is read back with a `select` rather than off the
+/// connection's last insert, because what is under test is the text and not how
+/// the caller learns the id.
+fn push_in_two(conn: &SqliteConn, key: Option<&str>, run_at: i64) -> (i64, bool) {
+    conn.begin_immediate().expect("the write lock, up front");
+
+    if let Some(key) = key {
+        let pending = rows(
+            conn,
+            queue::INSERT_SQLITE.first,
+            vec![SqliteValue::Text(String::from(key))],
+        );
+        if let Some(job) = pending.first() {
+            let already = int(&job[0]);
+            conn.commit()
+                .expect("the deduped push's transaction closes");
+            return (already, true);
+        }
+    }
+
+    let dedupe = key.map_or(SqliteValue::Null, |key| {
+        SqliteValue::Text(String::from(key))
+    });
+    rows(
+        conn,
+        queue::INSERT_SQLITE.then,
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from("jobs/send.nvs")),
+            SqliteValue::Text(String::from("[]")),
+            SqliteValue::Int(0),
+            SqliteValue::Int(3),
+            SqliteValue::Int(250),
+            SqliteValue::Int(run_at),
+            dedupe.clone(),
+            dedupe,
+            SqliteValue::Int(run_at),
+            SqliteValue::Null,
+        ],
+    );
+
+    let landed = rows(
+        conn,
+        "select id from nvs_jobs where queue = ? order by id desc limit 1",
+        vec![SqliteValue::Text(String::from(QUEUE))],
+    );
+    let id = int(&landed.first().expect("the insert landed a row")[0]);
+    conn.commit().expect("the push's transaction closes");
+    (id, false)
+}
+
+/// § 2's guarantee on this backend: at most one *pending* job per dedupe key, and
+/// what enforces it is the pair rather than the unique index catching a second
+/// insert.
+///
+/// The second push is run on the other connection, which is the half a
+/// single-connection case could not state: two pushes of one key that never
+/// overlap prove nothing about the read-then-insert this text is. Inside the
+/// immediate transaction the second connection is not reading a snapshot the
+/// first is still writing — it waits, and then reads the row the first one
+/// committed.
+///
+/// Asserted as the same id and one row, not as a refusal: a deduped push is an
+/// ordinary answer carrying the pending job's receipt, and a case asserting an
+/// error would pin the opposite of what `Core\Queue::push` promises.
+#[test]
+fn a_sqlite_push_of_a_key_already_pending_answers_that_job_and_inserts_nothing() {
+    let (first, second) = two_connections("nvs-stdlib-queue-dedupe-pending");
+
+    let (landed, deduped) = push_in_two(&first, Some("welcome:7"), NOW);
+    assert!(!deduped, "the first push of a key is an insert");
+
+    let (answered, again) = push_in_two(&second, Some("welcome:7"), NOW);
+    assert!(again, "the key is still pending, so the read answers it");
+    assert_eq!(
+        answered, landed,
+        "a deduped push answers the pending job's own receipt"
+    );
+
+    let counted = rows(
+        &first,
+        "select count(*) from nvs_jobs where queue = ?",
+        vec![SqliteValue::Text(String::from(QUEUE))],
+    );
+    assert_eq!(
+        int(&counted[0][0]),
+        1,
+        "`then` does not run at all when `first` answered a row"
+    );
+}
+
+/// The other side of the same bound: the key is free again once the job it was
+/// on stops being pending, and it is `dedupe_pending` going null that frees it.
+///
+/// `CLAIM_SQLITE.then` is what nulls the column, so this case is the two
+/// statements agreeing — a claim that stopped maintaining `dedupe_pending`, or an
+/// insert that keyed its read on `dedupe_key` instead, both fail here while each
+/// still reads plausibly on its own. A null collides with nothing under
+/// `nvs_jobs_dedupe`, which is `rule:core-classes/queue-storage-is-a-table`'s
+/// reason for the column existing at all.
+#[test]
+fn a_sqlite_push_reuses_a_dedupe_key_the_claim_has_released() {
+    let (worker, pusher) = two_connections("nvs-stdlib-queue-dedupe-released");
+
+    let (landed, _) = push_in_two(&pusher, Some("digest:daily"), NOW);
+    let claimed = claim(&worker, NOW, NOW).expect("the pushed job is due");
+    assert_eq!(int(&claimed[0]), landed);
+
+    let (second, deduped) = push_in_two(&pusher, Some("digest:daily"), NOW);
+    assert!(
+        !deduped,
+        "a claimed job holds no dedupe key, so the same key inserts again"
+    );
+    assert_ne!(second, landed, "the second push is its own row");
+}
+
+/// A push with no key runs `then` alone, and the row it lands carries no key
+/// either — two nulls in the column pair, which is the state every other
+/// statement reads as "this job was never deduped".
+///
+/// Two of them, because one null tells nothing about the unique index: what would
+/// break a queue that ran keyless pushes through `dedupe_pending` is the *second*
+/// row colliding with the first.
+#[test]
+fn a_sqlite_push_with_no_key_lands_every_row_it_is_given() {
+    let (pusher, _reader) = two_connections("nvs-stdlib-queue-keyless-push");
+
+    let (first, deduped) = push_in_two(&pusher, None, NOW);
+    assert!(!deduped, "a keyless push reads nothing and inserts");
+    let (second, _) = push_in_two(&pusher, None, NOW);
+    assert_ne!(second, first, "a keyless push collides with nothing");
+
+    let counted = rows(
+        &pusher,
+        "select count(*) from nvs_jobs where queue = ? and dedupe_pending is null",
+        vec![SqliteValue::Text(String::from(QUEUE))],
+    );
+    assert_eq!(int(&counted[0][0]), 2);
 }
