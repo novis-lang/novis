@@ -132,6 +132,87 @@ if ($d instanceof Rock) { echo \"rock \"; }
     assert_eq!(output_of(source), "dog animal greets ");
 }
 
+// ---------------------------------------------------------------------------
+// `rule:types/type-test` — `$x is T`, and the walks it is not allowed to
+// duplicate
+// ---------------------------------------------------------------------------
+/// Every instruction one program lowered to, flattened and rendered.
+///
+/// These four cases pin **which instruction the test became**, not what it
+/// answered, so they read the IR rather than the output: "the same walk
+/// `instanceof` emits" and "not a second one" are both claims about the
+/// instruction list and neither is observable from a `bool`.
+fn kinds(source: &str) -> Vec<String> {
+    lower(source)
+        .functions
+        .iter()
+        .flat_map(|f| f.blocks.iter())
+        .flat_map(|b| b.insts.iter())
+        .map(|i| format!("{:?}", i.kind))
+        .collect()
+}
+
+/// How many of `program`'s instructions render with `needle` in them.
+fn count(program: &[String], needle: &str) -> usize {
+    program.iter().filter(|k| k.contains(needle)).count()
+}
+
+#[test]
+fn a_scalar_test_emits_one_tag_comparison() {
+    // A `mixed` subject carries its tag at run time, so `is int` is exactly
+    // one masked compare against it — no call, no walk, no allocation.
+    let hit = "<?nvs\nmixed $m = 1;\necho $m is int;\n";
+    let program = kinds(hit);
+    assert_eq!(count(&program, "TagIs"), 1, "{program:?}");
+    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
+    assert_eq!(output_of(hit), "1");
+    // The miss is the same one comparison, which is the half a test asserting
+    // only the `true` direction would let a walk creep into.
+    let miss = "<?nvs\nmixed $m = 1;\necho $m is string;\n";
+    assert_eq!(count(&kinds(miss), "TagIs"), 1);
+    assert_eq!(output_of(miss), "");
+}
+
+#[test]
+fn a_class_test_emits_the_same_descriptor_walk_instanceof_emits() {
+    // Written as an equality between two whole programs rather than as a
+    // count: what `rule:types/type-test` promises is the walk `instanceof`
+    // already pays for, and a second emitter that happened to emit one
+    // `InstanceOf` too would pass a count.
+    let subject = "<?nvs\nclass Animal {}\nclass Dog extends Animal {}\nmixed $d = new Dog();\n";
+    let tested = format!("{subject}echo $d is Animal;\n");
+    let spelled = format!("{subject}echo $d instanceof Animal;\n");
+    assert_eq!(kinds(&tested), kinds(&spelled));
+    assert_eq!(count(&kinds(&tested), "InstanceOf"), 1);
+    assert_eq!(output_of(&tested), "1");
+}
+
+#[test]
+fn an_array_element_test_calls_the_same_walk_the_conversion_calls_and_not_a_second_one() {
+    // The O(n) element walk is `Helper::ToArrayOfOrNull` — `as ?array<T>`'s
+    // spelling of the walk `as array<T>` throws from, which is the one that
+    // *answers*. Exactly one of the pair anywhere in the program is the "not
+    // a second one" half.
+    let source = "<?nvs\nmixed $a = [1, 2];\necho $a is array<int>, $a is array<string>;\n";
+    let program = kinds(source);
+    assert_eq!(count(&program, "ToArrayOfOrNull"), 2, "{program:?}");
+    assert_eq!(count(&program, "ToArrayOf,"), 0, "{program:?}");
+    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(output_of(source), "1");
+}
+
+#[test]
+fn a_folded_test_emits_no_code_at_all() {
+    // A test the checker settled records its constant and nothing else, so
+    // the program is instruction-for-instruction the one that wrote the
+    // literal — not merely one with no tag compare in it.
+    let folded = "<?nvs\nint $n = 1;\necho $n is int, $n is string;\n";
+    let literal = "<?nvs\nint $n = 1;\necho true, false;\n";
+    assert_eq!(kinds(folded), kinds(literal));
+    assert_eq!(output_of(folded), "1");
+}
+
 #[test]
 fn an_inherited_constructor_is_invoked_through_its_declaring_class() {
     // `new Dog(...)` on a subclass that declares no `constructor` of its own
