@@ -14125,7 +14125,7 @@ Checks the receiver's `_sig` against every key in `$keys`, and the lifetime that
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, match, methodsFor
+Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, match, methodsFor
 
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
@@ -14180,6 +14180,7 @@ https://example.test/users/7
 |---|---|
 | [`Core\Router::url`](#core-core-router-url) | `url(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlAbsolute`](#core-core-router-urlabsolute) | `urlAbsolute(string $name, array<mixed> $params): string` |
+| [`Core\Router::urlSigned`](#core-core-router-urlsigned) | `urlSigned(string $name, array<mixed> $params, ? $settings): string` |
 | [`Core\Router::match`](#core-core-router-match) | `match(Core\Http\Method $method, string $path): ?Core\Router\Match` |
 | [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
 
@@ -14218,6 +14219,25 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 **Returns** `string` — The absolute URL, `https://example.test/users/42?page=2`.
 
 **Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since an origin is never derived from a request header.
+
+<a id="core-core-router-urlsigned"></a>
+#### `Core\Router::urlSigned`
+
+```nvs skip
+Core\Router::urlSigned(string $name, array<mixed> $params, ? $settings): string
+```
+
+`url` with the reserved `_sig` query parameter on the end, over a signature taken across the route's **name** and `$params` — never the path they render to, so the same link still verifies after the module is remounted somewhere else.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The route's name as its `#[Route]` declared it; a literal is resolved against the route table while compiling, and an unknown literal is a compile error. |
+| `$params` | `array<mixed>` | The path's captures by name, plus any query parameters; a literal key that is neither a capture nor a declared `#[Query]` parameter is a compile error. |
+| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` and `$uri->sign` take, and a token minted at one of those doors does not verify at this one.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
+
+**Returns** `string` — `url`'s path with `_sig=…` appended, `/users/42?page=2&_sig=…` — laundered for the URL-path sink exactly as `url` is, and carrying the mount prefix the same way. The same name, parameters, ring and lifetime always mint the same token; the token carries the signed form as well as the tag, so it adds about `4/3 × (name + params + 40)` characters.
+
+**Throws** `RuntimeError` — For everything `url` throws for, and when `$params` carries the reserved `_sig` key, which this member is about to write and will not write twice.; `LogicError` — `$settings.keys` is empty, so there is no newest key; or its first entry is not 32 octets long — a `bytes` that was never a key.
 
 <a id="core-core-router-match"></a>
 #### `Core\Router::match`
