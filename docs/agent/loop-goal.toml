@@ -113,6 +113,15 @@ modules = [
   # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
   # one representation, two independent axes, and the sinks that refuse them.
   "crates/nvs-types/src/expr/quals.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
+  # `rule:errors/propagation`'s calling convention, and the macro that makes it impossible to
+  # write a helper without it.
+  "crates/nvs-runtime/src/abi.rs",
+  # `rule:errors/panics-bypass-user-code` and `rule:errors/log-write`'s **tier 4** — the engine
+  # floor: what reports a failure when there is no script left to run and no second attempt to
+  # make.
+  "crates/nvs-runtime/src/floor.rs",
 ]
 
 # 0036 and 0135 are the shape spelling goal `input-shapes` landed and 0147 is the rule stage 2 implements on top
