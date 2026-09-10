@@ -621,7 +621,8 @@ def validate(sections: list[Section]) -> list[str]:
             f"it, which is how the four this gate was added for got there. Nothing else catches it "
             f"before the push -- `check-links.py` is CI's `docs` job, and `verify.py` deliberately "
             f"does not run it (its own docstring says why), so a green verify says nothing here. "
-            f"A link already dead at HEAD is not counted: that one is not yours.")
+            f"A link already dead at the commit this session opened on is not counted: that one is "
+            f"not yours. A slice you committed by hand earlier in this session is still yours.")
     errors += rulebook_findings() + record_findings() + migration_findings()
     return errors
 
@@ -745,11 +746,39 @@ LINK_WHY = {
 BODY_HOME = {"handoff": HANDOFF, "playbook": PLAYBOOK, "plan": PLAN, "plan-edit": PLAN}
 
 
-def head_paths() -> set[str]:
-    """Every path HEAD holds, spelled as git spells it -- the baseline the link gate compares to.
+#: Where `loop.py` leaves the commit the running session opened on. Absent outside the loop, and
+#: absent inside it whenever the driver could not name a sha, which both read as "use HEAD".
+SESSION_BASE = RUNDIR / "session-start.json"
 
-    Empty when there is no HEAD to read, which the caller then reads as "every finding is new"."""
-    done = git("ls-tree", "-r", "--name-only", "HEAD", check=False)
+
+def session_base() -> str:
+    """The commit this session opened on, or `"HEAD"` when nothing on disk names one.
+
+    Checked, not trusted. A sha that no longer resolves, or one that is not an ancestor of HEAD --
+    a rebase, a reset, a file left behind by an abandoned run -- would silently widen the baseline
+    to include commits this session never made, and a gate that blames the wrong session gets
+    turned off. Anything that does not check out falls back to HEAD, which is the old behaviour and
+    is never wrong in the direction that matters: it under-refuses.
+    """
+    try:
+        base = json.loads(SESSION_BASE.read_text(encoding="utf-8")).get("base", "")
+    except (OSError, ValueError, AttributeError):
+        return "HEAD"
+    if not isinstance(base, str) or not re.fullmatch(r"[0-9a-f]{7,40}", base):
+        return "HEAD"
+    if git("cat-file", "-e", f"{base}^{{commit}}", check=False).returncode != 0:
+        return "HEAD"
+    if git("merge-base", "--is-ancestor", base, "HEAD", check=False).returncode != 0:
+        return "HEAD"
+    return base
+
+
+def tree_paths(ref: str) -> set[str]:
+    """Every path `ref` holds, spelled as git spells it -- the baseline the link gate compares to.
+
+    Empty when there is no such commit to read, which the caller then reads as "every finding is
+    new"."""
+    done = git("ls-tree", "-r", "--name-only", ref, check=False)
     if done.returncode != 0:
         return set()
     return {line for line in done.stdout.split("\n") if line}
@@ -787,15 +816,15 @@ def scanned_files() -> list[Path]:
     return files
 
 
-def inherited_links(rel: str, paths: set[str]) -> set[str]:
-    """The link targets already dead in `rel` at HEAD, which are not this session's to answer.
+def inherited_links(rel: str, paths: set[str], ref: str) -> set[str]:
+    """The link targets already dead in `rel` at `ref`, which are not this session's to answer.
 
     The branch mirrors `checklinks.check`, and has to: a `.py` file is scanned for bare path
     mentions and never for link syntax, so reading its HEAD text as markdown would find none of
     them, hand back an empty baseline, and charge this session for every stale mention it
     inherited -- the exact over-refusal `link_findings` is written to avoid.
     """
-    done = git("show", f"HEAD:{rel}", check=False)
+    done = git("show", f"{ref}:{rel}", check=False)
     if done.returncode != 0:
         return set()  # the file is new in this session, so every finding in it is new too
     if Path(rel).suffix in checklinks.MENTION_EXTS:
@@ -817,16 +846,22 @@ def link_findings() -> tuple[list[str], list[str]]:
     over one charges this session for another's -- which in an unattended run means finished,
     verified work left uncommitted behind a link nobody here touched. Those are printed instead.
 
-    The baseline is HEAD rather than the session's starting commit, which is the conservative way
-    round: a session that committed a slice by hand before wrapping has its own earlier breakage
-    read as inherited. It under-refuses and never over-refuses, and AGENTS.md § *Session workflow*
-    puts every commit in the wrap anyway, so the case is the rare one.
+    **The baseline is the commit the session opened on, and HEAD only when nothing names one.**
+    It was HEAD unconditionally, which read every finding a session had already committed as
+    inherited -- so a hand-rolled `git commit` before the wrap moved HEAD under the session and
+    handed it its own breakage back as somebody else's. That is how a `--record` artifact
+    (check-links:written) went dead in `tools/bench-load.py` and reached `main` red, turning CI's
+    `docs` job over a link no gate here saw. `session_base` is where the sha comes
+    from and what it is checked against; outside the loop there is none, and the old behaviour is
+    what an interactive session still gets.
 
-    Reading HEAD costs nothing in the ordinary case: a file with no finding is never asked about.
+    Reading the baseline costs nothing in the ordinary case: a file with no finding is never asked
+    about.
     """
     broke: list[str] = []
     found: list[str] = []
     paths: set[str] | None = None
+    ref = session_base()
     for path in sorted(scanned_files()):
         if checklinks.is_generated(path):
             continue
@@ -835,8 +870,8 @@ def link_findings() -> tuple[list[str], list[str]]:
             continue
         rel = path.relative_to(ROOT).as_posix()
         if paths is None:
-            paths = head_paths()
-        old = inherited_links(rel, paths)
+            paths = tree_paths(ref)
+        old = inherited_links(rel, paths, ref)
         for lineno, target, kind in hits:
             (found if target in old else broke).append(f"{rel}:{lineno} -> {target} ({kind})")
     return broke, found
@@ -1442,16 +1477,19 @@ def check() -> int:
     say()
     say("== LINKS  (python tools/check-links.py -- CI's `docs` job, which verify.py does not run)")
     broke, found = link_findings()
+    base = session_base()
+    where = "HEAD" if base == "HEAD" else f"{base[:9]}, where this session opened"
     for ln in broke:
         say(f"  YOURS  {ln}")
     for ln in found[:8]:
-        say(f"  at HEAD already  {ln}")
+        say(f"  inherited  {ln}")
     if len(found) > 8:
-        say(f"  ... and {len(found) - 8} more that were already dead at HEAD")
+        say(f"  ... and {len(found) - 8} more that were already dead at {where}")
     if not broke and not found:
         say("  every link resolves, with matching case and form")
     elif not broke:
-        say(f"  none of the {len(found)} is this session's, so `--wrap` will not refuse over them")
+        say(f"  none of the {len(found)} is this session's -- all were dead at {where} -- "
+            f"so `--wrap` will not refuse over them")
     else:
         say("  `--wrap` refuses while a YOURS line stands: fix the link, not the citation's line")
 

@@ -2991,6 +2991,30 @@ def session_goal(pack):
     return "the pack names no item -- see the handoff's `## Next group`"
 
 
+#: Where the driver leaves the commit a session opened on, for the tools that run *inside* that
+#: session and cannot otherwise know. Only `session.py`'s link gate reads it today. It is one field
+#: rather than a shape worth versioning: anything else a session wants to know about its own start
+#: is derivable from the sha.
+SESSION_BASE = RUNDIR / "session-start.json"
+
+
+def write_session_base(base):
+    """Record the sha a session is opening on, or clear the record when there is no sha.
+
+    Cleared rather than left stale on purpose. A reader that finds a sha trusts it, so a file
+    surviving from a previous run would hand the next session a baseline older than its own work
+    and hide exactly the breakage it exists to catch. Absent means "ask HEAD", which is what every
+    interactive session gets and is the behaviour this file changes nothing about."""
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        if base:
+            SESSION_BASE.write_text(json.dumps({"base": base}) + "\n", encoding="utf-8")
+        else:
+            SESSION_BASE.unlink(missing_ok=True)
+    except OSError:
+        pass  # the ledger is a convenience; a run never fails over one
+
+
 class SliceWatch:
     """What the goal row's session half says: what the running session has landed **so far**,
     rather than what it was handed when it started.
@@ -3030,13 +3054,21 @@ class SliceWatch:
     def start(self, base):
         """A session is about to be oriented. Everything the last one landed is now history, and
         the row must stop asserting its item: `orient.py` is a minute of work away, and for that
-        minute the row used to name a slice that had already been committed and handed off."""
+        minute the row used to name a slice that had already been committed and handed off.
+
+        The base is also written to disk, because this object holds the only record of where a
+        session began and `session.py`'s link gate needs it: that gate reads a finding as inherited
+        when it is already in HEAD, and a session that commits a slice by hand before wrapping
+        moves HEAD under itself and has its own breakage read as somebody else's. That is not the
+        rare case its docstring assumed -- it is how a dead link reached `main` and turned CI's
+        `docs` job red, from a session whose transcript shows a hand-rolled `git commit -F`."""
         with self.lock:
             self.base = self.head = base or ""
             self.item = "orienting -- no item picked yet"
             self.commits = 0
             self.subject = ""
             self._next_slow = 0.0
+        write_session_base(base)
         TICKER.set(goal=self.row())
 
     def pick(self, item):
