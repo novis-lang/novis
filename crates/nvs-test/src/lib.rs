@@ -184,10 +184,12 @@
 //! the runner's, and each line is one argument with no splitting and no
 //! quoting — [`case::Case::args`] owns why.
 //!
-//! ## Known gaps
+//! ## The section that is deliberately absent
 //!
-//! There is no `--EXPECTREGEX--`. `--EXPECTF--` covers what the corpus needs
-//! so far, and a second pattern language is a second thing to learn.
+//! There is no `--EXPECTREGEX--`, and it is not merely unwritten:
+//! `--EXPECTF--`'s placeholders cover what a case actually varies over, and
+//! a second pattern language is a second thing every case author has to
+//! learn before writing the first one.
 
 pub mod case;
 pub mod expect;
