@@ -1,0 +1,28 @@
+--TEST--
+`Core\Xml\Node::source` writes the node it was asked and everything under it, with text and attribute values escaped, so nothing a document carried comes back out as markup — `rule:core-classes/xml-tree-and-stream`, `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// Every node answers this, not only the document one: what a program gets back
+// is the subtree it asked about, with nothing above it. A walk that found one
+// element therefore has that element's own text without carrying the rest of
+// the document around.
+Core\Xml\Node $doc = Core\Xml::parse("<order><line k=\"&quot;a&quot; &amp; b\">&lt;script&gt;alert(1)&lt;/script&gt;</line><note/></order>");
+array<Core\Xml\Node> $roots = $doc->children();
+Core\Xml\Node $order = $roots[0];
+array<Core\Xml\Node> $under = $order->children();
+
+echo "document: ", $doc->source(), "\n";
+echo "element:  ", $under[0]->source(), "\n";
+echo "text:     ", $under[0]->children()[0]->source(), "\n";
+
+// The characters are the document's content on the way in and are written back
+// as the references they were read from, so a text node holding a script tag
+// is a text node holding a script tag on both sides of the round trip.
+echo "read:     ", $under[0]->children()[0]->text(), "\n";
+echo "empty:    ", $under[1]->source(), "\n";
+--EXPECT--
+document: <order><line k="&quot;a&quot; &amp; b">&lt;script&gt;alert(1)&lt;/script&gt;</line><note></note></order>
+element:  <line k="&quot;a&quot; &amp; b">&lt;script&gt;alert(1)&lt;/script&gt;</line>
+text:     &lt;script&gt;alert(1)&lt;/script&gt;
+read:     <script>alert(1)</script>
+empty:    <note></note>

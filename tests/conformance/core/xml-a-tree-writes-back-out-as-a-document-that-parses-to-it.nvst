@@ -1,0 +1,42 @@
+--TEST--
+`Core\Xml\Node::source` is the way out of a walk: what it writes parses to the tree that wrote it, and writing that again answers the same text — `rule:core-classes/xml-tree-and-stream`, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The tree half materialises a document and this is how one leaves again,
+// without replaying the walk into a `Core\Xml\Writer` a call at a time. Two
+// things are visible in what comes out: an empty element carries an end tag
+// rather than being written `<empty/>`, and no `<?xml …?>` declaration is
+// written back, because a parse leaves none behind to write.
+Core\Xml\Node $doc = Core\Xml::parse("<?xml version=\"1.0\"?><!--an order--><order id=\"A&amp;B\"><line n=\"2\">2 &lt; 3</line><empty/><?render mode=compact?></order>");
+tainted string $written = $doc->source();
+echo $written, "\n";
+
+// Writing what was just written answers the same text, so the round trip is a
+// fixed point rather than a document that drifts each time it is read back.
+tainted string $again = Core\Xml::parse($written)->source();
+if ($again == $written) {
+    echo "fixed point\n";
+} else {
+    echo "drifted: ", $again, "\n";
+}
+
+// And the other shape agrees about it: the stream reads back the nodes the
+// tree held, in the order the tree held them.
+Core\Xml\Reader $reader = Core\Xml::reader($written);
+while (true) {
+    ?Core\Xml\Node $node = $reader->read();
+    if ($node != null) {
+        echo "  ", $reader->depth(), " \"", $node->name(), "\" \"", $node->text(), "\"\n";
+    } else {
+        break;
+    }
+}
+--EXPECT--
+<!--an order--><order id="A&amp;B"><line n="2">2 &lt; 3</line><empty></empty><?render mode=compact?></order>
+fixed point
+  0 "" "an order"
+  0 "order" ""
+  1 "line" ""
+  2 "" "2 < 3"
+  1 "empty" ""
+  1 "render" "mode=compact"

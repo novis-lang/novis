@@ -88,19 +88,43 @@
 //! `rule:core-classes/xml-tree-and-stream` names and
 //! `the_reader_holds_one_window_rather_than_the_document` measures.
 //!
+//! # The way back out of a tree
+//!
+//! [`nvs_core_xml_node_source`] writes a node's subtree back out as document
+//! text, so a program that walked a tree does not have to replay it into a
+//! [`WRITER`] a call at a time. That is still not a path from a tree *into* the
+//! writer: the writer is written to and never handed a tree, which is what
+//! `a_parsed_tree_has_no_path_back_into_execution` holds, and what this member
+//! answers is text.
+//!
+//! It writes **XML rules whichever door parsed the tree**, because a node
+//! carries no memory of which parser built it and a flag to pick between the
+//! two is the ambiguity `rule:core-classes/html-parsing` retired. Two things
+//! follow, and both are that rule's *serialization follows the door* clause
+//! read from this side. Every element is written with an end tag rather than as
+//! `<a/>`, where [`crate::html`]'s serialiser leaves a void element with no end
+//! tag at all: the two spellings are one document to an XML reader, so which is
+//! written is this serialiser's own choice, and the long one is the one that
+//! does not become an unclosed open tag swallowing the rest of the text when
+//! something that is not an XML parser reads it. And a tree holding something
+//! XML cannot spell — a name that is not a name, `--` inside a comment, `?>`
+//! inside a processing instruction — is refused rather than written, where the
+//! WHATWG algorithm recovered from all three on the way in.
+//!
+//! None of that makes this member a way to produce HTML. What it writes is XML,
+//! read by an XML reader; a program that wants markup out of a document it
+//! parsed wants `Core\Html::sanitize`, which is the launderer
+//! `rule:core-classes/html-sanitize` specifies and the only member that answers
+//! `Core\Html\Markup`.
+//!
 //! # Known gaps
 //!
-//! 1. **Nothing serialises a tree.** A tree can be walked and not written back
-//!    out, so `Core\Html::sanitize`'s parse-walk-serialise round trip has two
-//!    of its three steps. [`WRITER`] writes a document a node at a time and is
-//!    not the missing step: it is written to, never handed a tree, which is
-//!    what `a_parsed_tree_has_no_path_back_into_execution` holds.
-//! 2. **A name is the name as written, prefix and all.** `<x:a/>` answers
+//! 1. **A name is the name as written, prefix and all.** `<x:a/>` answers
 //!    `x:a`, and no `xmlns` declaration is resolved to a namespace URI. A
 //!    program comparing qualified names is comparing the document's own
 //!    spelling, which is right for a document it controls and not enough for
 //!    one it does not.
-//! 3. **Whitespace between elements is text.** A pretty-printed document has a
+//! 2. **Whitespace between elements is text.** A pretty-printed document has a
 //!    text node between every pair of siblings, exactly as the XML it is says
 //!    it does. Dropping them would be a guess about which whitespace mattered,
 //!    which `rule:errors/ambiguous-input-refused` is the general answer to.
@@ -218,11 +242,13 @@ const CHILDREN_SLOT: usize = 4;
 /// holds — five members over five slots and no static member at all, because a
 /// node is only ever produced by a parse.
 ///
-/// Every member is a slot read: the document has been read by the time a node
-/// exists, so there is nothing left to compute and nothing left to fail. Which
-/// slots carry anything depends on the node's [`Kind`], and each member's card
-/// says which — a text node has no attributes and an element carries no text of
-/// its own, both of which are answers rather than errors.
+/// Five of the six members are a slot read: the document has been read by the
+/// time a node exists, so there is nothing left to compute and nothing left to
+/// fail. Which slots carry anything depends on the node's [`Kind`], and each
+/// member's card says which — a text node has no attributes and an element
+/// carries no text of its own, both of which are answers rather than errors.
+/// The sixth is [`nvs_core_xml_node_source`], which walks the subtree and
+/// writes it back out, and is the one that can refuse.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     methods: &[],
@@ -271,6 +297,15 @@ pub(crate) const NODE: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Instance(NODE_NAME)),
             symbol: "nvs_core_xml_node_children",
             doc: Some(&CHILDREN_DOC),
+        },
+        CoreMethod {
+            name: "source",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_xml_node_source",
+            doc: Some(&SOURCE_DOC),
         },
     ],
     slots: &["kind", "name", "text", "attributes", "children"],
@@ -333,6 +368,29 @@ const CHILDREN_DOC: MethodDoc = MethodDoc {
           between its elements: whitespace in an XML document is content, and dropping it would be \
           a guess about which of it mattered.",
     errors: &[],
+};
+
+/// `Core\Xml\Node::source`'s reference card — `rule:core-api/reference-card`.
+const SOURCE_DOC: MethodDoc = MethodDoc {
+    short: "This node and everything under it, written back out as document text — the way out of \
+            a walk, for a program that read a tree, decided something about it and wants the \
+            document again without replaying it into a `Core\\Xml\\Writer` a call at a time. XML \
+            rules, whichever door parsed the tree: every element is written with an end tag, and a \
+            tree holding something XML cannot spell is refused here rather than written as \
+            something a reader would read back differently.",
+    params: &[],
+    ret: "The subtree as text, with no XML declaration in front of it — a parse leaves none \
+          behind, so writing one would be inventing the version and encoding it claims. Text and \
+          attribute values are escaped, so nothing a document carried can come back out as markup. \
+          `tainted`, as everything read out of a parsed tree is.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The tree holds something no XML document can spell: a name or a target that is not \
+               a name, a comment holding `--` or ending in `-`, a processing instruction whose \
+               data holds `?>`, or a character a document has no way to write. `Core\\Html::parse` \
+               recovers from all four rather than failing, so this is where one door's recovery \
+               stops being the other door's output.",
+    }],
 };
 
 /// `rule:core-classes/html-parsing`'s node family, as the closed enum a program
@@ -902,6 +960,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_xml_node_text" => (nvs_core_xml_node_text as *const ()).cast(),
         "nvs_core_xml_node_attributes" => (nvs_core_xml_node_attributes as *const ()).cast(),
         "nvs_core_xml_node_children" => (nvs_core_xml_node_children as *const ()).cast(),
+        "nvs_core_xml_node_source" => (nvs_core_xml_node_source as *const ()).cast(),
         "nvs_core_xml_reader" => (nvs_core_xml_reader as *const ()).cast(),
         "nvs_core_xml_reader_read" => (nvs_core_xml_reader_read as *const ()).cast(),
         "nvs_core_xml_reader_depth" => (nvs_core_xml_reader_depth as *const ()).cast(),
@@ -2000,6 +2059,215 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// One step of [`source`]'s walk: a node whose own text is not written yet, or
+/// an end tag waiting under the children it closes.
+enum Step {
+    /// A node still to be written, and its children after it.
+    Node(Value),
+    /// Text to append once everything pushed over it has been written.
+    Closed(String),
+}
+
+/// The refusal [`source`] makes for a tree with no XML spelling: spec § 10's
+/// `LogicError`, which is what `Core\Json::encode` already refuses a value it
+/// cannot write with.
+///
+/// # Errors
+///
+/// Always — this is the error, and the `Result` is so a caller writes
+/// `return refused(…)` rather than wrapping it.
+fn refused<T>(why: &str) -> Result<T, Fault> {
+    Err(Fault::thrown_as(
+        ThrownClass::Logic,
+        // The sentence is the caller's and the period is here, exactly as the
+        // parse's and the writer's are.
+        format!("{NODE_NAME}::source(): {why}."),
+    ))
+}
+
+/// `text` refused if it holds a character a document cannot write.
+///
+/// # Errors
+///
+/// A `LogicError` naming the character, which is [`writable`]'s refusal made
+/// from the other door: the rule about what a document can carry is the
+/// module's and not either writer's.
+fn carried(text: &str) -> Result<(), Fault> {
+    match unwritable(text) {
+        Some(ch) => refused(&format!(
+            "the text holds U+{:04X}, which a document has no way to write",
+            u32::from(ch)
+        )),
+        None => Ok(()),
+    }
+}
+
+/// One node's subtree as the document text a parse reads this same tree back
+/// out of.
+///
+/// **Iterative, over a heap stack rather than the native one**, for
+/// [`instance_of`]'s reason: a frame per node exhausts a task's stack before
+/// [`DEPTH_CEILING`] is reached, so a document deep enough to be interesting
+/// would take the process down instead of being written.
+///
+/// **The XML rules are the writer's own** — [`is_name`], [`escaped`] and
+/// [`quoted`] are shared with it — so the two ways a document leaves this
+/// module spell one thing one way. What differs from [`crate::html`]'s
+/// serialiser is what `rule:core-classes/html-parsing` says it should, and the
+/// module doc's *the way back out of a tree* is where both differences are
+/// stated: an end tag on every element, and a refusal where that parser
+/// recovered.
+///
+/// What it spends: the text it is building, plus one entry per node on the path
+/// from the root to where the walk is, and the children of the node it is
+/// looking at.
+///
+/// # Errors
+///
+/// A `LogicError` for a tree with no XML spelling, and a `Fault::fatal` for a
+/// slot this module did not write.
+fn source(node: Value) -> Result<String, Fault> {
+    let mut out = String::new();
+    let mut steps = vec![Step::Node(node)];
+    while let Some(step) = steps.pop() {
+        let node = match step {
+            Step::Closed(tag) => {
+                out.push_str(&tag);
+                continue;
+            }
+            Step::Node(node) => node,
+        };
+        let receiver = crate::instance::receiver(node, &NODE, "source")?;
+        let held = crate::instance::slot(receiver, KIND_SLOT);
+        let kind = held
+            .as_int()
+            .and_then(|ordinal| Kind::ALL.into_iter().find(|kind| kind.ordinal() == ordinal))
+            .ok_or_else(|| wrong_slot(&NODE, "source", KIND_SLOT, held))?;
+        let named = crate::instance::slot(receiver, NAME_SLOT);
+        let name = named
+            .as_text()
+            .ok_or_else(|| wrong_slot(&NODE, "source", NAME_SLOT, named))?;
+        let carries = crate::instance::slot(receiver, TEXT_SLOT);
+        let text = carries
+            .as_text()
+            .ok_or_else(|| wrong_slot(&NODE, "source", TEXT_SLOT, carries))?;
+
+        match kind {
+            // A document is its children and nothing of its own: a parse leaves
+            // no declaration behind, so there is none to write back.
+            Kind::Document => {}
+            Kind::Element => {
+                if !is_name(name) {
+                    return refused(&format!("`{name}` is not a name a document can write"));
+                }
+                out.push('<');
+                out.push_str(name);
+                let attributes = crate::instance::slot(receiver, ATTRIBUTES_SLOT);
+                let pairs = attributes
+                    .array_ptr()
+                    .ok_or_else(|| wrong_slot(&NODE, "source", ATTRIBUTES_SLOT, attributes))?;
+                let pairs = crate::arr::borrowed(pairs);
+                let mut from = 0usize;
+                while let Some(at) = pairs.next_slot(from) {
+                    from = at + 1;
+                    let key = pairs
+                        .key_at(at)
+                        .ok_or_else(|| wrong_slot(&NODE, "source", ATTRIBUTES_SLOT, attributes))?;
+                    let attribute = std::str::from_utf8(key.as_bytes())
+                        .map_err(|_| wrong_slot(&NODE, "source", ATTRIBUTES_SLOT, attributes))?;
+                    let held = pairs
+                        .value_at(at)
+                        .expect("next_slot only names live entries");
+                    let value = held
+                        .as_text()
+                        .ok_or_else(|| wrong_slot(&NODE, "source", ATTRIBUTES_SLOT, held))?;
+                    if !is_name(attribute) {
+                        return refused(&format!(
+                            "`{attribute}` is not a name a document can write"
+                        ));
+                    }
+                    carried(value)?;
+                    out.push(' ');
+                    out.push_str(attribute);
+                    out.push_str("=\"");
+                    out.push_str(&quoted(value));
+                    out.push('"');
+                }
+                out.push('>');
+                steps.push(Step::Closed(format!("</{name}>")));
+            }
+            Kind::Text => {
+                carried(text)?;
+                out.push_str(&escaped(text));
+            }
+            Kind::Comment => {
+                if text.contains("--") || text.ends_with('-') {
+                    return refused(
+                        "a comment has no escape grammar, so it cannot hold `--` or end with `-`",
+                    );
+                }
+                carried(text)?;
+                out.push_str("<!--");
+                out.push_str(text);
+                out.push_str("-->");
+            }
+            Kind::ProcessingInstruction => {
+                if !is_name(name) {
+                    return refused(&format!("`{name}` is not a target a document can write"));
+                }
+                if text.contains("?>") {
+                    return refused(
+                        "a processing instruction has no escape grammar, so its data cannot hold \
+                         `?>`",
+                    );
+                }
+                carried(text)?;
+                out.push_str("<?");
+                out.push_str(name);
+                if !text.is_empty() {
+                    out.push(' ');
+                    out.push_str(text);
+                }
+                out.push_str("?>");
+            }
+        }
+
+        if matches!(kind, Kind::Document | Kind::Element) {
+            let children = crate::instance::slot(receiver, CHILDREN_SLOT);
+            let under = children
+                .array_ptr()
+                .ok_or_else(|| wrong_slot(&NODE, "source", CHILDREN_SLOT, children))?;
+            let under = crate::arr::borrowed(under);
+            let mut order = Vec::with_capacity(under.count());
+            let mut from = 0usize;
+            while let Some(at) = under.next_slot(from) {
+                from = at + 1;
+                order.push(
+                    under
+                        .value_at(at)
+                        .expect("next_slot only names live entries"),
+                );
+            }
+            // Reversed, so a pop takes the next child in document order.
+            steps.extend(order.into_iter().rev().map(Step::Node));
+        }
+    }
+    Ok(out)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$node->source(): tainted string` — this subtree as the document text it
+    /// was written as.
+    ///
+    /// The way back out of a walk, and the tree half's own: [`WRITER`] is
+    /// written to a call at a time and is never handed a tree, which is what
+    /// `a_parsed_tree_has_no_path_back_into_execution` holds.
+    fn nvs_core_xml_node_source(_ctx, args: [1]) {
+        let written = source(args[0])?;
+        Ok(Value::str(NvsStr::new(written.as_bytes())))
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Xml::reader(string $document): Core\Xml\Reader` — replacing
     /// `XMLReader::xml` and `xml_parser_create`.
@@ -2327,16 +2595,23 @@ impl Pen {
 ///
 /// A `LogicError` naming the character.
 fn writable(pen: &Pen, text: &str) -> Result<(), Fault> {
-    if let Some(ch) = text
-        .chars()
-        .find(|ch| ch.is_control() && !matches!(ch, '\t' | '\r' | '\n'))
-    {
+    if let Some(ch) = unwritable(text) {
         return pen.refuse(&format!(
             "the text holds U+{:04X}, which a document has no way to write",
             u32::from(ch)
         ));
     }
     Ok(())
+}
+
+/// The character in `text` a document has no way to write, if it holds one.
+///
+/// Both writers ask this and each phrases its own refusal, since what a
+/// document can carry is the module's rule rather than either door's:
+/// [`writable`] is the stream's and [`carried`] is the tree's.
+fn unwritable(text: &str) -> Option<char> {
+    text.chars()
+        .find(|ch| ch.is_control() && !matches!(ch, '\t' | '\r' | '\n'))
 }
 
 /// [`nvs_core_xml_writer_start_document`]'s body.
