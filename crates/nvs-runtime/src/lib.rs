@@ -185,6 +185,12 @@
 //!   own doc owns each of those decisions and is the only place they are
 //!   argued.
 //!
+//! **The request arena is refused rather than absent, and a helper suspends
+//! through `Ctx::yielder`/`Ctx::set_yielder`** — the shape ADR 0002
+//! § *Consequences* commits to. `rule:security/arena-is-an-ownership-root`
+//! rejects a region per isolate, so [`object`]'s per-context live list plus
+//! [`object::sweep`] are the ownership root instead.
+//!
 //! ## Known gaps
 //!
 //! Each is a missing *representation*, not a missing decision, and each is
@@ -194,6 +200,7 @@
 //!    [`Value::release`] ignores those two tags rather than decrementing
 //!    anything. They exist in [`Tag`] because the plan's § *Value
 //!    representation* names them; nothing constructs one.
+//!    — owner: unowned
 //! 2. **Appending is the only string operation with an in-place fast path.**
 //!    [`nvs_str_append`] writes into its target's spare capacity at a
 //!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
@@ -201,13 +208,7 @@
 //!    allocates its result. That is a widening of [`NvsStr`] wherever a
 //!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
-//! 3. **Not a gap: `Ctx` carries a coroutine yielder, and the request arena is
-//!    decided against.** A helper suspends through
-//!    `Ctx::yielder`/`Ctx::set_yielder`, which is the shape ADR 0002
-//!    § *Consequences* commits to. The arena is not missing but refused:
-//!    `rule:security/arena-is-an-ownership-root` rejects a region per isolate, and [`object`]'s
-//!    per-context live list plus [`object::sweep`] are the ownership root
-//!    instead.
+//!    — owner: unowned
 //! 4. **No custom panic hook is installed.** `rule:errors/helper-abi` wants the
 //!    panic message routed to the request log with its request id. The request
 //!    log is there — `Ctx::write_log_record` under `nvs_stdlib::log` — so
@@ -216,9 +217,11 @@
 //!    is still the right destination for a CLI script. [`nvs_helper!`] already
 //!    captures the message into [`Ctx`], so the hook is presentation, not
 //!    containment.
+//!    — owner: unowned-sweep
 //! 5. **`nvs_safepoint` acts on only some of its flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `nvs dap` exists.
+//!    — owner: unowned
 //! 6. **An exception *this crate* builds carries a message and nothing
 //!    else.** [`Thrown::new`] — reached from [`nvs_raise_new`] and from a
 //!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
@@ -229,19 +232,21 @@
 //!    `previous` cannot be set *at all* yet is a different gap, owned by
 //!    `nvs_types::error_lib`, which explains why the synthesized constructor
 //!    takes only a message.
+//!    — owner: unowned
 //! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
 //!    object links into its context's live list, and dropping the context
 //!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
 //!    [`object::sweep`] as the mechanism and that module's docs as its home.
 //!    One shape is still owed a collector: **a long-running CLI script that
 //!    builds cycles between teardowns** holds them until its context ends,
-//!    which is the shape a stop-the-world pass would serve and the one M5/M6
-//!    still owns. **A cycle closed through an `array<T>` is swept**, since the
-//!    tally reads the elements of an array its holder solely owns as well as
-//!    its field slots; what it still leaves alone is a cycle closed through a
-//!    **shared** array, whose other owner this walk cannot name, and that errs
-//!    towards leaving memory alone rather than towards freeing what somebody
-//!    holds.
+//!    which is the shape a stop-the-world pass would serve and which no
+//!    milestone's plan carries. **A cycle closed through an `array<T>` is
+//!    swept**, since the tally reads the elements of an array its holder solely
+//!    owns as well as its field slots; what it still leaves alone is a cycle
+//!    closed through a **shared** array, whose other owner this walk cannot
+//!    name, and that errs towards leaving memory alone rather than towards
+//!    freeing what somebody holds.
+//!    — owner: unowned
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an
