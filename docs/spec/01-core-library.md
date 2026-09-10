@@ -866,6 +866,8 @@ input opens two streams.
 | `$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port` | `$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int` | `parse_url`'s array keys | neutral |
 | `$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString` | `$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string` | `parse_url`'s array keys, and reassembly by hand | neutral |
 | `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
+| `$uri->queryParameter` | `$uri->queryParameter(string $name): mixed` | `parse_str` over `parse_url`'s `query` key, then an array read | neutral |
+| `$uri->withQueryParameter` | `$uri->withQueryParameter(string $name, mixed $value): Uri` | `parse_str`, an array edit and `http_build_query` written out at every call site | |
 | `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
 | `$uri->compareTo` | `$uri->compareTo(Uri $other): int` | nothing — PHP compares `parse_url` arrays by hand | |
 | `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant}): Uri` | nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner` | |

@@ -9,7 +9,11 @@ component exactly as written — still percent-encoded, in its own case. Every r
 the same read with `null` in place of `RuntimeError`, and is the spelling of "is this text a URI".
 `with` and `resolve` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
 `==` on two `Uri` objects is identity. `parseQuery` and `buildQuery` read and write the bracket
-convention, and `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+convention, and `queryParameter`/`withQueryParameter` are the same convention over **one** parameter
+by name — a name `with` cannot take as a bag key, because a bag's keys are declared and a parameter's
+name is chosen at run time. The name is top-level, so an array `$value` is what writes `a[b]`; a
+`null` `$value` removes the pair, and removing the last one leaves no query at all rather than a bare
+`?`. `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
 The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
 send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
 which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.
@@ -34,6 +38,8 @@ var $q = Core\Uri::parseQuery("a=1&b[]=2&b[]=3");
 echo Core\Str::join(Core\Arr::keys($q), ","), "\n";
 array<mixed> $params = ["name" => "a b", "page" => 2];
 echo Core\Uri::buildQuery($params), "\n";
+echo $u->queryParameter("x") as bytes as string, "\n";
+echo $u->withQueryParameter("y", null)->withQueryParameter("z", "3")->toString(), "\n";
 echo Core\Uri::encodeComponent("a b&c"), " ", Core\Uri::encodeFormValue("a b&c"), "\n";
 ```
 ```output
@@ -46,5 +52,7 @@ not a uri
 same uri
 a,b
 name=a+b&page=2
+1
+https://example.com:8443/a/b%20c?x=1&z=3#top
 a%20b%26c a+b%26c
 ```

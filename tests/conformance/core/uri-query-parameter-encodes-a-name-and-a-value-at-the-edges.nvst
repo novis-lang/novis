@@ -1,0 +1,48 @@
+--TEST--
+`$uri->withQueryParameter` form-encodes both halves and `$uri->queryParameter` reads them back, at the edges the convention has — `rule:core-classes/uri-removable-components`
+--FILE--
+<?nvs
+var $u = Core\Uri::parse("https://example.com/a");
+
+// A name carrying every delimiter this class knows survives the round trip
+// and opens no pair, no fragment and no component of its own, because both
+// halves are form-encoded on the way out — which is the property the pair
+// inherits from `Core\Uri::buildQuery` rather than one it re-decides.
+var $odd = $u->withQueryParameter("a b&c=d", "x y&z=w#h");
+echo $odd->toString(), "\n";
+echo $odd->queryParameter("a b&c=d") as bytes as string, "\n";
+
+// An empty value is a pair with nothing after its `=`, and it is not the
+// absent pair a `null` leaves: reading one answers empty `bytes` and reading
+// the other answers `null`.
+var $empty = $u->withQueryParameter("e", "");
+echo $empty->toString(), "\n";
+echo "[", $empty->queryParameter("e") as bytes as string, "]\n";
+echo $empty->withQueryParameter("e", null)->queryParameter("e") == null ? "null" : "found", "\n";
+
+// A name that decodes to nothing is dropped by the convention, so a pair
+// written under the empty name is not there to read back.
+echo Core\Uri::parse("https://example.com/a?=1")->queryParameter("") == null ? "null" : "found", "\n";
+
+// A value reaches the wire through `buildQuery`'s renderings and no others,
+// so `true` writes `1` and `false` writes `0` rather than the empty string
+// `false as string` answers — an empty value is how a query spells *absent*.
+echo $u->withQueryParameter("t", true)->toString(), "\n";
+echo $u->withQueryParameter("f", false)->toString(), "\n";
+echo $u->withQueryParameter("n", 7)->toString(), "\n";
+
+// The last pair removed takes the `?` with it, on a URI that also has a
+// fragment — the removal goes through the same recompose-and-reread path
+// every `with` takes, so the components after it do not move.
+echo Core\Uri::parse("https://example.com/a?only=1#top")->withQueryParameter("only", null)->toString(), "\n";
+--EXPECT--
+https://example.com/a?a+b%26c%3Dd=x+y%26z%3Dw%23h
+x y&z=w#h
+https://example.com/a?e=
+[]
+null
+null
+https://example.com/a?t=1
+https://example.com/a?f=0
+https://example.com/a?n=7
+https://example.com/a#top

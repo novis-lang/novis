@@ -328,18 +328,7 @@
 //! read as text at the door, which is spec § 15's row rather than § 12's, and
 //! [`Values`] is the one knob between them.
 //!
-//! # Known gaps
-//!
-//! 1. **A query parameter can only be edited by rewriting the whole query**,
-//!    so `rule:core-classes/uri-removable-components`'s second level —
-//!    `queryParameter(string $name)` and `withQueryParameter(string $name,
-//!    mixed $value)` — does not exist yet. `with` cannot close it: a bag's
-//!    keys are declared in the registry and a parameter's name is chosen at
-//!    run time. Both members are a composition of [`nvs_core_uri_parse_query`],
-//!    [`nvs_core_uri_build_query`] and `with` and add no mechanism, so the
-//!    query string gains no second canonicalization to drift from.
-//!    — owner: unowned-sweep
-//!
+
 //! # What these members do with a qualifier
 //!
 //! `rule:security/unclassified-parameter-refuses-tainted`'s classification, and the judgement that separates this class
@@ -586,6 +575,33 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(NAME),
             symbol: "nvs_core_uri_with",
             doc: Some(&WITH_DOC),
+        },
+        CoreMethod {
+            name: "queryParameter",
+            names: &["name"],
+            // `Qual::Neutral`, where every other row on this class that takes
+            // text is `Qual::Contagious`: the answer is built out of the
+            // *receiver's* query string, and no byte of the name survives into
+            // it. The module docs' *What these members do with a qualifier*
+            // owns the distinction.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_uri_query_parameter",
+            doc: Some(&QUERY_PARAMETER_DOC),
+        },
+        CoreMethod {
+            name: "withQueryParameter",
+            names: &["name", "value"],
+            // Contagious where the reader beside it is neutral, and for the
+            // same reason read the other way: this answer *is* built out of
+            // the name's bytes and the value's, since both are written into
+            // the query string it recomposes.
+            params: &[CoreTy::Text(Qual::Contagious), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "nvs_core_uri_with_query_parameter",
+            doc: Some(&WITH_QUERY_PARAMETER_DOC),
         },
         CoreMethod {
             name: "resolve",
@@ -878,6 +894,57 @@ const WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `$uri->queryParameter`'s reference card — `rule:core-api/reference-card`.
+const QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
+    short: "One query parameter by name, read through `Core\\Uri::parseQuery`'s bracket \
+            convention instead of by parsing the query string at the call site.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The parameter's name, decoded and top-level: the brackets of `a[b]=c` belong to \
+               the value, so `\"a\"` is what reaches it.",
+        shape: &[],
+    }],
+    ret: "The value — `bytes`, or a nested `array<mixed>` where the convention built one — and \
+          `null` both for a name that is not there and for a URI with no query at all; `query()` \
+          is what tells those two apart.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A name in the receiver's own query decodes to octets that are not valid UTF-8, \
+               which is `Core\\Uri::parseQuery`'s refusal reached through it.",
+    }],
+};
+
+/// `$uri->withQueryParameter`'s reference card — `rule:core-api/reference-card`.
+const WITH_QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
+    short: "A fresh `Uri` with one query parameter set, replaced or removed and every other pair \
+            carried over — `Core\\Uri::parseQuery`, the edit and `Core\\Uri::buildQuery` in one \
+            member instead of three at the call site.",
+    params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The parameter's name, decoded and top-level; brackets are written by an array \
+                   `value`, never by spelling them into the name.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The new value: a scalar, or an array nested to any depth, which is written \
+                   under the bracket convention. `null` removes the parameter.",
+            shape: &[],
+        },
+    ],
+    ret: "A new `Uri`; the receiver is unchanged. Removing the last parameter leaves no query at \
+          all rather than a bare `?`, and every pair that is carried over is rewritten in \
+          `buildQuery`'s spelling rather than the one it arrived in.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A name in the receiver's own query decodes to octets that are not valid UTF-8; \
+               `value` is neither a scalar nor a nested array; or the rebuilt reference does not \
+               still hold every component it was written out of, which is `with`'s refusal \
+               reached through the same recompose-and-reread path.",
+    }],
+};
+
 /// `$uri->resolve`'s reference card — `rule:core-api/reference-card`.
 const RESOLVE_DOC: MethodDoc = MethodDoc {
     short: "Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference \
@@ -950,6 +1017,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_uri_fragment" => (nvs_core_uri_fragment as *const ()).cast(),
         "nvs_core_uri_to_string" => (nvs_core_uri_to_string as *const ()).cast(),
         "nvs_core_uri_with" => (nvs_core_uri_with as *const ()).cast(),
+        "nvs_core_uri_query_parameter" => (nvs_core_uri_query_parameter as *const ()).cast(),
+        "nvs_core_uri_with_query_parameter" => {
+            (nvs_core_uri_with_query_parameter as *const ()).cast()
+        }
         "nvs_core_uri_resolve" => (nvs_core_uri_resolve as *const ()).cast(),
         "nvs_core_uri_compare_to" => (nvs_core_uri_compare_to as *const ()).cast(),
         "nvs_core_uri_encode_component" => (nvs_core_uri_encode_component as *const ()).cast(),
@@ -2169,6 +2240,204 @@ nvs_runtime::nvs_helper! {
         unmoved(&composed, &reference)?;
 
         built(&reference, "with")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uri->queryParameter(string $name): mixed` — one query parameter by
+    /// name, without the call site parsing the query string itself.
+    ///
+    /// `rule:core-classes/uri-removable-components`'s second level, read half.
+    /// A URI's components are fixed and few, so [`nvs_core_uri_with`] can name
+    /// each of them as a bag key; its parameters are dynamic and many, and a
+    /// name chosen at run time is not a key a registry row can declare.
+    /// Reaching one without this member means `parseQuery` and an array read
+    /// spelled out at every call site, which is where this area's real bugs
+    /// come from.
+    ///
+    /// A composition of the receiver's `query` slot and [`parse_query`] rather
+    /// than a walk of its own, so `a[b][]=1` means here exactly what it means
+    /// at `Core\Uri::parseQuery` — the same code decides both.
+    ///
+    /// **The name is a top-level name and the brackets belong to the value.**
+    /// Over `a[b]=c`, `queryParameter("a")` answers the nested
+    /// `array<mixed>` and `queryParameter("a[b]")` answers `null`, because the
+    /// convention places nothing under that name. That is what makes the
+    /// writer beside this one able to take an array value and get the bracket
+    /// spelling for free.
+    ///
+    /// `null` answers both a name that is not there and a URI with no query at
+    /// all. Those are one question to a caller reading a parameter, and a
+    /// program that needs them apart asks [`nvs_core_uri_query`].
+    ///
+    /// # Errors
+    ///
+    /// [`parse_query`]'s throw, for a **name** in the receiver's own query
+    /// whose escapes decode to octets that are not UTF-8.
+    fn nvs_core_uri_query_parameter(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &CLASS, "queryParameter")?;
+        let slots: [Value; 8] =
+            std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        // Unreachable from source: parameter 0 is `CoreTy::Text` in `CLASS`'s
+        // `queryParameter` row above, so a non-string name is `E0401:
+        // expected 'string', found 'mixed'` at the checker. This is
+        // `nvs_core_uri_resolve`'s judgement below, for its reason.
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::queryParameter expected {:?}, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+        let answer = match held(&slots, QUERY_SLOT, "queryParameter")? {
+            Some(query) => {
+                let parsed = parse_query(query, "queryParameter", Values::Octets)?;
+                let found = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
+                #[expect(
+                    unsafe_code,
+                    reason = "`get` borrows from the array this frame built and \
+                              is about to drop, so the caller needs a reference \
+                              of its own; a `null` carries no payload and the \
+                              retain is the no-op `Value::retain` makes of one"
+                )]
+                unsafe {
+                    found.retain();
+                }
+                found
+            }
+            // No `?` at all, so there is no pair to find and nothing to parse.
+            None => Value::null(),
+        };
+
+        Ok(answer)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uri->withQueryParameter(string $name, mixed $value): Uri` — one query
+    /// parameter set, replaced or removed, with every other pair carried over.
+    ///
+    /// `rule:core-classes/uri-removable-components`'s second level, write
+    /// half, and [`nvs_core_uri_query_parameter`]'s twin. It adds no mechanism
+    /// at all: [`parse_query`] reads the receiver's query, the edit happens on
+    /// that array, and [`build`] writes it back, so there is no second
+    /// canonicalization of a query string here to drift from the one
+    /// `Core\Uri::buildQuery` already is.
+    ///
+    /// **A written `null` removes the parameter**, which is the whole of what
+    /// a `null` means anywhere a `Core` member admits one
+    /// (`rule:core-api/a-written-null-removes`). Removing the last one leaves
+    /// **no query at all** rather than a bare `?`: a `?` with nothing after it
+    /// is an empty query and a different thing from no query
+    /// ([`nvs_core_uri_query`]), and a caller who asked to drop the last
+    /// parameter asked for the second.
+    ///
+    /// **The bracket convention is free, and it comes from the value.**
+    /// `withQueryParameter("a", ["b" => "c"])` writes `a%5Bb%5D=c` and
+    /// [`nvs_core_uri_query_parameter`] reads that back as the same nested
+    /// array, so the pair round-trips without either member spelling a
+    /// bracket itself. A name that spells one is placed as a **top-level**
+    /// key and then written by [`build`], which escapes it into those very
+    /// same bytes: `withQueryParameter("a[b]", "c")` and the call above are
+    /// one query string, and it reads back nested. That is `buildQuery`'s own
+    /// divergence — a query string cannot tell those two keys apart — carried
+    /// in rather than a second one this member invented.
+    ///
+    /// Every pair that is carried over is rewritten in [`build`]'s spelling
+    /// rather than the one it was written in, because the edit happens on the
+    /// parsed array and the whole query string is recomposed. A query string
+    /// has more than one spelling for the same parameters, so this is the same
+    /// non-identity `buildQuery(parseQuery($q))` already has.
+    ///
+    /// The result goes back through [`read`] and [`unmoved`] exactly as
+    /// [`nvs_core_uri_with`] does — the query is form-encoded and so cannot
+    /// carry a delimiter out of its own component, and checking anyway is what
+    /// keeps one recompose-and-reread path rather than two.
+    ///
+    /// # Errors
+    ///
+    /// [`parse_query`]'s throw, for a **name** in the receiver's own query
+    /// whose escapes decode to octets that are not UTF-8; [`scalar_text`]'s,
+    /// for a `value` with no text form; and [`unmoved`]'s, which nothing here
+    /// is expected to reach.
+    fn nvs_core_uri_with_query_parameter(_ctx, args: [3]) {
+        const MEMBER: &str = "withQueryParameter";
+
+        let receiver = crate::instance::receiver(args[0], &CLASS, MEMBER)?;
+        let slots: [Value; 8] =
+            std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        // Unreachable from source: parameter 0 is `CoreTy::Text` in `CLASS`'s
+        // `withQueryParameter` row above, so a non-string name is `E0401:
+        // expected 'string', found 'mixed'` at the checker.
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::withQueryParameter expected {:?}, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+
+        let mut parameters = match held(&slots, QUERY_SLOT, MEMBER)? {
+            Some(query) => parse_query(query, MEMBER, Values::Octets)?,
+            // No `?` at all, so there is nothing to read and the answer is a
+            // URI with one parameter — or, for a removal, the receiver again.
+            None => NvsArray::new(),
+        };
+        if matches!(args[2].tag(), Some(Tag::Null)) {
+            parameters.unset(name.as_bytes());
+        } else {
+            #[expect(
+                unsafe_code,
+                reason = "`set` takes over a reference and a helper only \
+                          borrows its arguments, so the array needs one of \
+                          its own"
+            )]
+            unsafe {
+                args[2].retain();
+            }
+            parameters.set(NvsStr::new(name.as_bytes()), args[2]);
+        }
+
+        // `build` borrows the pointer it is handed ([`crate::arr::borrowed`]),
+        // so the one reference `into_raw` handed over is still this frame's to
+        // release — and it is released on the throwing path too, which is why
+        // the `?` is below the reconstruction rather than on the call.
+        let written = parameters.is_empty();
+        let root = parameters.into_raw();
+        let rebuilt = if written {
+            Ok(None)
+        } else {
+            build(root, "Core\\Uri", MEMBER, &[]).map(Some)
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`into_raw` handed this frame the one reference the \
+                      handle held, and `build` borrowed the pointer rather \
+                      than taking it over"
+        )]
+        unsafe {
+            drop(NvsArray::from_raw(root));
+        }
+        let query = rebuilt?;
+
+        // The receiver's own port, which is an `int` in its slot and text in a
+        // recomposition — `nvs_core_uri_with`'s conversion, without its bag,
+        // since this member replaces one component and reads the other six.
+        let port = slots[PORT_SLOT].as_int().map(|port| port.to_string());
+        let composed = Composed {
+            scheme: held(&slots, SCHEME_SLOT, MEMBER)?,
+            user_info: held(&slots, USER_INFO_SLOT, MEMBER)?,
+            host: held(&slots, HOST_SLOT, MEMBER)?,
+            port: port.as_deref(),
+            path: held(&slots, PATH_SLOT, MEMBER)?.unwrap_or(""),
+            query: query.as_deref(),
+            fragment: held(&slots, FRAGMENT_SLOT, MEMBER)?,
+        };
+        let text = recompose(&composed);
+        let reference = read(&text, MEMBER)?;
+        unmoved(&composed, &reference)?;
+
+        built(&reference, MEMBER)
     }
 }
 
@@ -3541,5 +3810,263 @@ mod tests {
         // into a reference: `://h/p?x=1#top` is refused by the grammar rather
         // than quietly becoming a relative one.
         assert!(one(SUBJECT, SCHEME, wrote("")).is_err());
+    }
+
+    /// `Core\Uri::parse($subject)->withQueryParameter($name, $value)`, as the
+    /// `Uri` the caller then owns.
+    ///
+    /// The value is taken over, for [`with_of`]'s reason: the member borrows
+    /// its arguments, so this frame owes every reference in the array a
+    /// release and doing it here keeps the `unsafe` out from under each row.
+    fn with_parameter_of(subject: &str, name: &str, value: Value) -> Value {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let args = [uri_of(subject), wrote(name), value];
+        let answer = call(super::nvs_core_uri_with_query_parameter, &mut ctx, &args)
+            .expect("every subject here recomposes into a URI reference");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the receiver it parsed, the name it \
+                      wrote and the value it was handed, and the member \
+                      borrows rather than consumes"
+        )]
+        unsafe {
+            for argument in args {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// [`with_parameter_of`]'s answer as the text it recomposed to.
+    fn with_parameter(subject: &str, name: &str, value: Value) -> String {
+        text_of(with_parameter_of(subject, name, value))
+    }
+
+    /// `$uri->queryParameter($name)`, as the value the caller then owns, over
+    /// a `Uri` this frame hands over.
+    fn parameter_of(uri: Value, name: &str) -> Value {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let written = wrote(name);
+        let answer = call(
+            super::nvs_core_uri_query_parameter,
+            &mut ctx,
+            &[uri, written],
+        )
+        .expect("the receiver's own query parses, so the reader does not throw");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the instance it was handed and the name \
+                      it wrote, and the reader borrows rather than consumes"
+        )]
+        unsafe {
+            uri.release();
+            written.release();
+        }
+        answer
+    }
+
+    /// The `bytes` a reader's answer holds, as text — `None` where it answered
+    /// a `null` or an array, which are the reader's other two shapes.
+    fn octets_of(value: Value) -> Option<String> {
+        let out = value.as_bytes().map(<[u8]>::to_vec);
+        #[expect(unsafe_code, reason = "this frame owns the answer the reader built")]
+        unsafe {
+            value.release();
+        }
+        out.map(|bytes| String::from_utf8(bytes).expect("every case here writes text"))
+    }
+
+    /// [`octets_of`] of the value stored under `key` of an array answer —
+    /// what the bracket convention nested one level down.
+    fn nested(value: Value, key: &[u8]) -> Option<String> {
+        let out = value
+            .array_ptr()
+            .and_then(|root| crate::arr::borrowed(root).get(key))
+            .and_then(|held| held.as_bytes().map(<[u8]>::to_vec));
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the array the reader built, and `get` \
+                      borrows from it rather than retaining"
+        )]
+        unsafe {
+            value.release();
+        }
+        out.map(|bytes| String::from_utf8(bytes).expect("every case here writes text"))
+    }
+
+    /// The invariance the member's name states, asserted by sweeping every
+    /// pair rather than read off one line: setting any one name rewrites that
+    /// pair and leaves the others where they were. A member that rebuilt the
+    /// query in an order of its own would pass one row here and fail the next.
+    #[test]
+    fn with_query_parameter_sets_one_pair_and_leaves_every_other_alone() {
+        const THREE: &str = "https://user@example.com:8443/a/b?x=1&y=2&z=3#top";
+
+        for (name, expected) in [
+            ("x", "https://user@example.com:8443/a/b?x=9&y=2&z=3#top"),
+            ("y", "https://user@example.com:8443/a/b?x=1&y=9&z=3#top"),
+            ("z", "https://user@example.com:8443/a/b?x=1&y=2&z=9#top"),
+            // A name that is not there is appended, and the other six
+            // components are still exactly where they were.
+            ("w", "https://user@example.com:8443/a/b?x=1&y=2&z=3&w=9#top"),
+        ] {
+            assert_eq!(with_parameter(THREE, name, wrote("9")), expected);
+        }
+
+        // A URI with no query at all gains one, which is the same call and
+        // not a second member.
+        assert_eq!(
+            with_parameter("https://example.com/a", "x", wrote("1")),
+            "https://example.com/a?x=1"
+        );
+
+        // Both halves are form-encoded on the way out, so a value carrying
+        // every delimiter this class knows opens no pair, no fragment and no
+        // component of its own — which is why `unmoved` never fires here.
+        assert_eq!(
+            with_parameter("https://example.com/a", "q", wrote("a b&c=d#e")),
+            "https://example.com/a?q=a+b%26c%3Dd%23e"
+        );
+
+        // A fresh `Uri`, not a mutated one: the receiver still reads as it was
+        // written once the member has answered out of it.
+        let receiver = uri_of(THREE);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (name, value) = (wrote("x"), wrote("9"));
+        let answer = call(
+            super::nvs_core_uri_with_query_parameter,
+            &mut ctx,
+            &[receiver, name, value],
+        )
+        .expect("no throw");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the name and the value it wrote; the \
+                      receiver and the answer are handed to `text_of`, which \
+                      takes them over"
+        )]
+        unsafe {
+            name.release();
+            value.release();
+        }
+        assert_eq!(
+            text_of(answer),
+            "https://user@example.com:8443/a/b?x=9&y=2&z=3#top"
+        );
+        assert_eq!(text_of(receiver), THREE);
+    }
+
+    /// A written `null` removes the pair, and removing the **last** one leaves
+    /// no query at all rather than the empty one a bare `?` is. The distinction
+    /// is read off `query()`'s own tag rather than off a `?` in the recomposed
+    /// text, because those are the two states
+    /// `rule:core-api/omission-is-not-a-written-null` exists to keep apart and
+    /// a text with a `?` in it is not evidence about either.
+    #[test]
+    fn a_null_value_removes_one_pair_and_the_last_one_leaves_no_query_at_all() {
+        assert_eq!(
+            with_parameter("https://example.com/a?x=1&y=2", "x", Value::null()),
+            "https://example.com/a?y=2"
+        );
+        assert_eq!(
+            with_parameter("https://example.com/a?only=1#top", "only", Value::null()),
+            "https://example.com/a#top"
+        );
+        assert_eq!(
+            nullable(
+                with_parameter_of("https://example.com/a?only=1", "only", Value::null()),
+                super::nvs_core_uri_query,
+            ),
+            None,
+            "the last removal leaves no query, not the empty one a bare `?` is"
+        );
+
+        // Removing a name that is not there, and removing from a URI with no
+        // query at all, are both the identity rather than something a caller
+        // has to check for first.
+        assert_eq!(
+            with_parameter("https://example.com/a?x=1", "z", Value::null()),
+            "https://example.com/a?x=1"
+        );
+        assert_eq!(
+            with_parameter("https://example.com/a#top", "x", Value::null()),
+            "https://example.com/a#top"
+        );
+
+        // An empty query holds no pairs, so a removal over one takes the `?`
+        // away too — the one place this member turns an empty component into
+        // an absent one, and it does it by rebuilding rather than by a rule
+        // of its own.
+        assert_eq!(
+            with_parameter("https://example.com/a?", "x", Value::null()),
+            "https://example.com/a"
+        );
+    }
+
+    /// The pair is a round trip and neither half spells a bracket: the writer
+    /// is handed an array and the reader answers one, with [`super::build`]
+    /// and [`super::parse_query`] the only two places the convention is
+    /// written down at all.
+    #[test]
+    fn a_query_parameter_round_trips_an_array_value_through_the_bracket_convention() {
+        let nested_value = || {
+            let mut inner = nvs_runtime::NvsArray::new();
+            inner.set(
+                nvs_runtime::NvsStr::new(b"b"),
+                Value::str(nvs_runtime::NvsStr::new(b"c")),
+            );
+            Value::array(inner)
+        };
+
+        assert_eq!(
+            with_parameter("https://example.com/a?x=1", "a", nested_value()),
+            "https://example.com/a?x=1&a%5Bb%5D=c"
+        );
+        assert_eq!(
+            nested(
+                parameter_of(
+                    with_parameter_of("https://example.com/a?x=1", "a", nested_value()),
+                    "a",
+                ),
+                b"b",
+            ),
+            Some("c".to_owned()),
+            "the reader answers the array the writer was handed"
+        );
+
+        // A scalar under the same name reads back as `bytes`: the reader's
+        // answer is `mixed` because the convention's is, not because the
+        // member declined to decide.
+        assert_eq!(
+            octets_of(parameter_of(
+                with_parameter_of("https://example.com/a", "a", wrote("c")),
+                "a",
+            )),
+            Some("c".to_owned())
+        );
+
+        // A name that spells brackets itself is a top-level key that `build`
+        // escapes into the very same bytes an array value writes, so the two
+        // calls are one query string and it reads back nested. That is
+        // `buildQuery`'s own divergence — a query string cannot tell those
+        // two keys apart — and not a second one this pair introduced.
+        assert_eq!(
+            with_parameter("https://example.com/a", "a[b]", wrote("c")),
+            "https://example.com/a?a%5Bb%5D=c"
+        );
+        assert_eq!(
+            octets_of(parameter_of(
+                uri_of("https://example.com/a?a%5Bb%5D=c"),
+                "a[b]",
+            )),
+            None
+        );
+        assert_eq!(
+            nested(
+                parameter_of(uri_of("https://example.com/a?a%5Bb%5D=c"), "a"),
+                b"b",
+            ),
+            Some("c".to_owned())
+        );
     }
 }

@@ -1,0 +1,48 @@
+--TEST--
+`$uri->withQueryParameter` sets, replaces and removes one pair while every other one is carried over — `rule:core-classes/uri-removable-components`
+--FILE--
+<?nvs
+// The rule's second level, write half. The member composes `parseQuery`, the
+// edit and `buildQuery`, so there is no second canonicalization of a query
+// string to drift from the one `Core\Uri::buildQuery` already is.
+var $u = Core\Uri::parse("https://example.com/a?x=1&y=two#top");
+
+// A pair that is not there is added, and nothing else moves — not the other
+// pairs, not the fragment, not the authority.
+echo $u->withQueryParameter("z", "3")->toString(), "\n";
+
+// Replacing is the same call with a name that is already there, and the pair
+// keeps its position rather than moving to the end.
+echo $u->withQueryParameter("x", "9")->toString(), "\n";
+
+// `null` removes it — the one thing a written `null` means wherever a `Core`
+// member admits one (`rule:core-api/a-written-null-removes`).
+echo $u->withQueryParameter("x", null)->toString(), "\n";
+
+// Removing the last pair leaves no query at all rather than a bare `?`: a `?`
+// with nothing after it is an *empty* query, which is a different thing.
+echo Core\Uri::parse("https://example.com/a?only=1")->withQueryParameter("only", null)->toString(), "\n";
+
+// A URI with no query gains one, and removing from one is the identity.
+echo Core\Uri::parse("https://example.com/a")->withQueryParameter("x", "1")->toString(), "\n";
+echo Core\Uri::parse("https://example.com/a")->withQueryParameter("x", null)->toString(), "\n";
+
+// The bracket convention comes from the **value**, never from the name, which
+// is what makes the pair a round trip through `queryParameter`.
+var $nested = $u->withQueryParameter("a", ["b" => "c"]);
+echo $nested->toString(), "\n";
+array<mixed> $back = $nested->queryParameter("a") as array<mixed>;
+echo $back["b"] as bytes as string, "\n";
+
+// Every answer above is a fresh `Uri`; the receiver is untouched by all of it.
+echo $u->toString(), "\n";
+--EXPECT--
+https://example.com/a?x=1&y=two&z=3#top
+https://example.com/a?x=9&y=two#top
+https://example.com/a?y=two#top
+https://example.com/a
+https://example.com/a?x=1
+https://example.com/a
+https://example.com/a?x=1&y=two&a%5Bb%5D=c#top
+c
+https://example.com/a?x=1&y=two#top
