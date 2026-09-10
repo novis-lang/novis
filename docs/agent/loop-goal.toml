@@ -114,6 +114,9 @@ modules = [
   # Stage 3 -- `run_until_idle`'s report, whose `parked` is why a worker that ignores the drain is a
   # server that cannot be stopped.
   "crates/nvs-host/src/scheduler.rs",
+  # `nvs-cli`'s half of `nvs_runtime::script`: the path a `spawn script` wrote, compiled into a
+  # `Program` an isolate can run.
+  "crates/nvs-cli/src/script.rs",
 ]
 
 rules = [
