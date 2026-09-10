@@ -102,11 +102,11 @@
 //!    and the text is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all
 //!    five. SQL Server has no dialect here and cannot have one yet, because
 //!    `rule:core-classes/queue-storage-is-a-table` orders the filtered index its nulls need before
-//!    a fourth dialect is written. SQLite has § 4's worker half — [`CLAIM_SQLITE`],
-//!    [`INSERT_SQLITE`], [`DEAD_LETTER_SQLITE`] and the three one-table texts beside them — and
-//!    lacks the members' own statements and the third arm of [`Queued`] that would carry any of
-//!    them to a connection. [`no_dialect`] carries both sentences, and is where an operator reads
-//!    which of the two they are waiting on.
+//!    a fourth dialect is written. SQLite has every statement this module names — the worker's half
+//!    and the six members' — and lacks the third arm of [`Queued`] that would carry any of them to a
+//!    connection, so what is written and executed by `crates/nvs-stdlib/tests/queue_sqlite.rs` is
+//!    still unreachable from a program. [`no_dialect`] carries both sentences, and is where an
+//!    operator reads which of the two they are waiting on.
 //!    — owner: gap-zero
 
 use std::collections::BTreeMap;
@@ -604,11 +604,12 @@ pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
 /// where the construct is not available, rather than a weaker guarantee sold as a dialect.
 ///
 /// A caller that ran [`Self::first`] and committed without [`Self::then`] has published half a
-/// claim, half a push or half a move. The transaction is therefore not the caller's convenience: it
-/// is what these two texts *mean*, and it is the one thing a second backend cannot omit.
+/// claim, half a push, half a move or half a removal. The transaction is therefore not the caller's
+/// convenience: it is what these two texts *mean*, and it is the one thing a second backend cannot
+/// omit.
 #[derive(Debug)]
 pub struct Split {
-    /// The statement run first: the one that reads, and whose row the second one acts on.
+    /// The statement run first: the one the rest of the pair is decided from.
     ///
     /// **Something has to carry the pair's meaning across the gap between two round trips that a
     /// single statement did not have, and which mechanism that is belongs to the dialect.** Where
@@ -617,7 +618,13 @@ pub struct Split {
     /// Where the backend has one writer, the transaction around the pair is already the exclusion
     /// and this statement carries no clause at all ([`CLAIM_SQLITE`]).
     pub first: &'static str,
-    /// The statement run second, in the same transaction, keyed by what [`Self::first`] answered.
+    /// The statement run second, in the same transaction.
+    ///
+    /// Keyed by the row [`Self::first`] answered where the pair carries one, and run whatever that
+    /// answered where the two texts are one member's two arms rather than a read and a write
+    /// ([`DELETE_SQLITE`]). Either way what the transaction buys is the same: the pair is one
+    /// moment, and nothing decided in the first statement can have been undone by the time the
+    /// second runs.
     pub then: &'static str,
 }
 
@@ -979,6 +986,17 @@ pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
     where id = ? and queue = ? \
     limit 1";
 
+/// [`STATUS_MYSQL`], which SQLite runs unchanged — a `union all` of two `select`s under one `limit`,
+/// in a placeholder spelling both backends share. [`DEAD_LETTER_SQLITE`] owns why an alias and not a
+/// copy.
+///
+/// **Its four placeholders stay four**, because a `?` is bound by the position it occupies here as
+/// well: the id and the queue each go out twice, and [`counted_row`] doubles that pair once for every
+/// backend that spells a parameter this way. The `limit` binds to the compound rather than to its
+/// second arm, which is what makes the member's one answer one row — § 6 moves a job, so the two
+/// arms never hold it at the same moment anyway.
+pub const STATUS_SQLITE: &str = STATUS_MYSQL;
+
 /// `rule:concurrency/queue-four-members`'s `cancel`, as one conditional update.
 ///
 /// **`and state = 0` is the whole of the member's semantics, and it is in the statement rather than
@@ -1010,6 +1028,20 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4, dedupe_pending = n
 /// both drivers run rather than a MySQL-only concession.
 pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
     where id = ? and queue = ? and state = 0";
+
+/// [`CANCEL_MYSQL`], which SQLite runs unchanged — one conditional `update` whose `and state = 0`
+/// carries the whole of the member's semantics. [`DEAD_LETTER_SQLITE`] owns why an alias and not a
+/// copy.
+///
+/// **The answer is the affected count here as well, and that is what makes the alias whole rather
+/// than a text that merely parses.** [`Counted::touched`] reads a changed count and a returned row as
+/// one fact, so a member on this backend answers the number this text already produces. A `returning
+/// id` of its own would be a third literal saying what [`Counted`] can already read, kept in step
+/// with the two beside it for nothing.
+///
+/// It is one statement, so it needs no transaction of its own: the reading is the `where`, which is
+/// [`CANCEL_POSTGRES`]'s reason unchanged rather than a property of this backend.
+pub const CANCEL_SQLITE: &str = CANCEL_MYSQL;
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete`, as one statement over both
 /// of § 2's tables.
@@ -1082,6 +1114,43 @@ pub const DELETE_MYSQL: &str = "delete j, d \
     from (select ? as jid, ? as qname) r \
     left join nvs_jobs j on j.id = r.jid and j.queue = r.qname and j.state <> 1 \
     left join nvs_dead_jobs d on d.id = r.jid and d.queue = r.qname";
+
+/// [`DELETE_POSTGRES`] on SQLite, which is the one member here with no single-statement shape: two
+/// deletes, one per table, inside stage 2's transaction.
+///
+/// **Neither other dialect's construct exists on this backend.** [`DELETE_POSTGRES`] is a
+/// data-modifying CTE, which SQLite has no spelling for at all, and [`DELETE_MYSQL`] is a
+/// multi-table `delete j, d`, which it has no spelling for either. What is left is one `delete` per
+/// table, and a pair is a [`Split`] — the type exists for exactly this, and its doc owns why the
+/// transaction is what the two texts *mean* rather than a caller's convenience.
+///
+/// **This is the one [`Split`] whose second statement is not keyed on the first's row.** A claim, a
+/// push and a dead-letter move each read something the next statement then acts on; here both texts
+/// are the member's own arms, so [`Self::then`] runs whatever [`Self::first`] answered and the
+/// member's `bool` is either arm having removed a row. At most one of them can: § 6 *moves* a job,
+/// so an id is in one of § 2's tables and never in both, which is the same fact
+/// [`DELETE_POSTGRES`]'s `union all` rests on.
+///
+/// **The transaction is load-bearing even so, and § 6 is what makes it so.** The first arm refuses a
+/// claimed job; the dead-letter table has no state to refuse anything by. Run as two moments, a
+/// worker that exhausts that job's attempts between them moves the row it just refused into the
+/// second arm's reach, and the one row this member exists to leave alone is removed by the call that
+/// had already declined to remove it. That is [`DELETE_MYSQL`]'s argument for a multi-table delete,
+/// reaching the same property with the mechanism this backend does have.
+///
+/// **The answer is the two affected counts and not a `returning`**, for [`CANCEL_SQLITE`]'s reason:
+/// [`Counted::touched`] reads a count as the same fact a returned row states, and a text that
+/// answered a row would be a spelling the other two dialects' texts do not need.
+///
+/// `state <> 1` is [`STATE`]'s `Claimed` ordinal, a literal for [`PENDING`]'s reason and held to the
+/// enum by `queue_statements_agree_with_the_state_enum`; the dead-letter arm names no state for
+/// [`PURGE_DEAD_POSTGRES`]'s reason. Each arm binds its own receipt, so the pair takes the id and
+/// the queue twice — two statements, two positions each, which is what a dialect binding by position
+/// costs a member that reads both tables.
+pub const DELETE_SQLITE: Split = Split {
+    first: "delete from nvs_jobs where id = ? and queue = ? and state <> 1",
+    then: "delete from nvs_dead_jobs where id = ? and queue = ?",
+};
 
 /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` over [`JOBS_TABLE`]: the
 /// state set the call selected, narrowed by an optional tag and an optional age, and never more rows
@@ -1184,6 +1253,50 @@ pub const PURGE_DEAD_MYSQL: &str = "delete from nvs_dead_jobs \
     and (? is null or created_at < ?) \
     order by id limit ?";
 
+/// [`PURGE_POSTGRES`]'s shape with [`PURGE_MYSQL`]'s placeholders, which is what SQLite runs: the
+/// bound carried by a subquery, and the binds in the order a dialect naming positions reads them.
+///
+/// **The bound is the rule and this spelling is not, and here the spelling is forced.** `delete …
+/// order by … limit` — the shape [`PURGE_MYSQL`] takes — parses on SQLite only when the library was
+/// compiled with `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`, which `libsqlite3-sys`'s bundled build does
+/// not set. A statement that parses only under a non-default build of a dependency is a statement
+/// that stops parsing the day the dependency moves, so the bound is carried the way
+/// [`PURGE_POSTGRES`] carries it, in a subquery that selects the ids the outer statement removes.
+/// Dropping the bound is the one answer that is not available: ADR 0153 § 4 is why there is a
+/// `limit` at all.
+///
+/// **Eight placeholders in [`PURGE_MYSQL`]'s order**, so the value array a caller builds for that
+/// dialect is the one this text takes as well — the two null-checked options cost two slots each for
+/// [`STATUS_MYSQL`]'s reason, and the order is queue, the state twice, the tag twice, the age twice,
+/// then the bound.
+///
+/// `order by id` carries over with the subquery for [`PURGE_POSTGRES`]'s reason — it is
+/// `created_at`'s order without a sort, over the one table in the runtime that grows without
+/// bound — and the default set is that constant's two literals, held to [`STATE`] by
+/// `queue_statements_agree_with_the_state_enum`.
+pub const PURGE_SQLITE: &str = "delete from nvs_jobs where id in (\
+     select id from nvs_jobs \
+     where queue = ? and state <> 1 \
+     and ((? is null and state in (2, 4)) or state = ?) \
+     and (? is null or tag = ?) \
+     and (? is null or created_at < ?) \
+     order by id limit ?\
+ )";
+
+/// [`PURGE_SQLITE`]'s `state: Dead` selection, which is a different table and therefore a different
+/// statement, carrying that constant's bound and [`PURGE_DEAD_MYSQL`]'s six slots for the four
+/// values [`PURGE_DEAD_POSTGRES`] binds.
+///
+/// It names no state for [`PURGE_DEAD_POSTGRES`]'s reason, and asks the tag and the age of this
+/// table in the same words for that constant's.
+pub const PURGE_DEAD_SQLITE: &str = "delete from nvs_dead_jobs where id in (\
+     select id from nvs_dead_jobs \
+     where queue = ? \
+     and (? is null or tag = ?) \
+     and (? is null or created_at < ?) \
+     order by id limit ?\
+ )";
+
 /// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
 ///
 /// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
@@ -1228,6 +1341,24 @@ pub const COUNTS_MYSQL: &str = "select \
     cast(coalesce(sum(attempts), 0) as signed), \
     (select count(*) from nvs_dead_jobs where queue = ?) \
     from nvs_jobs where queue = ?";
+
+/// [`COUNTS_MYSQL`], which SQLite runs unchanged — the same four counters, the same two ordinals,
+/// and the same scalar subquery over the dead-letter table. [`DEAD_LETTER_SQLITE`] owns why an alias
+/// and not a copy.
+///
+/// **`count(case when … then 1 end)` is the portable spelling and that is why the alias is MySQL's
+/// rather than PostgreSQL's** — what rules [`COUNTS_POSTGRES`]'s text out here is its `::bigint`
+/// casts and its `$1`, neither of which is about the aggregate filter. The empty queue answers `0`
+/// for the same reason it does on MySQL: `count` ignores the `null` the `case` falls through to and
+/// answers over no rows at all.
+///
+/// **The third counter's cast is inert on this backend rather than absent from it.** MySQL needs it
+/// because `sum` over an integer column comes back a `decimal`; SQLite answers that `sum` as an
+/// integer already, and it reads a type name it does not have by its own affinity rules — `signed`
+/// carries none of the spellings that name a text, blob or real affinity, so the cast is numeric,
+/// and a numeric cast of an integer is that integer. An inert cast is not a dialect difference,
+/// which is what keeps this one text rather than two.
+pub const COUNTS_SQLITE: &str = COUNTS_MYSQL;
 
 /// A [`ID`]'s first slot: the primary key the insert returned.
 const ID_SLOT: &str = "id";
@@ -2327,8 +2458,9 @@ fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
         }
         nvs_db::Driver::Sqlite => {
             "and the queue does not run its statements over it yet — `nvs queue migrate` converges \
-             `rule:core-classes/queue-storage-is-a-table`'s tables here, and § 4's statements are complete for PostgreSQL \
-             and MySQL only"
+             `rule:core-classes/queue-storage-is-a-table`'s tables here and § 4's statements are written for this \
+             dialect, but nothing carries a call to one until the members and the worker take a \
+             third arm"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
         nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
@@ -3475,16 +3607,17 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, CLAIM_SQLITE, CLASS,
-        COUNTS_MYSQL, COUNTS_POSTGRES, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE,
-        DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, Fault, INSERT_MYSQL, INSERT_POSTGRES,
-        JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_MYSQL, PURGE_POSTGRES,
+        CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CLAIM_MYSQL, CLAIM_POSTGRES, CLAIM_SQLITE,
+        CLASS, COUNTS_MYSQL, COUNTS_POSTGRES, COUNTS_SQLITE, DEAD_LETTER_MYSQL,
+        DEAD_LETTER_POSTGRES, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES,
+        DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL,
+        PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE,
         PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
         RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
         STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, Selection, Split,
-        ThrownClass, Value, dead_errors, migration, no_dialect, purge_state_of, purge_texts,
-        retry_at,
+        STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES,
+        Selection, Split, ThrownClass, Value, dead_errors, migration, no_dialect, purge_state_of,
+        purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -4403,55 +4536,71 @@ mod tests {
         assert_eq!(
             case("Dead"),
             3,
-            "`STATUS_POSTGRES`'s dead-letter arm spells this `3`"
+            "every `status`'s dead-letter arm spells this `3`"
         );
-        assert!(
-            STATUS_POSTGRES.contains("select 3 from nvs_dead_jobs"),
-            "`STATUS_POSTGRES` answers the ordinal above for a dead-lettered job"
-        );
-        assert!(
-            STATUS_POSTGRES.contains(JOBS_TABLE) && STATUS_POSTGRES.contains(DEAD_TABLE),
-            "`STATUS_POSTGRES` reads both of § 2's tables"
-        );
-        assert!(
-            STATUS_MYSQL.contains("select 3 from nvs_dead_jobs")
-                && STATUS_MYSQL.contains(JOBS_TABLE)
-                && STATUS_MYSQL.contains(DEAD_TABLE),
-            "`STATUS_MYSQL` answers the same ordinal over the same two tables"
-        );
+        for (dialect, status) in [
+            ("postgres", STATUS_POSTGRES),
+            ("mysql", STATUS_MYSQL),
+            ("sqlite", STATUS_SQLITE),
+        ] {
+            assert!(
+                status.contains("select 3 from nvs_dead_jobs"),
+                "{dialect}: `status` answers the ordinal above for a dead-lettered job"
+            );
+            assert!(
+                status.contains(JOBS_TABLE) && status.contains(DEAD_TABLE),
+                "{dialect}: `status` reads both of § 2's tables"
+            );
+        }
         assert_eq!(
             case("Cancelled"),
             4,
-            "`CANCEL_POSTGRES` writes this ordinal in place of `Pending`"
+            "every `cancel` writes this ordinal in place of `Pending`"
         );
-        assert!(
-            CANCEL_POSTGRES.contains("set state = 4") && CANCEL_POSTGRES.contains("and state = 0"),
-            "`CANCEL_POSTGRES` moves a job from the ordinal above to the one before it, and only that one"
-        );
-        assert!(
-            CANCEL_MYSQL.contains("set state = 4") && CANCEL_MYSQL.contains("and state = 0"),
-            "`CANCEL_MYSQL` moves a job between the same two ordinals"
-        );
+        for (dialect, cancel) in [
+            ("postgres", CANCEL_POSTGRES),
+            ("mysql", CANCEL_MYSQL),
+            ("sqlite", CANCEL_SQLITE),
+        ] {
+            assert!(
+                cancel.contains("set state = 4") && cancel.contains("and state = 0"),
+                "{dialect}: `cancel` moves a job from the ordinal above to the one before it, and \
+                 only that one"
+            );
+        }
         assert_eq!(
             case("Claimed"),
             1,
             "`DELETE_POSTGRES` refuses this ordinal, and `COUNTS_POSTGRES` counts it"
         );
         assert!(
-            DELETE_POSTGRES.contains("state <> 1") && DELETE_MYSQL.contains("j.state <> 1"),
-            "both deletes leave the ordinal above where it is, which is the one arm of \
+            DELETE_POSTGRES.contains("state <> 1")
+                && DELETE_MYSQL.contains("j.state <> 1")
+                && DELETE_SQLITE.first.contains("state <> 1"),
+            "every delete leaves the ordinal above where it is, which is the one arm of \
              `rule:concurrency/queue-deletion-is-explicit-and-bounded` that is not a policy choice"
         );
         assert!(
             DELETE_POSTGRES.contains(JOBS_TABLE)
                 && DELETE_POSTGRES.contains(DEAD_TABLE)
                 && DELETE_MYSQL.contains(JOBS_TABLE)
-                && DELETE_MYSQL.contains(DEAD_TABLE),
-            "a receipt names a job across § 6's move, so both deletes reach both of § 2's tables"
+                && DELETE_MYSQL.contains(DEAD_TABLE)
+                && DELETE_SQLITE.first.contains(JOBS_TABLE)
+                && DELETE_SQLITE.then.contains(DEAD_TABLE),
+            "a receipt names a job across § 6's move, so every delete reaches both of § 2's tables"
+        );
+        assert!(
+            !DELETE_SQLITE.then.contains("state"),
+            "the arm over the other table names no ordinal at all, because being in that table is \
+             what `Dead` is"
         );
         // `purge` selects a set where `delete` names a receipt, so the ordinals are in the text
         // twice over: the set a call selected nothing for, and the one arm no call may select.
-        for (dialect, purge) in [("postgres", PURGE_POSTGRES), ("mysql", PURGE_MYSQL)] {
+        for (dialect, purge) in [
+            ("postgres", PURGE_POSTGRES),
+            ("mysql", PURGE_MYSQL),
+            ("sqlite", PURGE_SQLITE),
+        ] {
             assert!(
                 purge.contains(&format!(
                     "state in ({}, {})",
@@ -4475,6 +4624,7 @@ mod tests {
         for (dialect, purge) in [
             ("postgres", PURGE_DEAD_POSTGRES),
             ("mysql", PURGE_DEAD_MYSQL),
+            ("sqlite", PURGE_DEAD_SQLITE),
         ] {
             assert!(
                 !purge.contains("state"),
@@ -4512,12 +4662,13 @@ mod tests {
             COUNTS_POSTGRES.contains("filter (where state = 0)"),
             "`COUNTS_POSTGRES` counts waiting jobs by `Pending`'s own ordinal"
         );
-        assert!(
-            COUNTS_MYSQL.contains("case when state = 0")
-                && COUNTS_MYSQL.contains("case when state = 1"),
-            "`COUNTS_MYSQL` counts by the same two ordinals, in the spelling MySQL has for a \
-             filtered count"
-        );
+        for (dialect, counts) in [("mysql", COUNTS_MYSQL), ("sqlite", COUNTS_SQLITE)] {
+            assert!(
+                counts.contains("case when state = 0") && counts.contains("case when state = 1"),
+                "{dialect}: `stats` counts by the two ordinals above, in the spelling a dialect \
+                 without `filter` has for a filtered count"
+            );
+        }
         assert_eq!(
             case("Claimed"),
             1,
@@ -4551,10 +4702,16 @@ mod tests {
             COUNTS_POSTGRES.contains("filter (where state = 1)"),
             "`COUNTS_POSTGRES` counts jobs a worker holds by the ordinal above"
         );
-        assert!(
-            COUNTS_POSTGRES.contains(JOBS_TABLE) && COUNTS_POSTGRES.contains(DEAD_TABLE),
-            "`COUNTS_POSTGRES` reads both of § 2's tables, taking the depth from the second"
-        );
+        for (dialect, counts) in [
+            ("postgres", COUNTS_POSTGRES),
+            ("mysql", COUNTS_MYSQL),
+            ("sqlite", COUNTS_SQLITE),
+        ] {
+            assert!(
+                counts.contains(JOBS_TABLE) && counts.contains(DEAD_TABLE),
+                "{dialect}: `stats` reads both of § 2's tables, taking the depth from the second"
+            );
+        }
     }
 
     /// `rule:core-classes/queue-storage-is-a-table`'s guarantee is a plain column under a plain
