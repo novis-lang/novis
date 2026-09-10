@@ -151,3 +151,114 @@ fn two_arrays_do_not_combine_with_plus_equals() {
     );
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 }
+
+// `rule:types/unions-and-mixed`'s assignability relation, at its one covariant
+// name: `array<T>` accepts an argument whose element type widens to `T`. The
+// reasoning, and why copy-on-write is what makes it sound, is
+// `nvs_types::expr::assign::is_assignable`'s own doc comment.
+
+/// `class T` with a method taking `params` and a caller writing `body` — a
+/// parameter position, which `check_in_method` has no way to reach.
+fn call_with(params: &str, body: &str) -> String {
+    format!(
+        "<?nvs\nclass T {{\n  static function m({params}): void {{}}\n  static function go(): void {{\n{body}\n  }}\n}}\n"
+    )
+}
+
+#[test]
+fn an_array_of_int_satisfies_an_array_of_int_or_string_parameter() {
+    let src = call_with(
+        "array<int|string> $items",
+        "array<int> $a = [1, 2];\nT::m($a);",
+    );
+    let diags = check_src(&src);
+    assert!(
+        !diags.has_errors(),
+        "an `array<int>` is what a caller means by an `array<int|string>` parameter: {diags:?}"
+    );
+}
+
+#[test]
+fn the_widening_accepts_strictly_more_programs_and_breaks_none_that_compile_today() {
+    // *Strictly more*: every row here is a program the invariant relation
+    // refused, plus the invariant row itself, which is what says the widening
+    // is an addition rather than a replacement. Counted rather than read off a
+    // line, so a relation that answers plausibly row by row still fails.
+    let widens = [
+        ("array<int|string>", "array<int> $a = [1];"),
+        ("array<int|float>", "array<int> $a = [1];"),
+        ("array<mixed>", "array<int> $a = [1];"),
+        ("array<array<int|string>>", "array<array<int>> $a = [[1]];"),
+        ("array<int>", "array<int> $a = [1];"),
+    ];
+    let accepted = widens
+        .iter()
+        .filter(|(param, decl)| {
+            let src = call_with(&format!("{param} $items"), &format!("{decl}\nT::m($a);"));
+            !check_src(&src).has_errors()
+        })
+        .count();
+    assert_eq!(
+        accepted,
+        widens.len(),
+        "every element type that widens to the parameter's is accepted, at depth too"
+    );
+
+    // *Breaks none*: covariance runs one way only, so each of these is still
+    // exactly one mismatch at the argument — never zero, which would be the
+    // relation having become symmetric.
+    let refused = [
+        ("array<int>", "array<int|string> $a = [1];"),
+        ("array<int>", "array<string> $a = [\"x\"];"),
+        ("array<int>", "array<mixed> $a = [1];"),
+        ("array<array<int>>", "array<array<int|string>> $a = [[1]];"),
+    ];
+    let rejected = refused
+        .iter()
+        .filter(|(param, decl)| {
+            let src = call_with(&format!("{param} $items"), &format!("{decl}\nT::m($a);"));
+            let diags = check_src(&src);
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+                .count()
+                == 1
+                && diags.error_count() == 1
+        })
+        .count();
+    assert_eq!(
+        rejected,
+        refused.len(),
+        "a narrowing is not a widening, and neither is an unrelated element type"
+    );
+}
+
+#[test]
+fn a_write_through_the_widened_parameter_does_not_reach_the_callers_array() {
+    // What a checker can observe of `rule:types/arrays`'s copy-on-write value
+    // semantics is both halves of the soundness argument: the callee's write
+    // is checked against the *parameter's* element type, and the caller's own
+    // binding keeps the element type it declared, so the value read back out
+    // of it is still an `int`.
+    let src = "<?nvs\nclass T {\n  static function m(array<int|string> $items): void {\n    $items[0] = \"x\";\n  }\n  static function go(): void {\n    array<int> $a = [1];\n    T::m($a);\n    int $n = $a[0];\n  }\n}\n";
+    let diags = check_src(src);
+    assert!(
+        !diags.has_errors(),
+        "the write is well typed at the parameter, and the caller still reads an `int`: {diags:?}"
+    );
+
+    // The other side of the same bound: being passed does not widen the
+    // caller's array, so the `string` the callee wrote is not something the
+    // narrow binding can be read as.
+    let src = "<?nvs\nclass T {\n  static function m(array<int|string> $items): void {\n    $items[0] = \"x\";\n  }\n  static function go(): void {\n    array<int> $a = [1];\n    T::m($a);\n    string $s = $a[0];\n  }\n}\n";
+    let diags = check_src(src);
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .count(),
+        1,
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+}
