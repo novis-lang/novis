@@ -53,6 +53,27 @@
 //! signature whatever else matches, and the check costs one byte and one
 //! comparison.
 //!
+//! # What a token is on the wire
+//!
+//! `tag ‖ document`, in unpadded URL-safe base64 (RFC 4648 § 5). The tag is
+//! HMAC-SHA256 over the document, whole and untruncated, and it comes **first**
+//! so that the split is a fixed offset: [`open`] takes 32 octets and a
+//! remainder, with no field to parse before the thing that says the field can
+//! be trusted. The alphabet is `A-Za-z0-9-_`, so a token is a legal cookie
+//! octet sequence and a legal query-string value at once, and nothing
+//! downstream escapes it again.
+//!
+//! There is no version prefix, no key identifier and no separator outside the
+//! signed region: the version is *inside* it, where it cannot be edited, and a
+//! key hint would tell an attacker which key of a rotating ring to aim at.
+//! Everything a reader needs before it can check the tag is therefore a
+//! length, which is the one thing a forger cannot lie about usefully.
+//!
+//! The ring is [`crate::keyring`]'s, unchanged and uncopied — the same
+//! `$keys` a program hands `Core\SignedCookie`. [`mint`] takes the newest key
+//! and [`open`] tries the ring in order, stopping at the one that
+//! authenticates.
+//!
 //! # What it refuses, and why refusing is the safe answer
 //!
 //! An object, a closure and a resource have no canonical form at all — two
@@ -69,13 +90,15 @@
 //!
 //! # What it spends
 //!
-//! One `Vec` the size of the document, per `sign` and per `verify`, inside the
-//! call and held nowhere between calls (`rule:programs/memory-priority`). The
-//! sort is per array level over that level's keys. A document is the payload's
-//! own octets plus one tag byte and one length varint per value, plus two
-//! bytes of version and domain and one to thirteen of lifetime — so a token,
-//! after its 32-octet tag and base64's four thirds, is about
-//! `4/3 × (payload + 40)` characters.
+//! Per `sign`: one `Vec` the size of the document, one the size of the token,
+//! and the base64 text of it. Per `verify`: the decoded token, and the payload
+//! the caller is handed. All of it inside the call and held nowhere between
+//! calls (`rule:programs/memory-priority`). The sort is per array level over
+//! that level's keys, and the tag is one HMAC per key tried until one
+//! authenticates. A document is the payload's own octets plus one tag byte and
+//! one length varint per value, plus two bytes of version and domain and one
+//! to thirteen of lifetime — so a token, after its 32-octet tag and base64's
+//! four thirds, is about `4/3 × (payload + 40)` characters.
 
 #![allow(
     dead_code,
@@ -84,7 +107,10 @@
               it. The attribute goes with those rows."
 )]
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
+use subtle::ConstantTimeEq as _;
 
 /// The document format's own version, first octet of every document and inside
 /// the signed region.
@@ -276,6 +302,116 @@ pub(crate) fn read_document(bytes: &[u8]) -> Option<(Domain, Option<Until>, Valu
     #[expect(
         unsafe_code,
         reason = "this frame owns exactly the reference `Reader::value` just produced"
+    )]
+    unsafe {
+        payload.release();
+    }
+    None
+}
+
+// ============================================================================
+// The token
+// ============================================================================
+
+/// The tag's length in octets — HMAC-SHA256's output, whole. A truncated tag
+/// would shorten a token by a few characters and spend security to do it.
+const TAG_LEN: usize = 32;
+
+/// A token for `payload`, under the newest key in `ring`.
+///
+/// The door hands its domain, its lifetime and its payload, and gets back the
+/// text that travels: **nothing outside this module assembles a token**, which
+/// is the same argument [`document`] makes one layer down. `who` names the
+/// member for a refusal and `root` is what the payload is called at the call
+/// site.
+///
+/// # Errors
+///
+/// Everything [`document`] refuses a payload for, and everything
+/// [`crate::keyring`] refuses a ring for.
+pub(crate) fn mint(
+    domain: Domain,
+    until: Option<Until>,
+    payload: &Value,
+    ring: &NvsArray,
+    who: &str,
+    root: &str,
+) -> Result<String, Fault> {
+    let signed = document(domain, until, payload, who, root)?;
+    let (slot, held) = crate::keyring::newest(ring);
+    let key = crate::keyring::key_at(&held, slot, who)?;
+
+    let mut token = Vec::with_capacity(TAG_LEN + signed.len());
+    token.extend_from_slice(&crate::hash::hmac_sha256(key, &signed));
+    token.extend_from_slice(&signed);
+    Ok(URL_SAFE_NO_PAD.encode(&token))
+}
+
+/// The lifetime and payload `token` carries, authenticated under some key in
+/// `ring` and minted for `domain` — or `None` for a token that is none of
+/// those things.
+///
+/// **One `None` for every way of not being authentic**, per
+/// `rule:core-api/one-refusal-except-expiry`: text that is not base64, a token
+/// too short to hold a tag, a tag that does not authenticate under any key in
+/// the ring, a body that is not a document this runtime writes, and a document
+/// minted for another door. Which one it was is exactly what a forger is
+/// probing for, so the caller has one refusal to write and no way to write a
+/// second by accident.
+///
+/// The domain is checked here rather than by the caller for the same reason
+/// the tag is: a door that has to remember a check is a door that can forget
+/// one, and the whole point of the domain octet is that a payload token does
+/// not open as a URL signature.
+///
+/// The expiry is *not* checked here. It is the one distinguishable refusal, so
+/// it belongs to the member that can name it, and this answers the [`Until`]
+/// it read for that member to judge.
+///
+/// # Errors
+///
+/// Only what [`crate::keyring`] refuses a ring for — a program bug, which is
+/// not a way of being unauthentic and is raised whatever the token says.
+pub(crate) fn open(
+    token: &str,
+    domain: Domain,
+    ring: &NvsArray,
+    who: &str,
+) -> Result<Option<(Option<Until>, Value)>, Fault> {
+    // A token that is not base64 is not a *different* kind of unauthentic, so
+    // the ring is still walked and its keys are still checked for shape — the
+    // refusal is the caller's one sentence either way.
+    let raw = URL_SAFE_NO_PAD.decode(token).ok();
+    let split = raw
+        .as_deref()
+        .filter(|raw| raw.len() >= TAG_LEN)
+        .map(|raw| raw.split_at(TAG_LEN));
+
+    for (slot, held) in crate::keyring::entries(ring) {
+        let key = crate::keyring::key_at(&held, slot, who)?;
+        if let Some((tag, signed)) = split
+            && bool::from(crate::hash::hmac_sha256(key, signed).ct_eq(tag))
+        {
+            return Ok(for_domain(signed, domain));
+        }
+    }
+    Ok(None)
+}
+
+/// The lifetime and payload `signed` holds, once its tag has authenticated,
+/// and only if it was minted for `domain`.
+///
+/// A document for another door is dropped here rather than answered, which is
+/// the whole of the domain byte's job: the payload it decoded to is released
+/// on the way out, because nothing is going to hand it to a program.
+fn for_domain(signed: &[u8], domain: Domain) -> Option<(Option<Until>, Value)> {
+    let (minted_for, until, payload) = read_document(signed)?;
+    if minted_for == domain {
+        return Some((until, payload));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `read_document` just produced"
     )]
     unsafe {
         payload.release();
@@ -846,5 +982,263 @@ mod tests {
         );
 
         dropped(deep);
+    }
+
+    // ========================================================================
+    // The token
+    //
+    // `Core\Signature`'s two rows are a thin wrapper over [`mint`] and
+    // [`open`] — reading the arguments, and turning `open`'s `None` into the
+    // one refusal — and they land in the slice after this one. These assert
+    // the construction rather than the registry, for the reason
+    // [`crate::signed_cookie`]'s own test gives: what can go wrong is the
+    // *layering*, and every bit of it is visible here without a compiler in
+    // front of it.
+    // ========================================================================
+
+    use crate::keyring::tests::{borrowed as ring_borrowed, ring_of};
+
+    /// `Core\Signature::sign`, as a refusal spells it.
+    const SIGN: &str = r"Core\Signature::sign";
+
+    /// A token for `payload` under `ring`, with no expiry.
+    fn minted(payload: &Value, ring: &Value) -> String {
+        mint(
+            Domain::Payload,
+            None,
+            payload,
+            &ring_borrowed(ring),
+            SIGN,
+            "$payload",
+        )
+        .expect("a payload of scalars mints")
+    }
+
+    /// What `token` opens as under `ring`, at the payload door.
+    fn opened(token: &str, ring: &Value) -> Option<(Option<Until>, Value)> {
+        open(
+            token,
+            Domain::Payload,
+            &ring_borrowed(ring),
+            r"Core\Signature::verify",
+        )
+        .expect("a ring of well-formed keys")
+    }
+
+    /// Stage 2's round trip: what comes back out of a token is the payload
+    /// that went in, in its canonical form, with the lifetime that was
+    /// written.
+    ///
+    /// Compared by re-signing rather than by walking the two maps, because
+    /// canonical equality *is* the equality this module promises — two values
+    /// that sign alike are the same payload here by definition.
+    #[test]
+    fn a_payload_round_trips_through_sign_and_verify_unchanged() {
+        let keys = ring_of(&[&[1_u8; 32]]);
+        let held = payload(&[
+            ("id", Value::int(7)),
+            ("role", Value::str(NvsStr::new(b"editor"))),
+            ("all", Value::bool(true)),
+        ]);
+        let until = Some(Until {
+            second: 1_700_000_000,
+            nano: 250,
+        });
+
+        let token = mint(
+            Domain::Payload,
+            until,
+            &held,
+            &ring_borrowed(&keys),
+            SIGN,
+            "$payload",
+        )
+        .expect("a payload of scalars mints");
+        let (read, back) = opened(&token, &keys).expect("its own token authenticates");
+
+        assert_eq!(read, until, "the lifetime rides inside the signed bytes");
+        assert_eq!(
+            signed(&back, until),
+            signed(&held, until),
+            "and the payload is the one that was signed"
+        );
+
+        // One flipped octet of the token is not authentic, so the round trip
+        // is authenticity rather than an encoding that happens to reverse.
+        let mut tampered = token.clone().into_bytes();
+        tampered[TAG_LEN + 4] ^= 0x01;
+        assert!(
+            opened(
+                std::str::from_utf8(&tampered).expect("base64 stays ASCII"),
+                &keys
+            )
+            .is_none(),
+            "an altered token authenticates under nothing"
+        );
+
+        dropped(back);
+        dropped(held);
+        dropped(keys);
+    }
+
+    /// The token is text every position it travels in accepts as-is, which is
+    /// what makes a signed URL a URL and a signed cookie a cookie.
+    ///
+    /// Asserted over a payload holding the octets that would break each of
+    /// those positions — `+`, `/`, `=`, `&` and a space — because an encoder
+    /// that leaked its input's shape would still look right on a payload of
+    /// letters.
+    #[test]
+    fn the_token_is_unpadded_url_safe_base64_and_needs_no_further_escaping() {
+        let keys = ring_of(&[&[2_u8; 32]]);
+        for text in ["", "a", "+/=&? ", "\u{1f512}", &"x".repeat(97)] {
+            let held = payload(&[("v", Value::str(NvsStr::new(text.as_bytes())))]);
+            let token = minted(&held, &keys);
+            assert!(
+                token
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+                "{token} carries only the URL-safe alphabet, and no padding"
+            );
+            dropped(held);
+        }
+        dropped(keys);
+    }
+
+    /// The ring is `Core\SignedCookie`'s, used the same way at this door:
+    /// minting takes the newest key and nothing else, and opening walks from
+    /// the newest and stops at the key that authenticates.
+    ///
+    /// The stop is what the retired key at the back makes visible: it is not a
+    /// key at all, so a walk that ran past the key that authenticated would
+    /// raise its `LogicError` instead of answering.
+    #[test]
+    fn sign_uses_the_newest_key_alone_and_verify_walks_the_whole_ring_in_order() {
+        let newest = [3_u8; 32];
+        let older = [4_u8; 32];
+        let keys = ring_of(&[&newest, &older]);
+        let held = payload(&[("id", Value::int(1))]);
+
+        let token = minted(&held, &keys);
+        let raw = URL_SAFE_NO_PAD.decode(&token).expect("its own encoding");
+        let (tag, document) = raw.split_at(TAG_LEN);
+        assert_eq!(
+            tag,
+            crate::hash::hmac_sha256(&newest, document),
+            "the newest key is the one that signed"
+        );
+        assert_ne!(
+            tag,
+            crate::hash::hmac_sha256(&older, document),
+            "and no other key in the ring did"
+        );
+
+        // A ring whose tail cannot key anything: reaching it is a `LogicError`,
+        // so answering at all proves the walk stopped at the first key.
+        let broken = ring_of(&[&newest, &[9_u8; 8]]);
+        let (_, back) = opened(&token, &broken).expect("the newest key authenticates it");
+        dropped(back);
+        assert!(
+            open(
+                "not-a-token",
+                Domain::Payload,
+                &ring_borrowed(&broken),
+                r"Core\Signature::verify"
+            )
+            .is_err(),
+            "while a token that authenticates under nothing does reach the broken key"
+        );
+
+        dropped(broken);
+        dropped(held);
+        dropped(keys);
+    }
+
+    /// Rotation, as an operator performs it: a key prepended, and the token
+    /// minted before the rotation still verifying while the tokens minted
+    /// after it use the new key.
+    #[test]
+    fn a_token_under_a_rotated_out_key_still_verifies_while_new_tokens_use_the_newest() {
+        let retired = [5_u8; 32];
+        let fresh = [6_u8; 32];
+        let before = ring_of(&[&retired]);
+        let after = ring_of(&[&fresh, &retired]);
+        let held = payload(&[("id", Value::int(2))]);
+
+        let old_token = minted(&held, &before);
+        let (_, back) = opened(&old_token, &after).expect("the retired key is still in the ring");
+        dropped(back);
+
+        let new_token = minted(&held, &after);
+        assert_ne!(
+            old_token, new_token,
+            "a token minted after the rotation is signed by the new key"
+        );
+        assert!(
+            opened(&new_token, &before).is_none(),
+            "so the ring from before the rotation does not verify it"
+        );
+
+        dropped(held);
+        dropped(before);
+        dropped(after);
+    }
+
+    /// The other end of rotation: a key dropped off the tail retires the
+    /// tokens it signed, which is the property that makes dropping one a
+    /// revocation rather than a tidy-up.
+    #[test]
+    fn a_token_under_a_key_dropped_past_the_end_of_the_ring_fails() {
+        let dropped_key = [7_u8; 32];
+        let full = ring_of(&[&[8_u8; 32], &dropped_key]);
+        let trimmed = ring_of(&[&[8_u8; 32]]);
+        let held = payload(&[("id", Value::int(3))]);
+
+        // Signed by the tail rather than by the head, which is the token an
+        // application minted before the head existed.
+        let document = signed(&held, None);
+        let mut raw = Vec::from(crate::hash::hmac_sha256(&dropped_key, &document));
+        raw.extend_from_slice(&document);
+        let token = URL_SAFE_NO_PAD.encode(&raw);
+
+        let (_, back) = opened(&token, &full).expect("the key is still in the ring");
+        dropped(back);
+        assert!(
+            opened(&token, &trimmed).is_none(),
+            "and dropping it off the tail retires every token it signed"
+        );
+
+        dropped(held);
+        dropped(full);
+        dropped(trimmed);
+    }
+
+    /// The domain byte, from the outside: one ring serves all three doors, so
+    /// a token minted for a payload must not open as a URL signature however
+    /// well it authenticates.
+    #[test]
+    fn a_token_minted_at_one_door_does_not_open_at_another() {
+        let keys = ring_of(&[&[10_u8; 32]]);
+        let held = payload(&[("id", Value::int(4))]);
+        let token = minted(&held, &keys);
+
+        for door in [Domain::Uri, Domain::Route] {
+            assert!(
+                open(
+                    &token,
+                    door,
+                    &ring_borrowed(&keys),
+                    r"Core\Signature::verify"
+                )
+                .expect("a ring of well-formed keys")
+                .is_none(),
+                "a payload token does not open at {door:?}"
+            );
+        }
+
+        let (_, back) = opened(&token, &keys).expect("while its own door opens it");
+        dropped(back);
+        dropped(held);
+        dropped(keys);
     }
 }
