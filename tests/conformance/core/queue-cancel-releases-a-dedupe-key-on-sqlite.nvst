@@ -1,0 +1,124 @@
+--TEST--
+At most one *pending* job per dedupe key on a SQLite file, enforced by the plain column under the plain unique key — and a cancel releases that key while the job keeps the one it was pushed under — `rule:core-classes/queue-storage-is-a-table`
+--FILE--
+<?nvs
+use Core\Db\Row;
+use Core\Queue;
+use Core\Queue\State;
+
+// The guarantee this case is about is a *column*: `dedupe_pending` holds the
+// key while the job is pending and null once it is not, so one unique key says
+// the same thing on every backend and no dialect needs a partial index of its
+// own. SQLite is the backend a case can run rather than read, so here that
+// column is really written, really cleared and really collided with.
+//
+// `workers = 0` is `nvs_config::queue`'s enqueue-only deployment: the release
+// below is the cancel's and not a worker's.
+
+// The two tables, converged the only way a case can: their one home is
+// `nvs_stdlib::queue::schema()`, what applies them is the `nvs queue migrate` no
+// `.nvst` reaches, and this is the text that command prints for this dialect
+// under `--dry-run`. The unique key over `dedupe_pending` is the whole subject,
+// so a table here without it would pass this case by not having the guarantee.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (
+    id integer primary key autoincrement,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    state smallint not null,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    dedupe_pending varchar(255),
+    created_at bigint not null,
+    claimed_at bigint,
+    constraint nvs_jobs_dedupe unique (dedupe_pending)
+)
+SQL;
+$db->execute($jobs, []);
+
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (
+    id bigint not null,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    created_at bigint not null,
+    failed_at bigint not null,
+    errors text not null,
+    primary key (id)
+)
+SQL;
+$db->execute($dead, []);
+
+// The enqueue that takes the key, and the one that finds it taken. The second
+// call is not refused and writes no row: a deduped push answers with the
+// pending job's own receipt, which is what a caller asking for "at most one"
+// wanted.
+var $taken = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
+var $again = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
+echo "pending ", Queue::stats("receipts")->pending(), "\n";
+echo "same job ", Queue::status($again) == State::Pending ? "pending" : "not pending", "\n";
+
+// The release. A cancelled job is no longer waiting for a worker, so it holds
+// nothing back — and the key it was pushed under stays on the row, because that
+// is what the job was pushed under and not what is holding the slot.
+echo "cancelled ", Queue::cancel($taken) ? "yes" : "no", "\n";
+echo "state ", Queue::status($taken) == State::Cancelled ? "cancelled" : "something else", "\n";
+echo "again ", Queue::cancel($taken) ? "yes" : "no", "\n";
+
+// The same key, admitted now. One more row rather than one more receipt for the
+// old one, which is the difference between a key that was released and a key
+// that was merely no longer looked at.
+var $fresh = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
+echo "pending ", Queue::stats("receipts")->pending(), "\n";
+echo "new ", Queue::status($fresh) == State::Pending ? "pending" : "not pending", "\n";
+echo "old ", Queue::status($taken) == State::Cancelled ? "cancelled" : "something else", "\n";
+
+// And the two columns underneath, read through the operator's own connection to
+// the same block: every job this case pushed carries the key it was pushed
+// under, and exactly one of them is holding it.
+foreach ($db->query("select count(*) as n from nvs_jobs where dedupe_key = ?", ["order-7"]) as Row $row) {
+    echo "keyed ", $row->int("n") ?? -1, "\n";
+}
+foreach ($db->query("select count(*) as n from nvs_jobs where dedupe_pending is not null", []) as Row $row) {
+    echo "holding ", $row->int("n") ?? -1, "\n";
+}
+--FILE nvs.toml--
+# `cancel` takes no capability — it is the caller's own receipt, and a program
+# that could enqueue could always stop what it enqueued. `db.connect` is for the
+# connection this case reads the two columns back through.
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+# A deployment that enqueues and runs nothing, so the pending row stays pending
+# until this case cancels it.
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+pending 1
+same job pending
+cancelled yes
+state cancelled
+again no
+pending 1
+new pending
+old cancelled
+keyed 2
+holding 1

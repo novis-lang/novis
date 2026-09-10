@@ -1,0 +1,132 @@
+--TEST--
+The operator's two removals answer about what they removed and not about what they were asked — a receipt's `delete` is a `bool`, a queue's `purge` is a count, and a second call over rows that are gone answers empty rather than failing — `rule:concurrency/queue-deletion-is-explicit-and-bounded` and `rule:core-classes/queue-storage-is-a-table`
+--FILE--
+<?nvs
+use Core\Queue;
+use Core\Queue\State;
+
+// SQLite is the backend a case can really run against, so these two members are
+// executed here rather than read: the same removals against the four backends
+// with an address are `crates/nvs-stdlib/tests/queue.rs`'s, and what this case
+// adds is that a deployment whose jobs live in a file answers the same way.
+//
+// `workers = 0` is `nvs_config::queue`'s enqueue-only deployment, so every row
+// below is in the state this case put it in.
+
+// The two tables, converged the only way a case can: their one home is
+// `nvs_stdlib::queue::schema()`, what applies them is the `nvs queue migrate` no
+// `.nvst` reaches, and this is the text that command prints for this dialect
+// under `--dry-run`.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (
+    id integer primary key autoincrement,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    state smallint not null,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    dedupe_pending varchar(255),
+    created_at bigint not null,
+    claimed_at bigint,
+    constraint nvs_jobs_dedupe unique (dedupe_pending)
+)
+SQL;
+$db->execute($jobs, []);
+
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (
+    id bigint not null,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    created_at bigint not null,
+    failed_at bigint not null,
+    errors text not null,
+    primary key (id)
+)
+SQL;
+$db->execute($dead, []);
+
+var $first = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+var $second = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+var $third = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+echo "pushed ", Queue::stats("receipts")->pending(), "\n";
+
+// One row, named by the receipt that created it. The answer is whether this
+// call was the one that removed it, which is why asking twice answers `false`
+// the second time rather than throwing at a row that is already gone.
+echo "deleted ", Queue::delete($first) ? "yes" : "no", "\n";
+echo "again ", Queue::delete($first) ? "yes" : "no", "\n";
+
+// The population, and the retention sweep's own default set: a job still
+// waiting for a worker is not a record retention removes, so a queue of nothing
+// but pending rows answers `0` and leaves them where they are.
+echo "swept ", Queue::purge("receipts"), "\n";
+echo "kept ", Queue::stats("receipts")->pending(), "\n";
+
+// The same call once a row has reached a terminal state, and the same call
+// again with the state named. Both are counts of what went, which is the answer
+// a drain loop reads to know whether to come round again.
+echo "cancelled ", Queue::cancel($second) ? "yes" : "no", "\n";
+echo "swept ", Queue::purge("receipts"), "\n";
+echo "swept ", Queue::purge("receipts", {state: State::Pending}), "\n";
+echo "empty ", Queue::purge("receipts"), "\n";
+
+// And the population the two removals left, from the member an operator
+// watches.
+echo "pending=", Queue::stats("receipts")->pending(), "\n";
+
+// The third receipt is the one `purge` took by state, and this is the other
+// half of both members really removing a row: a receipt whose job is in neither
+// table is a question that cannot be answered, so the caller is told rather than
+// handed a state the row no longer has.
+try {
+    var $answer = Queue::status($third);
+    echo "gone ", $answer == State::Pending ? "pending" : "not pending", "\n";
+} catch (RuntimeError $removed) {
+    echo $removed->message, "\n";
+}
+--FILE nvs.toml--
+# `queue.purge` is the grant both removals take, scoped by the queue's name for
+# `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s reason: a
+# capability answers *may this program remove queue records*, and one row at a
+# time in a loop is that same answer at a different rate.
+[capabilities.queue]
+purge = ["receipts"]
+
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+# A deployment that enqueues and runs nothing, so no worker claims a row this
+# case is about to remove.
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+pushed 3
+deleted yes
+again no
+swept 0
+kept 2
+cancelled yes
+swept 1
+swept 1
+empty 0
+pending=0
+Core\Queue::status: no job 3 is in the `receipts` queue on `[db.jobs]`, in either `nvs_jobs` or `nvs_dead_jobs` — a receipt this deployment issued names a row in one of them, so this one was issued by another deployment or the row was removed by hand
