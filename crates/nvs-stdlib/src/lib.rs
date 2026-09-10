@@ -233,6 +233,7 @@ mod serialize;
 mod server;
 mod session;
 mod signal;
+mod signature;
 mod signed_cookie;
 mod socket;
 mod sse;

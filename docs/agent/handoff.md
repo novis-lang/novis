@@ -2,51 +2,51 @@
 
 ## State
 
-**Goal `signed-urls` — signing a URL, and the payload behind it — has just started; nothing of it has landed yet.**
-Goal `unowned-sweep`'s whole list is this goal's Stage 1 floor.
+**Goal `signed-urls`, stage 2: the canonical payload encoding is on disk and green, and nothing is
+registered yet.** `crates/nvs-stdlib/src/signature.rs` is the whole of it — `document()` writes the
+signed region, `read_document()` reads one back, and its module doc is the home of the wire format,
+of why a key is text, and of the domain byte that keeps one key ring from being replayed across the
+three doors. Five `-p nvs-stdlib` tests cover it, two of them stage 2's named ones.
 
-The design is finished and is not this goal's to re-open:
-`rule:core-api/signing-is-over-a-payload` holds all of
-it, `rule:security/protocol-roster`'s roster already reads five, and `rule:core-classes/router-signed-url` already fixes the `urlSigned`/`signedRoute` pair. The
-spec is already written against nothing — `docs/spec/01-core-library.md` § 12 carries `$uri->sign` and
-`$uri->verifySignature`, § 16 carries `Core\Signature` — and both outstanding-key files name **29** as
-the owner of those three rows.
+The file carries a module-level `#![allow(dead_code)]` with the reason written on it: the codec's
+first caller is `Core\Signature`'s two rows, which have not landed. **The slice that registers those
+rows deletes that attribute** — nothing else may.
 
-**The one thing a session must not re-decide:** what gets signed. It is `equivalent()`, the RFC 3986
-§ 6.2.2 normalization `uri.rs` already carries for `compareTo`. A second normalization written for the
-signature alone is the exact defect this goal exists to not ship, and it will look reasonable at the
-call site.
+Stage 1's floor and every other goal's work are untouched. Goal `unowned-sweep`'s list still passes.
 
 ## Next group
 
-**Stage 2: `Core\Signature`, over a payload and never over text** — one file set: the new class, the
-construction under it, and the registry rows.
+**Stage 2: `Core\Signature`'s two rows, over the codec that landed** — one file set:
+`crates/nvs-stdlib/src/signature.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/signed_cookie.rs`, `crates/nvs-types/src/core_lib.rs`.
 
-- [ ] **The canonical payload encoding** — `crates/nvs-stdlib/src/signature.rs` (new). Keys sorted,
-      each value encoded with its type so `1` and `"1"` differ, `until` inside the signed region. Every
-      later stage calls this and none of them writes a second one.
-- [ ] **The key ring, shared not copied** — `crates/nvs-stdlib/src/signed_cookie.rs:@open` is the walk
-      to lift: `array<secret bytes>`, newest at `[0]`, sign under `$keys[0]` alone. Two ring walks in
-      the crate means one of them is wrong.
-- [ ] **The two rows** — `crates/nvs-stdlib/src/registry.rs`, with `sign`'s payload contagious, the
-      ring neutral, and `verify` answering a **`tainted`** map (`rule:security/verification-does-not-launder`; `SignedCookie`'s
-      laundering exemption does not reach here, and `rule:core-classes/signature` says why).
-- [ ] **`{keys, until}` as a declared shape** — `crates/nvs-types/src/core_lib.rs`, `rule:core-api/shape-parameter`'s `CoreTy`
-      arm. `until` is a **required key holding a nullable value**: `{until: null}` compiles and
-      omitting the key does not.
+- [ ] **The key ring, shared not copied** — `crates/nvs-stdlib/src/signed_cookie.rs:252` (`ring_of`,
+      the empty-ring `LogicError`) and `crates/nvs-stdlib/src/signed_cookie.rs:282` (`cipher_at`) are
+      the walk. A signature keys `crate::hash::hmac_sha256` rather than a cipher, so what is shared is
+      the refusal and the 32-octet check at `crates/nvs-stdlib/src/crypto.rs:315`, not `cipher()`
+      itself. `rule:core-classes/signature`.
+- [ ] **The two rows, `sign`'s payload contagious** — the class joins
+      `crates/nvs-stdlib/src/registry.rs:1371` and its symbols `crates/nvs-stdlib/src/lib.rs:285`;
+      the bodies, the cards and the `address` arm go in `crates/nvs-stdlib/src/signature.rs:87`, and
+      this slice deletes the `#![allow(dead_code)]` at `crates/nvs-stdlib/src/signature.rs:80`.
+      `verify` answers `CoreTy::Array(&CoreTy::TaintedStr)`'s shape of answer per
+      `rule:security/verification-does-not-launder`. `rule:core-classes/signature`.
+- [ ] **`{keys, until}` as a declared shape** — `crates/nvs-stdlib/src/db/registry.rs:41` is the
+      worked `CoreTy::Shape`; `until` is a required key holding a nullable value, so `default: None`
+      over `CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME))`
+      (`crates/nvs-stdlib/src/time.rs:1119`), and `crates/nvs-types/src/core_lib.rs` is where the
+      checker reads it. `rule:core-api/shape-parameter`, `rule:core-api/a-lifetime-is-written`.
 - [ ] **Strike `§16 Core\Signature  # 29`** from
-      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, in the slice that registers it.
+      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:1`, in the same slice that
+      registers the class and neither before nor after it.
 
 ## Backlog
 
-- **Stage 3 — `$uri->sign`/`$uri->verifySignature`.** File set: `uri.rs` plus the registry. Cheap to
-  take straight after stage 2, because the registry and the shape are already loaded and `uri.rs` is
-  the only new read. Rewrite the module doc's "the normalization lives on `compareTo` and nowhere
-  else" when `equivalent()` gains its second caller, and strike the two `§12` keys.
-- **Stage 4 — `Core\Router::urlSigned`/`signedRoute`.** File set: `router.rs`, `request.rs`. Its
-  acceptance property is the remount, not the round trip: a signed route identity survives a mount
-  moving from `/ModuleA` to `/` and a signed path does not.
-- **Stage 5 — the two refusals, and the ordering.** Signature first, clock second, so a token both
-  forged and expired throws the *invalid* error. Plus the `.nvst` cases for `until` and both suites.
-- When this goal's last check goes green the driver takes goal `dossier`.
-  `docs/agent/goals/` is the schedule and this does not restate it.
+- Stage 3 — `$uri->sign` over the `equivalent()` `compareTo` already calls: `docs/agent/loop-goal.md`
+  § *Stage 3*, and `Domain::Uri` is already the byte it signs under.
+- Stage 4 — the router pair over a route's identity: `docs/agent/loop-goal.md` § *Stage 4*,
+  `Domain::Route`.
+- Stage 5 — one refusal except expiry, and the ordering test that makes it safe:
+  `docs/agent/loop-goal.md` § *Stage 5*.
+- `crates/nvs-stdlib/src/uri.rs`'s module doc still says the normalization "lives on `compareTo` and
+  nowhere else"; stage 3 rewrites that sentence rather than amending it.
