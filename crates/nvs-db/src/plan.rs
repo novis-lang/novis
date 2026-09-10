@@ -795,4 +795,107 @@ mod tests {
             assert!(plan.first_refused().is_none(), "{dialect:?}");
         }
     }
+
+    /// The queue's jobs table, with `tag` declared or not and indexed or not.
+    ///
+    /// The columns are the ones the difference is about and not `nvs_stdlib::queue::schema`'s
+    /// whole list — this crate cannot see that value, and a transcription of it here would be a
+    /// second home for what the queue's columns are, which is the thing that value exists to
+    /// prevent. What is being asked is the *shape* of the change: a nullable text column with no
+    /// default, arriving on a table that already has rows and keys.
+    fn jobs(tagged: bool, indexed: bool) -> Schema {
+        let key = ScalarType::Text { max: Some(255) };
+        let mut columns = vec![
+            col("id", ScalarType::Int(IntWidth::Big))
+                .identity()
+                .unwrap(),
+            col("queue", key.clone()),
+            col("state", ScalarType::Int(IntWidth::Small)),
+            col("run_at", ScalarType::Int(IntWidth::Big)),
+            col("dedupe_pending", key.clone()).null(),
+        ];
+        if tagged {
+            columns.push(col("tag", key).null());
+        }
+        let mut table = Table::new("nvs_jobs", columns)
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap()
+            .unique("nvs_jobs_dedupe", &["dedupe_pending"])
+            .unwrap()
+            .index("nvs_jobs_due", &["queue", "state", "run_at"])
+            .unwrap();
+        if indexed {
+            table = table.index("nvs_jobs_tag", &["queue", "tag"]).unwrap();
+        }
+        Schema::new(vec![table]).unwrap()
+    }
+
+    /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`, read as a converge: a database
+    /// holding the queue's schema from before `tag` differs from it by **one** column.
+    ///
+    /// The whole plan is named rather than counted, because the count alone passes just as well
+    /// when the diff found a column change it should not have — and because the second step is the
+    /// index, which is a fact about this converge an operator has to know: the column arrives
+    /// unasked and the index does not.
+    #[test]
+    fn converging_the_pre_tag_queue_schema_plans_exactly_one_add_column_step() {
+        let (want, have) = (jobs(true, true), jobs(false, false));
+        for dialect in DIALECTS {
+            let plan = diff(&want, &have, dialect);
+            let changes: Vec<String> = plan
+                .steps()
+                .iter()
+                .map(|step| step.change().to_string())
+                .collect();
+            assert_eq!(
+                changes,
+                [
+                    "add column nvs_jobs.tag",
+                    "add index nvs_jobs_tag on nvs_jobs"
+                ],
+                "{dialect:?} converges the pre-`tag` queue by something other than one column and \
+                 its index"
+            );
+        }
+    }
+
+    /// § 6's `Safe` at the case the queue's `tag` is declared for: `nvs queue migrate` runs the
+    /// column without being asked twice, on all four.
+    ///
+    /// The column alone is the plan under test, because [`Plan::first_refused`] answers about the
+    /// whole plan and the index that follows the column is `Locking` — built over every row that is
+    /// already there, with no concurrent build in v1. So the two halves are asserted apart: the
+    /// column needs no `--including-risky` and the index is the only step that does. A `tag`
+    /// declared `NOT NULL`, or with a default, fails the first half here rather than on the first
+    /// live queue that runs the migration.
+    #[test]
+    fn that_step_is_graded_safe_on_every_dialect_and_needs_no_including_risky() {
+        let have = jobs(false, false);
+        let (column, indexed) = (jobs(true, false), jobs(true, true));
+        for dialect in DIALECTS {
+            let plan = diff(&column, &have, dialect);
+            assert_eq!(plan.len(), 1, "{dialect:?}");
+            let step = &plan.steps()[0];
+            assert_eq!(step.grade(), Grade::Safe, "{dialect:?}: {}", step.reason());
+            assert!(
+                plan.first_refused().is_none(),
+                "{dialect:?} would not add the column without --including-risky"
+            );
+            // SQLite answers an add it cannot express as an `ALTER` with a whole rebuild, which is
+            // `Destructive` — so the absence of one is the same claim as the grade, read off the
+            // SQL an operator would paste.
+            assert!(
+                !step.sql().concat().contains("_nvs_rebuild"),
+                "{dialect:?} rebuilt the jobs table for a column every row already has"
+            );
+            assert_eq!(
+                diff(&indexed, &have, dialect)
+                    .first_refused()
+                    .map(|refused| refused.change().to_string()),
+                Some("add index nvs_jobs_tag on nvs_jobs".to_owned()),
+                "{dialect:?} refuses a step of this converge that is not the index build"
+            );
+        }
+    }
 }
