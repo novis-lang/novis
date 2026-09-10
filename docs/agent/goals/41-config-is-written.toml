@@ -1,7 +1,7 @@
-# Goal 40 -- The configuration is written down, and every key in it is read
+# Goal 41 -- The configuration is written down, and every key in it is read
 # The acceptance test, as data.
 #
-# `40-config-is-written.md` is the prose. One home each.
+# `41-config-is-written.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -104,7 +104,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `40-config-is-written.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `41-config-is-written.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.1]

@@ -1,7 +1,7 @@
 ---
 milestone: M6
 ---
-# Loop goal 40 — The configuration is written down, and every key in it is read
+# Loop goal 41 — The configuration is written down, and every key in it is read
 
 Two facts about `nvs.toml` today, and each is what makes the other hard to see:
 

@@ -1,7 +1,7 @@
 ---
 milestone: M10
 ---
-# Loop goal 38 — The extension answers everything it contributes
+# Loop goal 39 — The extension answers everything it contributes
 
 Goal `editor` shipped an extension whose manifest promises more than its code answers, and goal `workspace-index` gives
 that code a server worth wiring to. This goal closes the gap on the client side: the three commands

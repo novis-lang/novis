@@ -1,7 +1,7 @@
 ---
 milestone: M10
 ---
-# Loop goal 37 — The language server grows past its first closed list
+# Loop goal 38 — The language server grows past its first closed list
 
 M4B shipped a server that answers a cursor. This goal makes it answer a *program*: one workspace
 symbol index, the five features that are each a query against it, the two navigations and the

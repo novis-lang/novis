@@ -1,7 +1,7 @@
 ---
 milestone: M7
 ---
-# Loop goal 35 — `nvs serve` runs the queue's workers, and the drain stops them
+# Loop goal 36 — `nvs serve` runs the queue's workers, and the drain stops them
 
 `[[schedule]]` fires under `nvs serve`. `[queue] workers = 4` under `nvs serve` arms nothing, reports
 nothing and refuses nothing — the workers are wired into `run_run` and nowhere else, so the key is

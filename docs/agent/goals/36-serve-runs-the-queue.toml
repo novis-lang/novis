@@ -1,7 +1,7 @@
-# Goal 35 -- `nvs serve` runs the queue's workers, and the drain stops them.
+# Goal 36 -- `nvs serve` runs the queue's workers, and the drain stops them.
 # The acceptance test, as data.
 #
-# `35-serve-runs-the-queue.md` is the prose. One home each.
+# `36-serve-runs-the-queue.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -74,7 +74,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `35-serve-runs-the-queue.md`, holding what only that stage
+# THE STAGES. One table per prose stage in `36-serve-runs-the-queue.md`, holding what only that stage
 # needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to

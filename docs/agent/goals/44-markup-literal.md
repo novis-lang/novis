@@ -1,7 +1,7 @@
 ---
 milestone: M8
 ---
-# Loop goal 43 — markup is written as a literal, not composed with an operator
+# Loop goal 44 — markup is written as a literal, not composed with an operator
 
 ``html`<span>posted by </span>{$name}` `` compiles, is a `Core\Html\Markup`, trusts its segments and
 escapes its holes — so the two constructs a fragment costs today, `as Core\Html\Markup` and `+`, become

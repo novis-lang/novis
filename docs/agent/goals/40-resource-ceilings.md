@@ -1,7 +1,7 @@
 ---
 milestone: M6
 ---
-# Loop goal 39 — Every resource ceiling stops the request that breaks it
+# Loop goal 40 — Every resource ceiling stops the request that breaks it
 
 `[limits]` bounds the request that breaks it, whatever that request was doing — burning a core in a
 loop that allocates nothing, growing a string through primitives that call nothing, or asking for

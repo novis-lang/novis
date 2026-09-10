@@ -1,7 +1,7 @@
-# Goal 37 -- The language server grows past its first closed list
+# Goal 38 -- The language server grows past its first closed list
 # The acceptance test, as data.
 #
-# `37-workspace-index.md` is the prose. One home each.
+# `38-workspace-index.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
@@ -92,7 +92,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `37-workspace-index.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `38-workspace-index.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]

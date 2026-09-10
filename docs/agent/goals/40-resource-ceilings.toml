@@ -1,7 +1,7 @@
-# Goal 39 -- Every resource ceiling stops the request that breaks it
+# Goal 40 -- Every resource ceiling stops the request that breaks it
 # The acceptance test, as data.
 #
-# `39-resource-ceilings.md` is the prose. One home each.
+# `40-resource-ceilings.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -96,7 +96,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `39-resource-ceilings.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `40-resource-ceilings.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]

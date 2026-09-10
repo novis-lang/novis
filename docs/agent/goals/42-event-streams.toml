@@ -1,7 +1,7 @@
-# Goal 41 -- A response body written over time, and the two doors onto it.
+# Goal 42 -- A response body written over time, and the two doors onto it.
 # The acceptance test, as data.
 #
-# `41-event-streams.md` is the prose. One home each.
+# `42-event-streams.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -126,7 +126,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `41-event-streams.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `42-event-streams.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.1]

@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 43 — markup is written as a literal, not composed with an operator — has just started; nothing of it has landed yet.** Goal `finish-response`'s whole list is this goal's Stage 1 floor.
+**Goal 44 — markup is written as a literal, not composed with an operator — has just started; nothing of it has landed yet.** Goal `finish-response`'s whole list is this goal's Stage 1 floor.
 
 **The design is already decided and landed.** [ADR 0169](../../decisions/0169.md) holds all of it and
 `rule:core-classes/html-literal` states it at `designed`; no session writes a record for this goal, and

@@ -1,7 +1,7 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 36 — The extension guides an install instead of shipping a binary
+# Loop goal 37 — The extension guides an install instead of shipping a binary
 
 A VS Code user who installs the extension before the compiler stops hitting a wall. Today the client
 spawns `nvs lsp` and, finding nothing, reports a missing binary and leaves the user to solve it; when

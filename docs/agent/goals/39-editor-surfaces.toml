@@ -1,7 +1,7 @@
-# Goal 38 -- The extension answers everything it contributes
+# Goal 39 -- The extension answers everything it contributes
 # The acceptance test, as data.
 #
-# `38-editor-surfaces.md` is the prose. One home each.
+# `39-editor-surfaces.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
@@ -88,7 +88,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `38-editor-surfaces.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `39-editor-surfaces.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]

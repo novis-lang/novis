@@ -1,7 +1,7 @@
 ---
 milestone: M7
 ---
-# Loop goal 41 — A response body written over time, and the two doors onto it
+# Loop goal 42 — A response body written over time, and the two doors onto it
 
 `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` draws a line between two
 spellings — a stream that ends with its request is a *streaming response*, one that outlives it is a

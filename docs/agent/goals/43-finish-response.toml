@@ -1,7 +1,7 @@
-# Goal 42 -- a response ends where the code says so, and every finally still runs.
+# Goal 43 -- a response ends where the code says so, and every finally still runs.
 # The acceptance test, as data.
 #
-# `42-finish-response.md` is the prose. One home each.
+# `43-finish-response.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -98,7 +98,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `42-finish-response.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `43-finish-response.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]

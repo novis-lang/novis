@@ -1,7 +1,7 @@
 ---
 milestone: M7
 ---
-# Loop goal 42 — a response ends where the code says so, and every finally still runs
+# Loop goal 43 — a response ends where the code says so, and every finally still runs
 
 A program can end its response from anywhere — one member, callable from any frame — and that ending
 is an **ordinary** one: every `finally` on the way out runs, the exit queue fires, and

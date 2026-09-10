@@ -1,0 +1,246 @@
+# Goal 35 -- the queue runs on SQLite.
+# The acceptance test, as data.
+#
+# `35-sqlite-queue.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # goal-switch.py unions goal `queue-purge`'s list into this one. This goal's own fixture is
+  # stage 6's, and it is the first queue fixture that needs no server to run.
+  "examples/queue-sqlite.nvs",
+]
+
+[context]
+
+modules = [
+  # Stages 2, 3, 4 and 5 -- every statement, the `Queued` seam, `runs` and `no_dialect`. The one
+  # file this goal is mostly about.
+  "crates/nvs-stdlib/src/queue.rs",
+  # Stage 2 -- THE keystone file: `begin` emits a bare `BEGIN` at depth 0 and ignores its
+  # `isolation` argument, which is the deferred transaction the claim may not be built on. Also
+  # `encode`, which is how a bound value becomes a `SqliteValue`.
+  "crates/nvs-db/src/sqlite.rs",
+  # Stages 0 and 5 -- `Wire`, the worker's own two-armed `Dialect`, and `open`'s refusal arm. Reads
+  # its claim columns BY POSITION, so the third dialect's `select` list order is load-bearing.
+  "crates/nvs-cli/src/worker.rs",
+  # Stage 5 -- the `Connection` arms, `Isolation`, and `set_busy_timeout`, which is how a statement's
+  # deadline becomes SQLite's wait.
+  "crates/nvs-db/src/conn.rs",
+  # Stage 3 and 4 -- how the stdlib ALREADY runs SQLite statements and transactions
+  # (`Transacting::Sqlite`). The shape to copy rather than to invent.
+  "crates/nvs-stdlib/src/db/execute.rs",
+  # Stage 6 -- the matrix suite and its own two-armed `Dialect` at line 313. The `Once` per schema
+  # is a trap: a poisoned one reports nothing at all.
+  "crates/nvs-stdlib/tests/queue.rs",
+  # Stage 6 -- the SQLite leg already exists ("a scratch file, no container"). Its suite list is
+  # what this goal extends; the driver roster is NOT edited.
+  "tools/db-matrix.py",
+  # Stage 0 -- `nvs queue migrate` already converges the two tables on this backend. Read for what
+  # it proves, not to change it.
+  "crates/nvs-cli/src/queue.rs",
+]
+
+# The claim rule NAMES this backend's mechanism, so stage 2 implements it rather than choosing it.
+# The storage rule is the tables both other dialects were written against; the enum rule is why a
+# third dialect is arms and not a trait; 0004 prices the one trade this goal makes.
+rules = [
+  "concurrency/claiming-is-one-statement",
+  "core-classes/queue-storage-is-a-table",
+  "core-classes/db-drivers-are-an-enum",
+  "0004",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+  "A `.nvst` test case",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `35-sqlite-queue.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The claim rule is in the base because every stage works inside it; the ADR slot this stage takes
+# is the record of HOW, and it does not exist until this stage writes it.
+rules = ["concurrency/delivery-is-at-least-once"]
+adrs = []
+shapes = ["A decision record", "A rule fragment"]
+
+[context.stage.3]
+rules = ["concurrency/attempts-are-finite-and-a-dead-letter-is-kept"]
+
+[context.stage.4]
+rules = ["concurrency/queue-deletion-is-explicit-and-bounded"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# This goal's OWN half needs no daemon -- SQLite is a file, and `tools/db-matrix.py`'s SQLite leg
+# brings up no container. The table is here for stage 1's floor, which is goal `queue-purge`'s list
+# and runs against real PostgreSQL and MySQL servers.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the immediate transaction, and the claim on top of it. The keystone.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the immediate transaction"
+name = "nvs-db (SQLite takes the write lock up front, and only at depth 0)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "an_immediate_transaction_holds_the_write_lock_before_its_first_statement_runs",
+  "an_immediate_transaction_asked_for_inside_an_open_one_is_refused",
+  "a_refused_immediate_begin_leaves_the_connection_in_no_transaction",
+  "core_db_transaction_still_opens_the_same_deferred_transaction_it_always_did",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the claim"
+name = "nvs-stdlib (two connections over one file never claim one job twice)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "two_connections_claiming_one_sqlite_file_never_come_back_with_the_same_job",
+  "all_three_dialects_answer_a_claim_with_the_same_columns",
+  "a_sqlite_claim_reads_the_attempt_it_is_about_to_have_and_not_the_one_before",
+  "a_sqlite_claim_takes_a_job_whose_visibility_window_has_passed",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the worker's other statements.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the worker's statements"
+name = "nvs-stdlib (dedupe, the dead-letter move, the retry ladder and the roster, on SQLite)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_second_push_of_a_pending_key_is_deduped_on_sqlite",
+  "a_dead_letter_move_leaves_the_row_in_both_tables_or_in_neither_on_sqlite",
+  "a_retry_puts_the_dedupe_key_back_on_sqlite",
+  "the_roster_answers_only_the_queues_holding_due_work_on_sqlite",
+  "a_worker_that_overran_its_visibility_window_reports_nothing_on_sqlite",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the six members' statements.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "nvs-stdlib (status, cancel, stats, delete and purge answer the same way on SQLite)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "delete_refuses_a_claimed_job_on_sqlite",
+  "delete_finds_a_job_the_dead_letter_move_has_already_taken_on_sqlite",
+  "purge_never_removes_more_rows_than_its_bound_on_sqlite",
+  "purge_naming_no_state_removes_terminal_rows_and_nothing_else_on_sqlite",
+  "stats_answers_four_counters_from_one_instant_on_sqlite",
+  "queue_statements_agree_with_the_state_enum",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the bound"
+name = "nvs-stdlib (the purge bound needs no build option)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "no_sqlite_statement_asks_for_a_delete_limit",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the three seams.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the seams"
+name = "nvs-stdlib (the roster is three, the refusal is SQL Server's alone)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "runs_answers_true_for_three_drivers_and_false_for_sql_server_alone",
+  "every_driver_the_queue_refuses_says_what_it_is_waiting_on",
+  "no_sqlite_statement_binds_another_dialects_placeholder",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the seams"
+name = "nvs-cli (a SQLite block starts a worker, a SQL Server block still does not)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_sqlite_block_opens_a_queue_worker",
+  "a_sql_server_block_still_starts_no_worker_and_names_the_driver",
+  "a_worker_reads_the_same_claim_columns_by_position_on_all_three_dialects",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the matrix leg, and the cases it makes possible on a machine with no daemon.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the matrix leg"
+name = "the SQLite leg runs the queue suites, with no container at all"
+argv = ["python", "tools/db-matrix.py", "--driver", "sqlite"]
+want = [
+  "sqlite: ok",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the cases"
+name = "conformance (the queue, against a file rather than a server)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/queue-push-and-status-run-against-a-sqlite-file.nvst",
+  "tests/conformance/core/queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst",
+  "tests/conformance/core/queue-cancel-releases-a-dedupe-key-on-sqlite.nvst",
+]
