@@ -266,6 +266,13 @@ where taking it is the work and the code that follows it is not.
   `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
   `crates/nvs-stdlib/src/json.rs` gap 5.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
+- **`Core\Uuid` has no `bytes` round trip**, so a driver binding a native `UUID` column carries the
+  36-character text between the two. Nothing under it is missing — `nvs_runtime::Tag::Bytes` is a
+  live tag and a `Core` instance holds whatever Novis holds — so what has to be decided is whether
+  spec § 11's second table gains the pair at all: all four members it names are built, and a fifth
+  widens a surface the spec fixed rather than repairing it.
+  `crates/nvs-stdlib/src/uuid.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/uuid.rs:owner: unowned]
 - **`nvs-db`'s § 5 normalization, which both directions of the schema plan record as owed and
   which nothing on the chain writes.** The emitter's map into a dialect is lossy — one `BYTEA` for
   both bytes widths, `CHAR(36)` for a `UUID`, the next width up and a `CHECK` for a `uint` no
