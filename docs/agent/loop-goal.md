@@ -1,166 +1,127 @@
 ---
-milestone: M7
+milestone: post-parity
 ---
-# Loop goal 36 — `nvs serve` runs the queue's workers, and the drain stops them
+# Loop goal 37 — The extension guides an install instead of shipping a binary
 
-`[[schedule]]` fires under `nvs serve`. `[queue] workers = 4` under `nvs serve` arms nothing, reports
-nothing and refuses nothing — the workers are wired into `run_run` and nowhere else, so the key is
-read, validated at boot, and then silently ignored by the binary a deployment actually runs. Every
-production deployment therefore needs a second `nvs run` process it was never told about.
+A VS Code user who installs the extension before the compiler stops hitting a wall. Today the client
+spawns `nvs lsp` and, finding nothing, reports a missing binary and leaves the user to solve it; when
+this goal is green it names what is missing, offers to fetch the release matching its own series,
+checks those bytes against the release's own `SHA256SUMS`, and offers the release page to anyone who
+would rather check for themselves. The binary it installs is the **last** thing tried, after
+`nvs.path` and `PATH`, so a user's own toolchain always wins.
 
-[ADR 0154](../decisions/0154.md) is the whole design and this goal is its implementation: one
-`Option` and one call in `serve.rs`, one predicate in `worker.rs`, four rows in the directive table,
-and one sentence of help text that stops being wrong.
-`rule:concurrency/one-process-serves-requests-schedules-and-jobs` is what this ships, and
-`rule:concurrency/who-runs-a-job-is-configuration` is what it finally makes true. **Neither is this
-goal's to re-open**, and neither is the command's name: § 6 of the record settles that `nvs serve`
-stays, because `nvs service` is already the platform-service-manager namespace, `daemon` is a noun in
-a list of verbs, and `rule:packaging/a-service-is-one-stored-argv` makes the argv a thing already
-written into units on disk.
+It sits at the end of the chain because nothing depends on it: goal `editor` shipped a working extension
+for people who already have `nvs`, and this goal only widens who that is. It is last rather than
+never because the dead end it removes is the first thing a new user meets.
 
-Its floor is goal `queue-purge`'s whole list.
+Goal `serve-runs-the-queue`'s whole acceptance list is this goal's floor, and it is never traded.
 
 ## Why here
 
-Directly after goal `queue-purge` because the two are one file set and one subject: goal `queue-purge` is the entry that
-gives the queue its missing member, while this is the one that gives it its missing process. M7
-rather than M8: nothing here is `Core` surface — it is where a subsystem runs and what stops it.
+It is on the chain at all because the dead end it removes — install the extension, get told about
+`PATH`, and stop — is the first thing a new user meets, and the version mismatch of
+`rule:ide/the-extension-refuses-a-binary-it-does-not-understand` ends the same way. ADR 0155 is its
+whole design and landed before it.
 
-## The shape, in one block
+## Stage 0 — the catch-up
 
-```toml
-# One process. One unit. One thing to supervise.
-[queue]
-connection = "main"
-workers    = 4        # armed once per INSTANCE, on the core the ticker is armed on
-
-[[schedule]]
-name = "nightly"
-cron = "0 3 * * *"
-```
-
-```
-$ nvs serve app.nvs
-arming 1 scheduled entry
-arming 4 queue workers
-```
+Nothing. No fixture predates the rule: `editors/vscode` holds no install path at all today, and the
+one sentence that will read differently afterwards — `version.ts`'s refusal, which currently ends
+*"Point `nvs.path` at a matching binary"* — is stage 4's to re-point, because there is nothing to
+offer until stage 3 exists.
 
 ## Stage 1 — the floor
 
-Goal `queue-purge`'s whole acceptance list, never traded.
+Goal `serve-runs-the-queue`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for anything above it.
 
-## Stage 2 — the keystone: the drain stops a worker
+## Stage 2 — the keystone: the platform table, pinned to the release matrix
 
-One file: `crates/nvs-cli/src/worker.rs`.
+The table that turns a machine into an archive name, and the test that stops it drifting from the
+workflow that builds those archives. Everything later is a fetch of whatever this decides, so it goes
+first and it is provable with no network at all.
 
-**Before anything is armed under `serve`, the stop condition has to be able to come from the drain.**
-Nothing begins a drain under `nvs serve` as this goal is written — `Draining::begin` is called only in
-the accept loop's tail after `keep_serving` breaks, this command's seam continues forever, and there
-is no signal handler in either crate — so a killed process is how a served instance ends right now.
-**That will not still be true when this goal is walked**: goal `net-os-signal`'s stage 4 lands `Core\Signal` as the
-entry into this same drain, and it is ahead of this entry on the chain. So a `SIGTERM` will be asking
-this command to drain, and workers that ignore it turn that graceful shutdown back into a kill. The
-goal's own acceptance case is the other reason for the order: a **test** breaks that seam too, so a
-check that arms workers before they can be stopped **hangs rather than fails**, and a check that hangs
-when the feature regresses reports nothing.
+1. **`editors/vscode/src/install.ts` — the target table.** Every `(process.platform, process.arch)`
+   pair the extension claims, onto one of the seven names
+   `.github/workflows/release.yml:205` builds: `linux-x86_64`, `linux-aarch64`, `linux-x86_64-musl`,
+   `windows-x86_64`, `windows-aarch64`, `macos-x86_64`, `macos-aarch64`. An unsupported pair resolves
+   to nothing and is a case stage 4 reports, not a throw.
+2. **musl detection**, in the same file. `process.report.getReport().header.glibcVersionRuntime`
+   absent means musl, which is what an Alpine devcontainer needs; the extension is
+   `extensionKind: ["workspace"]`, so this runs on the remote and the remote's libc is the one that
+   matters.
+3. **The archive name and the series selector.** `nvs-<version>-<name>.tar.gz`, `.zip` on Windows,
+   from `tools/release.py --package`'s own shape; and given a list of releases, the newest whose
+   `major.minor` equals the client's own, per `editors/vscode/src/version.ts:@series`.
+4. **`crates/nvs-lsp/tests/extension_release.rs` — the pin.** Reads `install.ts`'s table and
+   `.github/workflows/release.yml`'s matrix and fails when either gains a target the other does not
+   have. It is Rust rather than TypeScript for one reason: reading the workflow means a YAML parser,
+   and a new dependency is exactly what `contributions.test.ts`'s allowlist refuses. This is the
+   shape `crates/nvs-lsp/tests/extension_reference.rs` already uses to pin the chapter to the
+   manifest.
 
-1. **`Workers` gains a second way to be stopped**, or `Workers::stop` gains a second writer: a
-   `Draining` handle read at the top of each turn beside the existing flag. `nvs_server::Draining` is
-   `Clone` and its `is_draining()` is the whole of what a worker needs.
-2. **`nvs run` is unchanged.** Its workers still stop when the script's task exits, for the reason
-   `worker.rs`'s own module doc gives. The two binaries share `start` and differ in one predicate.
-3. **A claimed job runs to completion.** A drain means stop taking *new* work, and claiming is taking
-   new work — the same contract an accepted request and an in-flight `[[schedule]]` fire have. The
-   tail a shutdown pays is the one that module doc already prices: one `IDLE_TURN` ordinarily, one
-   statement's round trip mid-claim, one `CONNECT_DEADLINE` at worst.
+## Stage 3 — the fetch, and what it refuses
 
-## Stage 3 — the arming
+1. **The download**, in `install.ts`: the archive and the release's `SHA256SUMS`, both from the same
+   release, over HTTPS to `github.com` and the `objects.githubusercontent.com` hop a release asset
+   redirects to.
+2. **The verification.** Hash the archive, compare against its `SHA256SUMS` line, and unpack nothing
+   until it matches. A mismatch aborts, removes what it wrote, and names the file that failed.
+3. **The unpack**, into `context.globalStorageUri`, with the executable bit set on unix — a mode
+   inside a zip is not something to rely on.
+4. **The suite**, `editors/vscode/test/install/`, printing `install:` through
+   `scripts/headless.mjs`'s discovery. No network: the fetch takes an injected transport, and the
+   cases feed it a fixture archive, a good `SHA256SUMS` and a tampered one.
 
-One file: `crates/nvs-cli/src/serve.rs`.
+## Stage 4 — the chain, the two commands, and the status item
 
-`nvs_config::queue::queue_for` off the boot snapshot exactly as `run_run` reads it, then
-`worker::start` on the scheduler this command already creates — beside `nvs_server::arm` and **before**
-the accept loop is spawned, which is where the ticker goes and for the ticker's reason.
+1. **The resolution order** in `editors/vscode/src/extension.ts:98` — `nvs.path`, then `PATH`, then
+   the managed copy — replacing the two-way choice there now. The managed copy is remembered in the
+   extension's own storage and **never written to `nvs.path`**.
+2. **`nvs.downloadBinary` and `nvs.openReleases`**, registered beside the three at
+   `editors/vscode/src/extension.ts:62` and added to the frozen roster at
+   `editors/vscode/package.json:119`. Added, never renamed.
+3. **The offer.** No candidate resolves: the status item says so and the two commands are how a user
+   acts on it. Nothing fetches on activation and nothing checks for updates in the background.
+4. **The refusal gains a way out.** `version.ts`'s mismatch sentence offers the matching install
+   rather than ending at *"Point `nvs.path` at a matching binary"* — which is what makes
+   `rule:ide/the-extension-refuses-a-binary-it-does-not-understand` actionable instead of a support
+   question.
+5. **The status item names which of the three answered**, because with more than one candidate
+   "which `nvs` is this" has to be answerable without guessing.
 
-1. **`TaskRoot::Worker`, not `TaskRoot::Request`.** The ticker holds `Request` because a fire is a
-   child of the loop that serves; a worker has no request beneath it to charge a panic to
-   (`rule:http-server/containment-does-not-end-at-the-helper`). **This is the one line of this change
-   that looks right when it is wrong** — the ticker is three lines above and holds the other one.
-2. **No lease, and no `Leases` argument.** `arm` takes `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease
-   because `Core\Cache`'s shared tier has no set-if-absent. That blocker does not touch the queue:
-   `rule:concurrency/claiming-is-one-statement` puts the mutual exclusion in the database, so a fleet
-   of instances each running workers is the intended deployment.
-3. **Armed once, on one core.** `workers` is per instance. Today `serve` turns one scheduler on one
-   core so the two coincide; the per-core slice is where this has to be honoured rather than
-   discovered, and § 3 of the record is the decision it inherits rather than one it may re-take.
-4. **A tree with no `[queue]` block arms nothing and spawns no task**, which is the ticker's shape:
-   an `Option` read at boot and no cost at all when it is absent.
+## Stage 5 — the reference chapter
 
-## Stage 4 — `[queue]` joins the directive table
-
-One file set: `crates/nvs-config/src/directive.rs`, `crates/nvs-config/tests/directives.rs`.
-
-`directive::lookup` answers `Option` and no row governs `queue`, so the block has no changeability
-class and no apply class at all. Four rows, `System` throughout, split the way `[deferred]` is split:
-
-| Key | Apply |
-|---|---|
-| `queue.connection` | `Boot` — a connection swapped under running workers strands every claim in flight |
-| `queue.workers` | `Boot` — a worker is a spawned task, and applying a count means starting or stopping tasks |
-| `queue.max_attempts` | `Reload` — read per job out of the snapshot, re-creating nothing |
-| `queue.visibility` | `Reload` — the same, a lease length read when a claim is taken |
-
-**No new diagnostic.** `rule:config/a-reload-names-what-it-could-not-apply` already carries a changed
-`Boot` key forward and names it; this only gives that mechanism rows to find. The census in
-`crates/nvs-config/tests/directives.rs` is what holds the pairs, and it gains four entries.
-
-## Stage 5 — the sentence that stops being wrong
-
-One file: `crates/nvs-cli/src/main.rs`.
-
-> *Serve a Novis file over HTTP, on one core, until stopped.*
-
-That describes one of three subsystems and, after this goal, the least of them. The command's help
-names the accept loop, the `[[schedule]]` ticker and the queue's workers, because the mental model an
-operator forms of one process is what stops them looking for a second one. **The command's name does
-not change** — § 6 of ADR 0154 is why, and it is not this stage's to revisit.
-
-## Stage 6 — the fixture and the cases
-
-`examples/queue.nvs`'s properties under the **served** binary rather than only under `nvs run`: a job
-pushed to a server with `workers = 1` is claimed, runs, and reaches `Succeeded`.
-
-The shutdown case is the one that matters and it must be **bounded**: a served process with workers
-exits once its drain begins. Written as a test with a deadline rather than as a smoke run, because the
-failure mode of stage 2 being missed is a hang, and a check that hangs when the feature regresses is
-worse than one that fails — it has nothing to report.
-
-**No differential case**: PHP has no queue, which is the same reason `examples/queue.nvs` has none.
+`docs/reference/tools/40-editor.md` gains the install section: the three candidates and their order,
+the two commands, what is verified, and the fact that nothing is fetched unasked. Its § *What it does
+not do* keeps naming the contributions that are still frozen-and-unanswered — this goal does not
+close those, and the playbook bullet at `docs/agent/playbook.md:1261` stays until something does.
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** [ADR 0154](../decisions/0154.md) is accepted and is the
-  whole design: one `Option` and one call in `serve.rs`, one predicate in `worker.rs`, four rows in the
-  directive table, one sentence of help. The two rules the lead paragraph names are not this goal's to
-  re-open.
-- **The command keeps its name.** § 6 of the record settles it, and it is the question this goal is
-  most likely to be asked on the way past: `nvs service` is the platform-service-manager namespace,
-  `daemon` is a noun in a list of verbs, and `rule:packaging/a-service-is-one-stored-argv` makes the
-  argv a thing already written into units on disk. Not a stage's to revisit.
-- **The drain comes from goal `net-os-signal`, which is ahead of this entry on the chain.** `Core\Signal` is what
-  makes a `SIGTERM` a drain rather than a kill, and stage 2 is written so that workers answer that
-  drain when it arrives. If this goal is somehow reached with that path absent, stage 2 is still the
-  first slice and the acceptance case is still deadline-bounded — the order exists so a check that
-  regresses fails instead of hanging, and that property does not depend on which goal landed first.
-- **No lease, and that is not the lease blocker one file over.**
-  `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` waits on a set-if-absent `Core\Cache`
-  has not got; the queue does not need it, because `rule:concurrency/claiming-is-one-statement` puts
-  the mutual exclusion in the database. A fleet of instances each running workers is the intended
-  deployment, so `arm` takes `None` deliberately.
-- **`TaskRoot::Worker`, and the ticker three lines above holds the other one.** This is the one line of
-  the change that looks right when it is wrong; `rule:http-server/containment-does-not-end-at-the-helper`
-  is why a worker has no request beneath it to charge a panic to.
-- **What this spends**, per `rule:programs/memory-priority`: nothing at all in a tree with no `[queue]`
-  block — an `Option` read at boot and no task spawned, which is the ticker's shape. Where the block is
-  present it is `workers` tasks per instance, armed on the core the ticker is armed on, and the tail a
-  shutdown pays is the one `worker.rs`'s module doc already prices.
+- **No bundling, and this is not reopened by a session finding the download awkward.** Seven
+  platform-specific `.vsix` packages were considered and rejected in [ADR 0155](../decisions/0155.md)
+  § *Alternatives rejected*: a bundled copy either outranks the user's own toolchain, which breaks the
+  invariant `extensionKind: ["workspace"]` exists to protect, or it does not, in which case it is this
+  goal's managed install with seven publish legs paid for it.
+- **Verification is not optional and not deferred to a later stage.** Stage 3 lands the hash check in
+  the same slice as the fetch. There is no intermediate state where the extension downloads an
+  executable it has not checked, not even behind a flag.
+- **Nothing reaches the network without a command.** No fetch on activation, no update check, no
+  retry loop. A session that finds this inconvenient writes a better message, not a background task.
+- **The managed copy never writes `nvs.path`.** [ADR 0155](../decisions/0155.md) § 6 is the reason:
+  a path the extension wrote outlives its purpose and silently defeats a real toolchain installed
+  later.
+- **This goal opens ADR 0155**, whose `changes:` block creates
+  `rule:ide/the-extension-guides-an-install-and-never-bundles-one` and modifies
+  `rule:ide/the-extension-runs-where-the-binary-is`. Both landed with the record; this goal
+  implements them and opens no further number.
+- **The Sigstore attestation is not verified in-process.** It needs a Sigstore client and a second
+  trust store inside an editor extension. `nvs.openReleases` is how a careful user reaches it, and
+  ADR 0155 § 5 is where that was decided.
+- **Where ambiguity resolves:** an unsupported platform, a release list with no matching series, and
+  a network failure all resolve the same way — the status item says which of the three it is, the
+  release page stays one command away, and the extension keeps working as a grammar-only client.
+  None of them is `BLOCKED`.
+- **Not in this goal:** Marketplace publishing (still [ADR 0099](../decisions/0099.md)
+  *Revisiting*'s), a version pin or any multi-version switching ([ADR 0155](../decisions/0155.md)
+  *Revisiting*), and the three frozen-and-unanswered commands from goal `editor`.

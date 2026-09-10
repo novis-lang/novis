@@ -2,48 +2,58 @@
 
 ## State
 
-**Goal `serve-runs-the-queue` is closed — all six stages are on disk.** Stage 6's two cases live in
-`crates/nvs-cli/src/worker.rs`'s test module and pass in 0.2s: one job enqueued against a SQLite
-`[queue]` served by `workers = 1` is read back in `succeeded`, and a served instance holding two
-workers ends within a bound once the drain begins. The stage's third piece, the `examples/queue.nvs`
-`exact` check, was already green — the example's stdout is the five wanted lines exactly; only the
-driver's own invocation had to be understood, which the new playbook bullet owns.
+**Goal `editor-install` — The extension guides an install instead of shipping a binary — has just started; nothing of it has landed yet.** Goal `serve-runs-the-queue`'s whole list is this goal's Stage 1 floor.
 
-The end-to-end fixture is now in-crate and cheap to reuse: `a_queue_file`
-(`crates/nvs-cli/src/worker.rs:1812`) hands out a `[db.<name>]` block over a temp SQLite file,
-`converged` (`:1835`) builds `rule:core-classes/queue-storage-is-a-table`'s two tables from
-`nvs_stdlib::queue::migration`'s own DDL, `pushed` (`:1877`) enqueues one due job, and
-`draining_once_the_job_leaves` (`:1969`) is the operator's shutdown *and* the case's clock. The grant
-a worker needs is `crate::script::granting_snapshot` (`crates/nvs-cli/src/script.rs:770`), which is
-`granting_ctx`'s capability literal split in two because a worker builds its own context.
+**The design is settled and is not a session's to reopen.** [ADR 0155](../decisions/0155.md) landed
+with `rule:ide/the-extension-guides-an-install-and-never-bundles-one`, and the goal prose's
+*Standing decisions* carry its four load-bearing calls: no bundled binary on any platform, the
+managed copy is tried **last** and never written to `nvs.path`, the hash check lands in the same
+slice as the fetch, and nothing reaches the network without a user invoking a command. A session
+that finds any of those inconvenient writes a better message, not a background task.
 
-`Draining::begin` still has **no** production caller under `nvs serve` — goal `net-os-signal` lands
-it, and ADR 0154 § 2 is why the predicate is here first. The design stays closed: ADR 0154 is the
-whole of it, and the goal's § *Standing decisions* holds the three things not to re-decide.
+**What is already on disk to build on.** `.github/workflows/release.yml` builds the seven archives,
+writes `SHA256SUMS` over them and attaches Sigstore provenance — none of it added for this goal, all
+of it what makes the fetch checkable. `editors/vscode/src/version.ts` already computes the
+`major.minor` series stage 2's selector needs. `crates/nvs-lsp/tests/extension_reference.rs` is the
+shape stage 2's pin copies: one Rust test holding two files in different languages together.
+
+**The trap that will cost a session if it is not read first:** the extension's dependency allowlist
+is asserted by `contributions.test.ts`, so the release-matrix pin cannot be TypeScript — reading the
+workflow means a YAML parser, and a new dependency fails that test. It is Rust for that reason and
+no other.
 
 ## Next group
 
-**The write-back's other two branches, through a real worker** — one file set:
-`crates/nvs-cli/src/worker.rs`'s test module, whose new SQLite fixture above already builds a
-`[queue]`, arms workers and drives them to a state. Both cases are `-p nvs-cli` and neither needs a
-server. Take these only if the driver is still on this goal; a goal switch overwrites this file.
+**Stage 2: the platform table, pinned to the release matrix** — one file set: a new
+`editors/vscode/src/install.ts` and a new `crates/nvs-lsp/tests/extension_release.rs`. Nothing here
+touches the network, so the whole stage is provable offline.
 
-- [ ] **a job whose script throws is retried before it is dead-lettered** — pushed with
-      `max_attempts = 2`, driven until the row leaves `nvs_jobs`, and asserted on the dead-letter
-      row rather than on the attempt count. `crates/nvs-cli/src/worker.rs:938` is the
-      `attempts >= max_attempts` branch that has no end-to-end case, and
-      `crates/nvs-cli/src/worker.rs:1877`'s `pushed` is the enqueue to widen with the two columns.
-      `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` is the rule.
-- [ ] **a served instance whose `[db.<name>]` never opens says so once and still ends** —
-      `crates/nvs-cli/src/worker.rs:1202` warns and returns no worker, and
-      `crates/nvs-cli/src/worker.rs:250` is the stopping read that happens before the connection, so
-      such an instance is silently worker-less and passes a shutdown case for the wrong reason.
-      That is exactly what the liveness assertion in
-      `a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins` guards, and it
-      deserves a case of its own. `rule:concurrency/one-process-serves-requests-schedules-and-jobs`.
+- [ ] **The target table** — `editors/vscode/src/install.ts`. Every `(process.platform,
+      process.arch)` pair the extension claims onto one of the seven names
+      `.github/workflows/release.yml:205` builds. An unsupported pair resolves to nothing rather
+      than throwing; stage 4 is what reports it.
+- [ ] **musl detection**, same file. `process.report.getReport().header.glibcVersionRuntime` absent
+      means musl. It runs on the remote, because the extension is `extensionKind: ["workspace"]`,
+      so the remote's libc is the one that decides.
+- [ ] **The archive name and the series selector**, same file. `nvs-<version>-<name>.tar.gz`
+      (`.zip` on Windows) matching `tools/release.py --package`; and the newest release whose series
+      equals `editors/vscode/src/version.ts:@series` of the client's own version — never "latest",
+      because `refusal` in that file would refuse what arrived.
+- [ ] **The pin** — `crates/nvs-lsp/tests/extension_release.rs`, reading both the table and the
+      workflow matrix and failing when either side gains a target the other lacks.
 
 ## Backlog
 
-- `Draining::begin` has no production caller under `nvs serve`; goal `net-os-signal` lands it (ADR
-  0154 § 2).
-- What must survive a goal switch belongs in `docs/agent/carried-gaps.md`, not here.
+- **Stage 3 (the fetch and its refusal)** shares `editors/vscode/src/install.ts` with stage 2 and
+  adds `editors/vscode/test/install/`. Cheap to take in the same session if stage 2's slices land
+  under the context gate — it is the same file plus a new suite directory.
+- **Stage 4 (the chain, the two commands, the status item)** is a different file set:
+  `editors/vscode/src/extension.ts`, `editors/vscode/package.json`, `editors/vscode/src/version.ts`.
+  It needs stage 3 to exist, because the refusal cannot offer an install that has no code behind it.
+- **Stage 5 (the reference chapter)** is `docs/reference/tools/40-editor.md` alone, and is the only
+  stage that touches no TypeScript.
+- **Not in this goal, and not to be swept in:** the three frozen-and-unanswered commands from goal
+  17 (`docs/agent/playbook.md:1261` holds that trap and its `[until:]`), Marketplace publishing, and
+  any version pin or multi-version switching.
+- When this goal's last check goes green the driver takes goal `dossier`.
+  `docs/agent/goals/` is the schedule and this does not restate it.
