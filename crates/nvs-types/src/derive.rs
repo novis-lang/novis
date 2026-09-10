@@ -68,6 +68,7 @@
 //!    document; the document is untrusted and the checker has already named
 //!    the class, so asking it again would let the input choose which
 //!    constructor runs.
+//!    — owner: M8
 //! 2. **A [`Format::Db`] codec is recorded and nothing generates `fromRow`
 //!    from it yet.** The checking half is whole — the roster, the nominal
 //!    match, §§ 2, 3, 5 and 7's rules and `rule:core-classes/db-column-types`'s type map are all
@@ -79,6 +80,7 @@
 //!    erasure to [`CodecTy`] is shared with JSON meanwhile, so a `bytes` or a
 //!    `Core\Time\Instant` field is *accepted* by the type map above and still
 //!    lands on [`CodecTy::Opaque`] for gap 1's reason.
+//!    — owner: M8
 //! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
 //!    members share [`crate::expr::args::written_class_of`]'s lookup and do
 //!    not share a rule: `decodeAs<array<T>>` is a JSON array document and is
@@ -87,6 +89,7 @@
 //!    class. Whether the missing-`#[Json\Derive]` third of the rule should
 //!    move here from `nvs_stdlib::json`'s run-time refusal is a real question
 //!    and is `rule:core-classes/derive-attribute`'s to answer, not this pass's to widen into.
+//!    — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;

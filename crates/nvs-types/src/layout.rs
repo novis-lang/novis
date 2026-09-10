@@ -33,14 +33,14 @@
 //! [`crate::signatures::PropertyHooks`] owns that decision and what it
 //! spends.
 //!
-//! # Known gaps
-//!
-//! * **An enum has no entry.** `rule:enums/closed-integer-type` makes an enum a closed integer value
-//!   type, not an instance with fields.
-//! * **Only the classes declared in the files walked are present.** A `Core`
-//!   class has no source declaration and therefore no layout; `nvs-stdlib`
-//!   owns those, and they are native Rust rather than field-slot objects
-//!   (`docs/agent/loop-goal.md`).
+//! Two kinds of type have no entry at all, by decision rather than by
+//! omission. An **enum** has none: `rule:enums/closed-integer-type` makes it a closed integer
+//! value type, not an instance with fields. A **`Core` class** has none
+//! either — it has no source declaration for this walk to read, and
+//! `nvs-stdlib` owns those as native Rust rather than as field-slot objects.
+//! So the table holds exactly the classes declared in the files walked, and a
+//! lookup that misses is a class from one of those two families rather than a
+//! class this pass failed to lay out.
 
 use nvs_diagnostics::SourceFile;
 use nvs_hir::{ClassGraph, QName};
