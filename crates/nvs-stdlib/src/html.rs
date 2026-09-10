@@ -1263,13 +1263,23 @@ fn escape_into(text: &str, attribute: bool, out: &mut String) {
 /// `the_allowlist_is_closed_and_is_not_configurable_by_a_caller` is what holds
 /// the order.
 ///
-/// What is *not* here is as decided as what is. No `class` and no `id`: `id`
-/// is the DOM-clobbering surface, where an attribute name shadows a property
-/// a page's own script reads. No `style`, which is a second grammar with its
-/// own injection story and no parser here. No `target`, whose `_blank` hands
-/// the opened page a reference back. Nothing from SVG or MathML, whose
-/// namespaces are where mXSS lives, since a name that case-corrects on parse
-/// is a name whose serialisation and reparse can disagree.
+/// What is *not* here is as decided as what is. No `class` and no `id`, the
+/// two attributes a receiving page **selects on**. `id` is the DOM-clobbering
+/// surface, where an attribute name shadows a property a page's own script
+/// reads. `class` is the first attribute a real application asks for and is
+/// refused for the reason that survives asking: its value chooses which of the
+/// receiving page's own rules and handlers apply to attacker-supplied content
+/// — a stylesheet that positions `.modal-overlay` over the page, a script that
+/// binds a handler to every `.delete`. Neither can be met with a value test
+/// here, because the meaning of the value lives in a document this member
+/// never sees, and a test it cannot write is a hole
+/// [`GLOBAL`]'s three deliberately do not open. An application that needs this
+/// content styled styles the element it puts the answer *inside*, which is
+/// markup it wrote itself. No `style`, which is a second grammar with its own
+/// injection story and no parser here. No `target`, whose `_blank` hands the
+/// opened page a reference back. Nothing from SVG or MathML, whose namespaces
+/// are where mXSS lives, since a name that case-corrects on parse is a name
+/// whose serialisation and reparse can disagree.
 const ELEMENTS: &[(&str, &[&str])] = &[
     ("a", &["href"]),
     ("abbr", &[]),
