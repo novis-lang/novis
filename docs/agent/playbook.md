@@ -1467,6 +1467,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   one `— owner:` line is all the block can carry. Enumerate the block into `*` bullets when its
   paragraphs need different owners, and put each tag on that item's own last line; `items_of` in
   `tools/owners.py` is the parser that decides it. [until: reviewed 2026-09-10]
+- **`owners.py` counts a `# Known gaps` *heading*, and never a `**Known gaps:**` bold run.**
+  `crates/nvs-hir/src/requires.rs:69` holds five real gap bullets under a bold label, and the roster
+  has never seen one of them, so `--untagged-is-an-error` can go green over a module that names
+  nobody for anything it owes. Before concluding a crate is clean, grep it for `Known gaps` rather
+  than trusting `--untagged`, and treat a bold run as a hole in the tool rather than a doc to
+  reshape. [until: reviewed 2026-09-10]
 
 ## Running things
 
