@@ -28,7 +28,7 @@
 //!
 //! **The check is guarded by its own tests.** A verifier that has quietly
 //! stopped comparing is a green run that means nothing, so
-//! [`a_constant_body_fails_every_request`] holds this probe to rejecting the
+//! `a_constant_body_fails_every_request` holds this probe to rejecting the
 //! `hello, world` case it would otherwise pass silently.
 //!
 //! # Two modes, because "concurrent" is two different questions

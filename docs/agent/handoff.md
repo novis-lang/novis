@@ -29,10 +29,9 @@ compiled-unit cache loads on no `aarch64` host although `docs/plan/design.md:94`
 this loader or `nvs-codegen`'s mapper — not whether it is wanted.
 
 **The rustdoc gate's unresolved link was never a session's.** It is
-`benches/serve-probe/src/main.rs:31`, in an **untracked** directory the user is writing, linking a
-`#[cfg(test)]` function rustdoc cannot resolve. I made it a code span and left it **unstaged** —
-committing a half-written bench crate is not this loop's call — so the gate can go green without the
-loop taking the user's work with it.
+`benches/serve-probe/src/main.rs:31`, in the bench crate the user landed as `39decf358` while this
+session ran, and it links a `#[cfg(test)]` function rustdoc cannot resolve. It is a code span now, in
+a commit of its own — the file is tracked, so leaving the fix in the tree was not an option.
 
 **`python tools/verify.py`: 9 of 9 green** — 3838 tests, both `.nvst` trees, the reference and
 clippy. The previous handoff's clippy failure is gone because `benches/serve-probe/` has a `src/`
@@ -66,5 +65,5 @@ goal's § *Standing decisions*, the three owner kinds are `python tools/owners.p
 - `crates/nvs-db`'s fourteen, then `crates/nvs-stdlib`'s seventy-seven — the bulk of stage 3.
 - Stage 4 is untouched: `verify.py` still does not run the owners gate, so
   `docs/agent/loop-goal.toml`'s acceptance check is its only reader.
-- `benches/serve-probe/`, `benches/serve/echo.nvs` and `tools/bench-load.py` are the user's untracked
-  work, and `Cargo.lock` is modified by nothing this loop did.
+- `benches/serve/echo.nvs` and `tools/bench-load.py` are the user's untracked work, and `Cargo.lock`
+  is modified by nothing this loop did.
