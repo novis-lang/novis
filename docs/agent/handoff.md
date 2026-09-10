@@ -2,64 +2,53 @@
 
 ## State
 
-**Goal `signed-urls`, stage 4 is closed.** `Core\Router::urlSigned` and `Core\Router::signedRoute`
-are both registered, bodied, covered and tested; the `4 router` check's four named tests pass, as do
-three new `.nvst` cases. **Stage 5 is entirely unwritten** — none of its three named tests exists and
-neither does `examples/signed-url.nvs`, which is the goal's earliest failing acceptance check.
+**Goal `signed-urls`, stage 5 is closed.** The `5 refusals` check's three named tests exist and pass
+in `crates/nvs-stdlib/src/signature.rs`'s test module; `examples/signed-url.nvs` is written and runs;
+and the `until is written and never omitted` check names a path the corpus actually holds, plus the
+three cases that pin the claim.
 
-**`signedRoute` takes the ring and nothing else.** It reads the match the door took and the request's
-own query off the carrier (`crates/nvs-stdlib/src/router.rs:1230`), derives `signed_payload`'s
-document from those two rather than from the URL, and builds the `Core\Router\Match` only after
-`confirm` and `judge` have both passed — because building it is what runs a class-typed capture's
-`parse`, and no forged link should reach a program's own code
-(`rule:core-classes/router-signed-url`, `rule:core-api/one-refusal-except-expiry`).
+**Every member this goal owes is registered, bodied, covered and struck from its outstanding-key
+file** — `crates/nvs-stdlib/tests/spec-members-outstanding.txt` and its two siblings name none of
+`Core\Signature`, `$uri->sign`, `$uri->verifySignature`, `urlSigned` or `signedRoute`, and
+`crates/nvs-stdlib/src/uri.rs`'s module doc no longer says the normalization lives on `compareTo`
+alone. Stage 0's catch-up and stages 2–5 are all on disk.
 
-**The derivation is `derived_payload` at `crates/nvs-stdlib/src/router.rs:1119`**: the query parsed
-as `Values::Text`, then each capture over it, and a query pair naming a capture is the one refusal —
-`crate::uri::build` writes the query out of what the path did *not* consume, so such a request is one
-no signed link could have been minted as, and letting the capture overwrite it would be the one added
-parameter the signature did not cover. `capture_text` beside it is `capture_value`'s arms read as
-text, reaching **no** program code.
+**What the goal still owes is the rulebook's own status**, which is the next group: five rules it
+implemented are still `designed` in `docs/rules/*.json`. A fragment is always currently true, so
+that is a wrong rule rather than bookkeeping left over.
 
-**Three small seams were opened for it**, each with one home: `crate::request::served` (the carrier,
-for a reader outside `Core\Request`), `crate::uri::without_signature` is now `pub(crate)` and its doc
-covers a raw request query, and `crate::uuid::canonical` is the hyphenated-lower-case spelling
-`toString` and this door now share.
+**The ordering is asserted end-to-end, never on the two halves apart.** The three new tests drive
+`nvs_core_signature_verify` through `nvs_runtime::call` on a fixed clock
+(`crates/nvs-stdlib/src/signature.rs:1810`), because what they pin is that `open` runs before
+`judge` — which neither function holds on its own — and the second of them uses two rings at one
+instant so that neither half of the case is vacuous.
 
 ## Next group
 
-**Stage 5: one refusal, except expiry, and the ordering that makes it safe** — one file set:
-`crates/nvs-stdlib/src/signature.rs`, `tests/conformance/core/`, `examples/`.
+**Stage 5: the rulebook catches up with what shipped** — one file set: `docs/rules/core-api.json`,
+`docs/rules/core-classes.json` and the fragments under those two topics.
 
-- [ ] **The three named tests of the `5 refusals` check**, in `crates/nvs-stdlib/src/signature.rs`'s
-      test module: `a_token_past_its_until_throws_the_expired_error`,
-      `a_token_both_forged_and_past_its_until_throws_the_invalid_error_not_the_expired_one` and
-      `every_other_way_of_not_being_authentic_raises_one_error_with_one_sentence`. The ordering they
-      pin is `crates/nvs-stdlib/src/signature.rs:857` (`open`, which checks the tag and the domain)
-      before `crates/nvs-stdlib/src/signature.rs:457` (`judge`), with
-      `crates/nvs-stdlib/src/signature.rs:431` (`refused`) as the one sentence the first three
-      failures share. `rule:core-api/one-refusal-except-expiry`.
-- [ ] **`examples/signed-url.nvs`** — the goal's `files` manifest names it and nothing in
-      `docs/agent/loop-goal.toml` freezes its output, so this is the earliest failing acceptance
-      check and the cheapest to close. `crates/nvs-stdlib/src/router.rs:245` (`urlSigned`) and
-      `crates/nvs-stdlib/src/router.rs:278` (`signedRoute`) are the pair it should show against a
-      `#[Route]`; `examples/serve.nvs` is the shape a served example takes.
+- [ ] **The three `core-api` rules this goal implemented are `shipped`, not `designed`** —
+      `docs/rules/core-api.json:553` (`a-lifetime-is-written`), `docs/rules/core-api.json:561`
+      (`signing-is-over-a-payload`) and `docs/rules/core-api.json:571`
+      (`one-refusal-except-expiry`). Each fragment's closing marker goes in the same slice:
+      `docs/rules/core-api/a-lifetime-is-written.md:14` and
+      `docs/rules/core-api/one-refusal-except-expiry.md:14` both still end **Designed, not
+      shipped.** `rule:core-api/signing-is-over-a-payload`.
+- [ ] **The two `core-classes` rules, the same way** — `docs/rules/core-classes.json:682`
+      (`core-classes/signature`) and `docs/rules/core-classes.json:690`
+      (`core-classes/router-signed-url`). Both classes are registered, bodied and covered, and the
+      guard paths those two rules name are the `.nvst` cases that pass today.
       `rule:core-classes/router-signed-url`.
-- [ ] **The `until is written and never omitted` suite check**, `docs/agent/loop-goal.toml:7055`,
-      names `tests/conformance/core/signature/`, a **directory that does not exist** — the corpus is
-      flat with a `signature-` prefix, and
-      `tests/conformance/core/signature-an-expired-signature-is-the-one-distinguishable-refusal.nvst`
-      already pins most of the claim. Decide between making the directory and amending the check's
-      `args` before writing a case for it; the playbook's *A loop-goal.toml `nvs-suite` check can
-      name `.nvst` paths in a directory layout the corpus never adopted* is the trap.
-      `rule:core-api/a-lifetime-is-written`.
+- [ ] **Regenerate, then gate** — `python tools/rules.py --render` writes `docs/rules/<topic>.md`
+      and the generated artifacts from the JSON, and `python tools/rules.py --render --check` is
+      what fails on a stale one; `tools/rules.py:99` is the status roster the first two items edit.
 
 ## Backlog
 
-- `Core\Router::url` and `::urlAbsolute` are still on `registry.rs`'s `UNCLASSIFIED` list and still
-  refuse a `tainted` name; classifying them `CoreTy::Text(Qual::Sink)` is one line each.
-- A `Core\Uuid` capture is signed as its canonical rendering, so a link minted with an upper-case
-  UUID *text* does not verify — `crates/nvs-stdlib/src/router.rs:1063` (`capture_text`) owns why.
-- The pack's `[context] modules` names no `nvs-runtime` path, so `routes::Param` and `Inbound` were
-  read cold; add `crates/nvs-runtime/src/routes.rs` and `crates/nvs-runtime/src/ctx/inbound.rs` if a
-  later goal touches the match again.
+- Whether this goal is met is the driver's own acceptance run to say; nothing this session read
+  names a stage-5 check still open — `docs/agent/loop-goal.md`.
+- `Core\Router::urlSigned` has no compile-error case for an omitted `until`, because that door needs
+  a route table and the case is single-file — `tests/conformance/core/signature-a-lifetime-is-written-and-omitting-it-does-not-compile.nvst`.
+- The three doors share one `SIGNING` shape const, so a fourth door gets the lifetime rule for free —
+  `crates/nvs-stdlib/src/signature.rs:179`.

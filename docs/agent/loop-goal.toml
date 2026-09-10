@@ -7055,7 +7055,12 @@ tests = [
 kind = "nvs-suite"
 stage = "5 refusals"
 name = "until is written and never omitted"
-args = ["test", "tests/conformance/core/signature/"]
+args = ["test", "tests/conformance/core/"]
+cases = [
+  "tests/conformance/core/signature-a-lifetime-is-written-and-omitting-it-does-not-compile.nvst",
+  "tests/conformance/core/signature-a-round-trip-hands-back-the-payload-in-canonical-order.nvst",
+  "tests/conformance/core/uri-sign-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst",
+]
 
 [[check]]
 kind = "cargo-named"
