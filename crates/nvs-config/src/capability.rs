@@ -134,6 +134,23 @@ pub enum Cap {
     /// nobody made — and so moving that store between a container, a loopback daemon and a socket
     /// changes one block and no program's grant list.
     CacheShared,
+    /// `queue.purge` — which queues a program may remove rows from
+    /// (`rule:concurrency/queue-deletion-is-explicit-and-bounded`).
+    ///
+    /// Asked at [`Scope::Name`] and named by queue, which is [`DbConnect`](Self::DbConnect)'s shape:
+    /// the queue is a name the program itself wrote at the enqueue, matched exactly because it is a
+    /// name and not a hostname. It is the only grant `Core\Queue` takes at all — `push`, `status`,
+    /// `cancel` and `stats` read or release what the caller already holds a receipt for, and these
+    /// two destroy the record that work existed.
+    ///
+    /// One grant over both members rather than one each. `delete` names a single job and `purge` a
+    /// filter over many, but the authority they need is the same one — permission to make a queue's
+    /// rows stop existing — and splitting it would let a deployment grant the unbounded half while
+    /// withholding the bounded one. It is a grant of its own rather than [`DbSchema`](Self::DbSchema)
+    /// widened, for that capability's own reason read the other way: removing rows is DML on the
+    /// queue's connection and changes no table's shape, so `nvs queue migrate` stays the only thing
+    /// that does.
+    QueuePurge,
 }
 
 /// What a capability is being asked *about* — the second half of § 1's question.
@@ -154,8 +171,9 @@ pub enum Scope<'a> {
     /// anyway. An entry that does not parse as an endpoint matches nothing,
     /// which is `rule:security/net-listen-is-a-separate-grant-from-net-connect`'s own last sentence.
     Endpoint(std::net::SocketAddr),
-    /// A configured name — a `[db.<name>]` block — matched exactly, because a name is not a hostname
-    /// and two blocks differing only in case are two blocks.
+    /// A name the deployment wrote — a `[db.<name>]` block, or the queue a `Core\Queue` receipt
+    /// carries — matched exactly, because a name is not a hostname and two of them differing only
+    /// in case are two names.
     Name(&'a str),
 }
 
@@ -248,6 +266,7 @@ impl Cap {
         Self::DbSchema,
         Self::MailSend,
         Self::CacheShared,
+        Self::QueuePurge,
     ];
 
     /// The name `nvs.toml` grants it under, which is also the name a refusal prints — the operator
@@ -269,6 +288,7 @@ impl Cap {
             Self::DbSchema => "db.schema",
             Self::MailSend => "mail.send",
             Self::CacheShared => "cache.shared",
+            Self::QueuePurge => "queue.purge",
         }
     }
 
@@ -339,6 +359,7 @@ impl Cap {
             Self::DbSchema => caps.db.as_ref()?.schema.as_ref(),
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
             Self::CacheShared => caps.cache.as_ref()?.shared.as_ref(),
+            Self::QueuePurge => caps.queue.as_ref()?.purge.as_ref(),
         }
     }
 
@@ -363,6 +384,7 @@ impl Cap {
             Self::DbSchema => caps.db.as_mut()?.schema.as_mut(),
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
             Self::CacheShared => caps.cache.as_mut()?.shared.as_mut(),
+            Self::QueuePurge => caps.queue.as_mut()?.purge.as_mut(),
         }
     }
 }

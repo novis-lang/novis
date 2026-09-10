@@ -271,6 +271,8 @@ pub struct Capabilities {
     pub mail: Option<CapMail>,
     /// `cache.shared` (`rule:config/cache-shared-is-the-grant-over-the-configured-store`).
     pub cache: Option<CapCache>,
+    /// `queue.purge` (`rule:concurrency/queue-deletion-is-explicit-and-bounded`).
+    pub queue: Option<CapQueue>,
 }
 
 /// The `script.*` grants.
@@ -526,6 +528,22 @@ pub struct CapCache {
     /// whichever address or socket that is. Unscoped, for [`crate::Cap::CacheShared`]'s reason:
     /// a deployment has one shared store, so there is nothing to name here.
     pub shared: Option<Setting>,
+}
+
+/// The `queue.*` grants.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct CapQueue {
+    /// The queues whose rows a program may remove — `Core\Queue`'s `delete` and `purge`, and the
+    /// only two members of that class taking a grant at all
+    /// (`rule:concurrency/queue-deletion-is-explicit-and-bounded`).
+    ///
+    /// Named by queue and matched exactly, which is [`CapDb::connect`]'s shape and for the same
+    /// reason: a queue name is a name the deployment wrote rather than a host, so two queues
+    /// differing only in case are two queues. `true` is every queue this program enqueues to, and a
+    /// deployment that never removes a row writes nothing here — the retention entry is the one
+    /// place a grant belongs, since a web entry that enqueues needs none.
+    pub purge: Option<Setting>,
 }
 
 /// One `[mail.<name>]` block — `rule:programs/framework-core-half`'s operator-named SMTP endpoint, whose shape is

@@ -719,3 +719,133 @@ fn net_connect_still_carries_its_host_scope_and_neither_new_grant_widens_it() {
     assert!(!both.allows(Cap::NetConnect, Scope::Host("elsewhere.internal"), &disk));
     assert!(!both.allows(Cap::NetListen, Scope::Endpoint(ep("0.0.0.0:53")), &disk));
 }
+
+/// Whether `caps` grants `queue.purge` for the queue `name`, which is the one question
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s two members ask.
+fn purges(caps: &Capabilities, name: &str, disk: &Disk) -> bool {
+    caps.allows(Cap::QueuePurge, Scope::Name(name), disk)
+}
+
+/// `queue.purge` reads the three spellings every other name-scoped grant reads, and reads them the
+/// same way — `true` is every queue, a list is those queues, a bare string is the one-entry list,
+/// and an empty list is nothing.
+///
+/// The point of asserting all four together is that a new grant is a new place for a spelling to be
+/// read *specially*. `Setting` is the one reader and `grant_of` is the one interpretation, so a row
+/// that reached its own field correctly cannot also decide what `true` means; a case granting only
+/// lists would never find out.
+#[test]
+fn queue_purge_reads_true_a_list_a_bare_string_and_an_empty_list_as_every_other_name_does() {
+    let disk = Disk::of(&["/srv"]);
+
+    let every = granting("[queue]\npurge = true\n", &disk);
+    assert!(purges(&every, "email", &disk));
+    assert!(purges(&every, "reports", &disk));
+
+    let listed = granting("[queue]\npurge = [\"email\", \"reports\"]\n", &disk);
+    assert!(purges(&listed, "email", &disk));
+    assert!(purges(&listed, "reports", &disk));
+    assert!(!purges(&listed, "webhooks", &disk));
+
+    // A bare string is the one-entry list and not a second shape: an operator with one queue
+    // writes the queue, and what they get is the list they would have written.
+    let one = granting("[queue]\npurge = \"email\"\n", &disk);
+    assert!(purges(&one, "email", &disk));
+    assert!(!purges(&one, "reports", &disk));
+
+    // An empty list grants nothing, which is the spelling that reads as "I mean this deliberately"
+    // and still has to deny — the same reading `net.listen = []` gets one grant over.
+    let none = granting("[queue]\npurge = []\n", &disk);
+    assert!(!purges(&none, "email", &disk));
+}
+
+/// A tree with no `[capabilities.queue]` block grants nothing, and that absence **is** the denial
+/// rather than a gap something else fills in.
+///
+/// Deny-by-default is what makes the grant worth having: `delete` and `purge` destroy the record
+/// that work existed, and a deployment that never wrote a grant is one that never asked for a
+/// member to be able to. Every spelling of "nothing granted" is asked, because each is a different
+/// arm — an absent block, an empty one, a `false`, and an empty list.
+#[test]
+fn an_absent_queue_block_grants_nothing_and_is_the_denial() {
+    let disk = Disk::of(&["/srv"]);
+    for (why, text) in [
+        ("no `[capabilities]` block at all", ""),
+        ("a `queue` block granting nothing", "[queue]\n"),
+        ("a grant of `false`", "[queue]\npurge = false\n"),
+        ("an empty list", "[queue]\npurge = []\n"),
+        // A neighbouring grant is not this one: reaching the database the queue lives in says
+        // nothing about being allowed to remove rows out of it.
+        ("`db.connect` alone", "[db]\nconnect = [\"main\"]\n"),
+    ] {
+        let caps = granting(text, &disk);
+        assert!(
+            !purges(&caps, "email", &disk),
+            "{why} granted `queue.purge`"
+        );
+        assert!(
+            !caps.allows_unscoped(Cap::QueuePurge),
+            "{why} granted `queue.purge` unscoped",
+        );
+    }
+}
+
+/// A queue name is matched exactly: another queue, a second casing of this one, and a `*` entry are
+/// all outside a grant that named one queue.
+///
+/// The `*` half is the one worth pinning. `db.open` is the single capability whose entries may be
+/// written as patterns, because its targets are *hosts* a program supplies; a queue name is
+/// compared against a name the program wrote at the enqueue, so a `*` here is a queue called `*`
+/// and grants nothing else — which is what [`Cap::takes_host_wildcard`] answering `false` means and
+/// is asserted beside it.
+#[test]
+fn a_queue_name_is_matched_exactly_and_a_star_entry_grants_nothing() {
+    let disk = Disk::of(&["/srv"]);
+    let one = granting("[queue]\npurge = [\"email\"]\n", &disk);
+    assert!(purges(&one, "email", &disk));
+    for name in ["reports", "Email", "email ", "*", "*.email"] {
+        assert!(
+            !purges(&one, name, &disk),
+            "`purge = [\"email\"]` covered {name}"
+        );
+    }
+
+    // An entry written as a pattern is a name like any other, and covers only a queue spelled that
+    // way — never the queues it looks like it was meant to reach.
+    let starred = granting("[queue]\npurge = [\"*\"]\n", &disk);
+    assert!(!purges(&starred, "email", &disk));
+    assert!(purges(&starred, "*", &disk));
+
+    assert!(!Cap::QueuePurge.is_path_scoped());
+    assert!(!Cap::QueuePurge.takes_host_wildcard());
+}
+
+/// `queue.purge` is on the roster the way every other capability is: in [`Cap::ALL`], round-tripping
+/// through the name a refusal prints, under the `[capabilities.queue]` table that name implies, and
+/// reading its own field out of the tree.
+///
+/// `grant_mut` is the mirror the type keeps by hand, and what a test can reach of it is that
+/// `canonicalize` — its only caller — leaves this grant exactly as the operator wrote it. A queue
+/// name is not a path, so the canonicalizer has no work to do here, and a grant it had rewritten
+/// into a host-native path would stop matching the name a receipt carries. The arms agreeing at all
+/// is the compiler's, since both matches are exhaustive over this enum.
+#[test]
+fn queue_purge_appears_in_cap_all_and_in_both_grant_and_grant_mut() {
+    let disk = Disk::of(&["/srv"]);
+    assert!(Cap::ALL.contains(&Cap::QueuePurge));
+    assert_eq!(Cap::QueuePurge.name(), "queue.purge");
+    assert_eq!(Cap::parse("queue.purge"), Some(Cap::QueuePurge));
+    assert_eq!(Cap::QueuePurge.family(), "queue");
+
+    // Its own field and no other's: a tree granting a neighbour and not this one has to answer
+    // `false`, which is what catches an arm that reached the wrong block.
+    let elsewhere = granting("[cache]\nshared = true\n[db]\nconnect = true\n", &disk);
+    assert!(!purges(&elsewhere, "email", &disk));
+
+    let mut written: Capabilities =
+        toml::from_str("[queue]\npurge = [\"email\"]\n").expect("the case wrote a grant");
+    let before = written.clone();
+    written.canonicalize(&disk);
+    assert_eq!(written, before, "canonicalizing rewrote a name grant");
+    assert!(purges(&written, "email", &disk));
+}
