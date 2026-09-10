@@ -1,6 +1,6 @@
 //! `rule:routing/link-name-and-params-are-checked`'s link:
-//! `Core\Router::url` and `::urlAbsolute` over a **literal** route name,
-//! resolved against § 5's finished table while compiling.
+//! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **literal**
+//! route name, resolved against § 5's finished table while compiling.
 //!
 //! Two of the four refusals here are that ADR's — an unknown name, and a
 //! capture no key supplies. The other two are
@@ -72,8 +72,19 @@ const OWNER: &str = r"Core\Router";
 /// origin flag back off the same spelling.
 const ABSOLUTE: &str = "urlAbsolute";
 
-/// One `Core\Router::url`/`::urlAbsolute` call whose name folded to a literal,
-/// waiting for the table to finish.
+/// `urlSigned`, on the same terms as [`ABSOLUTE`] — one spelling that both
+/// admits the member and says what the fold records for it.
+///
+/// It asks the table exactly what the other two ask, so every refusal below is
+/// its refusal too: an unknown name, a capture no key supplies, a key that
+/// covers nothing, a value outside a closed set. What it adds is downstream of
+/// the lookup — the resolved name travels to run time, because
+/// `rule:core-classes/router-signed-url` signs the route's identity rather than
+/// the path it renders to.
+const SIGNED: &str = "urlSigned";
+
+/// One [`is_link`] call whose name folded to a literal, waiting for the table
+/// to finish.
 ///
 /// Holds strings rather than borrowing the AST because the walk that recorded
 /// it has moved on to the next file by the time [`resolve`] runs, and the
@@ -109,11 +120,11 @@ struct LinkArg {
     value: Option<String>,
 }
 
-/// Whether `owner::member` is one of § 4's two link builders — the same nominal
+/// Whether `owner::member` is one of § 4's link builders — the same nominal
 /// test [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
 /// rather than against what the call site spelled.
 pub(crate) fn is_link(owner: &QName, member: &str) -> bool {
-    owner.to_string() == OWNER && matches!(member, "url" | ABSOLUTE)
+    owner.to_string() == OWNER && matches!(member, "url" | ABSOLUTE | SIGNED)
 }
 
 /// Records one link site, or nothing where § 4 leaves the call to run time.
@@ -258,6 +269,11 @@ pub(crate) fn resolve(
             ExprInfo::RouteLink {
                 pieces,
                 absolute: site.member == ABSOLUTE,
+                // The name the lookup succeeded on, not the one the call
+                // spelled: they are the same string, and taking it from the
+                // site is what makes "the signature is over what resolved"
+                // true by construction rather than by a second comparison.
+                signed: (site.member == SIGNED).then(|| site.name.clone()),
             },
         );
     }

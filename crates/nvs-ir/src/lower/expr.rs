@@ -241,11 +241,16 @@ impl<'a> Lowering<'a> {
                 // link percent-encodes runtime values and is not a constant —
                 // so what changes is which implementation answers and what
                 // argument 0 is. See `nvs_stdlib::router::link`.
-                if let Some(ExprInfo::RouteLink { pieces, absolute }) = self.exprs.lookup(expr.span)
+                if let Some(ExprInfo::RouteLink {
+                    pieces,
+                    absolute,
+                    signed,
+                }) = self.exprs.lookup(expr.span)
                 {
                     let prepared = nvs_types::UrlPiece::prepared(pieces);
                     let absolute = *absolute;
-                    return self.lower_route_link(&prepared, absolute, args, env, cur);
+                    let signed = signed.clone();
+                    return self.lower_route_link(&prepared, absolute, signed, args, env, cur);
                 }
                 self.lower_static_call(class, args, expr, env, cur)
             }
@@ -3100,10 +3105,22 @@ impl<'a> Lowering<'a> {
         result
     }
 
+    /// One resolved link call, as the prepared path plus whatever else its
+    /// member takes.
+    ///
+    /// `signed` is `urlSigned`'s route name and `None` for the other two. It is
+    /// a second constant argument rather than a piece of `prepared` because the
+    /// two say opposite things: the prepared path is what a remount changes,
+    /// and the name is what it does not, which is the whole of
+    /// `rule:core-classes/router-signed-url`. A signing call also carries the
+    /// `{keys, until}` shape, flattened here into one argument per declared
+    /// field — `rule:core-api/shape-flattens-at-the-abi`'s ABI, reached by hand
+    /// because this arm builds its argument vector by hand.
     fn lower_route_link(
         &mut self,
         prepared: &str,
         absolute: bool,
+        signed: Option<String>,
         args: &CallArgs,
         env: &mut Env,
         cur: &mut BlockId,
@@ -3122,25 +3139,84 @@ impl<'a> Lowering<'a> {
         let CallArgs::List(list) = args else {
             panic!("nvs-ir: a resolved route link has a written argument list")
         };
+        let mut lowered = vec![template];
+        if let Some(name) = &signed {
+            let (name, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(name.clone()));
+            self.account_for_arg(name, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+            lowered.push(name);
+        }
         let (params, params_ty) = self.lower_expr(&list[1].value, None, env, cur);
         let aliasing = self.aliasing_read(&list[1].value);
         self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
-        let symbol = if absolute {
-            nvs_types::CORE_ROUTE_LINK_ABSOLUTE
-        } else {
-            nvs_types::CORE_ROUTE_LINK
+        lowered.push(params);
+        if signed.is_some() {
+            self.lower_signing_settings(&list[2].value, env, cur, &mut lowered);
+        }
+        let symbol = match (signed.is_some(), absolute) {
+            (true, _) => nvs_types::CORE_ROUTE_LINK_SIGNED,
+            (false, true) => nvs_types::CORE_ROUTE_LINK_ABSOLUTE,
+            (false, false) => nvs_types::CORE_ROUTE_LINK,
         };
         let result = self.emit_fallible(
             *cur,
             Ty::Str,
             InstKind::CoreCall {
                 symbol,
-                args: vec![template, params],
+                args: lowered,
             },
             env,
         );
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// `urlSigned`'s `{keys, until}` argument, as the two ABI arguments
+    /// `rule:core-api/shape-flattens-at-the-abi` makes it.
+    ///
+    /// The names and their order are `nvs_stdlib::signature::SIGNING`'s, which
+    /// is the one place the shape is declared; both fields are required
+    /// (`rule:core-api/a-lifetime-is-written` is why `until` has no default),
+    /// so there is no omission to materialize and nothing here reads a default.
+    /// Each is lowered with no expectation and borrowed, which is what
+    /// `Self::lower_fixed_arg` does for any `Core` parameter with no single IR
+    /// representation: a helper's slot is a whole `Value` that `nvs-codegen`
+    /// writes from the argument's own representation.
+    ///
+    /// # Panics
+    ///
+    /// Panics for an argument that is not an object literal, or one missing
+    /// either field: `nvs_types::check_program` reports `E_OPTIONS_NOT_A_LITERAL`
+    /// for the first and a shape mismatch for the second, exactly as
+    /// [`Self::lower_options_arg`] trusts it to.
+    fn lower_signing_settings(
+        &mut self,
+        written: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+        out: &mut Vec<ValueId>,
+    ) {
+        let ExprKind::ObjectLiteral(fields) = &written.kind else {
+            panic!(
+                "nvs-ir: `Core\\Router::urlSigned`'s settings lowered from something that is not \
+                 an object literal — nvs_types::check_program is trusted to have reported \
+                 E_OPTIONS_NOT_A_LITERAL"
+            )
+        };
+        for name in ["keys", "until"] {
+            let field = fields
+                .iter()
+                .find(|field| span_text(self.src, field.name) == name)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "nvs-ir: `Core\\Router::urlSigned`'s settings omitted `{name}`, which \
+                         nvs_stdlib::signature::SIGNING declares with no default"
+                    )
+                });
+            let (v, ty) = self.lower_expr(&field.value, None, env, cur);
+            let aliasing = self.aliasing_read(&field.value);
+            self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
+            out.push(v);
+        }
     }
 
     /// `$obj->method(...)`/`$this->method(...)` — the receiver is

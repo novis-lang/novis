@@ -924,8 +924,8 @@ pub enum ExprInfo {
         /// same order.
         ctors: Vec<Option<String>>,
     },
-    /// `Core\Router::url`/`urlAbsolute` over a **literal** name that resolved
-    /// to a declared route —
+    /// `Core\Router::url`/`urlAbsolute`/`urlSigned` over a **literal** name
+    /// that resolved to a declared route —
     /// `rule:routing/link-name-and-params-are-checked`'s link,
     /// with the lookup already made.
     ///
@@ -944,6 +944,15 @@ pub enum ExprInfo {
         /// `true` for `urlAbsolute`, which prepends `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured
         /// origin in front of everything `url` builds.
         absolute: bool,
+        /// The route's name as the call wrote it, for `urlSigned` alone, and
+        /// `None` for the two members that sign nothing.
+        ///
+        /// The name reaches run time as a value of its own because it is what
+        /// the signature is taken over: `rule:core-classes/router-signed-url`
+        /// signs a route's *identity* — this name and the parameters — rather
+        /// than the path beside it, since one compiled table serves at more
+        /// than one mount and the path is the half a remount changes.
+        signed: Option<String>,
     },
     /// An `rule:types/closure-literal`
     /// `fn` closure literal, keyed by the literal's own span.

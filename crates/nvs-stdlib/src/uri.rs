@@ -1951,13 +1951,19 @@ const SIGN: &str = r"Core\Uri::sign";
 /// `Core\Uri::verifySignature`, spelled the same way.
 const VERIFY_SIGNATURE: &str = r"Core\Uri::verifySignature";
 
-/// The one query parameter this class reserves: the token [`nvs_core_uri_sign`]
-/// writes and [`nvs_core_uri_verify_signature`] reads.
+/// The one query parameter a signed URL reserves: the token
+/// [`nvs_core_uri_sign`] writes and [`nvs_core_uri_verify_signature`] reads,
+/// and the one [`crate::router`]'s signing pair writes into the query it
+/// builds.
 ///
 /// Reserved rather than configurable. A name a caller chooses is a name the
 /// two sides can disagree about, and a signed URL whose parameter name is part
 /// of the caller's vocabulary is one an attacker can rename.
-const SIG_NAME: &str = "_sig";
+///
+/// Shared rather than spelled twice, for the reason
+/// [`crate::signature`]'s codec is: a URL signed at one door and read at the
+/// other would otherwise turn on two constants agreeing.
+pub(crate) const SIG_NAME: &str = "_sig";
 
 /// Whether `written` — a query pair's name, still percent-encoded — names the
 /// reserved parameter.

@@ -1,0 +1,75 @@
+--TEST--
+`Core\Router::urlSigned` takes its signature over every entry of `$params` — a capture, a query parameter, a missing one — and over none of the order they were written in, because the payload is a canonical document rather than assembled text — `rule:core-api/signing-is-over-a-payload`, `rule:core-classes/router-signed-url`
+--FILE--
+<?nvs
+// The sweep, asserted by counting rather than read off a line: a member that
+// signed the captures and forgot the leftover keys still prints the first two
+// rows correctly. What is being ruled out is the options bag every framework
+// grows here — `$signedParams`, `$except` — which is where the bypasses live,
+// and the way to rule it out is to show there is nothing to exclude.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id, #[Core\Query] string $q = "", #[Core\Query] string $page = ""): string {
+        return $q;
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// A computed `$params` on purpose: a literal one is checked against the route's
+// captures and declared `#[Query]` names while compiling, and this case is about
+// what the *signature* covers rather than what the checker admits.
+array<mixed> $base = ["id" => 7, "q" => "x", "page" => "2"];
+array<mixed> $capture = ["id" => 8, "q" => "x", "page" => "2"];
+array<mixed> $query = ["id" => 7, "q" => "y", "page" => "2"];
+array<mixed> $second = ["id" => 7, "q" => "x", "page" => "3"];
+array<mixed> $dropped = ["id" => 7, "q" => "x"];
+array<mixed> $reordered = ["page" => "2", "id" => 7, "q" => "x"];
+
+string $signedBase = Core\Router::urlSigned("Shop::show", $base, {keys: $ring, until: null});
+string $signedCapture = Core\Router::urlSigned("Shop::show", $capture, {keys: $ring, until: null});
+string $signedQuery = Core\Router::urlSigned("Shop::show", $query, {keys: $ring, until: null});
+string $signedSecond = Core\Router::urlSigned("Shop::show", $second, {keys: $ring, until: null});
+string $signedDropped = Core\Router::urlSigned("Shop::show", $dropped, {keys: $ring, until: null});
+string $signedReordered = Core\Router::urlSigned("Shop::show", $reordered, {keys: $ring, until: null});
+
+// The *token* rather than the link, throughout: the link also carries the
+// parameters in the order they were written, so comparing whole links would
+// answer a question about `url`'s output and never reach the signature.
+string $token = Core\Str::after($signedBase, "_sig=") as string;
+
+// Four ways of changing one entry, and every one of them is a different
+// signature: the capture that fills the path, either of the two query
+// parameters, and leaving one of them out. A member covering three of the four
+// would print `changed=3/4` here and would look right on whichever three a
+// reader tried.
+var $changed = 0;
+array<string> $edited = [$signedCapture, $signedQuery, $signedSecond, $signedDropped];
+foreach ($edited as string $link) {
+    if ((Core\Str::after($link, "_sig=") as string) != $token) {
+        $changed = $changed + 1;
+    }
+}
+echo "changed=", $changed as string, "/", Core\Arr::count($edited) as string, "\n";
+
+// And the one thing a query string genuinely does not carry: the order its
+// pairs were written in. The payload is a document whose keys are sorted where
+// it is encoded, so writing the same parameters another way round is the same
+// signature — a signer that hashed the assembled query text would call this a
+// forgery and would send every caller looking for the difference.
+echo "reordered=", (Core\Str::after($signedReordered, "_sig=") as string) == $token
+    ? "the same signature"
+    : "two signatures", "\n";
+
+// Which is not the same as saying the *link* is the same text. The URL keeps
+// the order it was written in, because that is what `url` does and this member
+// is `url` with a parameter on the end; only the signature is order-free.
+echo "base=", Core\Str::before($signedBase, "&_sig=") as string, "\n";
+echo "reorderedlink=", Core\Str::before($signedReordered, "&_sig=") as string, "\n";
+--EXPECT--
+changed=4/4
+reordered=the same signature
+base=/shop/7?q=x&page=2
+reorderedlink=/shop/7?page=2&q=x

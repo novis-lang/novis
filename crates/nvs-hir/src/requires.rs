@@ -634,7 +634,7 @@ const ROUTER_CLASS: &str = r"Core\Router";
 /// absent here because it is absent from the registry, so listing it would
 /// describe a call no program can currently write. It joins this list with
 /// the member, not before it.
-const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute"];
+const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute", "urlSigned"];
 
 /// Whether this static call opts a program into the scan —
 /// `Core\Program::implementing<T>()`, or a `Core\Router` link.

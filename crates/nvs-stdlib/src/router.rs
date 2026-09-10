@@ -52,9 +52,9 @@
 //!
 //! 1. **A name this module is handed is one the compiler could not fold.** The
 //!    route table is built and § 4's link is resolved against it while
-//!    compiling: a literal name reaches [`link`]'s two symbols carrying a
+//!    compiling: a literal name reaches [`link`]'s symbols carrying a
 //!    prepared path, an unknown literal one is `E0754` before the program runs,
-//!    and [`CLASS`]'s own two members are what is left over — a *computed*
+//!    and [`CLASS`]'s own link members are what is left over — a *computed*
 //!    name, which § 4 says throws, and `nvs_types::links`' gap 1's named
 //!    argument, which is folded as a computed name would be and throws for a
 //!    reason a reader has to look up. Closing that gap is what would make
@@ -75,8 +75,10 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ShapeKeyDoc,
 };
-use crate::uri::{Form, encode};
+use crate::signature::Domain;
+use crate::uri::{Form, SIG_NAME, encode};
 
 /// `Core\Http\Method`'s fully-qualified name, written once so the registry row
 /// and every message quoting it cannot drift apart.
@@ -241,6 +243,39 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&URL_ABSOLUTE_DOC),
         },
         CoreMethod {
+            name: "urlSigned",
+            // `settings`, not `options`, and the same shape
+            // [`crate::signature`] writes once for all three doors — the
+            // spelling `$uri->sign` already takes, so a caller who has signed a
+            // URL writes the same literal here
+            // (`rule:core-api/signing-is-over-a-payload`). There is no fourth
+            // parameter naming which of `$params` is covered: all of it is, and
+            // an options bag saying otherwise is where every framework's bypass
+            // has lived.
+            names: &["name", "params", "settings"],
+            params: &[
+                // `rule:security/sink-predicate` applied to a route name: it
+                // is not data the answer carries — the link is built out of
+                // the declared path and `$params`, and the name appears in
+                // neither — it is which handler runs, the predicate's own
+                // "the executable path is an instruction". Refusing a
+                // `tainted` one where the call is written is also the only
+                // useful answer: a name that is not a literal never folds, so
+                // the alternative is `no_such_route` at run time for a call
+                // that could never have worked.
+                CoreTy::Text(Qual::Sink),
+                PARAMS,
+                CoreTy::Shape(crate::signature::SIGNING),
+            ],
+            defaults: &[],
+            // `url`'s own return type, which is the launder: a `string` rather
+            // than a `tainted string` is what says the URL-path sink has been
+            // written for (`rule:security/launderers-are-sink-named`).
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_router_url_signed",
+            doc: Some(&URL_SIGNED_DOC),
+        },
+        CoreMethod {
             name: "match",
             names: &["method", "path"],
             params: &[CoreTy::Enum(METHOD_NAME), CoreTy::Text(Qual::Neutral)],
@@ -308,6 +343,58 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
         desc: "For everything `url` throws for, and when no origin is configured for the unit, \
                since an origin is never derived from a request header.",
     }],
+};
+
+/// `Core\Router::urlSigned`'s reference card — `rule:core-api/reference-card`.
+const URL_SIGNED_DOC: MethodDoc = MethodDoc {
+    short: "`url` with the reserved `_sig` query parameter on the end, over a signature taken \
+            across the route's **name** and `$params` — never the path they render to, so the \
+            same link still verifies after the module is remounted somewhere else.",
+    params: &[
+        NAME_DOC,
+        PARAMS_DOC,
+        ParamDoc {
+            name: "settings",
+            desc: "The key ring and the lifetime, written as one literal because neither has a \
+                   sensible value this member could choose.",
+            shape: &[
+                ShapeKeyDoc {
+                    key: "keys",
+                    ty: "array<secret bytes>",
+                    desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist \
+                           so that a link minted before the last rotation still verifies. The \
+                           same ring `Core\\Signature` and `$uri->sign` take, and a token minted \
+                           at one of those doors does not verify at this one.",
+                },
+                ShapeKeyDoc {
+                    key: "until",
+                    ty: "?Core\\Time\\Instant",
+                    desc: "When the link stops working, inside the signed bytes where a holder \
+                           cannot edit it. `null` is the forever spelling, and it has to be \
+                           written — a permanent signed URL is a permanent bearer credential, \
+                           and it ends up in browser history, `Referer` headers and chat \
+                           unfurls.",
+                },
+            ],
+        },
+    ],
+    ret: "`url`'s path with `_sig=…` appended, `/users/42?page=2&_sig=…` — laundered for the \
+          URL-path sink exactly as `url` is, and carrying the mount prefix the same way. The same \
+          name, parameters, ring and lifetime always mint the same token; the token carries the \
+          signed form as well as the tag, so it adds about `4/3 × (name + params + 40)` \
+          characters.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "For everything `url` throws for, and when `$params` carries the reserved \
+                   `_sig` key, which this member is about to write and will not write twice.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is \
+                   not 32 octets long — a `bytes` that was never a key.",
+        },
+    ],
 };
 
 /// `Core\Router::match`'s reference card — `rule:core-api/reference-card`.
@@ -549,6 +636,15 @@ pub mod link {
     /// `nvs_core_router_link_absolute` — the same with `rule:routing/an-absolute-link-takes-a-configured-origin`'s
     /// configured origin in front.
     pub const ABSOLUTE_SYMBOL: &str = "nvs_core_router_link_absolute";
+    /// `nvs_core_router_link_signed` — `Core\Router::urlSigned` with the same
+    /// lookup made, and with the resolved route **name** as a second argument.
+    ///
+    /// The name travels beside the prepared path rather than inside it because
+    /// the two are opposites: the path is what a remount changes and the name
+    /// is what it does not, which is the whole of
+    /// `rule:core-classes/router-signed-url`. The `{keys, until}` shape follows
+    /// `$params`, one argument per field.
+    pub const SIGNED_SYMBOL: &str = "nvs_core_router_link_signed";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
     /// one: § 2's capture names are identifiers and its literal segments come
     /// out of a `#[Route]` payload that a control byte would already have made
@@ -563,11 +659,11 @@ pub mod link {
     /// `{name...}`: [`REQUIRED`] with the value's own `/`s left alone.
     pub const REST: u8 = b'*';
 
-    /// Both symbols, for [`crate::symbols`], which builds the JIT's roster out
-    /// of the member rows and so would never reach an implementation no
-    /// [`super::CoreMethod`] names — the same reason
+    /// Every symbol here, for [`crate::symbols`], which builds the JIT's
+    /// roster out of the member rows and so would never reach an
+    /// implementation no [`super::CoreMethod`] names — the same reason
     /// [`crate::registry::CONSTRUCTORS`] is chained there.
-    pub const SYMBOLS: [&str; 2] = [SYMBOL, ABSOLUTE_SYMBOL];
+    pub const SYMBOLS: [&str; 3] = [SYMBOL, ABSOLUTE_SYMBOL, SIGNED_SYMBOL];
 }
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -578,6 +674,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
+        "nvs_core_router_url_signed" => (nvs_core_router_url_signed as *const ()).cast(),
+        "nvs_core_router_link_signed" => (nvs_core_router_link_signed as *const ()).cast(),
         "nvs_core_router_match" => (nvs_core_router_match as *const ()).cast(),
         "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
@@ -770,6 +868,177 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// `Core\Router::urlSigned`, spelled the way [`crate::keyring`]'s refusals
+/// name it.
+const URL_SIGNED: &str = r"Core\Router::urlSigned";
+
+/// What [`nvs_core_router_link_signed`] takes a signature over: the route's
+/// declared name, and every entry of `$params` as the text it contributes to
+/// the URL.
+///
+/// **The name and never the path.** One compiled table serves at `/ModuleA`,
+/// at `/ModuleB` or at `/` (`rule:http-server/a-mount-table-expands-at-boot`),
+/// so a signature over the assembled path stops verifying the moment a mount
+/// moves, and one over the route's identity does not — which is the whole
+/// reason this pair exists rather than a caller parsing `url`'s answer and
+/// signing that (`rule:core-classes/router-signed-url`).
+///
+/// **The parameters are their text**, one step short of the encoding
+/// [`substitute`] then applies, and that is what makes the payload
+/// *derivable*: the verifying half holds a match whose captures were decoded
+/// and converted on the way in, so the two sides can agree on `42` where they
+/// could not agree on whether it arrived as an `int` or as a `string`. A
+/// nested array stays an array, so the bracket convention a query parameter
+/// carries survives into the signed bytes rather than being flattened into
+/// text whose parse would be a second grammar.
+fn signed_payload(name: &str, params: &Value, member: &str) -> Result<Value, Fault> {
+    let mut payload = NvsArray::new();
+    payload.set(
+        NvsStr::new(b"route"),
+        Value::str(NvsStr::new(name.as_bytes())),
+    );
+    payload.set(
+        NvsStr::new(b"params"),
+        Value::array(written_form(params, member)?),
+    );
+    Ok(Value::array(payload))
+}
+
+/// One level of [`signed_payload`]'s `$params`: every live entry under its own
+/// key, scalars as [`segment_text`]'s text and arrays as arrays.
+///
+/// # Errors
+///
+/// [`segment_text`]'s throw for a value with no text form — the same refusal
+/// [`substitute`] makes over the same value, so a `$params` this refuses is
+/// one `url` would have refused too.
+fn written_form(params: &Value, member: &str) -> Result<NvsArray, Fault> {
+    // Unreachable from source: the row declares `array<mixed>`, so `E0401`
+    // refuses anything else before this body runs.
+    let raw = params.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Router::{member} expected {:?} for `$params`, got tag {}",
+            Tag::Array,
+            params.tag_byte()
+        ))
+    })?;
+    let array = crate::arr::borrowed(raw);
+    let mut out = NvsArray::new();
+    let mut slot = 0;
+    while let Some(live) = array.next_slot(slot) {
+        slot = live + 1;
+        let key = array.key_at(live).expect("a live slot has a key");
+        let value = array.value_at(live).expect("a live slot has a value");
+        let written = if value.array_ptr().is_some() {
+            Value::array(written_form(&value, member)?)
+        } else {
+            let label = std::str::from_utf8(key.as_bytes()).unwrap_or("<not text>");
+            Value::str(NvsStr::new(segment_text(value, member, label)?.as_bytes()))
+        };
+        out.set(key, written);
+    }
+    Ok(out)
+}
+
+/// Whether `$params` writes the reserved parameter itself.
+///
+/// The top level alone, because that is where the reservation lives: a key's
+/// base name is what [`crate::uri::build`] writes the query pair under, so
+/// `_sig` holding an array is `_sig[0]=…` and is the same collision. A
+/// literal `$params` never reaches this — `nvs_types::links` refuses a key
+/// that names neither a capture nor a declared `#[Query]` parameter while
+/// compiling — so this answers for the computed one.
+fn carries_reserved(params: &Value) -> bool {
+    params
+        .array_ptr()
+        .is_some_and(|raw| crate::arr::borrowed(raw).has_key(SIG_NAME.as_bytes()))
+}
+
+/// Releases the one reference [`signed_payload`] built, which is handed to
+/// nobody: [`crate::signature::mint`] borrows its payload.
+fn discard(payload: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "`signed_payload` builds exactly the reference passed here"
+    )]
+    unsafe {
+        payload.release();
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::urlSigned` over a name the compiler resolved — see
+    /// [`link`], and [`nvs_core_router_link`] for the half of the answer that
+    /// is an ordinary link.
+    ///
+    /// **The signature is taken before the path is built**, over
+    /// [`signed_payload`]'s document rather than over [`substitute`]'s answer,
+    /// which is `rule:core-api/signing-is-over-a-payload` at the door where
+    /// ignoring it is most tempting: the assembled text is right there, and
+    /// signing it is what makes a link stop verifying when the module moves.
+    ///
+    /// The token goes on the end as [`SIG_NAME`], the same parameter
+    /// `$uri->sign` writes, and needs no escaping —
+    /// [`crate::signature::mint`] answers unpadded URL-safe base64. A
+    /// `$params` that writes that parameter itself is refused rather than
+    /// overwritten: the two would be one query with two answers in it, and
+    /// picking one is picking which an attacker gets to try.
+    ///
+    /// **Cost:** one document the size of the name and the parameters, one
+    /// HMAC, and the substitution `url` already pays. All of it inside the
+    /// call (`rule:programs/memory-priority`), and a program that signs no
+    /// link pays none of it. What it spends on the *link* is the token, which
+    /// carries the signed document as well as the tag — about
+    /// `4/3 × (name + params + 40)` characters — buying one wire format for
+    /// all three doors rather than a second, shorter one here.
+    fn nvs_core_router_link_signed(_ctx, args: [5]) {
+        const MEMBER: &str = "urlSigned";
+
+        let template = link_template(args, MEMBER)?;
+        // Unreachable from source: `nvs_types::links` records this argument as
+        // the route name it resolved, and `nvs-ir` emits it as a `ConstStr`.
+        let name = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router::{MEMBER} expected {:?} for its resolved route name, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+        let ring = crate::keyring::borrow(args, 3, URL_SIGNED)?;
+        let until = crate::signature::until_of(args, 4, MEMBER)?;
+        if carries_reserved(&args[2]) {
+            return Err(Fault::thrown(format!(
+                "Core\\Router::{MEMBER}(): `$params` holds `{SIG_NAME}`, which is the parameter \
+                 this member writes the signature into. A signed link carries exactly one of \
+                 them, so the key is refused here rather than overwritten"
+            )));
+        }
+
+        let payload = signed_payload(name, &args[2], MEMBER)?;
+        // `mint` borrows the payload, so this frame still owns the one
+        // reference `signed_payload` built — and owns it on the refusing path
+        // too, which is why the `?` is below the release rather than on the
+        // call.
+        let minted = crate::signature::mint(
+            Domain::Route,
+            until,
+            &payload,
+            &ring,
+            URL_SIGNED,
+            "$params",
+        );
+        discard(payload);
+        let token = minted?;
+
+        let mut out = substitute(template, &args[2], MEMBER)?;
+        out.push(if out.contains('?') { '&' } else { '?' });
+        out.push_str(SIG_NAME);
+        out.push('=');
+        out.push_str(&token);
+        produced(&out)
+    }
+}
+
 /// Argument 0 of a link helper — the prepared template `nvs-ir` emitted.
 fn link_template<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     args[0].as_text().ok_or_else(|| {
@@ -829,6 +1098,21 @@ nvs_runtime::nvs_helper! {
     /// from in a program run off the command line at all.
     fn nvs_core_router_url_absolute(_ctx, args: [2]) {
         Err(no_such_route("urlAbsolute", args))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::urlSigned(string $name, array<mixed> $params, {keys, until}): string`
+    /// — [`nvs_core_router_url`]'s answer for a name that reached run time,
+    /// with two more arguments it never gets as far as reading.
+    ///
+    /// The lookup refuses first on purpose. A computed name has no route, so
+    /// there is nothing to sign the identity *of*, and checking the ring
+    /// before saying so would answer a question about the key material when
+    /// the mistake is in the call. The resolved twin is
+    /// [`nvs_core_router_link_signed`].
+    fn nvs_core_router_url_signed(_ctx, args: [4]) {
+        Err(no_such_route("urlSigned", args))
     }
 }
 
@@ -1467,5 +1751,134 @@ mod tests {
         for (index, (_, value)) in METHOD.cases.iter().enumerate() {
             assert_eq!(*value, i64::try_from(index).unwrap());
         }
+    }
+
+    /// `/docs/{slug}` as `nvs_types::UrlPiece::prepared` writes it — one tag
+    /// byte per piece, `\u{1}` between them.
+    ///
+    /// Built by hand because `nvs-types` is the crate that depends on this
+    /// one: the writer is one layer above and cannot be called from here, so
+    /// the layout in [`super::link`] is what the two sides share.
+    fn docs_template() -> String {
+        format!(
+            "{}/docs{}{}slug",
+            super::link::LITERAL as char,
+            super::link::PIECE_SEPARATOR,
+            super::link::REQUIRED as char
+        )
+    }
+
+    /// One folded link helper, driven the way compiled code drives it.
+    ///
+    /// The callee borrows its arguments, so the caller still owns every one of
+    /// them afterwards and the answer is the one fresh reference this returns.
+    fn linked(symbol: NvsFn, args: &[Value]) -> String {
+        let mut ctx = Ctx::buffered();
+        let answer = nvs_runtime::call(symbol, &mut ctx, args)
+            .expect("a link over a resolved name and a well-formed ring throws nothing");
+        assert!(
+            ctx.take_pending().is_none(),
+            "and leaves nothing pending behind it"
+        );
+        let text = String::from_utf8(
+            answer
+                .as_str_bytes()
+                .expect("a link answers a `string`")
+                .to_vec(),
+        )
+        .expect("a link is built out of `str`");
+        #[expect(
+            unsafe_code,
+            reason = "the helper hands back exactly one fresh reference, and the text \
+                      has been copied out of it"
+        )]
+        unsafe {
+            answer.release();
+        }
+        text
+    }
+
+    /// Releases a value this test frame built and handed to nobody.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "a test frame owns exactly the reference it built"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// § 4 calls `url` the launderer for the URL-path sink, and `urlSigned` is
+    /// that member with a parameter on the end — so the claim is an
+    /// *agreement* rather than a second escaping rule, and it is asserted on
+    /// both halves.
+    ///
+    /// The registry half is the qualifier: both answer a plain `string`, which
+    /// is what says a `tainted` value went in and a laundered one came out
+    /// (`rule:security/launderers-are-sink-named`). The run-time half is the
+    /// text: for one name and one `$params`, everything the signed member
+    /// writes in front of `_sig` is the other member's answer byte for byte,
+    /// so a hostile value that cannot leave its segment there cannot leave it
+    /// here either. A member that grew its own encoder would still pass the
+    /// first half.
+    #[test]
+    fn url_signed_launders_for_the_url_path_sink_exactly_as_url_does() {
+        let row = |name: &str| {
+            super::CLASS
+                .members()
+                .find(|member| member.name == name)
+                .expect("the member is registered")
+        };
+        assert!(matches!(row("url").return_ty, crate::registry::CoreTy::Str));
+        assert!(matches!(
+            row("urlSigned").return_ty,
+            crate::registry::CoreTy::Str
+        ));
+
+        let template = docs_template();
+        // Every byte a URL gives a meaning to, in one capture: a member that
+        // escaped one set too few would leave the segment here.
+        let mut params = nvs_runtime::NvsArray::new();
+        params.set(
+            nvs_runtime::NvsStr::new(b"slug"),
+            Value::str(nvs_runtime::NvsStr::new(b"a/b?c#d e")),
+        );
+        let params = Value::array(params);
+        let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
+
+        let plain = linked(
+            super::nvs_core_router_link,
+            &[
+                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
+                params,
+            ],
+        );
+        let signed = linked(
+            super::nvs_core_router_link_signed,
+            &[
+                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
+                Value::str(nvs_runtime::NvsStr::new(b"Docs::show")),
+                params,
+                ring,
+                Value::null(),
+            ],
+        );
+
+        assert_eq!(plain, "/docs/a%2Fb%3Fc%23d%20e");
+        let (path, token) = signed
+            .split_once("?_sig=")
+            .expect("the signed link ends in the reserved parameter");
+        assert_eq!(path, plain);
+        assert!(
+            !token.is_empty()
+                && token
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)),
+            "the token is unpadded URL-safe base64: {token}"
+        );
+
+        dropped(params);
+        dropped(ring);
     }
 }
