@@ -42,15 +42,18 @@
 //!   `crate::signatures::own_required_properties`'s own choice to exclude
 //!   `extends`, for the same reason: the property is checked when its own
 //!   declaring class's methods are checked, not re-derived here.
+//!   — owner: unowned
 //! - [`scan_expr`] only descends into the same handful of common composite
 //!   expression forms `crate::ctor_init::scan_expr` does. A read buried
 //!   inside a closure body, a `match` arm, or another form this module
 //!   doesn't descend into is silently not checked — safe, since a missed
 //!   diagnostic is never a false positive.
+//!   — owner: unowned
 //! - A `set`-hooked `lateinit` property is not modeled specially here either
 //!   (mirroring `crate::ctor_init`'s identical gap for a hooked required
 //!   property) — see `rule:classes/lateinit`'s own *Revisiting* section, which defers this
 //!   exact question to `docs/spec/`.
+//!   — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;

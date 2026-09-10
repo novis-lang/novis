@@ -16,6 +16,10 @@
 //! `nvs_hir::members::member_declared` already does for existence-only
 //! checking.
 //!
+//! **A class constant declared with no annotation takes its type from the value
+//! [`crate::consts`] folded it to**, and an ineligible value with no annotation
+//! is `mixed` — [`ConstSig`] owns that rule.
+//!
 //! **Known gaps:**
 //! - A promoted constructor-parameter property (`function constructor(public
 //!   int $x) {}`) is not recorded as a property here, matching
@@ -25,13 +29,12 @@
 //!   A method has no such gap: [`MethodSig::visibility`] records `rule:core-api/written-visibility`'s
 //!   level for every one, promoted parameter or not, because the modifier is
 //!   on the method's own declaration.
+//!   — owner: unowned
 //! - A variadic parameter's declared type is matched against every argument
 //!   from its position onward (an element-type check) rather than being
 //!   modeled as its own `array<T>` — see [`crate::expr`]'s docs for where
 //!   that's used.
-//! - A class constant declared with no annotation takes its type from the
-//!   value [`crate::consts`] folded it to, and an ineligible value with no
-//!   annotation is `mixed` — see [`ConstSig`], which owns that rule.
+//!   — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};

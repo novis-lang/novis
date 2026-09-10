@@ -35,6 +35,7 @@
 //! the language does not have. Until it does, the entry-script half of § 4's
 //! row is answered by § 3's default alone: `echo` means `text/html`, and a body
 //! member written beside it wins the `Content-Type` it declared last.
+//! — owner: unowned
 //!
 //! **The reach inside a handler is that handler's own body**, closures written
 //! in it included — an `fn` literal writes the same response, and

@@ -83,6 +83,7 @@
 //! *within* the case it falls into — each case is still checked starting
 //! fresh from what was live before the whole `switch`, same as a `case`
 //! reached by a direct jump would see (documented at the `Switch` arm below).
+//! — owner: unowned
 //!
 //! **A type declaration reaching this walk is refused, not descended into.**
 //! [`crate::check::check_stmts`] matches `class`/`interface`/`enum` at file

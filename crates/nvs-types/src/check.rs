@@ -24,9 +24,12 @@
 //! methods too — interfaces/enums never get either call, since only a class
 //! is ever instantiated through a constructor.
 //!
-//! **Known gap:** a class/interface/enum declared *inside* a method body is
-//! not descended into here at all — only top-level declarations (and ones
-//! nested in a `namespace { ... }` block) are found by [`check_stmts`].
+//! **A declaration inside a method body is refused rather than checked here.**
+//! [`check_stmts`] finds a top-level `class`/`interface`/`enum` and one nested
+//! in a `namespace { ... }` block, and nothing else. One written inside a body
+//! reaches [`crate::locals`]'s walk instead, where arriving is proof of nesting
+//! and its `nested_declaration` reports `E0233` on the spot — so there is
+//! nothing under a body left for this pass to descend into.
 
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::{Module, QName};

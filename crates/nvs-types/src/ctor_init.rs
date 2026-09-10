@@ -33,18 +33,19 @@
 //! at the end of the body), since `rule:classes/definite-property-initialization` is stated per-return, not
 //! per-body.
 //!
+//! **A promoted constructor parameter carries no obligation here**, although it
+//! is a property everywhere else: [`crate::signatures`] records its type and
+//! its visibility and `crate::layout` gives it a slot. Its store is emitted
+//! from the binding by `nvs_ir::lower::promoted_stores` rather than written in
+//! the body, so `rule:classes/definite-property-initialization` is discharged
+//! by construction and a constructor body has nothing to be checked against.
+//!
 //! **Known gaps**, deliberately out of scope for this slice:
 //! - A property backed by a `set` hook is exempted from
 //!   [`crate::signatures::ClassSignature::required_properties`] entirely,
 //!   rather than checked against whether the hook actually commits a value —
 //!   this module has no model of a hook's body at all.
-//! - A promoted constructor-parameter property (`function constructor(public
-//!   int $x) {}`) is a property everywhere else now — `crate::signatures`
-//!   records its type and visibility, `crate::layout` gives it a slot — and
-//!   it is deliberately no obligation here: the store is emitted from the
-//!   binding by `nvs_ir::lower::promoted_stores` rather than written in the
-//!   body, so `rule:classes/definite-property-initialization` is discharged by construction and there is nothing
-//!   for a constructor body to be checked against.
+//!   — owner: unowned
 //! - [`scan_expr`] only descends into a handful of common composite
 //!   expression forms (assignment, calls, binary/unary/cast/ternary,
 //!   `instanceof`, array literals). A `$this->prop = ...` or
@@ -52,11 +53,13 @@
 //!   or another form this module doesn't descend into produces a spurious
 //!   diagnostic rather than being missed silently — safe by the same
 //!   "reject, never wrongly accept" standard as every other known gap here.
+//!   — owner: unowned
 //! - A class with no explicit `constructor` is not itself checked against
 //!   the `parent::constructor(...)` obligation — it has no constructor body
 //!   of its own for such a call to go in; PHP inherits the parent
 //!   constructor unchanged in that case, and this slice does not model that
 //!   inheritance.
+//!   — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
