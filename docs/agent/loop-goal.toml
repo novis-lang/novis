@@ -119,6 +119,8 @@ modules = [
   # Stage 0 -- `nvs queue migrate` already converges the two tables on this backend. Read for what
   # it proves, not to change it.
   "crates/nvs-cli/src/queue.rs",
+  # `Core\Db` — docs/spec/01-core-library.md § 18's entry points, over `nvs_db`'s wire half.
+  "crates/nvs-stdlib/src/db/mod.rs",
 ]
 
 # The claim rule NAMES this backend's mechanism, so stage 2 implements it rather than choosing it.
