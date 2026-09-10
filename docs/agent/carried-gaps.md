@@ -71,7 +71,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Five entries.**
+Nobody's, and each is a scheduling question rather than a session's. **Eight entries.**
 The six that stood here before were made reachable as goals `per-core` through `formats` and 29–31, and spec § 17's four
 classes — filed
 under an M9 that carries the extension system and none of them — are goals `formats` and `xml-tree` now. The two that
@@ -112,6 +112,39 @@ by code that no key reaches.
   reaches — `nvs_config::tree::Server` has no field for any of them, so the audit cannot see them.
   `crates/nvs-server/src/bounds.rs` § *Known gap*, which names where the keys belong.
   [until: gone crates/nvs-server/src/bounds.rs:Known gap: none of these has a]
+- **`nvs-ir`'s lowering residue, beyond the refusal sites
+  [carried-refusals.md](carried-refusals.md)'s item 901 carries.** That entry's argument covers the
+  whole file: M4 reached its loop goal, the milestone is carried, and no live entry on the chain
+  writes `nvs-ir` lowering again, so what that acceptance list did not ask for stayed. It is a panic
+  each — `<=>` and `**` have no `ir::BinOp` row, a ternary's two arms have no recorded result type to
+  widen to, `as ?"a"` has no merge for the arm that answers `null` — plus one leak on the throw path
+  and one **security** row, a `secret` compared against a `mixed` falling out of constant time, which
+  closes by teaching `nvs_runtime::value_identical` the property rather than by adding a lowering
+  arm. The items that index a hole another module's doc owns are tagged here too, and for the
+  scheduling question rather than for the detail: each names the doc that holds it. What has to be
+  decided is which goal reopens the crate — item 901 named one, `typed-callable`, and it retired
+  without closing a site. `crates/nvs-ir/src/lib.rs` § *Known gaps* carries the tags.
+  [until: gone crates/nvs-ir/src/lib.rs:owner: unowned]
+- **`nvs-runtime`'s three missing representations, which nothing on the chain asks for.**
+  `Tag::Closure` and `Tag::Resource` are rows of the roster the plan's § *Value representation*
+  names and nothing constructs one: a closure is an ordinary object today, and whether Novis has a
+  `resource` value **at all** is the decision, not the implementation of one. Beside them, every
+  string producer but `nvs_str_append`'s in-place path allocates its result, so what has to be
+  decided there is whether each gains the sole-ownership check `NvsArray`'s copy-on-write already
+  pays for; and an exception this crate raises carries a message and no backtrace, where the
+  decision is whether a raise captures one at all — `rule:errors/throw-is-not-slower` prices a
+  throw at a return that allocates nothing, and a capture is the other side of that trade.
+  `crates/nvs-runtime/src/lib.rs` § *Known gaps* carries the tags.
+  [until: gone crates/nvs-runtime/src/lib.rs:owner: unowned]
+- **A route link's named argument is not folded, so two different failures throw one message.**
+  `nvs_types::links` folds a literal route name while compiling and refuses an unknown one
+  (`E0754`); a **named** argument is not folded at all, so it reaches `Core\Router`'s runtime throw
+  by the path a *computed* name takes, and a reader has to look up which of the two they hit. What
+  has to be decided is whether the fold grows a named-argument case — the checker already holds the
+  route's typed parameter list — or whether § 4's "a computed name throws" is the whole contract and
+  the message is what names both. Until it is, `no_such_route` answers more than the case § 4 named.
+  `crates/nvs-types/src/links.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
+  gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
 
 ## What is *not* on either list
 
