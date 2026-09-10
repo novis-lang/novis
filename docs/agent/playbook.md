@@ -4054,6 +4054,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   verifies for the other — the case then fails as though the member under test were broken. Write a
   fixed key (`Core\Bytes::fill(32, 65)`) for anything a case mints on one side of that call and checks
   on the other. [until: reviewed 2026-09-10]
+- **Six rows of `rule:types/type-test`'s table panic `nvs-ir` instead of answering, so a case that
+  sweeps the table exits 101 rather than failing an assertion.** `$m is int|float`, an intersection,
+  `is iterable`, `is callable`, a shape, and an `array<T>` whose element type no tag decides all reach
+  `crates/nvs-ir/src/lower/expr.rs`'s `lower_type_test` panic, while every scalar, `object`, class,
+  bare `array`, literal, class-constant and enum-case row answers. Sweep the rows that answer and
+  leave the six to the slice that lowers them.
+  [until: gone crates/nvs-ir/src/lower/expr.rs:still need a walk of their own]
 
 ## Splitting a file that got too big
 
