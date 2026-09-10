@@ -1,13 +1,12 @@
-# Goal 37 -- The extension guides an install instead of shipping a binary
+# Goal 38 -- The language server grows past its first closed list
 # The acceptance test, as data.
 #
-# `37-editor-install.md` is the prose. One home each.
+# `38-workspace-index.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# A `command` check is not a PROGRAM_KIND, so it runs ONCE between the legs rather than per leg.
-# That is right here for the same reason it was right for goal `editor`: a TypeScript client has no
-# calling convention, and the WSL leg exists for the one thing that does.
+# Every check here is `cargo-named` or `nvs-suite`: this goal is one crate and one protocol, and
+# neither has a calling convention, so nothing needs a per-leg program run.
 
 files = [
   # carried from the previous goal by tools/goal-switch.py; this goal names none of its own.
@@ -97,49 +96,65 @@ files = [
 [context]
 
 modules = [
-  # The client, and the two-way binary choice at `:98` this goal replaces with three.
-  "editors/vscode/src/extension.ts",
-  # `series`/`refusal` -- what the client speaks, and the sentence stage 4 re-points.
-  "editors/vscode/src/version.ts",
-  # The frozen roster the two new command ids join. Added to, never renamed.
-  "editors/vscode/package.json",
-  # How a new suite directory becomes a ledger line: discovery, and the `name:` it prints.
-  "editors/vscode/scripts/headless.mjs",
-  # The dependency allowlist -- the reason the release-matrix pin is Rust and not a YAML parser.
-  "editors/vscode/test/contributions/contributions.test.ts",
-  # The seven targets, the archive names, `SHA256SUMS`, and the attestation. Stage 2's other half.
-  ".github/workflows/release.yml",
-  # `--package`'s own naming, which is what the archive name in `install.ts` has to match.
-  "tools/release.py",
-  # The shape stage 2's pin copies: a Rust test holding two files in different languages together.
-  "crates/nvs-lsp/tests/extension_reference.rs",
-  # The chapter stage 5 extends, and its § *What it does not do* that this goal does not empty.
-  "docs/reference/tools/40-editor.md",
-  # TODO: why a session opens this.
-  "editors/vscode/src/install.ts",
+  # The four arms and the `Asked` enum stage 5 gives a fifth; `position` at :332 is what a cursor
+  # after `Core\` falls into today.
+  "crates/nvs-lsp/src/completion.rs",
+  # The one place the declaration is written. Stage 0's trigger characters at :174, and every
+  # capability stages 3-6 add.
+  "crates/nvs-lsp/src/capabilities.rs",
+  # The request router. One arm per method, and the shape each new request copies.
+  "crates/nvs-lsp/src/server.rs",
+  # `Analysed` -- `module`, `loaded`, `exprs`, `index`. Stage 2 widens the first from one graph to
+  # the tree, and stages 3-6 read the rest unchanged.
+  "crates/nvs-lsp/src/document.rs",
+  # The resolution stages 3 and 4 point at a type rather than a name.
+  "crates/nvs-lsp/src/definition.rs",
+  # The registry row stage 4's signature help renders and stage 5's namespace arm enumerates.
+  "crates/nvs-lsp/src/hover.rs",
+  # The `Core` class and member tables both of those read.
+  "crates/nvs-stdlib/src/registry.rs",
+  # The rows stage 5's PHP-name layer joins against.
+  "docs/spec/02-php-migration.md",
+  # The `.lspt` format, and at :57 the corpus example that froze the recovery case that works and
+  # never its mirror -- which is stage 0's whole story.
+  "crates/nvs-lsp/src/lib.rs",
 ]
 
-# The rule this goal lands, the one it amends, and the one that governs the two new ids.
+# The rules this goal implements, and the one its record amends.
 rules = [
-  "ide/the-extension-guides-an-install-and-never-bundles-one",
-  "ide/the-extension-runs-where-the-binary-is",
+  "ide/five-features-are-one-reference-index",
+  "ide/check-scope-defaults-to-open-documents",
+  "ide/completion-offers-only-what-the-compiler-derived",
+  "ide/every-feature-is-staged-behind-its-dependency",
+  "ide/the-request-set-is-closed",
+  "ide/three-of-four-item-shapes-insert-nothing",
+  "php-migration/every-php-builtin-is-a-completion-candidate",
+  "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
+  "ide/a-full-reanalysis-stays-under-a-bound",
   "ide/contributions-are-frozen-and-only-ever-added",
-  "ide/the-extension-refuses-a-binary-it-does-not-understand",
+  # Named because a standing decision turns on it: nvs.toml completion is out of scope precisely
+  # because this rule would have to be reopened to claim `.toml`.
+  "ide/the-extension-claims-nvs-only",
 ]
 
-# Empty: 0155's sections each argue one stage's design and sit in that stage's table below.
-adrs = []
+# 0099 is the record this goal's own amends: SS 3 is the M4B request set, its admission test, and
+# the inlay-hint deferral stage 6 reverses.
+adrs = ["0099 §3"]
 
-shapes = ["A commit message"]
+shapes = ["An `.lspt` case", "A commit message", "A decision record", "A rule fragment"]
 
-milestones = []
+milestones = ["M10"]
 
 playbook = [
   # This goal's own file set.
-  'Tooling > tools/verify.py runs',
-  "Tooling > editors/vscode/package.json's contributes",
+  'Tooling > a reserved',
+  'Writing a test case > a rust test can',
+  'Writing a test case > a cursor',
+  'Writing a test case > a -p nvs-lsp',
+  "Writing a test case > a .lspt case's",
+  'Writing Novis itself > exprtypetable::declaredty answers',
+  'Running things > nvs-lsp gaining',
   'Tooling > a cargo-named check counts',
-  'Tooling > a cargo-named acceptance',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -158,20 +173,19 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `37-editor-install.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `38-workspace-index.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The series the client speaks is what the table has to fetch; § 4 is why it is not "latest".
-adrs = ["0155 §4"]
+# The bound the index has to still hold once it is warm.
+rules = ["ide/a-full-reanalysis-stays-under-a-bound", "ide/the-server-is-synchronous"]
 
 [context.stage.3]
-# § 5 is the hash check and what it refuses; it is the whole of this stage's design.
-adrs = ["0155 §5"]
+rules = ["classes/interface-default-methods", "classes/delegation-by-field"]
 
-[context.stage.4]
-# § 2 the order, § 3 the offer, § 6 why no `nvs.path` write, § 7 the status item, § 8 the two ids.
-adrs = ["0155 §2", "0155 §3", "0155 §6", "0155 §7", "0155 §8"]
+[context.stage.6]
+# The deferral this stage reverses, in the record that wrote it.
+adrs = ["0099 §3"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
@@ -179,13 +193,18 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor's, not this goal's own: nothing here touches a database. Goal `serve-runs-the-queue`'s acceptance list
-# carries the driver's `serve`-and-queue checks, and those need the daemon before the first session.
+# The floor's, not this goal's own: nothing here touches a database.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 522 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -7612,17 +7631,14 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone. The table that turns a machine into an archive name, held to the workflow
 # that builds those archives. Rust rather than TypeScript because reading the workflow means a YAML
 # parser, and `contributions.test.ts`'s allowlist is what refuses a new dependency. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the platform table"
+stage = "1 floor"
 name = "the target table and the release matrix name the same archives"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -7636,10 +7652,9 @@ tests = [
 # `install:`. No network in a case: the fetch takes an injected transport and the cases feed it a
 # fixture archive, a good `SHA256SUMS` and a tampered one. Goal prose stages 3 and 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 the install"
+stage = "1 floor"
 name = "vscode (headless, with the install suite)"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "test:headless"]
@@ -7652,15 +7667,135 @@ want = ["grammar:", "contributions:", "protocol:", "install:", "0 failing"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the reference chapter's install section. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the reference"
+stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "5 the reference"
+stage = "1 floor"
 name = "the extension heading owes no proof"
 argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extension", "--gate"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the two live defects. Both are `.lspt` cases, because both are an answer at a cursor and
+# `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case` is where an answer is frozen. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "0 the catch-up"
+name = "the lspt corpus, including a member list against every closing delimiter"
+args = ["lsp-test", "tests/lsp/"]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 the catch-up"
+name = "every declared trigger character has an arm that answers it"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "every_trigger_character_reaches_an_arm_that_is_not_the_position_list",
+  "a_member_list_survives_a_receiver_at_the_end_of_a_block",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone. One construction site, and the structural test that says so. The bound is
+# `rule:ide/a-full-reanalysis-stays-under-a-bound`'s, held with the index warm. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the index"
+name = "one symbol index, built in one place, invalidated by what changed"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "the_crate_has_exactly_one_symbol_index_construction_site",
+  "a_change_invalidates_the_file_and_its_readers_and_nothing_else",
+  "a_warm_index_answers_within_the_reanalysis_bound",
+  "check_scope_selects_the_tree_and_never_the_construction_site",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the five readers, and the test that there are five. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the readers"
+name = "five features read the one index and none walks on its own"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "all_five_readers_query_the_one_index",
+  "unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope",
+  "call_hierarchy_is_not_answered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the readers"
+name = "an lspt case per added request, at a cursor, frozen"
+args = ["lsp-test", "tests/lsp/", "--coverage"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the three that need no index, and the one deliberately not added. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the unindexed three"
+name = "signature help and the two type navigations answer from what hover already reads"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "signature_help_names_the_active_parameter_of_the_enclosing_call",
+  "signature_help_renders_a_core_row_and_a_declared_list_the_same_way",
+  "type_definition_and_implementation_resolve_through_the_graph",
+  "declaration_is_not_answered_because_it_would_answer_identically",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the completion arms. The enumeration test is the gate
+# `rule:ide/completion-offers-only-what-the-compiler-derived` names: every source must name a table
+# the compiler builds for another reason. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the arms"
+name = "every completion source names a table the compiler already builds"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "every_completion_source_names_a_compiler_table",
+  "no_completion_source_reads_a_directory_layout_or_the_network",
+  "a_namespace_segment_offers_the_registry_and_the_index_and_no_keywords",
+  "a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the arms"
+name = "the php-name table is one build-time join and refuses a spelling that matches nothing"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_php_builtin_in_the_oracle_inventory_is_a_candidate",
+  "a_destination_spelling_that_matches_no_registry_member_fails_the_build",
+  "three_of_the_four_item_shapes_insert_nothing",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- inlay hints, bounded to the two shapes whose idiom has stopped moving. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 the hints"
+name = "inlay hints read the recorded types and offer only the two settled shapes"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "an_inferred_var_declaration_carries_its_type_as_a_hint",
+  "a_literal_argument_carries_its_parameter_name",
+  "no_hint_is_produced_from_anything_the_type_phase_did_not_record",
+]
