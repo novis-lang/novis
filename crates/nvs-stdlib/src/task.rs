@@ -59,6 +59,7 @@
 //! disagreeing literals of the same shape already do —
 //! `nvs_runtime::object`'s module doc § *What a shape write checks* owns that
 //! mechanism and its other known gaps.
+//! — owner: unowned
 //!
 //! # `{limit, deadline}` is the only optioned spelling
 //!

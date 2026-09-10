@@ -54,17 +54,19 @@
 //! declared elsewhere, which was (or will be) checked once, at that other
 //! site.
 //!
+//! **A construct that already has its own diagnostic is left unchecked here.**
+//! A top-level `function`/`const`
+//! ([`crate::ast::StmtKind::TopLevelFunction`]/[`crate::ast::StmtKind::TopLevelConst`]),
+//! a function-scope `static` local, and a non-`case` member inside an `enum`
+//! body are always-rejected constructs, and the same "nothing downstream ever
+//! acts on it" reasoning their own AST doc comments give for not inspecting
+//! them further covers their casing too.
+//!
 //! **Known gaps, left out deliberately:**
 //! - A `type` alias's own name is not checked — `rule:core-api/identifier-casing`'s scope table does
 //!   not list "type alias" as one of the categories it covers, so no rule is
 //!   enforced here rather than guessing one.
-//! - Anything that already gets its own diagnostic for being an
-//!   always-rejected construct — a top-level `function`/`const`
-//!   ([`crate::ast::StmtKind::TopLevelFunction`]/[`crate::ast::StmtKind::TopLevelConst`]),
-//!   a function-scope `static` local, or a non-`case` member inside an
-//!   `enum` body — is left unchecked here too, the same "nothing downstream
-//!   ever acts on it" reasoning those constructs' own AST doc comments
-//!   already give for not otherwise inspecting them.
+//!   — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 

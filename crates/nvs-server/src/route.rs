@@ -36,6 +36,7 @@
 //! for the door to verify against. Closing it is therefore a configuration
 //! decision and a seam, not an omission here: what this module owns is which
 //! requests the check covers, and that is landed.
+//! — owner: unowned
 //!
 //! **Known gap 2: the label has a consumer and no caller.**
 //! [`crate::metrics::Registry::request`] is what `rule:observability/route-label-is-the-declared-name`'s `route` label
@@ -46,6 +47,7 @@
 //! always was: the *value* is the part that rule interlocks with `rule:routing/routes-are-compiled-not-registered` over —
 //! a name out of the compile-time table and never the request's path — and
 //! deriving it anywhere else would be the second match § 1 removes.
+//! — owner: unowned
 //!
 //! # Where it sits among the door's other decisions
 //!

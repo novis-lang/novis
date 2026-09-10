@@ -138,6 +138,7 @@
 //! a string literal, answered as the position around it: the variables are
 //! what an interpolation slot takes and are right, and the words that open a
 //! statement sit beside them as noise no filter here removes.
+//! — owner: workspace-index
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nvs_diagnostics::{BytePos, SourceFile, Span};

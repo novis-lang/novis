@@ -54,6 +54,7 @@
 //! a release build and nothing separates two debug builds. Closing it needs a build stamp that
 //! moves with the source, which is a `build.rs` this crate does not have yet and which nothing can
 //! use until the caches themselves are on disk.
+//! — owner: unowned
 //!
 
 use std::fmt;

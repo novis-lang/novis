@@ -65,6 +65,7 @@
 //! no dependency for; the request's stack becomes Novis's own to size at M6,
 //! and until then an embedder that knows its bounds calls
 //! [`Ctx::arm_stack_limit`] with them.
+//! — owner: unowned
 //!
 //! # The request's deadline
 //!

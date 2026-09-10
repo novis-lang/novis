@@ -73,6 +73,7 @@
 //! that word, so the stashed pointer is not obviously sound in the way
 //! [`Ctx`](crate::Ctx)'s cross-thread `deadline` is. That question is why the
 //! gap is recorded here rather than closed in passing.
+//! — owner: resource-ceilings
 //!
 //! # What it spends
 //!
