@@ -88,6 +88,18 @@ files = [
 [context]
 
 modules = [
+  # Stage 2 -- the sibling gate one level up, and the file whose contract this one extends.
+  "docs/agent/carried-gaps.md",
+  # Stage 2 -- the refusal-site half of the same idea, and the `--unattributed` output to model on.
+  "tools/holes.py",
+  # Stage 2 -- the other derived worklist, and the help-text shape both of these use.
+  "tools/gaps.py",
+  # Stage 2 -- how a chain entry is read, so a tag naming a goal can be checked against the schedule.
+  "tools/chain.py",
+  # Stage 4 -- where the new gate is added, in order, stopping at the first failure.
+  "tools/verify.py",
+  # Stage 4 -- what the orientation pack prints, and where an unowned count joins it.
+  "tools/brief.py",
   # Stage 3 -- the largest single block, 17 items, and already owned by carried-refusals 901.
   "crates/nvs-ir/src/lib.rs",
   # Stage 3 -- seven items, two of which are the deferrals the prose names.
