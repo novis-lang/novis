@@ -301,6 +301,10 @@ fn example_value(value: &ConstArg) -> Option<Value> {
         ConstArg::Bytes(_)
         | ConstArg::Options(_)
         | ConstArg::RequiredShape(_)
+        // Not a value, so there is no JSON for it: a schema says a key may be
+        // absent by leaving it out of `required`, which is what an omitted
+        // nullable option already is.
+        | ConstArg::NeverWritten
         | ConstArg::Built { .. } => return None,
     })
 }

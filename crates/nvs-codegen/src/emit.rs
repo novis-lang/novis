@@ -530,6 +530,16 @@ impl Emitter<'_, '_> {
                 let v = self.b.ins().iconst(types::I64, 0);
                 self.define(inst, v)?;
             }
+            // The never-written marker is the whole of its own tag, so it is
+            // built here rather than left to the slot it is stored into: a
+            // `Ty::Tagged` value carries its tag with it, and the payload is
+            // zero. Nothing is retained — `Tag::Unset` is not refcounted.
+            InstKind::ConstUnset => {
+                let tag = self.b.ins().iconst(types::I64, i64::from(Tag::Unset as u8));
+                let bits = self.b.ins().iconst(types::I64, 0);
+                let value = self.join_tagged(tag, bits);
+                self.define(inst, value)?;
+            }
             InstKind::ConstStr(text) => {
                 let (value, next) = self.emit_const_str(cur, text.as_bytes())?;
                 self.define(inst, value)?;

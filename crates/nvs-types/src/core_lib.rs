@@ -314,6 +314,7 @@ fn param_names(method: &nvs_stdlib::registry::CoreMethod) -> Vec<String> {
 fn lower_const(value: &Const) -> ConstArg {
     match *value {
         Const::Null => ConstArg::Null,
+        Const::NeverWritten => ConstArg::NeverWritten,
         Const::Bool(b) => ConstArg::Bool(b),
         Const::Int(v) => ConstArg::Int(v),
         Const::Uint(v) => ConstArg::Uint(v),

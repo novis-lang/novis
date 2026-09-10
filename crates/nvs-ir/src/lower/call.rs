@@ -636,6 +636,12 @@ impl<'a> Lowering<'a> {
         }
         let (ty, kind) = match default {
             nvs_types::ConstArg::Null => (Ty::Null, InstKind::ConstNull),
+            // Already tagged, and that is the point: an omitted *nullable*
+            // option's slot has to hold something a written `null` cannot,
+            // and `Tag::Unset` is it (`InstKind::ConstUnset`). Emitting it as
+            // `Ty::Tagged` also makes the widening below the identity, since
+            // a nullable option's declared slot erases to `Ty::Tagged` too.
+            nvs_types::ConstArg::NeverWritten => (Ty::Tagged, InstKind::ConstUnset),
             nvs_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
             nvs_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
             nvs_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),

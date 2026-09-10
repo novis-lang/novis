@@ -106,6 +106,18 @@ pub enum ConstArg {
     /// which is about the `?T` *parameter type* that would declare it, not
     /// about the constant.
     Null,
+    /// **Not a value**: the never-written marker an omitting call site
+    /// materializes for a **nullable** option or shape field —
+    /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`.
+    ///
+    /// Produced only by [`crate::core_lib`], from
+    /// `nvs_stdlib::registry::Const::NeverWritten`, and lowered to
+    /// `nvs_ir::ir::InstKind::ConstUnset`, which is `nvs_runtime::Tag::Unset`
+    /// under a zero payload. It is the one constant here that has no type and
+    /// that no program can write, which is exactly what lets the helper tell
+    /// an omitted key from a written `null`
+    /// (`rule:core-api/omission-is-not-a-written-null`).
+    NeverWritten,
     /// `bool`
     Bool(bool),
     /// `int`

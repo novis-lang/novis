@@ -432,6 +432,27 @@ pub enum InstKind {
     /// expression still needs the `?T` lowering `Ty::Tagged`'s own doc comment
     /// records as open.
     ConstNull,
+    /// The never-written marker — a [`crate::ty::Ty::Tagged`] value carrying
+    /// `nvs_runtime::Tag::Unset` over a zero payload, which allocates nothing
+    /// and owns nothing.
+    ///
+    /// [`Self::ConstNull`]'s row for the one constant that is **not a value**:
+    /// `rule:core-api/omission-is-not-a-written-null` needs an omitted
+    /// nullable option to arrive at a `Core` helper as something a written
+    /// `null` cannot also be, and `Tag::Unset` is already defined as distinct
+    /// from every legal value including `null`
+    /// (`rule:classes/an-unwritten-property-read-throws`).
+    ///
+    /// Its one producer is an omitted option or shape field whose default is
+    /// `nvs_types::defaults::ConstArg::NeverWritten`
+    /// ([`crate::lower::Lowering::emit_const_arg`]); no expression produces
+    /// one, and nothing hands it back to a program
+    /// (`rule:core-api/the-marker-never-reaches-a-program`). It is
+    /// [`crate::ty::Ty::Tagged`] rather than a representation of its own
+    /// because the tag *is* the whole of it, and a tagged value is the one
+    /// representation that carries its own — so the ABI a bag flattens into is
+    /// untouched (`rule:core-api/the-bag-abi-is-unchanged`).
+    ConstUnset,
     /// A `string` literal's cooked bytes — a fresh [`Ty::Str`] value with
     /// exactly one implicit owner (itself), the same "one natural reference"
     /// starting point [`InstKind::New`] gives a freshly constructed object.

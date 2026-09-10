@@ -331,6 +331,9 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null
         | ConstArg::Bytes(_)
+        // Not a value at all, and a `Core` bag's omission fill besides — a
+        // property slot already starts in this state without a default.
+        | ConstArg::NeverWritten
         // Neither is one value: a bag and `rule:core-api/shape-flattens-at-the-abi`'s shape are a fill list
         // apiece, and no property declaration has a `Core` parameter's type.
         | ConstArg::Options(_)

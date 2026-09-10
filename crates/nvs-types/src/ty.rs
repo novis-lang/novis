@@ -428,11 +428,11 @@ pub struct CoreShapeField {
     /// The key a call site writes on the left of the `:`, `camelCase` per ADR
     /// 0029 — an option's own name, or a field's.
     pub name: String,
-    /// Its declared type, already lowered. Never itself a [`Ty::CoreShape`] and
-    /// never nullable: `nvs_stdlib::registry`'s
-    /// `a_shape_is_only_ever_a_whole_parameter` and
-    /// `a_shape_field_is_never_nullable` hold both over the rows this is built
-    /// from, so nothing here re-checks them.
+    /// Its declared type, already lowered. Never itself a [`Ty::CoreShape`],
+    /// and nullable exactly where the row's default is the never-written
+    /// marker: `nvs_stdlib::registry`'s `a_shape_is_only_ever_a_whole_parameter`
+    /// and `a_nullable_shape_field_omits_as_the_never_written_marker` hold both
+    /// over the rows this is built from, so nothing here re-checks them.
     pub ty: TypeId,
     /// Whether a call site must write this key. **False for every field of an
     /// options bag** — `rule:core-api/shape-rules` R2 makes the whole bag omittable, so an option

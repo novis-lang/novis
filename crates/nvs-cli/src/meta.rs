@@ -402,6 +402,11 @@ fn ty_string(ty: &CoreTy) -> String {
 fn const_string(value: &Const) -> String {
     match value {
         Const::Null => "null".into(),
+        // The one default with no written spelling: omitting the key is how a
+        // call site asks for it, and writing `null` asks for the opposite
+        // (`rule:core-api/omission-is-not-a-written-null`). Spelled as the
+        // absence it is rather than as a value nobody can type.
+        Const::NeverWritten => "(omitted)".into(),
         Const::Bool(b) => b.to_string(),
         Const::Int(i) => i.to_string(),
         Const::Uint(u) => u.to_string(),

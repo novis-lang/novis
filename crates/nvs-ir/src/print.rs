@@ -142,6 +142,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             if *negative { "-" } else { "" }
         ),
         InstKind::ConstNull => "const.null".to_owned(),
+        InstKind::ConstUnset => "const.unset".to_owned(),
         InstKind::ConstStr(s) => format!("const.str {s:?}"),
         InstKind::ConstBytes(b) => format!("const.bytes {b:?}"),
         InstKind::Param(i) => format!("param {i}"),

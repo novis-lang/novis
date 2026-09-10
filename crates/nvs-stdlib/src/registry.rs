@@ -485,21 +485,21 @@ pub enum CoreTy {
     /// value, read back as `nvs_ir::ty::Ty::Tagged` — that variant's own doc
     /// comment owns the representation and what it spends.
     ///
-    /// **An option's type only where `null` is not one of the values it
-    /// admits**, which is the one restriction left. `CoreTy::Options` flattens
-    /// a bag into one ABI argument per option and an omitted option passes a
-    /// [`Const`], which has no union-shaped spelling — so what a union option
-    /// defaults to is [`Const::Null`], read back by the helper as "not given"
-    /// exactly as it already is for the `{by?: callable}` an option cannot
-    /// otherwise spell. That works for as long as no *written* value can
-    /// arrive as a `Tag::Null` too, which is why a [`Self::Nullable`] member
-    /// (or a bare nullable option) is refused: there, "omitted" and
-    /// `{a: null}` would be one argument.
+    /// **An option's type, and a null arm decides which constant its omission
+    /// passes.** `CoreTy::Options` flattens a bag into one ABI argument per
+    /// option and an omitted option passes a [`Const`], which has no
+    /// union-shaped spelling — so a union admitting no `null` defaults to
+    /// [`Const::Null`], read back by the helper as "not given" exactly as it
+    /// already is for the `{by?: callable}` an option cannot otherwise spell,
+    /// and a union with a [`Self::Nullable`] member defaults to
+    /// [`Const::NeverWritten`] instead, so "omitted" and `{a: null}` stay two
+    /// arguments (`rule:core-api/omission-is-not-a-written-null`).
     /// `Core\Validate::isIp`'s `{version?: 4|6}` was the row that wanted a
     /// union here first — [`crate::validate`]'s docs say why the alternative
     /// was worse — and `Core\Arr::column`'s `{indexBy?: int|string}` is the
     /// one that showed the restriction was about `null` rather than about
-    /// literals. `a_union_option_excludes_null` holds it.
+    /// literals. `a_nullable_option_omits_as_the_never_written_marker` holds
+    /// the pairing.
     Union(&'static [CoreTy]),
     /// **One `int` literal** — `rule:types/literal-types`'s integer atom, whose only use is inside a [`Self::Union`] that
     /// spells out a closed set of numbers.
@@ -772,12 +772,14 @@ pub struct CoreField {
     /// The field's own name, `camelCase` per `rule:core-api/identifier-casing` — what a call site
     /// writes on the left of the `:` in `{driver: Driver::Sqlite}`.
     pub name: &'static str,
-    /// Its declared type. Never itself a [`CoreTy::Shape`], and never
-    /// nullable: `a_shape_is_only_ever_a_whole_parameter` holds the first, and
-    /// `a_shape_field_is_never_nullable` the second — a slot belonging to an
-    /// arm the caller did not write already arrives as [`Const::Null`], so a
-    /// field that could itself be `null` would reach the helper as the same
-    /// argument whether it was written or not.
+    /// Its declared type. Never itself a [`CoreTy::Shape`] —
+    /// `a_shape_is_only_ever_a_whole_parameter` holds that — and nullable
+    /// exactly where [`Self::default`] is [`Const::NeverWritten`], which
+    /// `a_nullable_shape_field_omits_as_the_never_written_marker` holds. A
+    /// field that admits `null` and omitted as one would reach the helper as
+    /// the same argument whether it was written or not; the marker is what
+    /// keeps the two apart
+    /// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`).
     pub ty: CoreTy,
     /// `None` — **required**. `Some(c)` — omittable, and `c` is the constant
     /// an omitting call site passes, materialized by
@@ -815,6 +817,32 @@ pub enum Const {
     /// `a_union_is_only_ever_a_parameter` records why an option cannot be
     /// one.
     Null,
+    /// **Not a value**: the never-written marker, which is what an omitting
+    /// call site materializes for a **nullable** option or shape field —
+    /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`.
+    ///
+    /// The one default a call site cannot also write, and that is the whole of
+    /// what it buys: a field admitting `null` reaches the helper under
+    /// `nvs_runtime::Tag::Null` when a program wrote one and under
+    /// `Tag::Unset` when it wrote nothing, so a member with a removal to offer
+    /// can tell *leave this alone* from *clear this*
+    /// (`rule:core-api/omission-is-not-a-written-null`). An in-band sentinel —
+    /// `""`, a reserved string — is a value the field's own type admits, so
+    /// user data can arrive as one by accident; this is a tag the type system
+    /// has no spelling for at all.
+    ///
+    /// It costs nothing: `Tag::Unset` is one more discriminant on a
+    /// representation that already carries one, it is not refcounted, and the
+    /// omitting call site emits one constant either way
+    /// (`rule:core-api/the-bag-abi-is-unchanged`).
+    ///
+    /// **Paired with the declared type, and the pairing is checked.** This is
+    /// admitted exactly where the field admits `null`, and refused everywhere
+    /// else — `a_nullable_option_omits_as_the_never_written_marker` and
+    /// `a_nullable_shape_field_omits_as_the_never_written_marker` hold both
+    /// halves. A non-nullable field keeps [`Self::Null`] and lowers exactly as
+    /// it does today.
+    NeverWritten,
     /// A `bool` default.
     Bool(bool),
     /// An `int` default.
@@ -3310,36 +3338,36 @@ mod tests {
         }
     }
 
-    /// A union is legal in either direction, and as an **option's** type only
-    /// where `null` is none of the values it admits — see [`CoreTy::Union`],
-    /// which owns why: a bag flattens to one ABI argument per option, the
-    /// [`Const`] an omitted one passes has no union-shaped spelling, so the
-    /// default is [`Const::Null`] and the helper reads `Tag::Null` for "not
-    /// given". A member that could itself be `null` would collide with that
-    /// sentinel, so [`CoreTy::Nullable`] is refused both as a whole option
-    /// type and inside one — and so is [`CoreTy::Mixed`], which admits `null`
-    /// without spelling it.
+    /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s
+    /// pairing, over an options bag — the same rule
+    /// [`a_nullable_shape_field_omits_as_the_never_written_marker`] holds one
+    /// level down, and `rule:core-api/one-checked-shape-type` is why one rule
+    /// covers both spellings. A bag flattens to one ABI argument per option
+    /// and the [`Const`] an omitted one passes has no union-shaped spelling,
+    /// so an option admitting `null` states its omission with
+    /// [`Const::NeverWritten`] and one admitting none states it with
+    /// [`Const::Null`] or a literal. Getting that pairing wrong is what would
+    /// make an omitted option and a written `null` the same argument.
     #[test]
-    fn a_union_option_excludes_null() {
+    fn a_nullable_option_omits_as_the_never_written_marker() {
         for class in CLASSES {
             for method in class.members() {
                 for member in method.options().unwrap_or(&[]) {
-                    let closed = match member.ty {
-                        CoreTy::Nullable(_) => false,
-                        CoreTy::Union(members) => {
-                            members
-                                .iter()
-                                .all(|one| !matches!(one, CoreTy::Nullable(_) | CoreTy::Mixed))
-                                && matches!(member.default, Const::Null)
-                        }
-                        _ => true,
-                    };
-                    assert!(
-                        closed,
-                        "{}::{}'s option `{}` is a union that either admits `null` or does \
-                         not default to it, so an omitted option and a written one would \
-                         reach the helper as the same argument",
-                        class.name, method.name, member.name
+                    assert_eq!(
+                        admits_null(&member.ty),
+                        matches!(member.default, Const::NeverWritten),
+                        "{}::{}'s option `{}` pairs a `{}` type with a `{:?}` default, so an \
+                         omitted option and a written one would reach the helper as the same \
+                         argument",
+                        class.name,
+                        method.name,
+                        member.name,
+                        if admits_null(&member.ty) {
+                            "nullable"
+                        } else {
+                            "non-nullable"
+                        },
+                        member.default
                     );
                 }
             }
@@ -3482,21 +3510,17 @@ mod tests {
         }
     }
 
-    /// `rule:core-api/shape-flattens-at-the-abi`: every slot the written literal does not fill passes a
-    /// [`Const`], and [`Const::Null`] is what a field of an arm the caller did
-    /// not write passes. So "filled" is only readable if a field can never be
-    /// `null` itself — the reason [`CoreTy::Union`]'s own doc already gives
-    /// for an option, one level down. [`CoreTy::Mixed`] is refused with
-    /// [`CoreTy::Nullable`] because it admits `null` without spelling it.
+    /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s
+    /// pairing, over a shape's arms: every slot the written literal does not
+    /// fill passes a [`Const`], so "filled" is only readable while the
+    /// constant an unfilled slot passes is one the field's own type cannot
+    /// also hold. A field admitting `null` — a [`CoreTy::Nullable`], a
+    /// [`CoreTy::Union`] with a null arm, or [`CoreTy::Mixed`], which admits
+    /// one without spelling it — is therefore admitted exactly where its
+    /// default is [`Const::NeverWritten`], and a field admitting none is
+    /// admitted exactly where its default is anything else.
     #[test]
-    fn a_shape_field_is_never_nullable() {
-        fn admits_null(ty: &CoreTy) -> bool {
-            match ty {
-                CoreTy::Nullable(_) | CoreTy::Mixed => true,
-                CoreTy::Union(members) => members.iter().any(admits_null),
-                _ => false,
-            }
-        }
+    fn a_nullable_shape_field_omits_as_the_never_written_marker() {
         for class in CLASSES {
             for method in class.members() {
                 for param in method.params {
@@ -3505,18 +3529,42 @@ mod tests {
                     };
                     for arm in *arms {
                         for field in *arm {
-                            assert!(
-                                !admits_null(&field.ty),
-                                "{}::{}'s shape field `{}` admits `null`, which is the same \
-                                 argument an unfilled slot already passes",
+                            let Some(default) = field.default else {
+                                // Required: no call site omits it, so there is
+                                // no constant to pair with anything.
+                                continue;
+                            };
+                            assert_eq!(
+                                admits_null(&field.ty),
+                                matches!(default, Const::NeverWritten),
+                                "{}::{}'s shape field `{}` pairs a `{}` type with a `{default:?}` \
+                                 default, so an omitted field and a written one would reach the \
+                                 helper as the same argument",
                                 class.name,
                                 method.name,
-                                field.name
+                                field.name,
+                                if admits_null(&field.ty) {
+                                    "nullable"
+                                } else {
+                                    "non-nullable"
+                                }
                             );
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// Whether a declared type admits a written `null` — the left-hand column
+    /// of `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s
+    /// pairing, shared by the two guards that hold it so an option and a shape
+    /// field cannot come to answer it differently.
+    fn admits_null(ty: &CoreTy) -> bool {
+        match ty {
+            CoreTy::Nullable(_) | CoreTy::Mixed => true,
+            CoreTy::Union(members) => members.iter().any(admits_null),
+            _ => false,
         }
     }
 

@@ -980,7 +980,14 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                     CoreOption {
                         name: "args",
                         ty: CoreTy::Mixed,
-                        default: Const::Null,
+                        // `mixed` admits a written `null` without spelling it, so the omission
+                        // fill is the never-written marker rather than a null — otherwise the
+                        // two arrive as one argument
+                        // (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`).
+                        // Both still mean *no payload* here: `rule:core-api/a-written-null-removes`
+                        // makes a written `null` a removal, and there is nothing to remove but
+                        // the payload. [`payload_of`] reads the pair.
+                        default: Const::NeverWritten,
                     },
                     CoreOption {
                         name: "queue",
@@ -1539,6 +1546,13 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
 
 /// `{args: …}` as the JSON the row holds, or `None` for a payload that was not given.
 ///
+/// Two tags mean `None` and they are two different requests that arrive at the same place: an
+/// omitted `args` is the never-written marker
+/// (`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`) and a written `{args: null}`
+/// is `rule:core-api/a-written-null-removes`'s removal, which for this option is the payload
+/// itself. The distinction the marker buys is spent by `Core\Uri::with`, not here; what it buys
+/// here is that the row can be declared `mixed` at all.
+///
 /// [`crate::json`]'s own encoder and not a second one, so a `float` or a nested array is spelled in
 /// a job's payload exactly as `Core\Json::encode` spells it — the same reason that type is
 /// `pub(crate)` for [`crate::log`].
@@ -1548,7 +1562,7 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
 /// A thrown `RuntimeError` for a payload JSON cannot hold, which is what the encoder refuses: an
 /// infinite `float`, or nesting past its depth bound.
 fn payload_of(args: &[Value]) -> Result<Option<String>, Fault> {
-    if matches!(args[ARGS_ARG].tag(), Some(Tag::Null)) {
+    if matches!(args[ARGS_ARG].tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
     }
     serde_json::to_string(&crate::json::Encodable::document(args[ARGS_ARG]))
