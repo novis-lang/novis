@@ -172,11 +172,13 @@
 //!    `setHeader` off a request are the quiet half of the same gap: each
 //!    declares onto a context nobody will ask, so the call means nothing and
 //!    says nothing.
+//!    — owner: M7
 //! 2. **Nothing here adjudicates between two declarations**, and the last one
 //!    wins by construction. § 4's sixth row is enforced by `E0801`, in
 //!    `nvs_types::response`, whose module doc owns what that rule reaches and
 //!    what it does not — including the two typed body members in one handler
 //!    that it still admits.
+//!    — owner: unowned
 
 use nvs_runtime::{Fault, Tag, Value};
 
