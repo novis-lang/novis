@@ -32,6 +32,17 @@
 //! (`nvs_syntax::SyntaxIndex::children_of`). Scanning the source backwards over
 //! an arrow would be this crate reading a grammar `nvs-syntax` owns.
 //!
+//! **A cursor at the very end of an access is still in its member half.** Where
+//! the token after the arrow closes something — a `}`, a `)`, a `]` — or the
+//! file simply stops, the parser has no token left to make a member name out
+//! of, so the access ends at the arrow and
+//! `nvs_syntax::SyntaxIndex::at`'s half-open containment puts the cursor
+//! outside every node of it. Such an access is reached by asking the index
+//! about the byte *before* the cursor and keeping the answer only where that
+//! access ends exactly at the cursor, which is that shape and no other. The
+//! containment stays half-open, because a cursor being outside the node it
+//! touches is what `selectionRange` is frozen on.
+//!
 //! # Where a plain variable's type comes from
 //!
 //! `$u` is a variable *read*, and until this request existed the checker kept
@@ -223,12 +234,7 @@ fn members_of(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Completio
 
 /// Which of the three questions the cursor at `offset` is asking.
 fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
-    let Some((access, reach)) = path.nodes().iter().find_map(|node| {
-        ACCESS
-            .iter()
-            .find(|(kind, _)| *kind == node.kind)
-            .map(|(_, reach)| (*node, *reach))
-    }) else {
+    let Some((access, reach)) = access_in(path).or_else(|| ended_at(analysed, offset)) else {
         return Asked::Position;
     };
     let Some(receiver) = analysed.index.children_of(access).into_iter().next() else {
@@ -244,6 +250,28 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
         Reach::Static => named_class(analysed, access, receiver.span),
     };
     class.map_or(Asked::Nothing, |class| Asked::Member(class, reach))
+}
+
+/// The innermost access `path` runs through, and the half of a class it
+/// reaches.
+fn access_in(path: &NodePath) -> Option<(IndexNode, Reach)> {
+    path.nodes().iter().find_map(|node| {
+        ACCESS
+            .iter()
+            .find(|(kind, _)| *kind == node.kind)
+            .map(|(_, reach)| (*node, *reach))
+    })
+}
+
+/// The access the cursor is standing at the end of, which is the one the
+/// member half of is still empty because nothing followed the arrow.
+///
+/// The byte before the cursor is inside that access whenever the access ends
+/// at the cursor, so one lookup finds it; the `end` test is what keeps a
+/// cursor that has walked well past an access from reaching this.
+fn ended_at(analysed: &Analysed, offset: BytePos) -> Option<(IndexNode, Reach)> {
+    let before = analysed.index.at(offset.checked_sub(1)?);
+    access_in(&before).filter(|(access, _)| access.span.end == offset)
 }
 
 /// The words that may open a statement, whether as a statement form of their
