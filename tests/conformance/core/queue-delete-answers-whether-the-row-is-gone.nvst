@@ -1,0 +1,22 @@
+--TEST--
+`delete` answers a `bool` saying whether this call is what removed the row, so a job a worker holds is reported rather than thrown about — `rule:concurrency/queue-deletion-is-explicit-and-bounded`, `rule:concurrency/cancel-is-a-race-it-can-lose`
+--FILE--
+<?nvs
+// A removal is a race the same way a cancellation is: a worker may claim a
+// pending job at any moment, and a claimed job is not removable at all. That
+// makes "there was nothing left to remove" the ordinary outcome, so it is an
+// answer and not an exception — a `void` spelling would make "removed" and
+// "too late" look identical at the call site.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+bool $gone = Core\Queue::delete($receipt);
+
+// And the answer is that `bool` and nothing wider: there is no count here, and
+// no state left over for `status` to be asked about, because the row is gone
+// rather than changed.
+string $why = Core\Queue::delete($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `bool`
+%A
+error: aborting due to 1 error

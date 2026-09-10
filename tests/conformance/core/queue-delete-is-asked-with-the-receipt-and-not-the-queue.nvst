@@ -1,0 +1,21 @@
+--TEST--
+`delete` names one job, so it is asked with the receipt and never with the queue that receipt carries — `rule:concurrency/queue-deletion-is-explicit-and-bounded`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// The two removal members are told apart by their subject and by nothing else:
+// this one names *one* job, so it takes the receipt whole, and the queue it
+// removes from is the one the receipt was written with. Its sibling is the
+// member asked about a queue, and taking a name here would leave two spellings
+// of "remove from this queue" differing only in how much they remove.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+bool $gone = Core\Queue::delete($receipt);
+
+// So the queue name is not a subject this member has, even though it is the
+// name the grant is matched against — that name arrives inside the receipt.
+bool $swept = Core\Queue::delete("email");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Queue\Id`, found `string`
+%A
+error: aborting due to 1 error

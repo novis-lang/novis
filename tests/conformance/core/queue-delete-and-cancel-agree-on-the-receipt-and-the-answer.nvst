@@ -1,0 +1,24 @@
+--TEST--
+`delete` and `cancel` are asked the same way and answer the same type, so the "cancel it, or else remove it" idiom is one shape — `rule:concurrency/queue-deletion-is-explicit-and-bounded`, `rule:concurrency/queue-four-members`
+--FILE--
+<?nvs
+// The agreement, not either member's own answer: both take one receipt and
+// both answer whether *this* call is what took the job out, so a program can
+// write the two in sequence without converting anything between them. A member
+// that had grown its own comparison would still look right on its own line and
+// would fail here.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+bool $stopped = Core\Queue::cancel($receipt);
+bool $removed = Core\Queue::delete($receipt);
+bool $either = $stopped || $removed;
+
+// They agree on the arity too: the receipt names both the row and the queue,
+// so there is no second argument for either of them to be told which queue to
+// look in.
+bool $again = Core\Queue::delete($receipt, "email");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: expected 1 argument(s), found 2
+%A
+error: aborting due to 1 error
