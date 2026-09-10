@@ -1,0 +1,72 @@
+--TEST--
+`"7" is int` is `false` where `"7" as ?int` is `7`, and the two rows a finer type system answers differently from PHP — a `uint` is not an `int` and binary data is not a `string` — `rule:types/type-test`, `rule:types/uint`, `rule:types/bytes`
+--FILE--
+<?nvs
+// The hole `is` closes. `as` asks what a value can *become* and reads
+// `rule:types/conversion`'s table to answer; `is` asks what it already
+// holds and reads the tag. A numeric string is the pair that separates
+// them: `string -> int` is a conversion row, so `"7" as ?int` is `7`, while
+// a `string` is not an `int`, so `"7" is int` is `false`.
+
+class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+
+    // `as ?int` answers `null` exactly where `as int` throws, so one line
+    // can carry both halves of the conversion's answer.
+    public static function asInt(mixed $m): string {
+        return (($m as ?int) ?? -1) as string;
+    }
+}
+
+mixed $seven = "7";
+echo "seven-is-int=", Show::yn($seven is int), "\n";
+echo "seven-is-string=", Show::yn($seven is string), "\n";
+echo "seven-as-int=", Show::asInt($seven), "\n";
+
+// The two questions agree only where the value already holds the type. A
+// fractional float and a word each convert to nothing, and neither is an
+// `int` either, so a conversion that fails is not a second spelling of the
+// test.
+mixed $half = 2.5;
+mixed $word = "abc";
+mixed $one = 1;
+echo "half-is-int=", Show::yn($half is int), " as=", Show::asInt($half), "\n";
+echo "word-is-int=", Show::yn($word is int), " as=", Show::asInt($word), "\n";
+echo "one-is-int=", Show::yn($one is int), " as=", Show::asInt($one), "\n";
+
+// `rule:types/uint`: `int` and `uint` are separate tags, so a value from a
+// `BIGINT UNSIGNED` column answers `is uint` and not `is int`, where PHP's
+// `is_int()` was true for both. `as ?int` still bridges the two, which is
+// why the divergence is the type system's and not this operator's — `is` is
+// only the first spelling that makes it reachable by a mechanical rewrite.
+uint $u = 7;
+mixed $unsigned = $u;
+echo "unsigned-is-uint=", Show::yn($unsigned is uint), "\n";
+echo "unsigned-is-int=", Show::yn($unsigned is int), "\n";
+echo "unsigned-as-int=", Show::asInt($unsigned), "\n";
+
+// `rule:types/bytes`: the same split one type over. Binary data answers
+// `is bytes` where PHP's `is_string()` was true for it.
+bytes $b = "ab" as bytes;
+mixed $octets = $b;
+echo "octets-is-bytes=", Show::yn($octets is bytes), "\n";
+echo "octets-is-string=", Show::yn($octets is string), "\n";
+echo "octets-as-string=", ($octets as ?string) ?? "-", "\n";
+--EXPECT--
+seven-is-int=n
+seven-is-string=y
+seven-as-int=7
+half-is-int=n as=-1
+word-is-int=n as=-1
+one-is-int=y as=1
+unsigned-is-uint=y
+unsigned-is-int=n
+unsigned-as-int=7
+octets-is-bytes=y
+octets-is-string=n
+octets-as-string=ab
