@@ -16,12 +16,40 @@
 
 // A release number, and nothing else: a pre-release or build suffix is matched but does not reach
 // the series, so `0.1.0-rc.1` and `0.1.0` are the same one.
-const RELEASE = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
+const RELEASE = /^(\d+)\.(\d+)\.(\d+)([-+].*)?$/;
+
+/** The fields of a release number, as `parts` reads them. */
+export interface Parts {
+  readonly major: number;
+  readonly minor: number;
+  readonly patch: number;
+  /** The `-rc.1` of `0.1.0-rc.1`, and the empty string for a plain release. */
+  readonly pre: string;
+}
+
+/**
+ * `version` broken into its fields, or `undefined` if it is not a release number.
+ *
+ * This is the one place in the extension that says what a release number looks like: `series` is
+ * its first two fields joined, and `install.ts` orders a release list by the rest.
+ */
+export function parts(version: string): Parts | undefined {
+  const parsed = RELEASE.exec(version.trim());
+  if (parsed === null) {
+    return undefined;
+  }
+  return {
+    major: Number(parsed[1]),
+    minor: Number(parsed[2]),
+    patch: Number(parsed[3]),
+    pre: parsed[4] ?? ""
+  };
+}
 
 /** The `major.minor` series `version` belongs to, or `undefined` if it is not a release number. */
 export function series(version: string): string | undefined {
-  const parsed = RELEASE.exec(version.trim());
-  return parsed === null ? undefined : `${parsed[1]}.${parsed[2]}`;
+  const parsed = parts(version);
+  return parsed === undefined ? undefined : `${parsed.major}.${parsed.minor}`;
 }
 
 /**
