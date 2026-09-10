@@ -12,10 +12,10 @@
 //! compilers with a rich front-end type system and a small backend one — e.g.
 //! Rust's `ty::Ty` versus a codegen backend's handful of scalar/ABI kinds.)
 //!
-//! # Known gaps
+//! # What this lattice does not carry
 //!
 //! Scoped to exactly what's lowered so far — see the crate's own module docs
-//! for the full list. [`Ty::Str`] and [`Ty::Bytes`] are refcounted,
+//! for the gaps that are still owed. [`Ty::Str`] and [`Ty::Bytes`] are refcounted,
 //! heap-allocated representations sharing one shape and one set of
 //! [`crate::lower`] retain/release insertion points — see [`crate::lower`]'s
 //! module docs for the policy that makes them safe — except that nothing in
