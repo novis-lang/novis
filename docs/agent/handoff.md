@@ -2,69 +2,58 @@
 
 ## State
 
-**Goal `gap-owners`, stage 3 — the attribution pass — has finished `nvs-cli`, `nvs-syntax`,
-`nvs-hir` and `nvs-test`.** The roster is 52 tags, every one resolving to a live goal, a milestone
-that is not `done`, or an `unowned` with its reason written; `python tools/owners.py --check
---reasons` is green. 99 items still name nobody, and they are in three crates only: `nvs-stdlib` 77,
-`nvs-db` 14, `nvs-runtime` 8.
+**Goal `gap-owners`, stage 3 — the attribution pass — has finished `nvs-runtime`**, after `nvs-cli`,
+`nvs-syntax`, `nvs-hir` and `nvs-test`. 91 items still name nobody, and they are in two crates only:
+`nvs-stdlib` 77 and `nvs-db` 14. `python tools/owners.py --check --reasons` stays green.
 
-**Four of `nvs-syntax`'s six items were not gaps.** `var` in a class body is parsed
-(`crates/nvs-syntax/src/parser/decl.rs:663` redirects to `parse_class_body_var`) and an enum case
-takes a keyword spelling (`finish_enum_case` goes through `parse_decl_name`, and `is_name_segment`
-at `crates/nvs-syntax/src/parser/ty.rs:872` is `Ident | Keyword(_)`), so both items are gone. A
-grouped import is a *refused* construct rather than an unbuilt one — `recover_use_group` eats the
-`\{...}` and reports `E_IMPORT_GROUP_UNSUPPORTED` with the supported spelling as its help — so it
-moved to that crate's § *Deliberately rejected*. `use function`/`use const` stayed behind alone:
-they reach a generic parse error today, and what a real corpus needs there is the refusal
-`rule:classes/no-free-functions-or-constants` implies, not the feature.
+**`nvs-runtime`'s eight went six `unowned`, one `M12`, one deleted.** The `M12` is `decimal.rs` gap 2 —
+"nothing inlines" is the optimising JIT tier's own scope, and `docs/plan/m12.md:3` names inlining and
+the unboxed fast paths outright. The deletion is `routes.rs`' second item: the match crossing as the
+name and the captures and never the row is a refusal `rule:routing/matching-is-not-dispatching` owns,
+with the day it is re-argued written into it, so it moved into § *What matching is, and what it is
+deliberately not* as prose.
 
-**`nvs-hir` records no gap of its own now.** Its crate-level block named four edges: three had landed
-in `nvs-types` (`AliasTable`'s consumer is `crates/nvs-types/src/lib.rs:345`, member visibility is
-`crates/nvs-types/src/expr/members.rs:1570`), and trait-use flattening is not a gap at all, because
-`rule:classes/no-traits` leaves the language no `trait` to flatten. The fourth — `requires` reading
-only a literal path — is `rule:statements/require-is-the-only-inclusion-construct`'s own specified
-behaviour, and `crates/nvs-hir/src/requires.rs:69` writes it out in full.
+**Only goals 30–44 are live**, and that is what decides a milestone tag: everything from `core-depth`
+to `xml-tree` is retired, so M4S, M5 and M8's database half are *carried* and their leftovers are
+`unowned`, not theirs. The new playbook bullet under *Tooling* is the tell and the check.
 
-**The gate has a hole, and it is not one crate's** — the new playbook bullet under *Tooling*.
-`owners.py` counts a `# Known gaps` heading; `requires.rs:69`'s five bullets sit under a
-`**Known gaps:**` bold run, so the roster has never counted them and closing stage 3 will not.
+**`carried-gaps.md` § *Unowned* is twenty entries.** The six added name a decision each: whether a
+trie is ever the request path's problem, whether a closure earns a bit on its class descriptor,
+whether `nvs_stdlib::instance`'s table is installed on `Ctx`, whether every division pays a 192-bit
+fold, whether an array header carries the element-type word before a reader needs it, and which end
+closes a command argument typed as a subset of an enum's cases.
 
-**`carried-gaps.md` § *Owned* lost its `doc-comments` row.** Its four gaps are now two closures, one
-decision and one `M1` tag living with the gap, which is where this goal puts an owner. § *Unowned*
-is fourteen entries: the new one is that a local declaration cannot be typed with a bare inline
-shape type, where what has to be decided is whether the grammar buys lookahead past a matched
-`{...}` or `rule:types/shape-type`'s alias example is the answer for a local.
-
-**`python tools/verify.py`: 9 of 9 green** — 3838 tests, both `.nvst` trees, the reference, the
-extension and clippy.
+**`python tools/verify.py`: 9 of 9 green.**
 
 ## Next group
 
-**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-runtime`'s eight
-items, which are the last outside `nvs-stdlib` and `nvs-db`. The kinds are the goal's § *Standing
-decisions*, the three owner kinds are `python tools/owners.py --help`, and `--untagged` is the
-worklist.
+**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-db`'s fourteen items,
+which are the last outside `nvs-stdlib`. The owner kinds are the goal's § *Standing decisions* and
+`python tools/owners.py --help`; `--untagged` is the worklist and `--check --untagged-is-an-error
+--reasons` is the gate. Goal `database` is retired, so M8's database half is carried and a bare `M8`
+tag is wrong for anything it left behind — read `docs/plan/m8.md`'s database paragraph before reaching
+for one.
 
-- [ ] **Tag `crates/nvs-runtime/src/routes.rs:74`'s two items** — a linear scan where
-      `rule:routing/path-grammar` names a trie, and at `crates/nvs-runtime/src/routes.rs:79` a
-      reader that answers the name and the captures but never the row. A shape a rule already
-      specifies is scheduled work, so weigh a milestone tag before `unowned`.
-- [ ] **Tag `crates/nvs-runtime/src/graph.rs:61`'s two items** — a closure recognized by its class's
-      `invoke` method, and at `crates/nvs-runtime/src/graph.rs:66` a `decode` that resolves a class
-      through the program's table only. `rule:security/isolate-values-cross-by-copy` is the contract
-      both sit under.
-- [ ] **Tag the four singles** — `crates/nvs-runtime/src/decimal.rs:45` (a 128-bit intermediate
-      throws rather than rounding) and `crates/nvs-runtime/src/decimal.rs:52` (nothing inlines),
-      `crates/nvs-runtime/src/array.rs:214` (no interned element-type descriptor), and
-      `crates/nvs-runtime/src/commands.rs:41` (`ArgConv::Unconverted` over a subset of an enum's
-      cases).
+- [ ] **Tag `crates/nvs-db/src/ddl.rs:47`'s six items** — the portability gaps of the DDL writer, at
+      `crates/nvs-db/src/ddl.rs:47`, `:56`, `:60`, `:65`, `:72` and `:77`. Four of the six are one
+      engine's own limit rather than an unbuilt shape, so weigh *decision* before `unowned`: the goal's
+      § *Standing decisions* resolves that ambiguity toward the decision and out of the block.
+- [ ] **Tag `crates/nvs-db/src/catalog.rs:55`'s five items** — the introspection reader against spec
+      § 11's vocabulary, at `crates/nvs-db/src/catalog.rs:55`, `:65`, `:70`, `:76` and `:86`. `:70`
+      says § 5 owes the other half, so check whether that half landed before tagging it at all.
+- [ ] **Tag the three singles** — `crates/nvs-db/src/schema.rs:46` and `:59` (§ 11's exclusions, which
+      read as decisions rather than gaps) and `crates/nvs-db/src/matrix.rs:43`, whose socket leg is
+      `rule:core-classes/db-unix-socket-path`'s transport asserted against no real server: it waits on
+      a container's socket directory bind-mounted onto the host, which is a `[[check]]` precondition
+      before it is anyone's feature.
 
 ## Backlog
 
-- `owners.py` reads a heading and not a `**Known gaps:**` bold run, so `crates/nvs-hir/src/requires.rs:69`'s
-  five bullets are invisible to the gate — `tools/owners.py`, goal `gap-owners`.
-- `crates/nvs-db`'s 14 items across `catalog.rs`, `ddl.rs`, `matrix.rs` and `schema.rs` — the group
-  after `nvs-runtime`.
-- `crates/nvs-stdlib`'s 77 items are the bulk of stage 3 and will not fit in one session.
-- This clone has no git hooks; `git config core.hooksPath tools/git-hooks` is what `verify.py` asks
-  for on every run — `docs/agent/conventions.md` § *A commit message*.
+- `nvs-stdlib`'s 77 items are the whole of what is left after `nvs-db` — `python tools/owners.py
+  --untagged` groups them by file, and `db/mod.rs` alone is eight.
+- The gate still cannot see a `**Known gaps:**` bold run — `crates/nvs-hir/src/requires.rs:69`'s five
+  bullets — and closing stage 3 will not close that hole; the playbook bullet under *Tooling* is its
+  home.
+- Some of what is left is not a gap: `crates/nvs-stdlib/src/db/mod.rs:251` says outright that its
+  missing `{chunk?: uint}` is a refusal, and the goal's § *Standing decisions* moves that kind out of
+  the block rather than tagging it. Expect the `nvs-stdlib` pass to delete as well as tag.

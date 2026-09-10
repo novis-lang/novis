@@ -70,11 +70,53 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Fourteen entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Twenty entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
 
+- **The route table is walked by comparison rather than by a trie**, which answers identically and
+  costs one comparison per row of the right verb where a trie costs one step per path segment.
+  `rule:routing/path-grammar` names `matchit`'s left-to-right precedence as the model and no
+  structure, and no milestone claims routing-table performance — M12 is the JIT tier, and M7 scopes
+  `Core\Router::match`'s surface rather than what walks under it. What has to be decided is whether
+  the curve is ever the request path's problem at all: a table of tens of rows may never measure, so
+  the decision is a measurement on `benches/serve-proxied.json`'s arms and the code that follows it
+  is one function. `crates/nvs-runtime/src/routes.rs` gap 1. [until: reviewed 2026-09-10]
+- **A closure is recognized by the `invoke` method on its class**, the same test `call_closure` makes,
+  so a `mixed` carrying a user class that declares an `invoke` of its own is refused as a closure when
+  a graph holding it is copied. `rule:types/declaration` makes that a compile-time rejection at nearly
+  every copy site, so what is left is narrow, and what has to be decided is whether a closure earns a
+  bit of its own on the class descriptor rather than a member-name test — a representation question
+  that answers for both callers at once. `crates/nvs-runtime/src/graph.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **An encoded `Core` instance does not decode**, because `decode` resolves a class through the
+  program's table only, so a `Core\Time\Instant` that crossed comes back unresolvable rather than
+  rebuilt. The table it would need is `nvs_stdlib::instance`'s, and this crate cannot reach it —
+  `crates/nvs-runtime/Cargo.toml:56` says outright that it cannot call `nvs-stdlib`. What has to be
+  decided is whether that resolver is *installed* on `Ctx` at boot, the way the route and command
+  tables are, or whether a `Core` instance stays outside what `Core\Serialize` round-trips.
+  `crates/nvs-runtime/src/graph.rs` gap 2. [until: reviewed 2026-09-10]
+- **A division whose intermediate exceeds 128 bits throws where the quotient would have fit**, in the
+  one corner where a wide mantissa and a wide scale difference meet: the fold of the two operands'
+  scales is a `checked_mul` over `u128` taken before the divide. ADR 0054 § *Consequences* already
+  predicts the wider intermediate that closes it. What has to be decided is whether every division
+  pays a 192-bit fold to remove a corner refusal, or that refusal stands as a stated bound of the
+  type. `crates/nvs-runtime/src/decimal.rs` gap 1. [until: reviewed 2026-09-10]
+- **An array header carries no interned element-type descriptor**, which `rule:types/arrays` gives it
+  so a value arriving through `mixed`, `json_decode` or an isolate boundary can be checked. Nothing
+  builds an array by those routes yet, and both readers that would want the word are specified to
+  walk without it — `as array<T>` does, and `rule:types/type-test` makes `is array<int>` the same
+  O(n) walk. What has to be decided is whether the word is carried before a reader needs it, given
+  that adding it later is a widening of `ArrayHeader` rather than a redesign.
+  `crates/nvs-runtime/src/array.rs`. [until: reviewed 2026-09-10]
+- **A command argument typed as a *subset* of an enum's cases is refused when the command is run,
+  not when it is written.** `Log\Level` converts; the `Log\Level::Warn|Log\Level::Error` that § 3 also
+  admits is `ArgConv::Unconverted`. Both facts a conversion needs are already answered on
+  `ArgConv::Enum`, so the code is a filter rather than a design; what has to be decided is which end
+  closes it — reading the union's members where § 6 owns the spelling, or refusing the declaration
+  outright so the error arrives where it was written. `crates/nvs-runtime/src/commands.rs` gap 1.
+  [until: reviewed 2026-09-10]
 - **A local declaration cannot be typed with a bare inline shape type**, although every other
   declaration slot can. Statement-initial `{` commits to a block, and telling a type-prefix apart from
   one needs lookahead past a matched, possibly-nested `{...}` to the `$name` behind it. What has to be
