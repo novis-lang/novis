@@ -18665,7 +18665,7 @@ Opens a writer that builds a document a node at a time — replacing `XMLWriter`
 <a id="core-core-xml-node"></a>
 ### `Core\Xml\Node`
 
-Keywords: kind, name, text, attributes, children
+Keywords: kind, name, text, attributes, children, source
 
 | Member | Signature |
 |---|---|
@@ -18674,6 +18674,7 @@ Keywords: kind, name, text, attributes, children
 | [`Core\Xml\Node->text`](#core-core-xml-node-text) | `text(): tainted string` |
 | [`Core\Xml\Node->attributes`](#core-core-xml-node-attributes) | `attributes(): array<tainted string>` |
 | [`Core\Xml\Node->children`](#core-core-xml-node-children) | `children(): array<Core\Xml\Node>` |
+| [`Core\Xml\Node->source`](#core-core-xml-node-source) | `source(): tainted string` |
 
 <a id="core-core-xml-node-kind"></a>
 #### `Core\Xml\Node->kind`
@@ -18729,6 +18730,19 @@ $node->children(): array<Core\Xml\Node>
 This node's children, in document order — the document's are its root element and whatever comments and processing instructions sit beside it, an element's are its content. Empty for a text node, a comment and a processing instruction, which are leaves.
 
 **Returns** `array<Core\Xml\Node>` — One `Core\Xml\Node` per child, including the text nodes a pretty-printed document has between its elements: whitespace in an XML document is content, and dropping it would be a guess about which of it mattered.
+
+<a id="core-core-xml-node-source"></a>
+#### `Core\Xml\Node->source`
+
+```nvs skip
+$node->source(): tainted string
+```
+
+This node and everything under it, written back out as document text — the way out of a walk, for a program that read a tree, decided something about it and wants the document again without replaying it into a `Core\Xml\Writer` a call at a time. XML rules, whichever door parsed the tree: every element is written with an end tag, and a tree holding something XML cannot spell is refused here rather than written as something a reader would read back differently.
+
+**Returns** `tainted string` — The subtree as text, with no XML declaration in front of it — a parse leaves none behind, so writing one would be inventing the version and encoding it claims. Text and attribute values are escaped, so nothing a document carried can come back out as markup. `tainted`, as everything read out of a parsed tree is.
+
+**Throws** `LogicError` — The tree holds something no XML document can spell: a name or a target that is not a name, a comment holding `--` or ending in `-`, a processing instruction whose data holds `?>`, or a character a document has no way to write. `Core\Html::parse` recovers from all four rather than failing, so this is where one door's recovery stops being the other door's output.
 
 <a id="core-core-xml-reader"></a>
 ### `Core\Xml\Reader`

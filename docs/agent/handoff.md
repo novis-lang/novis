@@ -2,54 +2,45 @@
 
 ## State
 
-**Goal `xml-tree` is reached — `python tools/loop.py --goal-only` says every acceptance check
-passes.** Stage 5 landed: `Core\Html::sanitize(tainted string): Core\Html\Markup` is the class's
-second launderer, the four tests its `[[check]]` names pass including the mXSS corpus, and
-`examples/html-sanitize.nvs` exists, which closes the check that had failed since session 0002.
+**Goal `xml-tree` is met** — the driver's own acceptance sweep after session 0003 passed whole, 449
+checks. This session took the follow-ups the goal did not owe, so nothing here is a gate.
 
-The last red check was neither: `5 registered` named `every_migration_member_is_registered`, a
-shorthand no crate declares, where `spec_registry_coverage.rs` has carried
-`every_migration_member_row_names_a_registered_member` — the same walk — throughout. The stage 1
-floor copy of that check already carried the correction and the stage 5 copy did not; both goal
-files now do. The playbook bullet for it was already written.
+**`Core\Xml\Node::source(): tainted string` ships** — the tree half's way back out, so a walked node
+is written as document text without replaying it into a `Core\Xml\Writer` a call at a time. It sits
+on the node because a member *taking* a tree is the path back into execution that
+`a_parsed_tree_has_no_path_back_into_execution` closes, and what it answers is text. Its contract's
+home is `crates/nvs-stdlib/src/xml.rs`'s module doc § *the way back out of a tree*: XML rules
+whichever door parsed the tree, an end tag on every element, and a refusal where
+`Core\Html::parse` recovered. The walk is iterative over a heap stack for `instance_of`'s reason.
+Known gap 1 — *nothing serialises a tree* — is gone and the other two are renumbered.
 
-**The member is three steps and only the middle one holds a policy** — `parse`, `rebuilt`, `source`,
-all in `crates/nvs-stdlib/src/html.rs`. The serialiser is written *here* rather than in `crate::xml`
-because `rule:core-classes/html-parsing` says serialization follows the door; `crate::xml` still has
-no tree serialiser of its own and writes through `Core\Xml\Writer` instead.
+**Five conformance cases landed**: the round trip and its fixed point, the refusals a WHATWG-parsed
+tree reaches, a subtree with its text and attribute values escaped, the depth bound asserted on both
+sides, and one agreement case putting a sanitized document through both doors and comparing what
+each writes back.
 
-**The allowlist is `ELEMENTS`, 54 entries, closed and sorted** (`allowed` bisects it), with `GLOBAL`
-for `dir`/`lang`/`title` and `addressable` for the three URL attributes. It grants no `class`, `id`,
-`style` or `target`, and `the_allowlist_is_closed_and_is_not_configurable_by_a_caller` fails on the
-day one is added by hand.
-
-`rule:core-classes/html-sanitize` is now `shipped` with the three `.nvst` cases as its guards, and
-`crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` already lost `§17 Core\Xml`, so stage
-5's fourth item was closed before this session.
+No rule fragment changed. The member lands under `rule:core-classes/html-parsing`'s *serialization
+follows the door* clause and `rule:core-classes/xml-tree-and-stream`, both of which already say what
+it does; `docs/rules/` is untouched.
 
 ## Next group
 
 **Follow-ups this goal did not owe** — one file set, `crates/nvs-stdlib/src/html.rs` and
-`crates/nvs-stdlib/src/xml.rs`. None is a gate on anything; a goal switch discards this list, which is
-the right outcome if the sweep agrees the goal is met.
+`docs/rules/core-classes.json`. A goal switch discards this list, which is the right outcome if the
+sweep agrees the goal is met.
 
-- [ ] **A tree serialiser for the XML door**, so a walked `Core\Xml\Node` can be written back without
-      replaying it through `Core\Xml\Writer`. `rule:core-classes/html-parsing` § *serialization
-      follows the door* is what specifies the difference — refusing what the HTML one recovers from,
-      an end tag on every element — and the row would sit beside `children` at
-      `crates/nvs-stdlib/src/xml.rs:267`.
 - [ ] **`class` on the sanitizer's allowlist, or a written reason it is not there.** The standing
       decision in `docs/agent/loop-goal.md` § *Standing decisions* says the list gains an element in
-      a commit with a reason rather than by a parameter; `class` is the first one a real application
-      will ask for, and the table is `crates/nvs-stdlib/src/html.rs:1273`.
-- [ ] **A `Core\Xml\Node` case over a sanitized document**, asserting the two doors agree about the
-      answer's tree. `rule:core-classes/html-parsing`'s one-node-family clause is what it pins, and
-      the walk to copy is `crates/nvs-stdlib/src/html.rs:1853`.
+      a commit with a reason rather than by a parameter, and `rule:core-classes/html-sanitize` is
+      what specifies the closed list; `class` is the first attribute a real application will ask
+      for, and the table is `crates/nvs-stdlib/src/html.rs:1273`.
+- [ ] **The serialiser's cases named in the rule they guard.** `rule:core-classes/xml-tree-and-stream`
+      lists what fails when it is broken and does not yet name the four cases this session wrote;
+      the entry is `docs/rules/core-classes.json:220`, and a session touching `docs/rules/` owes
+      `python tools/rules.py --render`, which the wrap runs for it.
 
 ## Backlog
 
-- `Core\Metrics` and `Core\Signature` are the last two keys in
-  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, owned by `unowned` and
-  `signed-urls`.
-- Comment nodes are dropped by `sanitize` rather than kept and escaped — recorded in `verdict`'s own
-  comment, `crates/nvs-stdlib/src/html.rs`.
+- Goal `xml-tree`'s acceptance list is green; the driver switches the chain, not a session.
+- Per-crate known gaps live in each crate's module doc, `docs/agent/carried-gaps.md` for what must
+  survive a goal switch.
