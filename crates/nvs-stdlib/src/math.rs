@@ -39,6 +39,7 @@
 //! decode arm: an exact rounding has to answer `decimal` to be worth anything.
 //! `Core\Decimal`'s own roster (`rule:types/arithmetic`) is where the four naturally
 //! land, which is why they wait rather than growing a `float` answer here.
+//! — owner: M8
 
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 

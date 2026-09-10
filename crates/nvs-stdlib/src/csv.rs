@@ -131,6 +131,7 @@
 //!    same `csv-core` reader — this module's parse loop is already written as
 //!    a fed-buffer loop rather than a whole-slice scan, so the incremental
 //!    caller is the same code with a different feeder.
+//!    — owner: M8
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 

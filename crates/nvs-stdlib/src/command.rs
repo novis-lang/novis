@@ -81,6 +81,7 @@
 //!    default alone is not rendered because § 6 asks for neither and a page
 //!    naming one of the two reads as though the other were absent from the
 //!    declaration.
+//!    — owner: unowned
 
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};

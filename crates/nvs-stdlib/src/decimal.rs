@@ -27,6 +27,12 @@
 //! second time — a quotient rounded at scale 28 and then again at scale 2
 //! carries a tie into the second decision that the exact value never had.
 //!
+//! **`divRound` refuses at a scale the answer cannot hold rather than narrowing
+//! to one it can.** That is the refusal `rule:types/arithmetic`'s `decimal ⊕ decimal` row
+//! already states for a product whose scale would exceed 28, and the same
+//! divergence from `System.Decimal`: silently narrowing would make a second
+//! operation inexact without saying so.
+//!
 //! # Known gaps
 //!
 //! * **`allocate`, `pow`, `floor`, `ceil` and `round` are not here yet.** ADR
@@ -36,11 +42,7 @@
 //!   members land on this class rather than widening `Core\Math`'s `float`
 //!   ones. The two members here are the ones `rule:types/decimal`'s *Still owed* line puts
 //!   first, and the ones the M8 acceptance check names.
-//! * **`divRound` refuses at a scale the answer cannot hold rather than
-//!   narrowing to one it can.** That is the same refusal `*` already makes for
-//!   a product whose scale would exceed 28, and the same divergence from
-//!   `System.Decimal` `rule:types/arithmetic` argues for: silently narrowing would make a
-//!   second operation inexact without saying so.
+//!   — owner: M8
 
 use nvs_runtime::decimal::Discard;
 use nvs_runtime::{Decimal, Fault, ThrownClass, Value};

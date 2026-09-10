@@ -130,8 +130,8 @@
 //! 1. **A served request has no words to read.** [`nvs_core_cli_arguments`]
 //!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
 //!    only `nvs-cli` writes one — so the member is empty rather than wrong
-//!    inside a request, which is the answer `rule:security/capability-check-at-the-door` wants and not a gap
-//!    this module can close from here.
+//!    inside a request, and nothing this module can reach would fill it.
+//!    — owner: unowned
 //! 2. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
 //!    so a program writing the same `Text` to a terminal standard output and a
@@ -142,6 +142,7 @@
 //!    no stream) and a case runs with both streams piped. What closes it is the
 //!    `Cli\Text` of runs § 2's body names, which is the shape a per-stream
 //!    render would need.
+//!    — owner: M8
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};

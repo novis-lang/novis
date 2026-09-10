@@ -43,6 +43,8 @@
 //! returns — undotted, or `null` for none. That inverse is the whole reason
 //! the first two rows are worth diverging for.
 //!
+//! Neither gap below is a missing *member*: spec § 8's roster is whole here.
+//!
 //! # Known gaps
 //!
 //! 1. **A UNC path is not modelled.** `\\server\share\f` parses as an ordinary
@@ -50,14 +52,14 @@
 //!    re-rendering it loses the doubled separator that makes it UNC. Nothing
 //!    on the path to `examples/collect.nvs` writes one; the fix is a third
 //!    root shape beside [`Parts::drive`], not a change of interface.
+//!    — owner: unowned
 //! 2. **A drive-*relative* path is not modelled.** `C:log` — Windows' "the
 //!    current directory *on* drive C" — has no separator after the colon, so
 //!    [`split_drive`] declines it and the whole thing is one component named
 //!    `C:log`. That is the shape that round-trips; treating `C:` as a root
 //!    would make `Path::split('a:b')` answer `['a:', 'b']` for an ordinary
 //!    relative path, which is worse.
-//!
-//! Neither is a missing *member*: spec § 8's roster is whole here.
+//!    — owner: unowned
 //!
 //! # What these members do with a qualifier
 //!

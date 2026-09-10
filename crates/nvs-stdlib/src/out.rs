@@ -39,6 +39,7 @@
 //!    identity, or drop what it was given and fail to answer a carrier. The
 //!    plumbing is complete and tested; what is missing is on the other side of
 //!    [`crate::cli`]'s own gap 2.
+//!    — owner: M8
 
 use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 
