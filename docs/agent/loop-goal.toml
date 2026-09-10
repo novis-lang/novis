@@ -116,6 +116,9 @@ modules = [
   "crates/nvs-types/src/intrinsics.rs",
   # Stage 4 -- the door a run-time refusal comes out of, for the half `nvs check` cannot see.
   "crates/nvs-runtime/src/capability.rs",
+  # `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`: a plan
+  # is a document, and a step in it is a change plus the reason it costs what it costs.
+  "crates/nvs-db/src/plan.rs",
 ]
 
 # 0153 is the design and is named as its rules. 0084 is the queue this extends; 0112 the roster the
