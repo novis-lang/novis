@@ -98,13 +98,15 @@
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //!    — owner: unowned
-//! 4. **Two of the five backends have no statement here at all**, and the text is this module's to
-//!    write rather than [`crate::db`]'s: `Core\Db` reaches all five, so each of the two opens a
-//!    connection that works and has nothing of § 4's or § 6's to send over it. SQLite is one
-//!    dialect away. SQL Server is a dialect *and* the vocabulary behind it, because
-//!    `rule:core-classes/queue-storage-is-a-table` orders the filtered index its nulls need before a
-//!    fourth dialect is written — [`no_dialect`] carries both sentences, and is where an operator
-//!    reads which of the two they are waiting on.
+//! 4. **Two of the five backends open a connection this module will not send a statement over**,
+//!    and the text is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all
+//!    five. SQL Server has no dialect here and cannot have one yet, because
+//!    `rule:core-classes/queue-storage-is-a-table` orders the filtered index its nulls need before
+//!    a fourth dialect is written. SQLite has § 4's worker half — [`CLAIM_SQLITE`],
+//!    [`INSERT_SQLITE`], [`DEAD_LETTER_SQLITE`] and the three one-table texts beside them — and
+//!    lacks the members' own statements and the third arm of [`Queued`] that would carry any of
+//!    them to a connection. [`no_dialect`] carries both sentences, and is where an operator reads
+//!    which of the two they are waiting on.
 //!    — owner: gap-zero
 
 use std::collections::BTreeMap;
@@ -659,6 +661,34 @@ pub const INSERT_MYSQL: Split = Split {
            values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
 };
 
+/// [`INSERT_MYSQL`] on the backend with one writer, which is that pair with the locking clause
+/// removed.
+///
+/// **The read carries no `for update`, and what replaces it is the transaction itself.** This pair
+/// runs inside `nvs_db::sqlite::SqliteConn::begin_immediate`'s transaction — [`CLAIM_SQLITE`] owns
+/// why every [`Split`] on this backend does — so the write lock is taken before the `select` runs
+/// and no second connection can insert a row carrying this key between the read and the insert.
+/// That is what [`INSERT_MYSQL`]'s row lock buys where there are concurrent writers to need one,
+/// and it is why a `for update` here would be a syntax error rather than a missing safeguard.
+///
+/// **The ordering is what makes it safe, and that is the immediate transaction's whole point.** A
+/// deferred transaction reading first would hold a shared lock and then ask to upgrade it for the
+/// insert — the upgrade SQLite refuses without honouring the busy timeout — so this text run
+/// outside an immediate transaction fails under exactly the concurrency it exists to survive,
+/// rather than merely guaranteeing less.
+///
+/// Everything else transcribes. The read is keyed on `dedupe_pending` for [`INSERT_MYSQL`]'s
+/// reason, the insert names that column as a tenth bound slot because a `?` is bound by position
+/// and cannot be named twice, and a deduped push answers the pending job's id from [`Split::first`]
+/// with [`Split::then`] never running at all.
+pub const INSERT_SQLITE: Split = Split {
+    first: "select id from nvs_jobs where dedupe_pending = ? limit 1",
+    then: "insert into nvs_jobs \
+           (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+           dedupe_pending, created_at, tag) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
+};
+
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **The `select` answers [`CLAIM_POSTGRES`]'s `returning` list, in its order**, so a worker reads
@@ -745,6 +775,21 @@ pub const DEAD_LETTER_MYSQL: Split = Split {
     then: "delete from nvs_jobs where id = ? and claimed_at = ?",
 };
 
+/// [`DEAD_LETTER_MYSQL`]'s pair, which SQLite runs unchanged.
+///
+/// **The text is that constant rather than a copy of it, and this is the first of four.** Two
+/// literals that must stay identical are two chances to drift, and the module already answers that
+/// the same way for MariaDB: what a backend runs unchanged it is given, not sent a transcription
+/// of. What differs between these two backends here is the send path and not the SQL — a [`Split`]
+/// is bound as owned values on this driver and as encoded wire bytes on that one — and the type of
+/// a binding is not a dialect. The day a change belongs to one of them alone is the day this
+/// becomes its own literal, and naming the alias is what makes that day's edit a visible one.
+///
+/// The copy runs before the delete and both halves are keyed on the lease, for
+/// [`DEAD_LETTER_MYSQL`]'s reasons. What holds the two as one moment here is the immediate
+/// transaction every [`Split`] on this backend runs inside ([`CLAIM_SQLITE`]).
+pub const DEAD_LETTER_SQLITE: Split = DEAD_LETTER_MYSQL;
+
 /// [`QUEUES_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
 /// **Not a [`Split`], for [`STATUS_MYSQL`]'s reason**: a `select distinct` over one table with two
@@ -757,6 +802,11 @@ pub const DEAD_LETTER_MYSQL: Split = Split {
 /// either, and § 2's roster is where both dialects stop paying for it.
 pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
     where (state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)";
+
+/// [`QUEUES_MYSQL`], which SQLite runs unchanged — one `select distinct` over one table with two
+/// arms, in a placeholder spelling both backends share. [`DEAD_LETTER_SQLITE`] owns why an alias
+/// and not a copy.
+pub const QUEUES_SQLITE: &str = QUEUES_MYSQL;
 
 /// [`SUCCEEDED_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -771,6 +821,14 @@ pub const QUEUES_MYSQL: &str = "select distinct queue from nvs_jobs \
 pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = null, \
     dedupe_pending = null \
     where id = ? and claimed_at = ?";
+
+/// [`SUCCEEDED_MYSQL`], which SQLite runs unchanged — one keyed `update` and no construct behind
+/// it, so the lease keying survives with the text. [`DEAD_LETTER_SQLITE`] owns why an alias and not
+/// a copy.
+///
+/// It is one statement, so it needs no transaction of its own: what stage 2's rule requires a
+/// transaction for is a pair.
+pub const SUCCEEDED_SQLITE: &str = SUCCEEDED_MYSQL;
 
 /// [`RETRY_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
 ///
@@ -789,6 +847,15 @@ pub const SUCCEEDED_MYSQL: &str = "update nvs_jobs set state = 2, claimed_at = n
 pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claimed_at = null, \
     dedupe_pending = dedupe_key \
     where id = ? and claimed_at = ?";
+
+/// [`RETRY_MYSQL`], which SQLite runs unchanged — including its binding order, `run_at`, `id`,
+/// `claimed_at`, which the `set` clause standing left of the `where` forces in any dialect binding
+/// by position. [`DEAD_LETTER_SQLITE`] owns why an alias and not a copy.
+///
+/// The `0` is `Core\Queue\State::Pending`'s ordinal here as well, and it is the same literal, so
+/// `queue_statements_agree_with_the_state_enum` holds it against the enum without a third list to
+/// read.
+pub const RETRY_SQLITE: &str = RETRY_MYSQL;
 
 /// § 6's `errors` array, as [`DEAD_LETTER_POSTGRES`] binds it: one entry, the attempt that exhausted the job.
 ///
@@ -2259,9 +2326,9 @@ fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
              hold yet and § 4's statements are written after it"
         }
         nvs_db::Driver::Sqlite => {
-            "and the queue has no statements for it yet — `nvs queue migrate` converges \
-             `rule:core-classes/queue-storage-is-a-table`'s tables here, and § 4's statements are written for PostgreSQL and \
-             MySQL only"
+            "and the queue does not run its statements over it yet — `nvs queue migrate` converges \
+             `rule:core-classes/queue-storage-is-a-table`'s tables here, and § 4's statements are complete for PostgreSQL \
+             and MySQL only"
         }
         // Unreachable: [`queue_connection`] matches all three of these out before it asks.
         nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
@@ -3455,8 +3522,11 @@ mod tests {
             if runs {
                 continue;
             }
+            // The two facts and not the wording: an arm may say "has no statements for it yet" or
+            // "does not run its statements over it yet" as the tree moves under it, and what may
+            // never change is which of the two things an operator is waiting on.
             assert!(
-                refused.contains("the queue has no statements for it yet")
+                refused.contains("§ 4's statements")
                     && refused.contains("`nvs queue migrate` converges"),
                 "{driver:?} has § 2's schema, so what it waits on is § 4's statements and the \
                  refusal may not claim otherwise: {refused}"
