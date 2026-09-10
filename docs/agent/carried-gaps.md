@@ -67,7 +67,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Forty-five entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Forty-nine entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -476,6 +476,37 @@ where taking it is the work and the code that follows it is not.
   is whether a drive-relative root is distinguishable from a colon inside a segment at all, which is
   a grammar question spec § 8 does not answer. `crates/nvs-stdlib/src/path.rs` gap 2.
   [until: reviewed 2026-09-10]
+- **`Core\Random\Seeded` is not registered, and the tree states two designs for it.** Spec § 11 makes
+  it a separate object with the same members whose guarantee is reproducibility rather than
+  unpredictability, while `docs/novis.md`'s `Core\Random` chapter says there is no seeded generator
+  under any name. ADR 0079 § 12 takes the second route without retiring the first: `#[Test(seed:)]`
+  seeds `Core\Random` itself for the isolate a test runs in, which is the reproducibility a test needs
+  and nothing a program outside one can reach. What has to be decided is which of the two the language
+  means, since a class registered under § 11 would be the thing § 12's attribute exists to make
+  unnecessary. `crates/nvs-stdlib/src/random.rs` gap 1. [until: reviewed 2026-09-10]
+- **Two typed body members in one handler are admitted, and the last one wins**, because
+  `rule:security/response-body-is-one-typed-member`'s compile error is written over `echo` and a
+  typed writer rather than over two typed writers, and `E0801` enforces what is written. Its
+  reasoning covers both — they disagree about the body's content type, and letting the last one win
+  is how a JSON endpoint acquires an HTML prelude — so what has to be decided is whether the rule
+  extends to the pair it does not name, which is an amendment to the rule rather than a check the
+  class it is enforced against can add. `crates/nvs-stdlib/src/response.rs` gap 2.
+  [until: reviewed 2026-09-10]
+- **`Core\Test::assertEquals` names `assertEqualsDeep` at run time where
+  `rule:testing/assertions-are-typed` refuses at compile time**, because the refusal wants the
+  argument's class graph and `nvs-stdlib` holds none — `nvs_types` does, and
+  `crates/nvs-types/src/core_lib.rs:84` already seeds `Comparable` onto the `Core` classes carrying
+  `compareTo`. What has to be decided is whether an assertion joins
+  `rule:expressions/intrinsic-list-is-closed`'s closed list of the `Core` members whose argument the
+  checker reads, since that list is closed by rule and a member added to it is a rule change rather
+  than a check. `crates/nvs-stdlib/src/test.rs` gap 1. [until: reviewed 2026-09-10]
+- **`assertThrows` matches nothing when no exception class table is installed**, because
+  `nvs_runtime::Ctx::pending_conforms_to` reads ancestry off a descriptor and a helper-raised failure
+  carries none until `Ctx::set_runtime_error_class` has run — which a compiled unit always does, so
+  only a host embedding the runtime itself reaches it. What has to be decided is whether such a host
+  is a supported configuration: if it is, this member owes a refusal rather than a silent non-match,
+  and if it is not, the requirement belongs to whatever states the embedding contract rather than to
+  an assertion. `crates/nvs-stdlib/src/test.rs` gap 2. [until: reviewed 2026-09-10]
 
 ## What is *not* on either list
 
