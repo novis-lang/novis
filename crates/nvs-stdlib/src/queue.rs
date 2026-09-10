@@ -61,14 +61,27 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`limits` and `grants` are not declared**, because § 1 makes each of them an *option* whose
-//!    value is itself a `{…}`, and a shape is only ever a whole parameter: a [`CoreOption`]'s type is
-//!    never a bag and a [`crate::registry::CoreField`]'s is never a [`CoreTy::Shape`], so the one
-//!    trailing bag an optioned member has leaves nowhere to write either of them. `Core\Db::open`
-//!    does not wait on this any more — its settings literal *is* a whole parameter and spells a
-//!    shape — so what is left to decide is whether an option may carry one at all, and where the
-//!    narrowing `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is read
-//!    off the context that enqueued the job.
+//! 1. **`limits` and `grants` stay undeclared until an isolate enforces them**, and that is a
+//!    narrower gap than the spelling it used to be. **The spelling is settled.** An option's type is
+//!    never a [`CoreTy::Shape`] — `rule:core-api/shape-parameter`, held over every registered row by
+//!    `a_shape_is_only_ever_a_whole_parameter` — and `rule:concurrency/queue-four-members` puts both
+//!    of these inside the one trailing bag, so neither is ever the whole parameter `Core\Db::open`'s
+//!    settings literal is; that is the answer to "may an option carry a `{…}`", and it is no. What is
+//!    left is two ordinary options: `grants` a list of capability names in the spelling `nvs.toml`
+//!    grants them under, and `limits` its sub-caps one option each, which is what ADR 0084 § 1's
+//!    `{…}` was standing in for.
+//!
+//!    **What they wait on is enforcement.** A job runs as a root isolate
+//!    (`rule:concurrency/a-job-runs-as-a-root-isolate`) and the isolate half refuses `limits:` and
+//!    `grants:` by name — `nvs_types::expr::isolate`'s spawn check reports
+//!    `E_SPAWN_OPTION_UNSUPPORTED` for both — so a row recording either would be
+//!    `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing,
+//!    which hands the job the authority its request meant to give up. Undeclared *is* the refusal
+//!    here: a bag reports a key it does not declare
+//!    (`rule:core-api/shape-reuses-the-option-diagnostics`), so `{grants: …}` is a diagnostic today
+//!    and stays one until the narrowing
+//!    `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is applied to the
+//!    isolate the worker starts.
 //!    — owner: unowned-sweep
 //! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
@@ -3449,6 +3462,96 @@ mod tests {
                 "{}: the jobs table is built first, which is the schema value's own order",
                 driver.display_name()
             );
+        }
+    }
+
+    /// The module doc's gap 1, asserted as the absence it now is.
+    ///
+    /// A declared option that `push` recorded in the row and no isolate applied is
+    /// `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing:
+    /// the job keeps the authority the enqueuing request meant to give up, which is a priority-1
+    /// failure rather than a missing feature. The isolate half refuses both by name today, so
+    /// undeclared is the matching refusal — a bag reports a key it does not declare
+    /// (`rule:core-api/shape-reuses-the-option-diagnostics`), and this reads the rows a call site
+    /// resolves that diagnostic off.
+    ///
+    /// The bag count rides along because it is where both land once the narrowing is applied:
+    /// `rule:concurrency/queue-four-members` gives `push` one trailing options shape and no second
+    /// place to put a knob.
+    #[test]
+    fn limits_and_grants_are_refused_by_name_until_an_isolate_enforces_them() {
+        let push = super::CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "push")
+            .expect("`Core\\Queue` declares `push`");
+        let mut bags = 0;
+        for param in push.params {
+            let crate::registry::CoreTy::Options(options) = param else {
+                continue;
+            };
+            bags += 1;
+            for option in *options {
+                assert!(
+                    !matches!(option.name, "limits" | "grants"),
+                    "`push` declares `{}`, so a narrowing written at the call site is accepted and \
+                     dropped — the isolate the worker starts applies neither",
+                    option.name
+                );
+            }
+        }
+        assert_eq!(
+            bags, 1,
+            "`push` carries the one trailing bag `rule:concurrency/queue-four-members` gives it, \
+             which is where both options land once an isolate applies them"
+        );
+    }
+
+    /// The `Core\Db::open` half of the same blocker, read against this one.
+    ///
+    /// Both members wanted a `{…}` an option could carry, and `rule:core-api/shape-parameter`
+    /// answers them once: a shape is only ever a whole parameter. `open` took that answer — its
+    /// settings literal *is* the parameter — and `push` cannot, because
+    /// `rule:concurrency/queue-four-members` puts its knobs in the one trailing bag. So the two
+    /// agree by there being no third spelling, which is asserted over every registered row rather
+    /// than over these two: an option carrying a shape anywhere would mean one half had settled it
+    /// differently, and `Core\Queue` would be the class that read it that way.
+    #[test]
+    fn the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling() {
+        let db = crate::registry::CLASSES
+            .iter()
+            .find(|class| class.name == crate::db::NAME)
+            .expect("`Core\\Db` is registered");
+        let open = db
+            .methods
+            .iter()
+            .find(|method| method.name == "open")
+            .expect("`Core\\Db` declares `open`");
+        assert!(
+            open.params
+                .iter()
+                .any(|param| matches!(param, crate::registry::CoreTy::Shape(_))),
+            "`Core\\Db::open`'s settings literal is the whole parameter that lifted its half of the \
+             blocker, and this test reads the other half against it"
+        );
+        for class in crate::registry::CLASSES {
+            for method in class.methods.iter().chain(class.instance) {
+                for param in method.params {
+                    let crate::registry::CoreTy::Options(options) = param else {
+                        continue;
+                    };
+                    for option in *options {
+                        assert!(
+                            !matches!(option.ty, crate::registry::CoreTy::Shape(_)),
+                            "{}::{}'s `{}` carries a shape, so the two halves of one blocker \
+                             settled it differently",
+                            class.name,
+                            method.name,
+                            option.name
+                        );
+                    }
+                }
+            }
         }
     }
 }
