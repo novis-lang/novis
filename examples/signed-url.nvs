@@ -1,0 +1,101 @@
+<?nvs
+// Signing a URL, and the payload behind it.
+//
+// The failure this surface is written around is not a weak MAC. It is the
+// canonical form: every framework that grew its own signed-link helper
+// assembled a string to sign — pick the parameters, sort them, join them,
+// hash that — and from then on sign and verify held two copies of the
+// assembly rule, free to drift by one escape or one separator.
+// `rule:core-api/signing-is-over-a-payload` is why there is no such string
+// here. `$uri->sign` signs the normalization `$uri->compareTo` already
+// defines, and `Core\Signature` signs a payload map canonicalized in one
+// function that all three doors reach.
+//
+// Two more rules are on display, both structural rather than advisory. A
+// lifetime is a **required key holding a nullable value** — `{until: null}`
+// is the forever spelling and leaving the key out does not compile
+// (`rule:core-api/a-lifetime-is-written`) — because a permanent signed link
+// is a permanent bearer credential, written into browser history, `Referer`
+// headers and chat unfurls, and it should be something a person typed. And
+// every way of not being authentic is **one sentence**, with expiry the
+// single exception, reached only after the tag has been checked
+// (`rule:core-api/one-refusal-except-expiry`).
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// 1. The payload behind a link. `Core\Signature` signs a map of claims and
+// hands the map back, in the canonical order the document was written in
+// rather than the order it was typed. It comes back `tainted`: a signature
+// proves origin, not safety for any sink
+// (`rule:security/verification-does-not-launder`).
+array<string> $claims = ["doc" => "7", "act" => "download"];
+string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+array<tainted string> $back = Core\Signature::verify($token, $ring);
+echo "claims:    ", $back["act"], " of ", $back["doc"], "\n";
+
+// 2. A URL signs itself, over every component it carries. The token lands in
+// the reserved `_sig` parameter, and `verifySignature` answers nothing —
+// there are no claims to hand back, because the claim is the URL the caller
+// is already holding.
+Core\Uri $link = Core\Uri::parse("https://example.test/files/7?act=download")
+    ->sign({keys: $ring, until: null});
+$link->verifySignature($ring);
+echo "signed:    ", $link->path(), " verifies under the ring that signed it\n";
+
+// 3. Editing any parameter is a forgery. There is no options bag naming which
+// parameters are covered — that bag is where every framework's bypass has
+// lived — so a parameter that has to stay free does not belong in a signed
+// URL at all.
+Core\Uri $edited = $link->withQueryParameter("act", "delete");
+string $tampered = "";
+try {
+    $edited->verifySignature($ring);
+    echo "an edited link verified", "\n";
+} catch (RuntimeError $forgery) {
+    $tampered = $forgery->message;
+}
+
+// A URL that was never signed fails the same way, and that is the point: two
+// quite different failures, one sentence, so a forgery says nothing about
+// which half of the check it failed.
+string $unsigned = "";
+try {
+    Core\Uri::parse("https://example.test/files/7?act=download")->verifySignature($ring);
+    echo "an unsigned link verified", "\n";
+} catch (RuntimeError $missing) {
+    $unsigned = $missing->message;
+}
+echo "forgeries: ", $tampered == $unsigned ? "one sentence for both" : "two sentences", "\n";
+
+// 4. Expiry is the one refusal with a sentence of its own, because it is the
+// one an application means to show a person: the link was real and it ran
+// out. An hour ago, so this link was already past its lifetime when it was
+// minted — the state a signed URL reaches by sitting in a chat unfurl
+// overnight.
+Core\Time\Instant $ago = Core\Time::now()->minus(1h);
+Core\Uri $stale = Core\Uri::parse("https://example.test/files/7?act=download")
+    ->sign({keys: $ring, until: $ago});
+string $expired = "";
+try {
+    $stale->verifySignature($ring);
+    echo "an expired link verified", "\n";
+} catch (RuntimeError $past) {
+    $expired = $past->message;
+}
+echo "expiry:    ", $expired == $tampered ? "shares the one sentence" : "has its own sentence", "\n";
+
+// 5. And the ordering is what makes naming it safe. The tag is checked first,
+// so the same expired link, held up to a ring that never signed it, is told
+// only that it is not authentic — a forger cannot learn that some key here
+// once minted a link that expired then.
+secret bytes $another = Core\Crypto::generateKey();
+array<secret bytes> $theirs = [$another];
+string $elsewhere = "";
+try {
+    $stale->verifySignature($theirs);
+    echo "an expired link verified under a ring that never signed it", "\n";
+} catch (RuntimeError $strangers) {
+    $elsewhere = $strangers->message;
+}
+echo "ordering:  ", $elsewhere == $tampered ? "the tag is checked before the lifetime" : "the lifetime is checked first", "\n";
