@@ -55,7 +55,7 @@
 //! middle one holds a policy, and that policy is a closed list rather than an
 //! argument, so what a caller can change about it is nothing.
 //!
-//! # Known gaps
+//! # Where each half of the reason rule is enforced
 //!
 //! `rule:core-classes/html-to-source` asks two things of [`nvs_core_html_to_source`]'s `$reason` and
 //! each is enforced in the one place that can answer it. **A computed reason is
@@ -69,6 +69,8 @@
 //! `Core\Secret::reveal`'s own position on the same question
 //! ([`crate::secret`]).
 //!
+//! # Known gaps
+//!
 //! [`MARKUP`] is registered *and* reachable: `rule:core-classes/html-auto-escape`'s three ways to
 //! obtain one are all here — [`MARKUP_SYMBOL`] for `as Markup` on a source
 //! literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, and the escape
@@ -80,6 +82,7 @@
 //! does not wait on it: § 5 already decided the sink launders on its own, and
 //! the return type is written against that decision rather than against what
 //! is on disk.
+//! — owner: M7
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!

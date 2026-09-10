@@ -49,6 +49,11 @@
 //! can observe is unchanged. Off a core, which is every CLI program, the
 //! closure is simply called on this thread, so the cheap case stays free.
 //!
+//! **What it spends:** the child's whole stdout and stderr, once each, as one
+//! `bytes` value per stream held for as long as the program holds the result,
+//! plus one object allocation of three slots — charged to the request that
+//! asked.
+//!
 //! # Known gaps
 //!
 //! 1. **`[limits] max_output` does not bound the capture yet.** `rule:core-classes/process-run`
@@ -57,11 +62,7 @@
 //!    which these two buffers are charged against like any other allocation.
 //!    That is `Core\IO::read`'s reading of the same question, and the same
 //!    later signature closes both.
-//!
-//! **What it spends:** the child's whole stdout and stderr, once each, as one
-//! `bytes` value per stream held for as long as the program holds the result,
-//! plus one object allocation of three slots — charged to the request that
-//! asked.
+//!    — owner: unowned-sweep
 
 use std::path::Path;
 use std::process::{Child, Output};

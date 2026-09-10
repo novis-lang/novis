@@ -114,7 +114,7 @@ this stage exists rather than a list being worked down.
    | A cycle closed only through an `array<T>` survives the teardown sweep | `crates/nvs-runtime/src/object.rs` § *The five walks* |
    | `queryAs<T>`'s three refusals are at run time, not compile time | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
    | `scope = "fleet"` parses, boots and is not armed | `crates/nvs-server/src/schedule.rs` § *What is not armed* |
-   | `rule:core-classes/html-to-source`'s computed `$reason` is not refused | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
+   | **Struck** — the computed `$reason` *is* refused: `crates/nvs-types/src/reasons.rs:116` emits `E0805` and `crates/nvs-types/tests/tainted.rs:304` pins it | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
    | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
    | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
    | `Core\Test::request`'s shape against spec § 13's one English cell | `docs/rules/testing/in-process-request.md` |
@@ -178,8 +178,9 @@ cheap ([loop-authoring.md](../loop-authoring.md) § 7). The groups the register 
 
 1. **`crates/nvs-stdlib/src/registry.rs` + `process.rs`** — `Core\Metrics`' class row, `Core\Process::spawn`.
    Both are a registry entry over machinery that already ships.
-2. **`crates/nvs-stdlib/src/cldr.rs` + `html.rs`** — the plural rosters, the ordinals, the eight pattern
-   letters, and `html-to-source`'s computed `$reason`. One diagnostic band, four items.
+2. **`crates/nvs-stdlib/src/cldr.rs`** — the plural rosters, the ordinals, the eight pattern letters.
+   One diagnostic band, three items. `html.rs` left this group with the register row above it: its
+   refusal is landed, and what that module still waits on is M7's HTML response rather than a band.
 3. **`crates/nvs-syntax/src/lib.rs`** — the syntax four, alone, because it shares files with nothing.
 4. **`crates/nvs-db/src/matrix.rs` + `tests/db/compose.yaml`** — the socket leg, so `AF_UNIX` is asserted
    against a real server rather than against nothing.
