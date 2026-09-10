@@ -2,64 +2,66 @@
 
 ## State
 
-**Goal `gap-owners`, stage 3 — the attribution pass — has finished `crates/nvs-stdlib`'s `db/`,
-`time.rs`, `json.rs`, `cldr.rs`, `uuid.rs`, `queue.rs`, `process.rs`, `html.rs`, `lib.rs`,
-`registry.rs`.** 38 items still name nobody, every one of them in `nvs-stdlib`;
-`python tools/owners.py --check --reasons` is green over the tagged ones.
+**Goal `gap-owners`, stage 3 — the attribution pass — has finished `crates/nvs-stdlib`'s spec § 17
+set (`compress.rs`, `zip.rs`, `mime.rs`), plus `xml.rs` and `ast.rs`**, on top of the modules the
+previous sessions closed. **26 items still name nobody**, every one of them in `nvs-stdlib`;
+`python tools/owners.py --check --reasons` is green over the 98 that are tagged.
 
-**`queue.rs` kept all five items and its numbering** — `queue.rs:873` and `:226` cite gaps 5 and 3 by
-number. Gaps 1–2 are goal `unowned-sweep`'s own stage 0 list, gap 5 is goal `gap-zero`'s stage 5
-items 4–5, and gaps 3–4 are `unowned` under one reason. Gap 1's claim was stale: the registry spells
-a shape (`CoreTy::Shape`, `crates/nvs-stdlib/src/db/registry.rs:170`), and what it cannot spell is a
-shape *inside* the trailing bag. Item 5's two-dialect leg moved out of the block into the module
-doc, as the settled fact it is.
+**Four items left their `# Known gaps` block as decisions**, each with the evidence that settles it:
+`compress.rs`'s response-path compression (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`
+says a proxy in front is a stated requirement and not a gap, and
+`the_server_still_sets_no_content_encoding_of_its_own` pins it), `mime.rs`'s text-serialized formats
+and zip containers (spec § 17's row defers *what deliberately has no case* to that module doc), and
+`xml.rs`'s inter-element whitespace (`rule:errors/ambiguous-input-refused`). What stayed is a gap with
+a decision attached, and the decision is the § *Unowned* bullet.
 
-**`html.rs` had no gap where the register said it did.** The computed `$reason` *is* refused —
-`crates/nvs-types/src/reasons.rs:116` emits `E0805`, pinned by `crates/nvs-types/tests/tainted.rs:304`
-— so that half became its own section, goal `gap-zero`'s register row is struck with that evidence,
-and its stage 6 group 2 is `cldr.rs` alone. What the module still waits on is the automatic `Markup`
-lift, which [m7.md](../plan/m7.md) owns: `— owner: M7`.
+**`carried-gaps.md` § *Owned* lost two rows and § *Unowned* gained seven.** The `formats` and
+`xml-tree` rows were struck because the gap each named is closed — spec § 17's three classes and
+`Core\Xml`'s two shapes are registered (`crates/nvs-stdlib/src/xml.rs:157`,
+`crates/nvs-stdlib/src/html.rs:172`, and no key for either in
+`tests/spec-classes-part-two-outstanding.txt`) — which is the contract's *an entry leaves when the
+gap closes*, not a renaming. What those modules still owe is now tagged in their own docs.
 
-**`lib.rs` went four items to two.** Gap 3 was a changelog of what stopped being a gap, so it is now
-§ *Every shape a §§ 1–12 signature writes can be stated*, and gap 2 (a type variable is inferred)
-closes it as the decision it always was. `registry.rs`'s `# Known gap` deferred to that item and had
-nothing left to defer to; `str.rs:2298` cited it for a shape that is declarable now.
+**`M8` is a live owner and `ast.rs` gap 1 takes it.** M8's cell still lists goals `signed-urls` and
+`queue-purge`, so the milestone is in progress, and [m8.md](../plan/m8.md):85 states the typed AST in
+scope by name.
 
 **`python tools/verify.py`: green.**
 
 ## Next group
 
-**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-stdlib`'s module
-docs, which hold all 38 items that still name nobody. Owner kinds are the goal's
+**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-stdlib`'s
+reflection-shaped module docs, which the previous handoff already grouped. Owner kinds are the goal's
 § *Standing decisions*; `--untagged` is the worklist and `--check --untagged-is-an-error --reasons`
-is the gate. Two rules of thumb this session paid for: a `carried-gaps.md` row or a live goal's own
-stage list is *evidence* and outranks a guess, and a retired goal (no `.toml` in
-`docs/agent/goals/`) is not an owner — `formats`, `xml-tree` and `test-request` are retired, so what
-they were carrying is `unowned` or its milestone's.
+is the gate. Two things this session paid for and the next one should not: a milestone tag is right
+while that milestone still carries a live goal, which the plan's own row at
+`docs/implementation-plan.md:95` is the check for; and a `# Known gaps` item whose text argues why the
+current behaviour is right is a decision only when a rule, a green check or the spec says so too —
+otherwise it is an untaken decision, which is a gap.
 
-- [ ] **Tag `crates/nvs-stdlib/src/compress.rs:38`'s two items and
-      `crates/nvs-stdlib/src/zip.rs:80`'s two** — at `crates/nvs-stdlib/src/compress.rs:38`, `:44`,
-      `crates/nvs-stdlib/src/zip.rs:80` and `:85`. `rule:core-classes/decompression-bound` is the
-      rule both implement; `carried-gaps.md` § *Owned* files spec § 17 under goal `formats`, which
-      is **retired**, so decide the kind rather than copying the row.
-- [ ] **Tag `crates/nvs-stdlib/src/mime.rs:40`'s three items** — at
-      `crates/nvs-stdlib/src/mime.rs:40`, `:46` and `:50`. No rule owns `Core\Mime`
-      (`brief.py --where mime` finds none), so spec § 17's row and the module's own doc are the
-      specification, and all three are about a signature a format does or does not have.
-- [ ] **Tag `crates/nvs-stdlib/src/xml.rs:122`'s two items** — at `crates/nvs-stdlib/src/xml.rs:122`
-      and `:127`. `rule:core-classes/xml-tree-and-stream` is the rule;
-      `carried-gaps.md` § *Owned* files `Core\Xml`'s tree under goal `xml-tree`, **retired**, and
-      the two items here are about what a *parsed* name and inter-element whitespace are, which the
-      rule may already answer.
+- [ ] **Tag `crates/nvs-stdlib/src/reflect.rs:73`'s three items** — at
+      `crates/nvs-stdlib/src/reflect.rs:73`, `:77` and `:81`.
+      `rule:tooling/reflection-and-source-parsing-are-core-features` and
+      `rule:security/reflection-enforces-visibility` are the two rules. Gap 1 is § 1's `*Info` roster,
+      which `docs/plan/m8.md:85` names in scope. **Read the second rule before deciding gaps 2 and 3** — both
+      items describe behaviour narrower than it states, which is a gap and not a decision.
+- [ ] **Tag `crates/nvs-stdlib/src/debug.rs:54`'s three items** — at
+      `crates/nvs-stdlib/src/debug.rs:54`, `:68` and `:75`. Gap 1 is a `secret` reaching a walk with
+      no property to be declared on, so `rule:security/secret-crosses-no-boundary` is the rule to read
+      first; the other two are roster shape.
+- [ ] **Tag `crates/nvs-stdlib/src/regex.rs:65`'s three items** — at
+      `crates/nvs-stdlib/src/regex.rs:65`, `:76` and `:81`.
+      `rule:security/regex-pattern-is-a-sink` is the rule gap 1 names; gap 2 is a constant that no
+      directive reaches, which is the § *Unowned* section's second arrival way.
 
 ## Backlog
 
-- `ast.rs` (3), `reflect.rs` (3), `debug.rs` (3), `regex.rs` (3) — the reflection-shaped modules, one
-  file set, `docs/agent/loop-goal.md` § *Standing decisions* for the kinds.
 - `cli.rs`, `command.rs`, `out.rs`, `test.rs`, `response.rs`, `storage.rs`, `csv.rs`, `path.rs`,
-  `decimal.rs`, `math.rs`, `random.rs` — the remainder of the 38.
-- A `carried-gaps.md` § *Owned* row whose owner is retired is a finding nobody has unpicked:
-  `test-request`, `formats`, `xml-tree`, `net-os-signal` all have rows (`docs/agent/playbook.md`'s
-  bullet on retired slugs).
-- `lib.rs`'s remaining items are numbered 1 and 4, and `carried-gaps.md:64` plus goal
-  `unowned-sweep`'s stage 0 both cite gap 4 by number — renumbering costs those two.
+  `decimal.rs`, `math.rs`, `random.rs` — the remainder of the 26, `docs/agent/loop-goal.md`.
+- `reflect.rs` gap 3's second half: a reflective write reaches storage through
+  `nvs_runtime::write_erased_property` and runs no `set` hook, which
+  `rule:security/reflection-enforces-visibility` requires — decide whether that is a gap item here or
+  a `docs/agent/carried-refusals.md` entry.
+- `carried-gaps.md` § *Owned* still holds ten rows whose owner goal is retired;
+  `python tools/playbook.py --check` lists them, and each is the same closed-or-unowned call the two
+  struck this session were.

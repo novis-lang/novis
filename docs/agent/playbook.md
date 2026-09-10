@@ -1513,6 +1513,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   paragraph above the `# Known gaps` heading — where the rest of the crate already has it — rather
   than moving the tag down past prose it does not belong to.
   [until: gone tools/owners.py:the owner tag is not the item's last line]
+- **A `splice.py` block that deletes a whole line leaves the line behind as a blank one.** The empty
+  NEW half replaces only what OLD matched, and the newline after the last matched character is not
+  part of that match, so striking a row from `carried-gaps.md` § *Owned* left an empty line mid-table,
+  which splits one rendered table into two. Put the *following* line inside both halves of the block —
+  anchor on the row plus the line after it, and write that following line back alone.
+  [until: reviewed 2026-09-10]
 
 ## Running things
 
