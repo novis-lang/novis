@@ -130,7 +130,7 @@
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
+use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 use subtle::ConstantTimeEq as _;
 
 use crate::keyring::KEY;
@@ -381,7 +381,7 @@ fn until_at(at: jiff::Timestamp) -> Until {
 ///
 /// A [`Fault::fatal`] naming the member, for a slot that is neither: the field
 /// is `?Core\Time\Instant` in the row, so nothing else reaches here.
-fn until_of(args: &[Value], slot: usize, member: &str) -> Result<Option<Until>, Fault> {
+pub(crate) fn until_of(args: &[Value], slot: usize, member: &str) -> Result<Option<Until>, Fault> {
     if args[slot].tag() == Some(Tag::Null) {
         return Ok(None);
     }
@@ -438,6 +438,104 @@ fn refused() -> Fault {
     ))
 }
 
+/// Refuses where the lifetime `until` has passed on `ctx`'s clock, naming the
+/// member `who` — spelled `Core\Class::member`, and the parentheses are added
+/// here.
+///
+/// **The one distinguishable refusal, written once for every door.** It is
+/// safe to name only because it is reached last: [`open`] has already checked
+/// the tag, so nobody but the holder of a genuinely signed token gets this
+/// sentence rather than the caller's own one
+/// (`rule:core-api/one-refusal-except-expiry`). A second door writing its own
+/// wording is how "expired" and "not authentic" would come to be told apart at
+/// one door and not at another.
+///
+/// # Errors
+///
+/// The `RuntimeError` above, and a [`Fault::fatal`] for a fixed clock outside
+/// the range a [`jiff::Timestamp`] holds.
+pub(crate) fn judge(ctx: &Ctx, until: Option<Until>, who: &str) -> Result<(), Fault> {
+    let Some(until) = until else {
+        return Ok(());
+    };
+    let now = crate::time::wall_clock(ctx).map(until_at).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{who} found a fixed clock outside the representable range"
+        ))
+    })?;
+    if (now.second, now.nano) >= (until.second, until.nano) {
+        return Err(Fault::thrown(format!(
+            "{who}(): the signature expired at {}.{:09}, and it is now {}.{:09}. This is the one \
+             refusal with its own sentence: it is reached only after the tag has been checked, so \
+             nobody but the holder of a real token ever sees it.",
+            until.second, until.nano, now.second, now.nano
+        )));
+    }
+    Ok(())
+}
+
+/// What [`confirm`] found: a token authentic over the payload the caller
+/// already holds, and the lifetime it stated, or nothing.
+///
+/// Two variants rather than an `Option<Option<Until>>`, because the outer
+/// question and the inner one are different questions and a reader should not
+/// have to count the layers.
+pub(crate) enum Confirmed {
+    /// Authentic under some key in the ring, minted for the door that asked,
+    /// taken over this very payload, and stating this lifetime — which is
+    /// [`judge`]'s to rule on and nobody else's.
+    Signed(Option<Until>),
+    /// None of those things, folded into one answer for
+    /// `rule:core-api/one-refusal-except-expiry`'s reason.
+    Refused,
+}
+
+/// The lifetime `token` states, if it is a signature this `ring` made over
+/// **this** `payload` for this `domain`.
+///
+/// The door a payload is *derived* from rather than carried in — `$uri->sign`
+/// signs the URL, and the URL travels instead of the payload — needs a
+/// question [`open`] cannot answer on its own: a token that authenticates
+/// proves only that *some* payload was signed, and lifting a live token from
+/// one URL onto another is the whole of the attack. So the caller rebuilds the
+/// payload from what it holds and this compares the two.
+///
+/// **The comparison is the codec**, not a walk written beside it: two payloads
+/// are the same payload exactly when they write the same document, which is
+/// the property the module doc's first section is about. A structural compare
+/// would be a second definition of equality, free to drift from the one the
+/// signature is taken over. The two documents are public — a URL and a token
+/// the holder already has — so the comparison is an ordinary one, and the tag
+/// underneath it is still the constant-time one [`open`] takes.
+///
+/// # Errors
+///
+/// [`open`]'s, and [`document`]'s for a payload the caller cannot sign — which
+/// for a derived payload says something about the caller's own value and
+/// nothing about the token.
+pub(crate) fn confirm(
+    token: &str,
+    domain: Domain,
+    payload: &Value,
+    ring: &NvsArray,
+    who: &str,
+    root: &str,
+) -> Result<Confirmed, Fault> {
+    let Some((until, signed)) = open(token, domain, ring, who)? else {
+        return Ok(Confirmed::Refused);
+    };
+    // The lifetime is the one the *token* stated, because it is inside the
+    // region the tag covers: rebuilding with any other one would be comparing
+    // against a document nobody signed.
+    let theirs = document(domain, until, &signed, who, root);
+    discard(signed);
+    let mine = document(domain, until, payload, who, root)?;
+    match theirs? == mine {
+        true => Ok(Confirmed::Signed(until)),
+        false => Ok(Confirmed::Refused),
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant}): string`
     /// — the write half of `rule:security/protocol-roster`'s fifth entry,
@@ -487,19 +585,9 @@ nvs_runtime::nvs_helper! {
             return Err(refused());
         }
 
-        if let Some(until) = until {
-            let now = crate::time::wall_clock(ctx).map(until_at).ok_or_else(|| {
-                Fault::fatal(format!("{VERIFY} found a fixed clock outside the representable range"))
-            })?;
-            if (now.second, now.nano) >= (until.second, until.nano) {
-                discard(payload);
-                return Err(Fault::thrown(format!(
-                    "{NAME}::verify(): the signature expired at {}.{:09}, and it is now {}.{:09}. \
-                     This is the one refusal with its own sentence: it is reached only after the \
-                     tag has been checked, so nobody but the holder of a real token ever sees it.",
-                    until.second, until.nano, now.second, now.nano
-                )));
-            }
+        if let Err(expired) = judge(ctx, until, VERIFY) {
+            discard(payload);
+            return Err(expired);
         }
 
         Ok(payload)
