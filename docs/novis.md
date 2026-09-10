@@ -14125,7 +14125,7 @@ Checks the receiver's `_sig` against every key in `$keys`, and the lifetime that
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, match, methodsFor
+Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, urlSigned, signedRoute, match, methodsFor
 
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
@@ -14181,6 +14181,7 @@ https://example.test/users/7
 | [`Core\Router::url`](#core-core-router-url) | `url(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlAbsolute`](#core-core-router-urlabsolute) | `urlAbsolute(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlSigned`](#core-core-router-urlsigned) | `urlSigned(string $name, array<mixed> $params, ? $settings): string` |
+| [`Core\Router::signedRoute`](#core-core-router-signedroute) | `signedRoute(array<secret bytes> $keys): Core\Router\Match` |
 | [`Core\Router::match`](#core-core-router-match) | `match(Core\Http\Method $method, string $path): ?Core\Router\Match` |
 | [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
 
@@ -14238,6 +14239,23 @@ Core\Router::urlSigned(string $name, array<mixed> $params, ? $settings): string
 **Returns** `string` — `url`'s path with `_sig=…` appended, `/users/42?page=2&_sig=…` — laundered for the URL-path sink exactly as `url` is, and carrying the mount prefix the same way. The same name, parameters, ring and lifetime always mint the same token; the token carries the signed form as well as the tag, so it adds about `4/3 × (name + params + 40)` characters.
 
 **Throws** `RuntimeError` — For everything `url` throws for, and when `$params` carries the reserved `_sig` key, which this member is about to write and will not write twice.; `LogicError` — `$settings.keys` is empty, so there is no newest key; or its first entry is not 32 octets long — a `bytes` that was never a key.
+
+<a id="core-core-router-signedroute"></a>
+#### `Core\Router::signedRoute`
+
+```nvs skip
+Core\Router::signedRoute(array<secret bytes> $keys): Core\Router\Match
+```
+
+Confirms that the request this program is answering carries a signature `$keys` made for the route it matched, and answers that match — `urlSigned`'s read half, over the route's name and its parameters rather than over the path they rendered to.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$keys` | `array<secret bytes>` | The key ring, **newest first**, and the same one `urlSigned` was given: a token authenticating under any entry is authentic, which is what lets a key be retired without breaking every link already sent. |
+
+**Returns** `Core\Router\Match` — The request's own `Core\Router\Match`, the value `Core\Request::route()` answers, once the signature over its name and parameters has been confirmed. A link that does not verify is a throw and never a value: nothing here renders a refusal, because the program that renders one is the program that should decide when to ask.
+
+**Throws** `RuntimeError` — When this request carries no signature this ring made for the route it matched — no `_sig` parameter or two of them, an altered token, one minted at another door or under a retired key, a parameter added, removed or edited, and a request that matched no named route: one sentence for all of it. When the signature has expired, which is the one failure with a sentence of its own and is reached only after the token has been found authentic. And when a query parameter's escapes decode to octets that are not UTF-8, which says something about the URL that arrived and nothing about the token.; `LogicError` — When this program is not answering a request at all — a CLI program, a scheduled script, a job worker or a test — which is a different fact from a request that carries no signature. Or when `$keys` is empty or its first entry is not 32 octets long, as every door over a ring refuses.
 
 <a id="core-core-router-match"></a>
 #### `Core\Router::match`
