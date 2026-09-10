@@ -41,6 +41,13 @@
 //! the same builders a program calls, so a file cannot say anything a program
 //! could not have built.
 //!
+//! # § 11's exclusions are not represented, and are not added casually
+//!
+//! Foreign keys, partial and expression indexes, index types, collations,
+//! check constraints and the rest are out of v1 because they have no portable
+//! spelling, and the vocabulary grows only when a construct exists on every
+//! backend *and* something needs it.
+//!
 //! # Known gaps
 //!
 //! 1. **Two constructs this vocabulary holds are not portable, and nothing
@@ -56,11 +63,7 @@
 //!    delimiting it. Closing either is a builder that refuses the construct or
 //!    an emitter that has a spelling for it, and which one is a decision the
 //!    milestone that needs it takes.
-//! 2. **§ 11's exclusions are not represented and must not be added casually.**
-//!    Foreign keys, partial and expression indexes, index types, collations,
-//!    check constraints and the rest are out of v1 because they have no portable
-//!    spelling, and the vocabulary grows only when a construct exists on every
-//!    backend *and* something needs it.
+//!    — owner: unowned
 
 use std::fmt;
 

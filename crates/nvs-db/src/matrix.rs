@@ -51,6 +51,7 @@
 //!    the TCP legs' own case list over `AF_UNIX` would say. It needs a
 //!    container's socket directory bind-mounted onto the host by
 //!    `tools/db-matrix.py`.
+//!    — owner: unowned
 
 use std::path::PathBuf;
 
