@@ -115,6 +115,8 @@ modules = [
   "crates/nvs-lsp/tests/extension_reference.rs",
   # The chapter stage 5 extends, and its § *What it does not do* that this goal does not empty.
   "docs/reference/tools/40-editor.md",
+  # TODO: why a session opens this.
+  "editors/vscode/src/install.ts",
 ]
 
 # The rule this goal lands, the one it amends, and the one that governs the two new ids.
