@@ -22,15 +22,24 @@
 //! `rule:http-server/containment-does-not-end-at-the-helper`:
 //! there is no request beneath a worker to charge a panic to.
 //!
-//! ## Why it is stopped rather than left running
+//! ## Why it is stopped rather than left running, and which end stops it
 //!
 //! [`nvs_host::run_until_idle`] returns when nothing is runnable, and a worker polling for work is
-//! always runnable — so a CLI run with one would never end. The script's own task therefore sets
-//! [`Workers::stop`] on its way out and each worker reads it at the top of its turn. A flag rather
-//! than a cancellation because every wait here is bounded and short: the tail a run pays after its
-//! script returns is one [`IDLE_TURN`] in the ordinary case, one statement's round trip while a
-//! claim is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with
-//! a server that is not answering.
+//! always runnable — so a run with one would never end. [`Workers`] is the switch that ends it, and
+//! which end holds that switch is the whole of the difference between the two binaries: under
+//! `nvs run` the script's own task sets [`Workers::stop`] on its way out, and under `nvs serve`
+//! there is no script to exit, so the same predicate reads the drain that command's shutdown begins
+//! (`rule:concurrency/one-process-serves-requests-schedules-and-jobs`). A served worker that
+//! ignored it would leave `run_until_idle` a task that is always parked, which is a process nothing
+//! but a kill could stop.
+//!
+//! **Read at the top of a turn and nowhere inside one**, which is the semantics rather than an
+//! economy: a drain means stop taking *new* work, and claiming a job is taking new work, so a job
+//! already claimed is run and written back exactly as a request already accepted is answered. A
+//! flag and a bit rather than a cancellation because every wait here is bounded and short: the tail
+//! a stop pays is one [`IDLE_TURN`] in the ordinary case, one statement's round trip while a claim
+//! is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with a
+//! server that is not answering.
 //!
 //! ## Why the grants are the run's own
 //!
@@ -116,11 +125,27 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(2);
 /// a park rather than a spin — the core runs the script while a worker holds this.
 const IDLE_TURN: Duration = Duration::from_millis(10);
 
-/// The switch that stops every worker a run started.
+/// The root every worker task takes.
 ///
-/// One flag for all of them rather than one each: they stop together, at the same moment and for
-/// the same reason. It is [`Clone`] because both ends hold it — the script's task sets it on its
-/// way out and every worker reads it — and a clone is the same flag, not a second one.
+/// `rule:http-server/containment-does-not-end-at-the-helper`: a worker has no request beneath it to
+/// charge a fault to, so a panic that reaches here retires the worker rather than being answered as
+/// one request's `500`. Named rather than written inline at the [`start`] that spawns with it,
+/// because the other spelling is three lines from where `nvs serve` arms these — the `[[schedule]]`
+/// ticker holds `TaskRoot::Request`, a fire being a child of the loop that serves — and this is the
+/// one line of that arming which looks right when it is wrong.
+const ROOT: nvs_runtime::TaskRoot = nvs_runtime::TaskRoot::Worker;
+
+/// The switch that stops every worker a binary started.
+///
+/// One switch for all of them rather than one each: they stop together, at the same moment and for
+/// the same reason. It is [`Clone`] because both ends hold it — whatever says stop, and every
+/// worker that reads it — and a clone is the same switch, not a second one.
+///
+/// **Which end says stop is the one thing the two binaries differ in.** [`Workers::new`] is
+/// `nvs run`'s, the flag alone; [`Workers::draining`] is `nvs serve`'s, the same flag with the
+/// drain beside it, because a served instance has no script whose exit could set one. [`start`] is
+/// one function over both, so moving queue work between the two is an operational decision and
+/// never a behavioural one (`rule:concurrency/who-runs-a-job-is-configuration`).
 ///
 /// Built by the caller rather than by [`start`], because the two are spawned in the order the
 /// module doc's *What a run pays* section fixes: the script's task first, and it needs this in its
@@ -130,6 +155,13 @@ pub(crate) struct Workers {
     /// An [`Rc`] and a [`Cell`] because both ends are tasks on one core — there is no thread here
     /// to synchronize with.
     stop: Rc<Cell<bool>>,
+    /// The drain a served instance stops on, and `None` for a run that has none to read.
+    ///
+    /// A handle rather than the process's bit read here, because who may write that bit is
+    /// [`nvs_server::Draining`]'s own decision and a worker is not one of them: what arrives is
+    /// whichever handle the caller holds, which is the process's under `nvs serve` and a detached
+    /// one under a test.
+    draining: Option<nvs_server::Draining>,
 }
 
 impl Workers {
@@ -137,12 +169,33 @@ impl Workers {
     pub(crate) fn new() -> Self {
         Self {
             stop: Rc::new(Cell::new(false)),
+            draining: None,
+        }
+    }
+
+    /// The same switch with a drain beside it, for a binary whose shutdown is a drain.
+    pub(crate) fn draining(draining: nvs_server::Draining) -> Self {
+        Self {
+            stop: Rc::new(Cell::new(false)),
+            draining: Some(draining),
         }
     }
 
     /// Tells every worker this run started to finish its turn and return.
     pub(crate) fn stop(&self) {
         self.stop.set(true);
+    }
+
+    /// Whether a worker reading this may open another turn.
+    ///
+    /// Either end is enough and neither is asked again once a turn has begun, which is the module
+    /// doc's *Read at the top of a turn* paragraph as one expression.
+    fn stopping(&self) -> bool {
+        self.stop.get()
+            || self
+                .draining
+                .as_ref()
+                .is_some_and(nvs_server::Draining::is_draining)
     }
 }
 
@@ -152,6 +205,8 @@ impl Workers {
 /// install the reactor afterwards. `snapshot` is the configuration the run resolved at boot, and
 /// each worker's context is given it for the reason the module doc's *Why the grants* section
 /// owns: a job's isolate is resolved against the context that runs it.
+///
+/// Both binaries arrive here, and what they hand it differs in `workers` alone.
 pub(crate) fn start(
     sched: &mut nvs_host::Scheduler,
     workers: &Workers,
@@ -160,7 +215,9 @@ pub(crate) fn start(
     snapshot: &Arc<nvs_config::Snapshot>,
 ) {
     for _ in 0..bounds.workers {
-        let stop = Rc::clone(&workers.stop);
+        // The whole switch rather than its flag alone: which end stops these workers is carried
+        // here rather than decided here, and [`Workers`]'s own doc owns the difference.
+        let workers = workers.clone();
         let name = bounds.connection.clone();
         // Cloned rather than borrowed because a task's body is `'static`, and cloned per worker
         // rather than shared because a `Database` is a handful of strings read once at connect.
@@ -168,8 +225,8 @@ pub(crate) fn start(
         let visibility = bounds.visibility;
         let mut ctx = nvs_runtime::Ctx::stdout();
         ctx.set_config(Arc::clone(snapshot));
-        sched.spawn(ctx, nvs_runtime::TaskRoot::Worker, move |ctx| {
-            claim_until_stopped(ctx, &stop, &name, &block, visibility);
+        sched.spawn(ctx, ROOT, move |ctx| {
+            claim_until_stopped(ctx, &workers, &name, &block, visibility);
         });
     }
 }
@@ -182,7 +239,7 @@ pub(crate) fn start(
 /// of its own end.
 fn claim_until_stopped(
     ctx: &mut nvs_runtime::Ctx,
-    stop: &Cell<bool>,
+    workers: &Workers,
     name: &str,
     block: &Database,
     visibility: Duration,
@@ -190,7 +247,7 @@ fn claim_until_stopped(
     // Asked before the connection is opened and not only at the top of a turn: this task is
     // spawned after the script's, so an ordinary CLI run has already finished by the time a worker
     // is first polled, and the module doc's *What a run pays* section is what that buys.
-    if stop.get() {
+    if workers.stopping() {
         return;
     }
     let Some(mut conn) = open(name, block) else {
@@ -200,8 +257,19 @@ fn claim_until_stopped(
     // every job's claim eligible again immediately, which is a busy worker, where the wrap would
     // make it eligible never.
     let window = i64::try_from(visibility.as_millis()).unwrap_or(i64::MAX);
-    while !stop.get() {
-        match turn(ctx, &mut conn, window) {
+    take_turns(workers, || turn(ctx, &mut conn, window));
+}
+
+/// The loop itself: a turn while [`Workers`] admits one, a nap after a turn that found nothing, and
+/// an end after a turn that failed.
+///
+/// Split from the connection above it because *when* the stop condition is read is the property
+/// this has to keep — a drain arriving mid-claim must not cut the write-back short — and a turn a
+/// case writes is what asserts an ordering over, where the whole of [`claim_until_stopped`] would
+/// need a database standing up before it could be asked anything at all.
+fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) {
+    while !workers.stopping() {
+        match turn() {
             // Something was claimed, so the roster may still hold more: turn again without
             // waiting, and the queue that answered drops out of the next roster by itself, because
             // a row this turn claimed is inside its visibility window.
@@ -1552,6 +1620,153 @@ mod tests {
         assert!(
             said.contains("`[db.jobs]`"),
             "the refusal is `{said}`, which does not name the block that opened nothing"
+        );
+    }
+
+    /// A drain begun under a worker is read at the top of its next turn, and so there is no next
+    /// turn.
+    ///
+    /// [`nvs_server::Draining::detached`] and never the process's bit: that one is a handle on a
+    /// `OnceLock` nothing puts back, so a case beginning it would decide the answer for every other
+    /// case in this binary, whichever order cargo ran them in.
+    #[test]
+    fn a_worker_handed_a_draining_handle_returns_at_the_top_of_its_next_turn() {
+        let drain = nvs_server::Draining::detached();
+        let workers = super::Workers::draining(drain.clone());
+        let mut turns = 0_u32;
+        super::take_turns(&workers, || {
+            turns += 1;
+            // The shutdown, arriving while this worker is holding the core.
+            drain.begin();
+            Ok(true)
+        });
+        assert_eq!(
+            turns, 1,
+            "the worker took {turns} turns against a drain begun during the first, so what it \
+             stops on is not read at the top of a turn"
+        );
+    }
+
+    /// A drain that begins while a claim is in flight does not cut that turn short.
+    ///
+    /// `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s claimed job that runs to
+    /// completion: what a drain stops is the *taking* of new work, so the predicate is read at the
+    /// top of a turn and nowhere inside one. Asserted as the order of the steps a turn takes,
+    /// because a turn that returned between them would leave the row claimed and invisible to every
+    /// other worker until its visibility window ran out — which is a job delayed rather than a
+    /// crash, and so is not otherwise noticed.
+    #[test]
+    fn a_worker_with_a_claim_in_flight_finishes_the_job_before_it_returns() {
+        let drain = nvs_server::Draining::detached();
+        let workers = super::Workers::draining(drain.clone());
+        let mut steps = Vec::new();
+        super::take_turns(&workers, || {
+            steps.push("claimed");
+            // With the row claimed and the job not yet written back, which is the moment this case
+            // exists for.
+            drain.begin();
+            steps.push("ran");
+            steps.push("reported");
+            Ok(true)
+        });
+        assert_eq!(
+            steps,
+            ["claimed", "ran", "reported"],
+            "a turn holding a claim stopped part-way through it"
+        );
+    }
+
+    /// `nvs run`'s workers still stop on the script's task and on nothing else.
+    ///
+    /// Both halves, because neither is the assertion alone: the loop keeps turning while the flag
+    /// is unset, so nothing added beside it stops a run early, and it returns at the top of the
+    /// turn after the one that set the flag, which is where it returned before.
+    #[test]
+    fn a_run_stops_its_workers_when_the_scripts_task_exits_exactly_as_before() {
+        let workers = super::Workers::new();
+        let mut turns = 0_u32;
+        super::take_turns(&workers, || {
+            turns += 1;
+            // The script's own task, on its way out during this worker's third turn.
+            if turns == 3 {
+                workers.stop();
+            }
+            Ok(true)
+        });
+        assert_eq!(
+            turns, 3,
+            "a run's worker took {turns} turns where the script's exit ends the third"
+        );
+    }
+
+    /// One [`super::start`] over one [`super::Workers`], and the binaries differ in which end of it
+    /// says stop.
+    ///
+    /// The shared half is what the signature carries — `start` takes a `&Workers` and neither
+    /// binary has a second entry point to it. The differing half is this: handed the same two
+    /// events, a run's switch is deaf to the drain it holds no handle on, and a served instance's
+    /// stops on that drain without any script having exited.
+    #[test]
+    fn the_two_binaries_share_start_and_differ_in_one_predicate() {
+        let drain = nvs_server::Draining::detached();
+        let run = super::Workers::new();
+        let served = super::Workers::draining(drain.clone());
+        assert!(
+            !run.stopping() && !served.stopping(),
+            "a switch stopped its workers before anything asked it to"
+        );
+        drain.begin();
+        assert!(
+            !run.stopping(),
+            "a run's workers stopped on a drain that is not theirs to read"
+        );
+        assert!(
+            served.stopping(),
+            "a served instance's workers went on claiming after the drain began"
+        );
+        run.stop();
+        assert!(
+            run.stopping(),
+            "a run's workers went on claiming after the script's task exited"
+        );
+    }
+
+    /// The root a worker's task takes is the one whose fault retires the worker, and not the one
+    /// the `[[schedule]]` ticker beside it holds.
+    ///
+    /// Asserted through the consequence rather than by reading [`super::ROOT`] back, because the
+    /// two roots differ in exactly one answer and that answer is
+    /// `rule:http-server/containment-does-not-end-at-the-helper`'s whole reason for the choice: a
+    /// fault under `TaskRoot::Request` is charged to the request it happened in, and a worker has
+    /// no request beneath it for that to mean anything. Both are spawned here because the pair is
+    /// the assertion — one root answering `true` says nothing about a copy of the ticker's line.
+    #[test]
+    fn an_armed_worker_holds_task_root_worker_and_not_the_tickers_request() {
+        let mut sched = nvs_host::Scheduler::new();
+        sched.spawn(nvs_runtime::Ctx::stdout(), super::ROOT, |_| {
+            panic!("a worker's own fault, which no request is under");
+        });
+        sched.spawn(
+            nvs_runtime::Ctx::stdout(),
+            nvs_runtime::TaskRoot::Request,
+            |_| panic!("a fire's fault, which belongs to the run it happened in"),
+        );
+        sched.run();
+        // The run queue is FIFO, so these come back in the order they were spawned.
+        let retired: Vec<bool> = sched
+            .take_finished()
+            .into_iter()
+            .map(|done| {
+                done.outcome
+                    .expect_err("both tasks panicked")
+                    .retires_worker()
+            })
+            .collect();
+        assert_eq!(
+            retired,
+            [true, false],
+            "a queue worker's fault is not retiring the worker, so it is being charged to a \
+             request that does not exist"
         );
     }
 }
