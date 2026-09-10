@@ -1,0 +1,42 @@
+--TEST--
+`Core\Router::signedRoute` verifies a signed link against the match the door already took and answers that match, so nothing reads the URL a second time — `rule:core-classes/router-signed-url`, `rule:routing/matched-once-before-the-handler`
+--FILE--
+<?nvs
+// The read half of `urlSigned`, over a request this same file makes. It takes
+// no URL and no route name: what it verifies is the request this program is
+// answering, so the only thing a caller can get wrong is the ring. The match it
+// hands back is `Core\Request::route()`'s own — § 1 has the door take it once,
+// before any application code runs, and a second match here would be a second
+// answer about which route this is.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id, #[Core\Query] string $page = ""): string { return $id as string; }
+}
+
+// Fixed rather than drawn, and the one thing about this shape that is not
+// obvious: the program answering an in-process request is this same program run
+// from the top (`rule:testing/in-process-request`), so a generated key would be
+// a different key on the far side and nothing would ever verify.
+secret bytes $key = Core\Bytes::fill(32, 65);
+array<secret bytes> $ring = [$key];
+
+// A capture and a leftover query parameter, because the payload covers both and
+// a member that rebuilt only the captures would still verify a link with none.
+string $link = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $ring, until: null});
+
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, $link);
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    // The child: the request the link names, answered by this file's own
+    // script frame. What it echoes is the response body the parent prints.
+    var $matched = Core\Router::signedRoute($ring);
+    echo "route=", $matched->name() ?? "unnamed",
+         " id=", $matched->param("id") ?? "none",
+         " captures=", Core\Arr::count($matched->params()) as string;
+}
+--EXPECT--
+status 200
+body route=Shop::show id=7 captures=1

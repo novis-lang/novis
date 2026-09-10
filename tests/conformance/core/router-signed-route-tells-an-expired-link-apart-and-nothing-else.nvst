@@ -1,0 +1,56 @@
+--TEST--
+An expired signed route is the one refusal `Core\Router::signedRoute` names apart, and it is reached only after the token has been found authentic — `rule:core-api/one-refusal-except-expiry`, `rule:core-api/a-lifetime-is-written`
+--FILE--
+<?nvs
+// The bound asserted on both sides: a link with an hour left verifies, one an
+// hour past does not, and the two refusals — expired and forged — are told
+// apart here and nowhere else. That is safe precisely because expiry is judged
+// *after* the tag: only the holder of a genuinely signed link ever reads this
+// sentence, and telling them the link ran out rather than that they are being
+// attacked is why an application catches it.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id): string { return $id as string; }
+}
+
+secret bytes $key = Core\Bytes::fill(32, 65);
+array<secret bytes> $ring = [$key];
+
+Core\Time\Instant $hence = Core\Time::now()->plus(1h);
+// An hour ago, so the link was already past its lifetime when it was minted —
+// the state a signed URL reaches by sitting in a chat unfurl for a day.
+Core\Time\Instant $ago = Core\Time::now()->minus(1h);
+
+string $live = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: $hence});
+string $stale = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: $ago});
+string $forever = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: null});
+// A live token on a capture it was not signed for, to hold the other refusal up
+// against the named one.
+string $forged = "/shop/8?_sig=" . (Core\Str::after($live, "_sig=") as string);
+
+try {
+    var $withLive = Core\Test::request(Core\Http\Method::Get, $live);
+    var $withForever = Core\Test::request(Core\Http\Method::Get, $forever);
+    var $withStale = Core\Test::request(Core\Http\Method::Get, $stale);
+    var $withForged = Core\Test::request(Core\Http\Method::Get, $forged);
+
+    echo "an hour left=", $withLive->body(), "\n";
+    echo "forever=", $withForever->body(), "\n";
+    echo "an hour ago names itself=",
+         Core\Str::contains($withStale->body(), "the signature expired at") ? "yes" : "no", "\n";
+    echo "and a forgery does not=",
+         Core\Str::contains($withForged->body(), "expired") ? "no" : "yes", "\n";
+} catch (RuntimeError $refused) {
+    try {
+        var $matched = Core\Router::signedRoute($ring);
+        echo "verified ", $matched->name() ?? "unnamed";
+    } catch (RuntimeError $no) {
+        echo $no->message;
+    }
+}
+--EXPECT--
+an hour left=verified Shop::show
+forever=verified Shop::show
+an hour ago names itself=yes
+and a forgery does not=yes

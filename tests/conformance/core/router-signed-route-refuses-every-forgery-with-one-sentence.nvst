@@ -1,0 +1,61 @@
+--TEST--
+`Core\Router::signedRoute` answers every way of not carrying a signature this ring made with one sentence, so a forgery learns nothing about which half of it failed — `rule:core-api/one-refusal-except-expiry`, `rule:core-classes/router-signed-url`
+--FILE--
+<?nvs
+// The agreement shape: four requests that fail for four different reasons, each
+// asserted against the *others* rather than against a sentence written here. A
+// door that grew a second wording — "no token" apart from "bad token", say —
+// would still print a plausible message on every line of every other case and
+// would fail only here.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(int $id, #[Core\Query] string $page = ""): string { return "shown"; }
+}
+
+secret bytes $key = Core\Bytes::fill(32, 65);
+array<secret bytes> $ring = [$key];
+// A ring this program does not hold, so the token below is genuine and simply
+// authenticates under nothing here — which is a different failure from an
+// edited one and must not read differently.
+secret bytes $other = Core\Bytes::fill(32, 66);
+array<secret bytes> $theirs = [$other];
+
+string $link = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $ring, until: null});
+string $token = Core\Str::after($link, "_sig=") as string;
+string $foreign = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $theirs, until: null});
+
+// A live token moved onto a query parameter that was not signed, onto a capture
+// that was not signed, and a link with the parameter stripped off entirely.
+string $edited = "/shop/7?page=3&_sig=" . $token;
+string $moved = "/shop/8?page=2&_sig=" . $token;
+string $bare = "/shop/7?page=2";
+
+try {
+    var $signed = Core\Test::request(Core\Http\Method::Get, $link);
+    var $withEdit = Core\Test::request(Core\Http\Method::Get, $edited);
+    var $withMove = Core\Test::request(Core\Http\Method::Get, $moved);
+    var $withNone = Core\Test::request(Core\Http\Method::Get, $bare);
+    var $withTheirs = Core\Test::request(Core\Http\Method::Get, $foreign);
+
+    bool $same = $withEdit->body() == $withMove->body()
+        && $withMove->body() == $withNone->body()
+        && $withNone->body() == $withTheirs->body();
+
+    echo "signed=", $signed->body(), "\n";
+    echo "one sentence=", $same ? "yes" : "no", "\n";
+    echo "and it says so=", Core\Str::contains($withEdit->body(), "which half of it failed") ? "yes" : "no", "\n";
+} catch (RuntimeError $refused) {
+    // The child, run once per request above and answering the same two ways
+    // each time: the match, or the one sentence.
+    try {
+        var $matched = Core\Router::signedRoute($ring);
+        echo "verified ", $matched->name() ?? "unnamed";
+    } catch (RuntimeError $no) {
+        echo $no->message;
+    }
+}
+--EXPECT--
+signed=verified Shop::show
+one sentence=yes
+and it says so=yes
