@@ -26,7 +26,7 @@
 //! explicitly forbids for a reference and, by the same reasoning, for a
 //! plain local too.
 //!
-//! # Narrowing a local through `!= null`, `instanceof` or a literal
+//! # Narrowing a local through `!= null`, `instanceof`, `is` or a literal
 //!
 //! [`narrow`] is the third piece of state this walk threads, and the only
 //! one that is *not* cloned at a branch point: [`LocalScope::narrowed`] is a
@@ -66,14 +66,18 @@
 //! once, where the value is produced, rather than at each consumer. **An
 //! `instanceof` narrows to the class it names**, which is the same discharge
 //! one type wider — a `mixed` or a union subject is one `Ty::Tagged` slot, and
-//! the proved class is exactly what the `Untag` relabels it to. **A literal
+//! the proved class is exactly what the `Untag` relabels it to. **An `is`
+//! narrows to the type it names**, which is that discharge with no restriction
+//! on the type at all — `rule:types/narrowing` makes it the general spelling and
+//! `instanceof` the nominal one, and [`type_test_residue`] owns what the two do
+//! not share. **A literal
 //! comparison narrows to the literal's own type**, an enum case included,
 //! which costs nothing below the checker at all: `rule:types/literal-types` gives a literal
 //! type and an enum-case type their base's representation exactly, so the read
 //! is the same one either way.
 //!
 //! **A `match (true)`/`switch (true)` label is a condition**, so each arm body
-//! is checked under whatever the three tests above prove for its own label —
+//! is checked under whatever the four tests above prove for its own label —
 //! [`is_true_literal`] owns which subject qualifies, and why a `default` arm
 //! and a comma-separated run of labels are given nothing.
 //!
@@ -368,13 +372,16 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// Installs the narrowing `cond` proves on the branch where it evaluates to
 /// `when`, and hands back what that branch's end has to restore.
 ///
-/// Three tests install one, and they are tried in that order because no two of
+/// Four tests install one, and they are tried in that order because no two of
 /// them match one condition. **A `!= null` test drops `null` and keeps the
 /// rest** — `rule:expressions/nullable-conversion`'s body's own rule, and every residue takes it: a class, an
 /// `array<T>`, a scalar, or a union of them. **An `instanceof` test proves the
 /// class it names, on its true edge only** — `rule:types/unions-and-mixed`'s first narrowing
 /// form; see [`instanceof_residue`] for why the false edge proves nothing and
-/// why the residue is a class rather than every name that test accepts. **A
+/// why the residue is a class rather than every name that test accepts. **An
+/// `is` test proves the type it names, also on its true edge only** —
+/// `rule:types/narrowing`'s general spelling, where `instanceof`'s is the
+/// nominal one, and [`type_test_residue`] owns the difference. **A
 /// comparison against a written literal proves that literal's own type** —
 /// `rule:types/literal-types`'s guard row, and [`literal_residue`] owns which spellings
 /// reach it.
@@ -389,7 +396,7 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// so a subscript base, a `foreach` subject, an array-write root and an
 /// argument all see the narrow representation with no site left to forget.
 ///
-/// The three tests are what a *condition* proves, so every site that writes
+/// The four tests are what a *condition* proves, so every site that writes
 /// one reaches this: the `if`/`while` arms below, the guard clause
 /// [`check_block`] carries, and — through [`is_true_literal`] — each label of a
 /// `match (true)`/`switch (true)`, which is `rule:types/unions-and-mixed`'s fourth spelling and
@@ -399,7 +406,10 @@ pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<
         Some(found) => Some(found),
         None => match instanceof_residue(cond, when, scope, env) {
             Some(found) => Some(found),
-            None => literal_residue(cond, when, scope, env),
+            None => match type_test_residue(cond, when, scope, env) {
+                Some(found) => Some(found),
+                None => literal_residue(cond, when, scope, env),
+            },
         },
     };
     let Some((name, residue)) = residue else {
@@ -513,6 +523,66 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
             expr: inner,
         } => instanceof_test(inner).map(|(name, test, proved)| (name, test, !proved)),
         ExprKind::InstanceOf { expr, .. } => match &expr.kind {
+            ExprKind::Variable(span) => Some((*span, cond.span, true)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The local an `is` test narrows on the branch where it evaluates to `when`,
+/// and the type it proves.
+///
+/// Narrowing's **fifth spelling** (`rule:types/narrowing`), and the general one:
+/// where [`instanceof_residue`] proves a class, this proves any type a value can
+/// inhabit — a scalar, `null`, an `array<T>`, a shape, a literal, an enum case
+/// or a union of them. The true edge alone proves anything, for
+/// [`instanceof_residue`]'s reason, and a `!` flips which branch that is.
+///
+/// **Nothing about the subject is checked here**, which is the one place this
+/// must not read like its sibling: `is` refuses no left-hand side at all (ADR
+/// 0150 § 6), so there is no [`can_hold_an_object`] gate to carry over — a
+/// declared `int` narrowing to a literal `1` is an ordinary case here and has
+/// no `instanceof` counterpart.
+///
+/// The type comes from `crate::expr_table::ExprInfo::TypeTest`, recorded by
+/// [`crate::expr::type_test::infer_type_test`] when the condition was checked a
+/// moment earlier, for [`instanceof_residue`]'s reason and because interning a
+/// written type is not something this walk can do. **The entry's existence is
+/// the guard**: the checker records one only for a test whose answer is a
+/// run-time `bool`, so a type that already covers the declared one folded to
+/// `true` and never arrives here to widen a binding.
+fn type_test_residue(
+    cond: &Expr,
+    when: bool,
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) -> Option<(String, TypeId)> {
+    let (name_span, test_span, proved_when) = type_test(cond)?;
+    if proved_when != when {
+        return None;
+    }
+    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
+    let current = scope.declared_ty(&name)?;
+    let Some(ExprInfo::TypeTest { tested }) = env.exprs.lookup(test_span) else {
+        return None;
+    };
+    let residue = *tested;
+    (residue != current).then_some((name, residue))
+}
+
+/// The `$x is Type` test `cond` is, if it is one at all: the tested variable's
+/// name span, the whole test's own span — which is the key
+/// `crate::expr_table::ExprInfo::TypeTest` was recorded under — and whether the
+/// type is proved when the condition *holds*, which a `!` inverts.
+fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
+    match &cond.kind {
+        ExprKind::Paren(inner) => type_test(inner),
+        ExprKind::Unary {
+            op: nvs_syntax::ast::UnaryOp::Not,
+            expr: inner,
+        } => type_test(inner).map(|(name, test, proved)| (name, test, !proved)),
+        ExprKind::TypeTest { expr, .. } => match &expr.kind {
             ExprKind::Variable(span) => Some((*span, cond.span, true)),
             _ => None,
         },
