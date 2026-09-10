@@ -29,6 +29,7 @@
 //! | [`operators`] | `rule:types/arithmetic`'s result table and the refusals layered on it |
 //! | [`presence`] | `rule:classes/unset-is-refused-on-a-property`'s `isset(...)`, and what its operands may be |
 //! | [`quals`] | `rule:security/tainted-qualifier`'s `tainted`, `rule:security/secret-qualifier`'s `secret`, and their sinks |
+//! | [`type_test`] | `rule:types/type-test`'s `is`: what it answers, what it folds, and the two right-hand sides it refuses |
 //!
 //! Two fallbacks are deliberate and belong to no module. A method/static call
 //! not statically resolvable to a known signature — an unresolved receiver, a
@@ -69,9 +70,11 @@ pub(crate) mod members;
 pub(crate) mod operators;
 pub(crate) mod presence;
 pub mod quals;
+pub(crate) mod type_test;
 
 use self::{
     args::*, assign::*, calls::*, iteration::*, literals::*, members::*, operators::*, quals::*,
+    type_test::*,
 };
 
 // What the rest of the crate reaches through `crate::expr::…`, unchanged by
@@ -399,6 +402,9 @@ pub(crate) fn infer(
         }
         ExprKind::InstanceOf { expr: inner, class } => {
             infer_instanceof(expr, inner, class, live, scope, ctx, env)
+        }
+        ExprKind::TypeTest { expr: inner, ty } => {
+            infer_type_test(expr, inner, ty, live, scope, ctx, env)
         }
         ExprKind::Call { callee, args } => {
             // `rule:types/closure-self-name`'s self-name, resolved before the callee is checked

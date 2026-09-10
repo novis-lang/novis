@@ -457,7 +457,12 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
 /// it at runtime instead), `iterable`, an intersection, an options bag and a
 /// type variable all take that branch, as does any class name this
 /// compilation did not declare.
-fn types_are_disjoint(lhs: TypeId, rhs: TypeId, env: &Env<'_>) -> bool {
+///
+/// [`super::type_test`] reads the same answer as a question about one value —
+/// a subject disjoint from the type it is tested against is a `$x is T` that
+/// folds to `false` — and that one-sidedness is what keeps the fold honest
+/// there too.
+pub(crate) fn types_are_disjoint(lhs: TypeId, rhs: TypeId, env: &Env<'_>) -> bool {
     if lhs == rhs {
         return false;
     }
