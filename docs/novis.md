@@ -22845,6 +22845,10 @@ long-running host — at a reload, or only at boot.
 | `deferred.deadline` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
 | `extension` | operator only — a request cannot change it | at reload |
 | `schedule` | operator only — a request cannot change it | at reload |
+| `queue.connection` | operator only — a request cannot change it | at boot only |
+| `queue.workers` | operator only — a request cannot change it | at boot only |
+| `queue.max_attempts` | operator only — a request cannot change it | at reload |
+| `queue.visibility` | operator only — a request cannot change it | at reload |
 | `app` | operator only — a request cannot change it | at reload |
 | `include` | operator only — a request cannot change it | at reload |
 | `metrics` | operator only — a request cannot change it | at reload |

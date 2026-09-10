@@ -366,6 +366,55 @@ fn a_boot_row_naming_a_block_carries_the_whole_block() {
     assert_eq!(server.dispatch.as_deref(), Some("path"));
 }
 
+/// [ADR 0154] § 5's reason for splitting `[queue]` across two apply classes, asserted as the thing
+/// an operator sees: a `workers` they edited on a running server is named by the reload and the
+/// count still in force is the one the workers were started with, while the `max_attempts` in the
+/// same file takes effect. `[queue]` is the block after `[deferred]` where both halves are in one
+/// tree, so a registry that made the block one row would fail here in whichever direction it chose.
+///
+/// [ADR 0154]: ../../../docs/decisions/0154.md
+#[test]
+fn a_reload_that_changes_workers_carries_the_running_value_and_names_the_key() {
+    let written = |workers: u32, max_attempts: u32| {
+        let text = format!(
+            "[db.main]\ndriver = \"pgsql\"\n\n[queue]\nconnection = \"main\"\n\
+             workers = {workers}\nmax_attempts = {max_attempts}\n"
+        );
+        Fake::with(&[("nvs.toml", text.as_str())])
+    };
+    let current = Current::new(snapshot_of(&written(4, 5), "nvs.toml"));
+
+    let reload = current
+        .publish(Arc::unwrap_or_clone(snapshot_of(
+            &written(16, 9),
+            "nvs.toml",
+        )))
+        .expect("this tree deserializes");
+
+    assert_eq!(
+        reload.boot.iter().map(|row| row.key).collect::<Vec<_>>(),
+        vec!["queue.workers"],
+        "a worker is a spawned task, so the count an operator changed is named rather than applied",
+    );
+    let queue = reload
+        .snapshot
+        .config
+        .queue
+        .as_ref()
+        .expect("the running `[queue]` block was carried forward");
+    assert_eq!(
+        queue.workers,
+        Some(4),
+        "the running count is still in force"
+    );
+    // The connection did not change, so it is not reported either — `Boot` is what applying costs,
+    // not what a key is.
+    assert_eq!(queue.connection.as_deref(), Some("main"));
+    // And the `Reload` half of the same block did take effect, which is what makes the carry above
+    // a property of the two directives rather than of the reload.
+    assert_eq!(queue.max_attempts, Some(9));
+}
+
 /// The bound's other side: a reload that *adds* a `Boot` key is a change like any other, and the
 /// snapshot goes back to having none of it rather than to an empty block the typed tree would read
 /// as a `[cache]` that was written.
