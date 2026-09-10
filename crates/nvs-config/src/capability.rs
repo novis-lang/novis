@@ -466,6 +466,17 @@ fn wildcard_granted(entry: &str, host: &str) -> bool {
 /// which is part of which endpoint this is. The address goes through [`unmapped`] for
 /// [`Capabilities::address_refused`]'s reason — the same machine is reachable under two spellings,
 /// and a grant that matched one and not the other would be the same hole from the other side.
+/// [`Scope::Name`]'s comparison: an entry granting a name it equals, and nothing else.
+///
+/// Exact, with no pattern of any kind — the names asked here are a `[db.<name>]` block, a mail
+/// endpoint and a queue, each a flat string with no structure for a wildcard to match part of. It
+/// is a function rather than a line in [`Capabilities::allows`] because
+/// [`allows_name`](Capabilities::allows_name) asks the same question without a [`Files`] in hand,
+/// and two spellings of *granted* are how a check and a run come to disagree.
+fn name_granted(list: &[String], name: &str) -> bool {
+    list.iter().any(|entry| entry == name)
+}
+
 fn endpoint_granted(list: &[String], endpoint: std::net::SocketAddr) -> bool {
     list.iter().any(|entry| {
         entry.parse::<std::net::SocketAddr>().is_ok_and(|granted| {
@@ -492,7 +503,7 @@ impl Capabilities {
             (Grant::These(_), Scope::Unscoped) => true,
             (Grant::These(list), Scope::Host(host)) => host_granted(cap, list, host),
             (Grant::These(list), Scope::Endpoint(endpoint)) => endpoint_granted(list, endpoint),
-            (Grant::These(list), Scope::Name(name)) => list.iter().any(|entry| entry == name),
+            (Grant::These(list), Scope::Name(name)) => name_granted(list, name),
             (Grant::These(list), Scope::Path(path)) => {
                 let Some(path) = resolved(path, files) else {
                     return false;
@@ -524,7 +535,32 @@ impl Capabilities {
         }
     }
 
-    /// [`allows`](Self::allows) for a grant that has nothing to be asked *about*, and the second
+    /// [`allows`](Self::allows) for a name matched exactly, and the second form of the question a
+    /// caller with no filesystem in front of it can ask.
+    ///
+    /// [`Scope::Name`] never reaches [`Files`] for [`allows_host`](Self::allows_host)'s reason —
+    /// a name is compared against the grant list as written, and there is nothing to canonicalize.
+    /// The caller with no filesystem is the compiler again:
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded` has `nvs check` refuse a
+    /// **literal** `Core\Queue::purge` queue name no `queue.purge` grant covers, under `E0637`,
+    /// and it walks this same list so that a check and a run cannot disagree about which queues
+    /// are granted.
+    ///
+    /// There is no pattern here and no `*.` spelling to add one: a queue name is a flat string the
+    /// program picked, so it has no labels to match at a boundary of.
+    #[must_use]
+    pub fn allows_name(&self, cap: Cap, name: &str) -> bool {
+        let Some(setting) = cap.grant(self) else {
+            return false;
+        };
+        match grant_of(setting) {
+            Grant::Nothing => false,
+            Grant::Everything => true,
+            Grant::These(list) => name_granted(list, name),
+        }
+    }
+
+    /// [`allows`](Self::allows) for a grant that has nothing to be asked *about*, and the third
     /// form of the question a caller with no filesystem in front of it can ask.
     ///
     /// [`Scope::Unscoped`] never reaches [`Files`] for [`allows_host`](Self::allows_host)'s

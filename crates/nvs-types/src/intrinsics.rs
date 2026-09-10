@@ -130,6 +130,18 @@ enum Grammar {
     /// second table beside this one, holding one row, would be the open
     /// extension point § 1 refuses.
     Host,
+    /// A queue name, read against the compiling machine's `queue.purge` grant
+    /// — `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s grant,
+    /// asked before the program runs.
+    ///
+    /// [`Host`](Self::Host)'s question one capability over, and on this table
+    /// for the reason that variant states: what differs between the two is
+    /// which grant is walked, not what kind of check it is. The name is
+    /// matched exactly, through
+    /// [`Capabilities::allows_name`](nvs_config::capability::Capabilities::allows_name),
+    /// because a queue name is a flat string the program itself picked and has
+    /// no labels for a `*.` to match at.
+    QueueName,
 }
 
 /// One row of § 1's table: a member, and which of its arguments is the small
@@ -286,6 +298,20 @@ const INTRINSICS: &[Intrinsic] = &[
         field: Some("host"),
         grammar: Grammar::Host,
     },
+    // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s written queue
+    // name. `purge`'s subject is the queue itself (`rule:core-api/shape-rules`
+    // R1), so `at: 0` addresses the argument rather than a field inside a
+    // shape. `delete` has no row beside it, and cannot have one: its queue
+    // arrives inside a `Queue\Id` at run time, so there is no written name for
+    // this pass to read and the door is the only place its grant is asked
+    // about.
+    Intrinsic {
+        owner: r"Core\Queue",
+        member: "purge",
+        at: 0,
+        field: None,
+        grammar: Grammar::QueueName,
+    },
 ];
 
 /// § 1's row for a resolved target, or `None` for the overwhelming majority of
@@ -386,6 +412,16 @@ pub(crate) fn check_call(
                 && !grants.allows_host(Cap::DbOpen, &text)
             {
                 report_ungranted(span, &text, env);
+            }
+        }
+        // The arm above's two facts, asked of a different grant: an absent
+        // configuration is the second one missing here too, and says nothing
+        // rather than denying.
+        Grammar::QueueName => {
+            if let Some(grants) = env.grants
+                && !grants.allows_name(Cap::QueuePurge, &text)
+            {
+                report_ungranted_queue(span, &text, env);
             }
         }
     }
@@ -640,6 +676,30 @@ fn report_ungranted(span: nvs_diagnostics::Span, host: &str, env: &mut Env<'_>) 
             "`rule:core-classes/db-capabilities`'s `db.open` lists the hosts a program-supplied `Db\\Settings` may \
              reach, and it denies by default — add this host to `[capabilities] db.open` in \
              `nvs.toml`, or name a `[db.<name>]` block and open it with `Core\\Db::connect`",
+        ),
+    );
+}
+
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s refusal, which
+/// is [`report_ungranted`]'s kind exactly: nothing is wrong with the literal,
+/// and what the message has to carry is the *deployment* it was checked
+/// against.
+///
+/// The help names the grant and no way around it, for the reason the rule
+/// gives: the queue name is program-written, but destroying the record that
+/// work existed is the operator's answer, and the entry belongs in the one
+/// place in a deployment that holds the name rather than on the request path.
+fn report_ungranted_queue(span: nvs_diagnostics::Span, queue: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNGRANTED_QUEUE,
+            format!("`{queue}` is not a queue this deployment's `queue.purge` grants"),
+        )
+        .with_primary(span, "read while compiling, because it is a constant")
+        .with_help(
+            "`rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `queue.purge` lists the queues a program may \
+             remove rows from, and it denies by default — add this queue to `[app.capabilities.queue] purge` in \
+             `nvs.toml`, or leave the removal to the entry that already holds the name",
         ),
     );
 }
