@@ -32,6 +32,19 @@
 //! runtime (`rule:enums/closed-integer-type`), so the enum and the column
 //! are one representation and not two.
 //!
+//! **Every text this module sends has been parsed by a real server of both framed drivers.**
+//! [`runs`] is the roster of drivers a statement exists for, and it is narrower than [`crate::db`]
+//! § *Every driver reaches every member, and all five are pooled* on purpose: each of the three it
+//! names reaches § 2's schema, § 4's claim and § 6's move as [`Split`]s, § 5's three readers as
+//! ordinary second spellings, and [`queue_connection`] as the seam that borrows the connection as
+//! whichever dialect it speaks. What says those texts are ones a *server* accepts rather than ones
+//! this module agrees with itself about is `crates/nvs-stdlib/tests/queue.rs`: § 2's schema, § 4's
+//! claim with its `skip locked`, § 6's two write-backs and its move, and § 5's readers all run
+//! against a real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written
+//! from — down to the two constructs nothing else in the roster spells, an `update` whose whole
+//! answer is the affected count and `count(case when … then 1 end)` beside the `cast(… as signed)`
+//! over the `sum` MySQL answers as a `decimal`.
+//!
 //! **What it spends:** one statement per member call, on a connection the request either already
 //! held or now holds for the rest of it, plus one JSON encoding of `$args` sized by the payload the
 //! caller wrote. Nothing is held between calls, except the four counters `stats` answers with for
@@ -39,12 +52,19 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`limits` and `grants` are not declared**, because both are § 1's `{…}` — a *shape* parameter,
-//!    which this registry still cannot spell. That is the same blocker `Core\Db::open` waits on
-//!    ([`crate::db`]'s own gaps), and the two lift together.
+//! 1. **`limits` and `grants` are not declared**, because § 1 makes each of them an *option* whose
+//!    value is itself a `{…}`, and a shape is only ever a whole parameter: a [`CoreOption`]'s type is
+//!    never a bag and a [`crate::registry::CoreField`]'s is never a [`CoreTy::Shape`], so the one
+//!    trailing bag an optioned member has leaves nowhere to write either of them. `Core\Db::open`
+//!    does not wait on this any more — its settings literal *is* a whole parameter and spells a
+//!    shape — so what is left to decide is whether an option may carry one at all, and where the
+//!    narrowing `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is read
+//!    off the context that enqueued the job.
+//!    — owner: unowned-sweep
 //! 2. **`$args` is `mixed` and so does not refuse a `secret`**, which § 1 asks for. A durable row is
 //!    an output and `rule:security/secret-qualifier`'s five sinks are the shape of the eventual answer; `CoreTy::Mixed`
 //!    carries no qualifier, so saying it needs a spelling the registry has not got.
+//!    — owner: unowned-sweep
 //! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
@@ -53,36 +73,21 @@
 //!    `dedupe_pending` column every statement here maintains, and the statement is race-free
 //!    against a schema carrying it without changing shape — so what is left of this gap is a
 //!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
+//!    — owner: unowned
 //! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
-//! 5. **All four members, the worker and this module's own test legs run on either dialect.**
-//!    Three drivers have a text here — [`runs`] is that roster, and it is the narrow one, because
-//!    [`crate::db`] § *Every driver reaches every member, and all five are pooled* sends over all
-//!    five — and each of those three reaches
-//!    § 2's schema, § 4's claim and § 6's move as
-//!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
-//!    the seam that borrows the connection as whichever dialect it speaks. §§ 4 and 6's remaining
-//!    three — [`QUEUES_MYSQL`], [`SUCCEEDED_MYSQL`] and [`RETRY_MYSQL`] — are here too, so every
-//!    statement either half of § 1 sends has both texts, and `nvs-cli`'s worker opens, claims and
-//!    reports over whichever of the three its block names. `crates/nvs-stdlib/tests/queue.rs` is
-//!    what says those texts are ones a *server* accepts rather than ones this module agrees with
-//!    itself about: § 2's schema, § 4's claim, § 6's two write-backs and its move run against a
-//!    real MySQL and a real MariaDB there, beside the PostgreSQL cases they were written from,
-//!    and § 5's three readers — [`QUEUES_MYSQL`], [`STATUS_MYSQL`], [`CANCEL_MYSQL`] and
-//!    [`COUNTS_MYSQL`] — do now as well, with § 4's `skip locked` asserted over the [`Split`] that
-//!    carries it. **Every text this module sends has now been parsed by a real server of both
-//!    framed drivers**, down to the two constructs nothing else in the roster spells: an `update`
-//!    whose whole answer is the affected count, and `count(case when … then 1 end)` beside the
-//!    `cast(… as signed)` over the `sum` MySQL answers as a `decimal`. What is left of this gap is
-//!    a text after all, and it is this module's to write: `Core\Db` has no driver gap left, so
-//!    SQLite and SQL Server each send a statement over it and neither has one of
-//!    these to be sent. SQLite is one dialect away. SQL Server is a dialect *and* the vocabulary
-//!    behind it, because `rule:core-classes/queue-storage-is-a-table` orders the filtered index its
-//!    nulls need before a fourth dialect is written — [`no_dialect`] is where an operator reads
-//!    which of the two they are waiting on.
+//!    — owner: unowned
+//! 5. **Two of the five backends have no statement here at all**, and the text is this module's to
+//!    write rather than [`crate::db`]'s: `Core\Db` reaches all five, so each of the two opens a
+//!    connection that works and has nothing of § 4's or § 6's to send over it. SQLite is one
+//!    dialect away. SQL Server is a dialect *and* the vocabulary behind it, because
+//!    `rule:core-classes/queue-storage-is-a-table` orders the filtered index its nulls need before a
+//!    fourth dialect is written — [`no_dialect`] carries both sentences, and is where an operator
+//!    reads which of the two they are waiting on.
+//!    — owner: gap-zero
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
