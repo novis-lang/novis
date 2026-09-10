@@ -5707,6 +5707,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   rather than the rule. Before landing such a pairing, `grep -n 'CoreTy::Mixed' crates/nvs-stdlib/src/`
   for the rows it will reach, and widen each helper's "not given" branch from `Tag::Null` to
   `Tag::Null | Tag::Unset` in the same edit. [until: reviewed 2026-09-10]
+- **No registry spelling can make a `mixed` parameter refuse a qualifier, so a gap reading as a
+  missing `CoreTy` is a missing call-site rule.** A `Qual` never refuses on its own — `expr::args`
+  only *narrows* the compared type for a mark that admits one, so every refusal is `is_assignable`'s,
+  and `crates/nvs-types/src/expr/assign.rs:70` accepts every qualified atom into `mixed`. Write it
+  beside its siblings in `nvs_types::expr::quals`, over the written argument, and file its check
+  under the crate that owns the diagnostic. [until: reviewed 2026-09-10]
 
 ## Divergences and refusals already pinned
 

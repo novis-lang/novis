@@ -2,46 +2,47 @@
 
 ## State
 
-**Goal `unowned-sweep`, stage 2.** ADR 0147's mechanism is landed end to end: `Const::NeverWritten`
-in the registry, `ConstArg::NeverWritten` in `nvs-types`, `InstKind::ConstUnset` in `nvs-ir` and the
-codegen arm that writes `Tag::Unset` over a zero payload. `rule:core-api/omission-is-not-a-written-null`,
-`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`,
-`rule:core-api/a-written-null-removes`, `rule:core-api/the-marker-never-reaches-a-program` and
-`rule:core-api/the-bag-abi-is-unchanged` are all `shipped`.
+**Goal `unowned-sweep`, stage 2.** ADR 0147's mechanism is landed end to end and `Core\Uri::with` is
+the member spending it; `rule:core-classes/uri-removable-components` stays `designed` for its second
+level, the `queryParameter`/`withQueryParameter` pair, which is `crates/nvs-stdlib/src/uri.rs`'s
+known gap 1.
 
-`Core\Uri::with` is the first member to spend it — `port`, `query` and `fragment` are `?T` and a
-written `null` removes; the other three refuse one. `Core\Queue::push`'s `args` took the marker as
-its omission fill because `mixed` admits a written `null`; both states still mean *no payload*.
+`Core\Queue::push`'s `$args` refuses a `secret` now, and queue.rs's gap 2 is gone with it. The
+refusal is **not** a registry spelling and could not have been one: `mixed` admits every qualifier
+there is, so it is a call-site rule beside its four siblings —
+`nvs_types::expr::quals::reject_secret_enqueued_argument` — reporting the serialiser sink's own code,
+because `payload_of` encodes the payload with `Core\Json::encode`'s encoder. ADR 0033 § 4's
+serialiser bullet carries the queue spelling and `rule:security/secret-sinks-refuse` says it.
 
-`rule:core-classes/uri-removable-components` stays `designed`: its second level, the
-`queryParameter`/`withQueryParameter` pair, is `crates/nvs-stdlib/src/uri.rs`'s known gap 1 now.
-Nothing is blocked.
-
-The website rule mirror was stale before this session — `node website/scripts/sync-rules.mjs`
-regenerated 30-odd pages that had nothing to do with this work, and it landed as its own commit.
+`examples/uri-without-fragment.nvs` exists, which is what the driver's acceptance check was stopping
+on: a fixture named in `files` and missing returns early in `loop.py`'s `begin`, so *no* floor check
+ran. The `-p nvs-stdlib` check that named `a_secret_argument_to_push_is_refused_where_the_call_is_written`
+could not host it — that crate cannot see a diagnostic — so the name moved to a `-p nvs-types` check
+and `docs/agent/goals/31-unowned-sweep.toml` is byte-identical to the live goal again. Nothing is
+blocked.
 
 ## Next group
 
 **Stage 2: the options bag, continued** — one file set: `crates/nvs-stdlib/src/queue.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`.
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/db/registry.rs`.
 
-- [ ] **`Core\Queue`'s `$args` refuses a `secret`** — `crates/nvs-stdlib/src/queue.rs:64` is gap 2
-      and `crates/nvs-stdlib/src/queue.rs:981` the row. `rule:security/secret-qualifier` and
-      `rule:security/secret-sinks-refuse`: a durable row read back by another process is a sink by
-      every test either applies. `CoreTy::Mixed` carries no qualifier —
-      `crates/nvs-stdlib/src/registry.rs:1031` is `classification`, whose leaf list is where a
-      spelling would go — so this is a registry spelling before it is a line in the helper.
-- [ ] **`Core\Queue`'s `limits` and `grants` are declared** — `crates/nvs-stdlib/src/queue.rs:55` is
-      gap 1: each is an *option* whose value is itself a `{…}`, and
-      `rule:core-api/shape-parameter` makes a shape only ever a whole parameter, so a
-      `CoreOption`'s type is never a bag and `crates/nvs-stdlib/src/registry.rs:771`'s `CoreField`
-      is never a `CoreTy::Shape`. `Core\Db::open` no longer waits on it — its settings literal *is*
-      a whole parameter — so what is left is whether an option may carry one at all.
+- [ ] **`Core\Queue`'s `limits` and `grants` are declared** — `crates/nvs-stdlib/src/queue.rs:64` is
+      gap 1 and `crates/nvs-stdlib/src/queue.rs:984` the bag with nowhere to write them.
+      `rule:core-api/shape-parameter`: a shape is only ever a whole parameter, so what is actually
+      being decided is whether a `CoreOption`'s type may be one — `crates/nvs-stdlib/src/registry.rs:720`
+      is `CoreTy::Shape`, and the option's `ty` field is the cell that would have to accept it.
+- [ ] **The `Core\Db::open` half agrees on the spelling** — `crates/nvs-stdlib/src/db/registry.rs:41`
+      is `SETTINGS`, whose literal already *is* a whole parameter, so it left this blocker first.
+      `rule:core-api/one-checked-shape-type`: the check
+      `the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling` wants the two
+      named together rather than each looking right alone.
 
 ## Backlog
 
-- `Core\Uri`'s `queryParameter`/`withQueryParameter` pair — `crates/nvs-stdlib/src/uri.rs` gap 1,
-  `rule:core-classes/uri-removable-components`' second level; stage 2 work, unclaimed by any item.
-- `array<T>` widens to accept a covariant read — goal `unowned-sweep`'s own standing decision.
-- The panic hook `rule:errors/helper-abi` has wanted since M5 — presentation only, never containment.
-- `nvs meta --json` spells `Const::NeverWritten` as `(omitted)`; no consumer pins that string yet.
+- `rule:core-classes/uri-removable-components`'s second level, `queryParameter`/`withQueryParameter`
+  — `crates/nvs-stdlib/src/uri.rs` gap 1; three named checks already wait on it in `loop-goal.toml`.
+- Stage 3: `array<T>` element covariance, the user's decision recorded not re-argued
+  (`docs/agent/loop-goal.md` § *Standing decisions*).
+- Stage 4: the doc-comment pass that changes no answer (`docs/agent/loop-goal.toml`).
+- `examples/uri-without-fragment.nvs` is exercised only by `files` existence; freezing its output
+  would be a `command` check nobody has written.
