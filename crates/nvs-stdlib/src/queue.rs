@@ -3998,13 +3998,14 @@ mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CLAIM_MYSQL, CLAIM_POSTGRES, CLAIM_SQLITE,
         CLASS, COUNTS_MYSQL, COUNTS_POSTGRES, COUNTS_SQLITE, DEAD_LETTER_MYSQL,
-        DEAD_LETTER_POSTGRES, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES,
-        DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL,
-        PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE,
-        PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
-        RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
-        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES,
+        DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLITE, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL,
+        DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE,
+        JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL,
+        PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES,
+        QUEUES_SQLITE, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLITE, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
+        STATUS_POSTGRES, STATUS_SQLITE, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLITE,
         Selection, Split, ThrownClass, Value, dead_errors, migration, no_dialect, purge_state_of,
         purge_texts, retry_at,
     };
@@ -4362,6 +4363,74 @@ mod tests {
             assert!(
                 sql.contains('?'),
                 "{member}'s MySQL text binds nothing, so it is not the statement it replaces"
+            );
+        }
+    }
+
+    /// Every text of the third dialect, as `(member, sql)`, each [`Split`] flattened to its two
+    /// halves.
+    ///
+    /// One list rather than a literal per case, because what the cases below assert is a property
+    /// of the *roster*: a statement added to this backend is covered on the day it lands rather
+    /// than on the day somebody remembers to extend a list.
+    fn sqlite_texts() -> Vec<(&'static str, &'static str)> {
+        let mut texts: Vec<(&str, &str)> = Vec::new();
+        for (member, split) in [
+            ("push", INSERT_SQLITE),
+            ("claim", CLAIM_SQLITE),
+            ("move", DEAD_LETTER_SQLITE),
+            ("delete", DELETE_SQLITE),
+        ] {
+            texts.push((member, split.first));
+            texts.push((member, split.then));
+        }
+        for text in [
+            ("status", STATUS_SQLITE),
+            ("cancel", CANCEL_SQLITE),
+            ("stats", COUNTS_SQLITE),
+            ("roster", QUEUES_SQLITE),
+            ("succeeded", SUCCEEDED_SQLITE),
+            ("retry", RETRY_SQLITE),
+            ("purge", PURGE_SQLITE),
+            ("purge dead", PURGE_DEAD_SQLITE),
+        ] {
+            texts.push(text);
+        }
+        texts
+    }
+
+    /// `delete … limit` is a build option, and this backend's roster asks for none.
+    ///
+    /// `libsqlite3-sys`'s bundled build does not set `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`, and
+    /// turning it on is the answer this goal refuses: a statement that parses only under a
+    /// non-default build stops parsing the day the dependency moves, where
+    /// [`PURGE_POSTGRES`]'s `where id in (select id … order by id limit ?)` is a shape every
+    /// backend already has. So the bound is inside a subquery here, and this is what says it stayed
+    /// there.
+    ///
+    /// **A `limit` inside parentheses is the `select`'s and one after the last of them is the
+    /// `delete`'s**, which is the whole of the distinction: [`PURGE_SQLITE`] spells the word and is
+    /// correct, and a text that moved it out of the subquery spells the same word and would be
+    /// refused by the engine. The second half asserts the bound is still there at all, because a
+    /// purge that lost it satisfies the first half by having nothing to move.
+    #[test]
+    fn no_sqlite_statement_asks_for_a_delete_limit() {
+        for (member, sql) in sqlite_texts() {
+            let Some(at) = sql.find("delete from") else {
+                continue;
+            };
+            let tail = sql[at..].rsplit(')').next().unwrap_or(&sql[at..]);
+            assert!(
+                !tail.contains("limit"),
+                "{member}'s SQLite text bounds its `delete` with a `limit`, which parses only \
+                 under `SQLITE_ENABLE_UPDATE_DELETE_LIMIT` and this build turns nothing on"
+            );
+        }
+
+        for (member, sql) in [("purge", PURGE_SQLITE), ("purge dead", PURGE_DEAD_SQLITE)] {
+            assert!(
+                sql.contains("limit ?"),
+                "{member} is still bounded, and on this backend the bound is in the subquery"
             );
         }
     }
