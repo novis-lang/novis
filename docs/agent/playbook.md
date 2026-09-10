@@ -1500,6 +1500,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   re-points. Grep the blocker a gap names, and the module's own path, before tagging or renumbering
   one. [until: reviewed 2026-09-10]
 
+- **An `[until: gone <path>:<needle>]` needle is matched literally, so one that drops the source's
+  backticks fires the moment it is written.** `session.py --wrap` retired a `carried-gaps.md` bullet
+  in the same call that added it, because the needle read `bytes round trip` where
+  `crates/nvs-stdlib/src/uuid.rs` writes `` `bytes` round trip ``. Copy the needle out of the file it
+  watches, or point it at a plain-text state such as `owner: unowned` instead.
+  [until: reviewed 2026-09-10]
+
 ## Running things
 
 - **One case, quickly:** `nvs test tests/conformance/core/str-case-members.nvst`, or `nvs test
