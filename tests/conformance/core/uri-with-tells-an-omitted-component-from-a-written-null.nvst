@@ -1,0 +1,44 @@
+--TEST--
+`$uri->with` carries an omitted component over and removes one a written `null` names, and `""` is a value rather than a removal — rule:core-api/omission-is-not-a-written-null, rule:core-api/a-written-null-removes, rule:core-classes/uri-removable-components
+--FILE--
+<?nvs
+// The two ways of not giving a component a value are two different requests.
+// `{}` leaves every one of the six alone; `{fragment: null}` clears exactly the
+// one it names and carries the other five over.
+var $u = Core\Uri::parse("https://example.com:8443/a?x=1#top");
+echo $u->with({})->toString(), "\n";
+echo $u->with({fragment: null})->toString(), "\n";
+echo $u->with({port: null, query: null})->toString(), "\n";
+
+// Three components are removable and each reader answers `null` afterwards —
+// `port`, `query` and `fragment`, which are the three whose absence a URI can
+// spell at all.
+var $bare = $u->with({port: null, query: null, fragment: null});
+echo $bare->toString(), "\n";
+echo $bare->port() == null, "|", $bare->query() == null, "|", $bare->fragment() == null, "\n";
+
+// `""` is not a second removal spelling: an empty query is a value, which is
+// what `?` written with nothing after it produces, and `query()` tells it from
+// an absent one. The two `with` calls therefore answer two different URIs.
+var $empty = $u->with({query: ""});
+var $gone = $u->with({query: null});
+echo $empty->toString(), "|", $empty->query() == null, "\n";
+echo $gone->toString(), "|", $gone->query() == null, "\n";
+
+// The same key that removes with `null` replaces with a value, so nothing about
+// replacement moved to make room for this.
+echo $u->with({port: 443, query: "y=2", fragment: "b"})->toString(), "\n";
+
+// A fresh `Uri` every time: the receiver none of the above mentioned twice is
+// still the URI it was parsed from.
+echo $u->toString(), "\n";
+--EXPECT--
+https://example.com:8443/a?x=1#top
+https://example.com:8443/a?x=1
+https://example.com/a#top
+https://example.com/a
+1|1|1
+https://example.com:8443/a?#top|
+https://example.com:8443/a#top|1
+https://example.com:443/a?y=2#b
+https://example.com:8443/a?x=1#top

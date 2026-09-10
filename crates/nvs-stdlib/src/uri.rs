@@ -330,14 +330,14 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`$uri->with` replaces a component and cannot remove one**, so there is
-//!    no spelling for "this URI without its fragment". [`written`] owns the
-//!    mechanism — an omitted option and a written `null` would arrive as the
-//!    same `Tag::Null`, so the option types are `string` rather than `?string`
-//!    and a clearing spelling would have to overload a real value. The fix is
-//!    an options bag that can tell the two apart, not an `""`-means-remove
-//!    rule: `""` is already an empty query, which `?` written with nothing
-//!    after it produces and which `query()` reports as distinct from `null`.
+//! 1. **A query parameter can only be edited by rewriting the whole query**,
+//!    so `rule:core-classes/uri-removable-components`'s second level —
+//!    `queryParameter(string $name)` and `withQueryParameter(string $name,
+//!    mixed $value)` — does not exist yet. `with` cannot close it: a bag's
+//!    keys are declared in the registry and a parameter's name is chosen at
+//!    run time. Both members are a composition of [`nvs_core_uri_parse_query`],
+//!    [`nvs_core_uri_build_query`] and `with` and add no mechanism, so the
+//!    query string gains no second canonicalization to drift from.
 //!    — owner: unowned-sweep
 //!
 //! # What these members do with a qualifier
@@ -563,8 +563,8 @@ pub const CLASS: CoreClass = CoreClass {
                 },
                 CoreOption {
                     name: "port",
-                    ty: CoreTy::Int,
-                    default: Const::Null,
+                    ty: CoreTy::Nullable(&CoreTy::Int),
+                    default: Const::NeverWritten,
                 },
                 CoreOption {
                     name: "path",
@@ -573,13 +573,13 @@ pub const CLASS: CoreClass = CoreClass {
                 },
                 CoreOption {
                     name: "query",
-                    ty: CoreTy::Text(Qual::Contagious),
-                    default: Const::Null,
+                    ty: CoreTy::Nullable(&CoreTy::Text(Qual::Contagious)),
+                    default: Const::NeverWritten,
                 },
                 CoreOption {
                     name: "fragment",
-                    ty: CoreTy::Text(Qual::Contagious),
-                    default: Const::Null,
+                    ty: CoreTy::Nullable(&CoreTy::Text(Qual::Contagious)),
+                    default: Const::NeverWritten,
                 },
             ])],
             defaults: &[],
@@ -830,9 +830,9 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
 /// `$uri->with`'s reference card — `rule:core-api/reference-card`.
 const WITH_DOC: MethodDoc = MethodDoc {
     short: "A fresh `Uri` with the named components replaced and every other one carried over, \
-            replacing reassembly by hand. It replaces and never removes — there is no spelling \
-            that clears a component — and `userInfo` is not on the bag, so it can neither add \
-            nor drop a credential.",
+            replacing reassembly by hand. Writing `null` for `port`, `query` or `fragment` \
+            removes that component, where leaving the key out carries it over; `userInfo` is \
+            not on the bag, so it can neither add nor drop a credential.",
     params: &[
         ParamDoc {
             name: "scheme",
@@ -846,7 +846,7 @@ const WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "port",
-            desc: "The new port, `0`–`65535`.",
+            desc: "The new port, `0`–`65535`, or `null` to remove it.",
             shape: &[],
         },
         ParamDoc {
@@ -856,12 +856,14 @@ const WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "query",
-            desc: "The new query, already encoded and without its `?`.",
+            desc: "The new query, already encoded and without its `?`, or `null` to remove it; \
+                   `\"\"` is an empty query, which is a different thing.",
             shape: &[],
         },
         ParamDoc {
             name: "fragment",
-            desc: "The new fragment, already encoded and without its `#`.",
+            desc: "The new fragment, already encoded and without its `#`, or `null` to remove \
+                   it.",
             shape: &[],
         },
     ],
@@ -1337,15 +1339,14 @@ fn held<'a>(slots: &'a [Value], index: usize, member: &str) -> Result<Option<&'a
     })
 }
 
-/// One written option's text, or `None` where the call left the option out.
+/// One **non-nullable** option's text, or `None` where the call left it out.
 ///
-/// An omitted option arrives as [`Const::Null`] and a **written** one cannot
-/// be `null`, because each option's declared type is `string` rather than
-/// `?string` — which is what makes "not given" a state the helper can tell
-/// apart from every value a call site could write. It is also why `with`
-/// replaces and never removes: with no second null to spend, a clearing
-/// spelling would have to overload a legitimate value, and `""` is already an
-/// empty query rather than the absence of one.
+/// The three components `with` cannot remove — `scheme`, `host` and `path` —
+/// are declared `string` rather than `?string`, so an omitted one arrives as
+/// [`Const::Null`] and no written one can be a `null` to collide with it.
+/// `rule:core-classes/uri-removable-components` owns which three those are and
+/// why each is a different operation wearing a removal's clothes; the other
+/// three go through [`removable`] instead.
 ///
 /// # Errors
 ///
@@ -1355,8 +1356,8 @@ fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault>
     if matches!(value.tag(), Some(Tag::Null)) {
         return Ok(None);
     }
-    // Unreachable from source: every option this reads is `CoreTy::Str` with a
-    // `Const::Null` default in `CLASS`'s `with` row above, so the slot holds
+    // Unreachable from source: every option this reads is `CoreTy::Text` with
+    // a `Const::Null` default in `CLASS`'s `with` row above, so the slot holds
     // either that null — taken by the branch above — or a string, and anything
     // else is `E0401: expected 'string', found 'mixed'` at the checker.
     value.as_text().map(Some).ok_or_else(|| {
@@ -1365,6 +1366,40 @@ fn written<'a>(value: &'a Value, option: &str) -> Result<Option<&'a str>, Fault>
             value.tag_byte()
         ))
     })
+}
+
+/// One **nullable** option's three states: `None` where the call did not
+/// mention it, `Some(None)` where it wrote `null`, and `Some(Some(text))`
+/// where it wrote a replacement.
+///
+/// `rule:core-api/omission-is-not-a-written-null` is the mechanism and this is
+/// the first member to spend it. An omitted nullable option materializes
+/// [`Const::NeverWritten`], which arrives under `Tag::Unset` — a tag no value
+/// the type system can spell ever carries — so *leave this alone* and *clear
+/// this* are two arguments rather than one. `""` is not a third spelling of
+/// either: it is an empty query, which `?` written with nothing after it
+/// produces and which [`nvs_core_uri_query`] already reports as distinct from
+/// `null`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the slot holds something else, exactly as
+/// [`written`] does and for the same reason.
+fn removable<'a>(value: &'a Value, option: &str) -> Result<Option<Option<&'a str>>, Fault> {
+    match value.tag() {
+        Some(Tag::Unset) => Ok(None),
+        Some(Tag::Null) => Ok(Some(None)),
+        // Unreachable from source, on [`written`]'s judgement: the option is
+        // `?string` in `CLASS`'s `with` row above, so the slot holds the
+        // marker, a null, or a string, and anything else is `E0401` at the
+        // checker.
+        _ => value.as_text().map(|text| Some(Some(text))).ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::with expected a `?string` for its `{option}` option, got tag {}",
+                value.tag_byte()
+            ))
+        }),
+    }
 }
 
 /// The seven components [`nvs_core_uri_with`] wrote its text out of — what the
@@ -2054,11 +2089,19 @@ nvs_runtime::nvs_helper! {
     /// collections is built once and read, and a URI that could change under a
     /// caller who had already validated it is the shape this exists to avoid.
     ///
-    /// **It replaces and never removes** — [`written`] owns why, and the one
-    /// component that is not on the bag at all, `userInfo`, is carried over
-    /// unchanged, so `with` can neither add nor drop a credential. The result
-    /// goes back through [`read`] and then [`unmoved`], which is what makes a
-    /// bad option a throw rather than a `Uri` describing somewhere else.
+    /// **Three of the six components can be removed, and `null` is how** —
+    /// `port`, `query` and `fragment` are `?T`, so `{fragment: null}` clears
+    /// the fragment where `{}` leaves it alone ([`removable`]). The other
+    /// three are `string`: `rule:core-classes/uri-removable-components` owns
+    /// why each of those is a different operation wearing a removal's clothes,
+    /// and [`written`] is what reads them. `userInfo` is not on the bag at all
+    /// and is carried over unchanged, so `with` can neither add nor drop a
+    /// credential.
+    ///
+    /// A removal is no shortcut around anything: the result goes back through
+    /// [`read`] and then [`unmoved`] exactly as a replacement does, so a
+    /// removal that would let a remaining component move into another's
+    /// position is the same throw a bad replacement already is.
     ///
     /// An empty port on the receiver has already become "no port" by the time
     /// it reaches a slot ([`port_of`]), so a `with` that does not mention the
@@ -2069,29 +2112,31 @@ nvs_runtime::nvs_helper! {
         let receiver = crate::instance::receiver(args[0], &CLASS, "with")?;
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
-        // The one option declared `int` rather than `string`, so it is read
-        // here rather than through `written` — and narrowed to a port here
+        // The one option declared `?int` rather than `?string`, so it is read
+        // here rather than through `removable` — and narrowed to a port here
         // too, at both ends of the bound. A value above `65535` would still
         // recompose and be refused by `port_of` inside `built`, but a
         // *negative* one recomposes to a `-` the authority grammar does not
         // admit at all, so `read` would refuse it a step earlier with a
         // message about a byte. [`port_out_of_range`] is the one rule both
         // ends draw.
-        let port = if matches!(args[3].tag(), Some(Tag::Null)) {
-            slots[PORT_SLOT].as_int()
-        } else {
-            // Unreachable from source, on `written`'s judgement with the one
-            // difference the comment above names: `port` is `CoreTy::Int` with
-            // a `Const::Null` default, the null is the branch above, and
-            // anything else is `E0401: expected 'int', found 'mixed'` at the
+        let port = match args[3].tag() {
+            // Not mentioned: carry the receiver's own port over.
+            Some(Tag::Unset) => slots[PORT_SLOT].as_int(),
+            // `{port: null}` — removed, which is the whole of what a written
+            // `null` means here (`rule:core-api/a-written-null-removes`).
+            Some(Tag::Null) => None,
+            // Unreachable from source, on `removable`'s judgement: `port` is
+            // `?int`, the two tags above are its other two states, and
+            // anything else is `E0401: expected '?int', found 'mixed'` at the
             // checker. The range, which a program *can* get wrong, is
             // `port_out_of_range` below.
-            Some(args[3].as_int().ok_or_else(|| {
+            _ => Some(args[3].as_int().ok_or_else(|| {
                 Fault::fatal(format!(
-                    "Core\\Uri::with expected an `int` for its `port` option, got tag {}",
+                    "Core\\Uri::with expected an `?int` for its `port` option, got tag {}",
                     args[3].tag_byte()
                 ))
-            })?)
+            })?),
         };
         let port = match port {
             Some(port) => Some(u16::try_from(port).map_err(|_| port_out_of_range("with"))?),
@@ -2106,8 +2151,18 @@ nvs_runtime::nvs_helper! {
             path: written(&args[4], "path")?
                 .or(held(&slots, PATH_SLOT, "with")?)
                 .unwrap_or(""),
-            query: written(&args[5], "query")?.or(held(&slots, QUERY_SLOT, "with")?),
-            fragment: written(&args[6], "fragment")?.or(held(&slots, FRAGMENT_SLOT, "with")?),
+            // The two removable text components: an omitted option leaves the
+            // receiver's own alone, and a written `null` clears it — which is
+            // `removable`'s outer `Option` and `held`'s, in that order, rather
+            // than an `or` that cannot tell the two apart.
+            query: match removable(&args[5], "query")? {
+                Some(replacement) => replacement,
+                None => held(&slots, QUERY_SLOT, "with")?,
+            },
+            fragment: match removable(&args[6], "fragment")? {
+                Some(replacement) => replacement,
+                None => held(&slots, FRAGMENT_SLOT, "with")?,
+            },
         };
         let text = recompose(&composed);
         let reference = read(&text, "with")?;

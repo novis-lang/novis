@@ -1,0 +1,19 @@
+--TEST--
+`$uri->with`'s three non-removable components refuse a written `null`, so the type says which components can be cleared — `rule:core-classes/uri-removable-components`, `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`
+--FILE--
+<?nvs
+// A bag field is nullable exactly where the member has a removal to offer, so
+// `scheme`, `host` and `path` are `string` and not `?string`: every reference
+// has a path, clearing a host would silently clear the port and user-info
+// beside it, and dropping a scheme is a conversion to a relative reference
+// rather than a field's worth of behaviour.
+var $u = Core\Uri::parse("https://example.com:8443/a");
+echo $u->with({scheme: null})->toString(), "\n";
+echo $u->with({host: null})->toString(), "\n";
+echo $u->with({path: null})->toString(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `null`
+%A
+error: aborting due to 3 errors
