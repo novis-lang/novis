@@ -1,0 +1,107 @@
+--TEST--
+An enqueue and its receipt work where `[queue] connection` names a SQLite file rather than a server, and the row the push wrote is in that file — `rule:core-classes/queue-storage-is-a-table`
+--FILE--
+<?nvs
+use Core\Db\Row;
+use Core\Queue;
+use Core\Queue\State;
+
+// The queue with no server behind it. What a program sees of `Core\Queue` on
+// the four backends that have an address is asserted against a container by
+// `crates/nvs-stdlib/tests/queue.rs`; SQLite is a file, so here the enqueue
+// really writes a row and the receipt really reads one back, on every machine
+// and with no daemon.
+//
+// `workers = 0` below is what makes the answers facts rather than a race: it is
+// `nvs_config::queue`'s enqueue-only deployment, so nothing claims the job
+// between the push and the question asked about it.
+
+// The two tables, converged the only way a case can. Their one home is
+// `nvs_stdlib::queue::schema()` and what applies them is `nvs queue migrate`, an
+// operator command no `.nvst` reaches; this is the text that command prints for
+// this dialect under `--dry-run`. A column a statement reads and these tables
+// do not declare fails the case rather than passing quietly.
+//
+// Both of them, because a receipt is answered from both: a job that exhausted
+// its attempts is a row in the dead-letter table and `Dead` is the state
+// `status` reads there, so a deployment with only the first table has a
+// question it cannot answer.
+var $db = Core\Db::connect("jobs");
+var $jobs = <<<'SQL'
+create table nvs_jobs (
+    id integer primary key autoincrement,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    state smallint not null,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    dedupe_pending varchar(255),
+    created_at bigint not null,
+    claimed_at bigint,
+    constraint nvs_jobs_dedupe unique (dedupe_pending)
+)
+SQL;
+$db->execute($jobs, []);
+
+var $dead = <<<'SQL'
+create table nvs_dead_jobs (
+    id bigint not null,
+    queue varchar(255) not null,
+    script text not null,
+    args text,
+    attempts integer not null,
+    max_attempts integer not null,
+    backoff_ms bigint not null,
+    run_at bigint not null,
+    tag varchar(255),
+    dedupe_key varchar(255),
+    created_at bigint not null,
+    failed_at bigint not null,
+    errors text not null,
+    primary key (id)
+)
+SQL;
+$db->execute($dead, []);
+
+// Nothing in this call says which backend it is on, which is the claim: the
+// members a request asks are the same four here as on the servers
+// `examples/queue.nvs` needs.
+var $receipt = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
+echo "pending ", Queue::status($receipt) == State::Pending ? "yes" : "no", "\n";
+
+// And this is where the row went — the operator's own connection to the same
+// `[db.jobs]` block reads what the enqueue wrote, which is the whole of a queue
+// being a table in a connection the operator named rather than a service the
+// runtime keeps somewhere of its own.
+foreach ($db->query("select script from nvs_jobs where queue = ?", ["receipts"]) as Row $row) {
+    echo "row ", $row->string("script") ?? "null", "\n";
+}
+
+// The same rows as the population an operator watches, answered by the member
+// rather than by a count of the table.
+echo "pending=", Queue::stats("receipts")->pending(), "\n";
+--FILE nvs.toml--
+# `db.connect` covers the block the case reads the row back through. The enqueue
+# itself asks for no capability — the connection is the operator's and never the
+# program's, which `nvs_stdlib::queue`'s module doc is the home of.
+[capabilities.db]
+connect = ["jobs"]
+
+[db.jobs]
+driver = "sqlite"
+path = "jobs.db"
+
+# `workers = 0` is a deployment that enqueues and runs nothing, which is what
+# lets this case ask about a job that is still pending.
+[queue]
+connection = "jobs"
+workers = 0
+--EXPECT--
+pending yes
+row jobs/send-receipt.nvs
+pending=1
