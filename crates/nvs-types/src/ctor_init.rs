@@ -473,7 +473,8 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
         ExprKind::Unary { expr: inner, .. }
         | ExprKind::PreIncDec { expr: inner, .. }
         | ExprKind::PostIncDec { expr: inner, .. }
-        | ExprKind::Conversion { expr: inner, .. } => {
+        | ExprKind::Conversion { expr: inner, .. }
+        | ExprKind::TypeTest { expr: inner, .. } => {
             scan_expr(inner, state, env);
         }
         ExprKind::InstanceOf { expr: inner, class } => {

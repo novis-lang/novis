@@ -3295,6 +3295,23 @@ pub mod code {
     /// argument is already refused where it is passed.
     pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810");
 
+    /// `$x is $cls` — a value written where `is` takes a type
+    /// (`rule:types/type-test`, the third of its three refusals).
+    ///
+    /// The spelling is not ours to give a meaning to: PHP's grammar binds a
+    /// variable in that slot, so reading it as a dynamic class test would make
+    /// one line mean two different things in the two languages, silently, in
+    /// both. `$x instanceof $cls` is that test and is the one question `is`
+    /// cannot ask, so the help names it.
+    ///
+    /// It is reported in the parser, where the `$` is still in hand. Deferred
+    /// to name resolution it would arrive as a type that failed to resolve,
+    /// and the diagnostic would describe the name rather than the shape.
+    ///
+    /// `E0811` is `is void` and `is never`, the second of the three refusals;
+    /// `rule:types/type-test`'s table is the home of which code refuses what.
+    pub const E_TYPE_TEST_AGAINST_A_VALUE: Code = Code::new("E0812");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

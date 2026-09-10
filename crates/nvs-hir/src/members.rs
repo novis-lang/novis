@@ -946,7 +946,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, .. } => e!(expr),
+        ExprKind::Conversion { expr, .. } | ExprKind::TypeTest { expr, .. } => e!(expr),
         ExprKind::InstanceOf { expr, class } => {
             e!(expr);
             walk_class_side(class, src, ctx, env);

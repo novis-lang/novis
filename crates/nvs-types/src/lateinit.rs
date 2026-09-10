@@ -386,7 +386,8 @@ fn scan_expr(
         ExprKind::Unary { expr: inner, .. }
         | ExprKind::PreIncDec { expr: inner, .. }
         | ExprKind::PostIncDec { expr: inner, .. }
-        | ExprKind::Conversion { expr: inner, .. } => {
+        | ExprKind::Conversion { expr: inner, .. }
+        | ExprKind::TypeTest { expr: inner, .. } => {
             scan_expr(inner, written, tracked, env);
         }
         ExprKind::InstanceOf { expr: inner, class } => {

@@ -1389,13 +1389,19 @@ fn let_is_a_reserved_spelling() {
     }
 }
 
-/// The same for `is`, whose help names both living spellings: `instanceof`
-/// tests and `as` converts. Written between two operands it is refused and
-/// then parsed as the `instanceof` it names, so recovery leaves one
-/// diagnostic and the node the reader meant.
+/// `rule:types/type-test`: `is` is the type test, so the refusal it carried
+/// while it was a held spelling is gone from the operator position. `let` has
+/// no construct behind it and keeps its half of
+/// `rule:php-migration/let-and-is-are-reserved` untouched — as does `is` in
+/// the one position where it is a *name* and not an operator, where the help
+/// now names the operator it became.
 #[test]
-fn is_is_a_reserved_spelling() {
-    for src in ["is", "is($a)"] {
+fn is_no_longer_reports_the_reserved_word_refusal_and_let_still_does() {
+    let (e, diags) = parse_with_diags("$a is Foo");
+    assert!(!diags.has_errors(), "{diags:?}");
+    assert!(matches!(e.kind, ExprKind::TypeTest { .. }), "{e:?}");
+
+    for src in ["let", "let(1)", "$a + let"] {
         let (_, diags) = parse_with_diags(src);
         assert!(
             diags
@@ -1404,16 +1410,143 @@ fn is_is_a_reserved_spelling() {
             "expected E_RESERVED_FOR_FUTURE_USE for {src:?}, got {diags:?}"
         );
         assert!(
-            diags.iter().any(|d| d
-                .notes
+            diags
                 .iter()
-                .any(|n| n.contains("`instanceof`") && n.contains("`as`"))),
-            "{src}: the living spellings are not named"
+                .any(|d| d.notes.iter().any(|n| n.contains("`var`"))),
+            "{src}: the living spelling is not named"
         );
     }
 
-    let (e, diags) = parse_with_diags("$a is Foo");
+    let (_, diags) = parse_with_diags("is($a)");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_RESERVED_FOR_FUTURE_USE)),
+        "a call through `is` names it: {diags:?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.notes.iter().any(|n| n.contains("`$x is T`"))),
+        "the operator `is` became is not named: {diags:?}"
+    );
+}
+
+/// `rule:types/type-test`: the right-hand side is read by `parse_type`, so
+/// every shape the type grammar admits reaches it. `array<int>` and a shape
+/// are the tells — the first would be two comparisons on the expression side
+/// and the second has no expression spelling that means this at all.
+#[test]
+fn is_parses_its_right_hand_side_with_parse_type_and_not_as_an_expression() {
+    let e = parse_ok("$x is int");
+    let ExprKind::TypeTest { expr, ty } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    assert!(matches!(expr.kind, ExprKind::Variable(_)), "{expr:?}");
+    assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Int)), "{ty:?}");
+
+    let e = parse_ok("$x is array<int>");
+    let ExprKind::TypeTest { ty, .. } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Array(Some(elem))) = ty.kind else {
+        panic!("expected an array type: {ty:?}");
+    };
+    assert!(
+        matches!(elem.kind, TypeKind::Atom(TypeAtom::Int)),
+        "{elem:?}"
+    );
+
+    let e = parse_ok("$x is {a: int, b: string}");
+    let ExprKind::TypeTest { ty, .. } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    let TypeKind::Atom(TypeAtom::Shape(fields)) = ty.kind else {
+        panic!("expected a shape: {ty:?}");
+    };
+    assert_eq!(fields.len(), 2);
+}
+
+/// `rule:types/type-test`: one precedence level, shared with `instanceof` and
+/// left-associative, so a chain reads left to right and `!` applies to the
+/// `bool` the test answers rather than to its subject.
+#[test]
+fn is_binds_at_the_same_level_as_instanceof_and_below_unary_not() {
+    let e = parse_ok("!$x is int");
+    let ExprKind::Unary {
+        op: UnaryOp::Not,
+        expr,
+    } = e.kind
+    else {
+        panic!("expected a top-level `!`: {e:?}");
+    };
+    assert!(matches!(expr.kind, ExprKind::TypeTest { .. }), "{expr:?}");
+
+    // The two keywords are one level: the `instanceof` is the *subject* of the
+    // `is`, which is what left-associativity at a shared level means.
+    let e = parse_ok("$x instanceof Foo is bool");
+    let ExprKind::TypeTest { expr, .. } = e.kind else {
+        panic!("expected a top-level type test: {e:?}");
+    };
+    assert!(matches!(expr.kind, ExprKind::InstanceOf { .. }), "{expr:?}");
+
+    // Tighter than every binary operator, `as` excepted, which is postfix.
+    let e = parse_ok("$a + $x is int");
+    let ExprKind::Binary {
+        op: BinaryOp::Add,
+        rhs,
+        ..
+    } = e.kind
+    else {
+        panic!("expected a top-level `+`: {e:?}");
+    };
+    assert!(matches!(rhs.kind, ExprKind::TypeTest { .. }), "{rhs:?}");
+}
+
+/// `rule:types/type-test`: a union, an intersection and a `?` on the right are
+/// one type each. Read as expressions they would be a bitwise chain and a
+/// ternary, which is the whole reason the operand is not `parse_pipe`.
+#[test]
+fn is_over_a_union_and_a_nullable_parses_as_one_type_and_not_as_a_comparison_chain() {
+    let e = parse_ok("$x is int|string");
+    let ExprKind::TypeTest { ty, .. } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    let TypeKind::Union(members) = ty.kind else {
+        panic!("expected a union: {ty:?}");
+    };
+    assert_eq!(members.len(), 2);
+
+    let e = parse_ok("$x is Countable&Traversable");
+    let ExprKind::TypeTest { ty, .. } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    let TypeKind::Intersection(members) = ty.kind else {
+        panic!("expected an intersection: {ty:?}");
+    };
+    assert_eq!(members.len(), 2);
+
+    let e = parse_ok("$x is ?Foo");
+    let ExprKind::TypeTest { ty, .. } = e.kind else {
+        panic!("expected a type test: {e:?}");
+    };
+    assert!(matches!(ty.kind, TypeKind::Nullable(_)), "{ty:?}");
+}
+
+/// `rule:types/type-test`'s third refusal, reported with the `$` still in
+/// hand: a variable on the right names a value, and the dynamic class test the
+/// reader wants is `instanceof`. The node stands afterwards, so the subject is
+/// still checked and the reader gets exactly this one diagnostic.
+#[test]
+fn is_against_a_variable_is_e0812_and_its_help_names_instanceof() {
+    let (e, diags) = parse_with_diags("$x is $cls");
     let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
-    assert_eq!(codes, vec![code::E_RESERVED_FOR_FUTURE_USE]);
-    assert!(matches!(e.kind, ExprKind::InstanceOf { .. }), "{e:?}");
+    assert_eq!(codes, vec![code::E_TYPE_TEST_AGAINST_A_VALUE], "{diags:?}");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.notes.iter().any(|n| n.contains("instanceof"))),
+        "the dynamic class test is not named: {diags:?}"
+    );
+    assert!(matches!(e.kind, ExprKind::TypeTest { .. }), "{e:?}");
 }

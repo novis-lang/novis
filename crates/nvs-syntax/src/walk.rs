@@ -418,6 +418,10 @@ fn expr(e: &Expr) -> Node {
             kids.push(expr(operand));
             "Conversion"
         }
+        ExprKind::TypeTest { expr: operand, .. } => {
+            kids.push(expr(operand));
+            "TypeTest"
+        }
         ExprKind::InstanceOf {
             expr: operand,
             class,

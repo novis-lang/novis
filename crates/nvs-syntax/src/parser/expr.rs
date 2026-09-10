@@ -536,16 +536,22 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.parse_instanceof()
     }
 
+    /// `instanceof` and `is`, which share one precedence level: the class test
+    /// and the type test ask the same question of the same operand, so a
+    /// reader reaching for either writes it in the same place.
+    ///
+    /// **The two differ only in what follows the keyword.** `instanceof` takes
+    /// an expression, because a `class<T>` operand is a value; `is` takes a
+    /// type, parsed by the production `as` uses, because the thing on its right
+    /// never was one (`rule:types/type-test`). That is why the right side is
+    /// read by two different calls rather than by one shared operand parser.
+    ///
+    /// Left-associative in a loop, so each test is charged one level of the
+    /// recursion budget and held open to the end of the chain, for the
+    /// reason `parse_left_assoc` gives: the tree nests even though the
+    /// parser does not.
     pub(super) fn parse_instanceof(&mut self) -> Expr {
         let mut lhs = self.parse_pipe();
-        // `rule:php-migration/let-and-is-are-reserved`: `is` is refused in the
-        // position a reader reaching for it writes it, and then parsed as the
-        // `instanceof` its help names, so one expression carries one
-        // diagnostic instead of a cascade.
-        // Left-associative in a loop, so each test is charged one level of the
-        // recursion budget and held open to the end of the chain, for the
-        // reason `parse_left_assoc` gives: the tree nests even though the
-        // parser does not.
         let mut links: u32 = 0;
         while self.at_keyword(Keyword::InstanceOf) || self.at_keyword(Keyword::Is) {
             if self.enter_recursive() {
@@ -556,19 +562,28 @@ impl<'src, 'd> Parser<'src, 'd> {
                 break;
             }
             links += 1;
-            let reserved = self.at_keyword(Keyword::Is);
-            let op = self.bump().span;
-            if reserved {
-                self.report_reserved_for_future_use(Keyword::Is, op);
-            }
-            let class = self.parse_pipe();
-            let span = lhs.span.to(class.span);
-            lhs = Expr {
-                span,
-                kind: ExprKind::InstanceOf {
-                    expr: Box::new(lhs),
-                    class: Box::new(class),
-                },
+            let type_test = self.at_keyword(Keyword::Is);
+            self.bump();
+            lhs = if type_test {
+                let ty = self.parse_type_test_operand();
+                let span = lhs.span.to(ty.span);
+                Expr {
+                    span,
+                    kind: ExprKind::TypeTest {
+                        expr: Box::new(lhs),
+                        ty,
+                    },
+                }
+            } else {
+                let class = self.parse_pipe();
+                let span = lhs.span.to(class.span);
+                Expr {
+                    span,
+                    kind: ExprKind::InstanceOf {
+                        expr: Box::new(lhs),
+                        class: Box::new(class),
+                    },
+                }
             };
         }
         for _ in 0..links {

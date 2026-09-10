@@ -1119,7 +1119,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, ty } => {
+        ExprKind::Conversion { expr, ty } | ExprKind::TypeTest { expr, ty } => {
             e!(expr);
             walk_type(ty, src, out);
         }

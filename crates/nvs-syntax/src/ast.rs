@@ -873,6 +873,16 @@ pub enum ExprKind {
         /// The target type.
         ty: Type,
     },
+    /// `expr is Type` — the type test (`rule:types/type-test`). Its right side
+    /// is a [`Type`] and never an [`Expr`], which is the whole difference from
+    /// [`Self::InstanceOf`]: `instanceof` tests against a class *value*, so a
+    /// `$cls` is legal there and refused here.
+    TypeTest {
+        /// The value being tested.
+        expr: Box<Expr>,
+        /// The type it is tested against.
+        ty: Type,
+    },
     /// `expr instanceof ClassOrExpr`
     InstanceOf {
         /// The value being tested.

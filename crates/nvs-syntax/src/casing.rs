@@ -730,7 +730,9 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
             }
             check_expr(else_, src, diags);
         }
-        ExprKind::Conversion { expr, .. } => check_expr(expr, src, diags),
+        ExprKind::Conversion { expr, .. } | ExprKind::TypeTest { expr, .. } => {
+            check_expr(expr, src, diags);
+        }
         ExprKind::InstanceOf { expr, class } => {
             check_expr(expr, src, diags);
             check_expr(class, src, diags);

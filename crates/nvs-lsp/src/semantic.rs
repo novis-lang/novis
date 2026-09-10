@@ -819,7 +819,8 @@ impl Named<'_> {
             ExprKind::Unary { expr, .. }
             | ExprKind::PreIncDec { expr, .. }
             | ExprKind::PostIncDec { expr, .. }
-            | ExprKind::Conversion { expr, .. } => self.expr(expr),
+            | ExprKind::Conversion { expr, .. }
+            | ExprKind::TypeTest { expr, .. } => self.expr(expr),
             ExprKind::Binary { lhs, rhs, .. } => {
                 self.expr(lhs);
                 self.expr(rhs);

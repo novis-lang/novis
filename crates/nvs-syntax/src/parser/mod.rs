@@ -671,25 +671,32 @@ impl<'src, 'd> Parser<'src, 'd> {
         parsed
     }
 
-    /// `rule:php-migration/let-and-is-are-reserved`: `let` and `is` name a
-    /// construct that does not exist, so either spelling is a name the program
-    /// still owes a rename. The label says the word means nothing here and the
-    /// help names the living spelling for what it would have meant.
+    /// `rule:php-migration/let-and-is-are-reserved`: neither word may name
+    /// anything, and the two are refused for different reasons. `let` holds a
+    /// spelling with no construct behind it; `is` is the type-test operator
+    /// (`rule:types/type-test`), which is a construct that simply cannot stand
+    /// where a name does. The label says which of the two this is, and the
+    /// help names the living spelling the program should reach for.
     fn report_reserved_for_future_use(&mut self, word: Keyword, span: Span) {
-        let (spelling, living) = if word == Keyword::Let {
-            ("let", "`var` declares an inferred local")
+        let (spelling, label, living) = if word == Keyword::Let {
+            (
+                "let",
+                "reserved for a future construct — it names nothing here",
+                "`var` declares an inferred local",
+            )
         } else {
-            ("is", "`instanceof` tests a class and `as` converts")
+            (
+                "is",
+                "the type-test operator — it names nothing here",
+                "`$x is T` tests a value against a type and `as` converts",
+            )
         };
         self.diags.report(
             Diagnostic::error(
                 code::E_RESERVED_FOR_FUTURE_USE,
                 format!("`{spelling}` is a reserved spelling"),
             )
-            .with_primary(
-                span,
-                "reserved for a future construct — it names nothing here",
-            )
+            .with_primary(span, label)
             .with_help(format!(
                 "{living}; rename any `{spelling}` the program used as a name"
             )),

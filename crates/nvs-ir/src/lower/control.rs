@@ -2190,6 +2190,7 @@ impl<'a> Lowering<'a> {
             | ExprKind::PreIncDec { expr: inner, .. }
             | ExprKind::PostIncDec { expr: inner, .. }
             | ExprKind::Conversion { expr: inner, .. }
+            | ExprKind::TypeTest { expr: inner, .. }
             | ExprKind::Clone(inner)
             | ExprKind::YieldFrom(inner)
             | ExprKind::Print(inner)
