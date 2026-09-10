@@ -548,10 +548,12 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The type comes from `crate::expr_table::ExprInfo::TypeTest`, recorded by
 /// [`crate::expr::type_test::infer_type_test`] when the condition was checked a
 /// moment earlier, for [`instanceof_residue`]'s reason and because interning a
-/// written type is not something this walk can do. **The entry's existence is
-/// the guard**: the checker records one only for a test whose answer is a
-/// run-time `bool`, so a type that already covers the declared one folded to
-/// `true` and never arrives here to widen a binding.
+/// written type is not something this walk can do. **Which variant is on the
+/// span is the guard**: the checker records this one only for a test whose
+/// answer is a run-time `bool`, so a type that already covers the declared one
+/// folded to `true`, carries a
+/// `crate::expr_table::ExprInfo::SettledTypeTest` instead, and never arrives
+/// here to widen a binding.
 fn type_test_residue(
     cond: &Expr,
     when: bool,

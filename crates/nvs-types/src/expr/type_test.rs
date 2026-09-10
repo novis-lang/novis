@@ -33,7 +33,12 @@
 //! A test that survives both folds and both refusals **records the type it
 //! lowered** ([`crate::expr_table::ExprInfo::TypeTest`]), because that is the
 //! one case with a run-time answer: narrowing reads it on the true edge, and
-//! `nvs-ir` reads it to emit the test.
+//! `nvs-ir` reads it to emit the test. A folded one records the constant
+//! instead ([`crate::expr_table::ExprInfo::SettledTypeTest`]) — which variant
+//! is on the span is what tells the two apart, and the constant is carried
+//! rather than re-derived because the fold is a question about types that no
+//! longer exist below this crate. A refused test records neither: it has a
+//! diagnostic, so no lowering ever sees it.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context.
@@ -60,9 +65,11 @@ use super::operators::types_are_disjoint;
 ///
 /// A test that reaches `bool` records the type it lowered
 /// ([`ExprInfo::TypeTest`]), which is what [`crate::locals::narrow`] reads to
-/// narrow the subject on the true edge and what `nvs-ir` will read to emit the
-/// test. A folded or refused one records nothing: there is no run-time test
-/// left to narrow inside or to emit.
+/// narrow the subject on the true edge and what `nvs-ir` reads to emit the
+/// test. A folded one records [`ExprInfo::SettledTypeTest`] and its constant
+/// instead: there is no run-time test left to narrow inside, and lowering
+/// answers with the constant while still running the subject for its effects.
+/// A refused one records nothing at all.
 pub(crate) fn infer_type_test(
     expr: &Expr,
     inner: &Expr,
@@ -78,9 +85,13 @@ pub(crate) fn infer_type_test(
         return env.interner.bool_ty();
     }
     if always_holds(subject, tested, env) {
+        env.exprs
+            .record(expr.span, ExprInfo::SettledTypeTest { answer: true });
         return env.interner.true_ty();
     }
     if never_holds(subject, tested, env) {
+        env.exprs
+            .record(expr.span, ExprInfo::SettledTypeTest { answer: false });
         return env.interner.false_ty();
     }
     env.exprs.record(expr.span, ExprInfo::TypeTest { tested });

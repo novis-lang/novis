@@ -1258,6 +1258,33 @@ pub enum InstKind {
         /// The tagged value being tested.
         operand: ValueId,
     },
+    /// Whether a [`crate::ty::Ty::Tagged`] value's tag is the one `repr`
+    /// carries once it is materialized (`nvs_codegen::ty::tag_of`) —
+    /// [`crate::ty::Ty::Bool`], one masked compare, no call.
+    ///
+    /// `rule:types/type-test`'s `$x is T` for every row a tag settles by
+    /// itself: a scalar, `null`, plain `object` and a bare `array`. A class, a
+    /// named element type, a literal and an enum case each need more than a
+    /// tag — the descriptor walk `instanceof` already emits, the element walk
+    /// `as array<T>` already emits, or a payload compare — and none of those
+    /// replaces this compare, they follow it. A subject that is not
+    /// [`crate::ty::Ty::Tagged`] never reaches here at all: it carries exactly
+    /// one tag, so `crate::lower` answers it as a constant.
+    ///
+    /// It **borrows** its operand exactly as [`Self::IsNull`] does: no retain,
+    /// no release, no ownership transfer, no status and no landing block.
+    ///
+    /// The tag is the **low byte** of the tag word rather than the whole word,
+    /// which is the one way this is not `IsNull` with a different immediate: a
+    /// `decimal` spells its scale and sign in the same word
+    /// (`nvs_runtime::decimal`), so a compare against the word would answer
+    /// `false` for every `decimal` that is not zero-scaled and positive.
+    TagIs {
+        /// The tagged value whose tag is read.
+        operand: ValueId,
+        /// The representation whose tag it must carry.
+        repr: Ty,
+    },
     /// Invokes one of a small, closed, engine-owned set of runtime
     /// conversions — one of the milestone's named ingredients. `helper` is a
     /// fixed [`Helper`] tag, never a resolved

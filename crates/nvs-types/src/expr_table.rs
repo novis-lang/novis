@@ -770,10 +770,11 @@ pub enum ExprInfo {
     /// right-hand side lowered to.
     ///
     /// Recorded only where the test does real work. A settled test folds to
-    /// `true` or `false` and a refused right-hand side has no type to carry
-    /// (`crate::expr::type_test`), so neither records anything — an entry here
-    /// means the answer is a run-time `bool`, which is exactly the case a
-    /// consumer has something to do about: narrowing on the true edge
+    /// `true` or `false` and carries [`Self::SettledTypeTest`] instead, and a
+    /// refused right-hand side has no type to carry
+    /// (`crate::expr::type_test`) — so **this** variant on a span means the
+    /// answer is a run-time `bool`, which is exactly the case a consumer has
+    /// something to do about: narrowing on the true edge
     /// (`rule:types/narrowing`) and, for `nvs-ir`, a test to emit.
     ///
     /// Recorded rather than left to the consumer for [`ExprInfo::InstanceOf`]'s
@@ -787,6 +788,25 @@ pub enum ExprInfo {
         /// it. Never a `void`, a `never` or a qualified atom: those are the
         /// right-hand sides `is` refuses.
         tested: TypeId,
+    },
+    /// `$x is T` the checker **settled**, carrying the constant it folded to —
+    /// the other half of [`Self::TypeTest`], and never recorded beside one.
+    ///
+    /// Which of the two variants an `is` expression carries is the whole of
+    /// what a consumer needs to know about it: this one means there is no
+    /// run-time test, so [`crate::locals::narrow`] narrows nothing (a target
+    /// that would widen a binding folded to `true` and is here) and `nvs-ir`
+    /// emits the constant rather than a comparison.
+    ///
+    /// The constant is recorded rather than re-derived because nothing below
+    /// this crate can re-derive it: the fold is a question about the
+    /// *checker's* types — `mixed` accepting everything, a union disjoint from
+    /// a subject — and two settled tests whose subject and target erase to the
+    /// same pair of representations can fold opposite ways
+    /// (`?int $x; $x is int|null` against `$x is string|float`).
+    SettledTypeTest {
+        /// What the test answers, at every execution.
+        answer: bool,
     },
     /// `EnumName::CaseName`, keyed by the whole access's own span.
     ///

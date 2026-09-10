@@ -279,6 +279,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::Tag { operand } => format!("tag v{}", operand.index()),
         InstKind::Untag { operand } => format!("untag v{}", operand.index()),
         InstKind::IsNull { operand } => format!("is.null v{}", operand.index()),
+        InstKind::TagIs { operand, repr } => {
+            format!("is.tag v{}, {repr:?}", operand.index())
+        }
         InstKind::Clone { object } => format!("clone v{}", object.index()),
         InstKind::HelperCall { helper, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();

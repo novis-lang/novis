@@ -264,6 +264,12 @@ impl<'a> Lowering<'a> {
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
+            // `rule:types/type-test`'s `$x is T` — the question `instanceof`
+            // one arm below answers only for a class, against a written *type*
+            // rather than a class value. See `Self::lower_type_test`.
+            ExprKind::TypeTest { expr: inner, .. } => {
+                self.lower_type_test(inner, expr, env, cur)
+            }
             ExprKind::InstanceOf { expr: inner, class } => {
                 self.lower_instanceof(inner, class, expr, env, cur)
             }
@@ -4723,6 +4729,136 @@ impl<'a> Lowering<'a> {
         result
     }
 
+    /// `rule:types/type-test`'s `$x is T` — `bool` for every subject, and
+    /// never a throw.
+    ///
+    /// **The checker's record says which of two shapes this is**, and reading
+    /// it is not optional: `nvs_types::expr_table::ExprInfo::TypeTest` carries
+    /// the interned right-hand side and means the answer is a run-time `bool`,
+    /// while `ExprInfo::SettledTypeTest` carries the constant the checker
+    /// folded to. The fold cannot be re-derived here, which is why it travels
+    /// as a record — two settled tests can share both representations and fold
+    /// opposite ways (`?int $x; $x is int|null` against `$x is string|float`),
+    /// so the erasures this crate holds do not distinguish them. A folded test
+    /// still **runs its subject**: `f() is int` calls `f`.
+    ///
+    /// **What the test costs is [`TestShape`]'s question, not this one's**: a
+    /// tag comparison, or the descriptor walk `instanceof` and `as C` already
+    /// emit. Against a tag row, a subject that is not a [`Ty::Tagged`] carries
+    /// exactly one tag, so its answer is a constant — and always `false`,
+    /// since a subject whose representation *is* the tested one folded at the
+    /// checker. The arm is written as the comparison rather than as that
+    /// constant because the comparison is the reason, and `int $n; $n is
+    /// float` reaches it: the two types are not disjoint, so neither fold
+    /// fires, and an `int` still does not carry a `float`'s tag.
+    ///
+    /// The subject is only read, so a fresh one nothing else owns is released
+    /// once the test has read it — [`Self::lower_instanceof`]'s own rule, and
+    /// the result being a [`Ty::Bool`] is what makes "right after" safe.
+    fn lower_type_test(
+        &mut self,
+        inner: &Expr,
+        expr: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let plan = match self.exprs.lookup(expr.span) {
+            Some(&ExprInfo::TypeTest { tested }) => TypeTestPlan::AtRunTime(tested),
+            Some(&ExprInfo::SettledTypeTest { answer }) => TypeTestPlan::Settled(answer),
+            _ => panic!(
+                "nvs-ir: an `is` at {:?} with neither a tested type nor a settled answer \
+                 recorded in the typed-expression table — `nvs_types::expr::type_test` records \
+                 one of the two for every test it accepts, so this is a checker that did not \
+                 run or a record under a different span",
+                expr.span
+            ),
+        };
+        let (value, subject) = self.lower_expr(inner, None, env, cur);
+        let result = match plan {
+            TypeTestPlan::Settled(answer) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(answer)),
+            TypeTestPlan::AtRunTime(tested) => {
+                let Some(shape) = test_shape(tested, self.checked_types) else {
+                    panic!(
+                        "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
+                         `array` or a class — got {:?}; a named element type, a shape, a literal \
+                         and an enum case each need the element walk or a payload compare beside \
+                         the tag test, and see the crate docs' known gaps",
+                        self.checked_types.get(tested)
+                    );
+                };
+                match shape {
+                    TestShape::Tag(repr) if subject == Ty::Tagged => self.emit(
+                        *cur,
+                        Ty::Bool,
+                        InstKind::TagIs {
+                            operand: value,
+                            repr,
+                        },
+                    ),
+                    TestShape::Tag(repr) => {
+                        self.emit(*cur, Ty::Bool, InstKind::ConstBool(subject == repr))
+                    }
+                    // The walk `instanceof` and `as C` already emit, on the two
+                    // representations that can reach a descriptor at all. Every
+                    // other subject holds no object, so the answer is a
+                    // constant — a `mixed` is the [`Ty::Tagged`] arm and a
+                    // scalar's disjointness folded at the checker, which leaves
+                    // this branch reachable only if a fold is ever weakened.
+                    TestShape::Class(name) if matches!(subject, Ty::Object | Ty::Tagged) => self
+                        .emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::InstanceOf {
+                                value,
+                                class: TestedClass::Named(name),
+                            },
+                        ),
+                    TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+                    // `as ?array<T>` is the walk that answers rather than
+                    // throws, so this is that lowering with the value thrown
+                    // away and its absence read as the answer — one
+                    // `Helper::ToArrayOfOrNull` and no second walk anywhere in
+                    // the tree. The result carries a reference of its own
+                    // (`nvs_runtime::helpers`' `to_array_of` retains), so it is
+                    // released as soon as the tag has been read; releasing the
+                    // `null` it answers with on the false edge is the no-op
+                    // every other `?T` consumer relies on.
+                    TestShape::ArrayOf(tags) if matches!(subject, Ty::Array | Ty::Tagged) => {
+                        let (word, _) = self.emit(*cur, Ty::Uint, InstKind::ConstUint(tags));
+                        let (walked, _) = self.emit_fallible(
+                            *cur,
+                            Ty::Tagged,
+                            InstKind::HelperCall {
+                                helper: Helper::ToArrayOfOrNull,
+                                args: vec![value, word],
+                            },
+                            env,
+                        );
+                        let (absent, _) =
+                            self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: walked });
+                        self.emit_release(*cur, walked);
+                        self.emit(
+                            *cur,
+                            Ty::Bool,
+                            InstKind::UnOp {
+                                op: UnOp::Not,
+                                operand: absent,
+                            },
+                        )
+                    }
+                    // Nothing else holds an array, so the walk would answer
+                    // one constant — see the class row above, which reaches
+                    // its own for the same reason.
+                    TestShape::ArrayOf(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+                }
+            }
+        };
+        if !self.aliasing_read(inner) && subject.is_refcounted() {
+            self.emit_release(*cur, value);
+        }
+        result
+    }
+
     /// `$x instanceof Name` — the tested class comes from
     /// `self.exprs`, exactly like a property access's declaring class,
     /// because resolving a bare `Animal` to `Ns\Animal` needs the
@@ -4851,6 +4987,97 @@ pub(crate) enum ReceiverProof {
     /// travels to [`InstKind::SlotGet`], which checks the tag where it
     /// already checks the name (`rule:types/erased-member-access`).
     Erased,
+}
+
+/// Which of `rule:types/type-test`'s two shapes one `$x is T` is, read off the
+/// checker's own record before the subject is lowered — see
+/// [`Lowering::lower_type_test`], whose `&mut self` is why the record cannot
+/// simply be matched in place.
+enum TypeTestPlan {
+    /// The answer is a run-time `bool`, tested against this interned type.
+    AtRunTime(TypeId),
+    /// The checker settled the answer. The subject still runs.
+    Settled(bool),
+}
+
+/// What one `$x is T` costs at run time, which is the whole of what
+/// [`Lowering::lower_type_test`] decides — see `rule:types/type-test`'s own
+/// table, which states these costs because a reader has to see them before
+/// writing a test inside a loop.
+enum TestShape {
+    /// One tag comparison, against the tag this representation carries.
+    Tag(Ty),
+    /// The descriptor walk `instanceof` and `as C` already emit, against this
+    /// class or interface label. Never a second walk of its own.
+    Class(String),
+    /// The O(n) element walk `as array<T>` already pays for, against
+    /// [`super::array_element_tags`]' word — one tag nibble per level of `T`.
+    /// Never a second walk of its own either: the spelling that *answers*
+    /// instead of throwing is `as ?array<T>`'s, over the same helper.
+    ArrayOf(u64),
+}
+
+/// Which shape `$x is T` takes, or `None` for a row that has neither yet.
+///
+/// The tag rows are the ones that cost one comparison: a scalar, `null`, plain
+/// `object` and a bare `array`. The class row is the descriptor walk, and the
+/// element row is the array walk. `None` is a shape, a literal, an enum case,
+/// a union, an intersection, `iterable` and `callable` — each of which *also*
+/// begins with a tag, so a `None` is a row for `crate::lower` to grow a walk
+/// or a payload compare for and never a row to skip.
+///
+/// `mixed` is not here and cannot arrive: it holds every value, so the checker
+/// folded that test to `true`.
+///
+/// # Known gaps
+///
+/// An `array<T>` whose element type no tag decides — `array<Foo>`, a shape, a
+/// union — answers `None` here, because the walk takes a tag word and there is
+/// none to build. `as array<Foo>` is refused where it is written (`E0711`) and
+/// `is array<Foo>` is not, so that spelling reaches the caller's panic rather
+/// than a diagnostic. Closing it is a decision about
+/// `rule:types/type-test`'s table, not about this function.
+fn test_shape(tested: TypeId, checked_types: &TypeInterner) -> Option<TestShape> {
+    // `QName` is destructured rather than named, for
+    // `super::closure::declared_class`'s reason: `nvs-hir` is a
+    // dev-dependency of this crate.
+    if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
+        return Some(TestShape::Class(qname.to_string()));
+    }
+    Some(TestShape::Tag(match checked_types.get(tested) {
+        CheckedTy::Bool => Ty::Bool,
+        CheckedTy::Int => Ty::Int,
+        CheckedTy::Uint => Ty::Uint,
+        CheckedTy::Float => Ty::Float,
+        CheckedTy::Decimal => Ty::Decimal,
+        CheckedTy::String => Ty::Str,
+        CheckedTy::Bytes => Ty::Bytes,
+        CheckedTy::Null => Ty::Null,
+        // Plain `object` and nothing narrower: `rule:types/grammar`'s opaque
+        // top of every class type is exactly "carries `Tag::Object`", while a
+        // `Class` erases to the same representation and still owes the
+        // descriptor walk.
+        CheckedTy::Object => Ty::Object,
+        // A bare `array` is `array<mixed>` (`nvs_types::lower::lower_type`),
+        // and every value carrying `Tag::Array` holds one.
+        CheckedTy::Array(element) if matches!(checked_types.get(*element), CheckedTy::Mixed) => {
+            Ty::Array
+        }
+        // A named element type is the walk instead, and the tag word is the
+        // whole of what the helper takes. A `None` here is an element no tag
+        // decides — a class, a shape, a `callable`, an enum, a literal, a
+        // union — which `as array<T>` refuses where it is written (`E0711`)
+        // and `is` does not yet: see this function's own known gap.
+        CheckedTy::Array(_) => {
+            return Some(TestShape::ArrayOf(array_element_tags(
+                tested,
+                checked_types,
+            )?));
+        }
+        // A qualified atom never reaches here: `is tainted string` is `E0813`,
+        // there being no run-time bit to read.
+        _ => return None,
+    }))
 }
 
 pub(crate) struct NullsafeGuard {

@@ -752,7 +752,7 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             // The tagged-value instructions. None of them calls, none
-            // allocates, and only `IsNull` reads a tag — see
+            // allocates, and only `IsNull` and `TagIs` read a tag — see
             // `nvs_ir::Ty::Tagged` for the representation they all assume.
             InstKind::Tag { operand } => {
                 let (value, from) = self.value(*operand)?;
@@ -858,6 +858,26 @@ impl Emitter<'_, '_> {
                 // its own representation uses (`crate::ty::clif_ty`), so this
                 // is one compare against zero with nothing to mask off.
                 let value = self.b.ins().icmp_imm_u(IntCC::Equal, tag_word, 0);
+                self.define(inst, value)?;
+            }
+            InstKind::TagIs { operand, repr } => {
+                let (value, from) = self.value(*operand)?;
+                if from != Ty::Tagged {
+                    return Err(internal(
+                        "`is.tag` of a value that is not tagged — a subject with a \
+                         representation of its own carries one known tag, and `nvs_ir::lower`'s \
+                         type test answers it as a constant instead",
+                    ));
+                }
+                let (tag_word, _) = self.split_tagged(value);
+                // The low byte alone, which is where this parts company with
+                // `IsNull` one arm above: a `decimal` spells its scale and its
+                // sign in the rest of the same word (`nvs_runtime::decimal`),
+                // so a compare against the whole word would answer `false` for
+                // every `decimal` but a positive zero-scaled one.
+                let tag = self.b.ins().band_imm_u(tag_word, 0xff);
+                let want = i64::from(tag_of(*repr)? as u8);
+                let value = self.b.ins().icmp_imm_u(IntCC::Equal, tag, want);
                 self.define(inst, value)?;
             }
             InstKind::ArrayNew { entries } => {
