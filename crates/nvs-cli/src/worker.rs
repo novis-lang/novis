@@ -48,16 +48,27 @@
 //! One connection per worker in whichever driver `[db.<name>]` names, opened once and held for the
 //! run, plus the roster statement each idle turn and nothing beyond it, since a roster with no due
 //! work claims nothing. A turn that *does* claim costs a transaction's worth of round trips on
-//! MySQL and MariaDB where it costs a single statement on PostgreSQL, which is
+//! MySQL, MariaDB and SQLite where it costs a single statement on PostgreSQL, which is
 //! [`nvs_stdlib::queue::Split`]'s trade and not this module's: the claim's `select` and its
 //! `update` are one moment or they are nothing, and a backend without the construct that makes them
-//! one statement pays a transaction for the same property. It is
+//! one statement pays a transaction for the same property. On SQLite those round trips are calls
+//! into a file this process opened rather than messages on a socket, which is the cheap end of that
+//! trade rather than a new one. It is
 //! `workers` connections against the deployment's `max_connections` and the operator wrote the
 //! number; `rule:security/db-pool-reset-is-a-boundary`'s pool is deliberately not involved, because a pool exists to be handed
 //! between requests and this connection belongs to one task for its whole life. A turn that claims
 //! spends one isolate on top of that — its own arena and budget, sharing only the compiled unit,
 //! which [`crate::script`]'s cache holds for the run so a queue draining ten jobs off one script
 //! compiles it once.
+//!
+//! ## What `[queue] workers` buys on SQLite
+//!
+//! One worker's throughput, and a number above that buys waiting rather than parallelism. SQLite
+//! has a single writer and every claim here is an immediate transaction
+//! (`rule:concurrency/claiming-is-one-statement`), so a second worker against the same file waits
+//! out the first one's write lock instead of proceeding beside it. That is a property of the
+//! database rather than a defect of the queue, and nothing here shards, locks or opens a second
+//! file to work around it.
 //!
 //! ## What a run pays for a worker it never gives a turn to
 //!
@@ -166,7 +177,7 @@ pub(crate) fn start(
 /// One worker's whole life: open the connection, then take turns until the run ends.
 ///
 /// A statement that fails ends the worker rather than being retried. A connection is only usable at
-/// a message boundary — on either driver — and a failed statement is not one, so the honest recovery
+/// a message boundary — on every driver — and a failed statement is not one, so the honest recovery
 /// is a new connection, which is the next run's, since this one is by then within a few milliseconds
 /// of its own end.
 fn claim_until_stopped(
@@ -229,20 +240,36 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<
     Ok(claimed)
 }
 
-/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`] and
-/// [`nvs_stdlib::queue::QUEUES_MYSQL`] answer it.
+/// The queues holding work this worker could take, as [`nvs_stdlib::queue::QUEUES_POSTGRES`],
+/// [`nvs_stdlib::queue::QUEUES_MYSQL`] and [`nvs_stdlib::queue::QUEUES_SQLITE`] answer it — and the
+/// last of those is the second one, not a copy of it.
 ///
-/// **One binding for both dialects**, because both texts name the same values in the same
-/// order and neither is a [`nvs_stdlib::queue::Split`] — so what the branch below is about is the
-/// walk over the answer and never the parameters. Where a dialect *does* reorder its values, the
-/// caller reconciles it at the one site that already had to branch: [`report`]'s retry.
+/// **The same values in the same order on every dialect**, and none of these texts is a
+/// [`nvs_stdlib::queue::Split`] — so what the branch below is about is the walk over the answer and
+/// never the parameters. What each arm builds for itself is the *binding*, because an instant is
+/// the octets of its decimal text to a wire driver and the integer itself to SQLite. Where a
+/// dialect *does* reorder its values, the caller reconciles it at the one site that already had to
+/// branch: [`report`]'s retry.
 fn roster(conn: &mut Wire, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
-    let sending = [Some(millis(now)), Some(millis(cutoff))];
-    let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
     match conn.dialect() {
-        Dialect::Postgres(postgres) => postgres_roster(postgres, &bound),
-        Dialect::Framed(mut framed) => framed_roster(&mut framed, &bound),
+        Dialect::Postgres(postgres) => {
+            let sending = [millis(now), millis(cutoff)];
+            postgres_roster(postgres, &borrowed(&sending))
+        }
+        Dialect::Framed(mut framed) => {
+            let sending = [millis(now), millis(cutoff)];
+            framed_roster(&mut framed, &borrowed(&sending))
+        }
+        Dialect::Sqlite(sqlite) => sqlite_roster(sqlite, now, cutoff),
     }
+}
+
+/// Owned octets as the borrowed, nullable slices a wire driver's `query` takes.
+///
+/// Nothing a worker sends is null — every value it binds is an id, an instant or a queue's own
+/// name — so this is the shape of a parameter list rather than a decision about anything in one.
+fn borrowed(values: &[Vec<u8>]) -> Vec<Option<&[u8]>> {
+    values.iter().map(|one| Some(one.as_slice())).collect()
 }
 
 /// [`roster`] over the extended-query protocol: one statement, and its one column.
@@ -289,6 +316,29 @@ fn framed_roster(framed: &mut Framed<'_>, bound: &[Option<&[u8]>]) -> io::Result
     Ok(names)
 }
 
+/// [`roster`] over SQLite, whose rows are in hand by the time the statement answers.
+///
+/// **No column definition to read a value against**, which is the one way this walk is shorter than
+/// the two above it: SQLite stores a value as one of five storage classes whatever the column was
+/// declared as, so a cell arrives as the class it is and [`nvs_db::SqliteValue`] is both halves of
+/// what a column and its scalar are elsewhere.
+fn sqlite_roster(sqlite: &nvs_db::SqliteConn, now: i64, cutoff: i64) -> io::Result<Vec<String>> {
+    let mut answered = sqlite.query(
+        nvs_stdlib::queue::QUEUES_SQLITE,
+        vec![
+            nvs_db::SqliteValue::Int(now),
+            nvs_db::SqliteValue::Int(cutoff),
+        ],
+    )?;
+    let mut names = Vec::new();
+    while let Some(row) = answered.next_row() {
+        if let Some(nvs_db::SqliteValue::Text(name)) = row.into_iter().next() {
+            names.push(name);
+        }
+    }
+    Ok(names)
+}
+
 /// What a worker reads off [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s `returning` list, and what running one
 /// and reporting it needs.
 ///
@@ -319,21 +369,29 @@ struct Job {
 
 /// One claim against one queue, answering with the row it took.
 ///
-/// **The same values in the same order for both dialects**, as [`roster`]'s are:
+/// **The same values in the same order on every dialect**, as [`roster`]'s are:
 /// [`nvs_stdlib::queue::CLAIM_MYSQL`]'s `select` names the queue and the two instants exactly where
-/// [`nvs_stdlib::queue::CLAIM_POSTGRES`] names them, so the branch is over how the answer is read
-/// and how many statements it took, never over what was sent.
+/// [`nvs_stdlib::queue::CLAIM_POSTGRES`] names them and [`nvs_stdlib::queue::CLAIM_SQLITE`] names
+/// them again, so the branch is over how the answer is read and how many statements it took, never
+/// over what was sent. The binding is each arm's own, for [`roster`]'s reason.
 fn claim(conn: &mut Wire, queue: &str, now: i64, cutoff: i64) -> io::Result<Option<Job>> {
-    let sending = [
-        Some(queue.as_bytes().to_vec()),
-        Some(millis(now)),
-        Some(millis(cutoff)),
-    ];
-    let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
     match conn.dialect() {
-        Dialect::Postgres(postgres) => postgres_claim(postgres, &bound),
-        Dialect::Framed(mut framed) => framed_claim(&mut framed, &bound, now),
+        Dialect::Postgres(postgres) => {
+            let sending = wire_claim(queue, now, cutoff);
+            postgres_claim(postgres, &borrowed(&sending))
+        }
+        Dialect::Framed(mut framed) => {
+            let sending = wire_claim(queue, now, cutoff);
+            framed_claim(&mut framed, &borrowed(&sending), now)
+        }
+        Dialect::Sqlite(sqlite) => sqlite_claim(sqlite, queue, now, cutoff),
     }
+}
+
+/// A claim's three values as a wire driver binds them: the queue's own octets, then each instant as
+/// the decimal text a `$n::bigint` and a `?` alike are sent as.
+fn wire_claim(queue: &str, now: i64, cutoff: i64) -> [Vec<u8>; 3] {
+    [queue.as_bytes().to_vec(), millis(now), millis(cutoff)]
 }
 
 /// [`claim`] as one statement: [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s data-modifying CTE, which
@@ -540,6 +598,133 @@ fn integer(read: &nvs_db::MySqlScalar<'_>) -> Option<i64> {
     }
 }
 
+/// [`claim`] as the pair SQLite spells, inside the immediate transaction that *is* the claim.
+///
+/// **The transaction is the mutual exclusion here and there is no locking clause to add**, which is
+/// `rule:concurrency/claiming-is-one-statement`'s: this backend has one writer, so inside
+/// `begin_immediate` no second connection is writing at all and two workers cannot come back with
+/// one row. The one that arrives second waits for the write lock, and by the time it proceeds the
+/// row the first took is no longer due.
+///
+/// **Immediate rather than the deferred transaction a bare `BEGIN` opens**, for the reason
+/// `nvs_db::sqlite::SqliteConn::begin_immediate`'s own doc gives: a transaction that reads a row
+/// and then writes it back asks to upgrade a shared lock, and SQLite refuses an upgrade without
+/// honouring the busy timeout, so a deferred claim fails under exactly the concurrency it exists to
+/// survive.
+///
+/// A refusal rolls back before it propagates, for [`framed_claim`]'s reason.
+fn sqlite_claim(
+    sqlite: &nvs_db::SqliteConn,
+    queue: &str,
+    now: i64,
+    cutoff: i64,
+) -> io::Result<Option<Job>> {
+    sqlite.begin_immediate()?;
+    match sqlite_claimed_in_two(sqlite, queue, now, cutoff) {
+        Ok(took) => {
+            sqlite.commit()?;
+            Ok(took)
+        }
+        Err(refused) => {
+            let _undone = sqlite.roll_back();
+            Err(refused)
+        }
+    }
+}
+
+/// [`nvs_stdlib::queue::CLAIM_SQLITE`]'s row, then its `then` against the id that row named —
+/// inside the transaction [`sqlite_claim`] opened.
+///
+/// The columns are at the ordinals the constants above name, on this dialect as on the others:
+/// `all_three_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds every
+/// `select` list to one set of positions, so nothing here is a second reading of § 4's list.
+fn sqlite_claimed_in_two(
+    sqlite: &nvs_db::SqliteConn,
+    queue: &str,
+    now: i64,
+    cutoff: i64,
+) -> io::Result<Option<Job>> {
+    let split = nvs_stdlib::queue::CLAIM_SQLITE;
+    let mut answered = sqlite.query(
+        split.first,
+        vec![
+            nvs_db::SqliteValue::Text(queue.to_owned()),
+            nvs_db::SqliteValue::Int(now),
+            nvs_db::SqliteValue::Int(cutoff),
+        ],
+    )?;
+    let mut took = None;
+    while let Some(row) = answered.next_row() {
+        // `limit 1`, so this guard is about the shape of the loop and not about a second row.
+        if took.is_some() {
+            continue;
+        }
+        // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and it is dropped for
+        // [`postgres_claim`]'s reason: it stays claimed until § 4's visibility timeout, which is
+        // where a row this worker cannot make sense of belongs.
+        if row.len() <= BACKOFF {
+            continue;
+        }
+        let nvs_db::SqliteValue::Text(script) = &row[SCRIPT] else {
+            continue;
+        };
+        // A `text` cell that is null is § 3's job with no payload — the ordinary shape of a job
+        // that needs none, so it is `None` rather than a skip.
+        let args = match &row[ARGS] {
+            nvs_db::SqliteValue::Text(args) => Some(args.clone()),
+            _ => None,
+        };
+        let [
+            Some(id),
+            Some(attempts),
+            Some(max_attempts),
+            Some(backoff_ms),
+        ] = [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| sqlite_integer(&row[at]))
+        else {
+            continue;
+        };
+        took = Some(Job {
+            id,
+            script: script.clone(),
+            args,
+            attempts,
+            max_attempts,
+            backoff_ms,
+        });
+    }
+    // The rows have to have let the connection go before the `update` on it starts: a result set
+    // holds this connection until it is dropped, which is § 4's one-statement-at-a-time rule as
+    // this driver keeps it.
+    drop(answered);
+    let Some(job) = took else {
+        return Ok(None);
+    };
+    // § 4's mark, keyed by the id the `select` named. The values are the `set` clause's and the
+    // `where` clause's in that order, because a `?` is bound where it stands — the same reason
+    // [`nvs_stdlib::queue::RETRY_MYSQL`] orders its own values differently.
+    sqlite_apply(
+        sqlite,
+        split.then,
+        vec![
+            nvs_db::SqliteValue::Int(now),
+            nvs_db::SqliteValue::Int(job.id),
+        ],
+    )?;
+    Ok(Some(job))
+}
+
+/// One integer column of a claim as SQLite stored it.
+///
+/// [`integer`]'s twin, and shorter for [`sqlite_roster`]'s reason and one of its own: there is a
+/// single integer storage class and it is signed, so there is no unsigned variant to accept beside
+/// this one and no width for a column an operator widened to arrive as.
+fn sqlite_integer(read: &nvs_db::SqliteValue) -> Option<i64> {
+    match read {
+        nvs_db::SqliteValue::Int(at) => Some(*at),
+        _ => None,
+    }
+}
+
 /// Runs one claimed job as `rule:concurrency/a-job-runs-as-a-root-isolate`'s root isolate: its own arena, its own budget, sharing only
 /// compiled code, answering with what the attempt threw — or `None`, which is the attempt
 /// [`report`] writes back as `Succeeded`.
@@ -673,6 +858,13 @@ fn report(
             Dialect::Framed(mut framed) => {
                 apply_framed(&mut framed, nvs_stdlib::queue::SUCCEEDED_MYSQL, &lease)
             }
+            // The same two values again as the integers this driver binds, against the text the
+            // arm above sends: what has to survive is the keying and not the spelling.
+            Dialect::Sqlite(sqlite) => sqlite_apply(
+                sqlite,
+                nvs_stdlib::queue::SUCCEEDED_SQLITE,
+                sqlite_lease(job.id, held_at),
+            ),
         };
     };
     if job.attempts >= job.max_attempts {
@@ -684,7 +876,8 @@ fn report(
         let errors = nvs_stdlib::queue::dead_errors(held_at, &failure.class, &failure.message);
         // The instant the attempt *ended*, read here rather than taken from the claim, for the
         // reason the retry's own `run_at` is: the attempt has just spent however long it spent.
-        let failed = millis(nvs_stdlib::queue::now_millis());
+        let failed_at = nvs_stdlib::queue::now_millis();
+        let failed = millis(failed_at);
         return match conn.dialect() {
             Dialect::Postgres(postgres) => apply(
                 postgres,
@@ -703,14 +896,18 @@ fn report(
                 failed.as_slice(),
                 errors.as_bytes(),
             ),
+            Dialect::Sqlite(sqlite) => {
+                sqlite_dead_letter_in_two(sqlite, job.id, held_at, failed_at, &errors)
+            }
         };
     }
-    let due = millis(nvs_stdlib::queue::retry_at(
+    let due_at = nvs_stdlib::queue::retry_at(
         nvs_stdlib::queue::now_millis(),
         job.attempts,
         job.backoff_ms,
         job.id,
-    ));
+    );
+    let due = millis(due_at);
     match conn.dialect() {
         Dialect::Postgres(postgres) => apply(
             postgres,
@@ -733,6 +930,17 @@ fn report(
                 Some(due.as_slice()),
                 Some(id.as_slice()),
                 Some(held.as_slice()),
+            ],
+        ),
+        // The same three in the same order, and the order is forced by the same `set` clause: this
+        // is that constant's own text rather than a transcription of it.
+        Dialect::Sqlite(sqlite) => sqlite_apply(
+            sqlite,
+            nvs_stdlib::queue::RETRY_SQLITE,
+            vec![
+                nvs_db::SqliteValue::Int(due_at),
+                nvs_db::SqliteValue::Int(job.id),
+                nvs_db::SqliteValue::Int(held_at),
             ],
         ),
     }
@@ -792,6 +1000,66 @@ fn apply(conn: &mut nvs_db::PgConn, sql: &str, bound: &[Option<&[u8]>]) -> io::R
 fn apply_framed(framed: &mut Framed<'_>, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
     framed.execute_many(sql, &[bound])?;
     Ok(())
+}
+
+/// [`apply`] over SQLite, whose `execute` and `query` are the same call.
+///
+/// The affected count is discarded for [`apply_framed`]'s reason, and here there is a second one:
+/// on this driver the count a statement with no result set reports is what [`report`] would have to
+/// read it out of anyway, and `report`'s doc owns why it does not judge it.
+fn sqlite_apply(
+    sqlite: &nvs_db::SqliteConn,
+    sql: &str,
+    bound: Vec<nvs_db::SqliteValue>,
+) -> io::Result<()> {
+    sqlite.execute_many(sql, vec![bound])?;
+    Ok(())
+}
+
+/// A write-back's lease as SQLite binds it: the row's id and the `claimed_at` this worker's own
+/// claim wrote, in the order every statement keyed on it names them.
+fn sqlite_lease(id: i64, held_at: i64) -> Vec<nvs_db::SqliteValue> {
+    vec![
+        nvs_db::SqliteValue::Int(id),
+        nvs_db::SqliteValue::Int(held_at),
+    ]
+}
+
+/// § 6's move as SQLite runs it, which is [`nvs_stdlib::queue::DEAD_LETTER_SQLITE`] — MySQL's own
+/// pair — inside the immediate transaction that makes the two one moment.
+///
+/// The copy runs first and both halves are keyed on the lease, for [`dead_letter_in_two`]'s
+/// reasons: the columns have to be read while they still exist, and a worker that overran § 4's
+/// visibility window must match no row in either half. The rollback is [`sqlite_claim`]'s, for its
+/// reason.
+fn sqlite_dead_letter_in_two(
+    sqlite: &nvs_db::SqliteConn,
+    id: i64,
+    held_at: i64,
+    failed_at: i64,
+    errors: &str,
+) -> io::Result<()> {
+    let split = nvs_stdlib::queue::DEAD_LETTER_SQLITE;
+    // The `insert … select` names the two values it adds to the copied row before the two the lease
+    // is keyed on, because that is where they stand in the text.
+    let mut copying = vec![
+        nvs_db::SqliteValue::Int(failed_at),
+        nvs_db::SqliteValue::Text(errors.to_owned()),
+    ];
+    copying.extend(sqlite_lease(id, held_at));
+    sqlite.begin_immediate()?;
+    let moved = sqlite_apply(sqlite, split.first, copying)
+        .and_then(|()| sqlite_apply(sqlite, split.then, sqlite_lease(id, held_at)));
+    match moved {
+        Ok(()) => {
+            sqlite.commit()?;
+            Ok(())
+        }
+        Err(refused) => {
+            let _undone = sqlite.roll_back();
+            Err(refused)
+        }
+    }
 }
 
 /// An epoch-millisecond instant as the text a placeholder is sent as — a `$n::bigint` on one
@@ -903,16 +1171,50 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
             name,
             block
         ),
-        // Spelled rather than left to a `_`, exactly as [`crate::queue`]'s applying half spells the
-        // same ones: a driver *gaining* a send path arrives here as a build failure instead of as a
-        // refusal that has stopped being true.
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
+        // Its own arm rather than one the macro writes: a SQLite block names a path this process
+        // opens itself, so there is no host to resolve, no port to pick and no handshake to bound.
+        nvs_db::Driver::Sqlite => sqlite_wire(name, block),
+        // Spelled rather than left to a `_`, exactly as [`crate::queue`]'s applying half spells it:
+        // a driver *gaining* a send path arrives here as a build failure instead of as a refusal
+        // that has stopped being true.
+        nvs_db::Driver::SqlServer => {
             eprintln!(
                 "warning: no queue worker started: `[db.{name}]` names the {} driver, and \
                  `Core\\Queue` has no worker statements for it yet — the gap is that roster and \
                  not the connection, and a `Core\\Queue::push` against the same block refuses with \
                  the sentence naming what this driver still needs",
                 driver.display_name()
+            );
+            None
+        }
+    }
+}
+
+/// [`open`]'s SQLite half, which resolves a path where every other arm resolves an address.
+///
+/// **Not [`open_as`], and what it is not is the whole difference between a file and a socket.**
+/// Every arm that macro writes resolves a host, picks a port and connects under
+/// [`CONNECT_DEADLINE`]; a SQLite block names a path this process opens, so there is no address to
+/// fail to resolve and no handshake to time out. What survives of that shape is the two refusals
+/// below, each a `warning:` that returns no worker rather than an `error:` that returns an exit
+/// code.
+fn sqlite_wire(name: &str, block: &Database) -> Option<Wire> {
+    let target = match nvs_db::SqliteTarget::resolve(block) {
+        Ok(target) => target,
+        Err(refused) => {
+            eprintln!(
+                "warning: no queue worker started: {}",
+                refused.refusal(name)
+            );
+            return None;
+        }
+    };
+    match nvs_db::sqlite::open(&target) {
+        Ok(sqlite) => Some(Wire::Sqlite(sqlite)),
+        Err(err) => {
+            eprintln!(
+                "warning: no queue worker started: `[db.{name}]` at `{}` did not open: {err}",
+                target.path.display()
             );
             None
         }
@@ -927,7 +1229,7 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
 /// per driver this can open. What every statement below then branches on is the dialect instead,
 /// and [`Wire::dialect`] is the one place a driver narrows to one.
 ///
-/// The drivers with no send path are not arms: [`open`] refuses them before anything is
+/// The driver with no send path is not an arm: [`open`] refuses SQL Server before anything is
 /// connected, so a `Wire` that exists is one § 4's statements can run on.
 enum Wire {
     /// § 4's and § 6's statements as PostgreSQL's single texts.
@@ -938,6 +1240,9 @@ enum Wire {
     /// MariaDB, which runs every one of MySQL's texts unchanged over its own framing and its own
     /// authentication roster.
     MariaDb(nvs_db::MariaConn),
+    /// A file this process opened rather than a socket, running MySQL's own texts — the SQLite
+    /// constants beside them in [`nvs_stdlib::queue`] are that dialect and not a copy of it.
+    Sqlite(nvs_db::SqliteConn),
 }
 
 impl Wire {
@@ -947,21 +1252,31 @@ impl Wire {
             Wire::Postgres(postgres) => Dialect::Postgres(postgres),
             Wire::MySql(mysql) => Dialect::Framed(Framed::MySql(mysql)),
             Wire::MariaDb(maria) => Dialect::Framed(Framed::MariaDb(maria)),
+            Wire::Sqlite(sqlite) => Dialect::Sqlite(sqlite),
         }
     }
 }
 
-/// A borrowed [`Wire`], narrowed to the two dialects `nvs_stdlib::queue` writes.
+/// A borrowed [`Wire`], narrowed to the dialects `nvs_stdlib::queue` writes statements in.
 ///
-/// The same two arms `Core\Queue`'s own members branch on, and for the same reason: § 2's schema
-/// has two migration lists and §§ 4 and 6's statements two spellings, so a third arm here would be
-/// a driver with nothing to send.
+/// The same arms `Core\Queue`'s own members branch on, and for the same reason: § 2's schema and
+/// §§ 4 and 6's statements are written per backend that can run them, so an arm here is a backend
+/// with something to send.
+///
+/// **SQLite is its own arm rather than a third [`Framed`] driver**, and what keeps it out is a type
+/// and not a dialect: [`nvs_db::SqliteConn::query`] takes owned values where a wire driver takes
+/// already-encoded octets, so there is no borrow the two could share. The *text* is shared —
+/// [`nvs_stdlib::queue::DEAD_LETTER_SQLITE`] is MySQL's own pair — which is exactly why the seam
+/// falls here.
 enum Dialect<'a> {
     /// [`nvs_stdlib::queue::CLAIM_POSTGRES`] and its siblings, each answering in one statement.
     Postgres(&'a mut nvs_db::PgConn),
     /// [`nvs_stdlib::queue::CLAIM_MYSQL`] and its siblings, some of them pairs inside one
     /// transaction — and MariaDB runs every one of them unchanged.
     Framed(Framed<'a>),
+    /// [`nvs_stdlib::queue::CLAIM_SQLITE`] and its siblings, every pair inside the immediate
+    /// transaction `rule:concurrency/claiming-is-one-statement` makes the mutual exclusion out of.
+    Sqlite(&'a mut nvs_db::SqliteConn),
 }
 
 /// The two drivers that share one dialect and one send path, borrowed as one.
@@ -1031,6 +1346,20 @@ impl Framed<'_> {
 
 #[cfg(test)]
 mod tests {
+    /// The column list a split claim reads its row with.
+    ///
+    /// Both split dialects name it in the same place — between the `select` that opens the first
+    /// statement and the table it reads — so this is one reader rather than one per dialect.
+    fn selected(first: &str) -> &str {
+        first
+            .split_once("select ")
+            .expect("a split claim reads the row first")
+            .1
+            .split_once(" from ")
+            .expect("that read names the table it reads")
+            .0
+    }
+
     /// The names a `select` or `returning` list answers, in its own order.
     ///
     /// An ` as ` alias reads as the name it binds, because that is what a reader asking by position
@@ -1049,25 +1378,18 @@ mod tests {
     ///
     /// Nothing else would notice them disagreeing: every column of the list is text or an integer,
     /// so a job whose `script` was read out of the `args` slot runs a file named by its own
-    /// payload — and it type-checks, and the claim still answers six values. Asked of both
-    /// dialects, since [`nvs_stdlib::queue::CLAIM_MYSQL`] carries the same list as a `select` and
-    /// one of its entries is computed rather than named.
+    /// payload — and it type-checks, and the claim still answers six values. Asked of every
+    /// dialect, since [`nvs_stdlib::queue::CLAIM_MYSQL`] and [`nvs_stdlib::queue::CLAIM_SQLITE`]
+    /// each carry the same list as a `select` and one of its entries is computed rather than named.
     #[test]
     fn the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them() {
         let postgres = nvs_stdlib::queue::CLAIM_POSTGRES
             .rsplit_once("returning ")
             .expect("the claim answers a `returning` list")
             .1;
-        let selected = nvs_stdlib::queue::CLAIM_MYSQL
-            .first
-            .split_once("select ")
-            .expect("the framed claim reads the row first")
-            .1;
-        let mysql = selected
-            .split_once(" from ")
-            .expect("that read names the table it reads")
-            .0;
-        for (dialect, list) in [("postgres", postgres), ("mysql", mysql)] {
+        let mysql = selected(nvs_stdlib::queue::CLAIM_MYSQL.first);
+        let sqlite = selected(nvs_stdlib::queue::CLAIM_SQLITE.first);
+        for (dialect, list) in [("postgres", postgres), ("mysql", mysql), ("sqlite", sqlite)] {
             let columns = answered(list);
             assert_eq!(
                 columns.len(),
