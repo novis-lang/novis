@@ -977,6 +977,107 @@ pub const DELETE_MYSQL: &str = "delete j, d \
     left join nvs_jobs j on j.id = r.jid and j.queue = r.qname and j.state <> 1 \
     left join nvs_dead_jobs d on d.id = r.jid and d.queue = r.qname";
 
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` over [`JOBS_TABLE`]: the
+/// state set the call selected, narrowed by an optional tag and an optional age, and never more rows
+/// than the call's `limit`.
+///
+/// **The bound is the rule and this spelling is not.** ADR 0153 § 4 is why there is a `limit` at
+/// all — the first `purge` a deployment runs is against the table that has been growing since it was
+/// deployed, and an unbounded `delete` there holds a lock on the connection the application enqueues
+/// through for as long as it takes. PostgreSQL has no `delete … limit`, so the bound is carried by a
+/// subquery that selects the ids and the outer statement removes those; [`PURGE_MYSQL`] writes the
+/// same bound as the `limit` its own dialect takes on a single-table delete. Which shape a dialect
+/// takes is a session's choice; dropping the bound is the one answer that is not available.
+///
+/// **`order by id` and not `order by created_at`**, though the age is what the caller thinks in.
+/// `id` is [`schema`]'s identity column, so rows are numbered in the order they were enqueued and
+/// that is `created_at`'s order without a sort — over the one table in the runtime that grows
+/// without bound, a sort is the whole cost of the call. Ordering at all is what makes § 4's
+/// `while (purge(…) > 0) {}` drain from the oldest end rather than from wherever the scan happened
+/// to start.
+///
+/// **The default set is two literals here rather than a set the member binds.** A `purge` naming no
+/// state removes what has finished — `Succeeded` and `Cancelled` — and writing that as `state in (2,
+/// 4)` makes it a property of the statement rather than of the argument handling in front of it.
+/// `Dead` and `Pending` are opt-in for the reasons the rule gives, and a call naming either binds
+/// `$2` instead; [`PURGE_DEAD_POSTGRES`] is where `Dead` goes, since that selection is a different
+/// table. The ordinals are literals for [`PENDING`]'s reason and are held to [`STATE`] by
+/// `queue_statements_agree_with_the_state_enum`.
+///
+/// **`state <> 1` is carried here as well as in front of it.** `purge` refuses `State::Claimed` at
+/// the call, which is where a caller finds out; the text refusing it too is what keeps *a claimed
+/// job is not removable* a property of the system rather than of one layer of it, and it is the same
+/// reading [`DELETE_POSTGRES`] makes. A `limit` spent on rows the statement then declines would be
+/// the alternative, and it is worse in the only case that matters.
+///
+/// **`before` reads `created_at`, which is the job's age.** It is the one instant every row in
+/// either of § 2's tables carries and nothing afterwards rewrites: `run_at` moves with § 6's retry
+/// ladder, so a sweep keyed on it would remove a row for a reason the caller never named, and
+/// `failed_at` is on [`DEAD_TABLE`] alone, so `before` would ask a different question depending on
+/// which of the two statements ran.
+///
+/// **`limit` is the one option with no null arm.** § 4's default is a number rather than an absence,
+/// so the member always binds one and there is nothing here to branch on; the other two are absent
+/// far more often than they are named, and `$n is null or …` is how a single text serves both
+/// without a second spelling for § 1's statement cache to hold.
+///
+/// **Public for the reason the statements a worker sends are**: nothing outside this module runs a
+/// `purge`, and `crates/nvs-stdlib/tests/queue.rs` sends both spellings to a real server, where a
+/// statement no server has ever parsed is exactly what that target exists to catch.
+pub const PURGE_POSTGRES: &str = "delete from nvs_jobs where id in (\
+     select id from nvs_jobs \
+     where queue = $1::text and state <> 1 \
+     and (($2::smallint is null and state in (2, 4)) or state = $2::smallint) \
+     and ($3::text is null or tag = $3::text) \
+     and ($4::bigint is null or created_at < $4::bigint) \
+     order by id limit $5::bigint\
+ )";
+
+/// [`PURGE_POSTGRES`]'s `state: Dead` selection, which is a different table and therefore a
+/// different statement.
+///
+/// **It names no state**, and not because a dead job is exempt from the selection: [`DEAD_TABLE`]
+/// has no `state` column at all, since being in that table is what `Dead` *is*. That is the same
+/// reading [`DELETE_POSTGRES`]'s dead-letter arm and [`STATUS_POSTGRES`]'s literal `3` make.
+///
+/// **The tag and the age are asked of this table in the same words**, because § 6 moves a row
+/// carrying both columns: a group tagged at enqueue is still that group after the job exhausted its
+/// attempts, which is what makes a purge of a batch's dead rows expressible at all.
+pub const PURGE_DEAD_POSTGRES: &str = "delete from nvs_dead_jobs where id in (\
+     select id from nvs_dead_jobs \
+     where queue = $1::text \
+     and ($2::text is null or tag = $2::text) \
+     and ($3::bigint is null or created_at < $3::bigint) \
+     order by id limit $4::bigint\
+ )";
+
+/// [`PURGE_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`INSERT_MYSQL`]'s
+/// reason.
+///
+/// **The bound needs no subquery here**, because a single-table `delete` in this dialect takes
+/// `order by … limit` itself. That is the same bound and not a weaker one, and it is why neither of
+/// these is a [`Split`]: one statement removes what it selected, so a caller's loop counts rows the
+/// server actually removed rather than rows something else had listed a round trip earlier.
+///
+/// **Eight placeholders where [`PURGE_POSTGRES`] binds five**, for [`STATUS_MYSQL`]'s reason: a `$n`
+/// may be named as often as a statement likes and a `?` is a position that cannot, so the two
+/// null-checked options cost two slots each. The order is the order they are read in — queue, the
+/// state twice, the tag twice, the age twice, then the bound.
+pub const PURGE_MYSQL: &str = "delete from nvs_jobs \
+    where queue = ? and state <> 1 \
+    and ((? is null and state in (2, 4)) or state = ?) \
+    and (? is null or tag = ?) \
+    and (? is null or created_at < ?) \
+    order by id limit ?";
+
+/// [`PURGE_DEAD_POSTGRES`] in MySQL's dialect, carrying [`PURGE_MYSQL`]'s bound and that constant's
+/// placeholder arithmetic — six slots for the four [`PURGE_DEAD_POSTGRES`] binds.
+pub const PURGE_DEAD_MYSQL: &str = "delete from nvs_dead_jobs \
+    where queue = ? \
+    and (? is null or tag = ?) \
+    and (? is null or created_at < ?) \
+    order by id limit ?";
+
 /// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
 ///
 /// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
@@ -2761,11 +2862,12 @@ mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
         DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, DELETE_MYSQL, DELETE_POSTGRES,
-        INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES,
-        RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT,
-        STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT,
-        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL,
-        SUCCEEDED_POSTGRES, dead_errors, migration, no_dialect, retry_at,
+        INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES,
+        PURGE_MYSQL, PURGE_POSTGRES, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS,
+        RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
+        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
+        STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES,
+        dead_errors, migration, no_dialect, retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
@@ -2833,6 +2935,9 @@ mod tests {
             ("QUEUES_POSTGRES", QUEUES_POSTGRES),
             ("SUCCEEDED_POSTGRES", SUCCEEDED_POSTGRES),
             ("RETRY_POSTGRES", RETRY_POSTGRES),
+            ("DELETE_POSTGRES", DELETE_POSTGRES),
+            ("PURGE_POSTGRES", PURGE_POSTGRES),
+            ("PURGE_DEAD_POSTGRES", PURGE_DEAD_POSTGRES),
         ] {
             assert!(
                 !sql.contains('?'),
@@ -3097,6 +3202,12 @@ mod tests {
         texts.push(("roster", QUEUES_MYSQL));
         texts.push(("succeeded", SUCCEEDED_MYSQL));
         texts.push(("retry", RETRY_MYSQL));
+        // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s three, which are not
+        // [`Split`]s either: one statement removes what it selected, in a dialect that spells a
+        // multi-table delete and a bounded one where the other spells a CTE and a subquery.
+        texts.push(("delete", DELETE_MYSQL));
+        texts.push(("purge", PURGE_MYSQL));
+        texts.push(("purge dead", PURGE_DEAD_MYSQL));
         for (member, sql) in texts {
             for absent in ["returning", "::", "$1", "with ", "filter (where"] {
                 assert!(
@@ -3118,8 +3229,11 @@ mod tests {
     /// A text that dropped or doubled one still parses on the server and binds a value into the
     /// wrong column.
     ///
-    /// Asked of the six pairs and not of the [`Split`]s, whose two halves divide one PostgreSQL
-    /// text's placeholders between them and so answer a different question.
+    /// Asked of the pairs and not of the [`Split`]s, whose two halves divide one PostgreSQL text's
+    /// placeholders between them and so answer a different question. The delete is out for a
+    /// nearer reason: [`DELETE_MYSQL`] names its pair once in a derived table where
+    /// [`DELETE_POSTGRES`] names each of `$1` and `$2` twice, so the two counts disagree by
+    /// design and that constant's doc is where it is written down.
     #[test]
     fn each_second_text_binds_a_value_wherever_its_first_names_one() {
         for (member, postgres, mysql) in [
@@ -3129,6 +3243,8 @@ mod tests {
             ("roster", QUEUES_POSTGRES, QUEUES_MYSQL),
             ("succeeded", SUCCEEDED_POSTGRES, SUCCEEDED_MYSQL),
             ("retry", RETRY_POSTGRES, RETRY_MYSQL),
+            ("purge", PURGE_POSTGRES, PURGE_MYSQL),
+            ("purge dead", PURGE_DEAD_POSTGRES, PURGE_DEAD_MYSQL),
         ] {
             assert_eq!(
                 mysql.matches('?').count(),
@@ -3283,6 +3399,39 @@ mod tests {
         );
     }
 
+    /// § 4's bound, asserted where a machine with no containers still sees it.
+    ///
+    /// A server case asserts the bound a call *named*; this asserts that there is no way to send
+    /// one of these without a bound at all, which is what
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is about and what a
+    /// `purge` over several million rows costs when it is missing. The two dialects spell it in
+    /// different places — PostgreSQL bounds the subquery the ids come from and MySQL bounds the
+    /// delete itself — so what is held here is the ordering and the placeholder each text ends
+    /// with, which is the whole of the bound either way.
+    #[test]
+    fn every_purge_is_bounded_and_takes_the_oldest_rows_first() {
+        for (name, purge, bound) in [
+            (
+                "PURGE_POSTGRES",
+                PURGE_POSTGRES,
+                "order by id limit $5::bigint",
+            ),
+            (
+                "PURGE_DEAD_POSTGRES",
+                PURGE_DEAD_POSTGRES,
+                "order by id limit $4::bigint",
+            ),
+            ("PURGE_MYSQL", PURGE_MYSQL, "order by id limit ?"),
+            ("PURGE_DEAD_MYSQL", PURGE_DEAD_MYSQL, "order by id limit ?"),
+        ] {
+            assert!(
+                purge.contains(bound),
+                "{name} does not name `{bound}`, and a sweep of the one table that grows without \
+                 bound holds a lock for as long as it takes: {purge}"
+            );
+        }
+    }
+
     /// The statements in this module write and read [`STATE`]'s ordinals as SQL literals, which no
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
     /// program compares against and the column a worker claims from are one representation, and
@@ -3368,6 +3517,44 @@ mod tests {
                 && DELETE_MYSQL.contains(DEAD_TABLE),
             "a receipt names a job across § 6's move, so both deletes reach both of § 2's tables"
         );
+        // `purge` selects a set where `delete` names a receipt, so the ordinals are in the text
+        // twice over: the set a call selected nothing for, and the one arm no call may select.
+        for (dialect, purge) in [("postgres", PURGE_POSTGRES), ("mysql", PURGE_MYSQL)] {
+            assert!(
+                purge.contains(&format!(
+                    "state in ({}, {})",
+                    case("Succeeded"),
+                    case("Cancelled")
+                )),
+                "{dialect}: a purge naming no state removes what has finished, which is those two \
+                 ordinals and no others"
+            );
+            assert!(
+                purge.contains("state <> 1"),
+                "{dialect}: `purge` has no options that reach a claimed job, and the text refuses \
+                 the ordinal as well as the member does"
+            );
+            assert!(
+                !purge.contains(DEAD_TABLE),
+                "{dialect}: `State::Dead` is the other table's whole selection, so the statement \
+                 every other selection sends never reaches it"
+            );
+        }
+        for (dialect, purge) in [
+            ("postgres", PURGE_DEAD_POSTGRES),
+            ("mysql", PURGE_DEAD_MYSQL),
+        ] {
+            assert!(
+                !purge.contains("state"),
+                "{dialect}: being in the dead-letter table is what `Dead` is, so its purge names \
+                 no ordinal at all"
+            );
+            assert!(
+                purge.contains(DEAD_TABLE) && !purge.contains(JOBS_TABLE),
+                "{dialect}: `State::Dead` selects the table § 6 moved the row into, and only that \
+                 one"
+            );
+        }
         assert_eq!(
             case("Succeeded"),
             2,
