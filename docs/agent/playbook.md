@@ -1460,6 +1460,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Move that trailing prose above the heading — under this goal's § *Standing decisions* it is a
   decision rather than a gap — instead of hunting the marker's indentation.
   [until: gone tools/owners.py:the owner tag is not the item's last line]
+- **A `# Known gaps` block that enumerates nothing is *one* item to `owners.py`, whatever its
+  paragraph count.** `--untagged` then names only the first paragraph's opening sentence, which reads
+  as though the paragraphs under it were already tagged — they are not, they are the same item, and
+  one `— owner:` line is all the block can carry. Enumerate the block into `*` bullets when its
+  paragraphs need different owners, and put each tag on that item's own last line; `items_of` in
+  `tools/owners.py` is the parser that decides it. [until: reviewed 2026-09-10]
 
 ## Running things
 

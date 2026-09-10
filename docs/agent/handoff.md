@@ -2,72 +2,69 @@
 
 ## State
 
-**Goal `gap-owners`, stage 3 — the attribution pass — has finished `crates/nvs-types/`.** `python
-tools/owners.py --untagged` names nothing in that crate now; the tree-wide roster is 44 tags, every
-one of which resolves to a live goal, a milestone that is not `done`, or an `unowned` with its reason
-written, and 112 items still naming nobody in the other crates.
+**Goal `gap-owners`, stage 3 — the attribution pass — has finished `crates/nvs-cli/`.** The roster is
+48 tags, every one resolving to a live goal, a milestone that is not `done`, or an `unowned` with its
+reason written (`python tools/owners.py --check --reasons` is green). 108 items elsewhere still name
+nobody, and they sit in six files' worth of crates: `nvs-stdlib` 77, `nvs-db` 14, `nvs-runtime` 8,
+`nvs-syntax` 6, and one each in `nvs-test` and `nvs-hir`.
 
-**Four of the nine items read this session were not gaps.** `crates/nvs-types/src/layout.rs`'s two
-bullets (an enum has no entry, only the classes in the files walked are present) and
-`crates/nvs-types/src/commands.rs`'s one item (a row carries the *conversion* a parameter needs, not
-its type) each state a settled design with a rule or an argument behind it, so they are body sections
-above the heading now rather than entries in a list of what is owed — the goal's § *Standing
-decisions* resolves that ambiguity toward *decision*. `crates/nvs-types/src/error_lib.rs`'s two
-closing paragraphs moved for the same reason, and moving them is what made its tag register.
+**Three of the five blocks read this session were decisions rather than gaps.** `bundle.rs`'s macOS
+signing item and its `./nvs.toml` item both state settled, argued behaviour the code already has:
+`crates/nvs-cli/src/bundle.rs:281`'s `codesign` block does what
+`rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build` says, and `bundle.rs:122` passes no
+`--config`, so the working-directory search is the ordinary one at `crates/nvs-cli/src/main.rs:169`
+— which the packaging rule itself requires, having everything past the footer reader be the `nvs run`
+pipeline. `crates/nvs-ir/src/ty.rs:15` is the same case whole: every paragraph states what the IR
+lattice erases and why, closing with "it does not replace the erase-checker-qualifiers design
+itself", so the heading was wrong rather than the content and it reads `# What this lattice does not
+carry` now. `cache.rs` held two of each kind.
 
-**This crate carries the first milestone tags.** `links.rs` gap 2 is `M7`: what segment text reaches
-an enum case is `Core\Router::match`'s decision and that member lands there (`docs/plan/m7.md:82`).
-`derive.rs` gaps 1 and 2 are `M8`, which carries both `Core\Db` — and so `Core\Db\Row`, which
-`fromRow` needs — and `Core\Json`, whose missing decoders are why a `decimal` or an `Instant` field
-still erases to `CodecTy::Opaque` (`docs/plan/m8.md:79-85`).
+**A block that enumerates nothing is one item to `owners.py`, whatever its paragraph count** — the
+new playbook bullet under *Tooling*. That is why `crates/nvs-cli/src/cache.rs:153`'s bold paragraphs
+are a `*` list now: they needed `M6`, `unowned` and `unowned`, and one block carries one tag.
 
-**[carried-gaps.md](carried-gaps.md) § *Unowned* is twelve entries**, two of them new: whether
-`rule:core-classes/derive-attribute`'s run-time third moves to compile time, and how much of a
-`mixed` value's tag dispatch is written at once. `python tools/chain.py --check` is green — it was
-red only on the previous handoff quoting the plan's chain numbers, and the paragraph under the plan's
-milestone table names slugs now instead. Stage 4 is untouched: `verify.py` still does not run the
-owners gate, so the acceptance check is its only reader.
+**[carried-gaps.md](carried-gaps.md) § *Unowned* is thirteen entries.** The new one is that the
+compiled-unit cache loads on no `aarch64` host although `docs/plan/design.md:94` names macOS
+`aarch64` a supported platform; what has to be decided is where instruction-cache maintenance lives —
+this loader or `nvs-codegen`'s mapper — not whether it is wanted.
 
-**`python tools/verify.py` is green through fmt, lints, build, 3829 tests, the two `.nvst` trees and
-the reference, and red at clippy for a reason no session wrote:** an untracked
-`benches/serve-probe/Cargo.toml` with no `src/` is a workspace member cargo cannot load, and it
-appeared between the build step and the clippy step of that run. Nothing in this session is Rust.
-Either finish that crate or drop the directory before reading a clippy failure as a regression.
+**The rustdoc gate's unresolved link was never a session's.** It is
+`benches/serve-probe/src/main.rs:31`, in an **untracked** directory the user is writing, linking a
+`#[cfg(test)]` function rustdoc cannot resolve. I made it a code span and left it **unstaged** —
+committing a half-written bench crate is not this loop's call — so the gate can go green without the
+loop taking the user's work with it.
+
+**`python tools/verify.py`: 9 of 9 green** — 3838 tests, both `.nvst` trees, the reference and
+clippy. The previous handoff's clippy failure is gone because `benches/serve-probe/` has a `src/`
+now, so cargo can load that workspace member; nothing about it was a regression.
 
 ## Next group
 
-**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-cli/src/`'s three
-blocks and then the two single-item blocks in the crates beneath it. The kinds are the goal's
-§ *Standing decisions*, the three owner kinds are `python tools/owners.py --help`, and `--untagged`
-is the worklist.
+**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-syntax/src/lib.rs`'s
+six items, then the two single-item blocks left outside the three big crates. The kinds are the
+goal's § *Standing decisions*, the three owner kinds are `python tools/owners.py --help`, and
+`--untagged` is the worklist.
 
-- [ ] **Tag `crates/nvs-cli/src/bundle.rs:47`'s two remaining items.** Gap 1 of that block already
-      names an owner, so the file shows the shape to match; both are
-      `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s, and gap 3 (a
-      bundled process resolves `./nvs.toml` from its working directory) may be a decision rather
-      than a gap. Check each against the code first.
-- [ ] **Tag `crates/nvs-cli/src/cache.rs:154` and `crates/nvs-cli/src/worker.rs:74`**, one item
-      each — a wired producer and a dead-lettered row keeping only the last attempt's error. The
-      queue half is `rule:config/scheduled-work-is-a-config-block`'s milestone, so check whether
-      `M7`'s plan or a live goal claims it before reaching for `unowned`.
-- [ ] **Tag `crates/nvs-hir/src/lib.rs:48` and `crates/nvs-ir/src/ty.rs:16`.** Both are scope
-      statements — "covers what M2's paragraph names", "scoped to exactly what's lowered so far" —
-      and both read as decisions rather than gaps; if they are, they move above the heading and the
-      blocks go away.
+- [ ] **Tag `crates/nvs-syntax/src/lib.rs:69`'s six items** — `goto` labels, a bare inline shape type
+      on a local declaration, grouped `use`, `var` in a class body, a keyword-spelled member name, and
+      `Core\Static`-style segment collisions. Four are already claimed one level up by
+      `docs/agent/carried-gaps.md:58`'s row, which names goal `doc-comments` — **retired**, so each is
+      the judgement `owners.py --help` describes for a retired owner: closed, or left behind and then
+      `M1`'s, whose own *Verify* is a `php-src` corpus parse and which is not `done`.
+- [ ] **Tag `crates/nvs-hir/src/lib.rs:48`.** It is that crate's only gap record — no other `nvs-hir`
+      module has a `# Known gaps` heading — and it rolls four edges into one item, two of which say
+      they wait on `nvs-types`' static types, which has since landed. Enumerate it, check those two
+      against `nvs-types` before tagging, and note that `M2` is `done`, so a milestone tag is not
+      available to whatever is still open.
+- [ ] **Tag `crates/nvs-test/src/lib.rs:188`** — one item, no `--EXPECTREGEX--`, which reads as a
+      decision (`--EXPECTF--` covers what the corpus needs) and so probably leaves the block rather
+      than taking an owner.
 
 ## Backlog
-
-- `crates/nvs-ir/src/ty.rs`'s `Ty::Tagged` variant carries its own `# Known gap`, which `owners.py`
-  never sees because it reads module blocks only. It is the same gap the new tag-dispatch entry in
-  `docs/agent/carried-gaps.md` names.
-- `crates/nvs-types/src/expr/quals.rs:25` says § 5's auto-escape and `Markup + Markup` wait on
-  `Core\Html` existing; both exist (`crates/nvs-types/src/expr_table.rs:734`). Stale prose, not a
-  tagged gap.
-- `crates/nvs-types/src/lib.rs:1` opens as a changelog — "M2's last open thread … this one adds" —
-  which `AGENTS.md` rule 6 forbids. Left alone; it is not in the gap block.
-- `crates/nvs-types/src/lib.rs`'s `# Layout` list names eleven of the crate's modules and skips
-  `intrinsics`, `links`, `reasons`, `commands`, `core_lib` and `error_lib`.
-- Stage 4 is unstarted: `verify.py` still does not run `owners.py`
-  (`docs/agent/loop-goal.toml`).
-- This clone has no hooks: `git config core.hooksPath tools/git-hooks`, which is what rejects an
-  attribution trailer that arrives past `session.py` (`docs/agent/conventions.md`).
+- `crates/nvs-runtime`'s eight: `array.rs:214`, `commands.rs:41`, `decimal.rs:45` and `:52`,
+  `graph.rs:61` and `:66`, `routes.rs:74` and `:79`.
+- `crates/nvs-db`'s fourteen, then `crates/nvs-stdlib`'s seventy-seven — the bulk of stage 3.
+- Stage 4 is untouched: `verify.py` still does not run the owners gate, so
+  `docs/agent/loop-goal.toml`'s acceptance check is its only reader.
+- `benches/serve-probe/`, `benches/serve/echo.nvs` and `tools/bench-load.py` are the user's untracked
+  work, and `Cargo.lock` is modified by nothing this loop did.
