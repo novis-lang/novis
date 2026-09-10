@@ -5261,7 +5261,11 @@ name = "nvs-syntax (two reserved spellings)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
   "let_is_a_reserved_spelling",
-  "is_is_a_reserved_spelling",
+  # `is` became an operator (ADR 0150), so its half of
+  # `rule:php-migration/let-and-is-are-reserved` is asserted by the test that
+  # names both sides of the change: the operator position parses, and `is(...)`
+  # — the one position where `is` is still a name — keeps the refusal.
+  "is_no_longer_reports_the_reserved_word_refusal_and_let_still_does",
 ]
 
 [[check]]
