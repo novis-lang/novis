@@ -49,11 +49,13 @@
 //!   therefore refused in the corner where both a wide mantissa and a wide
 //!   scale difference meet. Closing it wants a 192-bit intermediate, which is
 //!   the same wider intermediate ADR 0054 § *Consequences* already predicts.
+//!   — owner: unowned
 //! * **Nothing inlines.** That ADR expects `+`, `-` and comparison at equal
 //!   scale to become i128 instructions in the emitted code; today every
 //!   operator is an out-of-line helper call. That is a latency question
 //!   (priority 3) to close in the backend, not a semantic one — the results
 //!   are identical either way.
+//!   — owner: M12
 
 use std::cmp::Ordering;
 
