@@ -53,7 +53,13 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     }
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
-    for key in ["cache.dir", "control.socket", "server.listen"] {
+    for key in [
+        "cache.dir",
+        "control.socket",
+        "server.listen",
+        "queue.connection",
+        "queue.workers",
+    ] {
         assert_eq!(
             governing(key).apply,
             Apply::Boot,
@@ -70,6 +76,10 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "app.limits.memory",
         "schedule.scope",
         "deferred.max_concurrent",
+        // `[queue]`'s other half, whose `connection` and `workers` are in the `Boot` list above:
+        // both of these are read per job out of the snapshot, so applying one re-creates nothing.
+        "queue.max_attempts",
+        "queue.visibility",
         "metrics.listen",
         "trace.sample",
         // Its sibling `cache.shared` is `Boot` above; this one bounds a map in the core's own
@@ -216,5 +226,90 @@ fn every_http_response_directive_is_runtime_class() {
                  (`rule:config/reloadability-is-its-own-field`)",
             );
         }
+    }
+}
+
+/// [ADR 0154] § 5: `[queue]` is in the table, key by key. The keys come from `keys_in`, so the
+/// claim is about **every** key the block accepts rather than about the ones listed here — a fifth
+/// key added to `[queue]` with no row of its own fails this rather than reaching `lookup` and
+/// getting `None`, which is what a reload that changes a key it cannot apply and says nothing looks
+/// like from the outside.
+///
+/// Each key answers with its *own* row and not through a prefix: the block has no `queue` row,
+/// because its four keys are not one apply class (`connection_and_workers_are_boot_…` below).
+///
+/// [ADR 0154]: ../../../docs/decisions/0154.md
+#[test]
+fn every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four() {
+    let keys = keys_in("queue");
+    assert_eq!(
+        keys.len(),
+        4,
+        "`[queue]` accepts {keys:?}, and ADR 0154 § 5's table has four rows: a key added to the \
+         block joins the table in the commit that adds it",
+    );
+
+    for key in keys {
+        let dotted = format!("queue.{key}");
+        let row = governing(&dotted);
+        assert_eq!(
+            row.key, dotted,
+            "`{dotted}` resolves through `{}` rather than through a row of its own, and the four \
+             keys of `[queue]` are not one apply class",
+            row.key,
+        );
+    }
+}
+
+/// The split ADR 0154 § 5 states, which is the whole reason `[queue]` is four rows and not one:
+/// `connection` and `workers` are what a worker is built out of, and the other two are read per job
+/// out of the snapshot. Asserted on both sides, because a table that made the whole block `Boot`
+/// would make a `max_attempts` an operator changed need a restart, and one that made it all
+/// `Reload` would let a `workers` change look applied while no task was started or stopped.
+#[test]
+fn connection_and_workers_are_boot_and_max_attempts_and_visibility_are_reload() {
+    for key in ["queue.connection", "queue.workers"] {
+        assert_eq!(
+            governing(key).apply,
+            Apply::Boot,
+            "`{key}` is what a worker is built out of: applying a change starts or stops tasks, or \
+             strands every claim in flight (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+    for key in ["queue.max_attempts", "queue.visibility"] {
+        assert_eq!(
+            governing(key).apply,
+            Apply::Reload,
+            "`{key}` is read per job out of the snapshot, so applying it re-creates nothing \
+             (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+}
+
+/// `rule:core-classes/queue-storage-is-a-table` puts the jobs in a connection the operator names, so every key of the block is
+/// `System`: work a request could redirect is work a request could redirect into a database it was
+/// never granted. Asked of the *rows* rather than of a list of keys, so a fifth row added under
+/// `[queue]` at any class fails here as well.
+#[test]
+fn every_queue_row_is_system_class() {
+    let rows: Vec<&Directive> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key == "queue" || row.key.starts_with("queue."))
+        .collect();
+    assert_eq!(
+        rows.len(),
+        4,
+        "ADR 0154 § 5's table has four rows: {rows:?}"
+    );
+
+    for row in rows {
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{}` is `System` — the queue is armed at boot and a request may not move it \
+             (`rule:core-classes/queue-storage-is-a-table`)",
+            row.key,
+        );
+        assert!(!row.class.settable_by_a_request());
     }
 }
