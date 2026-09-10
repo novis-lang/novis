@@ -1,0 +1,20 @@
+--TEST--
+`is void` and `is never` are refused, because no value inhabits either and the question has no answer rather than a knowable one (`rule:types/type-test`)
+--FILE--
+<?nvs
+// The first of `rule:types/type-test`'s three refusals, and the one that
+// says what "total" does not mean. `is` never refuses a test whose answer
+// the declaration already settles — but `void` and `never` are not types a
+// value can be *found* in, so there is nothing for the tag to compare
+// against.
+mixed $m = 1;
+echo $m is void, "\n";
+echo $m is never, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0811]: no value is ever a `void`, so `is void` has no answer
+%A
+error[E0811]: no value is ever a `never`, so `is never` has no answer
+%A
+error: aborting due to 2 errors

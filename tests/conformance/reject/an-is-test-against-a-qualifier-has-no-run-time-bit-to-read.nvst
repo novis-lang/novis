@@ -1,0 +1,20 @@
+--TEST--
+`is tainted string` and `is secret bytes` are refused, because both qualifiers are erased before codegen and no value carries one at run time (`rule:types/type-test`, `rule:security/tainted-qualifier`, `rule:security/secret-qualifier`)
+--FILE--
+<?nvs
+// The second of `rule:types/type-test`'s three refusals, and the one that is
+// not about the answer being knowable. `tainted` and `secret` are decided
+// where a value is declared and erased before codegen, so a tag comparison
+// has nothing to read — the question has no answer at all, which is why it
+// is refused where `is int` over an `int` local is not.
+mixed $m = "ab";
+echo $m is tainted string, "\n";
+echo $m is secret bytes, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0813]: `tainted string` is a qualifier the compiler erases, so no value carries it at run time
+%A
+error[E0813]: `secret bytes` is a qualifier the compiler erases, so no value carries it at run time
+%A
+error: aborting due to 2 errors
