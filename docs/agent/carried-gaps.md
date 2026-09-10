@@ -55,7 +55,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `carried-gaps` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `test-request` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
-| `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | `doc-comments` | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
 | `nvs serve` runs on one core, and no path in the process starts a second | `per-core` | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
 | `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | `net-os-signal` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
 | `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | `formats` | the same file; `rule:core-api/tier-roster` puts all three at Tier 0 |
@@ -71,11 +70,18 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Thirteen entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Fourteen entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
 
+- **A local declaration cannot be typed with a bare inline shape type**, although every other
+  declaration slot can. Statement-initial `{` commits to a block, and telling a type-prefix apart from
+  one needs lookahead past a matched, possibly-nested `{...}` to the `$name` behind it. What has to be
+  decided is whether the grammar buys that lookahead or whether `rule:types/shape-type`'s own example
+  — `type Point = {x: int}; Point $point;` — is the answer for a local: a surface question, not a
+  parser one, and the parser cost is the reason it is worth asking.
+  `crates/nvs-syntax/src/lib.rs` § *Known gaps*. [until: reviewed 2026-09-10]
 - **The compiled-unit cache loads on no `aarch64` host**, one of which
   [design.md](../plan/design.md)'s platform row (line 94) names as supported for macOS. Making freshly
   written bytes executable there needs instruction-cache maintenance `mprotect` does not imply, and

@@ -59,6 +59,12 @@
 //!   usual justification here: `rule:classes/no-free-functions-or-constants` makes every function a method, so idiomatic Novis code already
 //!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
 //!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
+//! - **A grouped import** (`use App\{Foo, Bar};`) is refused rather than unbuilt — the parser eats
+//!   the `\{...}` and reports `E_IMPORT_GROUP_UNSUPPORTED`, whose help names the one supported
+//!   spelling: one `use` statement per imported name, each ending in the short name it introduces.
+//!   That is the shape of the rename refusal beside it
+//!   (`rule:statements/nothing-gets-a-second-name`) and holds for the same reason — a reader learns
+//!   every short name a file introduces from the statement that introduces it.
 //!
 //! # Known gaps
 //!
@@ -74,26 +80,26 @@
 //!   as "needs parentheses" instead of whatever the (already broken, since labels don't parse) prior
 //!   behavior was — not a regression on real code, since no Novis/PHP program relies on an unparsed
 //!   construct, but worth knowing if label support is ever added.
+//!   — owner: M1
 //! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
-//!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike the object-literal collision that ADR names and this parser resolves, teaching
+//!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike
+//!   the object-literal collision `rule:types/object-literal` names and this parser resolves, teaching
 //!   a *type*-prefix apart from a block would need lookahead past a matched, possibly-nested `{...}`
-//!   all the way to a following `$name` — not attempted this session. Every other declaration slot
+//!   all the way to a following `$name`. Every other declaration slot
 //!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
-//!   fine; the workaround for a local is the same one the ADR's own example uses: `type Point = {x:
+//!   fine; the workaround for a local is the one that rule's own example uses: `type Point = {x:
 //!   int}; Point $point;`.
-//! - **Grouped `use`** (`use App\{Foo, Bar};`) and **`use function`/`use const`** are not parsed —
-//!   `rule:statements/nothing-gets-a-second-name`'s own *Revisiting* note says these don't
-//!   exist yet, so this isn't a regression, just not built. Only single `use Path\To\Name;` per
-//!   statement is supported.
-//! - **`var` inside a class body** (PHP 4's property declarator) is not handled — only the statement
-//!   position now recognizes `Keyword::Var`, as `rule:types/var-inference`'s
-//!   inferred local declaration; the property-declarator spelling still falls through to a generic
-//!   parse error. Vanishingly rare in modern code.
-//! - **A method/const/case name that is itself a reserved keyword spelling** works for methods and
-//!   consts but not for enum cases, which require a plain `Ident` — a case literally named e.g.
-//!   `Static` would misparse.
+//!   — owner: unowned
+//! - **`use function` and `use const`** are not parsed — `function` and `const` are ordinary name
+//!   segments, so `use function Foo\bar;` reads `function` as the imported name and then fails on
+//!   `Foo` with a generic parse error. What a real corpus needs here is the *refusal* rather than the
+//!   feature: `rule:classes/no-free-functions-or-constants` leaves neither spelling anything to
+//!   import.
+//!   — owner: M1
 //! - **`Core\Static`-style keyword-segment name collisions past the first segment** are still only
-//!   spot-checked.
+//!   spot-checked. Every segment takes a keyword spelling by construction — `Parser::is_name_segment`
+//!   is `Ident | Keyword(_)` — so what is thin here is the coverage, not the grammar.
+//!   — owner: M1
 
 pub mod ast;
 mod casing;
