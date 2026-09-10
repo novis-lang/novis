@@ -1,0 +1,12 @@
+--TEST--
+a receiver written as the last thing in the file offers its class's instance members, so the arm is reached by the access the cursor stands at the end of rather than by whatever token follows it — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class User { public string $name; public function greet(): string { return "hi"; } }
+var $b = new User();
+$b-><|>
+--REQUEST--
+completion
+--EXPECT--
+greet   method    (): string
+name    property  string
