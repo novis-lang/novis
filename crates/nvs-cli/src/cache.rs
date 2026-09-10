@@ -150,36 +150,37 @@
 //! cache hovering at the boundary would walk on nearly every one. § 7 leaves the defaults to
 //! the implementation and [`Eviction`] states them with their reasons.
 //!
-//! # Known gaps
-//!
-//! **Every producer of a unit is wired.** [`unit_for`] is the compile site's whole decision, and
+//! Every producer of a unit is wired. [`unit_for`] is the compile site's whole decision, and
 //! every call site makes it: `main.rs`'s `run_run`, `runner.rs`'s suite compile for `nvs test`,
 //! and `script.rs`'s [`Compiler`](crate::script::Compiler), which is the one a `spawn script`
 //! isolate and the server both resolve through. Each of them resolves the configuration snapshot
 //! *above* its compile, because both halves of the key are configuration — that ordering is the
 //! wiring, and [`from_config`] is the only place it is read.
 //!
-//! **`rule:config/the-extension-set-is-in-every-unit-key`'s `env_hash` says "the compiler build" and spells it as the package version**,
-//! which does not distinguish two builds of an unreleased tree. [`default_dir`] compensates by
-//! keying its directory on the running executable; a *configured* `opcache.file_cache_dir` does
-//! not, so a development tree that writes one shares artifacts across rebuilds. The fix belongs to
-//! that ADR's own digest rather than here.
-//!
-//! **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
-//! instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
-//! it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
-//! every run compiles.
-//!
-//! **Mach-O's leading underscore is not accounted for**, which is latent rather than live: CI's
-//! Mach-O host is `aarch64`, where the paragraph above refuses the payload before a symbol is
-//! read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
-//! would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
-//! Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
-//! branch on its own.
-//!
 //! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
 //! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
+//!
+//! # Known gaps
+//!
+//! * **`rule:config/the-extension-set-is-in-every-unit-key`'s `env_hash` says "the compiler build" and
+//!   spells it as the package version**, which does not distinguish two builds of an unreleased tree.
+//!   [`default_dir`] compensates by keying its directory on the running executable; a *configured*
+//!   `opcache.file_cache_dir` does not, so a development tree that writes one shares artifacts across
+//!   rebuilds. The fix belongs to that ADR's own digest rather than here.
+//!   — owner: M6
+//! * **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
+//!   instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
+//!   it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
+//!   every run compiles.
+//!   — owner: unowned
+//! * **Mach-O's leading underscore is not accounted for**, which is latent rather than live: CI's
+//!   Mach-O host is `aarch64`, where the item above refuses the payload before a symbol is
+//!   read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
+//!   would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
+//!   Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
+//!   branch on its own.
+//!   — owner: unowned
 //!
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls

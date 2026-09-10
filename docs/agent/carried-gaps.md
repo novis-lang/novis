@@ -71,11 +71,18 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Twelve entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Thirteen entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
 
+- **The compiled-unit cache loads on no `aarch64` host**, one of which
+  [design.md](../plan/design.md)'s platform row (line 94) names as supported for macOS. Making freshly
+  written bytes executable there needs instruction-cache maintenance `mprotect` does not imply, and
+  what has to be decided is where that lives — this loader, or whatever maps the page in
+  `nvs-codegen` — rather than whether it is wanted; Mach-O's leading underscore rides along with it,
+  since neither is worth a format branch on its own. Until then every run on such a host compiles:
+  slow, never wrong. `crates/nvs-cli/src/cache.rs` gaps 2–3. [until: reviewed 2026-09-10]
 - **`Core\Metrics`** — spec § 16's class, filed as goal `server`'s item 19 and left behind by it.
   `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
   metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
