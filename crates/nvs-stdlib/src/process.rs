@@ -49,23 +49,35 @@
 //! can observe is unchanged. Off a core, which is every CLI program, the
 //! closure is simply called on this thread, so the cheap case stays free.
 //!
+//! # Decision: `[limits] max_output` bounds the capture, read once per call
+//!
+//! `rule:core-classes/process-run` reuses the directive an operator already
+//! writes rather than adding a cap of this member's own, and
+//! [`nvs_runtime::Ctx::intake_limit`] is that reading: the same number the
+//! response ceiling is, in bytes-per-call rather than bytes-per-request. Both
+//! pipes are drained through it, so neither stream is ever held unbounded, and a
+//! child that keeps writing past it is killed by whichever reader notices —
+//! [`drain`] owns the mechanism and what the second thread costs. The ceiling is
+//! the *pair*: each stream stops one byte past it, and what
+//! [`nvs_runtime::Ctx::intake_breach`] is asked is the two lengths added, so a
+//! child that splits its output evenly between them is refused as well.
+//!
+//! The refusal is a **throw**, not `rule:errors/on-limit`'s `FATAL`: nothing has
+//! reached the response, so the request has exceeded nothing and a caller who
+//! ran a chattier child than it meant to can catch this and run it differently.
+//! `Core\IO::read` refuses out of the same pair of methods, so the two members
+//! answer a file and a child the same way.
+//!
 //! **What it spends:** the child's whole stdout and stderr, once each, as one
-//! `bytes` value per stream held for as long as the program holds the result,
-//! plus one object allocation of three slots — charged to the request that
-//! asked.
-//!
-//! # Known gaps
-//!
-//! 1. **`[limits] max_output` does not bound the capture yet.** `rule:core-classes/process-run`
-//!    reuses that directive rather than adding a cap, and nothing reads it in
-//!    this tree — so what bounds a capture today is the request's memory limit,
-//!    which these two buffers are charged against like any other allocation.
-//!    That is `Core\IO::read`'s reading of the same question, and the same
-//!    later signature closes both.
-//!    — owner: unowned-sweep
+//! `bytes` value per stream held for as long as the program holds the result —
+//! now bounded rather than trusted — plus one object allocation of three slots,
+//! charged to the request that asked, and one OS thread for the child's
+//! lifetime that [`drain`] explains.
 
+use std::io::Read;
 use std::path::Path;
 use std::process::{Child, Output};
+use std::sync::Mutex;
 
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
@@ -137,7 +149,10 @@ const RUN_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `process.exec` for this target, or the target \
                    is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform \
-                   because starting one hands the argv it just built to a second parser.",
+                   because starting one hands the argv it just built to a second parser. Or the \
+                   child wrote more than `[limits] max_output` across the two streams, in which \
+                   case it is killed and nothing is captured: the ceiling on a response is the \
+                   ceiling on one capture too.",
         },
         ErrorDoc {
             error: "IOError",
@@ -321,15 +336,21 @@ nvs_runtime::nvs_helper! {
     /// that no child inherits this process's own.
     ///
     /// [`wait_off_core`] owns which thread the wait occupies, and this module's
-    /// known gap 1 owns what bounds the capture.
+    /// *Decision: `[limits] max_output` bounds the capture* owns the ceiling the
+    /// two captures are read through.
     fn nvs_core_process_run(ctx, args: [2]) {
         let program = text(&args[0], "its path")?;
         let argv = argv_of(&args[1])?;
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
+        let bound = ctx.intake_bound();
         let child = nvs_runtime::capability::exec(ctx, path, &borrowed, RUN_MEMBER)?;
-        let output = wait_off_core(child)
+        let output = wait_off_core(child, bound)
             .map_err(|err| nvs_runtime::capability::io_failure(RUN_MEMBER, path, &err))?;
+        let taken = output.stdout.len() + output.stderr.len();
+        if let Some(over) = ctx.intake_breach(RUN_MEMBER, taken) {
+            return Err(over);
+        }
         Ok(crate::instance::build(
             &RESULT,
             [
@@ -341,20 +362,24 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The child's status and both of its streams, waited for **off this core** —
-/// `rule:core-classes/process-run`, and this module's *Decision: the wait happens off the core*.
+/// The child's status and both of its streams, waited for **off this core** and
+/// held to `bound` — `rule:core-classes/process-run`, and this module's
+/// *Decision: the wait happens off the core*.
 ///
-/// Both streams are read to the end before the status is taken, which is what
-/// [`Child::wait_with_output`] is for: waiting first and reading after
-/// deadlocks the moment a child fills a pipe buffer. That is why the whole
-/// three-way wait goes to the pool as one job rather than the exit alone —
-/// there is no point at which reading a pipe and waiting for the exit are
-/// separable, so there is no smaller thing to hand off.
+/// Both streams are read to the end before the status is taken: waiting first
+/// and reading after deadlocks the moment a child fills a pipe buffer. That is
+/// why the whole three-way wait goes to the pool as one job rather than the exit
+/// alone — there is no point at which reading a pipe and waiting for the exit
+/// are separable, so there is no smaller thing to hand off.
 ///
 /// Named rather than written inline because it is the only part of
 /// `Core\Process` a case can hold still while a neighbouring task runs:
 /// `a_process_wait_suspends_its_coroutine_through_the_blocking_pool` drives
 /// this on a scheduler, and the member around it needs a compiled program.
+///
+/// `bound` is [`nvs_runtime::Ctx::intake_bound`] — one byte past the ceiling, or
+/// `u64::MAX` for a request under none, which is the whole of what this layer
+/// knows about the directive.
 ///
 /// **What it spends:** one pool thread for the child's lifetime, out of
 /// [`nvs_host::blocking::bound`]'s per-worker bound — and off a core, where
@@ -365,8 +390,80 @@ nvs_runtime::nvs_helper! {
 /// Whatever the operating system said about waiting for the child or draining
 /// its pipes. The caller turns it into a `Fault`, since only it knows the path
 /// to name.
-fn wait_off_core(child: Child) -> std::io::Result<Output> {
-    nvs_host::blocking::run(move || child.wait_with_output())
+fn wait_off_core(child: Child, bound: u64) -> std::io::Result<Output> {
+    nvs_host::blocking::run(move || drain(child, bound))
+}
+
+/// Both pipes drained concurrently, neither past `bound`, and then the exit
+/// status — what [`Child::wait_with_output`] does, plus the ceiling it has
+/// nowhere to take.
+///
+/// **The second thread is the cost of the ceiling.** `wait_with_output` reads
+/// both pipes at once without one, but it reads them to the end, and there is no
+/// way to hand it a limit or to stop it once a child has decided to write
+/// forever. Draining them here means one reader per pipe, since a single thread
+/// reading one of them blocks while the other's buffer fills and the child stops
+/// making progress — the deadlock the member has always been written around. One
+/// thread spawn against a process spawn is noise, and it lasts exactly as long
+/// as the child does.
+///
+/// The kill is what makes the bound a bound rather than a truncation: a reader
+/// that fills its whole allowance stops reading, so without it the child would
+/// keep writing into a pipe nobody drains and hang. It is taken through a
+/// [`Mutex`] because either reader may be the one that notices, and the lock is
+/// held for that call alone.
+///
+/// # Errors
+///
+/// Whatever the operating system said about draining a pipe or reaping the
+/// child.
+fn drain(mut child: Child, bound: u64) -> std::io::Result<Output> {
+    let out_pipe = child.stdout.take();
+    let err_pipe = child.stderr.take();
+    let child = Mutex::new(child);
+    let (stdout, stderr) = std::thread::scope(|scope| {
+        let stderr = scope.spawn(|| read_bounded(err_pipe, bound, &child));
+        let stdout = read_bounded(out_pipe, bound, &child);
+        (stdout, stderr.join())
+    });
+    let stderr = stderr.unwrap_or_else(|panic| std::panic::resume_unwind(panic))?;
+    let status = child
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .wait()?;
+    Ok(Output {
+        status,
+        stdout: stdout?,
+        stderr,
+    })
+}
+
+/// One pipe read to its end or to `bound`, whichever comes first, killing the
+/// child at the second.
+///
+/// A stream this process never piped answers empty rather than failing: the
+/// caller took the handle out of the child, and a `None` there is a child
+/// started without that pipe rather than an error to report.
+///
+/// # Errors
+///
+/// Whatever the operating system said about the read.
+fn read_bounded<R: Read>(
+    pipe: Option<R>,
+    bound: u64,
+    child: &Mutex<Child>,
+) -> std::io::Result<Vec<u8>> {
+    let Some(pipe) = pipe else {
+        return Ok(Vec::new());
+    };
+    let mut held = Vec::new();
+    let read = pipe.take(bound).read_to_end(&mut held)?;
+    if u64::try_from(read).unwrap_or(u64::MAX) >= bound
+        && let Ok(mut child) = child.lock()
+    {
+        let _ = child.kill();
+    }
+    Ok(held)
 }
 
 nvs_runtime::nvs_helper! {
@@ -423,7 +520,7 @@ mod tests {
     use nvs_host::blocking::pool_size;
     use nvs_host::reactor::install;
     use nvs_host::{Reactor, Scheduler, run_until_idle};
-    use nvs_runtime::{Ctx, Fault, TaskRoot, ThrownClass};
+    use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, TaskRoot, ThrownClass, Value};
 
     use crate::tests::granting;
 
@@ -544,6 +641,82 @@ mod tests {
         );
     }
 
+    /// `Core\Process::run(<this test binary>, ["--list"])` under one `[limits] max_output`
+    /// ceiling, answering what the member answered and releasing what it built.
+    ///
+    /// The child is the suite's own binary asked to list its cases, which is a real process
+    /// writing several kilobytes on every platform the suite runs on, with nothing to build
+    /// first — the same trick the wait's case uses for a child that writes nothing.
+    fn list_under(program: &str, ceiling: &str) -> Result<(), String> {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting(&format!(
+            "[capabilities.process]\nexec = true\n\n[limits]\nmax_output = \"{ceiling}\"\n"
+        )));
+        let mut argv = NvsArray::new();
+        argv.append(Value::str(NvsStr::new(b"--list")));
+        let args = [
+            Value::str(NvsStr::new(program.as_bytes())),
+            Value::array(argv),
+        ];
+        let answered = nvs_runtime::call(super::nvs_core_process_run, &mut ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        for argument in args.into_iter().chain(answered) {
+            #[expect(
+                unsafe_code,
+                reason = "the list holds exactly the references it built, and the member \
+                          hands back a reference of its own on the path that succeeds"
+            )]
+            unsafe {
+                argument.release();
+            }
+        }
+        refusal.map_or(Ok(()), Err)
+    }
+
+    /// `rule:core-classes/process-run`'s reuse of `[limits] max_output`, asserted **on both sides
+    /// of the bound** over one child: the same listing is answered whole under a ceiling above it
+    /// and refused under one below it, so a member that refused everything — or that had nothing
+    /// to refuse — fails here while looking right on either half alone.
+    ///
+    /// What the control buys is the second half of "bounded rather than unbounded". A refusal
+    /// alone proves only that a small number stops something; reading the child's real output
+    /// first is what says the tight ceiling was crossed by a child that had more to write, and it
+    /// is `wait_off_core` under `u64::MAX` — the no-ceiling spelling — that reads it.
+    #[test]
+    fn a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded() {
+        let me = std::env::current_exe().expect("a test binary knows its own path");
+        let program = me.to_str().expect("this suite is built under a UTF-8 path");
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        let child = nvs_runtime::capability::exec(&ctx, &me, &["--list"], RUN_MEMBER)
+            .expect("`exec = true` admits an ordinary executable");
+        let listing = wait_off_core(child, u64::MAX)
+            .expect("the child never ended")
+            .stdout
+            .len();
+        assert!(
+            listing > 64,
+            "this binary listed {listing} bytes of cases, so the ceiling below is not one the \
+             child crosses and the refusal it produces would prove nothing"
+        );
+
+        list_under(program, "8M").expect("a ceiling the child is nowhere near refuses nothing");
+
+        let refused = list_under(program, "64")
+            .expect_err("a child writing past `[limits] max_output` is not captured");
+        assert!(
+            refused.contains("max_output") && refused.contains(RUN_MEMBER),
+            "the refusal names neither the directive an operator would raise nor the member \
+             that hit it: {refused}"
+        );
+        assert!(
+            refused.contains("64"),
+            "the refusal does not say what the ceiling was, which is the one number its reader \
+             has to change: {refused}"
+        );
+    }
+
     /// `rule:core-classes/process-run`, in the only two ways it is observable: the core is **given back** while the
     /// child runs, and the wait lands on the blocking pool rather than on the worker.
     ///
@@ -580,7 +753,7 @@ mod tests {
                 RUN_MEMBER,
             )
             .expect("`exec = true` admits an ordinary executable");
-            let output = wait_off_core(child).expect("the child never ended");
+            let output = wait_off_core(child, u64::MAX).expect("the child never ended");
             assert!(
                 output.status.success(),
                 "a filter matching no case is not a failing run"
