@@ -65,7 +65,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Sixty-three entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Sixty-four entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -634,6 +634,15 @@ where taking it is the work and the code that follows it is not.
   at the call site, which degrades the shared class's tags to unchecked exactly as two disagreeing
   literals of the same shape already do, or the two shapes stop sharing a class at all.
   `crates/nvs-stdlib/src/task.rs` gap 1. [until: reviewed 2026-09-10]
+- **The queue's schema has no spelling a program can reach, so a conformance case over a converged
+  queue writes the DDL out itself.** `nvs_stdlib::queue::schema()` is the one home and `nvs queue
+  migrate` is the only thing that applies it, and a `.nvst` case reaches no operator subcommand — so
+  the three `tests/conformance/core/queue-*-on-sqlite*.nvst` cases each carry the text that command
+  prints under `--dry-run`, and a schema change that a statement reads breaks them rather than
+  drifting past them. What has to be decided is whether the value gets a `Core` spelling — which a
+  deploy script would use as much as a case would, and which is a surface addition nothing has asked
+  the user for yet. `crates/nvs-stdlib/src/queue.rs`'s `schema`.
+  [until: gone tests/conformance/core/queue-cancel-releases-a-dedupe-key-on-sqlite.nvst:create table nvs_jobs]
 
 ## What is *not* on either list
 
