@@ -1,0 +1,46 @@
+--TEST--
+One text through both doors builds one tree: what `Core\Html::sanitize` rebuilt, parsed by the WHATWG parser and by the strict one, writes back out the same either way — `rule:core-classes/html-parsing`, `rule:core-classes/html-sanitize`
+--FILE--
+<?nvs
+// The one-node-family clause asserted by *comparison* rather than by reading
+// two walks side by side: the two doors are handed the same text and their
+// trees are written back out, so a door that built a different shape — a
+// fragment, an attribute node, a text run split in two — fails here even
+// though every member it answers still looks right on its own line.
+tainted string $submitted =
+    "<p>Hello <b>there</b>.</p>" .
+    "<script>steal(document.cookie)</script>" .
+    "<p onclick=\"boom()\">Bye <a href=\"javascript:alert(1)\">now</a>" .
+    " and <a href=\"/docs\">here</a>.</p>";
+
+Core\Html\Markup $clean = Core\Html::sanitize($submitted);
+string $source = Core\Html::toSource($clean, "parsing the rebuild back through both doors");
+echo "rebuilt: ", $source, "\n";
+
+// The WHATWG parser supplies the document element and the two sections a
+// document has, so the comparable part is the body it put this content in.
+Core\Xml\Node $html = Core\Html::parse($source);
+array<Core\Xml\Node> $roots = $html->children();
+array<Core\Xml\Node> $parts = $roots[0]->children();
+tainted string $throughHtml = $parts[1]->source();
+
+// The strict parser supplies nothing and refuses a document with two roots, so
+// it is handed the same element around the same content. It accepts this text
+// because a rebuild holding none of the elements that have no end tag is also
+// a well-formed XML document — which is a property of what was sanitized here,
+// not a promise the sanitizer makes.
+Core\Xml\Node $xml = Core\Xml::parse("<body>" . $source . "</body>");
+tainted string $throughXml = $xml->source();
+
+echo "html:    ", $throughHtml, "\n";
+echo "xml:     ", $throughXml, "\n";
+if ($throughHtml == $throughXml) {
+    echo "agree\n";
+} else {
+    echo "differ\n";
+}
+--EXPECT--
+rebuilt: <p>Hello <b>there</b>.</p><p>Bye <a>now</a> and <a href="/docs">here</a>.</p>
+html:    <body><p>Hello <b>there</b>.</p><p>Bye <a>now</a> and <a href="/docs">here</a>.</p></body>
+xml:     <body><p>Hello <b>there</b>.</p><p>Bye <a>now</a> and <a href="/docs">here</a>.</p></body>
+agree
