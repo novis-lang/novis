@@ -725,6 +725,63 @@ impl SqliteConn {
         Ok(span)
     }
 
+    /// § 7's `BEGIN IMMEDIATE`: the write lock taken before the first
+    /// statement, for a transaction that reads a row and writes it back.
+    ///
+    /// `rule:concurrency/claiming-is-one-statement` names this backend's claim
+    /// as an immediate transaction, and this is what makes one available.
+    /// [`SqliteConn::begin`]'s bare `BEGIN` is `DEFERRED`: it takes no lock
+    /// until its first statement, so a transaction that reads and then writes
+    /// holds a shared lock and asks to upgrade it — and SQLite answers an
+    /// upgrade it cannot grant with `SQLITE_BUSY` *without honouring the busy
+    /// timeout*, because backing a reader off a lock it already holds would
+    /// break that reader's own snapshot. Taking the write lock up front removes
+    /// the upgrade, and the wait that replaces it is one
+    /// [`set_busy_timeout`]'s bound really does cover.
+    ///
+    /// **It is its own entry point rather than a sixth [`Isolation`] case.**
+    /// That enum is the SQL standard's five levels and none of them means "take
+    /// the write lock now": SQLite's isolation is serializable either way, and
+    /// what this asks is *when* the lock is acquired. So `Core\Db::transaction`
+    /// opens the transaction it always has for every caller that does not ask,
+    /// and nothing on the language surface moves.
+    ///
+    /// **An immediate transaction is an outermost one**, so asking for one
+    /// inside an open transaction is refused rather than quietly turned into a
+    /// `SAVEPOINT`. A savepoint holds whatever lock the transaction around it
+    /// took, which makes the one thing the caller asked for the one thing a
+    /// nested level cannot give it.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidInput` for a connection already in a transaction, otherwise as
+    /// [`simple_command`] — a `SQLITE_BUSY` here is another connection's write
+    /// lock, which § 8 normalises to the `Deadlock` kind § 7's `{retries: n}`
+    /// retries. The depth moves only after a command SQLite accepted, so a
+    /// refused `BEGIN IMMEDIATE` leaves a connection that is still in no
+    /// transaction.
+    pub fn begin_immediate(&self) -> io::Result<QuerySpan> {
+        let open = self.depth.get();
+        if open > 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "an immediate transaction was asked for inside one already {open} deep, and an \
+                     immediate transaction is an outermost one: SQLite takes the write lock where \
+                     the outermost transaction begins, so ask for it there — or give this level a \
+                     `{{shared: false}}` connection of its own"
+                ),
+            ));
+        }
+
+        let span = simple_command(self, "BEGIN IMMEDIATE")?;
+        // One counter rule for every level this driver opens: it moves after the
+        // command and only for a command SQLite accepted. `open` is 0 past the
+        // guard above, so this is `begin`'s `open + 1` with the addition done.
+        self.depth.set(1);
+        Ok(span)
+    }
+
     /// How many transaction levels are open on this connection — 0 outside one,
     /// 1 inside an outermost `transaction()`, deeper inside a nested one.
     ///
@@ -1134,6 +1191,25 @@ mod tests {
         open(&SqliteTarget::resolve(&block()).expect("the block resolves")).expect("it opens")
     }
 
+    /// A block naming one database that two handles can both open, for the
+    /// cases whose whole subject is what one connection does to another.
+    ///
+    /// **Neither handle is a file.** A `mode=memory&cache=shared` URI is a
+    /// database shared by every handle in the process that names it, which is
+    /// all a lock conflict needs and the one spelling of it that leaves nothing
+    /// on disk for a failing case to leak. `open`'s
+    /// `rusqlite::Connection::open` carries `SQLITE_OPEN_URI` in its default
+    /// flags, so the path is read as a URI rather than as a file with an odd
+    /// name. The name is per case, because the process is what scopes it and
+    /// these cases run concurrently.
+    fn shared(name: &str) -> Database {
+        Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(format!("file:{name}?mode=memory&cache=shared")),
+            ..Database::default()
+        }
+    }
+
     /// § 2's block, read as this driver's target.
     #[test]
     fn a_sqlite_block_resolves_to_its_path_and_the_two_shared_keys() {
@@ -1513,13 +1589,7 @@ mod tests {
     /// against is § 8's `Deadlock`, which is what makes § 7's `{retries: n}`
     /// mean something on this backend.
     ///
-    /// **Two connections to one database, and neither is a file.** A
-    /// `mode=memory&cache=shared` URI is a database two handles share, which is
-    /// the whole of what a lock conflict needs and is the one spelling of it
-    /// that leaves nothing on disk for a failing case to leak. `open`'s
-    /// `rusqlite::Connection::open` carries `SQLITE_OPEN_URI` in its default
-    /// flags, so the path is read as one rather than as a file with an odd
-    /// name.
+    /// Two connections to one database, per [`shared`].
     ///
     /// The kind is asserted and the extended code is not: a shared-cache
     /// conflict answers `SQLITE_LOCKED` where a file conflict answers
@@ -1528,14 +1598,8 @@ mod tests {
     /// rests on, and it is the one this pins.
     #[test]
     fn a_lock_another_connection_holds_is_section_8s_deadlock_kind() {
-        let shared = Database {
-            driver: Some(String::from("sqlite")),
-            path: Some(String::from(
-                "file:nvs-db-lock-conflict?mode=memory&cache=shared",
-            )),
-            ..Database::default()
-        };
-        let target = SqliteTarget::resolve(&shared).expect("the block resolves");
+        let block = shared("nvs-db-lock-conflict");
+        let target = SqliteTarget::resolve(&block).expect("the block resolves");
         let holder = open(&target).expect("the first handle opens");
         let waiter = open(&target).expect("the second handle opens");
 
@@ -1592,6 +1656,144 @@ mod tests {
             conn.begin(None, false).expect("the same level, unnamed");
             assert_eq!(conn.depth(), 2);
         }
+    }
+
+    /// `rule:concurrency/claiming-is-one-statement`'s immediate transaction, in
+    /// the one arrangement that can tell it from a deferred one: a second
+    /// connection loses the write before the holder has run a single statement.
+    ///
+    /// The case below is the other half — the same shape against
+    /// [`SqliteConn::begin`], where the write goes through — and the pair is
+    /// the whole difference the claim rests on. Neither half of it is visible
+    /// on one connection, which is why both run two.
+    #[test]
+    fn an_immediate_transaction_holds_the_write_lock_before_its_first_statement_runs() {
+        let block = shared("nvs-db-immediate-holds-the-lock");
+        let target = SqliteTarget::resolve(&block).expect("the block resolves");
+        let holder = open(&target).expect("the first handle opens");
+        let waiter = open(&target).expect("the second handle opens");
+
+        holder
+            .query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+
+        let span = holder.begin_immediate().expect("the write lock, up front");
+        assert_eq!(span.driver(), Driver::Sqlite);
+        assert_eq!(span.sql(), "BEGIN IMMEDIATE");
+        assert_eq!(holder.depth(), 1);
+        assert!(!autocommit(&holder));
+
+        let refused = waiter
+            .query("insert into t (v) values (2)", Vec::new())
+            .expect_err("the holder took the write lock and has written nothing");
+        let server = ServerError::of(&refused).expect("a refusal carried no kind");
+        assert_eq!(server.kind, DbErrorKind::Deadlock);
+        assert_eq!(server.backend, "sqlite");
+
+        holder.commit().expect("the holder closes its level");
+        assert_eq!(holder.depth(), 0);
+        waiter
+            .query("insert into t (v) values (2)", Vec::new())
+            .expect("the lock went with the transaction");
+    }
+
+    /// `Core\Db::transaction` opens the transaction it always has: the depth-0
+    /// command is still a bare `BEGIN`, which holds no lock until its first
+    /// statement, so a second connection writes straight through it.
+    ///
+    /// That is what makes the immediate entry point additive — no caller that
+    /// never asked for a write lock up front now takes one.
+    #[test]
+    fn core_db_transaction_still_opens_the_same_deferred_transaction_it_always_did() {
+        let block = shared("nvs-db-deferred-holds-nothing");
+        let target = SqliteTarget::resolve(&block).expect("the block resolves");
+        let holder = open(&target).expect("the first handle opens");
+        let waiter = open(&target).expect("the second handle opens");
+
+        holder
+            .query("create table t (v integer)", Vec::new())
+            .expect("the schema applies");
+
+        let span = holder.begin(None, false).expect("the deferred transaction");
+        assert_eq!(span.sql(), "BEGIN");
+        assert_eq!(holder.depth(), 1);
+        assert!(!autocommit(&holder));
+
+        waiter
+            .query("insert into t (v) values (1)", Vec::new())
+            .expect("a deferred transaction is holding no lock to lose");
+
+        holder.commit().expect("the holder closes its level");
+        assert_eq!(holder.depth(), 0);
+    }
+
+    /// An immediate transaction is an outermost one, so a depth above zero is
+    /// the third refusal this entry point answers — and it is answered before
+    /// anything is sent, so the level the caller already holds is left exactly
+    /// as it was.
+    ///
+    /// Refused inside a deferred transaction and inside an immediate one
+    /// alike: what a nested level cannot do is take a lock the transaction
+    /// around it did not, and a `SAVEPOINT` is all a nested level is.
+    #[test]
+    fn an_immediate_transaction_asked_for_inside_an_open_one_is_refused() {
+        let conn = connect();
+        conn.begin(None, false).expect("an ordinary transaction");
+        let refused = conn
+            .begin_immediate()
+            .expect_err("a savepoint takes no lock of its own");
+        assert_eq!(refused.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(conn.depth(), 1);
+
+        conn.begin(None, false).expect("a nested level");
+        let deeper = conn.begin_immediate().expect_err("refused deeper in too");
+        assert_eq!(deeper.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(conn.depth(), 2);
+        assert!(!autocommit(&conn));
+
+        let fresh = connect();
+        fresh
+            .begin_immediate()
+            .expect("the outermost immediate level");
+        let nested = fresh
+            .begin_immediate()
+            .expect_err("one inside an immediate transaction is refused as well");
+        assert_eq!(nested.kind(), std::io::ErrorKind::InvalidInput);
+        assert_eq!(fresh.depth(), 1);
+    }
+
+    /// A `BEGIN IMMEDIATE` the engine refuses leaves the connection in no
+    /// transaction, which is this driver's one counter rule: the depth moves
+    /// after the command, and only for a command SQLite accepted.
+    ///
+    /// The refusal is a real one — a second connection's write lock — rather
+    /// than the depth guard above, so what is pinned is the engine's answer and
+    /// not this file's own check. It is also § 7's `{retries: n}` becoming
+    /// meaningful for a claim: the kind is `Deadlock`, and the retry is a whole
+    /// transaction rather than an upgrade nothing can back off.
+    #[test]
+    fn a_refused_immediate_begin_leaves_the_connection_in_no_transaction() {
+        let block = shared("nvs-db-immediate-refused");
+        let target = SqliteTarget::resolve(&block).expect("the block resolves");
+        let holder = open(&target).expect("the first handle opens");
+        let waiter = open(&target).expect("the second handle opens");
+
+        holder.begin_immediate().expect("the first write lock");
+
+        let refused = waiter
+            .begin_immediate()
+            .expect_err("one write lock per database");
+        let server = ServerError::of(&refused).expect("a refusal carried no kind");
+        assert_eq!(server.kind, DbErrorKind::Deadlock);
+        assert_eq!(server.backend, "sqlite");
+        assert_eq!(waiter.depth(), 0);
+        assert!(autocommit(&waiter));
+
+        holder.commit().expect("the holder closes its level");
+        waiter
+            .begin_immediate()
+            .expect("the lock is there once the holder is done with it");
+        assert_eq!(waiter.depth(), 1);
     }
 
     /// § 7's `readOnly` is refused rather than dropped: SQLite has no read-only
