@@ -726,6 +726,55 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         .to_string())
 }
 
+/// [`queue::INSERT_POSTGRES`] carrying the two values [`push`] leaves null: the
+/// dedupe key that admits one pending job, and the tag that names a group of
+/// them.
+///
+/// **It answers what the statement answered, which is not always a row it
+/// wrote.** A key some pending job already holds inserts nothing and comes back
+/// with that job's own id off the `existing` arm, which is why there is no
+/// `Result` here where [`push_keyed`] has one: on this dialect a deduped push is
+/// an ordinary answer rather than the server's refusal. That is the whole of the
+/// difference between one statement and [`queue::INSERT_MYSQL`]'s pair, and it
+/// is what makes the key half below an equality rather than an error kind.
+///
+/// **One helper for both slots rather than one each**, because what the case
+/// calling it asserts is that they are opposites: the same push with the other
+/// value filled is what separates a group of many from a group of one.
+fn push_marked(
+    conn: &mut Conn,
+    queue: &str,
+    at: i64,
+    key: Option<&str>,
+    tag: Option<&str>,
+) -> String {
+    assert_eq!(
+        conn.driver(),
+        Driver::Postgres,
+        "this is `INSERT_POSTGRES`, and only PostgreSQL runs it"
+    );
+    let at = millis(at);
+    // `INSERT_POSTGRES`'s order, as `push` sends it: the key is first because
+    // `$1` is read by the guard before it is written to either of the two dedupe
+    // columns, and the tag is last for the reason that constant's doc gives.
+    one(
+        conn,
+        queue::INSERT_POSTGRES,
+        &[
+            key.map(str::as_bytes),
+            Some(queue.as_bytes()),
+            Some(&b"scripts/receipt.nvs"[..]),
+            Some(&br#"{"order":7}"#[..]),
+            Some(PENDING),
+            Some(&b"3"[..]),
+            Some(&b"1000"[..]),
+            Some(at.as_slice()),
+            Some(at.as_slice()),
+            tag.map(str::as_bytes),
+        ],
+    )
+}
+
 /// [`queue::INSERT_MYSQL`]'s `first` — the guard half — answering the pending
 /// job `key` already has, where it has one.
 ///
@@ -1520,6 +1569,93 @@ fn retries_are_bounded_and_backoff_is_jittered() {
         ),
         "2",
         "both jobs are dead-lettered having spent every attempt they were given"
+    );
+}
+
+/// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` against a real
+/// server: one tag admits every job that names it, and one key admits one.
+///
+/// **The two halves are the same push with the other slot filled**, sent down
+/// one connection at one queue, so what separates a group of many from a group
+/// of one is the column and nothing else. That is what makes this the rule
+/// rather than two unrelated counts: a schema folding the pair into one column
+/// would cap every group at one pending job, silently, at the enqueue that
+/// created the group.
+///
+/// **The key half is asserted by what the statement answered and not by a
+/// refusal.** [`queue::INSERT_POSTGRES`] is one statement, so a key a pending
+/// job already holds comes back with that job's own id off the `existing` arm
+/// and writes nothing, where [`queue::INSERT_MYSQL`]'s pair is refused by
+/// `nvs_jobs_dedupe` —
+/// [`a_framed_dedupe_push_is_refused_by_the_index_and_not_by_the_guard`] is that
+/// side. This is also the first case in this file to bind `$1` at all: every
+/// other push here leaves the key null, so the `existing` arm has never met a
+/// server.
+///
+/// **The group is counted rather than read off the rows it was pushed as**,
+/// because what the rule says is about a population: a tag that admitted two of
+/// the three still answers plausibly for either one of them.
+#[test]
+fn many_pending_jobs_share_one_tag_and_two_pending_jobs_never_share_one_key() {
+    const QUEUE: &str = "nvs-stdlib-tests-tag-and-key";
+    const TAG: &str = "nvs-stdlib-tests-tag-and-key:batch";
+    // Unique across the whole table rather than within the queue, so it names
+    // this case: `nvs_jobs_dedupe` covers the column and not `(queue, column)`.
+    const KEY: &str = "nvs-stdlib-tests-tag-and-key:receipt:7";
+    // The group, as § 2's own index would be read: `(queue, tag)` leftmost
+    // first, narrowed to the state the key's half is about.
+    const TAGGED: &str = "select count(*) from nvs_jobs \
+         where queue = $1::text and tag = $2::text and state = $3::smallint";
+    const DUE: i64 = 1_000;
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    // The group. Three pushes naming one tag, and nothing about the tag makes
+    // the second or the third of them different from the first.
+    let mut grouped: Vec<String> = (0..3)
+        .map(|nth| push_marked(&mut conn, QUEUE, DUE + nth, None, Some(TAG)))
+        .collect();
+    let pushed = grouped.len();
+    grouped.sort();
+    grouped.dedup();
+    assert_eq!(
+        grouped.len(),
+        pushed,
+        "each push wrote a row of its own, and none of them answered another's: {grouped:?}"
+    );
+    let counted = [Some(QUEUE.as_bytes()), Some(TAG.as_bytes()), Some(PENDING)];
+    assert_eq!(
+        one(&mut conn, TAGGED, &counted),
+        "3",
+        "every job that named the tag is pending under it, which is what a group is"
+    );
+
+    // The key, sent as that same push carrying the tag as well, so the two
+    // columns are asserted about one row rather than about two arrangements.
+    let first = push_marked(&mut conn, QUEUE, DUE, Some(KEY), Some(TAG));
+    let again = push_marked(&mut conn, QUEUE, DUE, Some(KEY), Some(TAG));
+    assert_eq!(
+        again, first,
+        "the second push answered the pending job the key already had, off the `existing` arm"
+    );
+    assert_eq!(
+        one(
+            &mut conn,
+            "select count(*) from nvs_jobs where dedupe_pending = $1::text",
+            &[Some(KEY.as_bytes())],
+        ),
+        "1",
+        "the key admits one pending job, and the push it turned away wrote no row"
+    );
+    assert_eq!(
+        one(&mut conn, TAGGED, &counted),
+        "4",
+        "five pushes named the tag and the tag took every row that was written"
     );
 }
 
