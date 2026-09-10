@@ -15,5 +15,7 @@ default is a null or a literal. A registry row getting the pairing wrong fails t
 The pairing is what makes "filled" readable at all: the constant standing for *omitted* has to be one no
 written value can also be, or the two states collapse again.
 
-**Designed, not shipped.** The guards in `crates/nvs-stdlib/src/registry.rs` still assert the old, stronger
-invariant that no such field is ever nullable.
+The two guards in `crates/nvs-stdlib/src/registry.rs` —
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
+spelling, over every registered row.

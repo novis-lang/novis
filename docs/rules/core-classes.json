@@ -694,7 +694,9 @@
       "seeAlso": ["core-classes/signature"],
       "guardedBy": [
         "tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst",
-        "tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst"
+        "tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst",
+        "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst",
+        "tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"
       ]
     },
     {

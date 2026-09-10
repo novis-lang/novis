@@ -13768,7 +13768,7 @@ a%20b%26c a+b%26c
 | [`Core\Uri->query`](#core-core-uri-query) | `query(): ?string` |
 | [`Core\Uri->fragment`](#core-core-uri-fragment) | `fragment(): ?string` |
 | [`Core\Uri->toString`](#core-core-uri-tostring) | `toString(): string` |
-| [`Core\Uri->with`](#core-core-uri-with) | `with({scheme?: string, host?: string, port?: int, path?: string, query?: string, fragment?: string}): Core\Uri` |
+| [`Core\Uri->with`](#core-core-uri-with) | `with({scheme?: string, host?: string, port?: ?int, path?: string, query?: ?string, fragment?: ?string}): Core\Uri` |
 | [`Core\Uri->resolve`](#core-core-uri-resolve) | `resolve(string $reference): Core\Uri` |
 | [`Core\Uri->compareTo`](#core-core-uri-compareto) | `compareTo(Core\Uri $other): int` |
 
@@ -13990,19 +13990,19 @@ The reference this `Uri` was parsed from, byte for byte — not a recomposition 
 #### `Core\Uri->with`
 
 ```nvs skip
-$uri->with({scheme?: string, host?: string, port?: int, path?: string, query?: string, fragment?: string}): Core\Uri
+$uri->with({scheme?: string, host?: string, port?: ?int, path?: string, query?: ?string, fragment?: ?string}): Core\Uri
 ```
 
-A fresh `Uri` with the named components replaced and every other one carried over, replacing reassembly by hand. It replaces and never removes — there is no spelling that clears a component — and `userInfo` is not on the bag, so it can neither add nor drop a credential.
+A fresh `Uri` with the named components replaced and every other one carried over, replacing reassembly by hand. Writing `null` for `port`, `query` or `fragment` removes that component, where leaving the key out carries it over; `userInfo` is not on the bag, so it can neither add nor drop a credential.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `{scheme: …}` | `string` (default `null`) | The new scheme, without its `:`. |
 | `{host: …}` | `string` (default `null`) | The new host; an IPv6 literal carries its brackets. |
-| `{port: …}` | `int` (default `null`) | The new port, `0`–`65535`. |
+| `{port: …}` | `?int` (default `(omitted)`) | The new port, `0`–`65535`, or `null` to remove it. |
 | `{path: …}` | `string` (default `null`) | The new path, already percent-encoded; beside a host it must begin with `/`. |
-| `{query: …}` | `string` (default `null`) | The new query, already encoded and without its `?`. |
-| `{fragment: …}` | `string` (default `null`) | The new fragment, already encoded and without its `#`. |
+| `{query: …}` | `?string` (default `(omitted)`) | The new query, already encoded and without its `?`, or `null` to remove it; `""` is an empty query, which is a different thing. |
+| `{fragment: …}` | `?string` (default `(omitted)`) | The new fragment, already encoded and without its `#`, or `null` to remove it. |
 
 **Returns** `Core\Uri` — A new `Uri`; the receiver is unchanged. A receiver whose port was written empty (`h:/`) loses that `:` on the way through.
 
@@ -21159,7 +21159,7 @@ Enqueues `$script` to run in the background, as a row in the database `[queue] c
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$script` | `string` (sink) | The file a worker runs, as `spawn script` names one. A path and not a class or a closure, so the job carries no captured state across the boundary. |
-| `{args: …}` | `mixed` (default `null`) | The payload, copied by value into the row and decoded on the other side into the job's declared types. A reference is never carried, because the worker is a separate isolate and usually a separate process. |
+| `{args: …}` | `mixed` (default `(omitted)`) | The payload, copied by value into the row and decoded on the other side into the job's declared types. A reference is never carried, because the worker is a separate isolate and usually a separate process. |
 | `{queue: …}` | `string` (default `"default"`, neutral) | The named queue the job goes in. Workers claim from the queues they are configured for, so this is how work is separated by rate rather than by kind. |
 | `{runAt: …}` | `Core\Time\Instant` (default `null`) | The earliest moment a worker may claim it. Left out, that moment is now. |
 | `{maxAttempts: …}` | `uint` (default `null`) | How many attempts this job gets before it is dead-lettered. Left out, `[queue] max_attempts`. Always finite: there is no spelling that retries forever. |

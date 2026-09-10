@@ -15,5 +15,6 @@ can be cleared and a caller reads it off the type rather than off prose. `""` is
 on any member: it is a legal value of most of these fields and is already distinguishable — an empty query
 is not an absent one — so overloading it would reinstate the in-band sentinel this removes.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/uri.rs`'s `written` helper still records the opposite:
-with no second null to spend, `with` replaces and never removes.
+`crates/nvs-stdlib/src/uri.rs`'s `removable` helper is the first reader of the three states, and
+`Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
+`{fragment: null}` each clear their component, where omitting the key carries it over.

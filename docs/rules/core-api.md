@@ -3,7 +3,7 @@
 
 # The Core API
 
-*10 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-api-core-means-always-present"></a>
 
@@ -778,7 +778,7 @@ constant the *call site* emits and a native decoder is not a call site.
 
 <a id="core-api-omission-is-not-a-written-null"></a>
 
-## An options bag tells an omitted key from a written `null`  *(designed — not yet in the compiler)*
+## An options bag tells an omitted key from a written `null`
 
 `rule:core-api/omission-is-not-a-written-null`
 
@@ -794,15 +794,16 @@ so the helper reads three states out of one argument and the flattening is untou
 is a value the field's own type admits, so user data can arrive as one by accident; that is the bug class
 this removes rather than relocates.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/registry.rs` still holds the old invariant, under the
-guards `a_shape_field_is_never_nullable` and `a_union_option_excludes_null`, so no bag field is nullable
-today and `Core\Uri::with` still has no clearing spelling.
+`crates/nvs-stdlib/src/registry.rs`'s `Const::NeverWritten` is the declaration and its two guards,
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
+`Core\Uri::with` is the first member to spend it.
 
 <sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
 
 <a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
 
-## A bag or shape field is nullable exactly when its omission fills the never-written marker  *(designed — not yet in the compiler)*
+## A bag or shape field is nullable exactly when its omission fills the never-written marker
 
 `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`
 
@@ -823,14 +824,16 @@ default is a null or a literal. A registry row getting the pairing wrong fails t
 The pairing is what makes "filled" readable at all: the constant standing for *omitted* has to be one no
 written value can also be, or the two states collapse again.
 
-**Designed, not shipped.** The guards in `crates/nvs-stdlib/src/registry.rs` still assert the old, stronger
-invariant that no such field is ever nullable.
+The two guards in `crates/nvs-stdlib/src/registry.rs` —
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
+spelling, over every registered row.
 
 <sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
 
 <a id="core-api-a-written-null-removes"></a>
 
-## Wherever a `Core` member admits a written `null` it means remove, and `""` is never a removal spelling  *(designed — not yet in the compiler)*
+## Wherever a `Core` member admits a written `null` it means remove, and `""` is never a removal spelling
 
 `rule:core-api/a-written-null-removes`
 
@@ -851,14 +854,15 @@ can be cleared and a caller reads it off the type rather than off prose. `""` is
 on any member: it is a legal value of most of these fields and is already distinguishable — an empty query
 is not an absent one — so overloading it would reinstate the in-band sentinel this removes.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/uri.rs`'s `written` helper still records the opposite:
-with no second null to spend, `with` replaces and never removes.
+`crates/nvs-stdlib/src/uri.rs`'s `removable` helper is the first reader of the three states, and
+`Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
+`{fragment: null}` each clear their component, where omitting the key carries it over.
 
 <sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-the-marker-never-reaches-a-program"></a>
 
-## The never-written marker is not in the type system and is never handed to user code  *(designed — not yet in the compiler)*
+## The never-written marker is not in the type system and is never handed to user code
 
 `rule:core-api/the-marker-never-reaches-a-program`
 
@@ -882,7 +886,7 @@ exactly the observable marker this rule refuses.
 
 <a id="core-api-the-bag-abi-is-unchanged"></a>
 
-## The three-state bag changes which constant fills a slot and nothing else about the ABI  *(designed — not yet in the compiler)*
+## The three-state bag changes which constant fills a slot and nothing else about the ABI
 
 `rule:core-api/the-bag-abi-is-unchanged`
 
@@ -901,8 +905,9 @@ What it spends ([`programs/memory-priority`](programs.md#programs-memory-priorit
 omitting call site emits one constant either way. A non-nullable field is unaffected in every respect, so
 every member registered today lowers to the same instructions and nothing needs migrating.
 
-**Designed, not shipped.** `crates/nvs-runtime/src/value.rs` carries the marker tag; no call site
-materializes it.
+`crates/nvs-runtime/src/value.rs` carries the marker tag, `nvs_ir::ir::InstKind::ConstUnset` is the
+one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
+zero payload. Every member registered before this lowers byte for byte as it did.
 
 <sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
 

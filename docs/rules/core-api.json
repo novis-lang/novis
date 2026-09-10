@@ -415,37 +415,42 @@
     {
       "id": "core-api/omission-is-not-a-written-null",
       "title": "An options bag tells an omitted key from a written `null`",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0147", "0063", "0135", "0022"],
       "divergesFromPhp": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member",
       "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/a-written-null-removes", "core-api/the-bag-abi-is-unchanged", "core-api/options-bag"],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs",
+        "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"
+      ]
     },
     {
       "id": "core-api/a-nullable-field-omits-as-the-never-written-marker",
       "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0147", "0135", "0022"],
       "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/the-marker-never-reaches-a-program", "core-api/shape-flattens-at-the-abi"],
       "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
+        "crates/nvs-stdlib/src/registry.rs",
+        "tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"
       ]
     },
     {
       "id": "core-api/a-written-null-removes",
       "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0147", "0063"],
       "divergesFromPhp": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member",
       "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/a-lifetime-is-written", "core-api/no-mode-strings"],
       "guardedBy": [
-        "crates/nvs-stdlib/src/uri.rs"
+        "crates/nvs-stdlib/src/uri.rs",
+        "tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"
       ]
     },
     {
       "id": "core-api/the-marker-never-reaches-a-program",
       "title": "The never-written marker is not in the type system and is never handed to user code",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0147", "0022"],
       "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/the-bag-abi-is-unchanged", "core-api/required-optional-and-nullable"],
       "guardedBy": [
@@ -455,11 +460,12 @@
     {
       "id": "core-api/the-bag-abi-is-unchanged",
       "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0147", "0135", "0022"],
       "seeAlso": ["core-api/shape-flattens-at-the-abi", "core-api/a-nullable-field-omits-as-the-never-written-marker", "programs/memory-priority"],
       "guardedBy": [
-        "crates/nvs-runtime/src/value.rs"
+        "crates/nvs-runtime/src/value.rs",
+        "crates/nvs-ir/src/ir.rs"
       ]
     },
     {

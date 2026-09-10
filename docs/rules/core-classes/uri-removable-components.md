@@ -15,6 +15,6 @@ close it, composing the three existing members so no second canonicalization exi
 `null` value removes the parameter, the bracket convention comes free because a value may itself be
 an array, and removing the last parameter leaves no query at all rather than a bare `?`.
 
-**Not shipped.** `crates/nvs-stdlib/src/uri.rs` records it as a known gap: `with`'s option types are
-non-nullable, so an omitted key and a written `null` arrive identically, and the two parameter
-members do not exist.
+**The first level is shipped and the second is not.** `crates/nvs-stdlib/src/uri.rs`'s `with` takes
+`port`, `query` and `fragment` as `?T` and its `removable` helper reads the three states; the two
+query-parameter members do not exist yet, and that module's known gap 1 is what records them.

@@ -13,5 +13,6 @@ What it spends (`rule:programs/memory-priority`): **nothing per request and noth
 omitting call site emits one constant either way. A non-nullable field is unaffected in every respect, so
 every member registered today lowers to the same instructions and nothing needs migrating.
 
-**Designed, not shipped.** `crates/nvs-runtime/src/value.rs` carries the marker tag; no call site
-materializes it.
+`crates/nvs-runtime/src/value.rs` carries the marker tag, `nvs_ir::ir::InstKind::ConstUnset` is the
+one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
+zero payload. Every member registered before this lowers byte for byte as it did.

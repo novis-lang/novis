@@ -10,6 +10,7 @@ so the helper reads three states out of one argument and the flattening is untou
 is a value the field's own type admits, so user data can arrive as one by accident; that is the bug class
 this removes rather than relocates.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/registry.rs` still holds the old invariant, under the
-guards `a_shape_field_is_never_nullable` and `a_union_option_excludes_null`, so no bag field is nullable
-today and `Core\Uri::with` still has no clearing spelling.
+`crates/nvs-stdlib/src/registry.rs`'s `Const::NeverWritten` is the declaration and its two guards,
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
+`Core\Uri::with` is the first member to spend it.
