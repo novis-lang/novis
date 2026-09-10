@@ -635,6 +635,9 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
                 Some(backoff),
                 Some(at.as_slice()),
                 Some(at.as_slice()),
+                // No tag: nothing here groups jobs, and `$10` is the option
+                // `push` leaves null on every enqueue that does not name one.
+                None,
             ],
         );
     }
@@ -654,6 +657,10 @@ fn push(conn: &mut Conn, queue: &str, at: i64, max_attempts: &str) -> String {
         None,
         None,
         Some(at.as_slice()),
+        // The tag, last for the reason `INSERT_POSTGRES`'s doc gives: a value
+        // added anywhere else is a column list every other statement has to be
+        // checked against.
+        None,
     ];
     let Dialect::Framed(mut framed) = conn.dialect() else {
         unreachable!("every driver but PostgreSQL is the framed dialect here")
@@ -700,6 +707,9 @@ fn push_keyed(conn: &mut Conn, queue: &str, at: i64, key: &str) -> io::Result<St
         Some(key.as_bytes()),
         Some(key.as_bytes()),
         Some(at.as_slice()),
+        // No tag: a key and a tag are opposites, and this helper is the key's
+        // half — `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`.
+        None,
     ];
     let Dialect::Framed(mut framed) = conn.dialect() else {
         unreachable!("this pair is `INSERT_MYSQL`, and only the framed dialect runs it")

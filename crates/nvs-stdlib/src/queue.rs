@@ -223,7 +223,8 @@ pub fn migration(driver: nvs_db::Driver) -> Vec<Migration> {
 
 /// How wide every indexed text column of § 2's schema is.
 ///
-/// One number rather than one per column, because the two that carry it hold the *same value*:
+/// One number rather than one per column, because two of the columns that carry it hold the *same
+/// value*:
 /// [`schema`]'s `dedupe_pending` is `dedupe_key` while the job is pending, so a narrower one of the
 /// pair would refuse a key the other admitted. 255 is what fits InnoDB's 3,072-byte key limit at
 /// `utf8mb4`'s four bytes a character with room for the rest of the `nvs_jobs_due` key, and it is
@@ -279,9 +280,25 @@ const KEY_WIDTH: u32 = 255;
 ///   that trade is written down. There is no `state`: a row is `Dead` by being in that table, which
 ///   is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the ordinal as a literal.
 ///
-/// **What it spends:** one indexed [`KEY_WIDTH`]-wide column per job row, which is what a partial
-/// index costs nothing for — priority 5 spent to buy one spelling everywhere the queue runs
-/// instead of two spellings on two backends.
+/// **`tag` is a second column and never a second meaning for `dedupe_key`.**
+/// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` is why: a key admits at most one
+/// pending job under a value and a tag names many, so folding the two would cap a batch at one job
+/// at the enqueue that created it. It has no `_pending` twin — nothing releases a tag, because a
+/// tag is not a lock — and nothing on the request path reads it. `nvs_jobs_tag` is there for
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` alone, which is what makes
+/// the pair one column and one index rather than a feature.
+///
+/// **A live queue converges onto it by one `Safe` step per table and one `Locking` index build.**
+/// A nullable column with no default is a catalog write on all four dialects, which is the whole
+/// reason `tag` is declared that way; the index over `(queue, tag)` is built over every row that is
+/// already there, and `rule:core-classes/schema-plan` grades a build no v1 emitter runs
+/// concurrently as `Locking`. So `nvs queue migrate` takes the columns unasked and the index with
+/// `--including-risky`, and a deployment that is not ready for the build has the column regardless.
+///
+/// **What it spends:** two indexed [`KEY_WIDTH`]-wide columns per job row. `dedupe_pending` is what
+/// a partial index costs nothing for — priority 5 spent to buy one spelling everywhere the queue
+/// runs instead of two spellings on two backends — and `tag` is one more, written once by `push`
+/// and read by no statement a request or a worker runs.
 ///
 /// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
 /// in this function rather than bad input, and the `expect` says which.
@@ -294,9 +311,9 @@ pub fn schema() -> nvs_db::Schema {
     }
     let big = || ScalarType::Int(IntWidth::Big);
     let int = || ScalarType::Int(IntWidth::Normal);
-    // Indexed text is bounded and payload text is not: `queue` and the two dedupe columns are read
-    // by a key, while `script`, `args` and `errors` are a path and two JSON documents that no index
-    // ever covers.
+    // Indexed text is bounded and payload text is not: `queue`, `tag` and the two dedupe columns
+    // are read by a key, while `script`, `args` and `errors` are a path and two JSON documents that
+    // no index ever covers.
     let short = || ScalarType::Text {
         max: Some(KEY_WIDTH),
     };
@@ -316,6 +333,10 @@ pub fn schema() -> nvs_db::Schema {
             named("max_attempts", int()),
             named("backoff_ms", big()),
             named("run_at", big()),
+            // Beside `dedupe_key` and ahead of it, so the pair the enqueue writes one value into
+            // stays adjacent: a tag is `dedupe_key`'s kind of column — written once by `push` and
+            // read by a filter — and has no `_pending` twin, because nothing releases it.
+            named("tag", short()).null(),
             named("dedupe_key", short()).null(),
             named("dedupe_pending", short()).null(),
             named("created_at", big()),
@@ -325,6 +346,7 @@ pub fn schema() -> nvs_db::Schema {
     .and_then(|table| table.primary_key(&["id"]))
     .and_then(|table| table.unique("nvs_jobs_dedupe", &["dedupe_pending"]))
     .and_then(|table| table.index("nvs_jobs_due", &["queue", "state", "run_at"]))
+    .and_then(|table| table.index("nvs_jobs_tag", &["queue", "tag"]))
     .expect("the jobs table names its own columns in its own keys");
 
     let dead = Table::new(
@@ -338,6 +360,7 @@ pub fn schema() -> nvs_db::Schema {
             named("max_attempts", int()),
             named("backoff_ms", big()),
             named("run_at", big()),
+            named("tag", short()).null(),
             named("dedupe_key", short()).null(),
             named("created_at", big()),
             named("failed_at", big()),
@@ -367,7 +390,14 @@ pub fn schema() -> nvs_db::Schema {
 /// unique key over, and it holds that key only while the job is pending — [`CLAIM_POSTGRES`],
 /// [`SUCCEEDED_POSTGRES`] and [`CANCEL_POSTGRES`] clear it and [`RETRY_POSTGRES`] restores it from
 /// `dedupe_key`. A `$n` may be named as often as a statement likes, so the pair costs this dialect
-/// no parameter at all; [`INSERT_MYSQL`]'s tenth bound slot is what it costs the other one.
+/// no parameter at all; a repeated bound slot in [`INSERT_MYSQL`]'s array is what it costs the
+/// other one.
+///
+/// **`tag` is bound last and written to one column**, because it is the newest of the job's own
+/// values and `crates/nvs-cli/src/worker.rs` reads the claim's columns by position — a value added
+/// anywhere but the end of a list here is a column list a session has to check against every other
+/// statement. It has no second column for the reason
+/// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` gives: nothing releases a tag.
 ///
 /// The trailing `union all` is what makes the answer one row in both cases: a deduped push answers
 /// with the pending job's own id, which is what a caller that wanted "at most one" asked for.
@@ -383,9 +413,9 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
  ), inserted as (\
      insert into nvs_jobs \
      (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-      dedupe_pending, created_at) \
+      dedupe_pending, created_at, tag) \
      select $2::text, $3::text, $4::text, $5::smallint, 0, $6::int, $7::bigint, $8::bigint, \
-            $1::text, $1::text, $9::bigint \
+            $1::text, $1::text, $9::bigint, $10::text \
      where not exists (select 1 from existing) \
      returning id\
  ) select id from inserted union all select id from existing limit 1";
@@ -546,12 +576,12 @@ pub const RETRY_POSTGRES: &str = "update nvs_jobs set state = 0, run_at = $3::bi
 /// transaction rather than removed and then copied inside one statement.
 pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
      delete from nvs_jobs where id = $1::bigint and claimed_at = $2::bigint \
-     returning id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-     created_at\
+     returning id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
+     dedupe_key, created_at\
  ) insert into nvs_dead_jobs \
- (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, created_at, \
- failed_at, errors) \
- select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
+ (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, dedupe_key, \
+ created_at, failed_at, errors) \
+ select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, dedupe_key, \
  created_at, $3::bigint, $4::text from moved";
 
 /// A statement one backend spells as two, and the pair a caller runs inside **one transaction**.
@@ -616,8 +646,8 @@ pub const INSERT_MYSQL: Split = Split {
     first: "select id from nvs_jobs where dedupe_pending = ? limit 1 for update",
     then: "insert into nvs_jobs \
            (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-           dedupe_pending, created_at) \
-           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)",
+           dedupe_pending, created_at, tag) \
+           values (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)",
 };
 
 /// [`CLAIM_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -668,9 +698,9 @@ pub const CLAIM_MYSQL: Split = Split {
 /// nothing here meets MySQL's refusal to read the table a statement is writing.
 pub const DEAD_LETTER_MYSQL: Split = Split {
     first: "insert into nvs_dead_jobs \
-            (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, dedupe_key, \
-            created_at, failed_at, errors) \
-            select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, \
+            (id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
+            dedupe_key, created_at, failed_at, errors) \
+            select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, tag, \
             dedupe_key, created_at, ?, ? from nvs_jobs \
             where id = ? and claimed_at = ?",
     then: "delete from nvs_jobs where id = ? and claimed_at = ?",
@@ -982,6 +1012,9 @@ const BACKOFF_ARG: usize = 5;
 /// `{key: …}`'s. See [`ARGS_ARG`].
 const KEY_ARG: usize = 6;
 
+/// `{tag: …}`'s. See [`ARGS_ARG`].
+const TAG_ARG: usize = 7;
+
 /// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -1046,6 +1079,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         // compared against a column and read by nothing else, so the
                         // commonest key there is — one derived from the request that caused
                         // the job — is exactly the one a `string` would have refused.
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "tag",
+                        // Neutral for `key`'s reason exactly: a tag is compared against a column
+                        // and read by nothing else, and the commonest one there is — a tenant or a
+                        // batch named by the request that created the work — is the one a `string`
+                        // would have refused.
                         ty: CoreTy::Text(Qual::Neutral),
                         default: Const::Null,
                     },
@@ -1152,6 +1194,13 @@ const PUSH_DOC: MethodDoc = MethodDoc {
             name: "key",
             desc: "A dedupe key: while a job with this key is still pending, a second push with it \
                    enqueues nothing and answers the pending job's own id.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "tag",
+            desc: "A group name: any number of jobs may carry one, nothing dedupes on it, and \
+                   `purge` is the only thing that reads it. Grouping is decided here, at the \
+                   enqueue, because nothing can later group rows that were never grouped.",
             shape: &[],
         },
     ],
@@ -1830,7 +1879,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one statement, plus the connection if the request had not already opened
     /// one — which is then held for the rest of the request like any other, and pooled after it.
-    fn nvs_core_queue_push(ctx, args: [7]) {
+    fn nvs_core_queue_push(ctx, args: [8]) {
         // Unreachable from source: the row types this parameter `string`, so a non-text argument is
         // refused at `E0401` first — `Core\Db::connect`'s guard states the same judgement.
         let script = args[SCRIPT_ARG]
@@ -1852,6 +1901,7 @@ nvs_runtime::nvs_helper! {
             })?
             .to_owned();
         let key = args[KEY_ARG].as_text().map(str::to_owned);
+        let tag = args[TAG_ARG].as_text().map(str::to_owned);
         let payload = payload_of(args)?;
         let run_at = run_at_of(args)?;
         let backoff = backoff_of(args)?;
@@ -1864,13 +1914,14 @@ nvs_runtime::nvs_helper! {
         // enqueue would commit on its own. The memo is what makes the property hold.
         let handle = crate::db::open_named(ctx, &configured.connection, true, None, PUSH)?;
         let now = now_millis();
-        // Encoded once and bound twice, because the two dialects want the same nine values in two
+        // Encoded once and bound twice, because the two dialects want the same values in two
         // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
         // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like
         // every other value — twice, since it writes it to two columns and a `?` cannot repeat.
         // One array per order over one set of buffers, rather than a second encoding of the same
         // integers.
         let dedupe = key.map(String::into_bytes);
+        let tagged = tag.map(String::into_bytes);
         let queued = queue.clone().into_bytes();
         let scripted = script.into_bytes();
         let payloaded = payload.map(String::into_bytes);
@@ -1889,7 +1940,7 @@ nvs_runtime::nvs_helper! {
         let mut spans = Spans::of(ctx, &block);
         let id = match queue_connection(ctx, handle, &block, PUSH)? {
             Queued::Postgres(postgres) => {
-                let bound: [Option<&[u8]>; 9] = [
+                let bound: [Option<&[u8]>; 10] = [
                     dedupe.as_deref(),
                     Some(&queued),
                     Some(&scripted),
@@ -1899,11 +1950,12 @@ nvs_runtime::nvs_helper! {
                     Some(&backing),
                     Some(&due),
                     Some(&created),
+                    tagged.as_deref(),
                 ];
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
             Queued::Framed(framed) => {
-                let bound: [Option<&[u8]>; 10] = [
+                let bound: [Option<&[u8]>; 11] = [
                     Some(&queued),
                     Some(&scripted),
                     payloaded.as_deref(),
@@ -1916,6 +1968,7 @@ nvs_runtime::nvs_helper! {
                     dedupe.as_deref(),
                     dedupe.as_deref(),
                     Some(&created),
+                    tagged.as_deref(),
                 ];
                 push_in_two(framed, dedupe.as_deref(), &bound, &block, &mut spans)?
             }
@@ -3303,6 +3356,90 @@ mod tests {
         }
     }
 
+    /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`, asked of the statements as the
+    /// exact mirror of the test above: what the dedupe column owes every transition, the tag owes
+    /// none of.
+    ///
+    /// **The two columns are opposites at the point they touch**, so the assertion that carries the
+    /// rule is not that `tag` is written — it is that nothing ever assigns it again. A `tag = null`
+    /// in the claim would make every group a group of one pending job the moment a worker took the
+    /// first of them, and it is the transition beside it in every one of these statements, so it is
+    /// the edit a session lands by symmetry. The dead-letter is the one statement that names the
+    /// column, and there it is copied rather than cleared: a purge by tag has to reach the rows
+    /// that failed, which is where the record of lost work is.
+    #[test]
+    fn nothing_releases_a_tag_the_way_a_claim_releases_a_dedupe_key() {
+        for (dialect, push, claim, succeeded, retry, cancel, moving) in [
+            (
+                "postgres",
+                INSERT_POSTGRES,
+                CLAIM_POSTGRES,
+                SUCCEEDED_POSTGRES,
+                RETRY_POSTGRES,
+                CANCEL_POSTGRES,
+                DEAD_LETTER_POSTGRES,
+            ),
+            (
+                "mysql",
+                INSERT_MYSQL.then,
+                CLAIM_MYSQL.then,
+                SUCCEEDED_MYSQL,
+                RETRY_MYSQL,
+                CANCEL_MYSQL,
+                DEAD_LETTER_MYSQL.first,
+            ),
+        ] {
+            assert!(
+                push.contains("tag"),
+                "{dialect}: the push is the one statement that writes a tag, since grouping is \
+                 decided at the enqueue"
+            );
+            for (name, statement) in [
+                ("claim", claim),
+                ("write-back", succeeded),
+                ("cancel", cancel),
+                ("retry", retry),
+            ] {
+                assert!(
+                    !statement.contains("tag"),
+                    "{dialect}: the {name} names `tag`, so something releases a group the way a \
+                     claim releases a key — and a tag is not a lock"
+                );
+            }
+            assert!(
+                moving.contains("tag"),
+                "{dialect}: a dead-lettered row leaves `{JOBS_TABLE}` carrying its tag, or a purge \
+                 by tag cannot reach the rows that failed"
+            );
+        }
+    }
+
+    /// The half of the rule that is about the *request path*: a tag costs a claim nothing, because
+    /// no statement a worker runs to find or re-arm a job reads it.
+    ///
+    /// Asserted as absence over the whole text rather than over a clause, since the ways to make a
+    /// tag cost the claim something are not one construct — a `select` list that carries it, an
+    /// `order by` that reads it, a `where` that filters on it. `nvs_jobs_tag` is written for
+    /// `purge` alone, and an index the claim's plan reaches for is a second thing every enqueue is
+    /// paying to maintain.
+    #[test]
+    fn the_claim_and_retry_statements_read_no_tag_at_all() {
+        for (dialect, statements) in [
+            ("postgres", vec![CLAIM_POSTGRES, RETRY_POSTGRES]),
+            (
+                "mysql",
+                vec![CLAIM_MYSQL.first, CLAIM_MYSQL.then, RETRY_MYSQL],
+            ),
+        ] {
+            for statement in statements {
+                assert!(
+                    !statement.contains("tag"),
+                    "{dialect}: a statement on the request path reads `tag`: {statement}"
+                );
+            }
+        }
+    }
+
     /// Three separate places say what order [`STATS`]'s counters are in — [`COUNTS_POSTGRES`]'s select
     /// list, the slot roster, and the `*_AT` index each reader passes — and only the first is
     /// beyond a test's reach. Nothing else would notice the other two disagreeing: a swapped pair
@@ -3382,6 +3519,163 @@ mod tests {
             assert!(
                 !jobs.contains("where state") && !jobs.contains("GENERATED ALWAYS AS ("),
                 "{} reached gap 3's guarantee by a construct the vocabulary does not hold",
+                driver.display_name()
+            );
+        }
+    }
+
+    /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`: `tag` is nullable on both
+    /// tables, indexed with the queue it belongs to, and has no `_pending` twin.
+    ///
+    /// The absence is the half worth asserting. A column *named* `tag` is what a session writing
+    /// this from the rule's first sentence would land; what the rule actually decides is that
+    /// nothing releases it, so a `tag_pending` maintained by the claim — the shape `dedupe_key`
+    /// already has beside it, and therefore the shape a later session is most likely to copy —
+    /// would cap a group at one pending job while every other assertion here still passed.
+    #[test]
+    fn the_schema_declares_tag_nullable_on_both_tables_and_indexes_it_with_its_queue() {
+        let schema = super::schema();
+        for table in schema.tables() {
+            let tag = table
+                .columns()
+                .iter()
+                .find(|column| column.name().as_str() == "tag")
+                .unwrap_or_else(|| panic!("`{}` declares no `tag`", table.name()));
+            assert!(
+                tag.is_nullable(),
+                "`{}`'s `tag` is not nullable, so no live queue can converge onto it",
+                table.name()
+            );
+            assert_eq!(
+                tag.ty(),
+                &nvs_db::schema::ScalarType::Text {
+                    max: Some(super::KEY_WIDTH)
+                },
+                "`{}`'s `tag` is not the width every indexed text column of this schema is",
+                table.name()
+            );
+            assert!(
+                table
+                    .columns()
+                    .iter()
+                    .all(|column| column.name().as_str() != "tag_pending"),
+                "`{}` releases a tag, and a tag is not a lock",
+                table.name()
+            );
+        }
+        let jobs = schema
+            .tables()
+            .iter()
+            .find(|table| table.name().as_str() == JOBS_TABLE)
+            .expect("the jobs table is one of the two");
+        let tagged = jobs
+            .indexes()
+            .iter()
+            .find(|key| key.name().as_str() == "nvs_jobs_tag")
+            .expect("`tag` is indexed for `purge` to select on");
+        let columns: Vec<&str> = tagged
+            .columns()
+            .iter()
+            .map(nvs_db::schema::Ident::as_str)
+            .collect();
+        assert_eq!(
+            columns,
+            ["queue", "tag"],
+            "a tag is scoped to its queue, so the queue leads the key"
+        );
+        assert!(
+            jobs.unique_keys()
+                .iter()
+                .all(|key| key.columns().iter().all(|column| column.as_str() != "tag")),
+            "a unique key over `tag` admits one job per group, which is `key`'s job and not this one"
+        );
+    }
+
+    /// The converge this column had to be declared for: a database on the pre-`tag` schema takes
+    /// one **`Safe`** add per table, and the index is the one step that is not.
+    ///
+    /// Asked of the live value with `tag` filtered back out of it, rather than of a hand-written
+    /// pair, because what is being proved is that *this* schema is reachable from a deployment
+    /// already running — a transcription of the columns here would prove it of a schema nobody has.
+    /// The index is asserted rather than hidden: it is built over every row already there and
+    /// `rule:core-classes/schema-plan` grades a build no v1 emitter runs concurrently as `Locking`,
+    /// so `nvs queue migrate` takes the columns unasked and the index with `--including-risky`.
+    #[test]
+    fn the_pre_tag_queue_schema_converges_by_one_safe_column_add_per_table() {
+        use nvs_db::schema::{Ident, Table};
+
+        fn without_tag(table: &Table) -> Table {
+            let columns = table
+                .columns()
+                .iter()
+                .filter(|column| column.name().as_str() != "tag")
+                .cloned()
+                .collect();
+            let mut built = Table::new(table.name().as_str(), columns)
+                .expect("a table minus one column is still a table");
+            let key: Vec<&str> = table
+                .primary_key_columns()
+                .iter()
+                .map(Ident::as_str)
+                .collect();
+            built = built
+                .primary_key(&key)
+                .expect("the primary key names no column this dropped");
+            for unique in table.unique_keys() {
+                let over: Vec<&str> = unique.columns().iter().map(Ident::as_str).collect();
+                built = built
+                    .unique(unique.name().as_str(), &over)
+                    .expect("the unique keys name no column this dropped");
+            }
+            for index in table.indexes() {
+                if index.name().as_str() == "nvs_jobs_tag" {
+                    continue;
+                }
+                let over: Vec<&str> = index.columns().iter().map(Ident::as_str).collect();
+                built = built
+                    .index(index.name().as_str(), &over)
+                    .expect("the other indexes name no column this dropped");
+            }
+            built
+        }
+
+        let want = super::schema();
+        let have = nvs_db::Schema::new(want.tables().iter().map(without_tag).collect())
+            .expect("the same two tables, named apart");
+        for driver in nvs_db::Driver::ALL.iter().copied() {
+            let dialect = nvs_db::Dialect::of(driver);
+            let plan = nvs_db::diff(&want, &have, dialect);
+            let added: Vec<&nvs_db::Step> = plan
+                .steps()
+                .iter()
+                .filter(|step| matches!(step.change(), nvs_db::Change::AddColumn { .. }))
+                .collect();
+            assert_eq!(
+                added.len(),
+                2,
+                "{} plans {:?} where the difference is one column on each table",
+                driver.display_name(),
+                plan.steps()
+                    .iter()
+                    .map(|step| step.change().to_string())
+                    .collect::<Vec<_>>()
+            );
+            for step in added {
+                assert_eq!(
+                    step.grade(),
+                    nvs_db::Grade::Safe,
+                    "{} grades `{}` above the catalog write a nullable column with no default is",
+                    driver.display_name(),
+                    step.change()
+                );
+            }
+            let refused = plan
+                .first_refused()
+                .expect("the index is built over every row already there");
+            assert_eq!(
+                refused.change().to_string(),
+                format!("add index nvs_jobs_tag on {JOBS_TABLE}"),
+                "{} refuses a step that is not the index build",
                 driver.display_name()
             );
         }
