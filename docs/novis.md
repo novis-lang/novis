@@ -21304,7 +21304,7 @@ Whether this step is a report — a table, column or key the database has and th
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
-Keywords: push, status, cancel, stats
+Keywords: push, status, cancel, stats, delete
 
 | Member | Signature |
 |---|---|
@@ -21312,6 +21312,7 @@ Keywords: push, status, cancel, stats
 | [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 | [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
+| [`Core\Queue::delete`](#core-core-queue-delete) | `delete(Core\Queue\Id $job): bool` |
 
 <a id="core-core-queue-push"></a>
 #### `Core\Queue::push`
@@ -21387,6 +21388,23 @@ Counts one named queue: what is waiting, what a worker holds, how many attempts 
 **Returns** `Core\Queue\Stats` — A `Core\Queue\Stats`, whose four counters are members — `$stats->pending()` and not `$stats->pending`, because a `Core`-owned instance has no property a program can reach.
 
 **Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the jobs would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the query was refused by the server — most often because `nvs queue migrate` has not created the tables.
+
+<a id="core-core-queue-delete"></a>
+#### `Core\Queue::delete`
+
+```nvs skip
+Core\Queue::delete(Core\Queue\Id $job): bool
+```
+
+Removes one job's row, wherever the receipt finds it — the jobs table, or the dead-letter table a job moved to when it exhausted its attempts. A job a worker is running now is left alone: there is no protocol for interrupting work in flight, and removing the row under it would let the job run to completion reporting into nothing. Needs the `queue.purge` capability for the queue the receipt names.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$job` | `Core\Queue\Id` | The receipt `push` answered with, which names both the row and the queue it is in. It keeps naming the job across the move to the dead-letter table, so a receipt does not expire when a job fails for the last time. |
+
+**Returns** `bool` — `true` if this call is what removed the row, and `false` if there was nothing to remove — because a worker is holding it, or because it was never in this queue, or because an earlier `delete` got there. Unlike `cancel`, nothing is left for `status` to answer about afterwards: the row is gone, not changed.
+
+**Throws** `RuntimeError` — This deployment grants no `queue.purge` for the queue the receipt names, which is the answer until an operator writes one; or it writes no `[queue]` block, so nothing says which database the job would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the delete was refused by the server — most often because `nvs queue migrate` has not created the tables.
 
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`

@@ -190,8 +190,12 @@ rules = [
   "concurrency/cancel-is-a-race-it-can-lose",
   "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
   "concurrency/claiming-is-one-statement",
+  # The members carry the statements, and a member that removes rows asks for the grant before it
+  # opens anything — so the door's rule belongs to whichever stage writes a body, not to stage 4
+  # alone, which is where the grant itself is declared.
+  "security/capability-check-at-the-door",
 ]
-adrs = ["0153 §2", "0153 §4", "0153 §6"]
+adrs = ["0153 §2", "0153 §4", "0153 §5", "0153 §6"]
 
 # Section 5 is why these two take a grant and the other four do not.
 [context.stage.4]
