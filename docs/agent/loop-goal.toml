@@ -7446,8 +7446,8 @@ stage = "5 the seams"
 name = "nvs-stdlib (the roster is three, the refusal is SQL Server's alone)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "runs_answers_true_for_three_drivers_and_false_for_sql_server_alone",
-  "every_driver_the_queue_refuses_says_what_it_is_waiting_on",
+  "runs_answers_false_for_sql_server_alone",
+  "the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send",
   "no_sqlite_statement_binds_another_dialects_placeholder",
 ]
 
