@@ -106,6 +106,15 @@ modules = [
   "crates/nvs-runtime/src/lib.rs",
   # Stage 3 -- the stale one: gap 3 says `match` is absent and the plan says a request is matched.
   "crates/nvs-stdlib/src/router.rs",
+  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
+  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
+  # process makes on the way in.
+  "crates/nvs-cli/src/bundle.rs",
+  # `rule:concurrency/connection-bounds-are-finite`'s connection bounds: the numbers an open
+  # WebSocket is held inside, every one of them finite before anything is configured.
+  "crates/nvs-server/src/bounds.rs",
+  # `Core\Uri` — docs/spec/01-core-library.md § 12's first table, which has two halves.
+  "crates/nvs-stdlib/src/uri.rs",
 ]
 
 # 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
