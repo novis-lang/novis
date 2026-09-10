@@ -118,6 +118,19 @@ modules = [
   "crates/nvs-ir/src/lower/expr.rs",
   # Stage 5 -- the tag comparison, and the descriptor walk already emitted for instanceof.
   "crates/nvs-codegen/src/emit.rs",
+  # Stage 5 -- `InstKind` is where a new instruction is declared, and `print.rs` is the one other
+  # place that matches on one. A missing printer arm is a compile error; a missing codegen arm is too.
+  "crates/nvs-ir/src/ir.rs",
+  "crates/nvs-ir/src/print.rs",
+  # Stage 5 -- `tag_of` is the tag a representation carries, and `Tag`'s roster is what it maps onto.
+  # A `decimal` spends the rest of the tag word on its scale and sign, which is why the compare masks.
+  "crates/nvs-codegen/src/ty.rs",
+  "crates/nvs-runtime/src/value.rs",
+  # Stage 5 -- `lower_array_restamp` owns the element walk `is array<T>` reuses, and
+  # `lower_checked_downcast` owns the descriptor walk. Two walks in the tree means one is wrong.
+  "crates/nvs-ir/src/lower/convert.rs",
+  # Stage 5 -- the acceptance tests read the lowered IR rather than the output, through this fixture.
+  "crates/nvs-codegen/tests/common/mod.rs",
 ]
 
 # 0150 is the design. 0124 is the reservation this goal is the other half of. 0047/0066 are
