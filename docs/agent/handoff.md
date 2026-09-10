@@ -3,57 +3,58 @@
 ## State
 
 **Goal `gap-owners`, stage 3 — the attribution pass — is under way.** `python tools/owners.py`
-reports 28 tagged gaps, every one resolving to a goal, a milestone or a reasoned `unowned`, and 133
-still naming nobody. Stage 4 is untouched: `verify.py` does not run the owners gate yet, so the
-acceptance check is the only thing reading it.
+reports 122 items naming nobody, down from 133, and every tag in the tree resolves to a goal, a
+milestone or a reasoned `unowned`. Stage 4 is untouched: `verify.py` does not run the owners gate
+yet, so the acceptance check is still its only reader.
 
-**The three largest blocks are done** — `crates/nvs-ir/src/lib.rs` (17 items),
-`crates/nvs-runtime/src/lib.rs` (6) and `crates/nvs-stdlib/src/router.rs` (2). `nvs-ir`'s residue is
-legitimately `unowned` and that is the finding, not a shortcut: M4 is carried, its acceptance list
-passes, and no live entry on the chain writes `nvs-ir` lowering again — the argument
-[carried-refusals.md](carried-refusals.md)'s item 901 makes for its refusal sites is the whole
-file's. One item took a milestone instead: gap 7's by-slot vtable is a lookup cost, and M12's plan
-carries inline caches for method access.
+**`crates/nvs-types/src/lib.rs` is done, and three of its five items were not gaps at all.** The
+`inout` both-sides-agree obligation is `crates/nvs-types/src/expr/args.rs:1039`, named and spread
+argument positioning is `args.rs:265`, and a read of a value-less class constant is `E0792` before
+lowering, not the panic the item described (`crates/nvs-ir/src/lower/expr.rs:292`). Four of
+`rule:types/narrowing`'s five spellings narrow today (`crates/nvs-types/src/locals.rs:29`), so what
+was one stale item is now `is` alone, owned by goal `type-test`. The 75-line paragraph that headed
+the block was a changelog of landed work, which `AGENTS.md` rule 6 forbids; it is a body section
+above the heading now, pointing at the module that owns each rule rather than restating it.
 
-**Two items left their blocks entirely**, per the goal's § *Standing decisions* — a settled
-non-goal in a `# Known gaps` list is a decision, and it moves out. `nvs-runtime`'s old gap 3 (the
-request arena is refused, not missing) and `router.rs`'s old gap 3 (the verb parse is
-`crate::request`'s) are body paragraphs now. A gap number is a stable identifier, so both holes
-stay rather than renumbering what follows.
+**`crates/nvs-types/src/intrinsics.rs`'s six are all `unowned`, and the block already said why.**
+Five of the six state the decision in their own text — which of two module docs is right, whether
+the roster grows a restriction column, whether `nvs check` reads configuration. No live goal (the
+chain's live entries are 30–44) closes any of them.
 
-**[carried-gaps.md](carried-gaps.md) § *Unowned* is eight entries**, three of them new: one per
-file tagged this session, each naming what has to be decided rather than what nobody got to.
+**[carried-gaps.md](carried-gaps.md) § *Unowned* is ten entries**, two of them new — one per file
+tagged this session, each naming what has to be decided rather than what nobody got to.
 
 ## Next group
 
-**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-types/src/`, whose
-21 items are the largest untagged crate left. The kinds are the goal's § *Standing decisions*, the
-three owner kinds are `python tools/owners.py --help`, and `--untagged` is the worklist.
+**Stage 3: the attribution pass, module by module** — one file set: the six small blocks left under
+`crates/nvs-types/src/`, ten items between them. The kinds are the goal's § *Standing decisions*,
+the three owner kinds are `python tools/owners.py --help`, and `--untagged` is the worklist. The
+live goals a tag may name are `docs/agent/goals/*.toml` — 30 through 44, and nothing below 30.
 
-- [ ] **Tag `crates/nvs-types/src/lib.rs:98`'s five items.** Gap 1 is a heading over the three ADRs
-      rather than a shape, so it is the first candidate for moving out of the block the way this
-      session moved two; gaps 2–5 (exhaustive reachability, one of four narrowing spellings, `inout
-      $x` needing both sides declared, a promoted property's and a named argument's propagation) are
-      checker holes M4 carried and no live goal reopens — resolve each toward a milestone or a goal
-      before reaching for `unowned`.
-- [ ] **Tag `crates/nvs-types/src/intrinsics.rs:38`'s six items.** Gaps 5 and 6 name
-      `rule:core-classes/db-literal-query-checking` themselves, so the rule's own chapter is where
-      their owner is argued; gap 4 (a named or spread argument is not read) is the same fold as
-      `links.rs`'s gap 1 below and should not get a second reason.
-- [ ] **Tag the six small blocks** — `crates/nvs-types/src/links.rs:46`,
-      `crates/nvs-types/src/derive.rs:44`, `crates/nvs-types/src/layout.rs:38`,
-      `crates/nvs-types/src/commands.rs:66`, `crates/nvs-types/src/error_lib.rs:47` and
-      `crates/nvs-types/src/reasons.rs:44`. `links.rs`'s gap 1 already has its reason written:
-      `carried-gaps.md` § *Unowned*'s new route-link bullet names that file, so `unowned` resolves
-      there without a second bullet.
+- [ ] **Tag `crates/nvs-types/src/links.rs:46`'s two items.** Gap 1 (a named argument is not
+      folded) already has its own entry in `docs/agent/carried-gaps.md` § *Unowned*, so it is
+      `unowned` with the reason written; gap 2 (an enum-case capture has no closed set to check
+      against) needs one. Check each against the code first — this session found three of five
+      elsewhere already closed.
+- [ ] **Tag `crates/nvs-types/src/derive.rs:44`'s three and `crates/nvs-types/src/layout.rs:38`'s
+      two.** `derive.rs`'s gaps 2 and 3 name `fromRow` and `Core\Json::decodeAs`, which are
+      `rule:core-classes/derive-attribute`'s and may belong to a live goal rather than to
+      `unowned`.
+- [ ] **Tag the three one-item blocks** — `crates/nvs-types/src/commands.rs:66`,
+      `crates/nvs-types/src/error_lib.rs:47` and `crates/nvs-types/src/reasons.rs:44`.
+      `reasons.rs`'s spread argument is the same cause as `links.rs`'s and `intrinsics.rs`'s, so it
+      joins a reason that is already written rather than getting a third.
 
 ## Backlog
 
-- `orient.py` warns every session that five `[context] modules` patterns name tools and a doc, which
-  can never match a module doc — the driver sweeps that field from commit paths.
-  `docs/agent/loop-goal.toml`.
-- Stage 4: wire `owners.py --check --untagged-is-an-error --reasons` into `tools/verify.py`, which
-  that tool's own help already names as where it runs.
-- `crates/nvs-ir/src/ty.rs:16`'s one-item block is the leftover of this session's file set.
-- 133 items still name nobody, across `nvs-cli`, `nvs-db`, `nvs-hir`, `nvs-server` and the rest of
-  `nvs-stdlib`.
+- `crates/nvs-types/src/expr/quals.rs:25` says § 5's auto-escape and `Markup + Markup` wait on
+  `Core\Html` existing; both exist (`crates/nvs-types/src/expr_table.rs:734`). Stale prose, not a
+  tagged gap.
+- `crates/nvs-types/src/lib.rs:1` opens as a changelog — "M2's last open thread … this one adds" —
+  which `AGENTS.md` rule 6 forbids. Left alone; it is not in the gap block.
+- `docs/implementation-plan.md:104` names goals by number ("goals 4, 5 and 19"), which the slug
+  rule forbids and `python tools/chain.py --check` does not catch in that file.
+- `crates/nvs-types/src/lib.rs`'s `# Layout` list names eleven of the crate's modules and skips
+  `intrinsics`, `links`, `reasons`, `commands`, `core_lib` and `error_lib`.
+- Stage 4 is unstarted: `verify.py` still does not run `owners.py`
+  (`docs/agent/loop-goal.toml`).

@@ -71,13 +71,10 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Eight entries.**
-The six that stood here before were made reachable as goals `per-core` through `formats` and 29–31, and spec § 17's four
-classes — filed
-under an M9 that carries the extension system and none of them — are goals `formats` and `xml-tree` now. The two that
-came back are the contract's second rule in plain sight: an owner that went green without closing its
-gap is struck, not renamed. The last is the other way a gap arrives unowned: a rule answered in full,
-by code that no key reaches.
+Nobody's, and each is a scheduling question rather than a session's. **Ten entries.** They arrive
+three ways: an owner that went green without closing its gap and was struck rather than renamed, a
+rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
+where taking it is the work and the code that follows it is not.
 
 - **`Core\Metrics`** — spec § 16's class, filed as goal `server`'s item 19 and left behind by it.
   `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
@@ -145,6 +142,33 @@ by code that no key reaches.
   the message is what names both. Until it is, `no_such_route` answers more than the case § 4 named.
   `crates/nvs-types/src/links.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
   gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
+- **`nvs-types`' two unwritten checker passes, which no entry on the chain asks for.** Exhaustive
+  control-flow reachability is one — "every path through this non-void function returns", and with
+  it whether a bare `return;` is legal where it stands — and an equality-operand compatibility
+  check is the other, without which `==` between two different enum types, and `int` against
+  `uint`, are both accepted. Both are M4 checker holes and M4 is carried: its loop goal's
+  acceptance list passes, and no live entry on the chain writes this crate's checking passes again.
+  What has to be decided is whether the checker grows the flow analysis they need at all — the walk
+  is structural rather than a CFG by `crates/nvs-types/src/locals.rs`'s own design note — and, for
+  equality, whether an operand-compatibility rule is taken for every type pair at once, since
+  taking it for enums alone leaves the operator inconsistent with itself.
+  `crates/nvs-types/src/lib.rs` § *Known gaps* carries the tags.
+  [until: gone crates/nvs-types/src/lib.rs:owner: unowned]
+- **`nvs-types`' intrinsic pass, whose six gaps are each a decision rather than a backlog.** The
+  pass validates a literal pattern wherever `rule:expressions/intrinsic-list-is-closed`'s roster
+  names one, and it is complete at that. What is open is whether it also *prepares* one, which
+  needs a channel from the checker to `nvs-ir` that no live entry on the chain builds, and whether
+  a diagnostic can point at the offset inside a literal, which needs `crate::string_lit`'s decoder
+  to carry a position map that every literal in the program pays for. Three narrower ones sit
+  beside them: whether the roster grows a per-row restriction column, so that a member's own
+  refusal of a well-formed pattern (`Core\Time::parse`'s civil fields) is compile-time; whether
+  these compiler-known-call passes are handed the slot mapping `check_args_typed` builds, so that a
+  named or spread argument is read at all — the same question the `links.rs` entry above asks; and
+  which of two module docs is right about an unterminated string literal in a query. The sixth is
+  not this pass's: its host check fires for nobody because `nvs check` reads no `nvs.toml`, and
+  whether that command reads configuration — and so can be failed by a broken one — is a decision
+  about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags.
+  [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
 
 ## What is *not* on either list
 
