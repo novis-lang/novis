@@ -6841,13 +6841,24 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "2 options bag"
-name = "nvs-stdlib (Core\\Queue declares its two shapes and refuses a secret)"
+name = "nvs-stdlib (Core\\Queue declares its two shapes)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "limits_and_grants_are_declared_shape_parameters_rather_than_undeclared_mixed",
-  "a_secret_argument_to_push_is_refused_where_the_call_is_written",
   "the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling",
 ]
+
+# The secret half of the same item, filed one crate up because that is the only crate that can host
+# it: `$args` is `mixed`, which admits every qualifier there is, so no row `nvs-stdlib` can write
+# refuses a `secret` there. The refusal is a call-site rule in the checker --
+# `rule:security/secret-sinks-refuse`'s serialiser sink reached through `payload_of`'s encoder rather
+# than through a `Core\Json::encode` the program wrote.
+[[check]]
+kind = "cargo-named"
+stage = "2 options bag"
+name = "nvs-types (Core\\Queue::push refuses a secret payload)"
+args = ["test", "-p", "nvs-types"]
+tests = ["a_secret_argument_to_push_is_refused_where_the_call_is_written"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- `array<T>` accepts a covariant read. The user's decision, recorded not re-argued.
