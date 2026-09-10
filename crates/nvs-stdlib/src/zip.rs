@@ -82,6 +82,7 @@
 //!    `0xFFFFFFFF` in the field this reads; such an archive is refused as
 //!    malformed rather than misread. The bound is measured rather than taken
 //!    from a header, so nothing here trusts the claimed size either way.
+//!    — owner: unowned
 //! 2. **An entry's CRC is not checked**, by `read` or by `extract`. A deflate
 //!    stream that has been corrupted fails to decode and is refused; a stored
 //!    entry that has been corrupted is answered, and written, as it stands.
@@ -89,6 +90,7 @@
 //!    whether it survived a disk, and a corrupt entry reaching a file is a
 //!    question about the disk it came off rather than about the archive's
 //!    policy.
+//!    — owner: unowned
 
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};

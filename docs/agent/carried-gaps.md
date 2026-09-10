@@ -56,8 +56,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
 | `nvs serve` runs on one core, and no path in the process starts a second | `per-core` | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
 | `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | `net-os-signal` | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
-| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | `formats` | the same file; `rule:core-api/tier-roster` puts all three at Tier 0 |
-| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and `rule:core-classes/html-parsing`'s parser | `xml-tree` | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, `rule:core-classes/html-parsing` |
 | ~110 module-doc `# Known gaps` items name no owner and are in no index | `gap-owners` | this file's own contract, applied one level down |
 | `Core\Uri::with` replaces a component and cannot remove one | `unowned-sweep` | `crates/nvs-stdlib/src/uri.rs` gap 1 |
 | `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | `unowned-sweep` | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
@@ -69,7 +67,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Thirty-one entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Thirty-seven entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -353,6 +351,72 @@ where taking it is the work and the code that follows it is not.
   would have taken it is live: `database` and `schema` are retired with M8's database half carried.
   `crates/nvs-stdlib/src/db/mod.rs` gap 2.
   [until: gone crates/nvs-stdlib/src/db/mod.rs:spec § 10's error tree]
+- **`Core\Compress` has no incremental half, and three migration rows point at the object that would
+  be it.** [02-php-migration.md](../spec/02-php-migration.md)'s `deflate_init`, `deflate_add` and
+  `inflate_init` rows each name it, shaped like `Core\Hash\Stream`
+  (`crates/nvs-stdlib/src/hash.rs:434`), and goal `formats` went green having written the
+  whole-buffer pair alone — its § *Standing decisions* resolved surface ambiguity toward whole buffer
+  first, so this half was deferred rather than missed. What has to be decided is whether it is
+  scheduled at all before those rows are read as promises, and that is one design question and not a
+  member's: a `Stream` must charge every chunk against one shared bound, because a bound applied per
+  call rather than per stream is not a bound, which is
+  `rule:core-classes/decompression-bound`'s call. `crates/nvs-stdlib/src/compress.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/compress.rs:The incremental surface is not written]
+- **Zip64 is not read, so no archive over 4 GiB or past 65535 entries has a spelling.** One records
+  its sizes in an extra field and writes `0xFFFFFFFF` where this reader looks, and is refused as
+  malformed rather than misread, so nothing about it is unsafe — the bound is measured rather than
+  taken from a header either way. What has to be decided is whether Novis reads one at all:
+  `rule:core-classes/decompression-bound`'s ceiling defaults to 64 MiB, so an archive that size is
+  already past what any default extracts whole, and the question is whether *listing* one, and
+  pulling a small entry from it, buys enough to carry a second header format. Goal `formats` is
+  retired and no milestone's plan names it. `crates/nvs-stdlib/src/zip.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/zip.rs:Zip64 is not read]
+- **A stored entry's CRC is not checked, so a corrupted one is answered as content.** A deflate entry
+  that has been corrupted fails to decode and is refused; a stored one is handed back, and written,
+  as it stands. The module reads its own job as what an archive is *allowed* to do rather than
+  whether it survived a disk, but nothing states that as a rule, and the recorded CRC is not exposed
+  either, so a caller cannot make the check the class declines to — `Core\Hash`'s `Digest::Crc32`
+  (`docs/spec/01-core-library.md:825`) computes exactly this value and has nothing to compare against.
+  What has to be decided is which of the three it is: verified by default, an argument, or a non-goal
+  with the recorded value handed out. `crates/nvs-stdlib/src/zip.rs` gap 2.
+  [until: gone crates/nvs-stdlib/src/zip.rs:An entry's CRC is not checked]
+- **EBML's magic is distinctive and the table has no row for it, so a `.webm` and a `.mkv` both
+  answer `Unknown`.** The two containers share one magic and are told apart by the `DocType`
+  element, which is a parse rather than the prefix comparison
+  `crates/nvs-stdlib/src/mime.rs`'s table is built out of, so answering `video/webm` for either
+  would be confidently wrong rather than usefully silent. What has to be decided is the third option
+  nobody has taken: a shared `Core\Mime\Type::Ebml` case, naming the container the octets actually
+  show the way `Zip` does — honest, and a case a caller cannot narrow — against leaving a format
+  with a perfectly good magic detecting as nothing at all. No rule owns `Core\Mime`, and spec § 17's
+  row defers the roster to that module doc. `crates/nvs-stdlib/src/mime.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/mime.rs:EBML's magic is shared]
+- **`Core\Xml` reads a qualified name as its spelling, so no `xmlns` declaration is resolved.**
+  `<x:a/>` answers `x:a`, which is right for a document a program controls and not enough for one it
+  does not: two documents meaning the same thing under different prefixes compare unequal. What has
+  to be decided is not whether resolving one is possible but where the resolved answer would live —
+  both shapes answer one node family, the one `rule:core-classes/html-parsing` makes both parsers
+  produce (`rule:core-classes/xml-tree-and-stream`), so a namespace URI on a node is a change to a
+  family the HTML parser fills too and HTML has no namespaces to put there. Goal `xml-tree` is
+  retired and no milestone's plan names namespaces. `crates/nvs-stdlib/src/xml.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/xml.rs:prefix and all]
+- **A `Core\Ast` node carries no position and no source text, so a walk classifies but cannot
+  quote.** A `#[Test]` that walks the tree can fail today and cannot name the `file:line` it failed
+  about, and a structural rule that cannot point is a check rather than a report
+  (`docs/adr/tooling-parity.md`, the Deptrac row). What has to be decided is a qualifier question
+  rather than a slot: that module's § *Decision: the tree is inert because there is nothing in it to
+  run* says a node answering its own source text is the point at which `parse`'s `$source` stops
+  being `Qual::Neutral`, so the text comes back out `tainted` and every consumer of it becomes a
+  sink question. `crates/nvs-stdlib/src/ast.rs` gap 2.
+  [until: gone crates/nvs-stdlib/src/ast.rs:carries no position and no text]
+- **`Core\Ast::parseFile` is absent, and the rule behind the class is why it is not simply owed.**
+  Spec § 3 rosters it, but it reads a path, and
+  `rule:tooling/reflection-and-source-parsing-are-core-features` rests both classes needing no
+  capability grant on neither of them touching the filesystem
+  (`rule:security/reflection-needs-no-capability`). What has to be decided is whether the member
+  exists at all: a capability-bearing member on a class whose safety argument is that it has none,
+  against leaving the composition to `Core\IO::read` plus `parse` — where the `fs.read` check
+  already lives — and striking the roster row instead. `crates/nvs-stdlib/src/ast.rs` gap 3.
+  [until: gone crates/nvs-stdlib/src/ast.rs:is not here. It reads a path]
 
 ## What is *not* on either list
 

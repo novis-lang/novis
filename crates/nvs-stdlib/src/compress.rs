@@ -33,6 +33,15 @@
 //! surviving one. The compressors hold their own window, which is the codec's
 //! own constant and never a function of the input's size.
 //!
+//! **Nothing in the response path compresses implicitly**, and that is a shape
+//! rather than a gap. Compression in either direction is on the closed list of
+//! what a proxy does earlier and better
+//! (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`), so a program
+//! that wants a compressed body compresses it with these members and sets its
+//! own header. The server negotiates no `Content-Encoding` and offers no output
+//! handler for one to be registered against, which
+//! `the_server_still_sets_no_content_encoding_of_its_own` pins.
+//!
 //! # Known gaps
 //!
 //! 1. **The incremental surface is not written.** `deflate_init`/`deflate_add`
@@ -41,11 +50,7 @@
 //!    direction carries the same [`Bound`] as [`nvs_core_compress_decompress`]
 //!    and charges every chunk against it, because a bound applied per call
 //!    rather than per stream is not a bound.
-//! 2. **Nothing in the response path compresses implicitly**
-//!    (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). A program
-//!    may compress its own body with these members; the server offers no
-//!    `Content-Encoding` negotiation and no output handler for one to be
-//!    registered against.
+//!    — owner: unowned
 
 use std::io::Read as _;
 
