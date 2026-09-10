@@ -144,7 +144,8 @@ pub const DIRECTIVES: &[Directive] = &[
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
     // The `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
-    // records as unspelled. `[server]`'s whole block is `Boot` per `rule:http-server/the-server-block-is-boot-class`, which is more than
+    // records as unspelled and less `[queue]`'s two, which are written beside the rest of their own
+    // block below. `[server]`'s whole block is `Boot` per `rule:http-server/the-server-block-is-boot-class`, which is more than
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
     // Neither of the other `[cache]` keys is an artifact directory at all, and both are more
@@ -184,6 +185,20 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "deferred.deadline", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "extension", class: Class::System, apply: Apply::Reload },
     Directive { key: "schedule", class: Class::System, apply: Apply::Reload },
+    // `System` throughout, and for one reason: `rule:core-classes/queue-storage-is-a-table` puts the jobs in a connection the
+    // operator names, so work a request could redirect is work a request could redirect into a
+    // database it was never granted. The apply class then splits, which makes `[queue]` the second
+    // block after `[deferred]` whose halves are two of them. `Boot` for the two a worker is built
+    // out of: a connection swapped under running workers strands every claim in flight against a
+    // database nothing will report to, and a worker is a spawned task, so applying a new count
+    // means starting or stopping tasks.
+    Directive { key: "queue.connection", class: Class::System, apply: Apply::Boot },
+    Directive { key: "queue.workers", class: Class::System, apply: Apply::Boot },
+    // `Reload` for the two that are read per job out of the snapshot — the attempts a job gets
+    // before it is dead-lettered, and the lease length a claim takes — because a new value is in
+    // force for the next job and applying it re-creates nothing.
+    Directive { key: "queue.max_attempts", class: Class::System, apply: Apply::Reload },
+    Directive { key: "queue.visibility", class: Class::System, apply: Apply::Reload },
     Directive { key: "app", class: Class::System, apply: Apply::Reload },
     Directive { key: "include", class: Class::System, apply: Apply::Reload },
     Directive { key: "metrics", class: Class::System, apply: Apply::Reload },
