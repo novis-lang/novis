@@ -6847,10 +6847,10 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "2 options bag"
-name = "nvs-stdlib (Core\\Queue declares its two shapes)"
+name = "nvs-stdlib (Core\\Queue's limits and grants stay refused by name)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "limits_and_grants_are_declared_shape_parameters_rather_than_undeclared_mixed",
+  "limits_and_grants_are_refused_by_name_until_an_isolate_enforces_them",
   "the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling",
 ]
 

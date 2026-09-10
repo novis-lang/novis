@@ -1540,6 +1540,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   by the entry that owns `lib.rs`'s two flow checks — already passes the gate for a gap whose reason
   nobody wrote. Read the section for an entry that actually ends `<path> gap N.` before trusting a
   green `--reasons`. [until: reviewed 2026-09-10]
+- **A `cargo-named` check's *test name* can prescribe a design the cited rules already decided
+  against, and then the name is what moves.** `..._are_declared_shape_parameters_...` asked
+  `Core\Queue::push` for two whole shape parameters, which `rule:core-api/options-bag`'s
+  one-optional-tail and `rule:concurrency/queue-four-members` each forbid alone. A name specifies
+  only where the rules left the question open, so rename the check — in `loop-goal.toml` and the
+  goal's own copy — rather than bending the surface to it. [until: reviewed 2026-09-10]
 
 ## Running things
 

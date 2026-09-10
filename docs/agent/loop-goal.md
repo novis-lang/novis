@@ -59,8 +59,12 @@ implements** — read it first. The design is settled; a session takes it rather
    and the `docs/reference/core/Uri.md` example are **one edit**. `spec-members-outstanding.txt` gains
    nothing — that file's exception is for a member blocked on something unbuilt, and these two need
    only members that already ship.
-3. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
-   registry could not spell. The gap notes this is the same blocker `Core\Db::open` waits on and that
+3. **`Core\Queue`'s `limits` and `grants` are settled** — § 1 sketches each as a `{…}`, and the answer
+   is that neither of them is one: an option's type is never a shape, and
+   `rule:concurrency/queue-four-members` puts both inside the one trailing bag. What they wait on is
+   the isolate that would apply the narrowing rather than a spelling the registry lacks, so the item
+   closes by recording that in the module doc and asserting the absence the refusal is read off.
+   The gap notes this is the same blocker `Core\Db::open` waits on and that
    "the two lift together"; goal `carried-gaps` owns the `Core\Db` half, so this stage takes the other and the two
    are checked against each other.
 4. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
