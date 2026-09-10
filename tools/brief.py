@@ -468,12 +468,41 @@ HOMES = (
     ("comment comments changelog history prose dates docstring",
      "docs/agent/conventions.md, 'A code comment'",
      "a comment says what the code does now: no date, no volatile count, rewritten whole"),
+    ("unowned owner owners ownership gap gaps register",
+     "docs/agent/carried-gaps.md, '§ Unowned'",
+     "who owns each `# Known gaps` item: a goal slug, a milestone tag, or `unowned` and a reason"),
     ("order ordering position band chapters",
      "docs/agent/conventions.md, 'Where a rule sits in the order'",
      "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"),
 )
 
 WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an author writes
+
+#: The one home in `HOMES` whose line is measured rather than written. It is matched by its path,
+#: so the row above stays the same shape as its neighbours.
+OWNERS_HOME = "docs/agent/carried-gaps.md, '§ Unowned'"
+
+
+def ownership_line():
+    """How big the ownership register is, counted now rather than written down here.
+
+    Routing to the file is half an answer: what a reader wants next is whether `unowned` is a short
+    list of scheduling questions or the whole tree, and that number moves every time a gap is
+    written or closed. So it comes from `tools/owners.py`'s own classification of every
+    `# Known gaps` item -- imported rather than shelled out to, and never a figure typed into this
+    file, which is the copy that would go stale first. The scan is a third of a second, and only a
+    keyword that routes here pays it.
+    """
+    try:
+        import owners  # noqa: PLC0415 -- same directory; loaded only for this one answer
+        kinds = owners.classify(owners.collect())
+    except Exception as exc:  # noqa: BLE001
+        return f"(tools/owners.py could not count them: {exc})"
+    unowned = kinds["unowned"]
+    files = len({gap["file"] for gap in unowned})
+    tagged = sum(len(v) for k, v in kinds.items() if k != "untagged")
+    return (f"{len(unowned)} of {tagged} tagged item(s), in {files} file(s), are `unowned` today; "
+            f"`python tools/owners.py --unowned` lists them with their anchors")
 
 
 def run_where(terms):
@@ -519,6 +548,8 @@ def run_where(terms):
         return 0
     for home, what in homes:
         sys.stdout.write(f"  {home}\n     {what}\n")
+        if home == OWNERS_HOME:
+            sys.stdout.write(f"     {ownership_line()}\n")
     for r in hits[:WHERE_CAP]:
         mark = "" if r.status == "shipped" else "  (designed)"
         sys.stdout.write(f"  docs/rules/{r.topic}.md#{r.anchor}  rule:{r.id}{mark}\n     {r.title}\n")
