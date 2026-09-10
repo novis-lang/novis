@@ -88,6 +88,34 @@
 //! document — a program with a deep tree to sign signs its serialization as a
 //! `string`, which is one value at depth one.
 //!
+//! # A payload value is text, and both halves of `Core\Signature` agree on it
+//!
+//! The codec above signs nine kinds of value, and [`nvs_core_signature_verify`]
+//! answers `array<tainted string>` — so `Core\Signature`'s own door narrows to
+//! the one kind that type can hold, and `sign` declares `array<string>`.
+//! `rule:security/verification-does-not-launder` is what forces it:
+//! `nvs_types` defines `tainted` over `string` and `bytes` and over nothing
+//! else, so there is no `tainted array<mixed>` to answer with, and an
+//! `array<mixed>` of verified values would hand a program something that had
+//! visibly been verified and invisibly been laundered. [`crate::jwt`]'s *a
+//! claim is text* section reached the same place first, from the same two
+//! facts, and the two roster entries agree rather than each inventing a rule.
+//!
+//! The spec writes `array<string, mixed>` for both halves
+//! ([docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 16), and
+//! that is the half that yields: a qualifier a program can reach beats a
+//! wider payload, per AGENTS.md's ordering. **What it spends** is a signed
+//! `int` — a program that wants one writes `string($id)` on the way in and
+//! `int($payload["id"])` on the way out, and that second conversion is a
+//! checked one, so the value it produces is laundered by the language's own
+//! named route rather than by having been signed.
+//!
+//! The narrowing is `Core\Signature`'s and not the codec's. [`document`] keeps
+//! all nine kinds because [`Domain::Uri`] and [`Domain::Route`] sign typed
+//! parameters that never come back to a program as a map — `$uri->sign`
+//! answers a `Uri` and `verifySignature` answers nothing — so there is no
+//! declared element type for them to be honest about.
+//!
 //! # What it spends
 //!
 //! Per `sign`: one `Vec` the size of the document, one the size of the token,
@@ -100,17 +128,383 @@
 //! to thirteen of lifetime — so a token, after its 32-octet tag and base64's
 //! four thirds, is about `4/3 × (payload + 40)` characters.
 
-#![allow(
-    dead_code,
-    reason = "`Core\\Signature`'s two rows are the first caller of all of this, and they land in \
-              the slice after the one that wrote it — until then the tests below are what reaches \
-              it. The attribute goes with those rows."
-)]
-
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 use subtle::ConstantTimeEq as _;
+
+use crate::keyring::KEY;
+use crate::registry::{
+    CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+};
+
+// ============================================================================
+// `Core\Signature` — registration
+// ============================================================================
+
+/// The class name, once, for the messages that all name it.
+const NAME: &str = r"Core\Signature";
+
+/// `Core\Signature::sign`, spelled the way a refusal names it.
+const SIGN: &str = r"Core\Signature::sign";
+
+/// `Core\Signature::verify`, spelled the way a refusal names it.
+const VERIFY: &str = r"Core\Signature::verify";
+
+/// One verified payload value, as
+/// `rule:security/verification-does-not-launder` requires it back, and the
+/// module doc's *a payload value is text* section is the home of why that
+/// spelling fixes the element type.
+const SIGNED: CoreTy = CoreTy::TaintedStr;
+
+/// The `{keys, until}` every door of
+/// `rule:core-api/signing-is-over-a-payload` takes — one arm, because there is
+/// nothing here to discriminate on (`rule:core-api/shape-parameter`).
+///
+/// **A shape and not an options bag**, and `until` is why:
+/// `rule:core-api/a-lifetime-is-written` makes the lifetime a *required* key
+/// holding a nullable value, and `rule:core-api/shape-rules` R2 makes every
+/// member of a bag optional. So a bag could not have said the one thing this
+/// parameter exists to say — that `{keys: $ring}` does not compile and
+/// `{keys: $ring, until: null}` does, because a permanent signed link should
+/// be something a person typed.
+///
+/// `until` therefore carries `default: None` over a nullable type, which is
+/// the one pairing [`crate::registry::Const::NeverWritten`] has nothing to say
+/// about: a required field is never omitted, so there is no omission for a
+/// written `null` to be confused with.
+///
+/// Written once and shared, so the three doors cannot come to disagree about
+/// what a caller writes, exactly as they already share the codec below.
+pub(crate) const SIGNING: &[&[CoreField]] = &[&[
+    CoreField {
+        name: "keys",
+        // The ring, unchanged and uncopied — [`crate::keyring`] is the home of
+        // what `$keys` means, and every door over a ring declares this type.
+        ty: CoreTy::Array(&KEY),
+        default: None,
+    },
+    CoreField {
+        name: "until",
+        ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME)),
+        default: None,
+    },
+]];
+
+/// `rule:core-api/shape-flattens-at-the-abi`'s flattening of [`SIGNING`] at
+/// `sign`, as ABI slots: the payload, then the shape's two fields in the arm's
+/// own order. There is no runtime representation of a shape, so these three
+/// are what the helper is handed and this is the only place the numbers are
+/// written.
+const PAYLOAD_ARG: usize = 0;
+/// See [`PAYLOAD_ARG`].
+const KEYS_ARG: usize = 1;
+/// See [`PAYLOAD_ARG`].
+const UNTIL_ARG: usize = 2;
+
+/// `rule:security/protocol-roster`'s fifth and final roster entry, as two rows.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    methods: &[
+        CoreMethod {
+            name: "sign",
+            names: &["payload", "settings"],
+            // The payload's element is marked as [`crate::jwt`]'s claims are,
+            // and for that row's reason: the token is base64 and carries no
+            // argument's `tainted` into any sink. The mark is on the element
+            // rather than on the parameter because an `array<…>` has no cell
+            // for one — `nvs_types::core_lib`'s `qual_of` reads none from an
+            // array parameter, so what admits an argument here is the declared
+            // element type and nothing else.
+            params: &[
+                CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+                CoreTy::Shape(SIGNING),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_signature_sign",
+            doc: Some(&SIGN_DOC),
+        },
+        CoreMethod {
+            name: "verify",
+            names: &["token", "keys"],
+            // The token is neutral on the way in — it arrives from a URL or a
+            // header and a `tainted` one is what this member is written to
+            // receive — and the payload is `tainted` on the way out whatever
+            // the token was, per `rule:security/verification-does-not-launder`.
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Array(&KEY)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&SIGNED),
+            symbol: "nvs_core_signature_verify",
+            doc: Some(&VERIFY_DOC),
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Signature::sign`'s reference card — `rule:core-api/reference-card`.
+const SIGN_DOC: MethodDoc = MethodDoc {
+    short: "Signs `$payload` under the newest key in `$settings.keys` and answers a token. The \
+            payload is canonicalized here — keys sorted, every value written with the tag of its \
+            own type — so there is no assembled string for the two sides of a signature to \
+            disagree about.",
+    params: &[
+        ParamDoc {
+            name: "payload",
+            desc: "The claims to sign, by name. Insertion order is not signed and does not come \
+                   back: a verified payload is in canonical order.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "settings",
+            desc: "The key ring and the lifetime, written as one literal because neither has a \
+                   sensible value this member could choose.",
+            shape: &[
+                ShapeKeyDoc {
+                    key: "keys",
+                    ty: "array<secret bytes>",
+                    desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist \
+                           so that `verify` still accepts tokens minted before the last \
+                           rotation. A ring of one is `[$key]`.",
+                },
+                ShapeKeyDoc {
+                    key: "until",
+                    ty: "?Core\\Time\\Instant",
+                    desc: "When the signature stops being valid, inside the signed bytes where a \
+                           holder cannot edit it. `null` is the forever spelling, and it has to \
+                           be written — a permanent signed link is a permanent bearer credential.",
+                },
+            ],
+        },
+    ],
+    ret: "Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a query string and a \
+          `Set-Cookie` header carry unescaped. About `4/3 × (payload + 40)` characters, and the \
+          same token every time for the same inputs, because a signature is deterministic where a \
+          seal is not.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is not 32 \
+               octets long — a `bytes` that was never a key.",
+    }],
+};
+
+/// `Core\Signature::verify`'s reference card — `rule:core-api/reference-card`.
+const VERIFY_DOC: MethodDoc = MethodDoc {
+    short: "Authenticates `$token` against every key in `$keys`, checks the lifetime it carries, \
+            and answers the payload that was signed, or throws. The payload comes back \
+            **`tainted`**: a signature proves origin, not safety for any sink.",
+    params: &[
+        ParamDoc {
+            name: "token",
+            desc: "The token, as it arrived. A `tainted` value is accepted here — that is the \
+                   point of the member.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "keys",
+            desc: "The same ring `sign` was given, newest first. A token minted under any key \
+                   still in the ring verifies; one minted under a key that has been dropped off \
+                   the end does not.",
+            shape: &[],
+        },
+    ],
+    ret: "The signed payload in canonical key order, every value a `tainted string`. Insertion \
+          order is not part of what was signed, so it is not part of what comes back.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or one of its entries is not 32 octets long.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$token` is not authentic under any key in `$keys` — it was altered, it is not \
+                   base64 at all, it was minted for another door, or the key it was minted under \
+                   has been retired. The four are one message on purpose. Expiry is the one \
+                   refusal with a sentence of its own, because only the holder of a genuinely \
+                   signed token ever reaches it.",
+        },
+    ],
+};
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_signature_sign" => (nvs_core_signature_sign as *const ()).cast(),
+        "nvs_core_signature_verify" => (nvs_core_signature_verify as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+/// The `string` in slot `slot`.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member: the slot is a `string` in the row, so
+/// another tag is a compiled-code bug rather than anything a program can write.
+fn text_of<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a str, Fault> {
+    args[slot].as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a `string`, got tag {}",
+            args[slot].tag_byte()
+        ))
+    })
+}
+
+/// `at` as the two parts [`Until`] holds.
+///
+/// `jiff` keeps a timestamp's second and its subsecond of the same sign, so an
+/// instant before the epoch carries a negative nanosecond and [`Until::nano`]
+/// holds a positive one. The borrow happens here, once, so the lifetime that
+/// is signed and the clock it is compared against are normalized the same way
+/// — two normalizations is the failure this whole module is written around.
+fn until_at(at: jiff::Timestamp) -> Until {
+    let (second, nano) = (at.as_second(), at.subsec_nanosecond());
+    match nano < 0 {
+        true => Until {
+            second: second.saturating_sub(1),
+            nano: nano.saturating_add(1_000_000_000).unsigned_abs(),
+        },
+        false => Until {
+            second,
+            nano: nano.unsigned_abs(),
+        },
+    }
+}
+
+/// The lifetime the `until` field in slot `slot` states, or `None` for the
+/// written `null` that is the forever spelling.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for a slot that is neither: the field
+/// is `?Core\Time\Instant` in the row, so nothing else reaches here.
+fn until_of(args: &[Value], slot: usize, member: &str) -> Result<Option<Until>, Fault> {
+    if args[slot].tag() == Some(Tag::Null) {
+        return Ok(None);
+    }
+    Ok(Some(until_at(crate::time::instant_of(args, slot, member)?)))
+}
+
+/// Whether every entry of `payload` is a `string`, which is what the row
+/// promises and what this class's own `sign` writes.
+///
+/// A document reaching here has already authenticated, so a value of another
+/// kind means a holder of a live key minted one another way — the module doc's
+/// *a payload value is text* section is why that is refused rather than
+/// answered as an `array<tainted string>` that is not one.
+fn all_text(payload: &Value) -> bool {
+    let Some(raw) = payload.array_ptr() else {
+        return false;
+    };
+    let array = crate::arr::borrowed(raw);
+    let mut from = 0;
+    while let Some(live) = array.next_slot(from) {
+        from = live + 1;
+        if array.value_at(live).and_then(|held| held.tag()) != Some(Tag::Str) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Releases the payload a refusal is not going to hand to a program.
+fn discard(payload: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `open` just produced, and answers a \
+                  refusal instead of it"
+    )]
+    unsafe {
+        payload.release();
+    }
+}
+
+/// The one sentence every failed verification produces before the lifetime has
+/// been looked at.
+///
+/// One function so the call sites cannot drift into several sentences, which
+/// is the whole of what makes them indistinguishable
+/// (`rule:core-api/one-refusal-except-expiry`).
+fn refused() -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::verify(): $token is not a signature this ring made. Every way of not being one \
+         — text that is not base64, a token too short to hold a tag, a tag that authenticates \
+         under no key in $keys, a document this runtime did not write, and a token minted for \
+         another door — is this one sentence, so a forgery says nothing about which half of it \
+         failed."
+    ))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Core\Time\Instant}): string`
+    /// — the write half of `rule:security/protocol-roster`'s fifth entry,
+    /// replacing the `hash_hmac` over an assembled query string that every
+    /// signed-URL helper in every framework grows its own slightly different
+    /// copy of.
+    ///
+    /// Thin on purpose: everything that decides what a signature *is* — the
+    /// canonical form, the domain byte, the lifetime inside the signed region,
+    /// the token's envelope — is [`mint`]'s, so the two doors that land after
+    /// this one are the same three lines with another [`Domain`].
+    fn nvs_core_signature_sign(_ctx, args: [3]) {
+        let ring = crate::keyring::borrow(args, KEYS_ARG, SIGN)?;
+        let until = until_of(args, UNTIL_ARG, "sign")?;
+        let token = mint(
+            Domain::Payload,
+            until,
+            &args[PAYLOAD_ARG],
+            &ring,
+            SIGN,
+            "$payload",
+        )?;
+        Ok(Value::str(NvsStr::new(token.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Signature::verify(string $token, array<secret bytes> $keys): array<tainted string>`
+    /// — the read half, and the one place the lifetime that rode inside the
+    /// signed bytes is judged.
+    ///
+    /// The order is load-bearing. The tag is checked before a single field is
+    /// read, by [`open`]; the domain is checked there too, so this door cannot
+    /// forget it; and the expiry is checked last, which is what makes it safe
+    /// to give it a sentence of its own — only the holder of a genuinely
+    /// signed token ever reaches it
+    /// (`rule:core-api/one-refusal-except-expiry`).
+    fn nvs_core_signature_verify(ctx, args: [2]) {
+        let token = text_of(args, 0, "verify")?;
+        let ring = crate::keyring::borrow(args, 1, VERIFY)?;
+        let Some((until, payload)) = open(token, Domain::Payload, &ring, VERIFY)? else {
+            return Err(refused());
+        };
+
+        if !all_text(&payload) {
+            discard(payload);
+            return Err(refused());
+        }
+
+        if let Some(until) = until {
+            let now = crate::time::wall_clock(ctx).map(until_at).ok_or_else(|| {
+                Fault::fatal(format!("{VERIFY} found a fixed clock outside the representable range"))
+            })?;
+            if (now.second, now.nano) >= (until.second, until.nano) {
+                discard(payload);
+                return Err(Fault::thrown(format!(
+                    "{NAME}::verify(): the signature expired at {}.{:09}, and it is now {}.{:09}. \
+                     This is the one refusal with its own sentence: it is reached only after the \
+                     tag has been checked, so nobody but the holder of a real token ever sees it.",
+                    until.second, until.nano, now.second, now.nano
+                )));
+            }
+        }
+
+        Ok(payload)
+    }
+}
 
 /// The document format's own version, first octet of every document and inside
 /// the signed region.
@@ -998,9 +1392,6 @@ mod tests {
 
     use crate::keyring::tests::{borrowed as ring_borrowed, ring_of};
 
-    /// `Core\Signature::sign`, as a refusal spells it.
-    const SIGN: &str = r"Core\Signature::sign";
-
     /// A token for `payload` under `ring`, with no expiry.
     fn minted(payload: &Value, ring: &Value) -> String {
         mint(
@@ -1240,5 +1631,72 @@ mod tests {
         dropped(back);
         dropped(held);
         dropped(keys);
+    }
+
+    /// `rule:security/verification-does-not-launder` where it bites: a value
+    /// `Core\Signature::verify` answers cannot be written into statement text.
+    ///
+    /// The refusal itself is `nvs_types`' — `admits_tainted_argument` refuses a
+    /// qualified argument at a [`Qual::Sink`] parameter — and this crate cannot
+    /// call it, so what is asserted here is the pair of *declarations* that
+    /// refusal reads. Both halves are needed and neither is visible from the
+    /// other: the payload's element has to carry the qualifier, and every
+    /// statement-text position has to be the sink. A row that answered
+    /// `CoreTy::Str` would look correct on its own line while quietly
+    /// laundering every token a program verifies.
+    ///
+    /// Asked over the whole registry rather than of `Core\Db\Connection`
+    /// alone, because the rule is about the *position*: a class registered
+    /// tomorrow with a `$sql` of its own is exactly what this exists to catch.
+    #[test]
+    fn a_verified_payload_reaching_a_query_text_position_is_refused_as_tainted() {
+        let verify = CLASS
+            .members()
+            .find(|method| method.name == "verify")
+            .expect("`Core\\Signature` registers `verify`");
+        let CoreTy::Array(element) = verify.return_ty else {
+            panic!("`Core\\Signature::verify` answers an array of payload values");
+        };
+        assert!(
+            matches!(element, CoreTy::TaintedStr),
+            "`Core\\Signature::verify` answers an `array<{element:?}>`, and a payload value that \
+             does not carry the qualifier reaches a sink with nothing to stop it"
+        );
+
+        // The other half of the same rule, which is what makes the qualifier
+        // worth carrying: a payload this application sealed itself comes back
+        // unqualified, so the two roster entries are asserted against each
+        // other rather than each against a comment.
+        let opened = crate::signed_cookie::CLASS
+            .members()
+            .find(|method| method.name == "open")
+            .expect("`Core\\SignedCookie` registers `open`");
+        assert!(
+            matches!(opened.return_ty, CoreTy::Str),
+            "`Core\\SignedCookie::open` no longer answers a plain `string`, and the asymmetry \
+             this rule is made of has gone with it"
+        );
+
+        let mut positions = Vec::new();
+        for class in crate::registry::CLASSES {
+            for method in class.members() {
+                if method.names.first() != Some(&"sql") {
+                    continue;
+                }
+                positions.push(format!("{}::{}", class.name, method.name));
+                assert_eq!(
+                    method.params[0].classification(),
+                    Some(Qual::Sink),
+                    "{}::{}'s $sql is not a sink, so a verified payload would reach statement \
+                     text however it was qualified",
+                    class.name,
+                    method.name
+                );
+            }
+        }
+        assert!(
+            positions.len() >= 2,
+            "no statement-text position was found, so the assertion above ran over nothing"
+        );
     }
 }

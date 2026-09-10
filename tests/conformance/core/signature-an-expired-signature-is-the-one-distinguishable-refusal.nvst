@@ -1,0 +1,51 @@
+--TEST--
+Core\Signature::verify refuses an expired signature with a sentence of its own while every other way of not verifying keeps the one shared message, because expiry is checked after the tag — `rule:core-api/one-refusal-except-expiry`
+--FILE--
+<?nvs
+// The bound asserted on both sides: a lifetime still in the future verifies,
+// one already past does not, and the refusal is the only one in this member
+// that a caller can tell from the others. It is safe to distinguish precisely
+// because it is reached *after* the tag has been checked — only the holder of
+// a genuinely signed token ever sees it, and telling them the link has expired
+// rather than that they are being attacked is why an application catches this.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+array<string> $claims = ["doc" => "7"];
+
+Core\Time\Instant $hence = Core\Time::now()->plus(1h);
+string $live = Core\Signature::sign($claims, {keys: $ring, until: $hence});
+array<tainted string> $back = Core\Signature::verify($live, $ring);
+echo $back["doc"] == "7" ? "a live signature verifies" : "refused a live one", "\n";
+
+// One hour ago, so the token was already past its lifetime when it was minted
+// — the state a signed URL reaches by sitting in a chat unfurl for a day.
+Core\Time\Instant $ago = Core\Time::now()->minus(1h);
+string $stale = Core\Signature::sign($claims, {keys: $ring, until: $ago});
+
+// Both refusals are caught as the same class, so what distinguishes them is
+// the sentence and not the type a program has to catch.
+string $expired = "";
+try {
+    array<tainted string> $none = Core\Signature::verify($stale, $ring);
+    echo "an expired signature verified", "\n";
+} catch (RuntimeError $past) {
+    $expired = $past->message;
+}
+
+string $forged = "";
+try {
+    array<tainted string> $nothing = Core\Signature::verify($live . "AAAA", $ring);
+    echo "a tampered token verified", "\n";
+} catch (RuntimeError $altered) {
+    $forged = $altered->message;
+}
+
+// The message itself carries the two instants, so it is not printed here.
+// What the case pins is that the two are *different* sentences, which is the
+// whole of the rule, and that the shared one is unchanged.
+echo $expired == $forged ? "one sentence for both" : "expiry has its own sentence", "\n";
+echo $forged, "\n";
+--EXPECT--
+a live signature verifies
+expiry has its own sentence
+Core\Signature::verify(): $token is not a signature this ring made. Every way of not being one — text that is not base64, a token too short to hold a tag, a tag that authenticates under no key in $keys, a document this runtime did not write, and a token minted for another door — is this one sentence, so a forgery says nothing about which half of it failed.

@@ -1697,13 +1697,23 @@ pub const CLASSES: &[CoreClass] = &[
     // widening argument, and why "no replay" is a counter the caller stores
     // rather than state this class keeps.
     crate::totp::CLASS,
-    // `rule:security/protocol-roster`'s fourth roster entry, which closes it — and the only one
-    // of the four whose wire format was designed elsewhere, so [`crate::jwt`]
+    // `rule:security/protocol-roster`'s fourth roster entry, and the only one
+    // of the five whose wire format was designed elsewhere, so [`crate::jwt`]
     // is the one class here that reads a field an attacker wrote. Its own
     // module doc is the home of why `alg` is only ever compared, why the
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
+    // `rule:security/protocol-roster`'s fifth entry, which closes it — and the
+    // one that is not `Core\Crypto`: a signature is an HMAC over a canonical
+    // document, because its payload is meant to be *read* by whoever holds the
+    // token where a seal's is meant to be hidden
+    // (`rule:core-api/each-door-takes-a-different-thing`). It shares the key
+    // ring with the cookie above and nothing else. [`crate::signature`]'s own
+    // module doc is the home of the wire format, of the domain byte that stops
+    // one ring being replayed across three doors, and of why a verified
+    // payload value is text.
+    crate::signature::CLASS,
     // `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here rather than in
     // spec § order because the class beneath it is the one this crate defers to
     // whenever a `tainted` value has to be written into a document: § 5 makes

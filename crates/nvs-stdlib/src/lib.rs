@@ -385,6 +385,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| server::address(symbol))
         .or_else(|| session::address(symbol))
         .or_else(|| signal::address(symbol))
+        .or_else(|| signature::address(symbol))
         .or_else(|| signed_cookie::address(symbol))
         .or_else(|| socket::address(symbol))
         .or_else(|| sse::address(symbol))

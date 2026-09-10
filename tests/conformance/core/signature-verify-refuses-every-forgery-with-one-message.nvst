@@ -1,0 +1,87 @@
+--TEST--
+Core\Signature::verify answers one RuntimeError for a tampered token, one that is not base64, one that is empty and one under a ring that never signed it, while a ring entry that was never a key is a LogicError instead — `rule:core-api/one-refusal-except-expiry`
+--FILE--
+<?nvs
+// Agreement, asked of four ways of not being an authentic signature. Which one
+// it was is exactly what a forger is probing for — and against a rotating ring,
+// which key to aim at — so `crates/nvs-stdlib/src/signature.rs` folds all four
+// into one sentence, including the token that is not base64 at all.
+secret bytes $key = Core\Crypto::generateKey();
+secret bytes $stranger = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+array<string> $claims = ["doc" => "7"];
+string $token = Core\Signature::sign($claims, {keys: $ring, until: null});
+
+// Four more characters of the alphabet: still URL-safe base64 and still long
+// enough to hold a tag, so it decodes cleanly and reaches the tag check.
+try {
+    array<tainted string> $forged = Core\Signature::verify($token . "AAAA", $ring);
+    echo "tamper accepted", "\n";
+} catch (RuntimeError $altered) {
+    echo $altered->message, "\n";
+}
+
+// One character outside the alphabet, so it never decodes at all — and is
+// refused with the same sentence rather than one about its spelling.
+try {
+    array<tainted string> $garbled = Core\Signature::verify($token . "?", $ring);
+    echo "a non-base64 token accepted", "\n";
+} catch (RuntimeError $notBase64) {
+    echo $notBase64->message, "\n";
+}
+
+// The empty token: too short to hold a tag, and what a query string yields
+// when the parameter is missing — the code path a naive verifier treats as
+// "no signature to check".
+try {
+    array<tainted string> $nothing = Core\Signature::verify("", $ring);
+    echo "an empty token accepted", "\n";
+} catch (RuntimeError $tooShort) {
+    echo $tooShort->message, "\n";
+}
+
+// An intact token under a ring that never held the key that signed it — the
+// state an operator reaches by rotating one key too many.
+array<secret bytes> $strangers = [$stranger];
+try {
+    array<tainted string> $wrong = Core\Signature::verify($token, $strangers);
+    echo "verified under a ring that never signed it", "\n";
+} catch (RuntimeError $notThisRing) {
+    echo $notThisRing->message, "\n";
+}
+
+// The two failures that are *not* about the token. A ring with nothing in it
+// and a ring holding a `bytes` that was never a key are both program bugs, so
+// they get the other class and a sentence that names the entry by its index —
+// the same two `crates/nvs-stdlib/src/keyring.rs` writes for every door.
+array<secret bytes> $empty = [];
+try {
+    string $unsignable = Core\Signature::sign($claims, {keys: $empty, until: null});
+    echo "an empty ring signed", "\n";
+} catch (LogicError $noKeys) {
+    echo $noKeys->message, "\n";
+}
+
+secret bytes $stunted = Core\Random::bytes(8);
+array<secret bytes> $stuntedRing = [$stunted];
+try {
+    array<tainted string> $unverifiable = Core\Signature::verify($token, $stuntedRing);
+    echo "verified under an 8-octet key", "\n";
+} catch (LogicError $notAKey) {
+    echo $notAKey->message, "\n";
+}
+
+// The other side of the bound: the token this class signed still verifies
+// under the ring that signed it, so the refusals above are about their
+// arguments and not about `verify` having become a member that refuses
+// everything.
+array<tainted string> $back = Core\Signature::verify($token, $ring);
+echo $back["doc"] == "7" ? "and the token it signed verifies" : "refused its own token", "\n";
+--EXPECT--
+Core\Signature::verify(): $token is not a signature this ring made. Every way of not being one — text that is not base64, a token too short to hold a tag, a tag that authenticates under no key in $keys, a document this runtime did not write, and a token minted for another door — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Signature::verify(): $token is not a signature this ring made. Every way of not being one — text that is not base64, a token too short to hold a tag, a tag that authenticates under no key in $keys, a document this runtime did not write, and a token minted for another door — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Signature::verify(): $token is not a signature this ring made. Every way of not being one — text that is not base64, a token too short to hold a tag, a tag that authenticates under no key in $keys, a document this runtime did not write, and a token minted for another door — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Signature::verify(): $token is not a signature this ring made. Every way of not being one — text that is not base64, a token too short to hold a tag, a tag that authenticates under no key in $keys, a document this runtime did not write, and a token minted for another door — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Signature::sign(): $keys is empty, and a key ring needs at least one key — Core\Crypto::generateKey() answers one.
+Core\Signature::verify(): $keys[0] is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
+and the token it signed verifies

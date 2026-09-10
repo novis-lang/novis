@@ -1,0 +1,36 @@
+--TEST--
+Core\Signature::sign answers one token for a payload written in two orders, and the same token again for the same payload, because what is signed is a canonical document and never assembled text — `rule:core-api/signing-is-over-a-payload`
+--FILE--
+<?nvs
+// The invariance shape, over the property this whole class exists for. Every
+// hand-rolled signing helper assembles `"$user|$role|$doc"` and then signs two
+// different strings for one payload, depending only on the order the map was
+// built in; `crates/nvs-stdlib/src/signature.rs` sorts the keys at every level
+// and writes each value with the tag of its own type, so there is no assembly
+// for the two sides of a signature to disagree about.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+array<string> $written = ["user" => "ada", "role" => "admin", "doc" => "7"];
+array<string> $shuffled = ["doc" => "7", "user" => "ada", "role" => "admin"];
+
+string $one = Core\Signature::sign($written, {keys: $ring, until: null});
+string $two = Core\Signature::sign($shuffled, {keys: $ring, until: null});
+echo $one == $two ? "one token" : "two tokens", "\n";
+
+// And a signature is deterministic where a seal is not: `Core\SignedCookie`
+// draws a nonce per call, so the same payload seals differently every time,
+// while the same payload signs identically every time. That is what lets a
+// signed URL be compared, cached and put in a page twice.
+string $again = Core\Signature::sign($written, {keys: $ring, until: null});
+echo $one == $again ? "and again" : "differs", "\n";
+
+// A payload that differs in one octet is a different document, so the token
+// moves — the invariance above is over key *order* and nothing else.
+array<string> $elevated = ["user" => "ada", "role" => "root", "doc" => "7"];
+string $other = Core\Signature::sign($elevated, {keys: $ring, until: null});
+echo $one == $other ? "unchanged" : "a different payload signs differently", "\n";
+--EXPECT--
+one token
+and again
+a different payload signs differently

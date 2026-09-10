@@ -1365,6 +1365,11 @@ mod tests {
                     "array<uint|int|decimal|tainted string|Core\\Uuid|Parses>".to_owned(),
                 ),
                 (
+                    r"Core\Signature",
+                    "verify",
+                    "array<tainted string>".to_owned(),
+                ),
+                (
                     r"Core\Socket\Message",
                     "bytes",
                     "null|tainted bytes".to_owned(),
@@ -1386,7 +1391,8 @@ mod tests {
                 (r"Core\Zip", "read", "tainted bytes".to_owned()),
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed — a \
-             verified claim, an outbound reply's body, the two environment \
+             verified claim, a verified signature's payload, an outbound reply's body, \
+             the two environment \
              reads, the two prompts that answer what a person typed, the words the program \
              was started with, everything attached to its standard input, the five reads of \
              the request being answered, the three facts it arrived on, the three \
@@ -1408,6 +1414,12 @@ mod tests {
             !launderers.contains(&(r"Core\Jwt", "verify")),
             "a JWT verification removes no qualifier from anything: the token's issuer is not \
              this application, and even a self-issued token routinely carries user input"
+        );
+        assert!(
+            !launderers.contains(&(r"Core\Signature", "verify")),
+            "a detached signature removes no qualifier either, and for a sharper reason than the \
+             token above: its payload is meant to be read by whoever holds it, so the value a \
+             program gets back is the value someone else put in"
         );
         assert!(
             launderers.contains(&(r"Core\SignedCookie", "open")),

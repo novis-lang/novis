@@ -3176,7 +3176,7 @@ fn instant_built(at: Timestamp) -> Value {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member, for the reason [`count`] gives.
-fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Fault> {
+pub(crate) fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Fault> {
     let object = crate::instance::receiver(args[at], &INSTANT, member)?;
     // The three guards below are unreachable from source: `Core\Time\Instant`
     // is a `Core`-owned class, so `new Core\Time\Instant()` is `E0405: has no
@@ -3410,7 +3410,8 @@ pub(crate) fn instant_at_nanos(nanos: i128) -> Option<Timestamp> {
 /// callers want different things said about it.
 ///
 /// **Every wall-clock reading in `Core` goes through here**, which today is
-/// `Core\Time::now` and `Core\Uuid::v7`'s timestamp half. A clock that some
+/// `Core\Time::now`, `Core\Uuid::v7`'s timestamp half and
+/// `Core\Signature::verify`'s expiry judgement. A clock that some
 /// readings honoured and others did not would make a test's reproducibility
 /// depend on which members it happened to call, which is the same argument
 /// `crate::random::draw` makes for the generator.
