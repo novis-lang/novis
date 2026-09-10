@@ -1473,6 +1473,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nobody for anything it owes. Before concluding a crate is clean, grep it for `Known gaps` rather
   than trusting `--untagged`, and treat a bold run as a hole in the tool rather than a doc to
   reshape. [until: reviewed 2026-09-10]
+- **A heredoc, a `>` redirect or a `sed -i` that writes a file dies on the first apostrophe or
+  backtick, and a doc comment is made of both.** The shell expands `` `rule:...` `` and eats the
+  quoting before the tool it feeds ever runs, so it lands as mangled content on disk rather than as
+  an error you can see. Write and Edit carry file content into the tree and `python
+  tools/splice.py --patch <file>` does three or more edits in one call; `python
+  tools/loop-stats.py` counts the sessions that reached for the shell instead.
+  [until: reviewed 2026-09-10]
 
 ## Running things
 
