@@ -74,10 +74,12 @@
 //!    its properties and no methods, so `get_class_methods` and
 //!    `method_exists` have no answer here yet; the spec's roster row
 //!    (`docs/spec/01-core-library.md` § 20) is the home of the full list.
+//!    — owner: M8
 //! 2. A description's property walk is the same from inside the described class
 //!    as from outside it. § 2's rule is stated over the *call site*, and a
 //!    native member has no view of its caller's class — so this answers the
 //!    narrower question, which is the one that cannot leak a member.
+//!    — owner: M8
 //! 3. Invoking a constructor reflectively — the third acting member § 2 names,
 //!    after the read and the write that are both here now — is not. What the
 //!    write does *not* do is run a per-property `set` hook (`rule:classes/property-hooks`): it
@@ -86,6 +88,7 @@
 //!    so a hooked property is written past its own hook and its observer is
 //!    told what storage took. The observer step itself is § 3's and is not a
 //!    gap.
+//!    — owner: M8
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 

@@ -65,6 +65,7 @@
 //!    is no declaration for the bit to be carried off. A `secret` property of
 //!    a *nested* object is redacted, that object's own class having declared
 //!    it.
+//!    — owner: unowned
 //! 2. **An enum case dumps as its backing integer.** `rule:types/conversion` gives an
 //!    enum no tag of its own — it *is* an `int` at run time — so a case
 //!    arriving through `mixed` is indistinguishable from one here.
@@ -72,11 +73,14 @@
 //!    type would build; reaching it from a dump wants the tag roster to
 //!    distinguish an enum, which is a representation change `rule:types/conversion`
 //!    deliberately declined.
+//!    — owner: unowned
 //! 3. **The `Throwable` producer is not here.** `rule:errors/record-producers` makes an uncaught
 //!    `Throwable` a record at `Error` with its frames as Sequence-of-Object
 //!    nodes, and that walk belongs to `nvs-runtime`'s fatal path rather than
-//!    to a `Core` member — see `nvs_render`'s own § *Where this sits* for the
-//!    crate edge it needs first.
+//!    to a `Core` member — `nvs-runtime` already renders through this crate
+//!    (`nvs_render`'s own § *Where this sits*), so the crate edge is there and
+//!    what is missing is the producer that builds the record.
+//!    — owner: M8
 
 use nvs_render::{Caps, Elision, Level, Node, Record, Rendered, Scalar, Source};
 use nvs_runtime::{Fault, NvsObj, Tag, Value};

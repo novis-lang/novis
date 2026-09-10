@@ -73,11 +73,13 @@
 //!    a union has nowhere to hold a mark, so those seven refuse by the default
 //!    rather than by a rule a reader can find, and a union that ever wanted
 //!    [`Qual::Launder`] would have no slot for it.
+//!    — owner: unowned
 //! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
-//!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and there is
-//!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
-//!    default, stated once, and reading it from config is a change to that one
-//!    line.
+//!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and no
+//!    key for it parses: `crates/nvs-config/src/tree.rs` is the one home for
+//!    what does, and it names none. [`BACKTRACK_BUDGET`] is that default,
+//!    stated once, and reading it from config is a change to that one line.
+//!    — owner: M6
 //! 3. **`matchAll` converts each match's offset over the subject's prefix**,
 //!    so reporting positions for *k* matches in an *n*-byte subject is O(n·k)
 //!    rather than O(n) — [`crate::granularity::Unit::index_of_byte`] counts
@@ -85,6 +87,7 @@
 //!    fix is a cursor that counts only the gap since the previous one; it is
 //!    not written because a cluster can in principle span a match boundary, and
 //!    getting that edge right is worth its own slice rather than a line here.
+//!    — owner: unowned
 
 use std::borrow::Cow;
 use std::cell::RefCell;
