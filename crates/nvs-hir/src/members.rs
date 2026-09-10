@@ -65,11 +65,14 @@
 //! declaration is a decision for the publisher that turns the flag on rather
 //! than one taken here.
 //!
-//! **Known gaps**, narrower versions of gaps [`crate::hierarchy`] already
-//! documents:
+//! **Four checks this module does not make**, each a narrower version of a gap
+//! [`crate::hierarchy`] documents, and each one closed in `nvs-types` or
+//! answered by a rule:
 //! - `new Foo(...)`/`new self(...)`/etc. does not have its target checked
 //!   here — instantiation resolution is a distinct concern from a
-//!   callable/constant reference and is left for later.
+//!   callable/constant reference, and `nvs_types::expr::calls` resolves the
+//!   target itself, holding a `Core` name to `nvs_stdlib::registry`'s roster
+//!   rather than to its spelling.
 //! - A member's visibility (`private`/`protected`) is not checked *here* —
 //!   only whether it is declared anywhere in the chain. It is closed by
 //!   `nvs-types`' `expr::members::check_member_visibility`, which sees the

@@ -29,12 +29,13 @@
 //! meaning "not an alias" rather than colliding with "an alias that turned
 //! out to be broken."
 //!
-//! **Known gap:** an atom that resolves to nothing declared at all — not a
-//! class, not an alias, not `Core` — is not diagnosed here. Whether a name
-//! names *something* real is a general type-atom question the type checker
-//! (`nvs-types`) owns; this module only concerns itself with
-//! the alias-substitution question `rule:types/type-alias` asks, the same narrowing
-//! [`crate::members`] already applies to `Class::member` references.
+//! **An atom that resolves to nothing declared at all is diagnosed in
+//! `nvs-types`, not here.** Whether a name names *something* real is a general
+//! type-atom question the type checker owns, and its type lowering reports
+//! `E_UNDEFINED_CLASS` for one wherever it is written; this module concerns
+//! itself with the alias-substitution question `rule:types/type-alias` asks,
+//! the same narrowing [`crate::members`] already applies to `Class::member`
+//! references.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind};

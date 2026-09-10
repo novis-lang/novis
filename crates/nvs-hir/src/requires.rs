@@ -66,6 +66,13 @@
 //! its canonicalized path, so `D`'s declarations don't collide with
 //! themselves under `E_DUPLICATE_DECLARATION`.
 //!
+//! **A file with no on-disk path resolves no relative `require`.** Every other
+//! test fixture in this crate is built with [`nvs_diagnostics::SourceMap::add`]
+//! rather than [`nvs_diagnostics::SourceMap::load`], so it has no directory to
+//! resolve against and a literal `require` written inside one is left as a
+//! dynamic fallback. That is inherent to running from a source with no path — a
+//! REPL line, `stdin` — rather than a limitation to fix.
+//!
 //! **Known gaps:**
 //! - Only a plain `'...'`/`"..."` string literal (with no interpolation) is
 //!   recognised as statically known. Heredoc/nowdoc and any expression built
@@ -73,12 +80,7 @@
 //!   as dynamic here even where a human reader could work out the value;
 //!   widening this is a constant-folding problem for a later milestone, not
 //!   a name-resolution one.
-//! - A file with no on-disk path — every other test fixture in this crate,
-//!   built with [`nvs_diagnostics::SourceMap::add`] rather than
-//!   [`nvs_diagnostics::SourceMap::load`] — has no directory to resolve a
-//!   relative `require` against, so a literal `require` written inside one
-//!   is also left as a dynamic fallback. This is inherent to running from a
-//!   source with no path (a REPL line, `stdin`), not a limitation to fix.
+//!   — owner: unowned
 //! - The escape sequences a double-quoted literal's cooking recognises are a
 //!   practical subset (`\\`, `\"`, `\$`, `\n`, `\r`, `\t`, `\v`, `\f`, `\e`)
 //!   good enough for a file path — octal/hex/unicode escapes are left
@@ -86,17 +88,20 @@
 //!   `require` path containing one, vanishingly rare in practice. The real
 //!   string-literal cooker belongs to a later milestone once something
 //!   besides this module needs it.
+//!   — owner: unowned
 //! - The name harvest is an over-approximation on purpose, and it reaches
 //!   every declaration site's `#[...]` groups as well as its types and its
 //!   bodies ([`walk_attributes`]) — but a `Name` in a still-unwalked corner
 //!   of the AST would reach nobody. A missed name costs a class that fails
 //!   to autoload, so the direction to widen in is always "harvest more",
 //!   never "filter harder".
+//!   — owner: unowned
 //! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is produced ([`crate::autoload::Probe`]) and
 //!   then dropped. Folding it into the artifact cache's key needs
 //!   `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
 //!   `PathEntry` table, which does not exist yet; that is the cache slice's
 //!   work, not this one's.
+//!   — owner: unowned
 
 use std::path::{Path, PathBuf};
 

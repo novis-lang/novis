@@ -36,8 +36,12 @@
 //! consumer's.
 //!
 //! **Known gap:** a target under `Core` ([`QName::is_core`]) is trusted to
-//! exist, same as a `use` import — `nvs-stdlib` doesn't exist yet, so its
-//! members can't be checked either.
+//! exist, same as a `use` import. `is_core` is a spelling test, and this crate
+//! cannot hold a name to `nvs_stdlib::registry`'s roster the way
+//! `nvs_types::expr::calls` holds a `new` target to it: it depends on
+//! `nvs-diagnostics` and `nvs-syntax` and nothing else, which is the graph
+//! position that makes a class link resolvable before the stdlib exists.
+//! — owner: unowned
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};
