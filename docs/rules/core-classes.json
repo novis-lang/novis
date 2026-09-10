@@ -194,6 +194,8 @@
         "tests/conformance/core/html-sanitize-rebuilds-a-document-and-writes-no-tag-for-what-the-allowlist-lacks.nvst",
         "tests/conformance/core/html-sanitize-reaches-a-fixed-point-over-a-document-that-mutates.nvst",
         "tests/conformance/core/html-escape-and-html-sanitize-are-two-launderers-for-one-sink.nvst",
+        "tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst",
+        "tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst",
         "crates/nvs-stdlib/src/html.rs"
       ]
     },
@@ -208,6 +210,9 @@
         "tests/conformance/core/html-parse-never-fails-and-supplies-what-a-document-left-out.nvst",
         "tests/conformance/core/html-places-misnested-and-stray-content-where-the-algorithm-says.nvst",
         "tests/conformance/core/html-and-xml-are-two-front-doors-onto-one-node-family.nvst",
+        "tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst",
+        "tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst",
+        "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
         "crates/nvs-stdlib/src/html.rs"
       ]
     },
@@ -222,7 +227,11 @@
         "tests/conformance/core/xml-a-reader-answers-one-node-at-a-time-in-document-order.nvst",
         "tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst",
         "tests/conformance/core/xml-a-writer-refuses-every-call-that-would-not-leave-a-document.nvst",
-        "tests/conformance/core/xml-a-writers-indent-is-layout-and-never-lands-beside-character-data.nvst"
+        "tests/conformance/core/xml-a-writers-indent-is-layout-and-never-lands-beside-character-data.nvst",
+        "tests/conformance/core/xml-a-node-writes-its-own-subtree-and-escapes-what-it-carries.nvst",
+        "tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst",
+        "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
+        "tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst"
       ]
     },
     {
@@ -234,7 +243,8 @@
       "seeAlso": ["core-classes/xml-tree-and-stream", "core-classes/decompression-bound", "security/no-runtime-grant", "errors/ambiguous-input-refused"],
       "guardedBy": [
         "tests/conformance/core/xml-expands-the-five-predefined-entities-and-nothing-else.nvst",
-        "tests/conformance/core/xml-refuses-malformed-input-rather-than-repairing-it.nvst"
+        "tests/conformance/core/xml-refuses-malformed-input-rather-than-repairing-it.nvst",
+        "tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst"
       ]
     },
     {
