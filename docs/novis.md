@@ -21308,7 +21308,7 @@ Keywords: push, status, cancel, stats
 
 | Member | Signature |
 |---|---|
-| [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id` |
+| [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string}): Core\Queue\Id` |
 | [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 | [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
@@ -21317,7 +21317,7 @@ Keywords: push, status, cancel, stats
 #### `Core\Queue::push`
 
 ```nvs skip
-Core\Queue::push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string}): Core\Queue\Id
+Core\Queue::push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string}): Core\Queue\Id
 ```
 
 Enqueues `$script` to run in the background, as a row in the database `[queue] connection` names. Inside a transaction on that same connection the enqueue commits with the write that caused it, or with neither — which is the whole reason a job is a table row and not a message to a broker.
@@ -21331,6 +21331,7 @@ Enqueues `$script` to run in the background, as a row in the database `[queue] c
 | `{maxAttempts: …}` | `uint` (default `null`) | How many attempts this job gets before it is dead-lettered. Left out, `[queue] max_attempts`. Always finite: there is no spelling that retries forever. |
 | `{backoff: …}` | `Core\Time\Duration` (default `null`) | The base delay for the exponential backoff between attempts, jittered by the worker. Left out, one second — the row records a delay either way, since there is no spelling of a job that retries at once. |
 | `{key: …}` | `string` (default `null`, neutral) | A dedupe key: while a job with this key is still pending, a second push with it enqueues nothing and answers the pending job's own id. |
+| `{tag: …}` | `string` (default `null`, neutral) | A group name: any number of jobs may carry one, nothing dedupes on it, and `purge` is the only thing that reads it. Grouping is decided here, at the enqueue, because nothing can later group rows that were never grouped. |
 
 **Returns** `Core\Queue\Id` — A `Core\Queue\Id` naming the row, which `cancel` and `status` are asked about. For a push deduped by `key`, the id of the job already pending under it.
 

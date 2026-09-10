@@ -1560,6 +1560,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   it through `configured_bytes("max_output")` since it landed. Locate a *symbol*; find a directive
   with `peek.py "crates/**/*.rs:re:<key>"`, which reads the string literals too.
   [until: reviewed 2026-09-10]
+- **A goal can promise a converge of one `Safe` step and mandate an index in the same item.**
+  `nvs_db::ddl::base_grade` grades every `AddKey` `Locking` — a build over every row already
+  there, with no concurrent one in v1 — so a column-plus-index change is two steps and the second
+  needs `--including-risky`. Read `base_grade` before writing an expectation from a stage's prose,
+  keep the construct the *rule* mandates, and assert the two halves apart rather than dropping the
+  index to make the sentence true.
+  [until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row]
 
 ## Running things
 
@@ -4054,13 +4061,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   verifies for the other — the case then fails as though the member under test were broken. Write a
   fixed key (`Core\Bytes::fill(32, 65)`) for anything a case mints on one side of that call and checks
   on the other. [until: reviewed 2026-09-10]
-- **Six rows of `rule:types/type-test`'s table panic `nvs-ir` instead of answering, so a case that
-  sweeps the table exits 101 rather than failing an assertion.** `$m is int|float`, an intersection,
-  `is iterable`, `is callable`, a shape, and an `array<T>` whose element type no tag decides all reach
-  `crates/nvs-ir/src/lower/expr.rs`'s `lower_type_test` panic, while every scalar, `object`, class,
-  bare `array`, literal, class-constant and enum-case row answers. Sweep the rows that answer and
-  leave the six to the slice that lowers them.
-  [until: gone crates/nvs-ir/src/lower/expr.rs:still need a walk of their own]
 
 ## Splitting a file that got too big
 
