@@ -121,6 +121,23 @@ fn int(cell: &SqliteValue) -> i64 {
 /// it is the fixture and not the thing under test: what a case here asserts is
 /// what a claim reads, and a claim reads the columns § 2's schema declares.
 fn push(conn: &SqliteConn, run_at: i64, state: i64, attempts: i64, claimed_at: Option<i64>) -> i64 {
+    push_on(conn, QUEUE, run_at, state, attempts, claimed_at)
+}
+
+/// [`push`] onto a queue the case names, for the one statement whose answer is
+/// about the *table* rather than about a row.
+///
+/// [`queue::QUEUES_SQLITE`] answers `select distinct queue`, so the case that
+/// runs it needs rows on more than one name and a database holding nothing else
+/// — and a database per case is what this file already gives it.
+fn push_on(
+    conn: &SqliteConn,
+    queue: &str,
+    run_at: i64,
+    state: i64,
+    attempts: i64,
+    claimed_at: Option<i64>,
+) -> i64 {
     rows(
         conn,
         "insert into nvs_jobs \
@@ -128,7 +145,7 @@ fn push(conn: &SqliteConn, run_at: i64, state: i64, attempts: i64, claimed_at: O
          dedupe_key, dedupe_pending, created_at, tag) \
          values (?, ?, ?, ?, ?, 3, 250, ?, ?, null, null, ?, null)",
         vec![
-            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from(queue)),
             SqliteValue::Text(String::from("jobs/send.nvs")),
             SqliteValue::Text(String::from("[]")),
             SqliteValue::Int(state),
@@ -142,7 +159,7 @@ fn push(conn: &SqliteConn, run_at: i64, state: i64, attempts: i64, claimed_at: O
     let read = rows(
         conn,
         "select id from nvs_jobs where queue = ? order by id desc limit 1",
-        vec![SqliteValue::Text(String::from(QUEUE))],
+        vec![SqliteValue::Text(String::from(queue))],
     );
     int(&read.first().expect("the fixture landed a row")[0])
 }
@@ -935,5 +952,267 @@ fn a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_tabl
         old_tagged + 1,
         old_plain,
         "the fixture's ids run in push order, which is what `order by id` sweeps in"
+    );
+}
+
+/// § 6's move, executed: an exhausted job leaves `nvs_jobs` for `nvs_dead_jobs`
+/// carrying the columns § 2's second table declares, rather than being discarded
+/// or left claimed forever.
+///
+/// **The copy runs before the delete on this backend**, which is
+/// [`queue::DEAD_LETTER_MYSQL`]'s order and not PostgreSQL's, so the columns are
+/// read while they still exist; what holds the two halves as one moment is the
+/// immediate transaction rather than anything in the text.
+///
+/// **Asserted from both sides**, because § 6's property is not that the row
+/// appears in the other table but that it is not discarded: a move that deleted
+/// without copying would satisfy a case that only looked at where the job went.
+/// The fixture spends two of three attempts and the claim spends the third, so
+/// the row reaches the move with nothing left to try — which is the condition
+/// `crates/nvs-cli/src/worker.rs` branches on, stated here rather than assumed.
+#[test]
+fn a_sqlite_dead_letter_move_carries_the_row_whole_into_the_other_table() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-dead-letter");
+
+    let id = push(&worker, NOW, 0, 2, None);
+    let claimed = claim(&worker, NOW, NOW - WINDOW).expect("the pushed job is due");
+    assert_eq!(
+        (int(&claimed[0]), int(&claimed[3]), int(&claimed[4])),
+        (id, 3, 3),
+        "the claim spent the job's last attempt, which is what makes the move the legal one"
+    );
+
+    dead_letter(&worker, id, NOW);
+
+    assert_eq!(
+        present(&reader, id),
+        (0, 1),
+        "the receipt is in the other table, and in exactly one of the two"
+    );
+    assert_eq!(
+        rows(
+            &reader,
+            "select id, queue, script, args, attempts, max_attempts, backoff_ms, run_at, \
+             created_at, failed_at, errors from nvs_dead_jobs where id = ?",
+            vec![SqliteValue::Int(id)],
+        ),
+        vec![vec![
+            SqliteValue::Int(id),
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from("jobs/send.nvs")),
+            SqliteValue::Text(String::from("[]")),
+            SqliteValue::Int(3),
+            SqliteValue::Int(3),
+            SqliteValue::Int(250),
+            SqliteValue::Int(NOW),
+            SqliteValue::Int(NOW),
+            SqliteValue::Int(NOW),
+            SqliteValue::Text(queue::dead_errors(
+                NOW,
+                "LogicError",
+                "the last attempt threw",
+            )),
+        ]],
+        "carrying its own columns and the array § 6 asks for"
+    );
+}
+
+/// The `dedupe_pending` one job carries, or `None` where the column is null.
+///
+/// Read as the column rather than as a count, because both of its values are an
+/// assertion here: the key that is on the row and the null that is not are the
+/// two halves § 2's guarantee is made of.
+fn pending_key(conn: &SqliteConn, id: i64) -> Option<String> {
+    let read = rows(
+        conn,
+        "select dedupe_pending from nvs_jobs where id = ?",
+        vec![SqliteValue::Int(id)],
+    );
+    match read.first().map(|row| &row[0]) {
+        Some(SqliteValue::Text(key)) => Some(key.clone()),
+        None | Some(SqliteValue::Null) => None,
+        Some(other) => panic!("`dedupe_pending` is a text column and answered {other:?}"),
+    }
+}
+
+/// § 6's ladder putting a job back: the row returns to `Pending` at the instant
+/// the caller chose, and the dedupe key the claim took off it comes back with it.
+///
+/// **`dedupe_pending = dedupe_key` is the half nothing else here states.**
+/// `rule:core-classes/queue-storage-is-a-table` admits at most one *pending* job
+/// per key, so a retry that left the column null would hand a queue two pending
+/// rows on one key — and every statement in the roster would still read as legal,
+/// because the unique index reads two nulls as distinct. It is asserted through a
+/// second push as well as off the column, so what is pinned is the guarantee and
+/// not one write.
+///
+/// The lease keying is the other half, and
+/// [`a_sqlite_worker_that_overran_its_visibility_window_reports_nothing`] holds
+/// it from the side where it refuses.
+#[test]
+fn a_sqlite_retry_puts_the_dedupe_key_back_on_the_row_it_released() {
+    let (worker, pusher) = two_connections("nvs-stdlib-queue-retry-key");
+
+    let (id, _) = push_in_two(&pusher, Some("digest:daily"), NOW);
+    let claimed = claim(&worker, NOW, NOW - WINDOW).expect("the pushed job is due");
+    assert_eq!(int(&claimed[0]), id);
+    assert_eq!(
+        pending_key(&pusher, id),
+        None,
+        "the claim released the key, which is the state the retry has to undo"
+    );
+
+    let due_again = NOW + 250;
+    assert_eq!(
+        affected(
+            &worker,
+            queue::RETRY_SQLITE,
+            vec![
+                SqliteValue::Int(due_again),
+                SqliteValue::Int(id),
+                SqliteValue::Int(NOW),
+            ],
+        ),
+        1,
+        "the worker still holds the lease it claimed with, so its retry lands"
+    );
+    assert_eq!(
+        pending_key(&pusher, id),
+        Some(String::from("digest:daily")),
+        "and the key the job was pushed under is on the row again"
+    );
+
+    let (answered, deduped) = push_in_two(&pusher, Some("digest:daily"), due_again);
+    assert!(
+        deduped,
+        "so the key is pending again and a second push reads it"
+    );
+    assert_eq!(
+        answered, id,
+        "answering the retried job's own receipt rather than landing a second row"
+    );
+}
+
+/// § 2's roster, sorted: the queue names a worker idling at `now` would claim
+/// against.
+///
+/// `select distinct` names no order, and what a case asks of it is a set, so the
+/// comparison is made against a sorted vector rather than against whichever walk
+/// the planner de-duplicated with.
+fn roster(conn: &SqliteConn, now: i64, cutoff: i64) -> Vec<String> {
+    let mut named: Vec<String> = rows(
+        conn,
+        queue::QUEUES_SQLITE,
+        vec![SqliteValue::Int(now), SqliteValue::Int(cutoff)],
+    )
+    .iter()
+    .map(|row| match &row[0] {
+        SqliteValue::Text(name) => name.clone(),
+        other => panic!("`queue` is a text column and answered {other:?}"),
+    })
+    .collect();
+    named.sort();
+    named
+}
+
+/// § 2's unanswered question — which queues hold work — asked of the table,
+/// because the config block names none.
+///
+/// **Both arms, and both of their bounds on either side.** A pending job due one
+/// millisecond later is not work yet, a claimed job whose lease is newer than the
+/// cutoff is somebody else's work, and the lease sitting exactly on the cutoff is
+/// abandoned rather than held. A statement that spelled `<` for `<=`, or that
+/// dropped either arm, reads plausibly against any single one of those rows.
+///
+/// The whole answer is asserted rather than membership in it, which is what a
+/// database per case buys and what `crates/nvs-stdlib/tests/queue.rs` cannot do
+/// on a leg whose cases share one server.
+#[test]
+fn a_sqlite_roster_names_only_the_queues_holding_due_work() {
+    let (worker, _reader) = two_connections("nvs-stdlib-queue-roster");
+
+    push_on(&worker, "roster-due", NOW, 0, 0, None);
+    push_on(&worker, "roster-later", NOW + 1, 0, 0, None);
+    push_on(&worker, "roster-held", NOW, 1, 1, Some(NOW));
+    push_on(&worker, "roster-abandoned", NOW, 1, 1, Some(NOW - WINDOW));
+
+    assert_eq!(
+        roster(&worker, NOW, NOW - WINDOW),
+        vec![String::from("roster-abandoned"), String::from("roster-due"),],
+        "the due pending row and the expired lease, and neither the job due later \
+         nor the lease still inside its window"
+    );
+}
+
+/// `rule:concurrency/delivery-is-at-least-once`'s visibility timeout from the
+/// end that loses: a worker that overran the window reports into a row that is no
+/// longer its own, and every write-back it can make matches nothing.
+///
+/// **All three write-backs, because they are one keying and not three.**
+/// [`queue::SUCCEEDED_SQLITE`], [`queue::RETRY_SQLITE`] and both halves of
+/// [`queue::DEAD_LETTER_SQLITE`] match `id` and `claimed_at` together, so a text
+/// that dropped the lease from its `where` would finish, postpone or bury the
+/// attempt that replaced this one — and would read plausibly on its own, because
+/// the id is still the right id.
+///
+/// Nothing here mocks an expiry. The row really is re-claimed by the other
+/// connection, which is what makes the first worker's lease stale, and the last
+/// assertion is the same statement landing for the worker that does hold it: a
+/// case asserting only the refusals would pass against a roster that had stopped
+/// matching anything at all.
+#[test]
+fn a_sqlite_worker_that_overran_its_visibility_window_reports_nothing() {
+    let (slow, fast) = two_connections("nvs-stdlib-queue-overrun");
+
+    let id = push(&slow, NOW, 0, 0, None);
+    let first = claim(&slow, NOW, NOW - WINDOW).expect("the pushed job is due");
+    assert_eq!(int(&first[0]), id);
+
+    let retaken = NOW + WINDOW;
+    let second = claim(&fast, retaken, retaken - WINDOW).expect("the lease has expired");
+    assert_eq!(
+        int(&second[0]),
+        id,
+        "one row, claimed twice, and the second claim is the lease that counts"
+    );
+
+    assert_eq!(
+        affected(
+            &slow,
+            queue::SUCCEEDED_SQLITE,
+            vec![SqliteValue::Int(id), SqliteValue::Int(NOW)],
+        ),
+        0,
+        "the overrun worker cannot finish an attempt it no longer owns"
+    );
+    assert_eq!(
+        affected(
+            &slow,
+            queue::RETRY_SQLITE,
+            vec![
+                SqliteValue::Int(retaken + 250),
+                SqliteValue::Int(id),
+                SqliteValue::Int(NOW),
+            ],
+        ),
+        0,
+        "nor put it back, which would move a running job's `run_at` out from under it"
+    );
+    dead_letter(&slow, id, NOW);
+    assert_eq!(
+        present(&slow, id),
+        (1, 0),
+        "nor bury it: both halves of the move are keyed on the lease, so the copy \
+         and the delete refuse together"
+    );
+
+    assert_eq!(
+        affected(
+            &fast,
+            queue::SUCCEEDED_SQLITE,
+            vec![SqliteValue::Int(id), SqliteValue::Int(retaken)],
+        ),
+        1,
+        "and the worker that does hold the lease reports exactly once"
     );
 }
