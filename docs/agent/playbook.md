@@ -1453,6 +1453,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   an owner on finished work and made the roster lie about what is owed. Read the code an item names
   before choosing its owner, since `peek.py --locate` over the function it describes settles it in
   one call, and delete a closed item rather than tagging it. [until: reviewed 2026-09-10]
+- **An `— owner:` marker counts only as an item's *last* line, and settled prose trailing under
+  `# Known gaps` swallows it.** `owners.py` folds every line after a bullet into that bullet until
+  the next one starts, so the two closing statements under `crates/nvs-types/src/error_lib.rs`'s
+  block left the marker mid-item and the item stayed on `--untagged` with nothing said about why.
+  Move that trailing prose above the heading — under this goal's § *Standing decisions* it is a
+  decision rather than a gap — instead of hunting the marker's indentation.
+  [until: gone tools/owners.py:the owner tag is not the item's last line]
 
 ## Running things
 

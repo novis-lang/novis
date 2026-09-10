@@ -71,7 +71,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Ten entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Twelve entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -140,7 +140,11 @@ where taking it is the work and the code that follows it is not.
   has to be decided is whether the fold grows a named-argument case — the checker already holds the
   route's typed parameter list — or whether § 4's "a computed name throws" is the whole contract and
   the message is what names both. Until it is, `no_such_route` answers more than the case § 4 named.
-  `crates/nvs-types/src/links.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
+  `crates/nvs-types/src/reasons.rs`'s spread argument is the same question one position over: that
+  roster carries the parameter's own name, so a *named* argument is read there, while a spread moves
+  every position at once — so what is undecided is again whether a compiler-known-call pass is handed
+  the mapping. `crates/nvs-types/src/links.rs` § *Known gaps*,
+  `crates/nvs-types/src/reasons.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
   gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
 - **`nvs-types`' two unwritten checker passes, which no entry on the chain asks for.** Exhaustive
   control-flow reachability is one — "every path through this non-void function returns", and with
@@ -169,6 +173,29 @@ where taking it is the work and the code that follows it is not.
   whether that command reads configuration — and so can be failed by a broken one — is a decision
   about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags.
   [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
+- **The third of `rule:core-classes/derive-attribute`'s rule that lives at run time, and whether it
+  moves.** `nvs-types`' derive pass checks a `#[Json\Derive]`/`#[Db\Derive]` class whole and asks the
+  same rule again of the class a `queryAs<T>` wrote, but there is no `Core\Json::decodeAs` half:
+  `decodeAs<array<T>>` is a legitimate JSON array document, so "the mapping cannot fill the
+  constructor" is a question about a *document* rather than about the class, and the
+  missing-attribute refusal stays `nvs_stdlib::json`'s at run time. What has to be decided is whether
+  that refusal moves to compile time at all, which is the rule's call rather than one this pass may
+  widen into — and until it is taken, one of the two members enforces the attribute where the program
+  is written and the other only where it runs.
+  `crates/nvs-types/src/derive.rs` § *Known gaps* carries the tag.
+  [until: gone crates/nvs-types/src/derive.rs:owner: unowned]
+- **How much of a `mixed` value's tag dispatch is written at once.**
+  `rule:types/erased-member-access` has already decided what an erased read, write and call *do* — a
+  checked, catchable throw when the name is not there, never a silent value — but `nvs_ir::Ty::Tagged`
+  implements exactly one position of it, rendering, and every other position panics naming the case.
+  So `$e->previous->message` needs the value bound to a local and narrowed first, which is why
+  `crates/nvs-types/src/error_lib.rs` records the chain as built but not readable through. Each
+  position closes the same way — one `nvs_ir::ir::Helper` variant dispatching on the tag — and what
+  has to be decided is whether they are taken together, since arithmetic, the truthy table, a subscript
+  and this member access pay one design cost between them and taking them one at a time leaves the
+  rule half-true for however long the others wait.
+  `crates/nvs-types/src/error_lib.rs` § *Known gaps* carries the tag.
+  [until: gone crates/nvs-types/src/error_lib.rs:owner: unowned]
 
 ## What is *not* on either list
 

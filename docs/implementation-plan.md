@@ -100,11 +100,10 @@ somebody has already followed.
 | backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
 
-**One milestone is not one block of schedule, which is why the cell holds a list.** M8's work sits at goals
-4, 5 and 19, M7's at 6, 16, 18 and 19, and M1's one open item — `rule:expressions/pipeline-substitution`'s
-pipeline operator — at 13; five goals (7–11) land in no milestone at all and are tagged `post-parity` in
-the chain. A single number per milestone could say none of that, and for a while it said things that had
-stopped being true. **So the goal is the unit of schedule and the milestone the unit of identity: say
+**One milestone is not one block of schedule, which is why the cell holds a list.** M8's work is spread
+across a row of goals and M7's across another, M1's one still-open item is goal `type-test`'s, and the
+goals tagged `post-parity` in the chain land in no milestone at all. A single number per milestone could
+say none of that, and a chain number could say it only until something was inserted ahead of it. **So the goal is the unit of schedule and the milestone the unit of identity: say
 "goal `parses`", never "in M7".** A cell naming a goal means that milestone still has work scheduled — `done` is
 the only thing that means finished.
 
