@@ -1,7 +1,7 @@
-# Goal 42 -- the gap register is derived, empty, and the index that held it is gone.
+# Goal 43 -- the gap register is derived, empty, and the index that held it is gone.
 # The acceptance test, as data.
 #
-# `42-gap-zero.md` is the prose. One home each.
+# `43-gap-zero.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
@@ -117,7 +117,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `42-gap-zero.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `43-gap-zero.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. These are the PROSE stage numbers, not the

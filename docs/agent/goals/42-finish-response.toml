@@ -1,0 +1,303 @@
+# Goal 42 -- a response ends where the code says so, and every finally still runs.
+# The acceptance test, as data.
+#
+# `42-finish-response.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # One example, and it is the only place all four halves are visible in one output: a nested frame
+  # finishes, its `finally` runs, the exit hook sees the new reason, and the deferred work runs last.
+  # It is a CLI fixture because `nvs run` is the host where `echo`'s sink is the terminal -- the
+  # served path is proven by `.nvst` cases and from Rust instead.
+  "examples/finish.nvs",
+]
+
+[context]
+
+modules = [
+  # The four statuses and what each one does to a frame. `EXITED`'s doc (:50-58) is stage 0 item 5,
+  # and its "no `finally` runs" is exactly what stage 3 must not copy.
+  "crates/nvs-runtime/src/abi.rs",
+  # `nvs_exit` (:2576-2591) -- the helper shape the new one is a sibling of, and the one place a
+  # `Fault::Pending` is raised as a success.
+  "crates/nvs-runtime/src/helpers.rs",
+  # The drain, and the module doc's own enumeration of the endings that run none of it (:15-22,
+  # stage 0 item 4). Also :24-34, why a sealed child may not register -- stage 4's last bullet.
+  "crates/nvs-runtime/src/deferred.rs",
+  # The exit-hook queue, its once-only flag, and `exit` inside a hook (:284-285) -- the arm stage 4
+  # adds the new ending's sibling to.
+  "crates/nvs-runtime/src/ctx/hooks.rs",
+  # `run_exit_hooks` and `report_of` (:450-467) -- the one door between an ending and a hook, and
+  # where the fourth `ExitReason` is built.
+  "crates/nvs-stdlib/src/script.rs",
+  # `finish` (:745-860) and the two drain gates (:665, :731). Stage 2 adds the hook drain beside the
+  # deferred one; stage 4 is one arm in `finish` and no edit to either gate.
+  "crates/nvs-host/src/isolate.rs",
+  # The CLI's three arms (:1811-1856) -- the only host that drains the exit queue today, and the
+  # shape stage 2 mirrors onto the served path.
+  "crates/nvs-cli/src/main.rs",
+  # `Terminator::Catch`'s emission (:3415-3425) and the status check every call site carries
+  # (:3308). The `status == THROWN` comparison is stage 3's whole subject.
+  "crates/nvs-codegen/src/emit.rs",
+  # `Terminator::Catch`'s two exits (:2585-2592) -- what `onward` releases and why a `FATAL` and an
+  # `EXITED` take it. Read this before deciding stage 3, not after.
+  "crates/nvs-ir/src/ir.rs",
+  # `InstanceOf` (:942-956) and `TakeThrown` (:1073) -- the two instructions a catch region is built
+  # from, and what stage 3's marker object has to be false against.
+  "crates/nvs-ir/src/lower/mod.rs",
+  # Where a `Core` member is wired and what parameter marks its row carries. Stage 4 is one row.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `answer`'s fail-closed `500`, which reads `completion.ok` before it reads the declared status.
+  # Stage 4 depends on that field staying true and changes nothing here.
+  "crates/nvs-server/src/serve.rs",
+  # `E0780` (:2891-2898) -- the throw-operand refusal whose sibling stage 3 adds for a `catch` arm
+  # naming the marker, and the band the new code is allocated from.
+  "crates/nvs-diagnostics/src/lib.rs",
+]
+
+# The three every stage works inside: the queue this ending joins, the queue it makes drain, and the
+# ladder it is deliberately not part of.
+rules = [
+  "observability/three-endings-fire-the-exit-queue",
+  "concurrency/after-response-outlives-the-connection",
+  "errors/escalation-ladder",
+  # The ordering § *Standing decisions* settles this goal's one tradeoff under.
+  "programs/memory-priority",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M7:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
+  'Tooling > A full diagnostic band',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `42-finish-response.md`, holding what only that stage needs.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The queue's own two rules: what fires it, and where it sits relative to the ladder and the sweep.
+# The five-step rule is here because the served path is the one this stage adds it to.
+rules = [
+  "observability/exit-hooks-run-after-the-ladder-before-teardown",
+  "observability/script-on-exit",
+  "http-server/a-request-resolves-in-five-steps",
+]
+
+[context.stage.3]
+# The status check every call site emits, and the ladder that decides which statuses a `catch` may
+# see. Nothing about hooks, responses or members reaches this stage -- it is one unwind.
+rules = [
+  "errors/propagation",
+  "errors/escalation-ladder",
+]
+shapes = ["A diagnostic"]
+
+[context.stage.4]
+# The member's own frame: what a hook may not do, what a sealed child may not do, and the two
+# endings that keep running no hook at all.
+rules = [
+  "observability/a-hook-observes-and-never-steers",
+  "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
+  "concurrency/deferred-work-cannot-write-the-response",
+  "security/response-body-is-one-typed-member",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.5]
+# The prose stage. `exit`'s own rule is read here and nowhere else: the record has to say why this
+# ending sits beside it rather than inside it.
+rules = ["statements/exit-is-the-only-termination-keyword"]
+shapes = ["A decision record", "A rule fragment"]
+
+# The marker object stage 3 raises is released on the root frame's own teardown like any other
+# pending value, and closes no cycle. Nothing here is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor's, not this goal's own: nothing here touches a database.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the served path drains the exit queue at all. Before the member, because the member's
+# contract is that the queue runs. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the queue on the served path"
+name = "a request's exit hooks run, in the order the rule fixes, on the host that serves it"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_served_requests_exit_hooks_run_before_its_after_response_work",
+  "a_served_requests_exit_hooks_run_after_the_ladder_has_reported_a_throw",
+  "a_served_request_that_registered_no_hook_pays_no_drain",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the queue on the served path"
+name = "the two endings that still run no hook, on the served path as on the CLI one"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_fatal_on_the_served_path_runs_no_exit_hook",
+  "a_cancelled_request_runs_no_exit_hook",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the keystone: an unwind every `finally` sees and no `catch` admits. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the unwind"
+name = "every finally on the way out runs, innermost first, however deep the frame"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_finish_runs_every_finally_between_the_call_and_the_root",
+  "a_finish_runs_them_innermost_first",
+  "a_finish_three_frames_down_still_reaches_the_root",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the unwind"
+name = "no catch arm admits it, and the frame leaks nothing on the way past one"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_catch_throwable_does_not_admit_a_finish",
+  "a_finish_inside_a_try_releases_every_local_of_that_frame",
+  "a_finish_is_still_a_finish_after_it_has_passed_a_catch_region",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the unwind"
+name = "the refusal: a catch arm cannot name the marker class"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_catch_arm_naming_the_finish_marker_is_a_diagnostic",
+  "a_throw_of_the_finish_marker_is_a_diagnostic",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the member, and the four endings. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the member"
+name = "a finished request is an ordinary end: the deferred queue drains and the declared status stands"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_finished_request_runs_its_after_response_work",
+  "a_finished_request_reports_the_status_its_handler_declared",
+  "a_finished_request_is_not_answered_five_hundred",
+  "an_exited_request_still_runs_no_after_response_work",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the member"
+name = "the fourth ending on the report, and the two places the member is refused"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_exit_report_names_the_finish_ending_with_a_zero_status_and_no_error",
+  "finish_inside_an_exit_hook_throws_and_the_drain_continues",
+  "finish_in_a_task_child_ends_that_child_and_not_the_request",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the member"
+name = "conformance and differential (the ordering, whole output frozen)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-finished-request-runs-its-after-response-work.nvst",
+  "tests/conformance/core/finish-runs-every-finally-on-the-way-out.nvst",
+  "tests/conformance/core/finish-is-caught-by-no-catch-arm.nvst",
+  "tests/conformance/reject/a-catch-arm-naming-the-finish-marker-is-refused.nvst",
+]
+
+[[check]]
+kind = "exact"
+stage = "4 the member"
+file = "examples/finish.nvs"
+want = [
+  "start",
+  "inner finally",
+  "outer finally",
+  "exit hook: Finish",
+  "after the response",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the rulebook and the record. Prose, after the behaviour is green. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the record"
+name = "the spec rows this goal adds are registered under the names the spec writes"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["spec_registry_coverage"]
+
+[[check]]
+kind = "command"
+stage = "5 the record"
+name = "the rulebook validates, including the fragments this goal edits"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "5 the record"
+name = "every record this goal opened is complete and cited"
+argv = ["python", "tools/decisions.py", "--gate"]
+
+[[check]]
+kind = "command"
+stage = "5 the record"
+name = "no document in the tree still says three endings"
+argv = ["python", "tools/check-links.py"]
+
+[[check]]
+kind = "command"
+stage = "5 the record"
+name = "the generated reference carries the new member and its report case"
+argv = ["python", "tools/reference.py", "--check"]

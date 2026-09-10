@@ -153,7 +153,21 @@ that goal's ceilings exist to stop — an event stream whose budget is declared 
 1 spent to buy priority 3 — and its own § 5 amendment is the interesting half: "send and no `receive`"
 becomes "no *peer*", so an event stream can wait on a topic and fan-out stops being a poll.
 
-**Then the chain turns around.** [dossier](43-dossier.md) is the last hand-written entry and it writes
+**Then the fourth ending**, which the user asked for after reading what `exit` costs a request.
+[finish-response](42-finish-response.md) gives a program a way to say *this response is finished* from
+any frame — one that is neither a failure nor a termination, so every `finally` on the way out runs,
+the exit queue fires, and `Core\Task::afterResponse`'s work drains. Today the only early exit is
+`exit`, which runs no `finally` and drains no deferred work, so the PHP reflex `echo json_encode($x);
+exit;` silently drops both halves of a request's cleanup with no diagnostic anywhere. It sits after
+goal `event-streams` because that goal makes a response body two-valued and *what it means for a
+response to end* has to be one answer across a buffer and a stream alike. Its keystone is the unwind:
+only a `THROWN` takes the handler edge a `finally` lives behind, so a fifth status would be `exit`'s
+mechanics under a new name — the goal is scheduled on the marker-object line instead, and § *Standing
+decisions* closes the question. Its stage 2 is a defect it inherits rather than causes:
+`Core\Script::onExit` never fires for a served request, because all three `run_exit_hooks` call sites
+are the CLI's.
+
+**Then the chain turns around.** [dossier](44-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
 which puts `rule:testing/four-proofs`'s
 whole roster — one goal per group of shipped features owing their four proofs — onto the end of *this*
@@ -231,8 +245,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [resource-ceilings](39-resource-ceilings.md) | M6, `rule:errors/on-limit` | `nvs-runtime`, `nvs-host`'s watchdog and the poll's emit site — a runaway is stopped whether it burns a core, allocates in a loop, or asks for everything at once |
 | [config-is-written](40-config-is-written.md) | M6, `rule:config/no-configuration-file-is-a-complete-configuration` + `rule:config/ownership-is-the-trust-boundary` | `nvs-config`, `nvs-cli`, `nvs-server` — an implicit configuration is written down, and every key in it is read |
 | [event-streams](41-event-streams.md) | M7, one ADR slot — 0083 § 5 amended, and its streaming-response claim corrected | `nvs-server`, `nvs-runtime`, `nvs-stdlib`, `nvs-types`, `nvs-config` — one body cell, two doors onto it |
-| [gap-zero](42-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
-| [dossier](43-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [finish-response](42-finish-response.md) | M7, one ADR — the fourth ending, and why it sits beside `exit` rather than inside it | `nvs-runtime`, `nvs-ir`, `nvs-codegen`, `nvs-host`, `nvs-stdlib` — one unwind, one member, one drain the served path was missing |
+| [gap-zero](43-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
+| [dossier](44-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract
