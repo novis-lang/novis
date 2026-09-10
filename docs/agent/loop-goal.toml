@@ -118,6 +118,16 @@ modules = [
   # `rule:expressions/intrinsic-list-is-closed`'s closed list: the `Core` members whose
   # pattern-like argument the compiler reads while checking, and the hook that consults it.
   "crates/nvs-types/src/intrinsics.rs",
+  # `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache:
+  # one immutable, content-addressed file per compiled unit, and the writer that publishes one by
+  # a single atomic rename.
+  "crates/nvs-cli/src/cache.rs",
+  # The in-process worker `rule:core-classes/queue-storage-is-a-table`'s `[queue] workers` starts:
+  # a task beside the script's, on the scheduler this run already turns.
+  "crates/nvs-cli/src/worker.rs",
+  # The IR's own value-representation type lattice — deliberately smaller and flatter than
+  # `nvs_types::ty::Ty`, and not the same type.
+  "crates/nvs-ir/src/ty.rs",
 ]
 
 # 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
