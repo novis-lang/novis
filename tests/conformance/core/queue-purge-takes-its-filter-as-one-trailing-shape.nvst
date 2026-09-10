@@ -1,0 +1,21 @@
+--TEST--
+`purge`'s four selectors are one trailing options shape, so a state is written inside it and never as a second argument — `rule:concurrency/queue-deletion-is-explicit-and-bounded`, `rule:core-api/shape-rules`
+--FILE--
+<?nvs
+// Every selector this member has is a field of the one shape, written in any
+// order and each of them optional: what it removes is decided by what the call
+// wrote, and a call that wrote nothing removes what has finished.
+uint $finished = Core\Queue::purge("email");
+uint $dead = Core\Queue::purge("email", {state: Core\Queue\State::Dead, limit: 100});
+uint $old = Core\Queue::purge("email", {tag: "import", limit: 50});
+
+// And there is no positional half to it. A member that also took its state
+// beside the queue would be two spellings of one call, which is what R3's
+// single trailing shape exists to prevent.
+uint $beside = Core\Queue::purge("email", Core\Queue\State::Dead);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0453]: an options argument must be written out as `{...}` at the call site
+%A
+error: aborting due to 1 error

@@ -1,0 +1,22 @@
+--TEST--
+`purge` answers how many rows it removed, so a caller's drain loop terminates on that count rather than on a flag — `rule:concurrency/queue-deletion-is-explicit-and-bounded`
+--FILE--
+<?nvs
+// The count is what makes this member usable against the table it was written
+// for: the first purge a deployment runs is against one that has been growing
+// since it was deployed, and `while (purge(…) > 0) {}` is the shape that
+// drains it one bounded statement at a time.
+uint $swept = Core\Queue::purge("email");
+uint $again = Core\Queue::purge("email", {limit: 500});
+
+// And it is that count and nothing narrower. A member answering merely whether
+// it had done anything would leave the correct call and the catastrophic one
+// looking identical at the call site, which is the same reading `limit` being
+// finite with nothing written comes from.
+bool $did = Core\Queue::purge("email");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bool`, found `uint`
+%A
+error: aborting due to 1 error

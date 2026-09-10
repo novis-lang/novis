@@ -1,0 +1,22 @@
+--TEST--
+`purge` names a queue and a filter where `delete` names one job, so the two removal members are told apart by their subject — `rule:concurrency/queue-deletion-is-explicit-and-bounded`, `rule:concurrency/queue-four-members`
+--FILE--
+<?nvs
+// The pair is one subject each: a receipt names the row and the queue it is
+// in, and a queue name with a filter names a population. That is the same
+// division `status` and `stats` already make, and it is why there is no
+// `deleteMany` — the scale is what the filter says, not what the name does.
+var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
+bool $one = Core\Queue::delete($receipt);
+uint $many = Core\Queue::purge("email", {tag: "nightly"});
+
+// So a receipt is not a subject this member has, even though the queue it
+// carries is the name the grant would be matched against: that name arrives
+// here as the argument the program wrote.
+uint $wrong = Core\Queue::purge($receipt);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `Core\Queue\Id`
+%A
+error: aborting due to 1 error
