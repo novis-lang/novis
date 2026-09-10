@@ -1431,6 +1431,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not a suggestion. `python tools/loop.py --list` prints every check with its stage in one call; run
   it before designing anything the goal's prose only describes.
   [until: reviewed 2026-09-10]
+- **A `carried-refusals.md` entry covers fewer panics than the crate it names holds, and its owner
+  sentence can name a retired goal.** `python tools/holes.py --item 901` prints the fifteen sites its
+  recognizer counts, all in `nvs-ir`'s `lower/*.rs`, while that crate's own gaps 5, 15 and 16 name
+  panics in none of them — and the entry named goal `typed-callable`, retired with every site open.
+  Run `holes.py --item <n>` before tagging a module-doc gap `unowned` against an entry, and read its
+  owner sentence as a claim to check.
+  [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]
 
 ## Running things
 
