@@ -206,7 +206,8 @@ pub(crate) enum Encoder {
 /// 0067 keeps them apart for. `nvs_db::Dialect` has already made the same call
 /// for the text.
 ///
-/// **Total, which is known gap 2's binding half closed.** It answered `Option`
+/// **Total, which is [`crate::db`] § *Every driver reaches every member, and
+/// all five are pooled*'s binding half.** It answered `Option`
 /// while SQLite had no encoder and was this crate's roster of the drivers
 /// nothing binds for at all; every driver `nvs-db` has written now binds, so
 /// there is no absent case left to carry. It was never [`crate::queue`]'s

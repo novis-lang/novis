@@ -105,10 +105,10 @@ pub(super) fn row_object(
 /// # Errors
 ///
 /// A `ParseError` carrying every bad column at once — `ParseError` rather than
-/// § 8's `DbError` because this module's known gap 4 is that the latter is not
+/// § 8's `DbError` because this module's known gap 2 is that the latter is not
 /// in spec § 10's tree, and because `issues` is a property only the former
 /// declares. A class carrying no `#[Db\Derive]` is a `LogicError` instead: it
-/// is the program's mistake rather than the row's, and gap 8 owns why it is not
+/// is the program's mistake rather than the row's, and gap 4 owns why it is not
 /// the compile-time diagnostic it should be.
 ///
 /// # Safety

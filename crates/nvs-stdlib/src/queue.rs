@@ -60,7 +60,8 @@
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //! 5. **All four members, the worker and this module's own test legs run on either dialect.**
 //!    Three drivers have a text here — [`runs`] is that roster, and it is the narrow one, because
-//!    [`crate::db`]'s gap 2 sends over all five — and each of those three reaches
+//!    [`crate::db`] § *Every driver reaches every member, and all five are pooled* sends over all
+//!    five — and each of those three reaches
 //!    § 2's schema, § 4's claim and § 6's move as
 //!    [`Split`]s, § 5's three readers as ordinary second spellings, and [`queue_connection`] as
 //!    the seam that borrows the connection as whichever dialect it speaks. §§ 4 and 6's remaining
@@ -76,8 +77,8 @@
 //!    framed drivers**, down to the two constructs nothing else in the roster spells: an `update`
 //!    whose whole answer is the affected count, and `count(case when … then 1 end)` beside the
 //!    `cast(… as signed)` over the `sum` MySQL answers as a `decimal`. What is left of this gap is
-//!    a text after all, and it is this module's to write: [`crate::db`]'s gap 2 has no driver gap
-//!    left, so SQLite and SQL Server each send a statement over `Core\Db` and neither has one of
+//!    a text after all, and it is this module's to write: `Core\Db` has no driver gap left, so
+//!    SQLite and SQL Server each send a statement over it and neither has one of
 //!    these to be sent. SQLite is one dialect away. SQL Server is a dialect *and* the vocabulary
 //!    behind it, because `rule:core-classes/queue-storage-is-a-table` orders the filtered index its
 //!    nulls need before a fourth dialect is written — [`no_dialect`] is where an operator reads

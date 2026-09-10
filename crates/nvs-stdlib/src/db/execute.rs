@@ -1177,7 +1177,7 @@ nvs_runtime::nvs_helper! {
         // Refused before the statement goes out, because it cannot mean
         // anything downstream: `Core\Json::decodeAs`'s list form is a document
         // that *is* a JSON array, and a result set is already one row per row.
-        // A compile-time home would be better and gap 8 says why there is none.
+        // A compile-time home would be better and gap 4 says what it waits on.
         if list {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,

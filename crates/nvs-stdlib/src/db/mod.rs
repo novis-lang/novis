@@ -2,10 +2,11 @@
 //! § 18's entry points, over [`nvs_db`]'s wire half.
 //!
 //! `rule:core-classes/db-one-api` is authoritative for every
-//! semantic and § 18 for every signature. What belongs here is the two
-//! decisions this side of the boundary owns: what an `InList` *is* once it is a
-//! value a program holds, and what `quoteIdentifier` can honestly promise from
-//! a class that has no connection in front of it.
+//! semantic and § 18 for every signature. What belongs here is what this side
+//! of the boundary decides for itself: what an `InList` *is* once it is a value
+//! a program holds, what `quoteIdentifier` can honestly promise from a class
+//! that has no connection in front of it, what bounds a statement's `timeout`,
+//! and which of § 18's options this module declines to declare.
 //!
 //! # `inList` is a carrier, and the expansion stays on the wire
 //!
@@ -61,6 +62,12 @@
 //! member stays "one identifier in, one identifier out" and cannot be handed
 //! something whose halves it did not each check.
 //!
+//! **A delimiting quoter belongs on `Connection` if one is ever wanted**, and
+//! not on this class, because a connection is the only place a dialect exists.
+//! § 18 asks for no such member, and the refusal above is why one here could
+//! not be the answer either: `Core\Db` would have to guess the delimiter, and
+//! a wrong one parses as something else.
+//!
 //! # A statement's `timeout` is a deadline on the socket
 //!
 //! `rule:core-classes/db-statement-members` gives `query`, `queryAs`,
@@ -113,6 +120,95 @@
 //! `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` is the neighbour that is neither of these: it
 //! *reports* a statement that took too long and never stops one.
 //!
+//! # `stream` declares no `chunk`, and the portal is why
+//!
+//! **That is a refusal rather than an unlanded option.** § 4's other option is
+//! in the spec signature and deliberately in neither of that member's registry
+//! rows, because there is no read for a size to reach. `nvs_db`'s `open_portal`
+//! writes its `Execute` with a row count of **`0` — every row** — and the walk
+//! then reads one `DataRow` off the wire per `advance()`, which is why that
+//! driver never has to answer a `PortalSuspended` at all. So a streamed result
+//! set already crosses on one round trip while the client holds a single row:
+//! § 4's constant memory at the best case the protocol has.
+//!
+//! A chunk size could only turn that one `Execute` into one per chunk, each
+//! resuming a suspended portal — **latency spent (AGENTS.md's priority 3) to
+//! buy nothing**, since the memory the option exists to bound is already one
+//! row. An option that parsed and did nothing would be worse than its absence,
+//! which the compiler can at least report. What would reopen this is a driver
+//! whose protocol delivers a result set eagerly rather than as a readable
+//! stream, and none of the five is one. Its sibling `{timeout?: Duration}` is
+//! no longer here — the section above is where that landed and what it decided.
+//!
+//! # Every driver reaches every member, and all five are pooled
+//!
+//! **Five drivers open, and everything past the handshake follows on every one
+//! of them.** `connect` branches on the block's `driver` —
+//! `rule:core-classes/db-connection-is-named` — so a `postgres` block, a
+//! `mysql` block, a `mariadb` block and an `mssql` one each reach their own
+//! target, their own default port and their own `nvs_db::Connection` variant,
+//! and `open` branches the same ways on the settings hash's own `driver`. A
+//! block naming `sqlite` reaches `nvs_db::sqlite::open` off its own arm of
+//! § 2's discriminated union, which has a file where the other four have an
+//! address: `connect` resolves no host for it and `open` asks `fs.read` and
+//! `fs.write` of the path instead of
+//! `rule:http-server/allow-url-pins-the-address`'s address table.
+//!
+//! Past the handshake the list is shorter than that. Binding is whole:
+//! [`rendering_of`] pairs § 5's dialect with § 9's encoder off the connection's
+//! own [`nvs_db::Driver`], so a MySQL statement is rewritten to `?` and bound
+//! as MySQL reads a parameter. Sending is not: [`queried_rows`] branches on the
+//! connection and [`mysql_rows`] drains a binary result set through § 9's
+//! decode, so `query`, `queryAs`, `execute` and `executeMany` answer on either
+//! driver, § 11's event included. § 7's `transaction` does too, over
+//! [`Transacting`] — the drivers' commands differ and `nvs_db::mysql`'s `begin`
+//! owns how, but the five points this module asks them at do not. MySQL and
+//! MariaDB reach all of it through one body rather than two: [`Framed`] is that
+//! seam, and its doc is where "its own driver above the framing, not inside
+//! it" is argued.
+//!
+//! **SQL Server reaches every member the other three do**:
+//! `nvs_db::TdsConn::connect` is reached from both openers, [`rendering_for`]
+//! binds a parameter through `nvs_db::tds::encode`, and the one `sp_prepexec`
+//! behind `nvs_db::TdsConn::query` answers every member built on it —
+//! [`tds_rows`] drains the token stream for `query` and `queryAs`,
+//! [`tds_write`] drains it for `execute`'s count, and
+//! `nvs_db::tds::execute_many` runs § 4's batch as that same send once per
+//! parameter set — one `sp_prepexec`, an `sp_execute` after it. § 7 is
+//! [`Transacting`]'s fourth arm over `nvs_db::tds`'s own commands, T-SQL
+//! spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
+//! commit to send and no read-only transaction to offer at all. What
+//! [`crate::queue`]'s four members run on is narrower than this section and is
+//! that module's gap 5: `nvs_stdlib::queue::runs` is the roster, and a driver
+//! missing from it is missing a text rather than a send path.
+//!
+//! **SQLite reaches every member the other four do**: [`rendering_for`] binds a
+//! parameter through `nvs_db::sqlite::encode` as a storage class rather than as
+//! octets ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
+//! `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute` and
+//! `executeMany` over it. § 7 is [`Transacting`]'s fifth arm, over
+//! `nvs_db::sqlite`'s own `begin`, `commit` and `roll_back` — commands sent by
+//! a call on the blocking pool rather than over a wire, accepting every
+//! isolation level because this backend is always serializable and refusing
+//! `readOnly` because it has no read-only transaction to open. **So there is no
+//! driver gap left, and [`transacting`] is total**: every `nvs_db::Connection`
+//! variant has an arm, which is why the refusal that used to name a roster of
+//! drivers is gone rather than left with an empty list to render. **§ 9's
+//! declared-type map runs on this driver like it does on the other four**, in
+//! [`sqlite_column_value`] — a cell in a column the schema declared `date`,
+//! `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
+//! declaration does not describe throws — so nothing downstream of a row learns
+//! that SQLite has five storage classes and no date.
+//!
+//! **Every driver has a reset behind it, and all five are pooled.**
+//! `rule:security/db-pool-reset-is-a-boundary`'s pool is on disk as
+//! [`nvs_runtime::pool`], a connection is *released* to it at teardown under
+//! the ticket `Core\Db::connect` files, and [`warm_connection`] takes one back
+//! out behind that section's reset. The five resets are not one reset and § 13
+//! says so per backend; SQLite's is the shortest of them, a file handle having
+//! no session state to leak, and a rollback of whatever transaction is open is
+//! the whole of it.
+//!
 //! # Known gaps
 //!
 //! 1. **An `open` describing an endpoint no block describes still takes the
@@ -138,71 +234,13 @@
 //!    [`settings_driver`] is therefore a literal one arm has already accepted,
 //!    which is why it reads the discriminant before it reads anything else and
 //!    why every slot it then reads is filled.
-//! 2. **Five drivers open, and everything past the handshake follows on every
-//!    one of them.**
-//!    `connect`
-//!    branches on the block's `driver` — `rule:core-classes/db-connection-is-named` — so a `postgres` block,
-//!    a `mysql` block, a `mariadb` block and an `mssql` one each reach their own
-//!    target, their own default port and their own `nvs_db::Connection`
-//!    variant, and `open` branches the same ways on the settings hash's own
-//!    `driver`. A block naming `sqlite` reaches
-//!    `nvs_db::sqlite::open` off its own arm of § 2's discriminated union,
-//!    which has a file where the other four have an address: `connect` resolves
-//!    no host for it and `open` asks `fs.read` and `fs.write` of the path
-//!    instead of `rule:http-server/allow-url-pins-the-address`'s address table. Past the handshake the
-//!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
-//!    dialect with § 9's encoder off the connection's own [`nvs_db::Driver`],
-//!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a
-//!    parameter. Sending is not: [`queried_rows`] branches on the connection
-//!    and [`mysql_rows`] drains a binary result set through § 9's decode, so
-//!    `query`, `queryAs`, `execute` and `executeMany` answer on either driver,
-//!    § 11's event included. § 7's `transaction` does too, over [`Transacting`]
-//!    — the drivers' commands differ and `nvs_db::mysql`'s `begin` owns how,
-//!    but the five points this module asks them at do not. MySQL and MariaDB
-//!    reach all of it through one body rather than two: [`Framed`] is that
-//!    seam, and its doc is where "its own driver above the framing, not inside
-//!    it" is argued. **SQL Server reaches every member the other three do**:
-//!    `nvs_db::TdsConn::connect` is reached from both openers,
-//!    [`rendering_for`] binds a parameter through `nvs_db::tds::encode`, and the
-//!    one `sp_prepexec` behind `nvs_db::TdsConn::query` answers every
-//!    member built on it — [`tds_rows`] drains the token stream for `query` and
-//!    `queryAs`, [`tds_write`] drains it for `execute`'s count, and
-//!    `nvs_db::tds::execute_many` runs § 4's batch as that same send once per
-//!    parameter set — one `sp_prepexec`, an `sp_execute` after it. § 7 is
-//!    [`Transacting`]'s fourth arm over `nvs_db::tds`'s own commands, T-SQL
-//!    spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
-//!    commit to send and no read-only transaction to offer at all. What
-//!    [`crate::queue`]'s four members run on is narrower than this list and is
-//!    that module's gap 5, not one of these: `nvs_stdlib::queue::runs` is the
-//!    roster, and a driver missing from it is missing a text rather than a send
-//!    path. **SQLite reaches
-//!    every member the other four do**: [`rendering_for`] binds a parameter
-//!    through `nvs_db::sqlite::encode` as a storage class rather than as octets
-//!    ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
-//!    `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute`
-//!    and `executeMany` over it. § 7 is [`Transacting`]'s fifth arm, over
-//!    `nvs_db::sqlite`'s own `begin`, `commit` and `roll_back` — commands sent
-//!    by a call on the blocking pool rather than over a wire, accepting every
-//!    isolation level because this backend is always serializable and refusing
-//!    `readOnly` because it has no read-only transaction to open. **So this
-//!    list has no driver gap left, and [`transacting`] is total**: every
-//!    `nvs_db::Connection` variant has an arm, which is why the refusal that
-//!    used to name a roster of drivers is gone rather than left with an empty
-//!    list to render. **§ 9's declared-type map
-//!    runs on this driver like it does on the other four**, in
-//!    [`sqlite_column_value`] — a cell in a column the schema declared `date`,
-//!    `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
-//!    declaration does not describe throws — so nothing downstream of a row
-//!    learns that SQLite has five storage classes and no date.
-//! 3. **Every driver has a reset behind it, and all five are pooled.** `rule:security/db-pool-reset-is-a-boundary`
-//!    's pool is
-//!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
-//!    teardown under the ticket `Core\Db::connect` files, and
-//!    [`warm_connection`] takes one back out behind that section's reset. The
-//!    five resets are not one reset and § 13 says so per backend; SQLite's is
-//!    the shortest of them, a file handle having no session state to leak, and
-//!    a rollback of whatever transaction is open is the whole of it.
-//! 4. **`Db\DbError` declares all five of § 18's values.**
+//!    — owner: unowned
+//! 2. **`Db\DbError` is not in spec § 10's error tree, so it declares no
+//!    `issues`.** A per-column refusal is thrown as a `ParseError` naming the
+//!    columns instead, because that is the class the property is declared on,
+//!    and what has to be decided is whether `DbError` joins the tree — § 10
+//!    giving it that property too — or the split stands. What the class *does*
+//!    declare is all five of § 18's values.
 //!    A refusal the server itself made is thrown as
 //!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
 //!    can name the database instead of `RuntimeError` — which it still is,
@@ -222,8 +260,9 @@
 //!    only code. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
-//! 5. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
-//!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 8 is what
+//!    — owner: unowned
+//! 3. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
+//!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 4 is what
 //!    `queryAs` still owes). **`stream` lands on PostgreSQL alone**, and that is
 //!    the wire half rather than this one: § 4's read needs the portal left open
 //!    with the read state parked off the borrow — `nvs_db::PgCursor` — and the
@@ -248,28 +287,8 @@
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
-//! 6. **`stream` declares no `{chunk?: uint}`, and that is a refusal rather
-//!    than an unlanded option.** § 4's other option is in the spec signature and
-//!    deliberately in neither of that member's registry rows, because there is
-//!    no read for a size to reach. `nvs_db`'s `open_portal` writes its `Execute`
-//!    with a row count of **`0` — every row** — and the walk then reads one
-//!    `DataRow` off the wire per `advance()`, which is why that driver never has
-//!    to answer a `PortalSuspended` at all. So a streamed result set already
-//!    crosses on one round trip while the client holds a single row: § 4's
-//!    constant memory at the best case the protocol has. A chunk size could only
-//!    turn that one `Execute` into one per chunk, each resuming a suspended
-//!    portal — **latency spent (AGENTS.md's priority 3) to buy nothing**, since
-//!    the memory the option exists to bound is already one row. An option that
-//!    parsed and did nothing would be worse than its absence, which the compiler
-//!    can at least report. What would reopen it is a driver whose protocol
-//!    delivers a result set eagerly rather than as a readable stream, and none
-//!    of the five is one. Its sibling `{timeout?: Duration}` is no longer here —
-//!    the section above is where that landed and what it decided.
-//! 7. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
-//!    and not here — that is the only place a dialect exists. § 18 does not ask
-//!    for one, and this module's second decision above is why adding it to
-//!    `Core\Db` cannot be the answer.
-//! 8. **`queryAs<T>` hydrates, and three of its refusals are at run time that
+//!    — owner: gap-zero
+//! 4. **`queryAs<T>` hydrates, and three of its refusals are at run time that
 //!    should be at compile time.** [`hydrate`] is the walk over
 //!    [`nvs_runtime::ClassDesc::db_codec`] and it lands; what is owed is where
 //!    the *no* is said. A `T` carrying no `#[Db\Derive]` codec and a
@@ -277,13 +296,15 @@
 //!    properties of the call site alone, and a field whose declared type the
 //!    derive pass erased to [`nvs_runtime::CodecTy::Opaque`] — a `decimal`, a
 //!    `bytes`, an inline shape — is a property of the class alone; all three
-//!    are refused per row instead. Both bands the checker would take a code
-//!    from (`E04xx`, `E07xx`) are full, so they are the helper's until a band
-//!    is opened. Two smaller ones ride with them: a constructor parameter no
+//!    are refused per row instead. The band that blocked them is open — goal
+//!    `carried-gaps` opened `E08xx` once `E04xx` and `E07xx` had both filled —
+//!    so what is left is the checking pass and not a code to spend on it. Two
+//!    smaller ones ride with them: a constructor parameter no
 //!    codec field fills is a fatal rather than `rule:core-classes/derive-field-list`'s default, for
 //!    `crate::json`'s reason, and the refusals carry § 5's `issues` on a
 //!    `ParseError` because `Db\DbError` has no `issues` slot to carry them —
-//!    gap 4's other half, spec § 10 giving it that property too.
+//!    gap 2's other half.
+//!    — owner: gap-zero
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 

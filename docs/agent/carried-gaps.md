@@ -47,11 +47,10 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 |---|---|---|
 | `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | `carried-gaps` | `crates/nvs-types/src/intrinsics.rs` gap 6 |
 | A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | `carried-gaps` | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
-| `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
-| `{timeout?: Duration}` is in both spec signatures and in neither registry row | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
+| `Core\Db::stream` on four drivers, `streamAs` whole, § 18's `serverVersion` | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 3 |
 | `scope = "fleet"` parses, boots and is not armed | `carried-gaps` | `crates/nvs-server/src/schedule.rs` § *What is not armed*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `carried-gaps` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
-| `queryAs<T>`'s three refusals are at run time — same blocker, same band | `carried-gaps` | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
+| `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `carried-gaps` | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | `test-request` | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `rule:testing/in-process-request` states two response readings rather than `Core\Test`'s signature, and spec § 13's `Core\Test` row is one English cell | `test-request` | `docs/rules/testing/in-process-request.md`, `docs/spec/01-core-library.md:999` |
@@ -70,7 +69,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Twenty-two entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Twenty-four entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -226,7 +225,9 @@ where taking it is the work and the code that follows it is not.
   which of two module docs is right about an unterminated string literal in a query. The sixth is
   not this pass's: its host check fires for nobody because `nvs check` reads no `nvs.toml`, and
   whether that command reads configuration — and so can be failed by a broken one — is a decision
-  about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags.
+  about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags, and
+  `crates/nvs-stdlib/src/time.rs` is the same question one layer down: `format` and `parse` compile
+  their pattern per call and can prepare nothing until that channel exists.
   [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
 - **The third of `rule:core-classes/derive-attribute`'s rule that lives at run time, and whether it
   moves.** `nvs-types`' derive pass checks a `#[Json\Derive]`/`#[Db\Derive]` class whole and asks the
@@ -276,6 +277,26 @@ where taking it is the work and the code that follows it is not.
   rule half-true for however long the others wait.
   `crates/nvs-types/src/error_lib.rs` § *Known gaps* carries the tag.
   [until: gone crates/nvs-types/src/error_lib.rs:owner: unowned]
+- **Bounds for a pool no `[db]` block describes.** `[db.<name>.pool]` reaches every connection whose
+  settings hash is that block's, and the unscoped `[db] pool = false` reaches every connection the
+  process opens, but a literal naming an endpoint an operator wrote no block for — or naming a hashed
+  field the block left implicit, a written `port` where the block took the server's default — is a
+  second settings key and so a second pool, at `PoolBounds::DEFAULT`. What has to be decided is where
+  bounds for a key only the *program* knows would be written: an option on `open`, a block that
+  matches a pattern rather than a name, or nowhere, on the grounds that a deployment wanting its own
+  bounds writes its own block. It is `rule:security/db-pool-reset-is-a-boundary`'s call rather than a
+  shape `nvs-stdlib` may pick, and goals `database` and `schema` are retired with M8's database half
+  carried, so nothing claims it. `crates/nvs-stdlib/src/db/mod.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/db/mod.rs:naming an endpoint an operator wrote no block for]
+- **`Db\DbError` is outside spec § 10's error tree, so a database refusal carries no `issues`.** The
+  class declares all five of § 18's values and `RuntimeError` is its parent, but `issues` is declared
+  by `ParseError` alone, so `queryAs`'s per-column refusals are thrown as a `ParseError` naming the
+  columns rather than as the class § 8 gives the database. What has to be decided is whether `DbError`
+  joins that tree — § 10 giving it the property, which is a spec change and a registry one — or the
+  split stands and a row that does not fit its class is a parse failure by design. Neither goal that
+  would have taken it is live: `database` and `schema` are retired with M8's database half carried.
+  `crates/nvs-stdlib/src/db/mod.rs` gap 2.
+  [until: gone crates/nvs-stdlib/src/db/mod.rs:spec § 10's error tree]
 
 ## What is *not* on either list
 
@@ -292,8 +313,9 @@ session deciding again:
   positions that happen to sit under a `# Known gaps` heading. Goal `gap-owners` moves them out of the block, so
   the roster counts what is owed.
 
-**The list this file indexes is not the whole inventory.** There are 50 `# Known gaps` blocks across the
-crates holding 152 enumerated items; this file names the ones whose ownership needed an argument, and
+**The list this file indexes is not the whole inventory.** Every crate's own `# Known gaps` block holds
+enumerated items — `python tools/owners.py` counts them and prints who owns each — and this file names
+the ones whose ownership needed an argument, while
 [carried-refusals.md](carried-refusals.md) 901 covers `nvs-ir`'s. The rest were unindexed until goal `gap-owners`,
 which puts the owner in the module doc beside the gap and derives the roster rather than copying it —
 this file's own contract, applied one level down.

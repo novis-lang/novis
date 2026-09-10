@@ -30,10 +30,10 @@ keystone; taking them apart buys a second orientation for nothing.
 - [ ] **`python tools/playbook.py --check`** — it prints the thirteen § *Owned* rows whose owner
       retired without closing them (`docs/agent/carried-gaps.md:48-59`, `:69`). Strike the **owner**,
       not the entry: that file's own contract says an entry leaves exactly one way.
-- [ ] **Settle the one row the tree already closed** — `carried-gaps.md:51` carries
-      `{timeout?: Duration}` as open; `crates/nvs-stdlib/src/db/mod.rs` gap 6 says it landed and names
-      where. The module doc is the home. Do this one with the reasoning written down; stage 3 repeats
-      the shape a dozen times and this is what makes the rest cheap.
+- [ ] **Apply the rule the struck row taught** — goal `gap-owners` struck the `{timeout?: Duration}`
+      row once the module doc it pointed at said the option had landed. When the register and a module
+      doc disagree the module doc is the home, and a closed row leaves the file rather than being
+      re-pointed. Stage 3 repeats that shape a dozen times.
 - [ ] **Widen `owners.py` to read every register** — five survive stage 7: the module-doc gap items,
       `carried-refusals.md`, the four `crates/nvs-stdlib/tests/*-outstanding.txt` ratchets,
       `guard-name-debt.md`, and the playbook's `[until:]` bullets. One roster, one exit code. The

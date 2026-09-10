@@ -213,12 +213,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`query`, `execute`, `executeMany` and `transaction` are
 /// `Core\Db\Queryable`'s landed members, `queryAs` is declared with its body
-/// owed (this module's gap 8), and `stream` and `streamAs` are owed whole.**
+/// owed (this module's gap 4), and `stream` and `streamAs` are owed whole.**
 /// Beyond the interface, § 18's own three rows land here: `close`, `driver`
 /// and `isOpen`, the second and third of which are the two readonly properties
 /// a connection can answer without a round trip. `serverVersion` is the third
 /// and is owed, because no driver keeps the server's own version string —
-/// this module's gap 5 is the inventory.
+/// this module's gap 3 is the inventory.
 ///
 /// **`close` is the only one of these on this class alone.** A
 /// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing
@@ -240,7 +240,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`chunk` is deliberately not here.** `stream`'s second option in § 18 has to
 /// reach the `Execute` that asks for a row count, and this driver's walk asks for
-/// one row; [`crate::db`]'s gap 6 is where that stays recorded.
+/// one row; [`crate::db`] § *`stream` declares no `chunk`, and the portal is
+/// why* is where that stays recorded.
 const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "timeout",
     ty: CoreTy::Instance(crate::time::DURATION_NAME),
@@ -351,8 +352,9 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // here at its `timeout` alone: on this member the deadline stays
             // filed while the portal is open, so it bounds every `advance()` up
             // to the last row rather than the call that opens the walk.
-            // [`crate::db`]'s gap 6 keeps `chunk` — a size that reached no read
-            // would be an option that parsed and did nothing.
+            // [`crate::db`] § *`stream` declares no `chunk`, and the portal is
+            // why* keeps that decision — a size that reached no read would be
+            // an option that parsed and did nothing.
             params: &[
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Array(&CoreTy::Mixed),

@@ -49,13 +49,11 @@ the dossier's generated proof entries are the one exception, named rather than i
    own contract says to **strike the owner, not the entry**, and `python tools/playbook.py --check`
    already prints all thirteen. Strike them first, so stage 3 derives against a file in the state its
    contract describes rather than one already failing its own check.
-2. **At least one row was closed by the tree and never struck.** `carried-gaps.md:51` carries
-   `{timeout?: Duration}` as "in both spec signatures and in neither registry row"; the module doc it
-   points at says the opposite — `crates/nvs-stdlib/src/db/mod.rs` gap 6 ends *"Its sibling
-   `{timeout?: Duration}` is no longer here — the section above is where that landed and what it
-   decided."* One of the two is wrong, the module doc is the home, and settling it is this item. It is
-   here rather than in stage 3 because it is the shape stage 3 repeats a dozen times, and doing it once
-   with the reasoning written down is what makes the rest cheap.
+2. **A row the tree already closed is struck, not re-pointed**, and the `{timeout?: Duration}` row is
+   the worked example: the register carried it as "in neither registry row" while the module doc it
+   pointed at said the option had landed and named the section that decided it, so goal `gap-owners`
+   struck the row. The module doc is the home and the register is the copy. That is the rule this
+   stage exists to fix the file with, and stage 3 applies it a dozen times.
 
 ## Stage 1 — the floor
 
@@ -114,7 +112,7 @@ this stage exists rather than a list being worked down.
    |---|---|
    | `nvs check` builds no grants, so the host diagnostic fires for nobody | `crates/nvs-types/src/intrinsics.rs` gap 6 |
    | A cycle closed only through an `array<T>` survives the teardown sweep | `crates/nvs-runtime/src/object.rs` § *The five walks* |
-   | `queryAs<T>`'s three refusals are at run time, not compile time | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
+   | `queryAs<T>`'s three refusals are at run time, not compile time | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
    | `scope = "fleet"` parses, boots and is not armed | `crates/nvs-server/src/schedule.rs` § *What is not armed* |
    | `rule:core-classes/html-to-source`'s computed `$reason` is not refused | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
    | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |

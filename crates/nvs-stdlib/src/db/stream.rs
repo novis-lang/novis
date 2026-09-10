@@ -222,7 +222,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
     /// closed connection, a thrown `RuntimeError` for a driver with no parked
-    /// cursor yet — [`crate::db`]'s known gap 5 — and [`statement_failure`] for
+    /// cursor yet — [`crate::db`]'s known gap 3 — and [`statement_failure`] for
     /// anything the server refused, which for a connection that is already
     /// streaming is § 4's `LogicError`.
     fn nvs_core_db_connection_stream(ctx, args: [4]) {
