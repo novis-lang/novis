@@ -65,8 +65,15 @@
 //!   format — [ADR 0164](/docs/decisions/0164.md).
 //! * **An integer literal too large for `int` throws**, rather than
 //!   degrading to `float`: silent precision loss on a wire format is the bug
-//!   `JSON_BIGINT_AS_STRING` exists to work around. Gap 1 below owns how far
-//!   that reaches.
+//!   `JSON_BIGINT_AS_STRING` exists to work around. The refusal reaches
+//!   `i64::MAX`..=`u64::MAX` and no further: `serde_json` has already widened a
+//!   longer literal to `f64` by the time [`Decode::visit_f64`] sees it, and the
+//!   two are indistinguishable there, since the raw token is not in the
+//!   visitor's hands. Reaching past that band means either the
+//!   `arbitrary_precision` feature, which routes *every* number through a
+//!   private map token and is a workspace-wide switch, or a `RawValue`
+//!   pre-pass — neither worth a whole document's re-scan for a band that starts
+//!   at 1.8e19.
 //! * **A non-finite `float` refuses to encode.** JSON has no `NaN` and no
 //!   `Infinity`; PHP's `json_encode` fails too, but only if
 //!   `JSON_PARTIAL_OUTPUT_ON_ERROR` was not passed, and there is no such flag
@@ -95,38 +102,46 @@
 //! rather than deferred to a default nothing can materialize —
 //! [`decode_field`]'s own doc comment owns which and why.
 //!
+//! # An issue's `path` is the wire key, under every nesting that encloses it
+//!
+//! A `decodeAs<array<C>>` reports `2.name`, a nested class's field
+//! `address.city` and a list field's bad element `tags.3` — § 5's own spelling,
+//! and `rule:core-classes/derive-reports-every-field`'s dotted path, built by
+//! [`path_of`] out of a prefix each nesting extends by one segment.
+//! [`decode_nested`] runs the nested class's own field list under an `address.`
+//! prefix and its issues join the enclosing object's rather than throwing where
+//! they were found; [`decode_list`] does the same under `tags.3.`. An enum
+//! costs no nesting at all: a case is its backing integer, so [`scalar`]
+//! answers it as a membership test against the roster
+//! [`nvs_runtime::CodecField::cases`] carries.
+//!
+//! # `isValid` decodes and discards
+//!
+//! It answers exactly what [`nvs_core_json_decode`] would accept, which is the
+//! property that matters, and it allocates the document to do it. A second
+//! `()`-producing visitor would avoid that, and it is a duplicate of [`Decode`]
+//! with every body replaced by `Ok(())` — a second walk to keep in step with
+//! the first, against a cost nothing has measured.
+//!
 //! # Known gaps
 //!
-//! 1. **The integer-overflow refusal covers `i64::MAX`..=`u64::MAX` only.**
-//!    `serde_json` has already widened a longer integer literal to `f64` by
-//!    the time [`Decode::visit_f64`] sees it, and the two are indistinguishable
-//!    there — the raw token is not in the visitor's hands. Closing it means
-//!    either the `arbitrary_precision` feature, which routes *every* number
-//!    through a private map token and is a workspace-wide switch, or a
-//!    `RawValue` pre-pass. Neither is worth a whole document's re-scan for a
-//!    band that starts at 1.8e19.
-//! 2. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
+//! 1. **A derived field's type roster is narrower than `rule:core-classes/derive-field-list`'s.**
 //!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
 //!    a `string`, a `mixed`, an enum, another derived class, an `array<T>` of
 //!    any of those, and a `?T` of any of them — the whole of
 //!    [`nvs_runtime::CodecTy`] but its last variant. A `decimal`, an
 //!    `Instant`, an inline shape reached as a *field*, and an `array<T>` of one
-//!    of those are all codec-reachable by that ADR and all land on
+//!    of those are all codec-reachable by that rule and all land on
 //!    `CodecTy::Opaque`, which
 //!    [`decode_as`] refuses **before reading the document** for the class it
 //!    was handed, and [`decode_field`] refuses on reaching it inside a nested
 //!    one. Encoding is unaffected: [`Encodable`] walks the value rather than
 //!    the declared type, so a field this cannot decode still round-trips out.
-//!
-//!    A nested class came off this list first, and it is what makes § 5's
-//!    issue paths dotted: [`decode_nested`] runs the nested class's own field
-//!    list under a `address.` prefix, and its issues join the enclosing
-//!    object's rather than throwing where they were found. [`decode_list`]
-//!    came off it second, under `tags.3.` — the § 5 example's own spelling.
-//!    An enum came off it third and cost no nesting at all: a case is its
-//!    backing integer, so [`scalar`] answers it as a membership test against
-//!    the roster [`nvs_runtime::CodecField::cases`] carries.
-//! 3. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
+//!    What has to be decided is what each of those types *is* on the wire
+//!    before either end can carry it, and `crate::db`'s gap 4 is the same knot
+//!    at the other door.
+//!    — owner: unowned
+//! 2. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key fails whether
 //!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
@@ -136,39 +151,44 @@
 //!    apart and only the filling is owed. `nvs_types::defaults` evaluates a
 //!    default into a constant the *call site* emits, and a native decoder is
 //!    not a call site — closing this means carrying the constant onto
-//!    `nvs_runtime::CodecField` beside that bit. A **shape** is not in this
+//!    `nvs_runtime::CodecField` beside that bit, or emitting the decoder as
+//!    code, which is gap 4's question. A **shape** is not in this
 //!    gap and never will be: it declares no constructor, so there is no default
 //!    to be missing, and [`decode_field`] answers an absent optional key with
 //!    the never-written marker instead.
-//! 4. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
+//!    — owner: unowned
+//! 3. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
 //!    encoder and no attribute still refuses. Closing it is a
-//!    `ClassDesc::method("toJson")` lookup and a call back into compiled code.
-//! 5. **Both halves walk a per-class field list rather than straight-line
+//!    `ClassDesc::method("toJson")` lookup and a call back into compiled code
+//!    from the native walk, or it is nothing to write at all once that walk is
+//!    the emitted code gap 4 asks about.
+//!    — owner: unowned
+//! 4. **Both halves walk a per-class field list rather than straight-line
 //!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
-//!    O(derived classes) in the artifact.
-//! 6. **An issue's `path` is a field's own wire key, under every nesting that
-//!    encloses it.** A `decodeAs<array<C>>` reports `2.name`, a nested class's
-//!    field `address.city` and a list field's bad element `tags.3` — `rule:core-classes/derive-reports-every-field`'s dotted path, built by [`path_of`] out of a prefix each nesting
-//!    extends by one segment.
-//! 7. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
+//!    O(derived classes) in the artifact. What has to be decided is which of
+//!    the two the machinery stays, and gaps 2 and 3 wait on that one answer:
+//!    a parameter default's constant and a `toJson` lookup are both cheap in
+//!    emitted code and both a widening of the descriptor otherwise.
+//!    — owner: unowned
+//! 5. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
 //!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
 //!    nested deeply enough runs the thread's stack out well before the ceiling
 //!    is reached — an abort, not a throw. What the refusal above took away is
 //!    the half of that a program reaches by accident: a value holding itself
 //!    ends at its first repeat instead of descending until something stops it.
-//!    What is left is a document that is legal and merely very deep, and
-//!    closing it means either an explicit stack in the walk or a cap read from
-//!    the space the platform actually has.
-//! 8. **`isValid` decodes and discards.** It answers exactly what [`nvs_core_json_decode`]
-//!    would accept, which is the property that matters, but it allocates the
-//!    document to do it. A second `()`-producing visitor would avoid that; it
-//!    is a duplicate of [`Decode`] with every body replaced by `Ok(())`, and
-//!    not worth carrying until something measures it.
+//!    What is left is a document that is legal and merely very deep, and what
+//!    has to be decided is whether the walk carries an explicit stack — which
+//!    makes the bound an allocation the request is charged for — or the ceiling
+//!    is read from the space
+//!    `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
+//!    Goal `resource-ceilings` names the stack ceiling out of its own scope, so
+//!    it is not that goal's.
+//!    — owner: unowned
 
 use std::fmt;
 
