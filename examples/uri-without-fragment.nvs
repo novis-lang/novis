@@ -1,0 +1,47 @@
+<?nvs
+// `rule:core-api/omission-is-not-a-written-null`, spelled at the first member
+// to spend it: a `with` bag's two ways of not giving a component a value are
+// two different requests. Leaving the key out means *leave it alone*; writing
+// `null` means *remove it*.
+//
+// `rule:core-classes/uri-removable-components` is why exactly three components
+// take the second half — `port`, `query` and `fragment` — and why the other
+// three do not: an empty path is `""` and every reference has one, clearing a
+// host would silently clear the port and user-info nobody mentioned, and
+// dropping a scheme turns an absolute URI into a relative reference, which is a
+// member's worth of behaviour rather than a field's.
+
+Core\Uri $link = Core\Uri::parse("https://example.test:8443/docs/guide?page=2#install");
+
+// 1. An omitted key leaves the component alone. The fragment survives a call
+// that never mentions it, which is the half that was already true before the
+// distinction existed — and the half that made the other one unsayable.
+Core\Uri $moved = $link->with({path: "/docs/reference"});
+echo "omitted:  ", $moved->toString(), "\n";
+
+// 2. A written `null` removes. This is the same bag, one key different, and
+// nothing about the call says "clear" except the value itself: there is no
+// second parameter, no `""`-means-remove rule, and no magic string
+// (`rule:core-api/a-written-null-removes`).
+Core\Uri $anchorless = $link->with({fragment: null});
+echo "removed:  ", $anchorless->toString(), "\n";
+
+// 3. And the component is gone rather than emptied. A `#` with nothing after it
+// is a URI *with* an empty fragment, which is a different reference from one
+// with none — so the reader answers `null` and the recomposed text carries no
+// `#` at all.
+if ($anchorless->fragment() == null) {
+    echo "fragment:  none at all, and not an empty one\n";
+}
+
+// 4. All three removable components at once, each by the same rule. The port
+// and the query go the way the fragment did; the path is replaced rather than
+// removed, because a reference always has one.
+Core\Uri $bare = $link->with({port: null, query: null, fragment: null, path: "/"});
+echo "bare:     ", $bare->toString(), "\n";
+
+// 5. The other direction, on the same bag: a written value replaces, so
+// removal is not a second spelling of "set it to something falsy". An empty
+// query is a query, and stays distinct from an absent one.
+Core\Uri $empty = $link->with({query: ""});
+echo "empty:    ", $empty->toString(), "\n";
