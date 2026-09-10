@@ -418,11 +418,12 @@ const READ_TEXT_OPTIONS: &[CoreOption] = &[CoreOption {
 /// because a whole-buffer write is a path the program itself chose.
 ///
 /// **`max` defaults to no ceiling at all**, unlike every other bound in this
-/// class, because there is nothing behind it: [`nvs_core_io_read`]'s doc argues
-/// that the request's memory limit already bounds a buffer, and a file on disk
-/// is charged to no such limit. So a caller who means a limit is the only one
-/// who can say what it is, and one who says nothing has said unbounded rather
-/// than inherited a number.
+/// class, because what is behind it bounds the other direction:
+/// [`nvs_core_io_read`]'s doc holds a *read* to `[limits] max_output`, and this
+/// member writes a stream a client is sending rather than filling a buffer the
+/// request will hold. So a caller who means a limit is the only one who can say
+/// what it is, and one who says nothing has said unbounded rather than
+/// inherited a number.
 ///
 /// **`Core\Request\Part::saveTo` is this same bag**, by naming this constant
 /// rather than declaring a second one beside it: `rule:core-classes/io-write-stream` makes that member
@@ -456,7 +457,9 @@ const READ_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "RuntimeError",
             desc: "The configuration does not grant `fs.read` for this path; the message names \
-                   the capability in the spelling `nvs.toml` grants it under.",
+                   the capability in the spelling `nvs.toml` grants it under. Or the file is \
+                   larger than `[limits] max_output`, the one ceiling a request holds a single \
+                   read to — the same directive that bounds a captured child's output.",
         },
         ErrorDoc {
             error: "IOError",
@@ -1962,10 +1965,13 @@ nvs_runtime::nvs_helper! {
     /// `Core\IO::read(string $path): string` — replacing
     /// `file_get_contents`.
     ///
-    /// The whole file into one buffer, with no size ceiling of its own: what
-    /// bounds it is the request's memory limit, which a buffer this size is
-    /// charged against like any other allocation. A second ceiling here would
-    /// be a number an operator has to keep in step with that one.
+    /// The whole file into one buffer, with no size ceiling **of its own**:
+    /// what bounds it is `[limits] max_output`, which
+    /// `rule:core-classes/process-run` already reuses for the other member that
+    /// fills a buffer from outside the request. A ceiling of this member's own
+    /// would be a second number an operator has to keep in step with that one.
+    /// [`slurp`] is where it is asked and
+    /// [`nvs_runtime::Ctx::intake_limit`] owns the unit it is read in.
     fn nvs_core_io_read(ctx, args: [1]) {
         let path = Path::new(text(&args[0], "read", "path")?);
         Ok(Value::str(NvsStr::new(&slurp(ctx, path, "Core\\IO::read")?)))
@@ -2623,18 +2629,31 @@ nvs_runtime::nvs_helper! {
 /// that the second is the first plus a conversion rather than a second reader
 /// with its own idea of what a whole-file read is.
 ///
-/// `member` is the fully-qualified spelling both refusals name.
+/// `member` is the fully-qualified spelling every refusal here names.
+///
+/// **Held to `[limits] max_output`**, through the pair
+/// [`nvs_runtime::Ctx::intake_bound`] and [`nvs_runtime::Ctx::intake_breach`] —
+/// the same two calls, in the same order, that `Core\Process::run` bounds a
+/// child's capture with. That is the whole of the sharing: one directive, one
+/// unit, one refusal, so a file and a child that are each too big to hold
+/// answer a program the same way. A request under no ceiling reads the file
+/// whole, exactly as this did before there was one.
 ///
 /// # Errors
 ///
-/// The door's catchable `RuntimeError` when `fs.read` does not cover `path`, or
-/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the open or the
-/// read itself fails.
+/// The door's catchable `RuntimeError` when `fs.read` does not cover `path`;
+/// [`nvs_runtime::capability::io_failure`]'s `IOError` when the open or the read
+/// itself fails; and `intake_breach`'s `RuntimeError` for a file past the
+/// ceiling, which is a refusal to hold it rather than a failure to read it.
 fn slurp(ctx: &mut nvs_runtime::Ctx, path: &Path, member: &str) -> Result<Vec<u8>, Fault> {
-    let mut file = nvs_runtime::capability::open_read(ctx, path, member)?;
+    let file = nvs_runtime::capability::open_read(ctx, path, member)?;
     let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
+    file.take(ctx.intake_bound())
+        .read_to_end(&mut bytes)
         .map_err(|err| nvs_runtime::capability::io_failure(member, path, &err))?;
+    if let Some(over) = ctx.intake_breach(member, bytes.len()) {
+        return Err(over);
+    }
     Ok(bytes)
 }
 
@@ -3530,6 +3549,112 @@ mod tests {
         );
 
         discard(src);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A context granting `fs.read` everywhere under one `[limits] max_output`, written as the
+    /// TOML an operator writes rather than as the tree it parses into — the ceiling is what
+    /// these cases are about, so the spelling that arms it is worth going through.
+    ///
+    /// Everywhere rather than under a root for [`writing`]'s reason, unchanged.
+    fn reading(ceiling: &str) -> nvs_runtime::Ctx {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_config(crate::tests::granting(&format!(
+            "[capabilities.fs]\nread = true\n\n[limits]\nmax_output = \"{ceiling}\"\n"
+        )));
+        ctx
+    }
+
+    /// `Core\IO::read(path)` driven as a program drives it, answering how many bytes came back
+    /// or the message the refusal left in `ctx`.
+    fn read_under(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<usize, String> {
+        let written = path
+            .to_str()
+            .expect("a scratch path this suite spelled itself");
+        let args = [Value::str(NvsStr::new(written.as_bytes()))];
+        let answered = nvs_runtime::call(nvs_core_io_read, ctx, &args);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        for argument in args {
+            #[expect(unsafe_code, reason = "the list holds the one reference it built")]
+            unsafe {
+                argument.release();
+            }
+        }
+        match answered {
+            Ok(value) => {
+                let read = value.as_text().expect("`read` answers a string").len();
+                #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
+                unsafe {
+                    value.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(refusal.expect("a non-zero status leaves its message in the context")),
+        }
+    }
+
+    /// `rule:core-classes/process-run`'s reuse of `[limits] max_output`, read at *this* class's
+    /// buffer — all three halves of what "the same directive and the same signature" is.
+    ///
+    /// The directive first: one key arms both the response ceiling and the per-call one, so an
+    /// operator who raises what a read may hold cannot be raising a second number they never
+    /// wrote. Then the bound on both sides over one file, since a member that refused everything
+    /// passes the refusing half alone. Then the signature: both members refuse out of
+    /// `Ctx::intake_breach`, so their two messages differ in the member they name and in nothing
+    /// else, and a member that grew a message of its own fails here while still refusing.
+    #[test]
+    fn core_io_read_is_bounded_by_the_same_directive_and_the_same_signature() {
+        let path = scratch("bounded-by-max-output.txt");
+        std::fs::write(&path, vec![b'x'; 4096]).expect("the file the ceilings are chosen around");
+
+        let mut tight = reading("64");
+        assert_eq!(
+            tight.intake_limit(),
+            tight.output_limit(),
+            "the per-call ceiling and the response ceiling came off different keys, so an \
+             operator now has two numbers to keep in step"
+        );
+        assert_eq!(
+            tight.intake_limit(),
+            64,
+            "`[limits] max_output` never arrived"
+        );
+
+        let refused = read_under(&mut tight, &path).expect_err("4096 bytes do not fit under 64");
+        assert!(
+            refused.contains("max_output") && refused.contains(r"Core\IO::read"),
+            "the refusal names neither the directive an operator would raise nor the member that \
+             hit it: {refused}"
+        );
+
+        let mut roomy = reading("8M");
+        assert_eq!(
+            read_under(&mut roomy, &path).expect("4096 bytes fit under 8M"),
+            4096,
+            "the accepted side is the whole file, so the ceiling truncates nothing on its way \
+             past"
+        );
+
+        let (Some(Fault::Thrown(here, mine)), Some(Fault::Thrown(there, theirs))) = (
+            tight.intake_breach(r"Core\IO::read", 4096),
+            tight.intake_breach(r"Core\Process::run", 4096),
+        ) else {
+            panic!(
+                "a read past the ceiling is catchable, not a fatal — it is a refusal to hold \
+                    a buffer and not a limit the request exceeded"
+            );
+        };
+        assert_eq!(
+            here, there,
+            "the two members refuse as two different classes"
+        );
+        assert_eq!(
+            mine.replace(r"Core\IO::read", "<member>"),
+            theirs.replace(r"Core\Process::run", "<member>"),
+            "a file too large to hold and a child too chatty to capture read differently to a \
+             program, though one pair of methods answers both"
+        );
+
         let _ = std::fs::remove_file(&path);
     }
 }
