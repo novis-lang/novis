@@ -70,7 +70,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Twenty entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Twenty-two entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -239,6 +239,31 @@ where taking it is the work and the code that follows it is not.
   is written and the other only where it runs.
   `crates/nvs-types/src/derive.rs` § *Known gaps* carries the tag.
   [until: gone crates/nvs-types/src/derive.rs:owner: unowned]
+- **`nvs-db`'s § 5 normalization, which both directions of the schema plan record as owed and
+  which nothing on the chain writes.** The emitter's map into a dialect is lossy — one `BYTEA` for
+  both bytes widths, `CHAR(36)` for a `UUID`, the next width up and a `CHECK` for a `uint` no
+  catalog reports as a type — so a schema applied and read straight back describes as a
+  *different* vocabulary case, and a diff converges only once the declared side is folded through
+  the same map. What has to be decided is where that fold lives: one normalisation over both sides
+  before the diff, or a per-case comparison inside it. Three narrower decisions sit beside it —
+  whether a SQL Server default's server-generated constraint name enters the vocabulary at all,
+  since neither `Change` nor the catalog reads carry one and a default change there is emitted
+  without its default; whether a default spelling the vocabulary cannot hold is dropped, refused
+  as a `SchemaError` or given an opaque case; and, for the two constructs the vocabulary holds
+  that no backend takes portably, whether a builder refuses them or an emitter grows a spelling.
+  Goals `database` and `schema` are retired and M8's database half is carried with them, so no
+  milestone claims this either. `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs` and
+  `crates/nvs-db/src/schema.rs` § *Known gaps* carry the tags.
+  [until: gone crates/nvs-db/src/ddl.rs:owner: unowned]
+- **The database matrix's `AF_UNIX` leg is asked for and never published**, so the transport
+  `rule:core-classes/db-unix-socket-path` gives MySQL, MariaDB and PostgreSQL is asserted against
+  listeners `nvs-db` binds itself and against no real server. `Location` has its third arm and
+  `tests/handshake.rs` dials whichever one it is handed; `tools/db-matrix.py` sets no `SOCKET_VAR`,
+  which would need a container's socket directory bind-mounted onto the host. What has to be
+  decided is what that leg runs: the whole TCP case list a second time, which is what would say
+  the driver agrees across both transports and doubles the matrix, or a handshake-only case that
+  says the transport connects and no more. `crates/nvs-db/src/matrix.rs` gap 1.
+  [until: reviewed 2026-09-10]
 - **How much of a `mixed` value's tag dispatch is written at once.**
   `rule:types/erased-member-access` has already decided what an erased read, write and call *do* — a
   checked, catchable throw when the name is not there, never a silent value — but `nvs_ir::Ty::Tagged`

@@ -42,6 +42,34 @@
 //!   string reaches statement text — [`ColumnDefault::Text`] — is quoted here,
 //!   in the dialect's own escaping.
 //!
+//! # An engine's own limit is not a gap here
+//!
+//! Each of these is one dialect's rule rather than a shape this emitter has
+//! not written: the statement a dialect can say is the statement it emits, and
+//! what that costs the round-trip is § 5's reading rather than a spelling to
+//! invent here.
+//!
+//! - **SQL Server cannot index an unbounded text or bytes column at all** — a
+//!   `MAX` type is not a key column there. The statement is still emitted,
+//!   because § 8 says a step is shown in full even when it will not run, and
+//!   § 5's grading is where it becomes a refusal rather than a failure.
+//! - **SQLite's identity is the rowid or nothing.** `AUTOINCREMENT` is legal
+//!   only in the exact `INTEGER PRIMARY KEY AUTOINCREMENT` form, so an
+//!   identity column that is one of several primary-key columns is emitted
+//!   without it. [`Table`]'s own rule is only that an identity is *in* the
+//!   primary key.
+//! - **A SQLite unique constraint added after the fact is an index**, where
+//!   one written into a `CREATE TABLE` is a constraint the catalog reports
+//!   under an `sqlite_autoindex_…` name the schema never gave it. [`add_key`]
+//!   takes the index form deliberately, and the two paths reaching the same
+//!   catalog by different spellings is § 5's input.
+//! - **SQLite's declared types carry affinity, and some of them convert.** A
+//!   `JSON` or `DECIMAL` column has NUMERIC affinity, so a document that is a
+//!   bare number and an exact decimal with trailing zeros are stored as
+//!   numbers. That is the SQLite driver's binding question, answered in
+//!   [`crate::sqlite`] where `DECIMAL`'s already is, and not by choosing a
+//!   different declared type here, which would only move the cost into gap 1.
+//!
 //! # Known gaps
 //!
 //! 1. **Some round-trips are lossy, and § 5's normalization owns them, not
@@ -53,33 +81,15 @@
 //!    catalog reports the check as a type. Each is a column an introspector
 //!    reads back as a *different* vocabulary case, and the diff has to know it
 //!    before it converges.
-//! 2. **SQL Server cannot index an unbounded text or bytes column at all** — a
-//!    `MAX` type is not a key column there. The statement is still emitted,
-//!    because § 8 says a step is shown in full even when it will not run; § 5's
-//!    grading is where it becomes a refusal rather than a failure.
-//! 3. **SQLite's identity is the rowid or nothing.** `AUTOINCREMENT` is legal
-//!    only in the exact `INTEGER PRIMARY KEY AUTOINCREMENT` form, so an
-//!    identity column that is one of several primary-key columns has no SQLite
-//!    spelling and is emitted without it. [`Table`]'s own rule is only that an
-//!    identity is *in* the primary key.
-//! 4. **A SQL Server default is a separate named constraint, so a change to
+//!    — owner: unowned
+//! 2. **A SQL Server default is a separate named constraint, so a change to
 //!    one is not emitted.** `ALTER COLUMN` carries a type and a nullability
 //!    there and nothing else; replacing a default means dropping the
-//!    constraint holding it, by the name the server generated, and no
-//!    [`Change`] carries that name. Stage 4's introspector is what can supply
-//!    it, and until it does, a SQL Server default change is a step whose SQL
-//!    brings the type and the nullability across and leaves the default alone.
-//! 5. **A SQLite unique constraint added after the fact is an index**, where
-//!    one written into a `CREATE TABLE` is a constraint with an
-//!    `sqlite_autoindex_…` the introspector cannot match to the name the
-//!    schema gave it. [`add_key`] takes the index form deliberately; the two
-//!    paths reaching the same catalog by different spellings is § 5's input.
-//! 6. **SQLite's declared types carry affinity, and some of them convert.** A
-//!    `JSON` or `DECIMAL` column has NUMERIC affinity, so a document that is a
-//!    bare number and an exact decimal with trailing zeros are stored as
-//!    numbers. That is the SQLite driver's binding question — the same one
-//!    `DECIMAL` already poses there — and it is not answered by choosing a
-//!    different declared type here, which would cost the round-trip in gap 1.
+//!    constraint holding it, by the name the server generated, and neither
+//!    [`Change`] nor [`crate::catalog`]'s reads carry that name. A SQL Server
+//!    default change is therefore a step whose SQL brings the type and the
+//!    nullability across and leaves the default alone.
+//!    — owner: unowned
 
 use crate::plan::{Change, Grade, KeyKind, Step};
 use crate::schema::{
