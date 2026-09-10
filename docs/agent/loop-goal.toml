@@ -137,6 +137,9 @@ modules = [
   # and `::urlSigned` over a **literal** route name, resolved against § 5's finished table while
   # compiling.
   "crates/nvs-types/src/links.rs",
+  # `Core\Uuid` — docs/spec/01-core-library.md § 11's second table, which replaces `uniqid`,
+  # `com_create_guid` and every userland UUID library with one type.
+  "crates/nvs-stdlib/src/uuid.rs",
 ]
 
 # 0060 is the roster this is the fifth entry of; 0146 is the design; 0024/0033 are the two qualifier
