@@ -905,6 +905,78 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4, dedupe_pending = n
 pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4, dedupe_pending = null \
     where id = ? and queue = ? and state = 0";
 
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete`, as one statement over both
+/// of § 2's tables.
+///
+/// **`and state <> 1` is the member's whole refusal, and it is in the `where` rather than in a check
+/// above it.** A claimed job is not removable at all — a worker holds a lease on that row and there
+/// is no protocol for interrupting work in flight — and reading the state and then deleting would be
+/// two moments with a claim free to land in between, so the answer would be about the first one.
+/// Written this way the database decides, one row comes back or none does, and that is what the
+/// member's `bool` means. The `1` is [`STATE`]'s `Claimed` ordinal, a literal for [`PENDING`]'s
+/// reason and held to the enum by `queue_statements_agree_with_the_state_enum`.
+///
+/// **`<>` and not a list of the states that may go**, because the states that may go are every one
+/// but that one: a caller naming the receipt removes a job that is pending, succeeded or cancelled
+/// alike. A positive list would have to be extended by every case [`STATE`] ever grows, and it would
+/// fail silently — a row in a state the list had forgotten answers `false`, which reads as a job
+/// something else had already removed.
+///
+/// **Both tables in one statement, as [`STATUS_POSTGRES`] reads both**, because a `Queue\Id` names a
+/// job across the move § 6 makes and a member that stopped working the moment a job exhausted its
+/// attempts would be a receipt that expires without saying so. Running the two arms together costs
+/// nothing: § 6 *moves* a row, so an id is in one of the tables and never in both, and a
+/// data-modifying CTE runs whatever the outer `select` reads — which is what makes this one moment
+/// rather than an attempt and a second attempt.
+///
+/// **The dead-letter arm names no state**, and not because a dead job is exempt from the rule above:
+/// [`DEAD_TABLE`] has no `state` column at all, since being in that table is what `Dead` *is*. That
+/// is the same reading [`STATUS_POSTGRES`] makes when it answers the ordinal there as a literal.
+///
+/// **Public for the reason the statements a worker sends are**: nothing outside this module runs a
+/// `delete`, and `crates/nvs-stdlib/tests/queue.rs` sends both spellings to a real server, where a
+/// statement no server has ever parsed is exactly what that target exists to catch.
+pub const DELETE_POSTGRES: &str = "with gone as (\
+     delete from nvs_jobs \
+     where id = $1::bigint and queue = $2::text and state <> 1 \
+     returning id\
+ ), buried as (\
+     delete from nvs_dead_jobs \
+     where id = $1::bigint and queue = $2::text \
+     returning id\
+ ) select id from gone union all select id from buried limit 1";
+
+/// [`DELETE_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged for [`INSERT_MYSQL`]'s
+/// reason.
+///
+/// **A multi-table delete and not a [`Split`]**, which is this dialect's answer to the
+/// data-modifying CTE it does not have: `delete j, d from …` names both of § 2's tables as targets
+/// of one statement, so the two arms are decided in one moment exactly as
+/// [`DELETE_POSTGRES`]'s are. A pair of ordinary deletes would be two moments needing a transaction
+/// to mean what one statement means by itself, and the second of them could remove a job that the
+/// first had just refused as claimed — § 6 moves an exhausted job while a caller stands between the
+/// two round trips, and the one row this member exists to leave alone is gone.
+///
+/// **The receipt arrives as a one-row derived table, and that is what makes the two arms
+/// independent.** A multi-table delete removes out of whatever its join produced, so driving it from
+/// `nvs_jobs` would answer nothing at all for a job § 6 had already moved: there would be no left
+/// side to hang the dead-letter row on. `r` is a row that exists whatever the tables hold, and the
+/// two `left join`s attach whichever one holds the receipt.
+///
+/// **The state predicate is on the join and not in a `where`**, which is the same refusal put where
+/// this shape has room for it. A trailing `where j.state <> 1` is read after the join and drops the
+/// driving row for a claimed job, taking the dead-letter arm down with it; on the `on` clause it
+/// fails to attach `j` alone and `d` is still judged on its own terms.
+///
+/// **Two placeholders where [`STATUS_MYSQL`] needs four**, and `r` is why. A `?` is a position that
+/// cannot be named twice, so every other framed statement here binds a value once per mention;
+/// naming the pair once in the derived table and reading `r.jid` afterwards is what a `$1` does on
+/// the other dialect.
+pub const DELETE_MYSQL: &str = "delete j, d \
+    from (select ? as jid, ? as qname) r \
+    left join nvs_jobs j on j.id = r.jid and j.queue = r.qname and j.state <> 1 \
+    left join nvs_dead_jobs d on d.id = r.jid and d.queue = r.qname";
+
 /// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
 ///
 /// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
@@ -2688,12 +2760,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
-        DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, INSERT_MYSQL, INSERT_POSTGRES,
-        JOBS_TABLE, PENDING, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
-        RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
-        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
-        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, dead_errors, migration,
-        no_dialect, retry_at,
+        DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, DELETE_MYSQL, DELETE_POSTGRES,
+        INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES,
+        RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT,
+        STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT,
+        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL,
+        SUCCEEDED_POSTGRES, dead_errors, migration, no_dialect, retry_at,
     };
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
@@ -3158,6 +3230,59 @@ mod tests {
         );
     }
 
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s one arm that is not a policy
+    /// choice: a claimed job is refused by the statement that would otherwise remove it.
+    ///
+    /// **What this asserts is where the predicate sits, which no assertion about an answer can
+    /// reach.** A `delete` that read the state and then removed the row would answer `false` for a
+    /// job that was claimed at the moment it looked, and would still be the two moments ADR 0153 § 2
+    /// says are not survivable — the claim it is racing lands in the gap, and the row goes out from
+    /// under a worker that then reports into a void. The one thing a text can be held to is that the
+    /// statement carrying the refusal is the statement doing the removing.
+    ///
+    /// **The two dialects hold it in two places**, and the framed one is the one worth pinning: a
+    /// trailing `where` there is read after the join and would take the dead-letter arm with it.
+    #[test]
+    fn the_delete_statement_excludes_the_claimed_state_in_its_own_where_clause() {
+        let arm = |sql: &'static str, from: &str, to: &str| {
+            sql.split_once(from)
+                .unwrap_or_else(|| panic!("`{from}` is one of the statement's arms"))
+                .1
+                .split_once(to)
+                .unwrap_or_else(|| panic!("that arm ends at `{to}`"))
+                .0
+        };
+
+        let jobs = arm(DELETE_POSTGRES, "delete from nvs_jobs", "returning");
+        assert!(
+            jobs.contains("state <> 1"),
+            "the refusal is inside the delete it refuses, and not in a read above it: {jobs}"
+        );
+        let buried = arm(DELETE_POSTGRES, "delete from nvs_dead_jobs", "returning");
+        assert!(
+            !buried.contains("state"),
+            "`DEAD_TABLE` has no `state` column: being in that table is what `Dead` is: {buried}"
+        );
+
+        assert!(
+            !DELETE_MYSQL.contains(" where "),
+            "a `where` is read after the join here, and a claimed job would drop the row the \
+             dead-letter arm hangs on"
+        );
+        let attached = arm(DELETE_MYSQL, "left join nvs_jobs j on ", "left join");
+        assert!(
+            attached.contains("j.state <> 1"),
+            "the refusal is on the join that attaches the jobs table, so it fails to attach that \
+             row alone: {attached}"
+        );
+
+        assert!(
+            !DELETE_POSTGRES.contains("state = ") && !DELETE_MYSQL.contains("state = "),
+            "the removable states are every one but `Claimed`, so neither delete names one it \
+             will take"
+        );
+    }
+
     /// The statements in this module write and read [`STATE`]'s ordinals as SQL literals, which no
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
     /// program compares against and the column a worker claims from are one representation, and
@@ -3225,6 +3350,23 @@ mod tests {
         assert!(
             CANCEL_MYSQL.contains("set state = 4") && CANCEL_MYSQL.contains("and state = 0"),
             "`CANCEL_MYSQL` moves a job between the same two ordinals"
+        );
+        assert_eq!(
+            case("Claimed"),
+            1,
+            "`DELETE_POSTGRES` refuses this ordinal, and `COUNTS_POSTGRES` counts it"
+        );
+        assert!(
+            DELETE_POSTGRES.contains("state <> 1") && DELETE_MYSQL.contains("j.state <> 1"),
+            "both deletes leave the ordinal above where it is, which is the one arm of \
+             `rule:concurrency/queue-deletion-is-explicit-and-bounded` that is not a policy choice"
+        );
+        assert!(
+            DELETE_POSTGRES.contains(JOBS_TABLE)
+                && DELETE_POSTGRES.contains(DEAD_TABLE)
+                && DELETE_MYSQL.contains(JOBS_TABLE)
+                && DELETE_MYSQL.contains(DEAD_TABLE),
+            "a receipt names a job across § 6's move, so both deletes reach both of § 2's tables"
         );
         assert_eq!(
             case("Succeeded"),
