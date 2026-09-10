@@ -2186,6 +2186,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-serve-probe"
+version = "0.0.1"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "nvs-server"
 version = "0.0.1"
 dependencies = [

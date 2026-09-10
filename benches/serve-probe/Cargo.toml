@@ -1,0 +1,19 @@
+[package]
+name = "nvs-serve-probe"
+description = "The load probe behind `tools/bench-load.py`: what `nvs serve` saturates at, and whether every answer was the right one"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+# `clap` and nothing else. A generator that needed the workspace's own crates
+# would be measuring a server it was linked into; this one speaks HTTP over a
+# socket like any other client, so a run says nothing about which tree built it.
+clap.workspace = true
+
+[lints]
+workspace = true
