@@ -1,14 +1,15 @@
-# Goal 29 -- `Core\Xml`'s tree and stream, and the WHATWG parser over it.
+# Goal 30 -- a module doc's gap names its owner, and a gate says so.
 # The acceptance test, as data.
 #
-# `29-xml-tree.md` is the prose. One home each.
+# `30-gap-owners.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
+  # No new fixture: this goal writes a tool and a set of doc comments, and changes no program's output.
+  # carried from the previous goal by tools/goal-switch.py
   "examples/xml-tree.nvs",
   "examples/html-sanitize.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/compress-roundtrip.nvs",
   "examples/zip-refuses.nvs",
   "examples/net-echo.nvs",
@@ -87,46 +88,50 @@ files = [
 [context]
 
 modules = [
-  # Stages 4-5 -- the class that gains `sanitize` and the parser, and whose gaps say they wait on the tree.
-  "crates/nvs-stdlib/src/html.rs",
-  # Stages 2-5 -- every new class and member declares its row here.
-  "crates/nvs-stdlib/src/registry.rs",
-  # Stage 5 -- `escape` and `Markup` are the launderers `sanitize` joins.
-  "crates/nvs-stdlib/src/taint.rs",
-  # Stage 2 -- the inert-data precedent: a parsed tree with no path back into execution.
-  "crates/nvs-stdlib/src/ast.rs",
-  # Stage 2 -- the bytes/string boundary a parser reads across, and where encoding is decided.
-  "crates/nvs-stdlib/src/encoding.rs",
-  # Stage 2 -- the expansion ceiling goal `formats` landed, which billion-laughs is bounded by.
-  "crates/nvs-stdlib/src/bytes.rs",
-  # Stages 2-5 -- the band a refusal that names its rule is declared in.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # `Core\Xml` — spec § 17's one API for documents, and the node family
-  # `rule:core-classes/html-parsing` makes both parsers produce.
-  "crates/nvs-stdlib/src/xml.rs",
-  # Seeding the checker's signature table with `Core`.
-  "crates/nvs-types/src/core_lib.rs",
+  # Stage 2 -- the sibling gate one level up, and the file whose contract this one extends.
+  "docs/agent/carried-gaps.md",
+  # Stage 2 -- the refusal-site half of the same idea, and the `--unattributed` output to model on.
+  "tools/holes.py",
+  # Stage 2 -- the other derived worklist, and the help-text shape both of these use.
+  "tools/gaps.py",
+  # Stage 2 -- how a chain entry is read, so a tag naming a goal can be checked against the schedule.
+  "tools/chain.py",
+  # Stage 4 -- where the new gate is added, in order, stopping at the first failure.
+  "tools/verify.py",
+  # Stage 4 -- what the orientation pack prints, and where an unowned count joins it.
+  "tools/brief.py",
+  # Stage 3 -- the largest single block, 17 items, and already owned by carried-refusals 901.
+  "crates/nvs-ir/src/lib.rs",
+  # Stage 3 -- seven items, two of which are the deferrals the prose names.
+  "crates/nvs-runtime/src/lib.rs",
+  # Stage 3 -- the stale one: gap 3 says `match` is absent and the plan says a request is matched.
+  "crates/nvs-stdlib/src/router.rs",
 ]
 
-# 0122 is the parser and the shared tree; 0024 owns both launderers; 0051 is the tier row; 0019 is the
-# inert-data rule a parsed tree inherits; 0009 is the bytes/string boundary.
-rules = ["0122", "0024", "0051", "0019", "0009", "0133", "0004"]
+# 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
+# gaps are most often mis-attributed, so a session reading this goal has the rule in front of it.
+# This goal writes no stage table: it opens no ADR and names no section, so its base IS what every
+# stage of it needs, and a stage with nothing of its own does not get one.
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADR 0042 came out: it created more than eight rules, so naming
+# it here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0004",
+  "0116",
+  "0002",
+]
 
-# 0122 whole -- it is half this goal's design, and its § 4 is what this entry makes wrong.
-adrs = ["0122", "0024 §1", "0051 §3"]
+adrs = []
 
-shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]
+shapes = ["A commit message"]
 
 playbook = [
-  'Writing Novis itself > core is',
   'Tooling > a core class',
   'Running things > adding a',
-  'Running things > target/release/nvs.exe is',
-  'Running things > a leak whose',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
-  'Writing a test case > a test binary',
-  'Writing a test case > a multi-file',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -144,43 +149,24 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-
-# ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `29-xml-tree.md`, holding what only that stage needs.
-#
-# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
-# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
-# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
-#
-# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
-# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
-# of it.
-# ---------------------------------------------------------------------------------------------------
-
-[context.stage.0]
-rules = ["core-classes/html-parsing"]
-
-[context.stage.2]
-rules = ["core-classes/html-parsing", "tooling/reflection-and-source-parsing-are-core-features"]
-
-[context.stage.4]
-rules = ["core-classes/html-parsing"]
-
-[context.stage.5]
-rules = ["security/tainted-qualifier"]
-
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Its own checks parse byte buffers in process. The floor is goal `formats`'s.
+# Nothing here needs a daemon. The floor is goal `xml-tree`'s, which is goals `core-part-ii` through `server`'s.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
-memoize_on = ["crates/nvs-stdlib"]
+memoize_on = ["tools", "docs/agent"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 447 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6630,15 +6616,12 @@ stage = "1 floor"
 name = "the record and the rulebook still agree on what this decision created"
 argv = ["python", "tools/decisions.py", "--gate"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the tree, and it is one node family. `rule:core-classes/html-parsing`.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 tree"
+stage = "1 floor"
 name = "nvs-stdlib (one node family, and it is inert)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6653,10 +6636,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the stream: one window, never the document.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 stream"
+stage = "1 floor"
 name = "nvs-stdlib (the reader holds a window and the writer cannot emit ill-formed output)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6670,10 +6652,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the WHATWG parser, on `Core\Html`. `rule:core-classes/html-parsing`.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 parser"
+stage = "1 floor"
 name = "nvs-stdlib (never-failing, and an entry rather than a mode)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6685,10 +6666,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `sanitize`, which is why the tree matters. The acceptance property is mXSS.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 sanitize"
+stage = "1 floor"
 name = "nvs-stdlib (a second launderer on Core\\Html, and it reaches a fixed point)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6700,7 +6680,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 registered"
+stage = "1 floor"
 name = "nvs-stdlib (the eighth key, and the file holds none)"
 args = ["test", "-p", "nvs-stdlib"]
 # The second name is `spec_registry_coverage.rs`'s own spelling for the walk over
@@ -6715,12 +6695,90 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 suites"
+stage = "1 floor"
 name = "the conformance tree"
 args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 suites"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the tool, derived and never copied.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "owners.py walks every Known gaps block and answers"
+argv = ["python", "tools/owners.py", "--json"]
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "the gate: every gap item names an owner the chain or the plan knows"
+argv = ["python", "tools/owners.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "the unowned list is the scheduling questions and nothing else"
+argv = ["python", "tools/owners.py", "--unowned"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the attribution pass. The gate above is what proves it complete.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "no untagged gap item survives anywhere in crates/"
+argv = ["python", "tools/owners.py", "--check", "--untagged-is-an-error"]
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "every `unowned` tag has a carried-gaps.md bullet behind it"
+argv = ["python", "tools/owners.py", "--check", "--reasons"]
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "the chain still walks, and every goal a tag names is on it"
+argv = ["python", "tools/chain.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- it stays true.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 wired"
+name = "verify.py runs the gate in order"
+argv = ["python", "tools/verify.py", "--list"]
+
+[[check]]
+kind = "command"
+stage = "4 wired"
+name = "the orientation pack names the unowned count"
+argv = ["python", "tools/brief.py", "--where", "unowned"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- nothing a doc-comment pass does changes an answer.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 suites"
 name = "the differential tree"
 args = ["test", "tests/differential/"]

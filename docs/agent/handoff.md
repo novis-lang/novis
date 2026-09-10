@@ -2,52 +2,48 @@
 
 ## State
 
-**Goal `xml-tree` is met and its two follow-ups are now landed**, so nothing in the goal is open.
-The driver's own acceptance sweep after the serialiser session passed whole; this session took the
-two items that goal did not owe, and neither is a gate.
+**Goal `gap-owners` — a module doc's gap names its owner — has just started; nothing of it has landed yet.**
+Goal `xml-tree`'s whole list is this goal's Stage 1 floor.
 
-**`class` stays off `Core\Html::sanitize`'s allowlist, with its own written reason.**
-`rule:core-classes/html-sanitize`'s closed list gains an element in a commit with a reason
-(`docs/agent/loop-goal.md` § *Standing decisions*), and the reason for refusing this one is that
-`class` and `id` are the two attributes a *receiving* page selects on: the value chooses which of
-that page's own stylesheet rules and script handlers apply to attacker-supplied content, and its
-meaning lives in a document this member never sees, so there is no value test to write. The home is
-`crates/nvs-stdlib/src/html.rs:1266` — the paragraph beside `ELEMENTS` that already decided `id`,
-`style`, `target` and the SVG/MathML namespaces. An application that needs the content styled
-styles the element it puts the answer inside, which is markup it wrote itself.
-`GLOBAL`'s three (`dir`, `lang`, `title`) are unchanged and no rule fragment changed.
+The finding this goal answers: **50 `# Known gaps` blocks across the crates hold 152 enumerated
+items.** `docs/agent/carried-gaps.md` indexes 22 of them and `docs/agent/carried-refusals.md` covers
+`nvs-ir`'s 15. The remaining ~110 name no owner, appear in no index, and are invisible to every tool —
+the same failure `carried-gaps.md` was created to fix, one level down.
 
-**Six cases are named by the rules they guard**, in `docs/rules/core-classes.json`: the five the
-serialiser session wrote plus this session's, each added to the `guardedBy` of the rules its own
-`--TEST--` line names. `security/tainted-sources` was deliberately not given
-`xml-a-node-writes-its-own-subtree…` — that case holds the serialiser's escaping, and the taint
-token in its title is context rather than the rule it would break. `rules.py --render` changes
-nothing generated: `guardedBy` is not rendered into the chapter.
+**Most of those 110 are not alarming, and that is the point.** The module docs are careful: an item
+typically says where it is closed (`nvs-hir`'s visibility gap is closed in
+`nvs_types::expr::members::check_member_visibility`), or names its blocker (`Core\Queue`'s two wait on
+a shape spelling), or explains why it is inert (`nvs_safepoint`'s two cleared flags wait on `rule:security/arena-is-an-ownership-root`'s
+collector and on `nvs dap`). What is missing is not care — it is a **machine-readable owner**, so the
+short list of real scheduling questions can be told from the long list of explained residue without
+reading 50 module docs.
 
 ## Next group
 
-**`Core\Xml`'s two known gaps, each pinned by the case it has never had** — one file set:
-`crates/nvs-stdlib/src/xml.rs` and `tests/conformance/core/`. Both are documented *positions*
-rather than missing work, so each slice is one `.nvst` and a `guardedBy` entry, and neither adds
-surface. `python tools/try.py <case>` runs one in a call.
+**Stage 2: the tool and the gate** — one file set: the new `tools/owners.py`, `tools/verify.py`,
+`tools/chain.py`.
 
-- [ ] **A prefixed name is answered as written, and no `xmlns` is resolved.** Gap 1 at
-      `crates/nvs-stdlib/src/xml.rs:122` says `<x:a/>` answers `x:a`; nothing asserts it, and
-      `tests/conformance/core/xml-an-element-answers-its-attributes-in-written-order.nvst` is the
-      only case that mentions `xmlns` at all. The *Edges* shape: the declaration is carried as an
-      ordinary attribute and the name is the document's own spelling.
-      `rule:core-classes/xml-tree-and-stream`.
-- [ ] **Whitespace between elements is a text node.** Gap 2 at
-      `crates/nvs-stdlib/src/xml.rs:127`: a pretty-printed document has a text node between every
-      pair of siblings, and dropping them would be a guess about which whitespace mattered
-      (`rule:errors/ambiguous-input-refused`). Count the children of a formatted element rather
-      than reading one off — the *invariance over a sweep* shape — and pair it with
-      `Core\Xml\Node::source` writing the document back unchanged.
-      `rule:core-classes/xml-tree-and-stream`.
+- [ ] **The owner tag lives with the gap**, one per enumerated item: `— owner: 21`, `— owner: M9`, or
+      `— owner: unowned`. It sits in the module because a gap's home is its module, and the index is
+      then *derived* — the rule `holes.py` already follows ("the list is derived, never copied").
+- [ ] **Three owner kinds and no fourth** — a live goal; a **future milestone** whose plan states
+      the scope; or `unowned` with a bullet in `carried-gaps.md` § *Unowned* carrying the reason. The
+      milestone kind is what stops scheduled work being counted as an unclosed gap.
+- [ ] **`tools/owners.py`**, modelled on `holes.py --unattributed`: prints owned-by-goal,
+      deferred-to-milestone, unowned, and — the interesting output — **untagged**. `--unowned`,
+      `--check`, `--json`.
+- [ ] **The gate fails** on an untagged item, a goal not on the chain, a milestone that does not exist,
+      or `unowned` with no reason behind it. **No allowlist**, and adding one is the move it forbids.
 
 ## Backlog
 
-- Namespace resolution as a *feature* — gap 1 closed rather than pinned — needs a rule and an ADR
-  before any code; nothing schedules it (`crates/nvs-stdlib/src/xml.rs:120` § *Known gaps*).
-- `Core\Xml`'s remaining gaps are the whole of what that crate owes here; the plan's `Open now`
-  points at the goals directory for everything else.
+- **Stage 3 (the attribution pass)** is the judgement, module by module. Known deferrals so nobody
+  re-derives them: `nvs-cli/src/bundle.rs`'s `.nvsx` embedding is M9's; the inlining items in
+  `nvs-runtime/src/decimal.rs` and the string fast path in `nvs-runtime/src/lib.rs` are M12's. Known
+  non-gaps that move *out* of the block rather than getting a tag: `time.rs`'s "there is not going to
+  be one" and `casing.rs`'s "left out deliberately" — a decision is not a gap.
+- **One stale entry to settle**: `nvs-stdlib/src/router.rs` gap 3 says `Core\Router::match` is absent
+  while the plan's *Open now* says a request is matched. One of the two is wrong.
+- **Stage 4 (it stays true)** wires the gate into `verify.py` and the unowned count into the
+  orientation pack. The tag survives a goal switch — which is the mechanism that orphaned all of this —
+  and that property is why the module doc is the right home.
