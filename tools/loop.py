@@ -5266,8 +5266,8 @@ def drive(opts, goal, chain):
                 say(grew, C.CYAN)
                 ledger(f"## {grew}")
             if chain.finished:
-                reason = (f"CHAIN COMPLETE: {done} was the last goal in "
-                          f"{rel_to_root(chain.path)}, and every one of them is green")
+                reason = (f"CHAIN COMPLETE: `{done}` was the last goal in "
+                          f"{rel_to_root(GOALS_DIR)}, and every one of them is green")
                 kind = "chain-complete"
                 break
             switch = chain.install_next()
