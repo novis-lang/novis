@@ -117,7 +117,7 @@ cases**; that count was deliberately left as a corpus figure to be met as the su
 program written in PHP reaches for without loading an extension, plus every planned SQL driver, plus the
 concurrency, governance and server the capability-bearing half of `Core` cannot exist without. It is
 scheduled as one continuous unattended run — see *The parity program* below, and
-[docs/agent/goals/README.md](agent/goals/README.md) for how those six sit in the chain's nineteen. PHP's
+[docs/agent/goals/README.md](agent/goals/README.md) for where those six sit in the chain. PHP's
 optional extensions (`gd`, `intl`, `imap`, and the rest of the list in
 [02-php-migration.md](spec/02-php-migration.md)) are explicitly not part of it and stay with M9.
 
