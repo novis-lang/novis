@@ -12,7 +12,8 @@
 It is a **harness, not a test**. Every assertion belongs to the crate that owns what it asserts,
 written once against the shape `rule:core-classes/db-one-api`'s *Verification* section names; this file's whole job is to
 point those suites at five endpoints, one driver at a time, and print one `<driver>: ok` line each.
-Which suites, and why it is no longer only `nvs-db`'s, is `SUITES` below. `docs/agent/loop-goal.md`
+Which suites, why they are no longer only `nvs-db`'s, and why one leg runs a suite the others do
+not, is `SUITES` and `NO_SERVER_SUITES` below. `docs/agent/loop-goal.md`
 § *The harness this goal owes* is why it exists before the first driver rather than after: a driver
 with no server to run against is a driver whose tests are all mocks.
 
@@ -102,18 +103,31 @@ UP_TIMEOUT = 600
 #: One driver's assertions, including the `cargo` build the first of them pays for.
 TEST_TIMEOUT = 900
 
-#: The suites one driver leg runs, in order, as `cargo test` argument lists. The first failure stops
-#: the leg, because the verdict is already decided.
+#: The suites every driver leg runs, in order, as `cargo test` argument lists. The first failure
+#: stops the leg, because the verdict is already decided.
 #:
-#: Two rather than one, because what a server has to answer no longer all lives in `nvs-db`: ADR
-#: 0084's queue statements are `nvs_stdlib::queue`'s -- § 2's schema has one home and that is it --
-#: and `rule:core-classes/db-crate-boundary` forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need, so
-#: they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them. Narrowed to
+#: More than `nvs-db`'s own, because what a server has to answer no longer all lives in `nvs-db`:
+#: ADR 0084's queue statements are `nvs_stdlib::queue`'s -- § 2's schema has one home and that is it
+#: -- and `rule:core-classes/db-crate-boundary` forbids the `use nvs_stdlib::…` a `crates/nvs-db` test over them would need,
+#: so they are run from `crates/nvs-stdlib/tests/queue.rs` and this is what reaches them. Narrowed to
 #: that one target on purpose: the rest of `nvs-stdlib`'s suite asks a server nothing, and every
 #: driver leg would pay for it.
 SUITES = (
     ["-p", "nvs-db"],
     ["-p", "nvs-stdlib", "--test", "queue"],
+)
+
+#: What the driver with no server runs on top of `SUITES`, and nothing else does.
+#:
+#: `crates/nvs-stdlib/tests/queue_sqlite.rs` holds `rule:concurrency/claiming-is-one-statement`'s claim on the one backend
+#: that arbitrates it with a transaction rather than a locking clause, and it reaches that backend
+#: through `nvs_db::sqlite::open` and a scratch file rather than through `NVS_DB_MATRIX_*`. So it
+#: asserts exactly the same thing on every leg, and only on this one is what it asserts about the
+#: leg's own subject: on the four server legs it would run unchanged, pass unchanged, and say
+#: nothing about the server that leg exists to question. Which is also why running it here is not
+#: redundant with `python tools/verify.py` running it: this is the leg whose verdict is SQLite's.
+NO_SERVER_SUITES = (
+    ["-p", "nvs-stdlib", "--test", "queue_sqlite"],
 )
 
 
@@ -297,7 +311,8 @@ def export_anchor(driver: Driver, into: Path) -> Path:
 
 
 def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
-    """Run every suite in `SUITES` against one driver. Returns (verdict, one-line detail).
+    """Run one driver's suites -- `SUITES`, and `NO_SERVER_SUITES` after them for the driver that
+    has no server. Returns (verdict, one-line detail).
 
     The verdict is `ok`, `FAILED` -- the assertions ran and disagreed -- or `n/a`, a driver whose
     server could not be reached at all. A server with no exportable trust anchor is the second of
@@ -326,7 +341,8 @@ def run_driver(driver: Driver, config: dict | None) -> tuple[str, str]:
             where = endpoint.describe()
 
         say(f"db-matrix: {driver.name} against {where}")
-        for suite in SUITES:
+        suites = SUITES if driver.service is not None else (*SUITES, *NO_SERVER_SUITES)
+        for suite in suites:
             try:
                 r = subprocess.run(
                     ["cargo", "test", "-q", *suite],
