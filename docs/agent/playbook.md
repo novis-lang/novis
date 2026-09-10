@@ -1548,11 +1548,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   goal's own copy — rather than bending the surface to it. [until: reviewed 2026-09-10]
 - **`rules.py --check` reads `docs/agent/handoff.md`, so a `rule:` token invented in a *handoff* turns
   a floor check red for the next session rather than for the one that wrote it.** Session 0006's
-  `## Next group` cited `rule:http-server/containment`, which does not exist — the rule is
-  `rule:http-server/containment-does-not-end-at-the-helper` — and the driver's earliest-stage failure
-  became "the rulebook validates" with two findings both pointing at the handoff. Paste a `rule:`
-  token from `brief.py --where <topic>` rather than shortening one to the words you remember; the
-  wrap does not check the handoff it is writing. [until: reviewed 2026-09-10]
+  `## Next group` cited `rule:http-server/containment-does-not-end-at-the-helper` with its tail cut
+  off, and the driver's earliest-stage failure became "the rulebook validates", with findings
+  pointing at the handoff rather than at any rule. Paste a `rule:` token from `brief.py --where
+  <topic>` rather than shortening one to the words you remember — **including in the bullet you write
+  about the mistake**, since this file is scanned too and quoting the broken token here keeps the
+  check red. [until: reviewed 2026-09-10]
+- **`peek.py --locate <directive>` cannot find a directive's reader, because a directive is a string
+  key and a reader is a symbol under some other name.** `[limits] max_output` read as "unread by
+  anything in the tree" for a whole goal on that evidence, while `Ctx::output_limit` had been reading
+  it through `configured_bytes("max_output")` since it landed. Locate a *symbol*; find a directive
+  with `peek.py "crates/**/*.rs:re:<key>"`, which reads the string literals too.
+  [until: reviewed 2026-09-10]
 
 ## Running things
 
