@@ -1,138 +1,147 @@
 ---
-milestone: M8
+milestone: M1
 ---
-# Loop goal 32 — signing a URL, and the payload behind it
+# Loop goal 33 — `is` tests a value against a type
 
-`rule:core-api/signing-is-over-a-payload`, built.
-One general member — `Core\Signature`, `rule:security/protocol-roster`'s
-fifth and final roster entry — and the two doors onto it where a reader will actually look:
-`$uri->sign`/`$uri->verifySignature`, and `Core\Router`'s pair for the one case a path cannot express.
+Give the language the question it cannot currently ask. `as ?T` answers whether a value **can become**
+a `T` — `"7" as ?int` is `7` — and nothing answered whether it **is** one, short of
+`Core\Reflect::typeOf`, which does not narrow. [ADR 0150](../decisions/0150.md) is the whole design
+and this goal is its implementation: the grammar, the checker, the three refusals, the narrowing edge,
+and the codegen.
 
-**The design is finished and this goal does not re-open it.** `rule:core-api/signing-is-over-a-payload` is written, 0060's roster is
-already five and 0077 § 4 already lists the two router members. What is missing is every line of
-implementation, the spec rows are written against nothing, and
-`crates/nvs-stdlib/tests/spec-members-outstanding.txt` names this goal as the owner of two of them.
+`rule:types/type-test` is the operator and owns its accepted set.
+`rule:php-migration/is-takes-pattern-matchings-type-patterns` is the standing contract with PHP and is
+what this goal must not quietly widen. **Neither is this goal's to re-open.**
 
-**It sits after goal `unowned-sweep`** because it *adds surface* and 28 is the last entry that closes what is behind
-it — and because stage 3's options bag is the one goal `unowned-sweep` stage 2 lands: `{keys, until}` needs an
-optional-versus-written-`null` distinction the registry could not spell before it, and `until` being a
-**required key holding a nullable value** is that same spelling read the other way round.
+Its floor is goal `signed-urls`'s whole list. It also depends on goal `surface`, which is where `is` becomes a reserved
+word at all — this goal is the other half of that reservation, and stage 0 is what pays it off.
 
 ## Why here
 
-It goes after goal `unowned-sweep` for a mechanical reason: `{keys, until}` is an options bag whose `until` is a
-required key holding a nullable value, and telling an omitted key from a written `null` is precisely
-what goal `input-shapes` spelled and goal `unowned-sweep` stage 2 is the second caller of.
+Goal `surface` makes `is` a reserved word that refuses; this makes it the type test, which is what PHP
+reserved the spelling for and what ADR 0150 decides the shape of. It is here rather than beside goal
+15 because the design was reached after that goal was written, and because `is` narrows — so it
+wants the type system settled rather than the grammar merely open.
+
+## The surface, in one block
+
+```php
+mixed $m = Core\Request::query('id');
+
+if ($m is int)            { … }   // narrows: $m is int inside the block
+if ($m is int|uint)       { … }   // the migration spelling for PHP's is_int()
+if ($m is Request)        { … }   // a class, exactly as instanceof would
+if ($m is 'a'|'b')        { … }   // literal types
+if ($m is Mode::Read)     { … }   // an enum case
+if ($m is array<int>)     { … }   // legal, and an O(n) walk — the same one `as array<int>` does
+
+$x instanceof $cls;               // still the only dynamic class test — `is` cannot express it
+```
 
 ## Stage 0 — the catch-up
 
-1. **Three spec rows exist and nothing implements them.** `docs/spec/01-core-library.md` § 12 carries
-   `$uri->sign` and `$uri->verifySignature`, § 16 carries `Core\Signature`. Each is struck from its
-   outstanding-key file in the same slice that registers it, never before and never after —
-   `spec-members-outstanding.txt` for the first two and `spec-classes-part-two-outstanding.txt` for the
-   third, both keyed `# 29`.
-2. **`crates/nvs-stdlib/src/uri.rs`'s module doc says the normalization "lives on `compareTo` and
-   nowhere else".** That sentence is rewritten when stage 3 lands, not amended: after it, one function
-   is reached by two members, which is the point rather than an exception.
+**Goal `surface` lands `is` as a refusal; this goal replaces it with a parse.** That refusal is
+`report_reserved_for_future_use(Keyword::Is, …)` in
+`crates/nvs-syntax/src/parser/expr.rs:@parse_instanceof`, plus whichever `tests/conformance/reject/`
+case goal `surface` wrote for it. Both come out in the same slice that lands stage 2, not before — a tree
+where `is` neither refuses nor parses is a tree with a hole in it.
+
+`let`'s half of that refusal **stays**, untouched. `rule:php-migration/let-and-is-are-reserved` now
+says the two are reserved for unrelated reasons, and only `let` is still the empty kind.
 
 ## Stage 1 — the floor
 
-Goal `unowned-sweep`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `signed-urls`'s whole acceptance list, never traded.
 
-## Stage 2 — the keystone: `Core\Signature`, over a payload and never over text
+## Stage 2 — the keystone: one node, and the production it already has
 
-```php
-Core\Signature::sign(array<string, mixed> $payload,
-                     {keys: array<secret bytes>, until: ?Time\Instant}): string;
-Core\Signature::verify(string $token, array<secret bytes> $keys): array<string, mixed>;
-```
+One file set: `crates/nvs-syntax/src/parser/expr.rs`, `crates/nvs-syntax/src/ast.rs`,
+`crates/nvs-syntax/src/parser/ty.rs`.
 
-1. **The canonical payload encoding is this stage's whole risk**, so it is written once, in
-   `crates/nvs-stdlib/src/signature.rs`, and every other member in this goal calls it. Keys sorted,
-   each value encoded with its type so `1` and `"1"` are different bytes, `until` inside the signed
-   region rather than beside it.
-2. **The key ring is `Core\SignedCookie`'s, not a second one** — `array<secret bytes>`, newest at
-   `[0]`, sign under `$keys[0]` alone and verify down the ring in order. If the two classes end up
-   with two ring walks, one of them is wrong; share the helper.
-3. **The token is unpadded URL-safe base64**, RFC 4648 § 5, which `signed_cookie.rs` already emits for
-   the same reason: every octet is legal in a query string and in a `Set-Cookie` alike, so nothing
-   downstream escapes it twice.
-4. **`verify` answers a `tainted` payload or throws.** `rule:security/verification-does-not-launder` is the rule and `rule:core-classes/signature` says
-   why `Core\SignedCookie`'s laundering exemption does not reach here — the round trip may cross two
-   services, so "the application authored this plaintext" is not a property the checker can see.
+1. **The node.** `ExprKind::TypeTest { expr: Box<Expr>, ty: Type }`, beside
+   `ExprKind::Conversion { expr, ty }` — which is the shape to copy, because `as` already parses
+   exactly this and the two differ only in what they do with the answer. Deliberately **not** an arm on
+   `InstanceOf`: that node's right side is an `Expr` because a `class<T>` operand is a value, and the
+   whole point of `rule:types/type-test`'s third refusal is that these are different kinds of thing.
+2. **The parse.** `is` keeps the precedence slot the reserved-word hook already occupies in
+   `parse_instanceof`, since it is a comparison like the operator beside it. Its right side is
+   `parse_type`, not `parse_pipe`.
+3. **`$x is $cls` is `E0812` here**, in the parser, where the `$` is in hand — not deferred to the
+   checker as a type it fails to resolve. The help names `instanceof` and says the spelling is held
+   because PHP's grammar binds a variable there.
 
-## Stage 3 — a `Uri` signs itself, over the form `compareTo` already defines
+## Stage 3 — the checker: total, and three refusals
 
-```php
-$uri->sign({keys: array<secret bytes>, until: ?Time\Instant}): Uri;
-$uri->verifySignature(array<secret bytes> $keys): void;
-```
+One file set: `crates/nvs-types/src/expr/`, `crates/nvs-diagnostics/src/lib.rs`.
 
-1. **`equivalent()` gains a second caller and is not copied.** `uri.rs`'s existing RFC 3986 § 6.2.2
-   normalization is what is signed — the same function `compareTo` calls. A session that finds it
-   easier to write a second normalization for the signature has written the bug this whole ADR exists
-   to remove.
-2. **`_sig` is reserved**, carries the tag and the lifetime together, is excluded from its own input,
-   and a URL carrying two of them fails rather than resolving to one.
-3. **Every component present is covered and the fragment is never covered.** Appending a query
-   parameter invalidates; changing a fragment does not, because RFC 3986 § 3.5 fragments never reach
-   the server. There is no option naming which parameters are signed — `rule:core-api/signing-is-over-a-payload`'s *Alternatives
-   rejected* is the home of why that option is the bypass.
-4. **`sign` answers a `Uri`** so it composes with `with` and `toString`; signing one that already
-   carries `_sig` replaces it rather than nesting.
-5. **`verifySignature` answers nothing and throws.** There are no claims to hand back — the claim is
-   the URL the caller is holding.
+1. **The result is `bool`, always.** No subject is refused. `int $n; $n is int` checks and is `true`;
+   `int $n; $n is string` checks and is `false`. This is the single most likely thing to get wrong by
+   analogy — `infer_instanceof` refuses a subject that `!can_hold_an_object`, and **that reasoning does
+   not transfer**: `instanceof` needs a class and a scalar has none, while every value has a
+   representation. ADR 0150 § 6 is the argument; the acceptance list asserts both directions.
+2. **`E0810`** — a `tainted` or `secret` qualifier on the right. Erased before codegen
+   (`rule:security/tainted-qualifier`), so there is no bit to read.
+3. **`E0811`** — `void` or `never` on the right.
+4. **A float literal** reuses `rule:types/literal-types`' existing refusal and claims no new code.
+5. **Constant folding.** A result the checker settles folds to a literal `bool`. It does **not**
+   warn — narrowing manufactures statically-true tests, and diagnosing them would make a flow analysis
+   able to break working code.
 
-## Stage 4 — the router pair, for the mount prefix and nothing else
+## Stage 4 — narrowing, as the fifth spelling
 
-```php
-Core\Router::urlSigned(string $name, array<string, mixed> $params,
-                       {keys: array<secret bytes>, until: ?Time\Instant}): string;
-Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
-```
+One file: `crates/nvs-types/src/locals.rs`, joining the four `rule:types/narrowing` already lists.
 
-1. **These sign the route's *identity*, not its path.** `rule:core-classes/router-signed-url`: one compiled table serves at
-   `/ModuleA`, `/ModuleB` or `/` (`rule:http-server/a-mount-table-expands-at-boot`
-   ), so a signature over an assembled path stops verifying when a mount moves and one over the
-   route name and its typed parameters does not. **That property is the acceptance test**, not an
-   aside.
-2. **`signedRoute` verifies against `Core\Request::route()`** — the match the server already made
-   (`rule:routing/matched-once-before-the-handler`
-   ) — and re-parses nothing.
-3. **Nothing verifies automatically.** `Core\Router` does not dispatch and this does not change it; the
-   application calls `signedRoute` where it keeps its own refusal.
-4. **`urlSigned` launders for the URL-path sink** exactly as `url` does, and prepends the mount prefix
-   the same way.
+True edge only, binding and not declared type, widened by a write inside the block — the same
+contract every other spelling has. `an-instanceof-narrows-its-subject-on-the-true-edge` is the case to
+mirror. **False-edge narrowing is out of scope** and is out of scope for the other four as well; ADR
+0150 § 9 says why, and taking it here would leave four spellings behind.
 
-## Stage 5 — one refusal, except expiry
+## Stage 5 — lowering and codegen
 
-1. **Every way of not being authentic is one error with one sentence** — not a token, too short, one
-   flipped bit, a retired key, a missing `_sig`, two of them. `signed_cookie.rs` owns why a
-   distinguishable "wrong key" leaks, and this is the same argument.
-2. **Expiry is the one distinguishable failure, and the ordering is what makes it safe.** The signature
-   is checked first and the clock only after, so `SignatureExpired` is reachable only by someone
-   already holding a valid signature. **A test proves the ordering**: a token both forged *and* past
-   its `until` throws the *invalid* error, never the expired one.
-3. **`{until: null}` is the forever spelling and omitting the key does not compile** — `rule:core-api/a-lifetime-is-written`,
-   which is `rule:security/access-is-checked-for-presence-not-meaning`
-   's rule one surface over.
+One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-codegen/src/emit.rs`.
+
+Three shapes behind one operator, and the cost is the reason `rule:types/type-test` states it:
+
+- **a scalar, `object`, `null`, a literal, an enum case** — one tag comparison, and for a literal a
+  payload compare after it;
+- **a class or interface** — the descriptor walk `instanceof` already emits, reused and not written a
+  second time;
+- **`array<T>` with a named element type, and a shape** — the O(n) walk `as array<T>` already has.
+  Reuse that too; a second element walk in the tree means one of them is wrong.
+
+A test the checker folded emits no code at all.
+
+## Stage 6 — the reference, and the cases
+
+`is` is a new operator, so it takes its own heading in `docs/reference/lang/30-expressions.md` and a
+row in the precedence table, beside the `|>` row goal `surface` added.
+
+The conformance cases ADR 0150 § *Verification* requires, under `tests/conformance/lang/` and
+`tests/conformance/reject/`. **No differential case**: PHP cannot run `is`, which is exactly why the
+two divergence rows — a `uint` answering `is uint` and not `is int`, and `bytes` answering `is bytes`
+— need conformance cases of their own rather than an oracle.
 
 ## Standing decisions
 
-- **This goal opens no ADR number.** `rule:core-api/signing-is-over-a-payload` is the design, written before the goal existed. A session
-  that finds a genuine hole in it folds the fix into 0146's body and says so in the handoff — it does
-  not open 0147.
-- **The canonical form is `compareTo`'s, and that is not a session's call to revisit.** A second
-  normalization written for the signature alone is the defect this goal exists to not ship, however
-  reasonable it looks at the call site.
-- **Sign-and-reveal is not seal-and-hide.** `Core\SignedCookie` is AEAD and its payload is hidden; a
-  signature's payload is visible and must be. The two share the key ring and the base64 and nothing
-  else, and neither loses a row to the other (`rule:core-api/each-door-takes-a-different-thing`).
-- **No options bag names which parameters are signed**, ever, at any of the three doors. If a caller
-  needs a URL where some parameter is free, that parameter does not belong in the signed URL.
-- **Verification never renders anything.** It throws; the application catches and decides. A session
-  that finds itself writing a default error page has left this goal's scope.
-- **What this spends**, per `rule:programs/memory-priority`: one signature
-  computation per `sign`, one per key tried until one authenticates, all inside the call and nothing
-  held between calls. A program that signs nothing pays nothing — no table, no registry walk, no
-  per-request cost. The token adds about `4/3 × (payload + 40)` characters to a URL.
+- **This goal opens no new ADR number.** [ADR 0150](../decisions/0150.md) is accepted and is the
+  whole design, so every call these stages reach has a section of it to read. A gap found in it is an
+  edit to `rule:types/type-test`'s fragment through a record whose `changes:` block names it, never an
+  overlay here. `rule:php-migration/is-takes-pattern-matchings-type-patterns` is the contract with PHP
+  and is not this goal's to widen — the lead paragraph says so and it is repeated here because a
+  widening looks like a convenience at the moment a case fails.
+- **The result is `bool` for every subject, and the `instanceof` analogy is the trap.** 0150 § 6 is the
+  argument, stage 3 is the shape, and the acceptance list asserts both directions. A session that finds
+  itself refusing a subject has reasoned from `infer_instanceof` and should stop.
+- **False-edge narrowing stays out of scope**, for the four spellings already landed as much as for
+  this one. 0150 § 9 is why, and taking it here is the tempting local improvement that leaves four
+  spellings behind.
+- **Where stage 5 cannot reuse a walk, it emits the one that exists and never a second.** The class
+  path is `instanceof`'s descriptor walk and the `array<T>` path is `as array<T>`'s element walk; two
+  element walks in the tree means one of them is wrong, which is a bug that reads as a performance
+  choice. If reuse turns out to need a refactor to be reachable, the refactor is the slice — not a
+  second emitter, and not `BLOCKED`.
+- **What this spends**, per `rule:programs/memory-priority`: for a scalar, `object`, `null`, a literal
+  or an enum case, one tag comparison and at most a payload compare. For a class, the walk `instanceof`
+  already pays. For `array<T>` and a shape, the O(n) walk `as array<T>` already pays, and
+  `rule:types/type-test` states that cost because a reader has to see it before writing the test in a
+  loop. A folded test spends nothing at all.
