@@ -21304,7 +21304,7 @@ Whether this step is a report — a table, column or key the database has and th
 <a id="core-core-queue"></a>
 ### `Core\Queue`
 
-Keywords: push, status, cancel, stats, delete
+Keywords: push, status, cancel, stats, delete, purge
 
 | Member | Signature |
 |---|---|
@@ -21313,6 +21313,7 @@ Keywords: push, status, cancel, stats, delete
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 | [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
 | [`Core\Queue::delete`](#core-core-queue-delete) | `delete(Core\Queue\Id $job): bool` |
+| [`Core\Queue::purge`](#core-core-queue-purge) | `purge(string $queue, {state?: Core\Queue\State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint` |
 
 <a id="core-core-queue-push"></a>
 #### `Core\Queue::push`
@@ -21405,6 +21406,27 @@ Removes one job's row, wherever the receipt finds it — the jobs table, or the 
 **Returns** `bool` — `true` if this call is what removed the row, and `false` if there was nothing to remove — because a worker is holding it, or because it was never in this queue, or because an earlier `delete` got there. Unlike `cancel`, nothing is left for `status` to answer about afterwards: the row is gone, not changed.
 
 **Throws** `RuntimeError` — This deployment grants no `queue.purge` for the queue the receipt names, which is the answer until an operator writes one; or it writes no `[queue]` block, so nothing says which database the job would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the delete was refused by the server — most often because `nvs queue migrate` has not created the tables.
+
+<a id="core-core-queue-purge"></a>
+#### `Core\Queue::purge`
+
+```nvs skip
+Core\Queue::purge(string $queue, {state?: Core\Queue\State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint
+```
+
+Removes a queue's finished jobs — `Core\Queue\State::Succeeded` and `Core\Queue\State::Cancelled`, which is the set a call naming no state selects — and answers how many rows went. `Core\Queue\State::Dead` and `Core\Queue\State::Pending` are reached only by a call that names one of them, because each is a record something else would otherwise lose silently, and `Core\Queue\State::Claimed` is not reachable at all. Bounded with nothing written, so a table that has been growing since the deployment is drained by calling this until it answers `0`. Needs the `queue.purge` capability for the queue it names.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$queue` | `string` (neutral) | The queue to sweep, matched exactly: the name `push` wrote in its `{queue: …}` option, and the name the grant is scoped on. |
+| `{state: …}` | `Core\Queue\State` (default `null`) | One state to remove in place of the default set. `Dead` reads the dead-letter table instead of the jobs table, `Pending` removes work that has not run yet, and `Claimed` throws — a worker is running that job, and there is no protocol for interrupting work in flight. |
+| `{tag: …}` | `string` (default `null`, neutral) | Only the jobs `push` tagged with this group name. Grouping is decided at the enqueue, so nothing written here can group rows that were never grouped. |
+| `{before: …}` | `Core\Time\Instant` (default `null`) | Only the jobs enqueued before this instant, which is a job's age rather than its next attempt: the retry ladder moves `runAt` and never the row's age. |
+| `{limit: …}` | `uint` (default `1000`) | How many rows at most, oldest first. It is finite with nothing written, because an unbounded delete over the one table that grows without bound holds a lock on the connection the application enqueues through for as long as it takes. |
+
+**Returns** `uint` — How many rows this call removed, and `0` when nothing matched — so `while (Core\Queue::purge('email') > 0) {}` is the loop that drains a large table, and a count rather than a `bool` is what lets it terminate.
+
+**Throws** `LogicError` — The call named `Core\Queue\State::Claimed`, which is work a worker holds: removing that row would leave the job running to completion with nothing to report into.; `RuntimeError` — This deployment grants no `queue.purge` for the queue named, which is the answer until an operator writes one; or it writes no `[queue]` block, so nothing says which database the jobs would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the delete was refused by the server — most often because `nvs queue migrate` has not created the tables.
 
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
