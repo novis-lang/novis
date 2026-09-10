@@ -204,6 +204,7 @@
 //!    to [`ir::Terminator::Switch`] — that terminator selects on an integer,
 //!    while a label is any expression of the subject's type; `lower_switch`'s
 //!    own doc comment owns why one shape for every subject type beats two.
+//!    — owner: unowned
 //! 2. **A value fresh on the throw path can still leak.** A landing block
 //!    sweeps the frame's owned-temporaries stack as well as its locals, so a
 //!    call's arguments and receiver, and the operands of `.`, an
@@ -213,6 +214,7 @@
 //!    [`lower::Lowering::landing_block`] states the boundary and
 //!    `lower::Lowering`'s own field doc states the one hole shaped differently
 //!    (an argument being *transferred* when a later one throws).
+//!    — owner: unowned
 //! 3. **A tagged value can be built, carried and narrowed, but not yet
 //!    dispatched on.** [`ty::Ty::Tagged`] is the one representation `mixed`,
 //!    `?T` and every other union erase to, and its own doc comment owns the
@@ -252,6 +254,7 @@
 //!    a tagged value without a checker-proven narrowing that still panics
 //!    naming itself. Closing it adds [`ir::Helper`] variants dispatching on
 //!    the tag, not a second representation.
+//!    — owner: unowned
 //! 4. **One conversion row is missing.**
 //!    `rule:types/conversion`'s free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and `rule:expressions/nullable-conversion`'s
@@ -281,6 +284,7 @@
 //!    `nvs_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all: `Core\Uri::tryParse`
 //!    is an ordinary member call.
+//!    — owner: unowned
 //! 5. **A ternary — or a `match` — whose branches lower to two different
 //!    [`ty::Ty`] representations panics.** Neither has a recorded result type
 //!    to widen its arms to, which is the one thing
@@ -291,6 +295,7 @@
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
+//!    — owner: unowned
 //! 6. **Array access is compile-time-known-target-only, and `nvs_types` is
 //!    what says so rather than this crate; property access is not
 //!    compile-time-known-target-only.** A subscript whose base
@@ -347,6 +352,7 @@
 //!    is narrower still: it reads, but
 //!    [`lower::Lowering`]'s assignment arm has no target for one, so
 //!    `C::$p = v` panics.
+//!    — owner: unowned
 //! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
 //!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved
 //!    label — only when nothing in the program overrides that declaration;
@@ -366,6 +372,7 @@
 //!    into one array — and what checks the arguments is the callee's own
 //!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
 //!    implementation item 9's `callable` path already goes through.
+//!    — owner: M12
 //! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
 //!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
@@ -394,6 +401,7 @@
 //!    cell — and an `inout $x` parameter on the closure *itself* is `E0493`,
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
+//!    — owner: unowned
 //! 11. **A `secret` value compared against a `mixed` one is not compared in
 //!     constant time.** The qualifiers themselves are not a gap: every
 //!     atom of `rule:security/tainted-qualifier`/0033 erases to the plain `string`/`bytes` it
@@ -407,6 +415,7 @@
 //!     poisoning makes the shape rare, and closing it means teaching
 //!     `nvs_runtime::value_identical` the property rather than adding a
 //!     lowering arm.
+//!     — owner: unowned
 //! 14. **Not every safepoint flag is acted on.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
@@ -415,6 +424,7 @@
 //!     cleared and otherwise ignored — there is no collector and no debugger
 //!     to hand the frame to. Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
+//!     — owner: unowned
 //! 15. **`decimal` lowers, but `<=>` over one does not.** `rule:types/decimal`'s scalar
 //!     has a representation — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
@@ -427,6 +437,7 @@
 //!     scalar operand, and only `rule:classes/comparable`'s *object* form lowers. `**` is not a
 //!     gap: `rule:types/arithmetic` makes a `decimal` base a compile error, and
 //!     `nvs_types` reports it.
+//!     — owner: unowned
 //! 16. **A compound assignment inherits whatever its binary form is missing,
 //!     which today is `**=` and nothing else.**
 //!     [`lower::Lowering::lower_compound_assignment`] rewrites
@@ -462,10 +473,12 @@
 //!     element level rather than staging the level's *value*, which is what
 //!     leaves the slot visible to the write-back at all. Pinned by
 //!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst`.
+//!     — owner: unowned
 //! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.
+//!     — owner: unowned
 //! 18. **An abandoned generator's `finally` runs; a throw escaping one is
 //!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
 //!     and in its method table, and `nvs_runtime::object::dismantle` calls it
@@ -483,6 +496,7 @@
 //!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
 //!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
 //!     pin the rest.
+//!     — owner: unowned
 //! 19. **`rule:expressions/one-equality-operator` is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
 //!     not lex, `== null` takes
@@ -517,6 +531,7 @@
 //!     Nothing of this reached [`lower::Lowering::coerce`], whose rows
 //!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
+//!     — owner: unowned
 //!
 //! 20. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
 //!     whole, a `mixed` source included, and so do § 2's
@@ -627,6 +642,7 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
+//!     — owner: unowned
 //! 21. **`rule:types/property-key`'s `property<T>` lowers whole, and what it inherits is ADR
 //!     0036 § 4's own gap and not one of its own.** A key is a name, so the type erases to
 //!     [`ty::Ty::Str`] ([`lower::lower_checked_ty`]) and a parameter, a return,
@@ -656,6 +672,7 @@
 //!     That is recorded on `nvs_runtime::nvs_object_key_get` and on
 //!     `nvs_runtime::write_erased_property`, and it closes for every caller —
 //!     the reflective write, § 4's own store, and this — at once.
+//!     — owner: unowned
 
 pub mod ids;
 pub mod ir;
