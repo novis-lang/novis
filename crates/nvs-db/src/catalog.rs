@@ -39,6 +39,19 @@
 //!   `INFORMATION_SCHEMA.COLUMNS` like MySQL's, which is what
 //!   `postgres_reads_pg_catalog_and_the_others_read_information_schema`
 //!   asserts.
+//! - **An index outside § 11's vocabulary is not reported at all.** A partial
+//!   or expression index is filtered out of every dialect's index read —
+//!   `indexprs`/`indpred` on PostgreSQL, `has_filter` on SQL Server, `partial`
+//!   and a null `pragma_index_info` name on SQLite, and a null `column_name`
+//!   on MySQL. A [`Schema`] cannot hold one, so reporting it with its
+//!   predicate dropped would put a *false* index in the value and the diff
+//!   would then agree with a server it does not match. The cost is the other
+//!   way round: a plan that creates an index whose name is already taken by a
+//!   partial one fails on the server rather than in the plan.
+//! - **The read is one schema deep.** A PostgreSQL search path with two
+//!   schemas on it, or a SQL Server object under a schema other than the
+//!   login's default, is out of view. § 11 has no cross-schema construct, so
+//!   there is nothing in the vocabulary to lose.
 //!
 //! # Nothing here binds a parameter
 //!
@@ -52,28 +65,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An index outside § 11's vocabulary is not reported at all.** A partial
-//!    or expression index is filtered out of every dialect's index read —
-//!    `indexprs`/`indpred` on PostgreSQL, `has_filter` on SQL Server,
-//!    `partial` and a null `pragma_index_info` name on SQLite, and a null
-//!    `column_name` on MySQL. A [`Schema`] cannot hold one, so
-//!    reporting it with its predicate dropped would put a *false* index in the
-//!    value and the diff would then agree with a server it does not match. The
-//!    cost is the other way round: a plan that creates an index whose name is
-//!    already taken by a partial one fails on the server rather than in the
-//!    plan.
-//! 2. **SQL Server's type spelling is assembled out of the catalog's separate
+//! 1. **SQL Server's type spelling is assembled out of the catalog's separate
 //!    columns and covers lengths and `decimal` only.** `DATETIME_PRECISION` is
 //!    not folded in, so a `datetime2(7)` reads back as `datetime2`. That is
 //!    § 5's normalisation to own rather than this module's, since the write
 //!    direction in [`crate::ddl`] emits one precision for every instant column.
-//! 3. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
+//!    — owner: unowned
+//! 2. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
 //!    The map back is not injective — a dialect with no unsigned integer
 //!    spells one as the width above it — so a column
 //!    written as `uint32` reads back as `int64` and the plan is empty only
 //!    once § 5 normalises the *declared* side the same way. Every case is
 //!    named in that function's own doc; nothing here hides one.
-//! 4. **An unquoted spelling on a text column is read as that text.**
+//!    — owner: unowned
+//! 3. **An unquoted spelling on a text column is read as that text.**
 //!    [`unquote`] falls back to the whole string where a server printed no
 //!    quotes, because MySQL's `information_schema` prints a literal that way —
 //!    but PostgreSQL, SQL Server and SQLite always quote a string default, so
@@ -83,10 +88,7 @@
 //!    no number of applies converges. Narrowing the fallback to the dialect
 //!    that needs it is a change to that function and the tests over it, not to
 //!    [`assemble`].
-//! 5. **The read is one schema deep.** A PostgreSQL search path with two
-//!    schemas on it, or a SQL Server object under a schema other than the
-//!    login's default, is out of view. § 11 has no cross-schema construct, so
-//!    there is nothing in the vocabulary to lose yet.
+//!    — owner: unowned
 
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, IntWidth, ScalarType, Schema, SchemaError, Table,
