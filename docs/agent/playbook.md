@@ -1567,13 +1567,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   keep the construct the *rule* mandates, and assert the two halves apart rather than dropping the
   index to make the sentence true.
   [until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row]
-- **A `## Next group` item anchored `file.rs:@symbol` passes the wrap and is not inlined into the
-  next pack.** `session.py --wrap` accepts it as an anchor, so the item reads as complete, but
-  `orient.py` inlines code only for a `file:NN` anchor — a session whose item said
-  `crates/nvs-db/src/sqlite.rs:@begin` therefore opened the pack with no code in it and paid three
-  reads to find what the previous session already had on screen. Write the line number, as the
-  handoff contract in `session-prompt.md` spells it, and let `python tools/peek.py --locate` produce
-  it. [until: gone tools/orient.py:re:@]
+- **A `## Next group` item can name a slice the goal document schedules several stages later, and the
+  goal document is the one that is right.** The handoff put `Queued`'s third arm next, where
+  `docs/agent/loop-goal.md` § *Stage 5* is where it belongs — and early is not merely early here:
+  `Queued` is consumed by `counted_row`, so a third variant forces a SQLite text at every member's
+  call site, which is the whole of stages 3 and 4. Read the goal's stage list before taking a group
+  item that touches a seam, take the stage the goal names instead, and say in the handoff which item
+  you swapped and why. [until: exists crates/nvs-stdlib/src/queue.rs:Queued::Sqlite]
 
 ## Running things
 
@@ -6069,3 +6069,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   sync to also rewrite chapters you never touched — it catches up every status change landed since
   the last one — so commit the catch-up separately from your own change.
   [until: gone website/scripts/sync-rules.mjs]
+- **A refusal's wording can be pinned as a substring by a test far below it in the same file.**
+  `no_dialect`'s SQLite arm in `crates/nvs-stdlib/src/queue.rs` was held to the phrase "the queue has
+  no statements for it yet" by `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send`, so
+  an edit making the sentence *more* true failed the build. Grep a refusal's distinctive phrase
+  before editing it, and when the assertion pins wording rather than the fact under it, move it to
+  the fact. [until: reviewed 2026-09-10]
