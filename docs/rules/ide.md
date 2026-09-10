@@ -827,6 +827,10 @@ closing and renaming, the colour picker, hover and validation. Since
 [`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where a web
 application's markup is written, not an edge case.
 
+**A markup literal's body is a region too.** ``html`…` `` ([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)) is markup
+written in expression position rather than at file scope, so it gets the same services on the same
+terms — the holes are Novis and the segments are HTML, which is the boundary the lexer already knows.
+
 **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
 grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) gives for redaction
@@ -843,7 +847,7 @@ any other span it does not reflow, so formatting a `.nvs` file with markup in it
 `nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
 tooling has to be able to get out of the way of ours.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 

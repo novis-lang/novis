@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*25 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -356,7 +356,85 @@ converted with `as Markup` is trusted — it is exactly what the developer wrote
 `Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
 carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md).</sub>
+**In expression position the ordinary spelling is a markup literal**, not the lift and the operator:
+``html`<span>posted by </span>{$name}` `` is a `Markup` whose segments carry the same trust `as Markup`
+grants a literal token and whose holes are escaped by this rule
+([`core-classes/html-literal`](core-classes.md#core-classes-html-literal)), which is also where `Core\Html::join` composes a list of fragments.
+`as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
+initializer, and two computed carriers.
+
+<sub>See also [`core-classes/html-literal`](core-classes.md#core-classes-html-literal), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md).</sub>
+
+<a id="core-classes-html-literal"></a>
+
+## ``html`…` `` is a `Core\Html\Markup` whose segments are trusted and whose holes are escaped  *(designed — not yet in the compiler)*
+
+`rule:core-classes/html-literal`
+
+``html`…` `` is an expression of type `Core\Html\Markup` whose literal segments are trusted because the
+author wrote them, and whose `{$…}` holes are escaped through `Core\Html::escape` and spliced.
+
+```nvs
+tainted string $name = $row->get("name");
+
+echo html`<span>posted by </span>{$name}`;
+Core\Html\Markup $badge = html`<span class="badge">new</span>`;
+```
+
+That is the whole rule, and it is the rule `<?= ?>` already follows
+([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)). A segment is always source and a hole is always escaped, so
+nothing here turns computed text into trusted markup — the bypass `as Core\Html\Markup` closes by
+admitting only a literal token stays closed by construction. A hole already holding a `Markup` is
+spliced raw, which is `Markup + Markup` written in interpolation syntax.
+
+**Backticks, and a named prefix.** HTML is full of `"`, so a double-quoted form would put a backslash in
+front of every attribute; the backtick is free because Novis has no shell-execution form
+([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). A literal backtick in the body is `` \` ``. The prefix is a
+name rather than a bare delimiter so that a second carrier, if one ever earns a literal, can say which
+sink it means.
+
+**A hole is `{$`; every other brace is text.** The hole grammar is a double-quoted string's
+interpolation grammar, both halves of it and nothing added: `{$` opens a hole whose body is a **full
+expression** closed by the matching `}`, with brace depth counted so a closure inside one does not close
+it early — `{$u->fullName()}`, `{$row["name"]}` and `{$a + $b}` are all holes — and a bare `$name`
+interpolates in PHP's simple syntax, `$name`, `$name->prop` one level, `$name[offset]`. **A hole must
+begin with `$`**, so `{Money::format($c)}` is text exactly as it is in a double-quoted string, and a
+static call reaches a hole through a local or a closure. Every other `{` is text, so a `<style>` block's
+braces need no escape, and `\{` is the one case that wants a literal `{$`.
+
+A `secret` value in a hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
+`tainted` one is accepted, because the sink never distinguishes the two. An unterminated literal is
+`E0002`, the code that already covers an unterminated string, heredoc and interpolation — this rule adds
+no diagnostic of its own.
+
+**The compiler learns no HTML.** Segments are opaque bytes and only `{$` and the closing delimiter are
+scanned for, so there is no tag tracking, no balance requirement and no rule about where a literal may
+begin or end — ``html`<table>` `` and ``html`</table>` `` are both ordinary literals, which is what lets
+a page be composed from fragments. It follows that a hole in a position element-text escaping does not
+cover — an unquoted attribute, a URL-valued one, a `<script>` body — is accepted and produces exactly
+what `<?= ?>` produces there. That is the sink's blind spot, identical in both spellings, and it is not
+this rule's to close.
+
+**What it costs to run.** A literal with no holes is a compile-time constant folded into the constant
+pool, as a duration literal is ([`types/duration-literal`](types.md#types-duration-literal)), so it allocates nothing per execution
+where `as Core\Html\Markup` allocates one object per lift. A literal with holes in a sink position
+lowers to a run of writes — segment, escaped hole, segment — with no carrier materialised, since a value
+born and consumed at one sink is unobservable. In value position it is one `Markup` holding the joined
+bytes.
+
+`Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
+concatenates a list of fragments; every element is already a carrier, so it neither trusts nor escapes
+anything.
+
+**A carrier earns a literal form when its content is authored as text.** HTML markup is — `<span>` is
+bytes a developer types. Terminal styling is not, by decision
+([`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar)), so `Core\Cli\Text` gets no matching form: its
+segments could only ever be plain text, which needs no trust, because
+[`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink) neutralizes every value regardless of qualifier and a bare
+string is already accepted everywhere the carrier is. A third carrier is measured against that
+predicate rather than against the count.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration-literal`](types.md#types-duration-literal), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 

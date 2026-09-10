@@ -590,7 +590,8 @@
       "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`",
       "status": "designed",
       "because": [
-        "0108"
+        "0108",
+        "0169"
       ],
       "divergesFromPhp": "the markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is `nvs fmt` over the whole file and nothing else",
       "seeAlso": [

@@ -4,6 +4,10 @@ closing and renaming, the colour picker, hover and validation. Since
 `rule:programs/first-party-framework` makes inline HTML the template engine, that region is where a web
 application's markup is written, not an edge case.
 
+**A markup literal's body is a region too.** ``html`…` `` (`rule:core-classes/html-literal`) is markup
+written in expression position rather than at file scope, so it gets the same services on the same
+terms — the holes are Novis and the segments are HTML, which is the boundary the lexer already knows.
+
 **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
 `nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
 grammar, for the reason `rule:ide/redaction-ranges-come-from-the-server` gives for redaction

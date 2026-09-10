@@ -15,3 +15,10 @@ converted with `as Markup` is trusted — it is exactly what the developer wrote
 `tainted` string can never become `Markup` that way, which closes the obvious bypass.
 `Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
 carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
+
+**In expression position the ordinary spelling is a markup literal**, not the lift and the operator:
+``html`<span>posted by </span>{$name}` `` is a `Markup` whose segments carry the same trust `as Markup`
+grants a literal token and whose holes are escaped by this rule
+(`rule:core-classes/html-literal`), which is also where `Core\Html::join` composes a list of fragments.
+`as Markup` and `+` keep their meaning and become the narrow forms — a literal already held in an
+initializer, and two computed carriers.
