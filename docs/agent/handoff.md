@@ -2,75 +2,55 @@
 
 ## State
 
-**Goal `serve-runs-the-queue` — `nvs serve` runs the queue's workers, and the drain stops them — has just started; nothing
-of it has landed yet.** Goal `queue-purge`'s whole list is this goal's Stage 1 floor.
+**Goal `serve-runs-the-queue` — stages 2 and 3 are landed.** `nvs serve` arms `[queue] workers`
+where it arms the `[[schedule]]` ticker, on the core that ticks, and every worker stops on the
+process drain as well as on `Workers::stop`. Stages 4, 5 and 6 are open.
 
-The design is finished and is not this goal's to re-open. [ADR 0154](../decisions/0154.md) holds all
-of it, and `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is what this ships.
+`Draining::begin` still has **no** production caller under `nvs serve` — the only one is the accept
+loop's tail (`crates/nvs-server/src/serve.rs:1386`), which this command's `keep_serving` seam never
+reaches, and there is no signal handler in either crate. That is what ADR 0154 § 2 describes and not
+a gap this goal closes: goal `net-os-signal` lands the caller, and the predicate is here first so
+that it does not read as a defect in signal handling when it arrives.
 
-This is a small goal with one way to get it badly wrong, and the stage order exists to stop it.
-
-**Three things a session must not re-decide:**
-
-1. **The drain is the stop condition, and stage 2 comes before stage 3 because of it.** `serve.rs`'s
-   loop ends on `parked == 0` and a worker polling its idle turn is parked, so an unstoppable worker
-   is a process that can only be killed. **Check the premise before arguing with it**: when this goal
-   was written nothing began a drain under `nvs serve` at all — `Draining::begin` is called only in
-   the accept loop's tail after `keep_serving` breaks, that seam continues forever, and there was no
-   signal handler in either crate. **Goal `net-os-signal`'s stage 4 changes that before you get here**, landing
-   `Core\Signal` as the entry into this same drain, so check whether it has: if it has, an ignored
-   drain turns a graceful `SIGTERM` back into a kill, which is a production defect and not only a
-   test one. Either way the order holds — a test breaks that seam too, so arming workers before they
-   can be stopped gives you a check that hangs rather than fails, and a hanging check reports
-   nothing. Land the predicate first.
-2. **`TaskRoot::Worker`, not `TaskRoot::Request`.** The ticker three lines above holds `Request`
-   because a fire is a child of the loop that serves; a worker has no request beneath it to charge a
-   panic to (`rule:http-server/containment-does-not-end-at-the-helper`). This is the one line of the
-   change that looks right when it is wrong, and copying the neighbour is exactly how it goes in.
-3. **The command keeps its name.** `nvs serve` stays `nvs serve` — `nvs service` is already the
-   platform-service-manager namespace, `daemon` is a noun in a list of verbs, and
-   `rule:packaging/a-service-is-one-stored-argv` makes the argv a thing already written into units on
-   disk. What changes is the sentence under it, in stage 5. ADR 0154 § 6 is the argument and the user
-   has agreed it.
+The design stays closed. [ADR 0154](../decisions/0154.md) is the whole of it and the goal's
+§ *Standing decisions* holds the three things a session must not re-decide — the command keeps its
+name, the workers hold `TaskRoot::Worker`, and `arm` passes no lease.
 
 ## Next group
 
-**Stage 2 + stage 3, in that order, in one slice** — the stop condition and then the arming, because
-the second without the first is a server that will not exit. One file set:
-`crates/nvs-cli/src/worker.rs`, `crates/nvs-cli/src/serve.rs`.
+**Stage 4 — `[queue]` joins the directive table**, which is the block's *only* missing half: a
+reload that changes `workers` today is published, changes nothing and says nothing, because
+`lookup` answers `None` for every key of it. One file set: `crates/nvs-config/src/directive.rs`,
+`crates/nvs-config/tests/directives.rs`, `crates/nvs-config/src/snapshot.rs`.
 
-- [ ] **The predicate** — a worker's stop reads a `nvs_server::Draining` beside the existing
-      `Workers::stop` flag, at the top of each turn. `Draining` is `Clone` and `is_draining()` is the
-      whole of what a worker needs; `crates/nvs-server/src/serve.rs:318` is the type and its own doc
-      owns who may write the bit.
-- [ ] **`nvs run` unchanged** — its workers still stop when the script's task exits. The two binaries
-      share `worker::start` and differ in one predicate, which is what makes moving work between them
-      operational and never behavioural.
-- [ ] **The arming** — `nvs_config::queue::queue_for` off the boot snapshot as `run_run` reads it, then
-      `worker::start` on the scheduler `serve.rs` already creates, beside `nvs_server::arm` and
-      **before** the accept loop is spawned. `start` already takes `&mut Scheduler`, `&QueueBounds`,
-      `&Database` and `&Arc<Snapshot>` — `serve.rs` holds all four at that point, which is why this is
-      a handful of lines.
-- [ ] **`TaskRoot::Worker`.** See above.
-- [ ] **No lease and no `Leases` argument.** `arm` passes `None` because `Core\Cache`'s shared tier has
-      no set-if-absent; that blocker does not touch the queue at all, because
-      `rule:concurrency/claiming-is-one-statement` already puts the mutual exclusion in the database.
-      A fleet each running its own workers is the intended deployment, not a hazard.
-- [ ] **Armed once, on one core.** `workers` is per instance. Today `serve` turns one scheduler on one
-      core so the two coincide — the per-core slice is where this has to be honoured, and ADR 0154 § 3
-      is the decision it inherits rather than one it may re-take.
+- [ ] **The four rows** — `queue.connection`, `queue.workers`, `queue.max_attempts` and
+      `queue.visibility` in `DIRECTIVES`, beside the `schedule` row at
+      `crates/nvs-config/src/directive.rs:186`. `Class::System` throughout, per
+      `rule:core-classes/queue-storage-is-a-table`: work a request could redirect is work a request
+      could redirect into a database it was never granted. No new diagnostic — the naming mechanism
+      exists and this only gives it rows to find.
+- [ ] **The split** — `connection` and `workers` are `Apply::Boot` (`worker::start` reads both once,
+      at the arming the slice above landed) and `max_attempts` and `visibility` are `Apply::Reload`
+      (a worker reads `QueueBounds` per turn off the snapshot its context holds).
+      `rule:config/reloadability-is-its-own-field` is the rule; the carry loop a `Boot` row lands in
+      is `crates/nvs-config/src/snapshot.rs:258`.
+- [ ] **The census** — four entries in `crates/nvs-config/tests/directives.rs:72`, whose
+      `governing(...)` case at line 156 is the shape a `queue.*` key's block name is asserted with.
+- [ ] **The four named cases**, which `docs/agent/loop-goal.toml`'s stage 4 check lists and which are
+      the specification: the last of them asserts that a reload changing `workers` carries the
+      running value forward *and* names the key, which is the two halves of `publish` at
+      `crates/nvs-config/src/snapshot.rs:319` rather than one.
 
 ## Backlog
 
-- **Stage 4** — four `[queue]` rows in `crates/nvs-config/src/directive.rs`, `System` throughout,
-  `connection`/`workers` `Boot` and `max_attempts`/`visibility` `Reload`. The block has **no row at
-  all** today: `lookup` answers `Option` and nothing governs `queue`, so a reload that changed
-  `workers` is published, changes nothing and says nothing. No new diagnostic — the reload's naming
-  mechanism exists and this gives it rows to find. The census in
-  `crates/nvs-config/tests/directives.rs` gains four entries.
-- **Stage 5** — the help line in `crates/nvs-cli/src/main.rs:259`, which says "Serve a Novis file over
-  HTTP, on one core, until stopped" and after this goal describes the least of three subsystems.
+- **Stage 5** — the help line at `crates/nvs-cli/src/main.rs:259`, which says "Serve a Novis file
+  over HTTP, on one core, until stopped" and now describes the least of three subsystems.
 - **Stage 6** — `examples/queue.nvs`'s properties under the *served* binary, and the shutdown case.
-  **Write the shutdown case with a deadline**: the failure mode of stage 2 being missed is a hang, and
-  a check that hangs when the feature regresses is worse than one that fails, because it has nothing
-  to report. **No differential case**: PHP has no queue.
+  **Write the shutdown case with a deadline**: a stage-2 regression is a hang, and a check that
+  hangs has nothing to report.
+- **A `nvs serve` from this repository's own root now arms one worker**, because `nvs.toml:378`
+  writes `[queue] connection = "main", workers = 1`. Nothing hangs on it — the accept loop is
+  already a parked task and `parked == 0` is what ends the process — but a bench or fixture that
+  boots this tree holds a `[db.main]` connection it did not before.
+- **`Workers::stop` has no caller under `nvs serve`** and is not meant to: `docs/agent/carried-gaps.md`
+  is where that goes if the drain ever stops being the served stop condition.
