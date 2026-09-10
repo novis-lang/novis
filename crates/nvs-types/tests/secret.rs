@@ -224,6 +224,49 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
 }
 
 #[test]
+fn a_secret_argument_to_push_is_refused_where_the_call_is_written() {
+    // `rule:security/secret-sinks-refuse`'s serialiser bullet reached one
+    // member further on: `Core\Queue::push` encodes its `args` payload into a
+    // durable row with `Core\Json::encode`'s own encoder, so it reports that
+    // bullet's code — and it has to report it *here*, because `args` is
+    // declared `mixed` and the bag arrives as the registry's own `CoreShape`,
+    // which is why no declared type below the call site can tell.
+    let named = check_in_method(
+        "secret string $token = \"literal\";\n\
+         Core\\Queue::push(\"send-mail.nvs\", {args: $token});\n",
+    );
+    assert!(
+        named.iter().any(|d| d.code == Some(code::E_SECRET_ENCODED)),
+        "{named:?}"
+    );
+
+    // The shape the rule exists for: one credential among public fields,
+    // written inline at the call in either container spelling.
+    for payload in [r#"["to" => "a@b", "token" => $token]"#, "{token: $token}"] {
+        let inline = check_in_method(&format!(
+            "secret string $token = \"literal\";\n\
+             Core\\Queue::push(\"send-mail.nvs\", {{args: {payload}}});\n"
+        ));
+        assert!(
+            inline
+                .iter()
+                .any(|d| d.code == Some(code::E_SECRET_ENCODED)),
+            "{payload}: {inline:?}"
+        );
+    }
+
+    // The open type stays open, which is the other half of the claim, and the
+    // bag's other options are left to their own declared types: `queue` is a
+    // `string`, so a `secret` there is the ordinary mismatch and not a second
+    // report of this one.
+    let allowed = check_in_method(
+        "string $to = \"a@b\";\n\
+         Core\\Queue::push(\"send-mail.nvs\", {args: [\"to\" => $to], queue: \"mail\"});\n",
+    );
+    assert!(!allowed.has_errors(), "{allowed:?}");
+}
+
+#[test]
 fn a_plain_value_passed_to_a_throwable_is_fine() {
     let diags = check_in_method(r#"throw new LogicError("plain message");"#);
     assert!(!diags.has_errors(), "{diags:?}");

@@ -1120,6 +1120,7 @@
         "tests/conformance/reject/echo-refuses-a-secret.nvst",
         "tests/conformance/reject/log-write-refuses-a-secret-field.nvst",
         "tests/conformance/reject/json-encode-refuses-a-secret.nvst",
+        "tests/conformance/reject/queue-push-refuses-a-secret.nvst",
         "tests/conformance/reject/a-secret-value-cannot-be-dumped.nvst",
         "tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst"
       ]

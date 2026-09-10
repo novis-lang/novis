@@ -1,6 +1,7 @@
 Every **output** sink refuses a `secret` value, and no neutralisation bypasses one: HTML and response
 output refuse outright with no auto-escape, terminal output refuses with no carrier bypass, a log
-field refuses, a serialiser refuses anywhere in the value it walks, a `Throwable` message requires the
+field refuses, a serialiser refuses anywhere in the value it walks — including where the encode is
+inside the member, as an enqueued job's payload is — a `Throwable` message requires the
 plain type, an attribute payload refuses, and a debug dump renders a fixed placeholder instead of the
 value. Escaping fully neutralises injection and does **nothing** for confidentiality — an escaped
 credential is still a leaked credential, just HTML-safe.

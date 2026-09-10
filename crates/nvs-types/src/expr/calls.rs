@@ -414,6 +414,13 @@ pub(crate) fn infer_static_call(
         // reason that call reads them. See
         // [`reject_secret_published_argument`].
         reject_secret_published_argument(owner, name, args, &arg_types, &slots, env);
+        // The serialiser sink one member further on: `Core\Queue::push`
+        // encodes its `args:` payload with `Core\Json::encode`'s own encoder,
+        // into a row a worker process decodes later. It takes the slots for
+        // the call above's reason and the `scope` for the log sink's — the bag
+        // arrives as the declared `CoreShape`, so the written literal is all
+        // there is left to read. See [`reject_secret_enqueued_argument`].
+        reject_secret_enqueued_argument(owner, name, args, &slots, scope, env);
     }
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type, and records `CallableRef` rather

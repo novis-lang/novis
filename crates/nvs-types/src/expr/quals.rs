@@ -20,7 +20,7 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
-//! The sinks reachable here are ten, and the three below are the ones a
+//! The sinks reachable here are eleven, and the three below are the ones a
 //! conversion reaches. [`reject_non_literal_markup_conversion`]
 //! is `rule:core-classes/html-auto-escape`'s one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
@@ -34,7 +34,7 @@
 //! decided without a declared `Throwable`/`Exception`/`Error` stdlib to check
 //! against.
 //!
-//! The next six are read off a written argument rather than off a
+//! The next seven are read off a written argument rather than off a
 //! conversion, because the member they reach declares an open type and the
 //! call site is the last place the qualifier is visible:
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
@@ -42,10 +42,13 @@
 //! `spawn` bullet, which is one check for both of `rule:classes/graph-copy`'s carriers —
 //! [`reject_secret_published_argument`], which is `rule:core-classes/topic`'s bus reaching
 //! that same graph copy through a third carrier,
-//! [`reject_secret_encoded_argument`], and
+//! [`reject_secret_encoded_argument`],
+//! [`reject_secret_enqueued_argument`], which is that same encoder reached
+//! through `Core\Queue::push` rather than written at the call, and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
-//! design** rather than pending, which is why it is the one of the six that
-//! also reads the elements of a written literal.
+//! design** rather than pending. The last two are the ones that also read the
+//! elements of a written literal, because a payload with one credential among
+//! public fields is where the qualifier is in practice.
 //!
 //! The last has no member behind it at all: [`reject_secret_output`] is
 //! § 4's terminal-output bullet, asked at `echo` and `print`, where the
@@ -640,6 +643,126 @@ pub(crate) fn reject_secret_encoded_argument(
             ),
         );
     }
+}
+
+/// The same serialiser sink one member further on: `Core\Queue::push`'s
+/// `args:` payload is encoded into a durable row that a *worker process*
+/// decodes later, by the encoder [`reject_secret_encoded_argument`] refuses at
+/// — `nvs_stdlib::queue`'s `payload_of` hands `crate::json::Encodable` to
+/// `serde_json` — so it reports that bullet's code rather than one of its own.
+/// `rule:security/secret-sinks-refuse` names a queue as one of the three places
+/// an encoded document is on its way to, and this is the spelling where the
+/// encode is inside the member rather than at a call the program wrote.
+///
+/// A call-site rule for every sibling's reason: `args` is declared `mixed`,
+/// which a `secret string` satisfies, so the written option is the last place
+/// the qualifier is visible at all. It is also the one option asked about, on
+/// [`is_fields_argument`]'s split — `queue` and `key` are `string`s, which a
+/// `secret string` is not assignable to, and the other three are an instant, a
+/// duration and a `uint`, so every one of them is already refused by its own
+/// declared type and a second report here would answer one mistake twice.
+///
+/// **The qualifier is read off the written literal and the scope**, never off
+/// `arg_types`, and that is forced rather than chosen: the bag arrives as the
+/// [`Ty::CoreShape`](crate::ty::Ty::CoreShape) the *registry* declared, whose
+/// `args` field is `mixed`, so nothing of the argument's own type survives on
+/// the slot. The reach is [`reject_secret_logged_argument`]'s and so is the
+/// gap it leaves — a payload that arrives *composed* is past this rule, which
+/// is the container axis `rule:security/secret-qualifier` already owns rather
+/// than a hole in this one.
+pub(crate) fn reject_secret_enqueued_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    scope: &LocalScope,
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Queue" || member != "push" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    for (arg, &slot) in list.iter().zip(slots) {
+        // Slot 1 is the bag in `nvs_stdlib::queue`'s row, and a bag is written
+        // as an object literal or not written at all — a [`Ty::Shape`] is
+        // never assignable to a [`Ty::CoreShape`], which is
+        // [`super::args`]'s own fork — so there is no second spelling of the
+        // payload for this walk to be missing.
+        if slot != ArgSlot::Param(1) {
+            continue;
+        }
+        let ExprKind::ObjectLiteral(fields) = &arg.value.kind else {
+            continue;
+        };
+        for field in fields {
+            if span_text(env.src, field.name)
+                .trim()
+                .trim_end_matches(':')
+                .trim()
+                != "args"
+            {
+                continue;
+            }
+            reject_secret_enqueued_value(&field.value, scope, env);
+        }
+    }
+}
+
+/// [`reject_secret_enqueued_argument`]'s walk over one written payload: a
+/// binding that carries the qualifier, and the same question asked of every
+/// element of an array or object literal written inline, which is where the
+/// shape the rule exists for — one credential among public fields — is
+/// actually written.
+///
+/// A binding is asked about by name for [`reject_secret_logged_argument`]'s
+/// reason: an inline literal checked against a `mixed` expectation is that
+/// expectation, so nothing of an element's own type reaches here.
+fn reject_secret_enqueued_value(at: &Expr, scope: &LocalScope, env: &mut Env<'_>) {
+    match &at.kind {
+        ExprKind::Variable(span) => {
+            let name = strip_sigil(span_text(env.src, *span));
+            let Some(bound) = scope.narrowed_ty(name).or_else(|| scope.declared_ty(name)) else {
+                return;
+            };
+            if contains_secret(bound, env.interner) {
+                report_secret_enqueued(at.span, env);
+            }
+        }
+        ExprKind::ArrayLiteral(items) => {
+            for item in items {
+                reject_secret_enqueued_value(&item.value, scope, env);
+            }
+        }
+        ExprKind::ObjectLiteral(fields) => {
+            for field in fields {
+                reject_secret_enqueued_value(&field.value, scope, env);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// [`reject_secret_enqueued_argument`]'s one diagnostic, written once because
+/// the rule reaches it from two directions — a payload that carries the
+/// qualifier, and one element of a payload literal that does — and the author
+/// is owed the same sentence either way.
+fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_ENCODED,
+            "a `secret`-qualified value cannot be passed to `Core\\Queue::push`; the `args` \
+             payload is encoded into a durable row that a worker process decodes later, and a \
+             stored job is not the credential being used",
+        )
+        .with_primary(span, "secret value enqueued here")
+        .with_help(
+            "reveal the one field that must travel with \
+             `Core\\Secret::reveal(..., \"reason\")`, written at that field rather than at the \
+             call, so the rest of the payload stays covered",
+        ),
+    );
 }
 
 /// `rule:security/secret-sinks-refuse`'s log sink: `Core\Log::write` refuses a `secret` in its

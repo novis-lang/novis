@@ -45,6 +45,15 @@
 //! answer is the affected count and `count(case when … then 1 end)` beside the `cast(… as signed)`
 //! over the `sum` MySQL answers as a `decimal`.
 //!
+//! **A `secret` never reaches the row, and nothing here is what refuses it.** [`payload_of`] encodes
+//! `$args` with the encoder `Core\Json::encode` uses, so a durable row a worker process decodes
+//! later is `rule:security/secret-sinks-refuse`'s serialiser sink arriving one member further on —
+//! and it is refused where the call is written, by
+//! `nvs_types::expr::quals::reject_secret_enqueued_argument`, which reports that sink's own code. A
+//! declared type could not have done it: `args` is `mixed`, which admits every qualifier there is,
+//! and the bag reaches the checker as the shape the registry declared rather than the one the call
+//! wrote.
+//!
 //! **What it spends:** one statement per member call, on a connection the request either already
 //! held or now holds for the rest of it, plus one JSON encoding of `$args` sized by the payload the
 //! caller wrote. Nothing is held between calls, except the four counters `stats` answers with for
@@ -61,11 +70,7 @@
 //!    narrowing `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue` asks for is read
 //!    off the context that enqueued the job.
 //!    — owner: unowned-sweep
-//! 2. **`$args` is `mixed` and so does not refuse a `secret`**, which § 1 asks for. A durable row is
-//!    an output and `rule:security/secret-qualifier`'s five sinks are the shape of the eventual answer; `CoreTy::Mixed`
-//!    carries no qualifier, so saying it needs a spelling the registry has not got.
-//!    — owner: unowned-sweep
-//! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
+//! 2. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
 //!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
 //!    inside the same statement that writes it, which is correct against every other `push` on a
 //!    *serialized* transaction and racy against a concurrent one at `read committed`. [`schema`]
@@ -74,13 +79,13 @@
 //!    against a schema carrying it without changing shape — so what is left of this gap is a
 //!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
 //!    — owner: unowned
-//! 4. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
+//! 3. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //!    — owner: unowned
-//! 5. **Two of the five backends have no statement here at all**, and the text is this module's to
+//! 4. **Two of the five backends have no statement here at all**, and the text is this module's to
 //!    write rather than [`crate::db`]'s: `Core\Db` reaches all five, so each of the two opens a
 //!    connection that works and has nothing of § 4's or § 6's to send over it. SQLite is one
 //!    dialect away. SQL Server is a dialect *and* the vocabulary behind it, because
@@ -987,6 +992,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         // Both still mean *no payload* here: `rule:core-api/a-written-null-removes`
                         // makes a written `null` a removal, and there is nothing to remove but
                         // the payload. [`payload_of`] reads the pair.
+                        //
+                        // `mixed` admits a `secret` without spelling it either, and that one
+                        // is refused rather than carried: the module doc above names the
+                        // call-site rule, because no type written in this cell could.
                         default: Const::NeverWritten,
                     },
                     CoreOption {
