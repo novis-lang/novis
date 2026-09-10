@@ -42,16 +42,6 @@
 //! than keeping the original. Chaining is what preserves the original — the
 //! cause keeps its own location, and `{previous: $e}` is how it is kept.
 //!
-//! # Known gaps
-//!
-//! * **`$e->previous` is set but cannot be *read* through.** The chain is
-//!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
-//!   the property back yields the `Throwable|null` it was given — but that
-//!   type erases to `nvs_ir::Ty::Tagged`, so reaching `->message` on it needs
-//!   the value bound to a local and narrowed with `!= null` first (`rule:expressions/nullable-conversion`).
-//!   A property access straight off `$e->previous` is the tagged-receiver
-//!   case `nvs_ir::Ty::Tagged`'s own known gap names.
-//!
 //! An `issues` entry is read like any other value now: `$issue->path` is a
 //! property access on an `rule:types/erased-member-access` shape receiver, which
 //! [`crate::expr_table::ExprInfo::ShapeProperty`] resolves to the field's slot
@@ -61,6 +51,17 @@
 //! A user subclass that declares its own constructor and does not chain to
 //! `parent::constructor(…)` is already refused, by the same check every other
 //! `extends` gets — nothing exception-specific is needed for that.
+//!
+//! # Known gaps
+//!
+//! * **`$e->previous` is set but cannot be *read* through.** The chain is
+//!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
+//!   the property back yields the `Throwable|null` it was given — but that
+//!   type erases to `nvs_ir::Ty::Tagged`, so reaching `->message` on it needs
+//!   the value bound to a local and narrowed with `!= null` first (`rule:expressions/nullable-conversion`).
+//!   A property access straight off `$e->previous` is the tagged-receiver
+//!   case `nvs_ir::Ty::Tagged`'s own known gap names.
+//!   — owner: unowned
 
 use nvs_hir::QName;
 use nvs_hir::errors::{PROPERTIES, ROOT, TREE};

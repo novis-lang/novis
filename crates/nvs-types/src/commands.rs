@@ -61,20 +61,20 @@
 //! and ignoring the second, and a recognized attribute the compiler never looks
 //! at is what this module's roster exists to prevent.
 //!
-//! # Known gaps
+//! # What crosses in a row, and what stays
 //!
-//! 1. **A row carries the *conversion* a parameter needs and not its type.**
-//!    § 6's matching reads the declared type, and the consumer of the table is a
-//!    native member holding no signature at all — `Core\Command::run` is reached
-//!    from a command line, not from a call site — so something about the type
-//!    has to cross. What crosses is [`ArgConv`], the answer
-//!    [`converts_from_string`] already computes for § 6's third compile error,
-//!    and not the type: a closed set, decided in the same walk that
-//!    builds the row, cannot disagree with the declaration the way a second copy
-//!    of the type lattice could. The one other thing a matcher cannot do without
-//!    crosses the same way: a parameter's *default* rides as the text a command
-//!    line would have written for it ([`CommandArg::default`]), not as the
-//!    constant. The rest of the signature stays where it is.
+//! A row carries the *conversion* a parameter needs and not its type. § 6's
+//! matching reads the declared type, and the consumer of the table is a native
+//! member holding no signature at all — `Core\Command::run` is reached from a
+//! command line, not from a call site — so something about the type has to
+//! cross. What crosses is [`ArgConv`], the answer [`converts_from_string`]
+//! already computes for § 6's third compile error, and not the type: a closed
+//! set, decided in the same walk that builds the row, cannot disagree with the
+//! declaration the way a second copy of the type lattice could. The one other
+//! thing a matcher cannot do without crosses the same way: a parameter's
+//! *default* rides as the text a command line would have written for it
+//! ([`CommandArg::default`]), not as the constant. The rest of the signature
+//! stays where it is.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
