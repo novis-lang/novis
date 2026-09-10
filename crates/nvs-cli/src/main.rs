@@ -847,6 +847,14 @@ impl From<FaultSiteArg> for nvs_runtime::FaultSite {
 }
 
 fn main() -> ExitCode {
+    // Before the footer read below, because a bundled application serves
+    // requests too and the hook is what puts a panic under one of them into
+    // that request's log. It claims nothing else: every command here is a CLI
+    // run with no request beneath it, so its panic goes to stderr through the
+    // default hook exactly as it did — `nvs_runtime::floor::install_panic_hook`
+    // owns that split.
+    nvs_runtime::floor::install_panic_hook();
+
     // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`, and it happens before clap sees anything: a bundled
     // executable's `argv` belongs to the program it carries, so an app whose
     // first argument is `run` or `--help` must not have it read as one of

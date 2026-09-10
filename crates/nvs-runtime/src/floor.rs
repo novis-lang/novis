@@ -208,6 +208,80 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
     let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
 }
 
+/// Installs the process's panic hook: a panic raised beneath a **served
+/// request** becomes one of this module's records, with that request's id on
+/// it, and every other panic is left to the hook that was already there.
+///
+/// `rule:errors/helper-abi` asks for the message to reach the request log.
+/// [`crate::run_helper`] already recovers it into the [`Ctx`], but that copy is
+/// the *fault the request fails with* — it goes where the escalation ladder
+/// sends a fault, not where an operator greps by request id. This is the other
+/// half, and it is **presentation only**: a hook runs before the unwind starts
+/// and then returns, so [`crate::run_helper`] and [`crate::run_task`] contain
+/// the panic exactly as they do without one. Nothing here recovers a panic,
+/// and `rule:http-server/containment-does-not-end-at-the-helper` is untouched.
+///
+/// # It reaches the context the way a release does
+///
+/// A hook is handed a `PanicHookInfo` and nothing else, so there is no argument
+/// to carry a context in and `ctx::current`'s thread-local is the only door.
+/// It is sound here for that module's own reason and one more: the frames
+/// holding `&mut Ctx` above are not running while the hook is — it is running
+/// *instead* of them, on a stack that is about to unwind past them.
+///
+/// # A CLI script keeps stderr
+///
+/// The test is [`Ctx::inbound`], which is exactly what [`Ctx::stamp_envelope`]
+/// gates on: a context with no request has no request id to stamp, and a
+/// `nvs run` whose panic went to `[log] target` would take the message off the
+/// stream its user is reading. So a panic this hook does not claim is passed to
+/// the hook that was installed before it — the default one, which prints to
+/// stderr — and `nvs run` behaves as it did.
+///
+/// **What it spends:** one boxed closure for the life of the process, and
+/// nothing per request. The record is built on a path that has already failed.
+pub fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let message = crate::abi::panic_message(info.payload());
+        let location = info.location().map(ToString::to_string);
+        if !report_panic(&message, location.as_deref()) {
+            previous(info);
+        }
+    }));
+}
+
+/// Writes one panic as [`report`]'s record, answering whether it was claimed —
+/// `false` when no served request is running on this thread, which is
+/// [`install_panic_hook`]'s signal to fall through to the previous hook.
+///
+/// Separate from the hook because a `PanicHookInfo` cannot be constructed, so
+/// this is the half a test can put a question to.
+///
+/// [`Level::Critical`] and not [`Level::Error`]: an internal panic is
+/// `rule:errors/escalation-ladder`'s tier 4, which is the level that exists for
+/// it, while an uncaught `Throwable` — a program's own failure — is the tier
+/// [`uncaught`] reports at. The panic's own `file:line:column` is a `location`
+/// field for [`text`]'s reason, and the message stays the message so that a
+/// hook line and the fault the request fails with read the same.
+fn report_panic(message: &str, location: Option<&str>) -> bool {
+    crate::ctx::with_current(|ctx| {
+        if ctx.inbound().is_none() {
+            return false;
+        }
+        let mut record = note(Level::Critical, message);
+        if let Some(location) = location {
+            record
+                .envelope
+                .fields
+                .push(("location".to_owned(), text(location)));
+        }
+        report(ctx, &record);
+        true
+    })
+    .unwrap_or(false)
+}
+
 /// How long one record holds the window open — `rule:http-server/the-floor-cannot-fill-the-disk`'s rate limit,
 /// which is what keeps a request faulting in a loop from writing in a loop.
 ///
@@ -444,9 +518,17 @@ mod tests {
 
     use super::{
         LOG_WINDOW_SLOTS, LOG_WINDOWS, Level, Window, admit, admit_log_record, expire_log_windows,
-        key, note, text,
+        install_panic_hook, key, note, report_panic, text,
     };
+    use crate::ctx::CurrentCtx;
+    use crate::{Ctx, Inbound, OutputSink, TaskRoot, run_task};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex, PoisonError};
     use std::time::Instant;
+
+    /// Serialises the tests that replace the process's panic hook, so that
+    /// neither restores what the other installed.
+    static HOOK: Mutex<()> = Mutex::new(());
 
     /// One `Core\Log::write`'s record, as the member and line its call site
     /// would have named — `rule:errors/a-record-names-where-it-was-produced`'s
@@ -467,6 +549,117 @@ mod tests {
     fn write(record: &nvs_render::Record) -> Option<u64> {
         let mut carried = record.clone();
         admit_log_record(&mut carried).then(|| carried.envelope.count.unwrap_or(1))
+    }
+
+    /// `rule:errors/helper-abi`'s request-log half: a panic raised under a
+    /// served request becomes one of this module's records, carrying the id
+    /// [`Ctx::stamp_envelope`] would have put on any other record of that same
+    /// request — which is what makes the line greppable beside them.
+    #[test]
+    fn a_panic_on_a_served_request_is_written_to_the_request_log_with_its_request_id() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx.set_inbound(Inbound::new("GET", "/served", ""));
+        let request_id = ctx.trace_context().trace_id_hex();
+
+        let installed = CurrentCtx::install(&mut ctx);
+        assert!(
+            report_panic("a helper broke its own invariant", Some("floor.rs:1:1")),
+            "a panic under a served request is the case the hook claims"
+        );
+        drop(installed);
+
+        let written = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("the diagnostic channel was given a buffer"),
+        )
+        .expect("a record renders as UTF-8");
+        assert!(
+            written.contains("a helper broke its own invariant"),
+            "the panic's own message is the record's message: {written}"
+        );
+        assert!(
+            written.contains(&request_id),
+            "the record carries the id of the request it was raised under: {written}"
+        );
+        assert!(
+            written.contains("floor.rs:1:1"),
+            "and where the panic was raised: {written}"
+        );
+    }
+
+    /// The other side of that split, and why the hook delegates rather than
+    /// printing for itself: a `nvs run` has a context but no request, so the
+    /// hook installed before this one — the default, which writes to stderr —
+    /// is the one that answers, and the request log stays empty.
+    #[test]
+    fn a_cli_scripts_panic_still_reaches_stderr_through_the_default_hook() {
+        let _serialised = HOOK.lock().unwrap_or_else(PoisonError::into_inner);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        let installed = CurrentCtx::install(&mut ctx);
+        assert!(
+            !report_panic("a CLI script's helper panicked", Some("floor.rs:2:1")),
+            "a context with no request beneath it is not the hook's case"
+        );
+
+        let delegated = Arc::new(AtomicBool::new(false));
+        let saw = Arc::clone(&delegated);
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |_| saw.store(true, Ordering::SeqCst)));
+        install_panic_hook();
+        let outcome: Result<(), _> = run_task(TaskRoot::Worker, || {
+            panic!("a CLI script's helper panicked")
+        });
+        std::panic::set_hook(previous);
+        drop(installed);
+
+        assert!(outcome.is_err(), "the panic was contained at the task root");
+        assert!(
+            delegated.load(Ordering::SeqCst),
+            "the hook that was there before this one is what answered"
+        );
+        assert!(
+            ctx.take_buffered_diagnostic()
+                .is_some_and(|written| written.is_empty()),
+            "and nothing went to the request log, which is what stderr means here"
+        );
+    }
+
+    /// The standing decision this hook is written under: it changes
+    /// presentation and never containment. One panic, both halves asked of it —
+    /// the record reached the request log, and [`run_task`] still answers the
+    /// fault it answered before rather than a value.
+    #[test]
+    fn the_hook_changes_presentation_and_never_lets_a_panic_be_recovered() {
+        let _serialised = HOOK.lock().unwrap_or_else(PoisonError::into_inner);
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx.set_inbound(Inbound::new("GET", "/panics", ""));
+        let installed = CurrentCtx::install(&mut ctx);
+
+        let previous = std::panic::take_hook();
+        install_panic_hook();
+        let outcome: Result<u32, _> = run_task(TaskRoot::Request, || {
+            panic!("presentation is all this hook changes")
+        });
+        std::panic::set_hook(previous);
+        drop(installed);
+
+        let fault = outcome.expect_err("a hook may not turn a panic into a value");
+        assert_eq!(
+            fault.message(),
+            "presentation is all this hook changes",
+            "the panic is contained where it was, carrying what it said"
+        );
+        let written = String::from_utf8(ctx.take_buffered_diagnostic().unwrap_or_default())
+            .expect("a record renders as UTF-8");
+        assert!(
+            written.contains("presentation is all this hook changes"),
+            "and that same panic reached the request log: {written}"
+        );
     }
 
     /// The table's reason for existing —

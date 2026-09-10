@@ -505,7 +505,14 @@ pub(crate) fn record_fault(ctx: &mut Ctx, fault: Fault) -> i32 {
 }
 
 /// Recovers a panic's message, so a contained bug says what it was.
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> std::borrow::Cow<'static, str> {
+///
+/// `pub(crate)` for [`crate::floor::install_panic_hook`], which reads the same
+/// payload one moment earlier: a hook and this boundary reporting one panic
+/// under two different messages is the divergence `crate::floor`'s module doc
+/// exists to prevent, applied to the payload rather than to the record.
+pub(crate) fn panic_message(
+    payload: &(dyn std::any::Any + Send),
+) -> std::borrow::Cow<'static, str> {
     if let Some(message) = payload.downcast_ref::<&'static str>() {
         std::borrow::Cow::Borrowed(*message)
     } else if let Some(message) = payload.downcast_ref::<String>() {

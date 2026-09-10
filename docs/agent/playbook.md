@@ -1546,6 +1546,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   one-optional-tail and `rule:concurrency/queue-four-members` each forbid alone. A name specifies
   only where the rules left the question open, so rename the check — in `loop-goal.toml` and the
   goal's own copy — rather than bending the surface to it. [until: reviewed 2026-09-10]
+- **`rules.py --check` reads `docs/agent/handoff.md`, so a `rule:` token invented in a *handoff* turns
+  a floor check red for the next session rather than for the one that wrote it.** Session 0006's
+  `## Next group` cited `rule:http-server/containment`, which does not exist — the rule is
+  `rule:http-server/containment-does-not-end-at-the-helper` — and the driver's earliest-stage failure
+  became "the rulebook validates" with two findings both pointing at the handoff. Paste a `rule:`
+  token from `brief.py --where <topic>` rather than shortening one to the words you remember; the
+  wrap does not check the handoff it is writing. [until: reviewed 2026-09-10]
 
 ## Running things
 

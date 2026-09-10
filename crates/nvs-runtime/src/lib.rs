@@ -209,15 +209,6 @@
 //!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
 //!    — owner: unowned
-//! 4. **No custom panic hook is installed.** `rule:errors/helper-abi` wants the
-//!    panic message routed to the request log with its request id. The request
-//!    log is there — `Ctx::write_log_record` under `nvs_stdlib::log` — so
-//!    what is left is the hook itself, and the request id that module's own
-//!    envelope note is waiting on beside it; the default hook's stderr output
-//!    is still the right destination for a CLI script. [`nvs_helper!`] already
-//!    captures the message into [`Ctx`], so the hook is presentation, not
-//!    containment.
-//!    — owner: unowned-sweep
 //! 5. **`nvs_safepoint` acts on only some of its flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `nvs dap` exists.
