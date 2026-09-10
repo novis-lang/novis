@@ -3,44 +3,47 @@
 ## State
 
 **Goal `unowned-sweep`, stage 2.** ADR 0147's mechanism is landed end to end and `Core\Uri::with` is
-the member spending it; `rule:core-classes/uri-removable-components` stays `designed` for its second
-level, the `queryParameter`/`withQueryParameter` pair, which is `crates/nvs-stdlib/src/uri.rs`'s
-known gap 1.
+the member spending it. Five of the stage-2 check's eight `-p nvs-stdlib` names now exist and pass —
+the three that drive the landed `with` through `nvs_runtime::call`, in
+`crates/nvs-stdlib/src/uri.rs`, and the two read off the registry rows, in
+`crates/nvs-stdlib/src/registry.rs` beside the pairing guard they extend.
 
-`Core\Queue`'s gap 1 is closed as a **decision rather than a declaration**, and queue.rs's module doc
-is its home. The spelling was never the blocker: an option's type is never a shape
-(`rule:core-api/shape-parameter`) and `rule:concurrency/queue-four-members` puts both knobs inside the
-one trailing bag, so `grants` is a list of capability names and `limits` its sub-caps one option each.
-What they wait on is enforcement — `nvs_types::expr::isolate`'s spawn check reports
-`E_SPAWN_OPTION_UNSUPPORTED` for `limits:` and `grants:` — and declaring them ahead of that is
-`rule:concurrency/an-upgrades-options-are-spawn-scripts`'s accepted-and-dropped narrowing. The stage's
-check name and the goal's prose item 3 moved to match, in both copies of each.
+**The stage-2 line stays red until the last three names exist, and that is open work rather than a
+regression.** They belong to the `queryParameter` / `withQueryParameter` pair —
+`rule:core-classes/uri-removable-components`'s second level, which is why that rule is still
+`designed`, and `crates/nvs-stdlib/src/uri.rs`'s known gap 1. That pair is the next group; it was not
+taken here because it widens the file set to the spec, the reference page and the `.nvst` corpus.
 
-**The stage-2 `Core\Uri::with` check names eight `-p nvs-stdlib` tests and none of the eight exists**,
-which is why it is the earliest-stage red line; the conformance cases that guard the rule do exist.
-That is the next group. Nothing is blocked.
+`Core\Queue`'s gap 1 stays closed as a **decision**, and `crates/nvs-stdlib/src/queue.rs`'s module doc
+is its home: `limits` and `grants` wait on enforcement in `nvs_types::expr::isolate`, not on a
+spelling. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: `with`'s three states, asserted where the check looks for them** — one file set:
-`crates/nvs-stdlib/src/uri.rs`, `crates/nvs-stdlib/src/registry.rs`.
+**Stage 2: the query-parameter pair, `rule:core-classes/uri-removable-components`'s second level** —
+one file set: `crates/nvs-stdlib/src/uri.rs`, with `docs/spec/01-core-library.md` and
+`docs/reference/core/Uri.md` edited in the same slice as the row that lands.
 
-- [ ] **Three tests over the landed `with`** — `crates/nvs-stdlib/src/uri.rs:2111` is the helper and
-      `crates/nvs-stdlib/src/uri.rs:1388` its three-state read, so drive it the way the playbook's
-      `nvs_runtime::call` bullet drives another module's member.
-      `rule:core-api/omission-is-not-a-written-null` is the rule. The names the check waits on are
-      `a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone`,
-      `an_empty_query_stays_distinct_from_an_absent_one` and
-      `there_is_no_empty_string_means_remove_rule_anywhere_in_with`.
-- [ ] **Two more read off the rows rather than off a call** —
-      `crates/nvs-stdlib/src/registry.rs:3352` is the pairing guard the two sit beside;
-      `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`. The names are
-      `a_nullable_option_omits_as_unset_and_a_non_nullable_one_omits_as_null` and
-      `a_null_written_into_a_non_nullable_option_is_still_refused`.
-- [ ] **`queryParameter` and `withQueryParameter`** — `crates/nvs-stdlib/src/uri.rs:2111` is the
-      member they compose with; `rule:core-classes/uri-removable-components`'s second level, and the
-      goal's own § *Stage 2* item 2 says why the spec rows, the registry entries, the conformance
-      cases and `docs/reference/core/Uri.md` are **one edit**. The check's last three names are here.
+- [ ] **`queryParameter(string $name)` — the singular reader** — `crates/nvs-stdlib/src/uri.rs:398` is
+      `CLASS`'s instance roster, `crates/nvs-stdlib/src/uri.rs:940` the `address()` arm whose miss is a
+      runtime panic naming the symbol, and `crates/nvs-stdlib/src/uri.rs:2392` the `parseQuery` walk it
+      composes with rather than parsing a second time. The gap it closes is
+      `crates/nvs-stdlib/src/uri.rs:331` item 1; the row's spec line goes in beside
+      `docs/spec/01-core-library.md:868`.
+- [ ] **`withQueryParameter(string $name, mixed $value)` — the singular writer** —
+      `crates/nvs-stdlib/src/uri.rs:2489` is `buildQuery` and `crates/nvs-stdlib/src/uri.rs:2111` is
+      `with`, and writing the rebuilt query back through that member is what keeps one
+      canonicalization. A `null` value removes the pair
+      (`rule:core-api/a-written-null-removes`), removing the last one leaves no query at all rather
+      than a bare `?`, and an array value rides the bracket convention `parseQuery` already reads.
+- [ ] **The check's last three names, plus the conformance floor** —
+      `crates/nvs-stdlib/src/uri.rs:3341` is the test module's `with_of` / `one` / `text_of` /
+      `nullable` helpers, which drive a member the way these need. The names are
+      `with_query_parameter_sets_one_pair_and_leaves_every_other_alone`,
+      `a_null_value_removes_one_pair_and_the_last_one_leaves_no_query_at_all` and
+      `a_query_parameter_round_trips_an_array_value_through_the_bracket_convention`; three `.nvst`
+      cases per member under `tests/conformance/core/` are the separate floor
+      `crates/nvs-stdlib/tests/conformance_coverage.rs` enforces.
 
 ## Backlog
 
