@@ -3295,6 +3295,18 @@ pub mod code {
     /// argument is already refused where it is passed.
     pub const E_DECODED_FIELD_NOT_TAINTED: Code = Code::new("E0810");
 
+    /// `$x is void`, `$x is never` — a type no value inhabits, written where
+    /// `is` asks whether a value holds one (`rule:types/type-test`, the second
+    /// of its three refusals).
+    ///
+    /// Not a knowable answer this refuses but an unaskable question: `void` is
+    /// what a function returns instead of a value and `never` is what one
+    /// returns by not returning, so neither names a shape a subject could be
+    /// carrying. `is` is total over every type a value can inhabit
+    /// (ADR 0150 § 6), and these two are the boundary of that set rather than
+    /// an exception inside it.
+    pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811");
+
     /// `$x is $cls` — a value written where `is` takes a type
     /// (`rule:types/type-test`, the third of its three refusals).
     ///
@@ -3308,9 +3320,24 @@ pub mod code {
     /// to name resolution it would arrive as a type that failed to resolve,
     /// and the diagnostic would describe the name rather than the shape.
     ///
-    /// `E0811` is `is void` and `is never`, the second of the three refusals;
     /// `rule:types/type-test`'s table is the home of which code refuses what.
     pub const E_TYPE_TEST_AGAINST_A_VALUE: Code = Code::new("E0812");
+
+    /// `$x is tainted string`, `$x is secret bytes` — a qualifier written where
+    /// `is` takes a type (`rule:types/type-test`, the first of its three
+    /// refusals).
+    ///
+    /// `tainted` and `secret` are checked once and erased before codegen
+    /// (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`):
+    /// no byte of a value says where it has been, so there is nothing for a
+    /// run-time test to read. The answer is not merely knowable here, the way a
+    /// test the declaration settles is — it is absent, which is why this is a
+    /// refusal and a statically-true test is not.
+    ///
+    /// Numbered past its two siblings because `E0810` was already
+    /// [`E_DECODED_FIELD_NOT_TAINTED`] when `rule:types/type-test` was written,
+    /// and a code means one thing.
+    pub const E_TYPE_TEST_AGAINST_A_QUALIFIER: Code = Code::new("E0813");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

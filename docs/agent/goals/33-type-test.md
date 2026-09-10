@@ -79,8 +79,10 @@ One file set: `crates/nvs-types/src/expr/`, `crates/nvs-diagnostics/src/lib.rs`.
    analogy — `infer_instanceof` refuses a subject that `!can_hold_an_object`, and **that reasoning does
    not transfer**: `instanceof` needs a class and a scalar has none, while every value has a
    representation. ADR 0150 § 6 is the argument; the acceptance list asserts both directions.
-2. **`E0810`** — a `tainted` or `secret` qualifier on the right. Erased before codegen
-   (`rule:security/tainted-qualifier`), so there is no bit to read.
+2. **`E0813`** — a `tainted` or `secret` qualifier on the right. Erased before codegen
+   (`rule:security/tainted-qualifier`), so there is no bit to read. Not `E0810`, which is
+   `E_DECODED_FIELD_NOT_TAINTED` and was already declared when ADR 0150 wrote its table;
+   `rule:types/type-test` is the home of which code refuses what.
 3. **`E0811`** — `void` or `never` on the right.
 4. **A float literal** reuses `rule:types/literal-types`' existing refusal and claims no new code.
 5. **Constant folding.** A result the checker settles folds to a literal `bool`. It does **not**

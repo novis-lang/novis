@@ -106,7 +106,13 @@ modules = [
   "crates/nvs-types/src/expr/mod.rs",
   # Stage 4 -- the four narrowing spellings this becomes the fifth of.
   "crates/nvs-types/src/locals.rs",
-  # Stage 3 -- E0810/E0811/E0812. The E04xx and E07xx type bands are full; E08xx is the live one.
+  # Stage 4 -- `locals::narrow` reads the class `instanceof` recorded here, and `is` records its
+  # tested type the same way or narrowing has nothing to read.
+  "crates/nvs-types/src/expr_table.rs",
+  # Stage 3 onward -- where `is` is checked, folded and refused.
+  "crates/nvs-types/src/expr/type_test.rs",
+  # Stage 3 -- E0811/E0812/E0813. The E04xx and E07xx type bands are full; E08xx is the live one,
+  # and E0810 is taken, so the qualifier refusal is the band's next free code rather than 0150's.
   "crates/nvs-diagnostics/src/lib.rs",
   # Stage 5 -- lowering, beside the conversion and instanceof arms whose walks are reused.
   "crates/nvs-ir/src/lower/expr.rs",
@@ -115,7 +121,7 @@ modules = [
 ]
 
 # 0150 is the design. 0124 is the reservation this goal is the other half of. 0047/0066 are
-# narrowing; 0033 is the qualifier E0810 refuses; 0004 prices it. The type system the right-hand
+# narrowing; 0033 is the qualifier E0813 refuses; 0004 prices it. The type system the right-hand
 # side is drawn from reaches a session as the rule ids its stages name.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
 # decision. ADR 0007 came out: it created more than eight rules, so naming
@@ -7115,7 +7121,7 @@ stage = "3 checker"
 name = "nvs-types (the three refusals, and the one it borrows)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  "is_against_a_tainted_or_secret_qualifier_is_e0810",
+  "is_against_a_tainted_or_secret_qualifier_is_e0813",
   "is_against_void_or_never_is_e0811",
   "is_against_a_float_literal_reuses_the_literal_type_refusal_and_claims_no_new_code",
   "every_other_type_atom_is_accepted_on_the_right_of_is",

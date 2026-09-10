@@ -41,7 +41,7 @@ refused by that rule and not by this one.
 
 | refused | code | why |
 |---|---|---|
-| `$x is tainted string`, `is secret bytes` | `E0810` | `rule:security/tainted-qualifier` erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
+| `$x is tainted string`, `is secret bytes` | `E0813` | `rule:security/tainted-qualifier` erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
 | `$x is $cls` | `E0812` | that is a *value*, not a type. `$x instanceof $cls` is the dynamic class test (`rule:types/class-reference-sites`), and the spelling stays refused because PHP's grammar binds a variable there (`rule:php-migration/is-takes-pattern-matchings-type-patterns`) |
 
