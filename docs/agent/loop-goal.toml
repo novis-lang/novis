@@ -120,6 +120,23 @@ modules = [
   "crates/nvs-types/src/core_lib.rs",
   # Stage 5 -- `ThrownClass`, which the two refusals are two arms of, beside the one `open` raises.
   "crates/nvs-runtime/src/throwable.rs",
+  # `require`'s static resolution (M2 item 4 — see the crate's module docs for what's left after
+  # this).
+  "crates/nvs-hir/src/requires.rs",
+  # Expression lowering — `Lowering::lower_expr`'s dispatch itself, and the shapes with nowhere
+  # more specific to be: member access, the nullsafe chain, `match`, the literals and the array
+  # forms.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The typed-expression table — the architecture decision `nvs-ir` widening past scalars needed
+  # before it could lower a call, `new`, or a member access: see `docs/agent/handoff.md`'s history
+  # for the two options this was weighed against (`nvs-ir` depending on `nvs-types` and
+  # duplicating its resolution logic, versus this crate publishing a persisted result `nvs-ir`
+  # reads back) and why the second was chosen.
+  "crates/nvs-types/src/expr_table.rs",
+  # `rule:routing/link-name-and-params-are-checked`'s link: `Core\Router::url`, `::urlAbsolute`
+  # and `::urlSigned` over a **literal** route name, resolved against § 5's finished table while
+  # compiling.
+  "crates/nvs-types/src/links.rs",
 ]
 
 # 0060 is the roster this is the fifth entry of; 0146 is the design; 0024/0033 are the two qualifier
