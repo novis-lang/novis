@@ -57,46 +57,54 @@
 //! [`nvs_core_time_duration_nanoseconds`] call on a folded constant, which is
 //! already the whole grammar resolved at compile time.
 //!
+//! # There is no `Core\Month`, and there is not going to be one
+//!
+//! § 4 writes no member that takes or answers with one, `Core\Weekday` existing
+//! only because `$d->weekday()` does, and an enum nothing names is surface with
+//! no spec home. This is written down because it is the question that keeps
+//! being re-asked, not because anything is missing: three earlier notes here
+//! described a member the spec never had. **§ 4 itself is whole** — `withTime`,
+//! its last row and its only one that *takes* a component view rather than
+//! answering with one, is [`nvs_core_time_datetime_with_time`].
+//!
+//! # `sleep` parks the task, and a wait off a core still blocks its thread
+//!
+//! `Core\Time::sleep` parks the task rather than blocking the core, and what is
+//! left of it is one thing: a wait *off* a core still blocks the thread it is
+//! on, which is right for `nvs run` and is what a worker's blocking pool would
+//! otherwise be for. The route is [`nvs_runtime::host::Host::sleep`] and the
+//! mechanism is `nvs-host`'s `timer` module — this task's own deadline on the
+//! reactor the core is about to poll. A cancellation mid-sleep comes back as
+//! [`nvs_runtime::host::Woken::Cancelled`] and the member stops the request
+//! through [`nvs_runtime::Ctx::cancel`], because a parked task standing on an
+//! `extern "C"` frame is resumed rather than unwound; `nvs_host`'s scheduler
+//! module doc owns that decision.
+//!
+//! # `Comparable` and `Stringable` are satisfied by member, not by declaration
+//!
+//! The member is the whole of it, because a `Core` class writes no `implements`
+//! clause anywhere. `Duration`, `Instant`, `Date` and `TimeOfDay` each register
+//! `compareTo`, which is what `nvs_stdlib::registry::implements_comparable`
+//! reads and `nvs_types::core_lib` seeds
+//! `rule:classes/ordering-lowers-to-compare-to`'s conformance from, so
+//! `$a < $b` orders two of them and lowers to that same member —
+//! `nvs_ir::lower::operator::lower_object_comparison` takes the `Core` branch,
+//! since a helper symbol has no entry in any compiled method table.
+//! `"took " . $d` is the same story one interface along:
+//! `rule:classes/stringable`'s rendering is decided by the registered
+//! `toString` rather than by a declaration, through
+//! `nvs_types::expr::operators::require_stringable` where the operand's type
+//! names this class and `nvs_stdlib::instance`'s descriptor renderer where it
+//! names none.
+//!
 //! # Known gaps
 //!
-//! 1. **There is no `Core\Month`, and there is not going to be one.** § 4
-//!    writes no member that takes or answers with one, `Core\Weekday` existing
-//!    only because `$d->weekday()` does, and an enum nothing names is surface
-//!    with no spec home. This is item 1 because it is the question that keeps
-//!    being re-asked, not because anything is missing: three earlier notes
-//!    here described a member the spec never had. **§ 4 itself is whole** —
-//!    `withTime`, its last row and its only one that *takes* a component view
-//!    rather than answering with one, is
-//!    [`nvs_core_time_datetime_with_time`].
-//! 2. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
-//!    `rule:expressions/intrinsic-literals` makes both intrinsics whose literal pattern is prepared while
-//!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
-//!    it does not.
-//! 3. **`Core\Time::sleep` parks the task rather than blocking the core**, and
-//!    what is left of it is one thing: a wait *off* a core still blocks the
-//!    thread it is on, which is right for `nvs run` and is what a worker's
-//!    blocking pool would otherwise be for. The route is
-//!    [`nvs_runtime::host::Host::sleep`] and the mechanism is `nvs-host`'s
-//!    `timer` module — this task's own deadline on the reactor the core is
-//!    about to poll. A cancellation mid-sleep comes back as
-//!    [`nvs_runtime::host::Woken::Cancelled`] and the member stops the request
-//!    through [`nvs_runtime::Ctx::cancel`], because a parked task standing on
-//!    an `extern "C"` frame is resumed rather than unwound; `nvs_host`'s
-//!    scheduler module doc owns that decision.
-//! 4. **`Comparable` and `Stringable` are satisfied by member, not by
-//!    declaration** — and the member is the whole of it, because a `Core` class
-//!    writes no `implements` clause anywhere. `Duration`, `Instant`, `Date` and
-//!    `TimeOfDay` each register `compareTo`, which is what
-//!    `nvs_stdlib::registry::implements_comparable` reads and
-//!    `nvs_types::core_lib` seeds `rule:classes/ordering-lowers-to-compare-to`'s conformance from, so `$a < $b`
-//!    orders two of them and lowers to that same member —
-//!    `nvs_ir::lower::operator::lower_object_comparison` takes the `Core`
-//!    branch, since a helper symbol has no entry in any compiled method table.
-//!    `"took " . $d` is the same story one interface along: `rule:classes/stringable`'s
-//!    rendering is decided by the registered `toString` rather than by a
-//!    declaration, through `nvs_types::expr::operators::require_stringable`
-//!    where the operand's type names this class and `nvs_stdlib::instance`'s
-//!    descriptor renderer where it names none.
+//! 1. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
+//!    `rule:expressions/intrinsic-literals` makes both intrinsics whose literal
+//!    pattern is prepared while compiling; [`crate::cldr`]'s own gap 1 owns
+//!    what that changes and what it does not, and `nvs-types`' intrinsic pass
+//!    is where the preparing has to land before either of them can read it.
+//!    — owner: unowned
 //!
 //! # What these members do with a qualifier
 //!

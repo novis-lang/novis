@@ -2,61 +2,73 @@
 
 ## State
 
-**Goal `gap-owners`, stage 3 — the attribution pass — has finished `nvs-db`**, after `nvs-cli`,
-`nvs-syntax`, `nvs-hir`, `nvs-test` and `nvs-runtime`. 77 items still name nobody, and every one of
-them is in `nvs-stdlib`. `python tools/owners.py --check --reasons` stays green.
+**Goal `gap-owners`, stage 3 — the attribution pass — has finished `crates/nvs-stdlib/src/db/` and
+`time.rs`.** 69 items still name nobody and every one of them is in `nvs-stdlib`;
+`python tools/owners.py --check --reasons` stays green.
 
-**`nvs-db`'s fourteen went seven `unowned` and seven out of the gap block.** The seven that left were
-each one engine's rule or one stated policy rather than an unwritten shape, which the goal's
-§ *Standing decisions* resolves toward *decision*: `ddl.rs` grew § *An engine's own limit is not a
-gap here* for SQL Server's unindexable `MAX` columns, SQLite's rowid identity, SQLite's after-the-fact
-unique index and SQLite's declared-type affinity; `catalog.rs` moved its unreportable index and its
-one-schema-deep read into the § that already holds the consequences that look like omissions; and
-`schema.rs` § 11's exclusions are a heading of their own, since "the vocabulary grows only when a
-construct exists on every backend" is a policy, not a hole.
+**`db/mod.rs`'s eight went four out of the gap block and four tagged.** The four that left owed
+nothing: the five-driver completeness statement and the pooled reset are now
+§ *Every driver reaches every member, and all five are pooled*, `stream`'s absent `chunk` is
+§ *`stream` declares no `chunk`, and the portal is why*, and the delimiting quoter folded into the
+§ that already refuses a delimiter. The four that stayed are two `unowned` — bounds for a pool no
+`[db]` block describes, and `Db\DbError` sitting outside spec § 10's tree so a refusal carries no
+`issues` — and two `gap-zero`, which names `stream`/`streamAs`/`serverVersion` and `queryAs<T>`'s
+three refusals in its own stage 5.
 
-**The seven that stayed are one scheduling question and two smaller ones.** § 5's normalization is
-recorded as owed by both directions — the emitter's map into a dialect is lossy, so a schema applied
-and read straight back describes as a different vocabulary case — and goals `database` and `schema`
-are retired with M8's database half carried, so nothing claims it. `carried-gaps.md` § *Unowned* is
-**twenty-two entries**; the two added are that one and the db matrix's unpublished `AF_UNIX` leg.
+**The renumbering is what the work was.** Twelve citations name a gap by position, and they moved with
+it: `row.rs`, `registry.rs`, `pool.rs`, `execute.rs`, `stream.rs`, `queue.rs`, `carried-gaps.md` and
+goal `gap-zero`'s two files. `carried-gaps.md` § *Owned* rows 50 and 54 are re-owned to `gap-zero`, and
+the `{timeout?: Duration}` row is **struck**: `db/registry.rs`'s `STATEMENT_OPTIONS` declares the
+option, so the gap it named is closed — goal `gap-zero`'s stage 0 item 2 was that finding and now
+carries the rule rather than the instance.
 
-**`python tools/chain.py --check` — this goal's own floor check — was red on one sentence in this
-file**, which named the live goals as a *range of numbers*. A range is the form the playbook's
-number-citation bullet did not name; it names it now.
+**`time.rs` went four to one.** `Core\Month`, `sleep`'s parked task and the `Comparable`/`Stringable`
+answer are sections; the one gap left is the per-call pattern compile, which is
+`crates/nvs-types/src/intrinsics.rs`'s intrinsic-pass question one layer down, so it rides that
+register bullet rather than a new one.
+
+**The floor check `python tools/rules.py --check` was red on this file**, which cited
+`rule:core-classes/derive-field-types`. The rule is `rule:core-classes/derive-field-list`.
 
 **`python tools/verify.py`: 9 of 9 green.**
 
 ## Next group
 
-**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-stdlib`'s module
-docs, which hold every item that still names nobody. The owner kinds are the goal's § *Standing
-decisions* and `python tools/owners.py --help`; `--untagged` is the worklist and `--check
---untagged-is-an-error --reasons` is the gate. Take `db/mod.rs` first: it is the `Core\Db` surface
-over the crate just tagged, and where its gaps point at the schema plan the reason is already written
-under `carried-gaps.md` § *Unowned*.
+**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-stdlib`'s module docs,
+which hold every item that still names nobody. The owner kinds are the goal's § *Standing decisions*
+and `python tools/owners.py --help`; `--untagged` is the worklist and `--check --untagged-is-an-error
+--reasons` is the gate. Nothing else in the tree cites `json.rs`'s or `cldr.rs`'s gap numbers, so the
+renumbering a moved item forces is cheap in both.
 
-- [ ] **Tag `crates/nvs-stdlib/src/db/mod.rs:118`'s eight items** — at
-      `crates/nvs-stdlib/src/db/mod.rs:118`, `:141`, `:197`, `:205`, `:225`, `:251`, `:268` and
-      `:272`. Item 6 says outright it is "a refusal rather than an unwritten shape", so it is the
-      one to weigh for *decision* first; item 8's three run-time refusals that should be compile-time
-      are `rule:core-classes/derive-attribute`'s question, which `carried-gaps.md` § *Unowned*
-      already carries for `crates/nvs-types/src/derive.rs`.
 - [ ] **Tag `crates/nvs-stdlib/src/json.rs:100`'s eight items** — at
-      `crates/nvs-stdlib/src/json.rs:100`, `:108`, `:129`, `:143`, `:148`, `:154`, `:158` and
-      `:167`. Several are `rule:core-classes/derive-field-types`' roster and read as one decision
-      taken once, not eight.
-- [ ] **Tag `crates/nvs-stdlib/src/time.rs:62`'s four items** — at
-      `crates/nvs-stdlib/src/time.rs:62`, `:71`, `:75` and `:86`.
+      `crates/nvs-stdlib/src/json.rs:100`, `:108`, `:129`, `:143`, `:148`, `:154`, `:158` and `:167`.
+      Items 1, 6 and 8 read as decisions already — "neither is worth a whole document's re-scan", the
+      dotted path as built, "not worth carrying until something measures it". Items 3, 4 and 5 are one
+      question, `rule:core-classes/derive-generates-what-is-missing`'s: whether the derive machinery
+      stays a descriptor read by native Rust or becomes emitted IR, which is what decides where a
+      parameter default's constant and a hand-written `toJson` lookup live — one shared `unowned`
+      reason, not three. Item 2 is `rule:core-classes/derive-field-list`'s roster against
+      `CodecTy::Opaque` and is the same knot `crates/nvs-stdlib/src/db/mod.rs:291` gap 4 names. Item 7's
+      bound is the native stack, so weigh goal `resource-ceilings` before `unowned`.
+- [ ] **Tag `crates/nvs-stdlib/src/cldr.rs:148`'s four items** — at
+      `crates/nvs-stdlib/src/cldr.rs:148`, `:155`, `:164` and `:174`. Gap 1 is
+      `crates/nvs-stdlib/src/time.rs:102`'s question one layer down and the register bullet naming
+      `crates/nvs-types/src/intrinsics.rs` already carries the reason. Gaps 2–4 are goal `gap-zero`'s
+      stage 6 group 2 by name — the plural rosters, the ordinals, the eight pattern letters — and
+      `docs/agent/carried-gaps.md:54`'s row for the same three still names retired owner
+      `carried-gaps`, so it is re-owned in the same slice.
+- [ ] **Tag `crates/nvs-stdlib/src/uuid.rs:86`'s three items** — at
+      `crates/nvs-stdlib/src/uuid.rs:86`, `:89` and `:94`, then
+      `crates/nvs-stdlib/src/xml.rs:122` and `crates/nvs-stdlib/src/zip.rs:80` if the file set still
+      holds.
 
 ## Backlog
 
-- The rest of `nvs-stdlib`'s 77 — `ast`, `cldr`, `cli`, `command`, `compress`, `csv`, `debug`,
-  `decimal`, `html`, `lib`, `math`, `mime`, `out`, `path`, `regex`, `registry`, `response`,
-  `storage`, `test`, `uuid`, `xml`, `zip` (goal `gap-owners` stage 3).
-- `--untagged-is-an-error` is the half of the gate still red; it goes green when `nvs-stdlib` is
-  done, and `verify.py` runs the full form.
-- § 5's schema normalization has no owner and is a real scheduling question for the user
-  (`carried-gaps.md` § *Unowned*).
-- The db matrix's `AF_UNIX` leg needs `tools/db-matrix.py` to bind-mount a container socket
-  directory (`carried-gaps.md` § *Unowned*, `crates/nvs-db/src/matrix.rs` gap 1).
+- `crates/nvs-stdlib/src/db/open.rs:568`'s `settings_text` doc says "until arm selection lands"; gap 1
+  now says it has (`nvs_types::expr::args`' `select_arm`), so what wants re-deciding is its thrown-not-
+  fatal argument.
+- Ten `carried-gaps.md` § *Owned* rows still name a retired owner (`python tools/playbook.py --check`);
+  goal `gap-zero`'s stage 0 item 1 owns the sweep.
+- `crates/nvs-stdlib`'s remaining 69 untagged items, `python tools/owners.py --untagged`.
+- `nvs-stdlib`'s gap blocks hold several "not worth it" items that are decisions in a gap list; the
+  goal's § *Standing decisions* is the authority to move each one.
