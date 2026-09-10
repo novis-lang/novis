@@ -118,6 +118,10 @@ modules = [
   # The `.lspt` format, and at :57 the corpus example that froze the recovery case that works and
   # never its mirror -- which is stage 0's whole story.
   "crates/nvs-lsp/src/lib.rs",
+  # What a `.lspt` case COSTS, which stage 0 discovered the expensive way: the vocabulary is every
+  # construct some cursor landed on, so a case at a new one owes five cursor rows and a
+  # whole-document row. Read S *Decision* before adding a case whose cursor sits somewhere new.
+  "crates/nvs-lsp/src/coverage.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
@@ -7682,23 +7686,28 @@ argv = ["python", "tools/dossier.py", "--only", "tools:editor/the-vs-code-extens
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- the two live defects. Both are `.lspt` cases, because both are an answer at a cursor and
-# `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case` is where an answer is frozen. Goal prose stage 0.
+# Stage 0 -- the live defect a fix exists for. The `\` trigger's own defect is the same shape and is
+# gated at stage 5 instead, because the arm that answers it is stage 5's and a catch-up failure returns
+# before every other check in the sweep (`tools/loop.py:2639`), so gating it here would report no other
+# stage until stage 5 landed. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "nvs-suite"
 stage = "0 the catch-up"
-name = "the lspt corpus, including a member list against every closing delimiter"
+name = "the lspt corpus, including a receiver whose access ends at the cursor"
 args = ["lsp-test", "tests/lsp/"]
 
+# The delimiters are the test's business and not the corpus's: a case at a construct nobody had reached
+# owes five cursor rows and a whole-document row (`rule:ide/lspt-coverage-is-inferred`), and `}`, `)`
+# and `]` are three such constructs. The test asserts all five shapes answer one list; the corpus
+# freezes the rendering at the one shape that opens no column.
 [[check]]
 kind = "cargo-named"
 stage = "0 the catch-up"
-name = "every declared trigger character has an arm that answers it"
+name = "a receiver at the end of a construct still offers its class's members"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
-  "every_trigger_character_reaches_an_arm_that_is_not_the_position_list",
   "a_member_list_survives_a_receiver_at_the_end_of_a_block",
 ]
 
@@ -7772,6 +7781,11 @@ tests = [
   "no_completion_source_reads_a_directory_layout_or_the_network",
   "a_namespace_segment_offers_the_registry_and_the_index_and_no_keywords",
   "a_bare_name_offers_the_imports_in_force_and_the_declarations_in_the_index",
+  # Stage 0's other live defect: `\` is a declared trigger character whose arm is the namespace one
+  # above, so a cursor after `Core\` is answered the position list until that arm exists. Gated here
+  # rather than at stage 0 because this is where the fix is, and `capabilities.rs`'s trigger list is
+  # not trimmed in the meantime -- it would only have to be put back.
+  "every_trigger_character_reaches_an_arm_that_is_not_the_position_list",
 ]
 
 [[check]]
