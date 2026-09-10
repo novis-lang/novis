@@ -54,8 +54,12 @@ closes it; `python tools/playbook.py --check` reads it and `--retire` deletes th
     **What makes them acceptable standing is the ratchet, not this entry.** `CEILING` in
     `crates/nvs-ir/tests/refusals.rs:72` holds the total and **may never rise**, so a refusal
     added beside a carried one fails the run even though attribution now claims its file. What the ratchet
-    does *not* have is a floor: nothing requires the number to fall, which is why the entry names the goal
-    instead. Each closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it,
-    never a panic however well worded — in the first goal that writes `nvs-ir` lowering again, and goal `typed-callable`
-    is the first entry on the chain that does. A goal that is not that one has taken the wrong slice if it
-    finds itself editing a file above. [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]
+    does *not* have is a floor: nothing requires the number to fall, which is why the entry names who
+    closes it. Each closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it,
+    never a panic however well worded — in the first goal that writes `nvs-ir` lowering again, and **no
+    live entry on the chain is that goal**: this entry named goal `typed-callable`, which retired
+    without closing a site, so per [carried-gaps.md](carried-gaps.md)'s contract the owner is struck and
+    the entry stays. What that leaves is a scheduling question, so the module doc indexing these sites —
+    `crates/nvs-ir/src/lib.rs` § *Known gaps* — tags them `unowned` and points here for the reason,
+    which is what `python tools/owners.py --check --reasons` reads. A goal that finds itself editing a
+    file above has taken the wrong slice unless closing one is what it came for. [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]

@@ -53,9 +53,9 @@ Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-swit
      not an unclosed gap; it is scheduled work, and conflating the two is what made the list of 110
      look alarming. The milestone's own file must state the scope, and the tool checks that the
      milestone exists and carries no live goal that should have claimed it instead.
-   - **`unowned`**, which requires a bullet in `carried-gaps.md` § *Unowned* carrying the reason. This
-     is a legitimate state and a scheduling question for the user; it is never the absence of an
-     answer.
+   - **`unowned`**, which requires a bullet carrying the reason: in `carried-gaps.md` § *Unowned*, or,
+     for a gap whose sites `carried-refusals.md` already carries, in the entry that holds them. This is
+     a legitimate state and a scheduling question for the user; it is never the absence of an answer.
 3. **`tools/owners.py`, derived and never copied.** It walks every `//! # Known gaps` block in
    `crates/*/src/**`, extracts each enumerated item and its tag, and prints the roster: owned by goal,
    deferred to a milestone, unowned, and — the interesting output — **untagged**. `--unowned` prints
@@ -105,6 +105,14 @@ Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-swit
   its goals walked or closed — and that no chain entry claims is `unowned`. This distinction is the
   whole point: without it the roster is 110 alarming items, and with it it is a short list of real
   scheduling questions.
+- **A `carried-refusals.md` entry is a reason, not an owner.** It names refusal *sites*, and a site is
+  not a goal, so the three kinds stay three: a gap block those sites index is `unowned`, and that entry
+  is its reason. `owners.py`'s `unowned_paths` reads that file beside `carried-gaps.md` for the reason
+  it reads either — the entry already names the module doc that owns the detail, so the link is the
+  path and no key has to be invented. The alternative, reading an owner off the entry's prose sentence
+  naming the goal that closes it, is the failure this goal exists to end, and it has already happened
+  once: entry 901 named goal `typed-callable`, that goal retired without closing a site, and all
+  fifteen are still open.
 - **`unowned` always carries a reason, and the reason names what has to be decided.** "Nobody has got
   to it" is not a reason; "this needs an options bag that can tell an omitted option from a written
   `null`, which is a registry question" is.

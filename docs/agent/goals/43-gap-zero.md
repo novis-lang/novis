@@ -205,7 +205,7 @@ failure this goal is about:
 - [session-prompt.md](../session-prompt.md):120, the same sentence in the handoff's contract
 - `crates/nvs-stdlib/src/lib.rs:99` and
   `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:11`
-- goal `gap-owners`'s `every 'unowned' tag has a carried-gaps.md bullet behind it` check, which stage 2 has already
+- goal `gap-owners`'s `every 'unowned' tag has a reason bullet behind it` check, which stage 2 has already
   replaced
 
 ## Stage 8 — it stays true

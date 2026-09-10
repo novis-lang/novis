@@ -6742,7 +6742,7 @@ argv = ["python", "tools/owners.py", "--check", "--untagged-is-an-error"]
 [[check]]
 kind = "command"
 stage = "3 attributed"
-name = "every `unowned` tag has a carried-gaps.md bullet behind it"
+name = "every `unowned` tag has a reason bullet behind it"
 argv = ["python", "tools/owners.py", "--check", "--reasons"]
 
 [[check]]
