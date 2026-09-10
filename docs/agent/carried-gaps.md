@@ -16,7 +16,7 @@ same fix, one file up.
 
 ## The contract
 
-- **An entry names an owner.** A goal number that is a live goal in
+- **An entry names an owner.** A goal slug naming a live goal in
   [the goals directory](goals/), a **milestone tag** whose plan already covers the gap, or the
   word **`unowned`** with the reason it is nobody's yet. `unowned` is a legitimate state — it is a
   scheduling question for the user — but it is never the *absence* of an answer, and it is never what a

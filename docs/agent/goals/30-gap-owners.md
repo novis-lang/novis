@@ -41,12 +41,14 @@ Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-swit
 ## Stage 2 — the keystone: an owner tag, in the doc that owns the gap
 
 1. **A gap item ends with an owner tag.** One trailing marker per enumerated item in a `# Known gaps`
-   block — `— owner: 21`, `— owner: M9`, or `— owner: unowned`. The tag sits with the gap because
+   block — `— owner: unowned-sweep`, `— owner: M9`, or `— owner: unowned`, on a line of its own at
+   the item's end. The tag sits with the gap because
    every fact in this repository has one home and a gap's home is its module; the index is then
    *derived* rather than a second copy, which is the rule `holes.py` already follows.
 2. **Three owner kinds and no fourth.**
-   - **A goal number** that is a live goal in [the goals directory](README.md). The entry closes the gap
-     or the tag is wrong.
+   - **A goal slug** naming a live goal in [the goals directory](README.md) — never its
+     number, which is a position and moves the moment anything is inserted ahead of it. The entry
+     closes the gap or the tag is wrong.
    - **A milestone tag** — `M9`, `M11` — for a gap a *future* milestone's plan already covers. This is
      not an unclosed gap; it is scheduled work, and conflating the two is what made the list of 110
      look alarming. The milestone's own file must state the scope, and the tool checks that the

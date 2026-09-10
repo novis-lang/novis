@@ -1424,6 +1424,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tools/records.py --check` answers `changes: has no modifies: list`. Write `modifies: []` in the same
   keystroke as `creates:`, and run `records.py --check` beside `rules.py --render` rather than after it.
   [until: reviewed 2026-09-09]
+- **A goal's own `[[check]]` blocks can sit thousands of lines below the head of `loop-goal.toml`,
+  under every carried floor check, so the file's top makes a live goal look like it has no
+  acceptance of its own.** Goal `gap-owners`'s are at `loop-goal.toml:6730`, and they name flags the
+  tool being written has to have — `--untagged-is-an-error`, `--reasons` — which is a specification,
+  not a suggestion. `python tools/loop.py --list` prints every check with its stage in one call; run
+  it before designing anything the goal's prose only describes.
+  [until: reviewed 2026-09-10]
 
 ## Running things
 

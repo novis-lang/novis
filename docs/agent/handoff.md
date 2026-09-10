@@ -2,48 +2,54 @@
 
 ## State
 
-**Goal `gap-owners` — a module doc's gap names its owner — has just started; nothing of it has landed yet.**
-Goal `xml-tree`'s whole list is this goal's Stage 1 floor.
+**Goal `gap-owners` — a module doc's gap names its owner. Stage 2 is landed and green; stages 3 and
+4 are open.** `tools/owners.py` walks every `# Known gaps` block in `crates/*/src/**` and derives
+the roster: **163 items in 58 blocks across 58 files**, of which 3 are tagged (one per kind) and 160
+name nobody. That count is the tool's to state, not a doc's.
 
-The finding this goal answers: **50 `# Known gaps` blocks across the crates hold 152 enumerated
-items.** `docs/agent/carried-gaps.md` indexes 22 of them and `docs/agent/carried-refusals.md` covers
-`nvs-ir`'s 15. The remaining ~110 name no owner, appear in no index, and are invisible to every tool —
-the same failure `carried-gaps.md` was created to fix, one level down.
+The tag is `— owner: <goal slug | milestone | unowned>` on a line of its own at the item's end. **A
+slug, never a chain number** — a number is a position and moves the moment anything is inserted
+ahead of it; the goal file said `owner: 21` and both copies are corrected, as is
+`carried-gaps.md`'s contract.
 
-**Most of those 110 are not alarming, and that is the point.** The module docs are careful: an item
-typically says where it is closed (`nvs-hir`'s visibility gap is closed in
-`nvs_types::expr::members::check_member_visibility`), or names its blocker (`Core\Queue`'s two wait on
-a shape spelling), or explains why it is inert (`nvs_safepoint`'s two cleared flags wait on `rule:security/arena-is-an-ownership-root`'s
-collector and on `nvs dap`). What is missing is not care — it is a **machine-readable owner**, so the
-short list of real scheduling questions can be told from the long list of explained residue without
-reading 50 module docs.
+**The gate arrives in three pieces on purpose**, because it is built before the pass it gates:
+`--check` alone refuses a tag that resolves to nothing, `--untagged-is-an-error` adds the items that
+name nobody, `--reasons` adds the `unowned` ones with no `carried-gaps.md` bullet. The full form is
+what stage 4 wires into `verify.py` — wiring it now would turn every unrelated session red, which is
+what buys a gate its first allowlist. The goal's own `2 the tool` checks (`loop-goal.toml:6730`)
+pass today.
 
 ## Next group
 
-**Stage 2: the tool and the gate** — one file set: the new `tools/owners.py`, `tools/verify.py`,
-`tools/chain.py`.
+**Stage 3: the attribution pass, module by module** — one file set: `crates/nvs-runtime/src/lib.rs`,
+`crates/nvs-ir/src/lib.rs`, `crates/nvs-stdlib/src/router.rs`, `docs/agent/carried-gaps.md`.
 
-- [ ] **The owner tag lives with the gap**, one per enumerated item: `— owner: 21`, `— owner: M9`, or
-      `— owner: unowned`. It sits in the module because a gap's home is its module, and the index is
-      then *derived* — the rule `holes.py` already follows ("the list is derived, never copied").
-- [ ] **Three owner kinds and no fourth** — a live goal; a **future milestone** whose plan states
-      the scope; or `unowned` with a bullet in `carried-gaps.md` § *Unowned* carrying the reason. The
-      milestone kind is what stops scheduled work being counted as an unclosed gap.
-- [ ] **`tools/owners.py`**, modelled on `holes.py --unattributed`: prints owned-by-goal,
-      deferred-to-milestone, unowned, and — the interesting output — **untagged**. `--unowned`,
-      `--check`, `--json`.
-- [ ] **The gate fails** on an untagged item, a goal not on the chain, a milestone that does not exist,
-      or `unowned` with no reason behind it. **No allowlist**, and adding one is the move it forbids.
+- [ ] **Settle what a `carried-refusals.md` entry counts as**, before tagging
+      `crates/nvs-ir/src/lib.rs:185`'s block — the largest single one, and already carried as entry
+      901 there. Entries in that file are numbered 900+ and are none of the three kinds the goal's
+      § *Standing decisions* allows, so either they are `unowned` with the reason living in
+      `carried-refusals.md` rather than in `carried-gaps.md` § *Unowned* (and `owners.py`'s
+      `unowned_paths` learns to read both files), or the block takes the owner of the goal that
+      closes the refusals. Write the reading into the goal's § *Standing decisions*; it is the one
+      question the rest of the pass repeats.
+- [ ] **`crates/nvs-runtime/src/lib.rs:188`'s seven items**, five of which the docs already decide:
+      item 2 → `M12` and item 3 is a "Not a gap" paragraph that moves out of the block (both in
+      `docs/agent/loop-goal.md` § *Stage 3*), item 4 → `unowned-sweep` and item 7 → `unowned` (both
+      in `carried-gaps.md`). Item 5 names two owners in one sentence — `COLLECT` waits on the
+      collector, `DEBUG_BREAK` on `nvs dap` — so it splits into two items with a tag each. Items 1
+      and 6 are the judgement.
+- [ ] **`crates/nvs-stdlib/src/router.rs:40`'s gap 3 is closed or tagged, not both** — it says
+      `Core\Router::match` is absent while the plan's *Open now* says a request is matched. Goal md
+      § *Stage 3* item 4 is the instruction; finding out which of the two is wrong is the work.
 
 ## Backlog
 
-- **Stage 3 (the attribution pass)** is the judgement, module by module. Known deferrals so nobody
-  re-derives them: `nvs-cli/src/bundle.rs`'s `.nvsx` embedding is M9's; the inlining items in
-  `nvs-runtime/src/decimal.rs` and the string fast path in `nvs-runtime/src/lib.rs` are M12's. Known
-  non-gaps that move *out* of the block rather than getting a tag: `time.rs`'s "there is not going to
-  be one" and `casing.rs`'s "left out deliberately" — a decision is not a gap.
-- **One stale entry to settle**: `nvs-stdlib/src/router.rs` gap 3 says `Core\Router::match` is absent
-  while the plan's *Open now* says a request is matched. One of the two is wrong.
-- **Stage 4 (it stays true)** wires the gate into `verify.py` and the unowned count into the
-  orientation pack. The tag survives a goal switch — which is the mechanism that orphaned all of this —
-  and that property is why the module doc is the right home.
+- Stage 4: the full gate into `tools/verify.py`, and `brief.py --where unowned`; the goal's
+  `4 wired` checks are at `docs/agent/loop-goal.toml:6774`.
+- `[context] modules` names six paths that are not crate modules (`tools/*.py`,
+  `docs/agent/carried-gaps.md`), and `orient.py` warns once per session for each; the field only
+  matches a `//!` module doc.
+- `carried-gaps.md` § *Owned* names seven retired goals; `owners.py` buckets a retired owner as a
+  finding rather than a failure, the same way `tools/playbook.py --check` already does.
+- The goal md's opening count (50 blocks, 152 items) counts a different thing from the tool, which
+  also counts `- ` bullets and one-gap prose blocks. Left alone; `owners.py` is the home now.
