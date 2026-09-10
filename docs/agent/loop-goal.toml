@@ -118,6 +118,9 @@ modules = [
   "crates/nvs-ir/src/lower/expr.rs",
   # Stage 5 -- the tag comparison, and the descriptor walk already emitted for instanceof.
   "crates/nvs-codegen/src/emit.rs",
+  # What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s
+  # result-type table and the three refusals layered onto it.
+  "crates/nvs-types/src/expr/operators.rs",
 ]
 
 # 0150 is the design. 0124 is the reservation this goal is the other half of. 0047/0066 are
