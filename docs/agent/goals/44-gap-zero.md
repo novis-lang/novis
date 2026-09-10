@@ -1,7 +1,7 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 43 — the gap register is derived, empty, and the index that held it is gone
+# Loop goal 44 — the gap register is derived, empty, and the index that held it is gone
 
 Every gap this repository records is either **closed** or **named to an uncarried milestone whose plan
 states the scope** — and because this is the last hand-written entry on the chain, there is no third

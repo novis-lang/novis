@@ -1,0 +1,247 @@
+# Goal 43 -- markup is written as a literal, not composed with an operator.
+# The acceptance test, as data.
+#
+# `43-markup-literal.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # None of this goal's own. The HTML sink is not `nvs run`'s -- `echo` there writes to the terminal
+  # (`rule:tooling/echo-always-has-a-sink`), so a CLI fixture cannot show an escaping sink at all.
+  # Every shape is proven by a `.nvst` case and from Rust, which is how the carrier's existing three
+  # guard cases already prove theirs.
+]
+
+[context]
+
+modules = [
+  # The mode stack and every frame it pushes. `:1260-1264` opens a `{$` hole, `:1064-1090` counts brace
+  # depth so a closure inside one does not close it, and `:210-232` is the unterminated-mode report the
+  # literal adds one arm to. Stage 2 is almost entirely here.
+  "crates/nvs-syntax/src/lexer.rs",
+  # `parse_string_body` (:2505-2527) turns the lexer's parts into a `Vec<StringPart>`, and
+  # `parse_simple_interp_variable` (:2529-2560) is PHP's simple syntax. Stage 2 reuses both unchanged.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  # Where the delimiter and closer tokens join `DoubleQuoteOpen`/`ComplexInterpOpen` and their siblings.
+  "crates/nvs-syntax/src/token.rs",
+  # `StringPart` and the interpolated-string node the new one is shaped after. One node, not a tree.
+  "crates/nvs-syntax/src/ast.rs",
+  # `MARKUP` (:195-222, memberless, one slot), both lift symbols (:224-249), `escape`'s body and its
+  # no-allocation fast path (:396-470). Stage 5 adds `join` here; stage 0's four sentences are here too.
+  "crates/nvs-stdlib/src/html.rs",
+  # `lower_echo` (:539-600) -- the per-operand branch on static type that stage 4's sink-position
+  # lowering is recognised in. Read the doc comment before the code.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # `lower_markup_lift` (:1238-1281) -- the `CoreCall` shape stage 4's value-position case is a sibling
+  # of, ownership rows included.
+  "crates/nvs-ir/src/lower/convert.rs",
+  # The member registry rows and what a parameter mark means. Stage 5 is one row; `Qual` and `CoreTy`
+  # are read here, and `qual_of`'s union note (:395-410) is why a mark on a union arm is not read back.
+  "crates/nvs-types/src/core_lib.rs",
+  # `CARRIER_HTML_MARKUP` and `CARRIER_TEXT_SLOT` (:38-48) -- the one string and the one slot index the
+  # sink renders a carrier through, shared with `Core\Cli\Text`.
+  "crates/nvs-runtime/src/ctx/output.rs",
+  # `E_UNTERMINATED` is `E0002` (:69). Read this to confirm stage 2 needs no new code, not to allocate
+  # one -- ADR 0169 § Diagnostics is why.
+  "crates/nvs-diagnostics/src/lib.rs",
+]
+
+# The two every stage works inside: the rule this goal ships, and the sink it is written against.
+rules = [
+  "core-classes/html-literal",
+  "core-classes/html-auto-escape",
+  # What a hole is measured against when its operand is qualified, and the ordering the goal's one
+  # tradeoff is stated under.
+  "security/secret-sinks-refuse",
+  "programs/memory-priority",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # This goal's own file set and tools.
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
+  'Tooling > A full diagnostic band',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `43-markup-literal.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the literal"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The delimiter and the escapes, and the one constraint the whole stage is written under.
+adrs = ["0169 § 2", "0169 § 3", "0169 § 4"]
+
+[context.stage.4]
+# The two shapes that allocate nothing, and the folding precedent they are argued from.
+rules = ["types/duration-literal", "security/tainted-qualifier"]
+adrs = ["0169 § 4"]
+
+[context.stage.5]
+# One `Core` member, written to the five-edit shape.
+shapes = ["A `Core` member — the five edits"]
+rules = ["core-api/reference-card"]
+
+[context.stage.6]
+# The rule flips to shipped and its `guardedBy` fills; the record is already landed and is not edited.
+# The other two are what § Standing decisions means by "rules, not code": both already say what their
+# tool must do, both tools are unbuilt, and landing those sentences is the whole of the obligation.
+shapes = ["A rule fragment"]
+rules = [
+  "tooling/fmt-novis-constructs",
+  "ide/a-template-region-gets-services-but-no-second-formatter",
+]
+
+# Nothing this goal allocates outlives the expression that built it: a folded literal is constant-pool
+# data with no refcount, and a materialised `Markup` is the carrier the sink already releases. No new
+# cycle shape, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor is goal `finish-response`'s whole list, and that goal's checks reach the served path and
+# the queue. The daemons are its, not this goal's -- nothing below needs one.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the literal is the string lexer's frames. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the literal lexes"
+name = "the literal lexes as segments and holes, and a hole is ordinary code to its matching brace"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_markup_literal_lexes_as_parts_the_way_a_double_quoted_string_does",
+  "a_markup_hole_tracks_nested_braces_so_a_closure_does_not_close_it",
+  "a_brace_before_a_non_dollar_stays_a_segment_byte",
+  "a_bare_dollar_name_interpolates_in_a_markup_literal",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the literal lexes"
+name = "the two escapes, and the one report an unterminated literal reaches"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_backslash_backtick_is_a_literal_backtick_in_a_markup_segment",
+  "a_backslash_brace_is_a_literal_brace_before_a_dollar",
+  "an_unterminated_markup_literal_reports_e0002_at_the_delimiter_that_opened_it",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the type, and what a hole admits. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the type"
+name = "the literal is a Markup, and a hole faces exactly an interpolation's checks"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_markup_literal_types_as_core_html_markup",
+  "a_markup_typed_hole_needs_no_conversion",
+  "a_tainted_hole_is_admitted_because_the_sink_escapes_it",
+  "a_secret_hole_is_refused_where_it_is_written",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the lowering, and the two shapes that pay nothing. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the lowering"
+name = "a hole-free literal is constant-pool data and allocates nothing per execution"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_hole_free_markup_literal_folds_to_one_constant",
+  "a_hole_free_markup_literal_in_a_loop_allocates_once_for_the_whole_loop",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the lowering"
+name = "a literal in a sink position writes through and materialises no carrier"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_markup_literal_echoed_lowers_to_writes_and_builds_no_markup",
+  "a_markup_literal_assigned_to_a_local_does_build_one",
+  "a_markup_literal_returned_from_a_function_does_build_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `Core\Html::join`. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 join"
+name = "join concatenates carriers and escapes nothing on the way"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "html_join_writes_every_part_in_order_with_its_separator_between",
+  "html_join_over_an_empty_list_answers_an_empty_markup",
+  "html_join_escapes_nothing_because_every_part_is_already_a_carrier",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# The whole thing, from source. Goal prose stages 2 through 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 the document"
+name = "conformance (segments trusted, holes escaped, and the shapes that must not double-escape)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-markup-literal-trusts-its-segments-and-escapes-its-holes.nvst",
+  "tests/conformance/core/a-markup-literal-with-no-holes-is-the-lift-of-the-same-bytes.nvst",
+  "tests/conformance/core/a-markup-hole-holding-a-markup-is-spliced-and-not-escaped-again.nvst",
+  "tests/conformance/core/a-brace-before-a-non-dollar-is-text-in-a-markup-literal.nvst",
+  "tests/conformance/core/html-join-composes-a-list-of-fragments-built-in-a-loop.nvst",
+  "tests/conformance/reject/an-unterminated-markup-literal-is-named-where-it-opened.nvst",
+  "tests/conformance/reject/a-secret-value-in-a-markup-hole-is-refused.nvst",
+]

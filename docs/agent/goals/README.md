@@ -68,8 +68,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [config-is-written](40-config-is-written.md) | M6, `rule:config/no-configuration-file-is-a-complete-configuration` + `rule:config/ownership-is-the-trust-boundary` | `nvs-config`, `nvs-cli`, `nvs-server` — an implicit configuration is written down, and every key in it is read |
 | [event-streams](41-event-streams.md) | M7, one ADR slot — 0083 § 5 amended, and its streaming-response claim corrected | `nvs-server`, `nvs-runtime`, `nvs-stdlib`, `nvs-types`, `nvs-config` — one body cell, two doors onto it |
 | [finish-response](42-finish-response.md) | M7, one ADR — the fourth ending, and why it sits beside `exit` rather than inside it | `nvs-runtime`, `nvs-ir`, `nvs-codegen`, `nvs-host`, `nvs-stdlib` — one unwind, one member, one drain the served path was missing |
-| [gap-zero](43-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
-| [dossier](44-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [markup-literal](43-markup-literal.md) | M8, ADR 0169 landed with the goal — the literal, its hole grammar, and why no `Cli\Text` peer | `nvs-syntax`, `nvs-types`, `nvs-ir`, `nvs-codegen`, `nvs-stdlib` — one lexer mode reused, no HTML in the compiler |
+| [gap-zero](44-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
+| [dossier](45-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract
