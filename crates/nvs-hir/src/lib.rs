@@ -44,18 +44,14 @@
 //!   [`AutoloadMap::enumerate`] names is loaded, once, whether or not
 //!   anything mentions it.
 //!
-//! # Known gaps
-//!
 //! `nvs-hir` covers the name-resolution responsibilities the plan's M2
-//! paragraph lists for it; each module above documents its own gaps in
-//! full, not repeated here. The sharper edges: [`hierarchy`] doesn't flatten
-//! a trait pulling in another trait's methods recursively; [`members`]
-//! doesn't check a dynamic class side, `new`'s target, member visibility, or
-//! a property access on any receiver but `$this` (that needs `nvs-types`'
-//! static types); [`aliases`]'s [`AliasTable`] has no consumer yet — nothing
-//! in `nvs-hir` walks a property/parameter/return-type position for it to
-//! feed, so that arrives with `nvs-types` too; [`requires`] only recognises a
-//! plain quoted-string literal path.
+//! paragraph lists for it, and records no gap of its own: what a module
+//! still owes is written in that module's own doc, [`requires`] carrying
+//! the longest list. What this crate deliberately does not do belongs to
+//! somewhere else — a member's visibility and the static type behind a
+//! receiver are `nvs-types`' question, which is also [`AliasTable`]'s
+//! consumer, and there is no trait-use flattening because
+//! `rule:classes/no-traits` leaves the language no `trait` to flatten.
 
 pub mod aliases;
 pub mod autoload;
