@@ -270,12 +270,24 @@ enum Command {
         )]
         arguments: Vec<String>,
     },
-    /// Serve a Novis file over HTTP, on one core, until stopped.
+    /// Run a Novis application until stopped: HTTP requests on every core, the
+    /// `[[schedule]]` entries on the core that ticks, and that core's `[queue]`
+    /// workers draining jobs beside them.
+    ///
+    /// One process is the whole deployment — one unit to install and one thing
+    /// to supervise — and stopping it drains all three: no request, no fire and
+    /// no claimed job is abandoned, and nothing new is taken. A tree that writes
+    /// no `[[schedule]]` spawns no ticker and one that writes no `[queue]`
+    /// starts no worker, so each costs a read at boot and no task at all.
     ///
     /// The development server and the proxied origin are the same command. The
     /// file is compiled before the socket is bound, and every request runs it
     /// in an isolate that shares nothing with any other request.
-    // `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
+    // `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is why
+    // the first paragraph names three subsystems: what an operator reads off
+    // `--help` is the mental model they form of the process, and one naming the
+    // accept loop alone is what sends them looking for a second thing to
+    // install. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
     // `rule:security/isolate-shares-nothing`. § 4's mount table is the slice
     // that replaces the argument with a set of entry points, and `serve`'s
     // module doc owns why one path on the command line is already § 2's rule
@@ -2097,7 +2109,8 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
 
 #[cfg(test)]
 mod tests {
-    use super::inbound_of;
+    use super::{Cli, inbound_of};
+    use clap::CommandFactory as _;
 
     /// One field line off the carrier, as text, so the assertions below read as
     /// the case's own lines.
@@ -2173,6 +2186,105 @@ mod tests {
             inbound.scheme(),
             nvs_runtime::Scheme::Https,
             "`--SCHEME--` is a claim only a section can make"
+        );
+    }
+
+    /// Help text with every run of whitespace collapsed to one space.
+    ///
+    /// `clap`'s `wrap_help` breaks a line wherever the terminal width falls, so
+    /// a token asserted against the rendering as written would fail for the
+    /// width of the box it was rendered in rather than for the sentence.
+    fn one_line(text: &str) -> String {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    /// `serve`'s help names all three subsystems the one process runs, in the
+    /// listing line and in the command's own `--help` alike.
+    ///
+    /// `rule:concurrency/one-process-serves-requests-schedules-and-jobs` is what
+    /// has to be readable here: an operator who reads the accept loop alone goes
+    /// looking for a second thing to install for their schedules and their jobs,
+    /// and there is nothing to find. Both renderings are asserted because they
+    /// are read at different moments — the listing line is what `nvs --help`
+    /// prints before anyone has decided this is the command, and the long help
+    /// only afterwards, so a paragraph naming the three under a first line that
+    /// does not is still the wrong sentence in the place it is read.
+    #[test]
+    fn the_serve_help_names_requests_schedules_and_queue_workers() {
+        /// One subsystem, and the word the help has to carry for it.
+        const NAMED: [(&str, &str); 4] = [
+            ("the accept loop", "requests"),
+            ("the ticker", "[[schedule]]"),
+            ("the queue the workers drain", "[queue]"),
+            ("the tasks that drain it", "workers"),
+        ];
+
+        let mut cli = Cli::command();
+        let serve = cli
+            .find_subcommand_mut("serve")
+            .expect("`nvs serve` is a subcommand");
+        let listing = one_line(
+            &serve
+                .get_about()
+                .expect("the subcommand is listed with a description")
+                .to_string(),
+        );
+        let long = one_line(&serve.render_long_help().to_string());
+
+        for (rendering, text) in [("the listing line", &listing), ("`serve --help`", &long)] {
+            for (subsystem, word) in NAMED {
+                assert!(
+                    text.contains(word),
+                    "{rendering} does not name {subsystem}: no `{word}` in {text:?}"
+                );
+            }
+        }
+    }
+
+    /// The command is spelled `serve`, and `service` is the platform's
+    /// service-manager namespace beside it rather than a second name for it.
+    ///
+    /// `docs/decisions/0154.md` § 6 settles the question the sentence above
+    /// raises: naming three subsystems is what a rename would have been asked to
+    /// buy, and it buys it for free. `service` is already taken by
+    /// `rule:packaging/a-service-is-one-stored-argv`, whose argv is written into
+    /// units on disk, so a rename into it would invalidate deployments as well
+    /// as collide. The two are told apart by shape rather than by name here: one
+    /// takes the file every request runs, the other takes a verb.
+    #[test]
+    fn the_command_is_still_spelled_serve_and_service_is_still_the_other_namespace() {
+        let cli = Cli::command();
+        let names: Vec<&str> = cli.get_subcommands().map(clap::Command::get_name).collect();
+
+        assert!(
+            names.contains(&"serve"),
+            "the command is `nvs serve` and nothing else: {names:?}"
+        );
+        assert!(
+            !names.contains(&"daemon"),
+            "`daemon` is a noun in a list of verbs: {names:?}"
+        );
+
+        let serve = cli.find_subcommand("serve").expect("`nvs serve` is listed");
+        assert!(
+            serve.get_positionals().any(|arg| arg.get_id() == "file"),
+            "`serve` takes the file every request runs"
+        );
+        assert!(
+            serve.get_subcommands().next().is_none(),
+            "`serve` is the whole command, not a namespace of verbs"
+        );
+
+        let service = cli
+            .find_subcommand("service")
+            .expect("`nvs service` is the platform service manager's namespace");
+        assert!(
+            service.get_subcommands().next().is_some(),
+            "`service` is a namespace, so the work is in its verbs"
+        );
+        assert!(
+            service.get_positionals().all(|arg| arg.get_id() != "file"),
+            "`service` acts on a registered server, never on a file to serve"
         );
     }
 }
