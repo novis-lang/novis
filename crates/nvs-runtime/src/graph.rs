@@ -63,11 +63,13 @@
 //!    declares an `invoke` of its own is refused as one. `rule:types/declaration` makes this a
 //!    compile-time rejection at nearly every copy site; the runtime check is
 //!    for a `mixed` carrying one.
+//!    — owner: unowned
 //! 2. **`decode` resolves a class through the *program's* table only**, so an
 //!    encoded `Core` instance (a `Core\Time\Instant`, say) is refused as
 //!    unresolvable on the way back in rather than rebuilt. Closing it means a
 //!    resolver that asks `nvs_stdlib::instance`'s table too, which is that
 //!    crate's to hand over.
+//!    — owner: unowned
 
 use std::collections::HashMap;
 
