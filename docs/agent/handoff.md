@@ -2,45 +2,52 @@
 
 ## State
 
-**Goal `xml-tree` is met** — the driver's own acceptance sweep after session 0003 passed whole, 449
-checks. This session took the follow-ups the goal did not owe, so nothing here is a gate.
+**Goal `xml-tree` is met and its two follow-ups are now landed**, so nothing in the goal is open.
+The driver's own acceptance sweep after the serialiser session passed whole; this session took the
+two items that goal did not owe, and neither is a gate.
 
-**`Core\Xml\Node::source(): tainted string` ships** — the tree half's way back out, so a walked node
-is written as document text without replaying it into a `Core\Xml\Writer` a call at a time. It sits
-on the node because a member *taking* a tree is the path back into execution that
-`a_parsed_tree_has_no_path_back_into_execution` closes, and what it answers is text. Its contract's
-home is `crates/nvs-stdlib/src/xml.rs`'s module doc § *the way back out of a tree*: XML rules
-whichever door parsed the tree, an end tag on every element, and a refusal where
-`Core\Html::parse` recovered. The walk is iterative over a heap stack for `instance_of`'s reason.
-Known gap 1 — *nothing serialises a tree* — is gone and the other two are renumbered.
+**`class` stays off `Core\Html::sanitize`'s allowlist, with its own written reason.**
+`rule:core-classes/html-sanitize`'s closed list gains an element in a commit with a reason
+(`docs/agent/loop-goal.md` § *Standing decisions*), and the reason for refusing this one is that
+`class` and `id` are the two attributes a *receiving* page selects on: the value chooses which of
+that page's own stylesheet rules and script handlers apply to attacker-supplied content, and its
+meaning lives in a document this member never sees, so there is no value test to write. The home is
+`crates/nvs-stdlib/src/html.rs:1266` — the paragraph beside `ELEMENTS` that already decided `id`,
+`style`, `target` and the SVG/MathML namespaces. An application that needs the content styled
+styles the element it puts the answer inside, which is markup it wrote itself.
+`GLOBAL`'s three (`dir`, `lang`, `title`) are unchanged and no rule fragment changed.
 
-**Five conformance cases landed**: the round trip and its fixed point, the refusals a WHATWG-parsed
-tree reaches, a subtree with its text and attribute values escaped, the depth bound asserted on both
-sides, and one agreement case putting a sanitized document through both doors and comparing what
-each writes back.
-
-No rule fragment changed. The member lands under `rule:core-classes/html-parsing`'s *serialization
-follows the door* clause and `rule:core-classes/xml-tree-and-stream`, both of which already say what
-it does; `docs/rules/` is untouched.
+**Six cases are named by the rules they guard**, in `docs/rules/core-classes.json`: the five the
+serialiser session wrote plus this session's, each added to the `guardedBy` of the rules its own
+`--TEST--` line names. `security/tainted-sources` was deliberately not given
+`xml-a-node-writes-its-own-subtree…` — that case holds the serialiser's escaping, and the taint
+token in its title is context rather than the rule it would break. `rules.py --render` changes
+nothing generated: `guardedBy` is not rendered into the chapter.
 
 ## Next group
 
-**Follow-ups this goal did not owe** — one file set, `crates/nvs-stdlib/src/html.rs` and
-`docs/rules/core-classes.json`. A goal switch discards this list, which is the right outcome if the
-sweep agrees the goal is met.
+**`Core\Xml`'s two known gaps, each pinned by the case it has never had** — one file set:
+`crates/nvs-stdlib/src/xml.rs` and `tests/conformance/core/`. Both are documented *positions*
+rather than missing work, so each slice is one `.nvst` and a `guardedBy` entry, and neither adds
+surface. `python tools/try.py <case>` runs one in a call.
 
-- [ ] **`class` on the sanitizer's allowlist, or a written reason it is not there.** The standing
-      decision in `docs/agent/loop-goal.md` § *Standing decisions* says the list gains an element in
-      a commit with a reason rather than by a parameter, and `rule:core-classes/html-sanitize` is
-      what specifies the closed list; `class` is the first attribute a real application will ask
-      for, and the table is `crates/nvs-stdlib/src/html.rs:1273`.
-- [ ] **The serialiser's cases named in the rule they guard.** `rule:core-classes/xml-tree-and-stream`
-      lists what fails when it is broken and does not yet name the four cases this session wrote;
-      the entry is `docs/rules/core-classes.json:220`, and a session touching `docs/rules/` owes
-      `python tools/rules.py --render`, which the wrap runs for it.
+- [ ] **A prefixed name is answered as written, and no `xmlns` is resolved.** Gap 1 at
+      `crates/nvs-stdlib/src/xml.rs:122` says `<x:a/>` answers `x:a`; nothing asserts it, and
+      `tests/conformance/core/xml-an-element-answers-its-attributes-in-written-order.nvst` is the
+      only case that mentions `xmlns` at all. The *Edges* shape: the declaration is carried as an
+      ordinary attribute and the name is the document's own spelling.
+      `rule:core-classes/xml-tree-and-stream`.
+- [ ] **Whitespace between elements is a text node.** Gap 2 at
+      `crates/nvs-stdlib/src/xml.rs:127`: a pretty-printed document has a text node between every
+      pair of siblings, and dropping them would be a guess about which whitespace mattered
+      (`rule:errors/ambiguous-input-refused`). Count the children of a formatted element rather
+      than reading one off — the *invariance over a sweep* shape — and pair it with
+      `Core\Xml\Node::source` writing the document back unchanged.
+      `rule:core-classes/xml-tree-and-stream`.
 
 ## Backlog
 
-- Goal `xml-tree`'s acceptance list is green; the driver switches the chain, not a session.
-- Per-crate known gaps live in each crate's module doc, `docs/agent/carried-gaps.md` for what must
-  survive a goal switch.
+- Namespace resolution as a *feature* — gap 1 closed rather than pinned — needs a rule and an ADR
+  before any code; nothing schedules it (`crates/nvs-stdlib/src/xml.rs:120` § *Known gaps*).
+- `Core\Xml`'s remaining gaps are the whole of what that crate owes here; the plan's `Open now`
+  points at the goals directory for everything else.
