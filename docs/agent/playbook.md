@@ -1567,6 +1567,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   keep the construct the *rule* mandates, and assert the two halves apart rather than dropping the
   index to make the sentence true.
   [until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row]
+- **An `[until: gone <path>:<needle>]` needle that spans a wrapped line retires itself the first
+  time `session.py --wrap` runs.** The needle is a plain substring of the file, so a sentence broken
+  across a Rust string continuation or a `///` wrap holds it nowhere, and the bullet is deleted with
+  a message stating the file no longer holds a sentence it plainly still does. Grep the needle
+  before writing the trailer, and shorten it to the longest run that sits on one line.
+  [until: gone tools/playbook.py:A needle is a plain substring]
 
 ## Running things
 
@@ -5854,6 +5860,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `(select ? as jid, ? as qname) r`, give each table its own `left join` carrying its own predicate,
   and prepare it against a live server before writing the doc comment.
   [until: gone crates/nvs-stdlib/src/queue.rs:delete j, d]
+- **A `Split` on SQLite cannot always open the immediate transaction its statement doc names.**
+  `nvs_db::SqliteConn::begin_immediate` refuses a connection already in one, being outermost by
+  construction, so a member run on the request's shared connection would refuse the very enqueue
+  `rule:concurrency/enqueue-commits-with-your-write` says commits with the caller's write. Branch on
+  `depth()`: `begin_immediate` at zero and `begin(None, false)`'s savepoint inside one, which is
+  `nvs_stdlib::queue`'s `sqlite_opened`.
+  [until: gone crates/nvs-db/src/sqlite.rs:immediate transaction is an outermost one]
 
 ## Divergences and refusals already pinned
 
