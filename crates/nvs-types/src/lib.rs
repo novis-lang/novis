@@ -90,111 +90,86 @@
 //!   `ctor_init`'s, but over every method body rather than only the
 //!   constructor.
 //!
+//! # The rules that cross several of these modules
+//!
+//! A rule the layout above already places is that module's. These four are
+//! named here because no single entry owns one.
+//!
+//! - **`rule:security/tainted-qualifier`'s `tainted` and
+//!   `rule:security/secret-qualifier`'s `secret`** are two independent bits
+//!   over one representation, and [`expr::quals`] owns both: the sinks that
+//!   refuse them, the concatenation and interpolation that poison a result on
+//!   each axis independently, and the conversions that launder — a checked
+//!   `as uint`/`int`/`float`/`bool`/enum-backing-type conversion clears both
+//!   (a known, ADR-accepted gap for `secret`, per
+//!   `rule:security/secret-propagation`), while `bytes`/`string` keep both
+//!   across either direction, the identity-shaped `as string` included.
+//!   `rule:security/secret-comparison-is-constant-time` is the one part that
+//!   leaves this crate: the qualifier does not survive `nvs_ir::ty::Ty`, so
+//!   [`expr::operators`] records
+//!   [`expr_table::ExprInfo::SecretEquality`] at the comparison, and `nvs-ir`
+//!   picks the helper off that entry's presence alone.
+//! - **`rule:types/callable-is-a-closure`'s `callable` is a value shape**, so a
+//!   bare string or an `[$obj, 'method']` array where one is expected gets a
+//!   targeted diagnostic, `$obj(...)` is refused for any resolved-class
+//!   `$obj`, and first-class callable syntax (`$obj->method(...)`,
+//!   `Foo::bar(...)`) types as `callable` rather than as the referenced
+//!   method's own return type. [`expr`]'s own docs are the detail.
+//! - **A class's shape rules are one module each**: [`ctor_init`] for
+//!   `rule:classes/definite-property-initialization`,
+//!   [`expr::members::check_property_access`] for
+//!   `rule:classes/property-observer`'s "checked on any receiver other than
+//!   `$this`" half and for the written name
+//!   `rule:classes/no-dynamic-properties`'s runtime-checked fallback needs,
+//!   [`expr`]'s `object_comparison_result` for `rule:classes/comparable` with
+//!   [`conformance`] holding the `compareTo` that a claim of it owes, and
+//!   [`expr::require_stringable`] for `rule:classes/no-magic-methods`.
+//!   [`error_lib`] gives `Throwable` and its subclasses a signature table
+//!   without a source declaration — spec § 10's four readonly properties and
+//!   the one constructor, so `$e->message` is checked like any other property
+//!   read — the same way [`core_lib`] does for `Core`.
+//! - **`object` is a real supertype, and a shape type is structural.** Every
+//!   class or shape type is `<: object`, a [`ty::Ty::Shape`] is checked by
+//!   width subtyping plus ordinary field assignability (see
+//!   [`expr::is_assignable`]'s own docs), and a property access through a
+//!   shape-missing field or a plain `object` erases to `mixed` rather than
+//!   diagnosing. An enum atom is not a class atom: `self`/`static`/`$this`
+//!   inside an enum ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`)
+//!   and a case access recover [`ty::Ty::Enum`] rather than
+//!   [`ty::Ty::Class`], and `rule:enums/closed-integer-type`'s two refusals —
+//!   an arithmetic or bitwise operator applied directly to an enum operand,
+//!   and a conversion from one enum type to a different one — are [`expr`]'s
+//!   `reject_enum_operand`/`reject_enum_to_enum_conversion`.
+//!
 //! # Known gaps
 //!
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `docs/agent/handoff.md` for the ordering):
 //!
-//! - `rule:security/tainted-qualifier` (`tainted` propagation/laundering), `rule:types/callable-is-a-closure` (`callable`
-//!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
-//!   an independent axis — its § 1 grammar landed in M1) are all now done —
-//!   as is § 5's constant-time `==`, whose share of the work is this crate's
-//!   alone to do: the qualifier does not survive `nvs_ir::ty::Ty`, so
-//!   [`expr::operators`] records
-//!   [`expr_table::ExprInfo::SecretEquality`] at a comparison with a `secret`
-//!   operand and `nvs-ir` picks the helper from that —
-//!   see [`expr`]'s own module docs for the first two, and for how the first
-//!   two's machinery is shared with `secret` rather than duplicated:
-//!   concatenation/interpolation poison their result on each axis
-//!   independently, a checked `as uint`/`int`/`float`/`bool`/enum-backing-type
-//!   conversion launders both qualifiers for free (a known, ADR-accepted gap
-//!   for `secret` specifically — see `rule:security/secret-propagation`), `bytes`/`string` preserve
-//!   both qualifiers across either direction (including the identity-shaped
-//!   `as string`, which must not silently launder either one), and `as
-//!   Core\Html\Markup` accepts only a literal string token and separately
-//!   refuses a `secret` operand with its own diagnostic (escaping doesn't
-//!   restore confidentiality); a `secret` value passed as a `Throwable`-
-//!   shaped class's constructor message is refused too, resolved through the
-//!   exception tree [`error_lib`] seeds — which is what gives `Throwable` and
-//!   its subclasses a signature table without a source declaration, the same
-//!   way [`core_lib`] does for `Core`. A bare string or `[$obj, 'method']`
-//!   array where `callable` is expected gets a targeted diagnostic,
-//!   `$obj(...)` is refused for any resolved-class `$obj`, and first-class
-//!   callable syntax (`$obj->method(...)`, `Foo::bar(...)`) now types as
-//!   `callable` rather than the referenced method's own return type. **Known
-//!   gaps within these three ADRs:** the sink list in `rule:security/sink-predicate`
-//!   (`Core\Db`, `Core\Process`, `Core\Http`, `Core\Fs`) has no code to
-//!   refuse anything at yet, since none of those `Core` classes are declared
-//!   stdlib until M7/M8 — a plain-typed parameter on a user-declared method
-//!   already acts as an equivalent sink today, via the ordinary `tainted
-//!   string` vs `string` assignability rule; § 5's auto-escape default and
-//!   `Markup + Markup` composition wait on `Core\Html` actually existing.
-//!   `rule:security/secret-qualifier`'s own remaining sinks — `Core\Log`'s call-site inspection (M8)
-//!   and `var_dump`/`print_r`'s redaction (M4) — are deferred by that ADR's
-//!   own *Verification* section, as is `serialize()`/the `spawn worker`
-//!   boundary refusal (M5). An exception class *does* have a declared member
-//!   table now — [`error_lib`] seeds spec § 10's four readonly properties and
-//!   the one constructor — so `$e->message` is checked like any other
-//!   property read.
-//!   `rule:classes/property-observer`'s "a property
-//!   access on any receiver other than `$this` is checked" half turned out to
-//!   already be done: [`expr::members::check_property_access`] reports
-//!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —
-//!   `nvs_hir::members`'s and this module's known-gap notes were just stale
-//!   about it. `rule:classes/definite-property-initialization` (definite *property*
-//!   initialization) is now done for the shapes its own M2 corpus names —
-//!   see [`ctor_init`]'s docs for what is deliberately still out of scope
-//!   within that ADR specifically. `rule:classes/comparable` (`Comparable`) is now done too
-//!   — see [`expr`]'s `object_comparison_result`, and [`conformance`] for
-//!   the half it does not do: a class claiming `implements Comparable` owes
-//!   a `compareTo` there, like an implementer of any other interface, now
-//!   that [`iter_lib`] seeds one. `rule:classes/no-magic-methods` (`Stringable`, `unset()` refusal) is done too —
-//!   see [`expr::require_stringable`]/[`expr::members::check_property_access`]. ADR
-//!   0036's checker semantics are now done as well: `object` carries real
-//!   subtyping (every class or shape type is `<: object`), a shape type
-//!   ([`ty::Ty::Shape`]) is checked structurally by width subtyping plus
-//!   ordinary field assignability (see [`expr::is_assignable`]'s own docs),
-//!   and a property access through a shape-missing field or plain `object`
-//!   is silently erased to `mixed` rather than diagnosed, recording the
-//!   written name for `rule:classes/no-dynamic-properties`'s runtime-checked fallback, which throws
-//!   for real now — see [`expr::members::check_property_access`]'s own docs. `rule:enums/closed-integer-type`'s enum-vs-class atom distinction beyond "resolves to *a*
-//!   symbol" is now done too: `self`/`static`/`$this` inside an enum
-//!   ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`) and a case access
-//!   ([`expr`]'s `ClassConstAccess` arm) all recover [`ty::Ty::Enum`] rather
-//!   than [`ty::Ty::Class`]; an arithmetic or bitwise operator applied
-//!   directly to an enum operand and a conversion from one enum type to a
-//!   *different* one, even via `as`, are both diagnosed per `rule:types/conversion` —
-//!   see [`expr`]'s `reject_enum_operand`/`reject_enum_to_enum_conversion`.
-//!   `==`/`===` between two different enum types is not yet diagnosed — no
-//!   general equality-operand-compatibility check exists for *any* type pair
-//!   today (not even `int` against `uint`), so singling out enums there
-//!   would be inconsistent; that wants its own pass, not a one-off special
-//!   case.
-//! - Exhaustive control-flow reachability (e.g. "every path through this
-//!   non-void function returns"); `switch` and `try`/`catch` bodies
-//!   conservatively contribute nothing to definite-assignment after them —
-//!   safe (may reject a few valid programs), never accepts an invalid one.
-//! - **`rule:types/unions-and-mixed`'s narrowing is one of its four spellings.** `=== null`/
-//!   `!== null` over a plain local narrows, and [`locals`]' own docs own the
-//!   rule, what invalidates one and the two places the walk deliberately
-//!   refuses to prove anything. The residue is unrestricted — dropping
-//!   `null` leaves an array, a scalar or a class alike, and
-//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries that to `nvs-ir`.
-//!   `instanceof`, a comparison against a literal-typed value and
-//!   `match (true)` do not narrow yet — the same conservative direction as
-//!   the row above: a missing narrowing is a diagnostic, never a wrong
-//!   program.
-//! - References (`inout $x`) needing both sides to declare the same type.
-//! - A promoted constructor-parameter property and a named/spread call
-//!   argument's positional checking — see [`signatures`]/[`expr`]'s own
-//!   known-gaps lists. A class constant is not among them, in any of its three
-//!   positions: a `Core` class's is stated by `nvs_stdlib::registry::CoreConst`,
-//!   a user-declared one's declared type and value are
-//!   [`signatures::ConstSig`], both resolved by [`expr`]'s `ClassConstAccess`
-//!   arm, and a use in *type* position folds to `rule:types/constant-in-type-position`'s literal type
-//!   over [`consts`]. What is left is a constant whose value has no constant
-//!   form at all (`public const array<int> ROWS = [1, 2];`), which types as `mixed` and panics
-//!   `nvs_ir::lower` if a program reads it.
+//! - **No equality-operand compatibility check exists, for any type pair.**
+//!   `==`/`===` between two different enum types is not diagnosed, and neither
+//!   is `int` against `uint`; singling enums out would leave the operator
+//!   inconsistent with itself, so this wants a pass of its own rather than a
+//!   one-off special case. `rule:types/conversion`'s enum-to-enum refusal
+//!   already covers the `as` spelling, so the comparison is the whole hole.
+//!   — owner: unowned
+//! - **Exhaustive control-flow reachability is not done** — "every path
+//!   through this non-void function returns", and with it whether a bare
+//!   `return;` is legal where it stands, which is the same question as
+//!   whether the enclosing return type is `void` ([`locals`]'s
+//!   `StmtKind::Return(None)` arm). Definite assignment itself is no longer
+//!   conservative around the block statements: a `switch` and a `try`/`catch`
+//!   intersect their arms' live sets the way an `if` does.
+//!   — owner: unowned
+//! - **`rule:types/narrowing`'s fifth spelling, `is`, does not narrow.** The
+//!   other four — `== null`, `instanceof`, a comparison against a
+//!   literal-typed value, and `match (true)`/`switch (true)` — all do, in
+//!   [`locals`], whose own docs own what invalidates one and the two places
+//!   the walk refuses to prove anything;
+//!   [`expr_table::ExprInfo::NarrowedRead`] is what carries a narrowing to
+//!   `nvs-ir`. False-edge narrowing is out of scope for all five by that rule
+//!   rather than by omission.
+//!   — owner: type-test
 
 pub(crate) mod attributes;
 pub(crate) mod capability;
