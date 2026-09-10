@@ -67,7 +67,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Thirty-seven entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Forty-five entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -417,6 +417,65 @@ where taking it is the work and the code that follows it is not.
   against leaving the composition to `Core\IO::read` plus `parse` — where the `fs.read` check
   already lives — and striking the roster row instead. `crates/nvs-stdlib/src/ast.rs` gap 3.
   [until: gone crates/nvs-stdlib/src/ast.rs:is not here. It reads a path]
+- **A `secret` value held in an `array<T>` element or in a shape literal's field is dumped in full**,
+  because redaction reads a *declared* property's bit off `nvs_runtime::ClassDesc::field_is_secret`
+  and neither container has a declaration to read: `rule:security/secret-qualifier` does not compose
+  the qualifier onto an element type, and a `rule:types/object-top` shape field's type is inferred
+  from its initializer rather than written. Both ends that exist are closed — the argument is refused
+  where the call is written and a `secret` property is a `nvs_render::Node::Redacted`. What has to be
+  decided is whether the qualifier composes onto a container at all, which answers once for the type
+  lattice and is not a dump walk's call to make. `crates/nvs-stdlib/src/debug.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **An enum case dumps as its backing integer**, because an enum has no tag of its own at run time
+  and a case arriving through `mixed` is indistinguishable from an `int`. The rendering half is not
+  the hole — `nvs_render::Node::EnumCase` exists and is what a producer with a static type would
+  build — so what has to be decided is whether an enum earns a representation of its own, a tag or a
+  bit the roster can test. That answers for every `mixed` consumer at once rather than for this walk,
+  and `rule:types/conversion` is where it lands. `crates/nvs-stdlib/src/debug.rs` gap 2.
+  [until: reviewed 2026-09-10]
+- **Seven of `Core\Regex`'s eight pattern parameters refuse a `tainted` argument by default rather
+  than by a mark**, because `nvs_types::core_lib`'s `qual_of` answers `None` for a
+  `crate::registry::CoreTy::Union` and those seven take `Pattern|string`.
+  `rule:security/regex-pattern-is-a-sink`'s refusal holds either way, `None` and `Qual::Sink` both
+  refusing, so what is open is the spelling. What has to be decided is whether a union type carries a
+  `Qual` slot at all: without one a union that ever wanted `Qual::Launder` has nowhere to hold it,
+  which is a registry-shape question and not a `Core\Regex` one.
+  `crates/nvs-stdlib/src/regex.rs` gap 1. [until: reviewed 2026-09-10]
+- **`Core\Regex::matchAll` reports positions in O(n·k)** over an *n*-byte subject with *k* matches,
+  because `crate::granularity::Unit::index_of_byte` counts from the start for each one. The matches
+  arrive in increasing order, so the fix is a cursor counting only the gap since the previous match
+  and it is one function. What has to be decided is what a position means when a cluster spans a
+  match boundary — the case that makes the cursor's answer differ from the restart's — and no
+  milestone claims a stdlib member's complexity curve, M12 being the JIT tier.
+  `crates/nvs-stdlib/src/regex.rs` gap 3. [until: reviewed 2026-09-10]
+- **`Core\Cli::arguments` is empty inside a served request**, because it answers whatever the launcher
+  wrote with `nvs_runtime::Ctx::set_command_line` and only `nvs-cli` writes one. Empty is not wrong —
+  a request has no command line — but the member is rostered for every program rather than for a CLI
+  one, and nothing this module can reach decides which. What has to be decided is what the whole of
+  `Core\Cli` means off the terminal: an empty roster, a refusal, or the host's own argv, and the same
+  answer settles `colorDepth` and the output sink. `crates/nvs-stdlib/src/cli.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **A generated help page names neither a parameter's declared type nor its default**, because § 6's
+  table deliberately carries no declared type and `nvs_types::commands`' own gap 1 refuses inventing a
+  second copy of the signature the handler already holds — so rendering the default alone would read
+  as though the type were absent from the declaration. What has to be decided is whether a help row
+  reaches that signature at render time rather than carrying a copy of it, which is a table-shape
+  question in `nvs-types` and not a renderer's. `crates/nvs-stdlib/src/command.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **A UNC path re-renders without the doubled separator that makes it one**, because
+  `\\server\share\f` parses as an ordinary absolute path whose components are `server`, `share` and
+  `f`. Spec § 8's roster is whole, so this is a modelling hole and not a missing member, and the fix
+  is a third root shape beside `Parts::drive` rather than a change of interface. What has to be
+  decided is whether Novis models UNC at all: nothing on the path to `examples/collect.nvs` writes
+  one, and a root shape no supported deployment reaches is surface bought for nothing.
+  `crates/nvs-stdlib/src/path.rs` gap 1. [until: reviewed 2026-09-10]
+- **A drive-relative path is one component named `C:log`**, because `split_drive` declines a drive
+  with no separator after the colon, so Windows' "the current directory *on* drive C" round-trips as
+  a relative path rather than as a root. The obvious fix is worse — treating `C:` as a root makes
+  `Path::split('a:b')` answer `['a:', 'b']` for an ordinary relative path — so what has to be decided
+  is whether a drive-relative root is distinguishable from a colon inside a segment at all, which is
+  a grammar question spec § 8 does not answer. `crates/nvs-stdlib/src/path.rs` gap 2.
+  [until: reviewed 2026-09-10]
 
 ## What is *not* on either list
 

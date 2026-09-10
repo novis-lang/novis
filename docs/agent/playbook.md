@@ -1519,6 +1519,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which splits one rendered table into two. Put the *following* line inside both halves of the block —
   anchor on the row plus the line after it, and write that following line back alone.
   [until: reviewed 2026-09-10]
+- **A `# Known gaps` item's own rule citation can be to a rule that does not say what the item
+  claims, and that is what decides gap-versus-decision.** `crates/nvs-stdlib/src/cli.rs` gap 1 rested
+  "empty is the answer that rule wants" on `rule:security/capability-check-at-the-door`, which is only
+  about *where* a capability check lives, and `crates/nvs-stdlib/src/storage.rs` gap 1 rests on
+  `rule:core-api/shape-rules` R7 and R20, which that chapter's table gives as *members are full words*
+  and *no mutable/immutable twin types*. Open the cited rule before reading an item as settled — the
+  citation is the claim being made, not the evidence for it. [until: reviewed 2026-09-10]
 
 ## Running things
 
