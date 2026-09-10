@@ -2,56 +2,48 @@
 
 ## State
 
-**Goal `type-test` — stages 0 through 5 are on disk, and a program can run an `is`.** The operator
-parses, answers `bool`, folds a settled answer, refuses only its right-hand side, narrows the true
-edge, and now lowers: `crates/nvs-ir/src/lower/expr.rs`'s `lower_type_test` is the whole of it and
-`crates/nvs-types/src/expr/type_test.rs` is the checker half.
+**Goal `type-test` — every row of `rule:types/type-test`'s table lowers now, and the fixture is green.**
+`test_shape` in `crates/nvs-ir/src/lower/expr.rs` answers a shape for every accepted right-hand side but
+a shape type, a union, an intersection, `iterable`, `callable` and an `array<T>` whose element type no
+tag decides. Those reach `lower_type_test`'s panic, and each is a decision about that rule's table
+rather than a slice.
 
-**The recorded entry is the contract, and it is now two variants.** `ExprInfo::TypeTest { tested }`
-means a run-time `bool` and carries the interned right-hand side; `ExprInfo::SettledTypeTest
-{ answer }` means the checker settled it and carries the constant. Narrowing keys on the first
-variant, so its guard is unchanged. The second exists because the fold is **not** re-derivable from
-the erasures `nvs-ir` holds — the playbook bullet added this session is that trap.
+**A literal type and an enum case are one tag comparison with a payload compare behind it**, `&&`-shaped
+rather than folded together because a `string` literal's compare is `nvs_str_eq` through two pointers and
+must not run on a value tagged anything else. The atom and its constant are `as`'s own —
+`convert::LiteralAtom` and `convert::literal_constant`, now shared — so `$x as 'yay'` and `$x is 'yay'`
+compare identically, and an enum case compares one representation down through
+`reinterpret_enum_to_backing` for the reason that method already gives.
 
-**Three shapes lower, and none of them is a second walk.** A scalar, `null`, `object` and a bare
-`array` are one masked tag compare (`InstKind::TagIs`, the low byte alone because a `decimal` spells
-its scale and sign in the rest of the word); a class or interface is the `InstKind::InstanceOf`
-`instanceof` and `as C` already emit; an `array<T>` is `Helper::ToArrayOfOrNull`, which is
-`as ?array<T>`'s spelling of the walk `as array<T>` throws from. A subject that is not `Ty::Tagged`
-carries one known tag, so its answer is a constant.
+**One consequence is pinned rather than closed:** a `mixed` holding a backing integer answers
+`is Rank::Silver` exactly as one holding the case does. `rule:enums/representation` states it — "a value
+that reaches `mixed` is not distinguishable there from its backing integer" — and the tag it reserves for
+an enum is what would separate the two.
 
-**What does not lower yet is the payload rows.** A literal, an enum case, a shape, `iterable`,
-`callable` and an `array<T>` whose element type no tag decides all reach `lower_type_test`'s panic.
-`examples/type-test.nvs` (stage 6) wants `enum-case=1` and `literal=1`, so the fixture cannot exist
-until the first two land — the driver's red check naming that file is an item still open.
+**What stage 6 still owes is the cases, not the code.** `examples/type-test.nvs` matches the acceptance
+`want` list line for line, `python tools/reference.py --check` is green, and no `.nvst` case pins this
+rule yet. ADR 0150 § *Verification* is that list, and `[context.stage.6]` now slices it.
 
 ## Next group
 
-**Stage 5 finished, then stage 6's fixture** — one file set: `crates/nvs-ir/src/lower/expr.rs`,
-`crates/nvs-codegen/tests/objects.rs`, `examples/type-test.nvs`.
+**Stage 6: the conformance cases** — one file set: `tests/conformance/lang/`, `tests/conformance/reject/`.
 
-- [ ] **A literal type is the tag compare plus a payload compare** — `TestShape` at
-      `crates/nvs-ir/src/lower/expr.rs:5040` returns `None` for `CheckedTy::IntLiteral`,
-      `StringLiteral`, `True` and `False` today, and `lower_type_test` at
-      `crates/nvs-ir/src/lower/expr.rs:4758` panics on it. The tag is not the whole test here, so
-      the two comparisons are `&&`-shaped: a `string` literal's payload compare is a call and must
-      not run on a value whose tag is not `Tag::Str`. `rule:types/type-test`.
-- [ ] **An enum case is the same shape over an integer** — `CheckedTy::EnumCase(_, backing, _)`
-      at `crates/nvs-ir/src/lower/expr.rs:5040`; the case's own value is the checker's
-      (`rule:enums/representation` makes a case its backing integer), and the tag is that backing
-      type's, so this is one payload compare with no call in it. `rule:types/enum-case-type`.
-- [ ] **`examples/type-test.nvs`, the thirteen lines the acceptance check pins** — the `want` list at
-      `docs/agent/loop-goal.toml:7185` is the specification, in order, and every row of it has a
-      lowering once the two items above land. `rule:types/type-test`.
+- [ ] **Every accepted row over a `mixed` subject, and totality beside it** — one case sweeping the
+      table at `docs/rules/types/type-test.md:20`, `uint` and `decimal` included, and one asserting that
+      `int $n; $n is int` is `true` and `$n is string` is `false` rather than either being a diagnostic.
+      `rule:types/type-test`.
+- [ ] **The distinction and the two divergence rows** — `"7" is int` is `false` where `"7" as ?int` is
+      `7`; a `uint` answers `is uint` and not `is int`; binary data answers `is bytes`. No differential
+      case, PHP being unable to run `is` at all, which is why these are conformance cases:
+      `docs/decisions/0150.md:308`.
+- [ ] **One reject case per refusal** — `E0811`, `E0812` and `E0813` at
+      `crates/nvs-diagnostics/src/lib.rs:3308`. § *Verification* names `E0810` and that number is stale:
+      it belongs to `E_DECODED_FIELD_NOT_TAINTED`, and the registry's own comment beside the third code
+      says why the trio is numbered as it is.
 
 ## Backlog
 
-- **`CEILING` in `crates/nvs-ir/tests/refusals.rs` rose to 16 for `lower_type_test`'s panic** and comes
-  back to 15 in the slice that lowers the last row. Its doc comment says so; nothing else may raise it.
-- `is array<Foo>` panics in lowering: no tag word exists for a class element, and `as array<Foo>` is
-  `E0711` where `is` refuses nothing — `crates/nvs-ir/src/lower/expr.rs`'s `test_shape` § *Known gaps*.
-- `is iterable` and `is callable` have no lowering row at all — same function, same panic.
-- A `mixed` holding an enum answers `is int` as its backing tag would, because `tag_of` gives an enum
-  the backing type's tag — `crates/nvs-codegen/src/ty.rs` owns that decision and its own comment.
-- The reference heading and precedence row for `is` (`python tools/reference.py --check`), stage 6.
-- The conformance cases for `is`, stage 6's `nvs-suite` check.
+- False-edge narrowing stays out of scope for all five spellings — `docs/decisions/0150.md` § 9.
+- A shape, a union, an intersection, `iterable` and `callable` on the right — `test_shape`'s doc comment
+  holds the gap; closing it is a decision about `rule:types/type-test`'s table.
+- `is array<Foo>` reaches the panic where `as array<Foo>` is `E0711` — same gap, same doc comment.

@@ -216,7 +216,7 @@ rules = ["types/type-test"]
 
 # The two divergence rows this stage writes down are § 10's.
 [context.stage.6]
-adrs = ["0150 §10"]
+adrs = ["0150 §10", "0150 §Verification"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
