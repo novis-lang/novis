@@ -1,149 +1,168 @@
 ---
-milestone: M1
+milestone: M8
 ---
-# Loop goal 33 — `is` tests a value against a type
+# Loop goal 34 — a job is removed from the language, by receipt or by tag
 
-Give the language the question it cannot currently ask. `as ?T` answers whether a value **can become**
-a `T` — `"7" as ?int` is `7` — and nothing answered whether it **is** one, short of
-`Core\Reflect::typeOf`, which does not narrow. [ADR 0150](../decisions/0150.md) is the whole design
-and this goal is its implementation: the grammar, the checker, the three refusals, the narrowing edge,
-and the codegen.
+`Core\Queue` can create a job and cannot remove one. A succeeded row stays in `nvs_jobs` forever, a
+cancelled batch of forty thousand leaves forty thousand rows, and the dead-letter table — which the
+runtime is right never to sweep — has no spelling an operator can sweep either. The only answer today
+is `Core\Db::execute` against the runtime's own tables, which makes `nvs_jobs`' column names and its
+`state` ordinals part of the public contract by use, and hands the removal to every code path holding
+`db.connect`.
 
-`rule:types/type-test` is the operator and owns its accepted set.
-`rule:php-migration/is-takes-pattern-matchings-type-patterns` is the standing contract with PHP and is
-what this goal must not quietly widen. **Neither is this goal's to re-open.**
+[ADR 0153](../decisions/0153.md) is the whole design and this goal is its implementation: one
+column, two members, one capability, one diagnostic.
+`rule:concurrency/queue-deletion-is-explicit-and-bounded` is the members and their refusals,
+`rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` is why the column is not `key`.
+**Neither is this goal's to re-open**, and neither is
+`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, which is what the `State::Dead` arm
+exists to keep true.
 
-Its floor is goal `signed-urls`'s whole list. It also depends on goal `surface`, which is where `is` becomes a reserved
-word at all — this goal is the other half of that reservation, and stage 0 is what pays it off.
+Its floor is goal `type-test`'s whole list.
 
 ## Why here
 
-Goal `surface` makes `is` a reserved word that refuses; this makes it the type test, which is what PHP
-reserved the spelling for and what ADR 0150 decides the shape of. It is here rather than beside goal
-15 because the design was reached after that goal was written, and because `is` narrows — so it
-wants the type system settled rather than the grammar merely open.
+The queue can create a job and cannot remove one, so `nvs_jobs` grows with every job the deployment
+has ever run and the only answer is raw SQL against tables the runtime owns. It sits here rather
+than beside goal `database` because the schema change is what makes it cheap and that is goal `schema`'s converge,
+not goal `database`'s hand-written DDL lists: a nullable column with no default grades `Safe`, so a live
+deployment takes it through the `nvs queue migrate` it already runs. After goal `signed-urls` and `type-test` because it
+adds surface and they are the entries that settled how surface is added; in front of the dossier
+because that entry stops adding any.
 
 ## The surface, in one block
 
 ```php
-mixed $m = Core\Request::query('id');
+use Core\Queue;
+use Core\Queue\State;
 
-if ($m is int)            { … }   // narrows: $m is int inside the block
-if ($m is int|uint)       { … }   // the migration spelling for PHP's is_int()
-if ($m is Request)        { … }   // a class, exactly as instanceof would
-if ($m is 'a'|'b')        { … }   // literal types
-if ($m is Mode::Read)     { … }   // an enum case
-if ($m is array<int>)     { … }   // legal, and an O(n) walk — the same one `as array<int>` does
+// The group is decided at enqueue. Nothing can group rows that were never grouped.
+Queue::push('jobs/export.nvs', {args: {row: $id}, tag: 'export:' . $batch});
 
-$x instanceof $cls;               // still the only dynamic class test — `is` cannot express it
+Queue::delete($receipt);                                          // one row, by receipt -> bool
+Queue::purge('exports', {tag: 'export:' . $batch,
+                        state: State::Pending});                  // a cancelled batch  -> uint
+Queue::purge('exports', {before: Core\Time::now()->minus(30d)});  // retention: terminal rows only
+Queue::purge('exports', {state: State::Dead, tag: 'tenant:7'});   // named, or never touched
 ```
 
-## Stage 0 — the catch-up
-
-**Goal `surface` lands `is` as a refusal; this goal replaces it with a parse.** That refusal is
-`report_reserved_for_future_use(Keyword::Is, …)` in
-`crates/nvs-syntax/src/parser/expr.rs:@parse_instanceof`, plus whichever `tests/conformance/reject/`
-case goal `surface` wrote for it. Both come out in the same slice that lands stage 2, not before — a tree
-where `is` neither refuses nor parses is a tree with a hole in it.
-
-`let`'s half of that refusal **stays**, untouched. `rule:php-migration/let-and-is-are-reserved` now
-says the two are reserved for unrelated reasons, and only `let` is still the empty kind.
+```toml
+[app.capabilities.queue]
+purge = ["exports", "email"]     # or `true`; absent is the denial
+```
 
 ## Stage 1 — the floor
 
-Goal `signed-urls`'s whole acceptance list, never traded.
+Goal `type-test`'s whole acceptance list, never traded.
 
-## Stage 2 — the keystone: one node, and the production it already has
+## Stage 2 — the keystone: one column, and the converge that carries it
 
-One file set: `crates/nvs-syntax/src/parser/expr.rs`, `crates/nvs-syntax/src/ast.rs`,
-`crates/nvs-syntax/src/parser/ty.rs`.
+One file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-cli/src/worker.rs`.
 
-1. **The node.** `ExprKind::TypeTest { expr: Box<Expr>, ty: Type }`, beside
-   `ExprKind::Conversion { expr, ty }` — which is the shape to copy, because `as` already parses
-   exactly this and the two differ only in what they do with the answer. Deliberately **not** an arm on
-   `InstanceOf`: that node's right side is an `Expr` because a `class<T>` operand is a value, and the
-   whole point of `rule:types/type-test`'s third refusal is that these are different kinds of thing.
-2. **The parse.** `is` keeps the precedence slot the reserved-word hook already occupies in
-   `parse_instanceof`, since it is a comparison like the operator beside it. Its right side is
-   `parse_type`, not `parse_pipe`.
-3. **`$x is $cls` is `E0812` here**, in the parser, where the `$` is in hand — not deferred to the
-   checker as a type it fails to resolve. The help names `instanceof` and says the spelling is held
-   because PHP's grammar binds a variable there.
+1. **`tag`** — a nullable `short()` column on `JOBS_TABLE` and on `DEAD_TABLE`, and an index
+   `nvs_jobs_tag` on `(queue, tag)`. Beside `dedupe_key`, and deliberately **not** beside
+   `dedupe_pending`: nothing releases a tag, because a tag is not a lock.
+2. **`push` writes it.** One more option in the shape, one more bound value in `INSERT_*`, and no
+   other statement on the request path changes. The claim statement does not read it; the retry
+   statement does not touch it; the dead-letter move carries it across with the rest of the row.
+3. **The converge is the proof.** A database holding the pre-`tag` schema must plan **exactly one
+   step, graded `Safe`** — `nvs_db::ddl`'s "a nullable column with no default is a catalog write on
+   all four" arm. If it plans two, or grades up, the column was declared wrong; that is the check to
+   write first, because everything after it assumes a live deployment can take this change through
+   the `nvs queue migrate` it already runs.
 
-## Stage 3 — the checker: total, and three refusals
+**The trap here is the worker.** `crates/nvs-cli/src/worker.rs` reads its columns by position out of
+the driver rows, per its own `args`-position comment. A column added in the middle of a `select` list
+silently shifts every read after it. Add at the end of the list, and read the position tests.
 
-One file set: `crates/nvs-types/src/expr/`, `crates/nvs-diagnostics/src/lib.rs`.
+## Stage 3 — the two members, as statements
 
-1. **The result is `bool`, always.** No subject is refused. `int $n; $n is int` checks and is `true`;
-   `int $n; $n is string` checks and is `false`. This is the single most likely thing to get wrong by
-   analogy — `infer_instanceof` refuses a subject that `!can_hold_an_object`, and **that reasoning does
-   not transfer**: `instanceof` needs a class and a scalar has none, while every value has a
-   representation. ADR 0150 § 6 is the argument; the acceptance list asserts both directions.
-2. **`E0813`** — a `tainted` or `secret` qualifier on the right. Erased before codegen
-   (`rule:security/tainted-qualifier`), so there is no bit to read. Not `E0810`, which is
-   `E_DECODED_FIELD_NOT_TAINTED` and was already declared when ADR 0150 wrote its table;
-   `rule:types/type-test` is the home of which code refuses what.
-3. **`E0811`** — `void` or `never` on the right.
-4. **A float literal** reuses `rule:types/literal-types`' existing refusal and claims no new code.
-5. **Constant folding.** A result the checker settles folds to a literal `bool`. It does **not**
-   warn — narrowing manufactures statically-true tests, and diagnosing them would make a flow analysis
-   able to break working code.
+One file: `crates/nvs-stdlib/src/queue.rs`.
 
-## Stage 4 — narrowing, as the fifth spelling
+`delete` and `purge` in the two dialects the queue already writes — PostgreSQL and MySQL — beside
+`CANCEL_*` and `SUCCEEDED_*`, which are the shapes to copy.
 
-One file: `crates/nvs-types/src/locals.rs`, joining the four `rule:types/narrowing` already lists.
+1. **`delete` is keyed on the receipt and on the state**, never on the id alone: `where id = ? and
+   state <> 1` is what makes "a claimed job is not removable" a property of the statement rather than
+   of a check above it, and the affected-row count is the `bool` the member answers.
+2. **`delete` tries `nvs_jobs` and then `nvs_dead_jobs`**, exactly as `STATUS_*` already does across
+   both tables. A `Queue\Id` names a job across the dead-letter move, and a member that stopped
+   working the moment a job exhausted its attempts would be a receipt that expires without saying so.
+3. **`purge` is one `DELETE … LIMIT`** over the state set the call selected, with `tag`, `before` and
+   the bound. `state: Dead` reads `nvs_dead_jobs`; every other selection reads `nvs_jobs`; the default
+   set is `Succeeded` and `Cancelled` and nothing else.
+4. **`State::Claimed` throws `LogicError` at the call**, beside `push`'s `maxAttempts: 0` — one closed
+   enum case out of five, and the throw names it.
+5. `queue_statements_agree_with_the_state_enum` already holds the ordinals in these statements to
+   `STATE`'s cases. **Extend it rather than writing a second one**; two spellings of that rule is how
+   the ordinals drift.
 
-True edge only, binding and not declared type, widened by a write inside the block — the same
-contract every other spelling has. `an-instanceof-narrows-its-subject-on-the-true-edge` is the case to
-mirror. **False-edge narrowing is out of scope** and is out of scope for the other four as well; ADR
-0150 § 9 says why, and taking it here would leave four spellings behind.
+## Stage 4 — the capability, and the one diagnostic
 
-## Stage 5 — lowering and codegen
+One file set: `crates/nvs-config/src/capability.rs`, `crates/nvs-config/src/tree.rs`,
+`crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-types/src/intrinsics.rs`,
+`crates/nvs-runtime/src/capability.rs`.
 
-One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-codegen/src/emit.rs`.
+1. **`Cap::QueuePurge`, spelled `queue.purge`** — one variant, one entry in `ALL`, and an arm in
+   **both** `grant` and `grant_mut`, which that type writes out twice on purpose: they *are* the
+   name-to-field mapping, and its own doc says a shared traversal would be a third thing to keep in
+   step. Scoped on queue names, exact only: `takes_host_wildcard` stays `db.open`'s alone, because a
+   queue name is a flat string a program picks and is a UUID in this repository's own fixture.
+2. **`[app.capabilities.queue] purge`** — one field on one new struct in `tree.rs`. `grant_of` already
+   reads `true`, a bare string, a list and an empty list; nothing new is written for the three-way
+   grant.
+3. **`E0635`** — a *written* `Core\Queue::purge` whose literal queue name the compiling machine's
+   grant does not cover. This is `E0618` one class over and is asked under `E0618`'s conditions and no
+   others: a literal name, a configuration this machine actually read, the same list walked by the
+   same `Capabilities::allows`. A computed name says nothing.
+4. **`delete` has no static half** — its queue comes out of a `Queue\Id` at run time, so it is refused
+   at the door like any other ungranted act.
 
-Three shapes behind one operator, and the cost is the reason `rule:types/type-test` states it:
+## Stage 5 — the registry rows
 
-- **a scalar, `object`, `null`, a literal, an enum case** — one tag comparison, and for a literal a
-  payload compare after it;
-- **a class or interface** — the descriptor walk `instanceof` already emits, reused and not written a
-  second time;
-- **`array<T>` with a named element type, and a shape** — the O(n) walk `as array<T>` already has.
-  Reuse that too; a second element walk in the tree means one of them is wrong.
+One file set: `crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs`.
 
-A test the checker folded emits no code at all.
+The two members as `CoreMethod` rows with their reference cards, and `tag` added to `push`'s
+`ParamDoc` set — conventions.md § *A `Core` member — the five edits* is the shape, and this stage is
+the two members' four other edits after stage 3's statement.
 
-## Stage 6 — the reference, and the cases
+The doc rows are the *only* home of what an operator reads in `docs/novis.md`, so `purge`'s card must
+say the three things a caller gets wrong: the default set is terminal rows, `Dead` and `Pending` are
+named or untouched, and the answer is a count to loop on rather than a completion.
 
-`is` is a new operator, so it takes its own heading in `docs/reference/lang/30-expressions.md` and a
-row in the precedence table, beside the `|>` row goal `surface` added.
+## Stage 6 — the fixture, the cases, and the reference
 
-The conformance cases ADR 0150 § *Verification* requires, under `tests/conformance/lang/` and
-`tests/conformance/reject/`. **No differential case**: PHP cannot run `is`, which is exactly why the
-two divergence rows — a `uint` answering `is uint` and not `is int`, and `bytes` answering `is bytes`
-— need conformance cases of their own rather than an oracle.
+`examples/queue-purge.nvs`, printing one frozen line per property, beside `examples/queue.nvs` rather
+than inside it: that fixture is goal `database`'s and its five lines are frozen.
+
+The conformance cases ADR 0153 § *Verification* names. **No differential case** — PHP has no queue,
+which is the same reason `examples/queue.nvs` has none.
+
+`nvs.toml` gains the grant for the new fixture's entry, which is also what makes the capability
+evidence rather than assumption: every other fixture in the tree runs with no `queue` grant at all.
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** [ADR 0150](../decisions/0150.md) is accepted and is the
-  whole design, so every call these stages reach has a section of it to read. A gap found in it is an
-  edit to `rule:types/type-test`'s fragment through a record whose `changes:` block names it, never an
-  overlay here. `rule:php-migration/is-takes-pattern-matchings-type-patterns` is the contract with PHP
-  and is not this goal's to widen — the lead paragraph says so and it is repeated here because a
-  widening looks like a convenience at the moment a case fails.
-- **The result is `bool` for every subject, and the `instanceof` analogy is the trap.** 0150 § 6 is the
-  argument, stage 3 is the shape, and the acceptance list asserts both directions. A session that finds
-  itself refusing a subject has reasoned from `infer_instanceof` and should stop.
-- **False-edge narrowing stays out of scope**, for the four spellings already landed as much as for
-  this one. 0150 § 9 is why, and taking it here is the tempting local improvement that leaves four
-  spellings behind.
-- **Where stage 5 cannot reuse a walk, it emits the one that exists and never a second.** The class
-  path is `instanceof`'s descriptor walk and the `array<T>` path is `as array<T>`'s element walk; two
-  element walks in the tree means one of them is wrong, which is a bug that reads as a performance
-  choice. If reuse turns out to need a refactor to be reachable, the refactor is the slice — not a
-  second emitter, and not `BLOCKED`.
-- **What this spends**, per `rule:programs/memory-priority`: for a scalar, `object`, `null`, a literal
-  or an enum case, one tag comparison and at most a payload compare. For a class, the walk `instanceof`
-  already pays. For `array<T>` and a shape, the O(n) walk `as array<T>` already pays, and
-  `rule:types/type-test` states that cost because a reader has to see it before writing the test in a
-  loop. A folded test spends nothing at all.
+- **This goal opens no new ADR number.** [ADR 0153](../decisions/0153.md) is accepted and is the
+  whole design: one column, two members, one capability, one diagnostic. The three rules the lead
+  paragraph names are not this goal's to re-open, and a gap found in one is an edit to that fragment
+  through a record whose `changes:` block names it.
+- **The bound on `purge` is the rule, and the dialect spelling is not.**
+  `rule:concurrency/queue-deletion-is-explicit-and-bounded` is what the member owes; how each of the
+  two dialects expresses a bounded delete is an implementation choice a session makes and records in
+  `queue.rs`'s statement comments. A dialect that will not take one spelling takes another — dropping
+  the bound is the one answer that is not available.
+- **The converge is the check written first, and one `Safe` step is the whole of it.** If the planner
+  answers two steps or grades up, the column was declared wrong and the fix is the declaration, not the
+  expectation: everything after stage 2 assumes a live deployment takes this through the `nvs queue
+  migrate` it already runs.
+- **`State::Claimed` throws at the call, and the default set is terminal rows.** Both are 0153's and
+  stage 3's, restated here because they are what a caller gets wrong and therefore what a session is
+  most likely to "fix" in the other direction. `Dead` and `Pending` are named or untouched.
+- **`delete` has no static half**, so there is no second diagnostic to design. Its queue name arrives in
+  a `Queue\Id` at run time and it is refused at the door like any other ungranted act; `E0635` is
+  `E0618` one class over and is asked under `E0618`'s conditions and no others.
+- **What this spends**, per `rule:programs/memory-priority`: one nullable column and one index on
+  `(queue, tag)` per jobs table, written once per `push` and read by nothing on the request path — the
+  claim, retry and dead-letter statements are unchanged. No allocation per job that the queue did not
+  already make.

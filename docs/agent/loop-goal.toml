@@ -1,13 +1,14 @@
-# Goal 33 -- `is` tests a value against a type.
+# Goal 34 -- a job is removed from the language, by receipt or by tag.
 # The acceptance test, as data.
 #
-# `33-type-test.md` is the prose. One home each.
+# `34-queue-purge.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  "examples/type-test.nvs",
+  "examples/queue-purge.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/type-test.nvs",
   "examples/signed-url.nvs",
   "examples/uri-without-fragment.nvs",
   "examples/xml-tree.nvs",
@@ -90,75 +91,52 @@ files = [
 [context]
 
 modules = [
-  # Stage 0 + 2 -- `parse_instanceof` is where `is` already sits as a refusal, and where it becomes a
-  # parse. The precedence slot does not move.
-  "crates/nvs-syntax/src/parser/expr.rs",
-  # Stage 2 -- `ExprKind::Conversion` is the node to copy: `as` already parses `expr <kw> Type`.
-  "crates/nvs-syntax/src/ast.rs",
-  # Stage 2 -- `parse_type`, which is the right-hand side. Not `parse_pipe`.
-  "crates/nvs-syntax/src/parser/ty.rs",
-  # Stage 0 -- the reserved set goal `surface` put `is` into. `let` stays; `is` stops being refused here.
-  "crates/nvs-syntax/src/token.rs",
-  # Stage 3 -- `infer_instanceof` is the sibling AND the trap: its `!can_hold_an_object` refusal is
-  # the reasoning that must NOT be copied. ADR 0150 section 6.
-  "crates/nvs-types/src/expr/members.rs",
-  # Stage 3 -- where the new node is checked and folded, beside the conversion arm.
-  "crates/nvs-types/src/expr/mod.rs",
-  # Stage 4 -- the four narrowing spellings this becomes the fifth of.
-  "crates/nvs-types/src/locals.rs",
-  # Stage 4 -- `locals::narrow` reads the class `instanceof` recorded here, and `is` records its
-  # tested type the same way or narrowing has nothing to read.
-  "crates/nvs-types/src/expr_table.rs",
-  # Stage 3 onward -- where `is` is checked, folded and refused.
-  "crates/nvs-types/src/expr/type_test.rs",
-  # Stage 3 -- E0811/E0812/E0813. The E04xx and E07xx type bands are full; E08xx is the live one,
-  # and E0810 is taken, so the qualifier refusal is the band's next free code rather than 0150's.
+  # Stages 2, 3 and 5 -- the class, the schema value, every statement and every registry row. The
+  # one file this goal is mostly about.
+  "crates/nvs-stdlib/src/queue.rs",
+  # Stage 5 -- where `Core\Queue`'s class row sits, and where two more members join it.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 2 -- the trap: this reads its columns BY POSITION out of the driver rows, so a column
+  # added in the middle of a select list shifts every read after it.
+  "crates/nvs-cli/src/worker.rs",
+  # Stage 2 -- the converge that has to carry the new column in one `Safe` step. Read for what it
+  # proves, not to change it.
+  "crates/nvs-cli/src/queue.rs",
+  # Stage 2 -- `base_grade`'s nullable-column arm is what makes the schema change `Safe`. Read only:
+  # a grade this goal had to edit would mean the column was declared wrong.
+  "crates/nvs-db/src/ddl.rs",
+  # Stage 4 -- the roster. One variant, one `ALL` entry, and an arm in BOTH `grant` and `grant_mut`.
+  "crates/nvs-config/src/capability.rs",
+  # Stage 4 -- `[app.capabilities.queue]`, one struct beside `Db` and `Script`.
+  "crates/nvs-config/src/tree.rs",
+  # Stage 4 -- E0635. The E06xx configuration-and-capabilities band is the live one.
   "crates/nvs-diagnostics/src/lib.rs",
-  # Stage 5 -- lowering, beside the conversion and instanceof arms whose walks are reused.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # Stage 5 -- the tag comparison, and the descriptor walk already emitted for instanceof.
-  "crates/nvs-codegen/src/emit.rs",
-  # Stage 5 -- `InstKind` is where a new instruction is declared, and `print.rs` is the one other
-  # place that matches on one. A missing printer arm is a compile error; a missing codegen arm is too.
-  "crates/nvs-ir/src/ir.rs",
-  "crates/nvs-ir/src/print.rs",
-  # Stage 5 -- `tag_of` is the tag a representation carries, and `Tag`'s roster is what it maps onto.
-  # A `decimal` spends the rest of the tag word on its scale and sign, which is why the compare masks.
-  "crates/nvs-codegen/src/ty.rs",
-  "crates/nvs-runtime/src/value.rs",
-  # Stage 5 -- `lower_array_restamp` owns the element walk `is array<T>` reuses, and
-  # `lower_checked_downcast` owns the descriptor walk. Two walks in the tree means one is wrong.
-  "crates/nvs-ir/src/lower/convert.rs",
-  # Stage 5 -- the acceptance tests read the lowered IR rather than the output, through this fixture.
-  "crates/nvs-codegen/tests/common/mod.rs",
-  # What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s
-  # result-type table and the three refusals layered onto it.
-  "crates/nvs-types/src/expr/operators.rs",
+  # Stage 4 -- where `E0618` asks the same question about a written `Core\Db::open` host. This is the
+  # shape to copy, and the conditions to copy with it.
+  "crates/nvs-types/src/intrinsics.rs",
+  # Stage 4 -- the door a run-time refusal comes out of, for the half `nvs check` cannot see.
+  "crates/nvs-runtime/src/capability.rs",
 ]
 
-# 0150 is the design. 0124 is the reservation this goal is the other half of. 0047/0066 are
-# narrowing; 0033 is the qualifier E0813 refuses; 0004 prices it. The type system the right-hand
-# side is drawn from reaches a session as the rule ids its stages name.
-# The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADR 0007 came out: it created more than eight rules, so naming
-# it here printed a whole chapter of titles to every stage,
-# and the rules that bind this goal are named by id above. `brief.py --where` reaches
-# the rest in one call.
+# 0153 is the design and is named as its rules. 0084 is the queue this extends; 0112 the roster the
+# new name joins; 0145 the converge that carries the column; 0004 prices the trade.
 rules = [
-  "0150",
-  "0124",
-  "0047",
-  "0066",
-  "0033",
+  "concurrency/queue-deletion-is-explicit-and-bounded",
+  "concurrency/a-tag-groups-jobs-and-a-key-dedupes-them",
+  "concurrency/queue-four-members",
   "0004",
 ]
 
-# One entry per section, and the separator is `§` -- `"0150 section 6"` matched no heading and
-# sliced nothing, silently, in all three of its spellings. The record's *In short* block stays here
-# because it is this goal's own; each section moved into the stage that argues it.
-adrs = ["0150"]
+adrs = []
 
-shapes = ["A commit message", "A `.nvst` test case", "A diagnostic"]
+shapes = [
+  "A commit message",
+  "A `Core` member — the five edits",
+  "A `.nvst` test case",
+  "A diagnostic",
+]
+
+milestones = ["M8:verify"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -185,7 +163,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `33-type-test.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `34-queue-purge.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -196,27 +174,35 @@ plan = ["Open now", "Blocking"]
 # of it.
 # ---------------------------------------------------------------------------------------------------
 
-[context.stage.0]
-rules = ["php-migration/let-and-is-are-reserved"]
-
+# The column is a schema change, and what makes it a cheap one is the converge rather than anything
+# about the queue. Section 7 is why removal is DML and touches none of this.
 [context.stage.2]
-rules = ["types/type-test"]
+rules = ["core-classes/queue-storage-is-a-table", "core-classes/schema-plan"]
+adrs = ["0153 §3", "0153 §7"]
 
+# Section 2 is the state table this stage encodes into `where` clauses, and the two rules are what it
+# must not quietly widen.
 [context.stage.3]
-rules = ["security/tainted-qualifier", "types/literal-types"]
-adrs = ["0150 §6"]
+rules = [
+  "concurrency/cancel-is-a-race-it-can-lose",
+  "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
+  "concurrency/claiming-is-one-statement",
+]
+adrs = ["0153 §2", "0153 §4", "0153 §6"]
 
-# "False-edge narrowing is out of scope ... ADR 0150 § 9 says why" -- the stage's own sentence.
+# Section 5 is why these two take a grant and the other four do not.
 [context.stage.4]
-rules = ["types/narrowing"]
-adrs = ["0150 §9"]
+rules = [
+  "security/capability-roster-is-closed",
+  "security/capability-check-at-the-door",
+  "security/capability-declaration-is-one-table",
+  "core-classes/db-capabilities",
+]
+adrs = ["0153 §5"]
 
 [context.stage.5]
-rules = ["types/type-test"]
-
-# The two divergence rows this stage writes down are § 10's.
-[context.stage.6]
-adrs = ["0150 §10", "0150 §Verification"]
+rules = ["core-api/shape-rules"]
+adrs = ["0153 §1"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
@@ -224,15 +210,21 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# This goal's own checks need no container -- a type test reads a tag. The daemon is its FLOOR's
-# requirement, carried from goal `signed-urls`.
-# Nothing this goal proves needs a container. The floor's checks do, and a floor is never traded, so
-# the daemon is preflighted for it rather than for anything below.
+# Both halves: this goal's own checks run statements against PostgreSQL and MySQL, and its floor
+# carries goal `type-test`'s daemon requirement as well.
+# This goal's own checks run statements against PostgreSQL and MySQL, so it needs the daemon in its
+# own right and not only for its floor.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 486 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -7092,15 +7084,12 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: one node, and the production `as` already has. `rule:types/type-test`.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 grammar"
+stage = "1 floor"
 name = "nvs-syntax (`is` parses a type, not an expression, and keeps its precedence slot)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -7112,7 +7101,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 grammar"
+stage = "1 floor"
 name = "nvs-syntax (a value where a type belongs is refused in the parser)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -7122,10 +7111,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the checker: total, and three refusals. `rule:types/type-test`, ADR 0150 section 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 checker"
+stage = "1 floor"
 name = "nvs-types (`is` is total: a knowable answer is not a diagnostic)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -7137,7 +7125,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 checker"
+stage = "1 floor"
 name = "nvs-types (the three refusals, and the one it borrows)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -7150,10 +7138,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- narrowing, as the fifth spelling. `rule:types/narrowing`, ADR 0150 section 9.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 narrowing"
+stage = "1 floor"
 name = "nvs-types (`is` narrows the true edge alone)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -7166,10 +7153,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- lowering and codegen: three shapes, no second walk.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 codegen"
+stage = "1 floor"
 name = "nvs-codegen (a tag test, the instanceof walk reused, and the array walk reused)"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
@@ -7182,10 +7168,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the cases ADR 0150's Verification section names, and the reference heading.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "6 fixture"
+stage = "1 floor"
 file = "examples/type-test.nvs"
 want = [
   "int=1",
@@ -7205,8 +7190,166 @@ want = [
 
 [[check]]
 kind = "command"
-stage = "6 the reference"
+stage = "1 floor"
 name = "the `is` operator has a reference heading and a precedence row"
+argv = ["python", "tools/reference.py", "--check"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- one column, and the converge that carries it.
+# `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`, ADR 0153 section 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the column"
+name = "nvs-stdlib (`tag` is a group and never a lock, and `key` still admits one)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_schema_declares_tag_nullable_on_both_tables_and_indexes_it_with_its_queue",
+  "nothing_releases_a_tag_the_way_a_claim_releases_a_dedupe_key",
+  "many_pending_jobs_share_one_tag_and_two_pending_jobs_never_share_one_key",
+  "the_claim_and_retry_statements_read_no_tag_at_all",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the column"
+name = "nvs-cli (the worker still reads its columns at the positions it thinks it does)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them",
+  "a_dead_letter_move_carries_the_tag_across_with_the_rest_of_the_row",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the converge"
+name = "nvs-db (a database on the pre-tag schema plans one step, graded Safe)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "converging_the_pre_tag_queue_schema_plans_exactly_one_add_column_step",
+  "that_step_is_graded_safe_on_every_dialect_and_needs_no_including_risky",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the two members, as statements.
+# `rule:concurrency/queue-deletion-is-explicit-and-bounded`, ADR 0153 sections 2, 4 and 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 statements"
+name = "nvs-stdlib (a claimed job is refused by the statement, not by a check above it)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_delete_statement_excludes_the_claimed_state_in_its_own_where_clause",
+  "delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one",
+  "purge_has_no_option_that_reaches_a_claimed_row",
+  "purge_naming_the_claimed_state_throws_logic_error_and_names_the_case",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 statements"
+name = "nvs-stdlib (the default set is what has finished, and both tables are reachable)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "purge_with_no_state_takes_succeeded_and_cancelled_and_neither_dead_nor_pending",
+  "purge_naming_dead_reads_the_dead_letter_table_and_no_other_selection_does",
+  "delete_finds_a_receipt_in_the_dead_letter_table_the_way_status_already_does",
+  "purge_is_bounded_with_nothing_written_and_answers_the_count_it_removed",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 statements"
+name = "nvs-stdlib (the ordinals in the new statements are the enum's, in the one test that holds them)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "queue_statements_agree_with_the_state_enum",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the capability, and the one diagnostic. `rule:security/capability-roster-is-closed`,
+# ADR 0153 section 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the grant"
+name = "nvs-config (`queue.purge` reads the three spellings the roster's other names read)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "queue_purge_reads_true_a_list_a_bare_string_and_an_empty_list_as_every_other_name_does",
+  "an_absent_queue_block_grants_nothing_and_is_the_denial",
+  "a_queue_name_is_matched_exactly_and_a_star_entry_grants_nothing",
+  "queue_purge_appears_in_cap_all_and_in_both_grant_and_grant_mut",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the diagnostic"
+name = "nvs-types (E0635 reads a written name and says nothing about a computed one)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_written_purge_queue_name_outside_the_grant_is_e0635",
+  "a_computed_purge_queue_name_is_not_refused_before_it_runs",
+  "e0635_is_not_asked_when_the_checking_machine_read_no_configuration",
+  "delete_has_no_static_half_and_is_refused_at_the_door",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the registry rows, and what an operator reads.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the registry"
+name = "nvs-stdlib (two members, their cards, and `tag` on push's)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "core_queue_declares_delete_and_purge_beside_its_four_and_both_declare_the_capability",
+  "pushs_reference_card_documents_tag_beside_key_and_says_which_one_groups",
+  "purges_reference_card_names_the_default_set_the_two_opt_ins_and_the_count",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the fixture, the cases, the reference.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "6 fixture"
+file = "examples/queue-purge.nvs"
+want = [
+  "tagged=3",
+  "purged-pending=2",
+  "dead-survives=1",
+  "purged-dead=1",
+  "claimed-delete=false",
+  "terminal-delete=true",
+  "bounded=1",
+  "remaining=0",
+]
+
+[[check]]
+kind = "command"
+stage = "6 the reference"
+name = "the two members have reference entries and the grant has a documented block"
 argv = ["python", "tools/reference.py", "--check"]
 
 [[check]]
