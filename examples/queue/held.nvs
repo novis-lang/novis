@@ -1,0 +1,15 @@
+<?nvs
+// The job `examples/queue-purge.nvs` enqueues so that it has a claimed row to
+// ask about.
+//
+// [ADR 0153](/docs/decisions/0153.md) § 2: a claimed job is not removable at
+// all, and `Core\Queue::delete` answering `false` is the only way a caller
+// finds that out. A row is `Claimed` for exactly as long as this file runs, so
+// the parent's question has to arrive inside that window — and the window is a
+// whole second because the parent polls for the claim first and then sends a
+// statement of its own to a server.
+//
+// It prints nothing, for the reason `receipt.nvs` gives: a worker runs this on
+// the same process and the same stdout the parent program is writing its
+// frozen output to.
+Core\Time::sleep(1s);

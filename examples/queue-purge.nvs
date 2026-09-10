@@ -1,0 +1,146 @@
+<?nvs
+// A job leaves the queue by receipt or by filter, and never while a worker
+// holds it.
+//
+// `rule:concurrency/queue-deletion-is-explicit-and-bounded` is what these eight
+// lines pin and [ADR 0153](/docs/decisions/0153.md) is the design behind it:
+// `delete` names one job by its receipt, `purge` names a queue and a filter,
+// and the two are the operator's half of `Core\Queue` rather than a fifth and
+// sixth member of the four a request asks.
+//
+// Three properties, in the order they are printed. A `tag` groups rows that
+// were grouped at the enqueue, because nothing can group rows that were never
+// grouped. `Dead` and `Pending` are opt-in and a purge naming no state takes
+// what has finished — a sweep that swallowed the dead-letter table would make
+// *nothing is discarded silently* true of the runtime and false of every
+// deployment, and one that swallowed pending work would be a data-loss bug
+// wearing a maintenance costume. And a claimed row is not removable at all,
+// because a worker holds a lease on it and there is no protocol for
+// interrupting work in flight.
+//
+// The eight lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 6); the source is not. Both members take the deny-by-default
+// `queue.purge` capability, so `nvs.toml` owes this entry a grant — written
+// there as every queue, because the names below are drawn at run time and no
+// list in a configuration file could have named them.
+
+use Core\Queue;
+use Core\Queue\State;
+
+class Poll {
+    // Waiting for a worker on the same core is the one thing this program does
+    // that is not a `Core\Queue` call, and it is `examples/queue.nvs`'s wait
+    // for `examples/queue.nvs`'s reason: bounded rather than open-ended, since
+    // a fixture that hangs when the feature regresses is worse than one that
+    // prints the wrong line.
+    public static function until(callable $test): bool {
+        var $turns = 0;
+        while ($turns < 200) {
+            if ($test() as bool) {
+                return true;
+            }
+            Core\Time::sleep(25ms);
+            $turns = $turns + 1;
+        }
+        return false;
+    }
+}
+
+class Said {
+    // `echo` writes a `bool` as PHP does — `1` and the empty string — so the
+    // two lines that report what `delete` answered say the word themselves.
+    // What they pin is *which* of the two answers came back, and an empty tail
+    // after the `=` would pin one of them by absence.
+    public static function word(bool $answer): string {
+        if ($answer) {
+            return "true";
+        }
+        return "false";
+    }
+}
+
+// Every run owns its queues, for `examples/queue.nvs`'s reason: the jobs table
+// is the deployment's rather than this program's, nothing empties it between
+// runs, and a fixture naming a fixed queue would count its own previous runs.
+// Four names rather than one because the four halves below count four
+// different populations, and sharing a name would make each half's count
+// depend on the half before it.
+var $batch = Core\Uuid::v4()->toString();
+var $doomed = Core\Uuid::v4()->toString();
+var $held = Core\Uuid::v4()->toString();
+var $drain = Core\Uuid::v4()->toString();
+
+// Most of what this program pushes is never meant to run. A due job is claimed
+// by the in-process worker `[queue] workers` starts within a poll of being
+// pushed, so a fixture that counts pending rows has to keep them out of a
+// worker's reach — `runAt` is how a job says it is not due yet, and an hour is
+// longer than any acceptance sweep.
+var $later = Core\Time::now()->plus(1h);
+
+// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`: a tag names a
+// group and is written at the enqueue that creates it. Three of these five
+// carry one, and the two that do not are what makes the first count a
+// selection rather than the whole queue.
+Queue::push("examples/queue/receipt.nvs", {queue: $batch, runAt: $later, tag: "invoices"});
+Queue::push("examples/queue/receipt.nvs", {queue: $batch, runAt: $later, tag: "invoices"});
+Queue::push("examples/queue/receipt.nvs", {queue: $batch, runAt: $later, tag: "invoices"});
+Queue::push("examples/queue/receipt.nvs", {queue: $batch, runAt: $later});
+Queue::push("examples/queue/receipt.nvs", {queue: $batch, runAt: $later});
+
+// The count is the answer, because a caller has nothing else to read: no row
+// comes back and the rows are gone by the time it could have looked.
+echo "tagged=", Queue::purge($batch, {state: State::Pending, tag: "invoices"}), "\n";
+
+// The same queue with the group taken out of it, and `Pending` named a second
+// time — this is the opt-in, and a program that means to discard work still
+// waiting to run has to say so in the source.
+echo "purged-pending=", Queue::purge($batch, {state: State::Pending}), "\n";
+
+// The dead-letter half. One attempt and a job that throws every time, so the
+// row exhausts its attempts and moves to the table
+// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` keeps.
+Queue::push("examples/queue/flaky.nvs", {queue: $doomed, maxAttempts: 1});
+Poll::until(fn (): bool => { return Queue::stats($doomed)->deadLettered() > 0; });
+
+// A purge naming no state at all: the default set is what has finished, so
+// this one reaches neither the dead letter above nor anything pending. It is
+// the call a retention entry runs on a timer, and the line after it is the
+// record of lost work still being there afterwards.
+Queue::purge($doomed, {});
+echo "dead-survives=", Queue::stats($doomed)->deadLettered(), "\n";
+
+// And the same row named. `State::Dead` is a different table rather than
+// another ordinal, which is why being in it is what the case *is*.
+echo "purged-dead=", Queue::purge($doomed, {state: State::Dead}), "\n";
+
+// The receipt half, and the answer a caller can get no other way. The refusal
+// is the `where` clause of the delete rather than a check in front of it: the
+// state a claim reads and the row a delete removes are one moment, so the
+// database decides and the `bool` is what it decided.
+var $running = Queue::push("examples/queue/held.nvs", {queue: $held});
+Poll::until(fn (): bool => { return Queue::status($running) == State::Claimed; });
+echo "claimed-delete=", Said::word(Queue::delete($running)), "\n";
+
+// The same receipt one state later, with nothing else about the call changed.
+// `delete` is `cancel`'s twin and its `bool` means what `cancel`'s does: this
+// call is what removed it.
+Poll::until(fn (): bool => { return Queue::status($running) == State::Succeeded; });
+echo "terminal-delete=", Said::word(Queue::delete($running)), "\n";
+
+// The bound. `limit` is finite with nothing written
+// (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and the
+// count answered is what makes a caller's loop the shape that drains a large
+// table: the first purge a deployment runs is against a table that has been
+// growing since it was deployed, and an unbounded delete there holds a lock on
+// the connection the application enqueues through for as long as it takes. One
+// row at a time here because two rows are the whole population — a real sweep
+// writes the bound its own maintenance window can afford.
+Queue::push("examples/queue/receipt.nvs", {queue: $drain, runAt: $later});
+Queue::push("examples/queue/receipt.nvs", {queue: $drain, runAt: $later});
+
+var $swept = Queue::purge($drain, {state: State::Pending, limit: 1});
+echo "bounded=", $swept, "\n";
+while ($swept > 0) {
+    $swept = Queue::purge($drain, {state: State::Pending, limit: 1});
+}
+echo "remaining=", Queue::stats($drain)->pending(), "\n";
