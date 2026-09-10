@@ -200,19 +200,19 @@ def apply_renumber(chain, mapping, dry_run):
     own headers, and a link target that is a filename. Prose carries none, by the rule in this
     module's docstring, which is why this is a rename and not a rewrite.
 
-    Returns `(renamed, rewritten, stale)`: files moved, files whose link targets changed, and every
-    `goal 29` found in prose -- a rule violation this reports and does not touch.
+    Returns `(renamed, rewritten, stale)`: files moved, the paths whose link targets changed, and
+    every `goal 29` found in prose -- a rule violation this reports and does not touch.
     """
     moves = {old: new for old, new in mapping.items() if old != new}
     by_num = {g.num: g for g in chain}
     if not moves:
-        return 0, 0, []
+        return 0, [], []
     stems = {by_num[old].stem: f"{new}-{by_num[old].slug}" for old, new in moves.items()}
 
     if dry_run:
         for old, new in sorted(moves.items()):
             print(f"       goal {old} -> {new}  {by_num[old].slug}")
-        return 0, 0, number_citations()
+        return 0, [], number_citations()
 
     # The rename goes through a temporary name because the map is a permutation: 21 -> 7 and 7 -> 9
     # both want the same directory, and either order overwrites one of them going straight across.
@@ -230,7 +230,7 @@ def apply_renumber(chain, mapping, dry_run):
     for old, new in moves.items():
         rewrite_headers(goalsmod.Goal(new, by_num[old].slug), new)
 
-    rewritten = 0
+    rewritten = []
     # The live copies are copies of the live goal and hold the same link targets, so they are
     # rewritten beside the tracked tree rather than after it.
     live_copies = [ROOT / "docs" / "agent" / n
@@ -243,7 +243,7 @@ def apply_renumber(chain, mapping, dry_run):
         out = rewrite_stems(text, stems)
         if out != text:
             path.write_text(out, encoding="utf-8", newline="\n")
-            rewritten += 1
+            rewritten.append(rel(path))
 
     live = goalsmod.live()
     if live in moves:
@@ -252,7 +252,17 @@ def apply_renumber(chain, mapping, dry_run):
 
 
 def report(renamed, rewritten, stale):
-    print(f"       {renamed} file(s) renamed, {rewritten} file(s) had a link target rewritten")
+    print(f"       {renamed} file(s) renamed, {len(rewritten)} file(s) had a link target rewritten")
+    # Naming them is the whole point. The renames are in the index already -- `git mv` put them
+    # there -- and these rewrites are ordinary writes, so a commit of what `git status` shows as
+    # staged lands half of one operation: the file is at its new name and a link somewhere else
+    # still points at the old one, which is a broken link at HEAD that only CI finds.
+    if rewritten:
+        print("       Not staged, while the renames are. Commit them with the goal's own files:")
+        for path in rewritten[:20]:
+            print(f"         {path}")
+        if len(rewritten) > 20:
+            print(f"         ... and {len(rewritten) - 20} more")
     if stale:
         print()
         print(f"       {len(stale)} place(s) name a goal by NUMBER, which this did not touch and")
@@ -773,7 +783,7 @@ def cmd_retitle(chain, opts):
         if (GOALS / f"{old_stem}{suffix}").is_file():
             git("mv", f"docs/agent/goals/{old_stem}{suffix}",
                 f"docs/agent/goals/{new_stem}{suffix}")
-    rewritten = 0
+    rewritten = []
     for path in repo_files():
         try:
             text = path.read_text(encoding="utf-8")
@@ -782,9 +792,15 @@ def cmd_retitle(chain, opts):
         out = text.replace(old_stem, new_stem)
         if out != text:
             path.write_text(out, encoding="utf-8", newline="\n")
-            rewritten += 1
-    print(f"chain: {old_stem} -> {new_stem}; {rewritten} file(s) had the stem rewritten")
+            rewritten.append(rel(path))
+    print(f"chain: {old_stem} -> {new_stem}; {len(rewritten)} file(s) had the stem rewritten")
     print("       The number did not move, so no citation changed meaning.")
+    if rewritten:
+        print("       Not staged, while the renames are. Commit them with the goal's own files:")
+        for path in rewritten[:20]:
+            print(f"         {path}")
+        if len(rewritten) > 20:
+            print(f"         ... and {len(rewritten) - 20} more")
     return 0
 
 
