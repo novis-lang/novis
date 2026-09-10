@@ -133,7 +133,11 @@ const NAME: &str = r"Core\Crypto";
 
 /// A key's length in octets — XChaCha20-Poly1305's only key size, so this is
 /// the construction's number rather than a choice of ours.
-const KEY_LEN: usize = 32;
+///
+/// It is also the length [`crate::keyring`] holds every entry of a key ring
+/// to, including at a door whose primitive would take any length; that module
+/// doc is where the reason for a ring being one ring is written.
+pub(crate) const KEY_LEN: usize = 32;
 
 /// The nonce's length in octets, and the module doc's *why the extended nonce*
 /// section is the whole of why it is 24 and not 12.
@@ -307,11 +311,11 @@ pub(crate) fn cipher(key: &[u8]) -> Option<XChaCha20Poly1305> {
 }
 
 /// The `LogicError` a key of the wrong length earns, in one sentence for every
-/// member that keys [`cipher`].
+/// member that takes a key — whether it keys [`cipher`] or keys a MAC.
 ///
 /// `who` is the member, spelled `Core\Class::member`, and `param` the argument
-/// as the caller wrote it — `$key` here and `$keys[0]` one class over, where a
-/// key ring's entries are what get keyed.
+/// as the caller wrote it — `$key` here and `$keys[0]` wherever
+/// [`crate::keyring`] is walking a ring, whose entries are what get keyed.
 pub(crate) fn wrong_key_length(who: &str, param: &str, got: usize) -> Fault {
     Fault::thrown_as(
         ThrownClass::Logic,

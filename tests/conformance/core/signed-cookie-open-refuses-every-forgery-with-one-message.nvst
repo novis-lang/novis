@@ -91,7 +91,7 @@ Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $
 Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
 Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
 Core\SignedCookie::open(): $cookie is not an authentic cookie under any key in $keys — it has been altered, it is not a cookie this application sealed, or the key it was sealed under has been retired
-Core\SignedCookie::seal(): $keys is empty, and a key ring needs at least the key that seals — Core\Crypto::generateKey() answers one.
+Core\SignedCookie::seal(): $keys is empty, and a key ring needs at least one key — Core\Crypto::generateKey() answers one.
 Core\SignedCookie::seal(): $keys[0] is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
 Core\SignedCookie::open(): $keys[0] is 8 octets, and a key is 32 — Core\Crypto::generateKey() answers one of the right length. The value is not quoted here, because a key does not belong in a log.
 and the cookie it sealed opens

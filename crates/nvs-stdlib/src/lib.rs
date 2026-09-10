@@ -194,6 +194,7 @@ pub mod io;
 mod issue;
 pub mod json;
 mod jwt;
+mod keyring;
 mod log;
 mod mail;
 pub mod math;

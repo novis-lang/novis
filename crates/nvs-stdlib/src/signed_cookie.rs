@@ -10,18 +10,10 @@
 //!
 //! # The key ring is an `array<secret bytes>`, newest first
 //!
-//! `rule:security/protocol-roster` asks for key rotation in five words — "verify against several
-//! keys, sign with the newest" — and every part of the cost of getting it wrong
-//! is in which end of the list *newest* means. So it is written into the
-//! surface rather than into a comment: **`$keys[0]` is the newest**, [`seal`]
-//! uses it and nothing else, and [`open`] tries the whole ring in order.
-//! Rotating a key is prepending one; retiring a key is dropping the tail.
-//!
-//! The alternative was a `{current, previous}` shape, which reads better at one
-//! call site and stops working the moment an operator wants two overlapping
-//! retirements — a real thing during a slow deploy, and the case where a
-//! hand-written fallback would otherwise appear. A list has no such edge, and a
-//! ring of one is the ordinary case spelled `[$key]`.
+//! [`crate::keyring`] is the home of what a ring is, which end of it is the
+//! newest and what an unusable one earns, because this class is no longer the
+//! only member that takes one. Here: [`seal`] takes the newest key and nothing
+//! else, and [`open`] tries the whole ring in order.
 //!
 //! Order is also what makes the ring *cheap*: the newest key opens almost every
 //! cookie, so the common path is one AEAD open and the loop is a rotation-window
@@ -98,18 +90,19 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
-use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsStr, Value};
 
+use crate::keyring::KEY;
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\SignedCookie";
 
-/// The key ring's element type, written once so both rows declare the same
-/// thing: a `secret bytes`, so the array a program builds out of
-/// `Core\Crypto::generateKey()` answers is exactly the type these rows want,
-/// and a plain `bytes` ring still widens onto it.
-const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
+/// `Core\SignedCookie::seal`, spelled the way a refusal names it.
+const SEAL: &str = r"Core\SignedCookie::seal";
+
+/// `Core\SignedCookie::open`, spelled the way a refusal names it.
+const OPEN: &str = r"Core\SignedCookie::open";
 
 /// `rule:security/protocol-roster`'s first roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -242,61 +235,20 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The key ring in slot 1, borrowed for the length of the call.
-///
-/// # Errors
-///
-/// A [`Fault::fatal`] for [`text_of`]'s reason, and a `LogicError` for an empty
-/// ring — which *is* reachable from source, because `array<secret bytes>` says
-/// nothing about how many entries an array has, and `[]` is one of them.
-fn ring_of(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
-    let raw = args[1].array_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected {:?} for $keys, got tag {}",
-            Tag::Array,
-            args[1].tag_byte()
-        ))
-    })?;
-    let ring = crate::arr::borrowed(raw);
-    if ring.next_slot(0).is_none() {
-        return Err(Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "{NAME}::{member}(): $keys is empty, and a key ring needs at least the key \
-                 that seals — Core\\Crypto::generateKey() answers one."
-            ),
-        ));
-    }
-    Ok(ring)
-}
-
 /// The cipher keyed by the ring entry at `slot`.
 ///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for an entry that is not a `bytes`, and the shared
-/// `LogicError` [`crate::crypto::wrong_key_length`] writes for one that is a
-/// `bytes` of the wrong length — a program bug either way, and reported as one
-/// even when the cookie would have been refused anyway, because a ring that
-/// cannot key the construction is broken whatever arrives in it.
+/// Whatever [`crate::keyring::key_at`] refuses the entry for, which is the same
+/// refusal every other door over a ring writes.
 fn cipher_at(
     held: &Value,
     slot: usize,
-    member: &str,
+    who: &str,
 ) -> Result<chacha20poly1305::XChaCha20Poly1305, Fault> {
-    let key = held.as_bytes().ok_or_else(|| {
-        Fault::fatal(format!(
-            "{NAME}::{member} expected a `bytes` at $keys[{slot}], got tag {}",
-            held.tag_byte()
-        ))
-    })?;
-    crate::crypto::cipher(key).ok_or_else(|| {
-        crate::crypto::wrong_key_length(
-            &format!("{NAME}::{member}"),
-            &format!("$keys[{slot}]"),
-            key.len(),
-        )
-    })
+    let key = crate::keyring::key_at(held, slot, who)?;
+    Ok(crate::crypto::cipher(key)
+        .expect("`keyring::key_at` answers a key of the construction's own length"))
 }
 
 nvs_runtime::nvs_helper! {
@@ -310,18 +262,12 @@ nvs_runtime::nvs_helper! {
     /// of why the newest end is the front and not the back.
     fn nvs_core_signed_cookie_seal(ctx, args: [2]) {
         let value = text_of(args, "seal")?;
-        let ring = ring_of(args, "seal")?;
+        let ring = crate::keyring::borrow(args, 1, SEAL)?;
 
-        let newest = ring.next_slot(0).expect("`ring_of` refused an empty ring");
-        let held = ring.value_at(newest).expect("a live slot holds a value");
-        let cipher = cipher_at(&held, newest, "seal")?;
+        let (slot, held) = crate::keyring::newest(&ring);
+        let cipher = cipher_at(&held, slot, SEAL)?;
 
-        let sealed = crate::crypto::seal_under(
-            ctx,
-            &cipher,
-            value.as_bytes(),
-            "Core\\SignedCookie::seal",
-        )?;
+        let sealed = crate::crypto::seal_under(ctx, &cipher, value.as_bytes(), SEAL)?;
         Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
     }
 }
@@ -343,7 +289,7 @@ nvs_runtime::nvs_helper! {
     /// something concrete rather than being a formality.
     fn nvs_core_signed_cookie_open(_ctx, args: [2]) {
         let cookie = text_of(args, "open")?;
-        let ring = ring_of(args, "open")?;
+        let ring = crate::keyring::borrow(args, 1, OPEN)?;
 
         // A cookie that is not base64 is not authentic, and it is not a
         // *different* kind of not-authentic: the ring is still walked, so the
@@ -351,14 +297,10 @@ nvs_runtime::nvs_helper! {
         // sentence at the end.
         let sealed = URL_SAFE_NO_PAD.decode(cookie).ok();
 
-        let mut slot = 0;
-        while let Some(live) = ring.next_slot(slot) {
-            slot = live + 1;
-            let held = ring.value_at(live).expect("a live slot holds a value");
-            let cipher = cipher_at(&held, live, "open")?;
+        for (slot, held) in crate::keyring::entries(&ring) {
+            let cipher = cipher_at(&held, slot, OPEN)?;
             if let Some(sealed) = sealed.as_deref()
-                && let Some(plain) =
-                    crate::crypto::open_under(&cipher, sealed, "Core\\SignedCookie::open")?
+                && let Some(plain) = crate::crypto::open_under(&cipher, sealed, OPEN)?
             {
                 return Ok(Value::str(NvsStr::new(&plain)));
             }
@@ -375,6 +317,7 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use chacha20poly1305::aead::Aead;
+    use nvs_runtime::NvsArray;
 
     use super::*;
 
