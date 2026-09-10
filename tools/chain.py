@@ -131,10 +131,15 @@ def generated(goal):
 # ---------------------------------------------------------------------------------------------------
 
 
-def tracked_files():
-    """Every tracked text file, which is the set a citation can live in."""
+def repo_files():
+    """Every text file git would show you -- tracked, plus untracked and not ignored.
+
+    The untracked half is the one that matters. A goal is three files this tool writes and nobody
+    has committed yet, so a set built from `git ls-files` alone is blind to exactly the file whose
+    TODOs are still being filled in -- which is the only moment a citation gate is worth having.
+    """
     skip = {".png", ".jpg", ".jpeg", ".ico", ".svg", ".lock", ".woff", ".woff2"}
-    for line in git("ls-files").split("\n"):
+    for line in git("ls-files", "--cached", "--others", "--exclude-standard").split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -169,7 +174,7 @@ def number_citations():
     it is a listing of the chain in order, so the number IS what it is showing.
     """
     out = []
-    for path in tracked_files():
+    for path in repo_files():
         if path == README:
             continue
         try:
@@ -230,7 +235,7 @@ def apply_renumber(chain, mapping, dry_run):
     # rewritten beside the tracked tree rather than after it.
     live_copies = [ROOT / "docs" / "agent" / n
                    for n in ("loop-goal.md", "loop-goal.toml", "handoff.md")]
-    for path in list(tracked_files()) + [p for p in live_copies if p.is_file()]:
+    for path in list(repo_files()) + [p for p in live_copies if p.is_file()]:
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
@@ -513,8 +518,15 @@ tests = [
 """
 
 
-def scaffold_md(num, slug, title, milestone, prev_num):
-    floor = (f"Goal {prev_num}'s whole acceptance list" if prev_num
+def scaffold_md(num, slug, title, milestone, prev_slug):
+    """The goal's prose, as TODOs for whoever asked for the goal.
+
+    Every goal it names, it names by **slug**. This file is one an insert in front of it renumbers,
+    so a number written into a sentence here would come to name a goal that is not the one meant --
+    and the scaffold is where that habit would be taught. The `# Loop goal N` header is the goal
+    naming itself, which is the one place a number belongs.
+    """
+    floor = (f"Goal `{prev_slug}`'s whole acceptance list" if prev_slug
              else "The live goal's whole acceptance list")
     return f"""---
 milestone: {milestone}
@@ -526,7 +538,7 @@ the tooling once this goal is green. Not the work; the outcome.
 
 ## Why here
 
-TODO: why this goal sits at {num} rather than anywhere else on the chain. The order is a dependency
+TODO: why this goal sits here rather than anywhere else on the chain. The order is a dependency
 chain, not a preference, and this section is the only home of the reason. Say what it needs that is
 already built, and what after it needs this — not what it does, which is above.
 
@@ -550,11 +562,12 @@ shape; a goal without this section is a goal that eventually holds the run on `B
 """
 
 
-def scaffold_handoff(num, title, prev_num, next_num):
-    prev = (f"Goal {prev_num}'s whole list is this goal's Stage 1 floor." if prev_num else
+def scaffold_handoff(num, title, prev_slug, next_slug):
+    """The seed handoff. It names its neighbours by slug, for `scaffold_md`'s reason."""
+    prev = (f"Goal `{prev_slug}`'s whole list is this goal's Stage 1 floor." if prev_slug else
             "The previous goal's whole list is this goal's Stage 1 floor.")
-    tail = (f"- When this goal's last check goes green the driver takes goal {next_num}."
-            if next_num else
+    tail = (f"- When this goal's last check goes green the driver takes goal `{next_slug}`."
+            if next_slug else
             "- When this goal's last check goes green the driver takes the next goal on the chain.")
     return f"""# Handoff
 
@@ -648,12 +661,12 @@ def cmd_new(chain, opts):
 
     stem = f"{at}-{slug}"
     files = {
-        GOALS / f"{stem}.md": scaffold_md(at, slug, title, milestone, prev.num if prev else None),
+        GOALS / f"{stem}.md": scaffold_md(at, slug, title, milestone, prev.slug if prev else None),
         GOALS / f"{stem}.toml": scaffold_toml(at, slug, title,
                                               prev.toml if prev and not prev.retired else None,
                                               docker),
-        GOALS / f"{stem}.handoff.md": scaffold_handoff(at, title, prev.num if prev else None,
-                                                       at + 1 if nxt else None),
+        GOALS / f"{stem}.handoff.md": scaffold_handoff(at, title, prev.slug if prev else None,
+                                                       nxt.slug if nxt else None),
     }
     existing = [rel(p) for p in files if p.exists()]
     if existing:
@@ -761,7 +774,7 @@ def cmd_retitle(chain, opts):
             git("mv", f"docs/agent/goals/{old_stem}{suffix}",
                 f"docs/agent/goals/{new_stem}{suffix}")
     rewritten = 0
-    for path in tracked_files():
+    for path in repo_files():
         try:
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):

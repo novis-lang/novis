@@ -52,7 +52,8 @@ rediscover it:
 
 ## Stage 1 — the floor
 
-Goal 41's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `event-streams`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never
+traded.
 
 ## Stage 2 — the exit queue drains on the served path at all
 
