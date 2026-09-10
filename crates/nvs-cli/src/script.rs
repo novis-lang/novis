@@ -753,6 +753,21 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
 /// nothing outside a test should be able to hand itself a capability.
 #[cfg(test)]
 pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
+    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+    ctx.set_config(std::sync::Arc::new(granting_snapshot()));
+    ctx
+}
+
+/// [`granting_ctx`]'s grant as the snapshot itself, for a test that arms
+/// something which builds its own contexts.
+///
+/// `crate::worker::start` hands every worker the run's own configuration —
+/// that module's *Why the grants are the run's own* section is why — so a test
+/// arming a queue worker has no context to hand it and needs the snapshot
+/// underneath one. The same grant either way, which is the whole reason the
+/// pair is here rather than a second capability literal in that test module.
+#[cfg(test)]
+pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
     let mut snapshot = nvs_config::Snapshot::default();
     snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
         script: Some(nvs_config::tree::CapScript {
@@ -777,9 +792,7 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
         }),
         ..nvs_config::tree::Capabilities::default()
     });
-    let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
-    ctx.set_config(std::sync::Arc::new(snapshot));
-    ctx
+    snapshot
 }
 
 #[cfg(test)]

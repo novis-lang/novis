@@ -1423,6 +1423,11 @@ impl Framed<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
     /// The column list a split claim reads its row with.
     ///
     /// Both split dialects name it in the same place — between the `select` that opens the first
@@ -1767,6 +1772,344 @@ mod tests {
             [true, false],
             "a queue worker's fault is not retiring the worker, so it is being charged to a \
              request that does not exist"
+        );
+    }
+
+    /// The queue the two end-to-end cases below push onto and claim from.
+    ///
+    /// It is also the `[db.<name>]` key their [`super::QueueBounds`] names, and the two are
+    /// unrelated: a queue's name is a column, a connection's is a table of blocks. One word for
+    /// both is what a `nvs.toml` that wrote neither would end up with, so nothing here depends on
+    /// them differing.
+    const QUEUE: &str = "jobs";
+
+    /// `Core\Queue\State::Pending`'s ordinal — the state a row is in until a worker claims it.
+    const PENDING: i64 = 0;
+
+    /// `Core\Queue\State::Claimed`'s ordinal, which a row holds while the attempt is in flight.
+    const CLAIMED: i64 = 1;
+
+    /// `Core\Queue\State::Succeeded`'s ordinal, as [`nvs_stdlib::queue::SUCCEEDED_SQLITE`] writes
+    /// it.
+    const SUCCEEDED: i64 = 2;
+
+    /// How long a case watches for a job to reach a state before it shuts the run down anyway.
+    ///
+    /// Generous, because it is not a bound anything asserts: what it exists for is a worker that
+    /// never claims, which would otherwise leave a case waiting on a state no turn is going to
+    /// write. Reaching it makes the assertion below fail with the state actually on the row rather
+    /// than hanging the suite.
+    const WATCHING_FOR: Duration = Duration::from_secs(30);
+
+    /// A `[db.<name>]` block naming a SQLite file this case owns.
+    ///
+    /// A file rather than [`nvs_stdlib::queue`]'s own `mode=memory&cache=shared` fixture URI: the
+    /// worker under test opens its *own* connection out of this block, and a case has to be able
+    /// to say which database that is by handing it the same block a `nvs.toml` would. Absolute for
+    /// the reason [`a_sqlite_block_opens_a_queue_worker`] is —
+    /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` has no file to
+    /// resolve against here.
+    fn a_queue_file(case: &str) -> (nvs_config::tree::Database, std::path::PathBuf) {
+        let path = std::env::temp_dir().join(format!("nvs-worker-{case}.db"));
+        let _ = std::fs::remove_file(&path);
+        let block = nvs_config::tree::Database {
+            driver: Some("sqlite".to_owned()),
+            path: Some(path.display().to_string()),
+            ..Default::default()
+        };
+        (block, path)
+    }
+
+    /// A second connection to `block`'s database, which is what a case seeds and reads through.
+    fn opened(block: &nvs_config::tree::Database) -> nvs_db::SqliteConn {
+        let target = nvs_db::SqliteTarget::resolve(block).expect("the block resolves to a path");
+        nvs_db::sqlite::open(&target).expect("the queue's file opens")
+    }
+
+    /// [`opened`], with `rule:core-classes/queue-storage-is-a-table`'s two tables built on it.
+    ///
+    /// The DDL is [`nvs_stdlib::queue::migration`]'s and never a copy, exactly as
+    /// `crates/nvs-stdlib/tests/queue_sqlite.rs`'s fixture takes it: what these cases run a real
+    /// worker against is the schema `nvs queue migrate` applies, so a statement naming a column
+    /// that schema does not have fails here rather than in front of an operator.
+    fn converged(block: &nvs_config::tree::Database) -> nvs_db::SqliteConn {
+        let conn = opened(block);
+        for step in nvs_stdlib::queue::migration(nvs_db::Driver::Sqlite) {
+            ran(&conn, &step.sql, Vec::new());
+        }
+        conn
+    }
+
+    /// One statement's rows, materialized, with the connection handed back at rest.
+    ///
+    /// A `SqliteRows` borrows the connection until it is dropped and leaves it unable to start a
+    /// second statement, and every helper here runs another one after it.
+    fn ran(
+        conn: &nvs_db::SqliteConn,
+        sql: &str,
+        params: Vec<nvs_db::SqliteValue>,
+    ) -> Vec<Vec<nvs_db::SqliteValue>> {
+        let mut answered = conn
+            .query(sql, params)
+            .unwrap_or_else(|refused| panic!("`{sql}` runs: {refused}"));
+        let mut all = Vec::new();
+        while let Some(row) = answered.next_row() {
+            all.push(row);
+        }
+        all
+    }
+
+    /// One integer cell, or the panic naming what came back instead.
+    fn int(cell: &nvs_db::SqliteValue) -> i64 {
+        match cell {
+            nvs_db::SqliteValue::Int(read) => *read,
+            other => panic!("this column is an integer and answered {other:?}"),
+        }
+    }
+
+    /// One pending job on [`QUEUE`], due now, naming `script` and carrying no argument.
+    ///
+    /// The insert is this module's own rather than [`nvs_stdlib::queue::INSERT_SQLITE`]'s, for the
+    /// reason the SQLite suite's fixture gives for its copy: it is the enqueue and not the thing
+    /// under test, and what these cases asserted would otherwise be two statements agreeing rather
+    /// than a job running. Due *now* and not at a fixture instant, because the worker under test
+    /// reads the real clock in [`super::turn`] and a row due later is one it correctly declines.
+    fn pushed(conn: &nvs_db::SqliteConn, script: &str) -> i64 {
+        let now = nvs_stdlib::queue::now_millis();
+        ran(
+            conn,
+            "insert into nvs_jobs \
+             (queue, script, args, state, attempts, max_attempts, backoff_ms, run_at, claimed_at, \
+             dedupe_key, dedupe_pending, created_at, tag) \
+             values (?, ?, null, 0, 0, 3, 250, ?, null, null, null, ?, null)",
+            vec![
+                nvs_db::SqliteValue::Text(String::from(QUEUE)),
+                nvs_db::SqliteValue::Text(String::from(script)),
+                nvs_db::SqliteValue::Int(now),
+                nvs_db::SqliteValue::Int(now),
+            ],
+        );
+        let read = ran(
+            conn,
+            "select id from nvs_jobs order by id desc limit 1",
+            Vec::new(),
+        );
+        int(&read.first().expect("the enqueue landed a row")[0])
+    }
+
+    /// The `state` column of one job, or `None` once no row in `nvs_jobs` carries that id.
+    ///
+    /// `None` is the dead-letter outcome read from this side — § 6 moves the row into the other
+    /// table — so a case waiting for a job to finish treats it as finished and fails on the state
+    /// rather than waiting out [`WATCHING_FOR`].
+    fn state(conn: &nvs_db::SqliteConn, id: i64) -> Option<i64> {
+        let read = ran(
+            conn,
+            "select state from nvs_jobs where id = ?",
+            vec![nvs_db::SqliteValue::Int(id)],
+        );
+        read.first().map(|row| int(&row[0]))
+    }
+
+    /// `[queue]` as an instance running `workers` of them against [`QUEUE`]'s connection.
+    ///
+    /// The bounds a served run resolved, rather than a default set: `visibility` has to outlast the
+    /// whole case, since a window that expired mid-attempt would let the second worker take a job
+    /// the first is still running and turn a case about one attempt into one about two.
+    fn bounds(workers: u32) -> super::QueueBounds {
+        super::QueueBounds {
+            connection: String::from(QUEUE),
+            workers,
+            max_attempts: 3,
+            visibility: Duration::from_secs(5 * 60),
+        }
+    }
+
+    /// The repository root a written script path is anchored at, which `cargo test` does not run
+    /// in — `crate::script`'s own test module anchors its fixtures the same way.
+    fn from_root(relative: &str) -> String {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join(relative)
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    /// `nvs serve`'s own loop over [`nvs_host::run_until_idle`], which is what a worker needs to be
+    /// driven at all.
+    ///
+    /// A worker between turns is a parked task, and that call returns with `parked` non-zero the
+    /// moment a poll wakes nothing — so a case that called it once would return with its workers
+    /// still napping and assert against a queue nothing had claimed from. `serve.rs`'s own loop
+    /// reads the same report the same way, and the end this shares with it is `parked == 0`: every
+    /// worker has returned.
+    fn served(sched: &mut nvs_host::Scheduler) {
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("a reactor starts"));
+        loop {
+            match nvs_host::run_until_idle(sched) {
+                Ok(report) if report.parked > 0 => {}
+                Ok(_) => break,
+                Err(error) => panic!("the scheduler stopped: {error}"),
+            }
+        }
+        drop(installed);
+    }
+
+    /// The task that shuts the run down, spawned beside the workers: it waits for `id` to leave the
+    /// states a worker holds it in, then begins the drain.
+    ///
+    /// **This is the operator's `SIGTERM` and it is also this case's clock.** A served instance has
+    /// no script whose exit ends it, so without something beginning the drain these cases would run
+    /// until the process was killed; and because the wait is bounded by [`WATCHING_FOR`], a worker
+    /// that never claims ends the run too, leaving the assertion to fail on the state it can then
+    /// read. `until` is the last state the case is willing to wait through, so a case wanting the
+    /// drain to arrive *mid-attempt* passes [`PENDING`] alone.
+    fn draining_once_the_job_leaves(
+        sched: &mut nvs_host::Scheduler,
+        block: &nvs_config::tree::Database,
+        id: i64,
+        until: &'static [i64],
+        drain: nvs_server::Draining,
+        began: &Rc<Cell<Option<Instant>>>,
+    ) {
+        let watching = opened(block);
+        let began = Rc::clone(began);
+        sched.spawn(
+            nvs_runtime::Ctx::stdout(),
+            nvs_runtime::TaskRoot::Request,
+            move |_| {
+                let deadline = Instant::now() + WATCHING_FOR;
+                while state(&watching, id).is_some_and(|read| until.contains(&read))
+                    && Instant::now() < deadline
+                {
+                    // The same park a worker's own idle turn takes, so this task holds the core for
+                    // no longer than one of them between reads.
+                    super::nap();
+                }
+                began.set(Some(Instant::now()));
+                drain.begin();
+            },
+        );
+    }
+
+    /// **The case the whole goal is for**: one job enqueued against a SQLite `[queue]`, an instance
+    /// serving it with `workers = 1`, and the row read back in `succeeded`.
+    ///
+    /// `rule:concurrency/one-process-serves-requests-schedules-and-jobs` end to end on the one
+    /// backend that needs no server: [`super::start`] arms the worker the way `nvs serve` arms it,
+    /// and everything between the enqueue and the state is the production path — the roster
+    /// statement, `rule:concurrency/claiming-is-one-statement`'s claim, the isolate
+    /// `rule:concurrency/a-job-runs-as-a-root-isolate` calls for, and § 6's write-back.
+    ///
+    /// **Asserted on the state and not on the worker having polled**, because every cheaper reading
+    /// of this passes while the queue does nothing an operator wanted: a worker that claimed and
+    /// then failed to run the job leaves the same trace as one that ran it, until the row says
+    /// `succeeded`. The script is `examples/isolate/hello.nvs` — a program that returns rather than
+    /// one that throws — so the outcome under test is the whole path's and not a failure's.
+    #[test]
+    fn a_job_pushed_to_a_server_with_one_worker_reaches_succeeded() {
+        let (block, path) = a_queue_file("a-job-reaches-succeeded");
+        let seeded = converged(&block);
+        let id = pushed(&seeded, &from_root("examples/isolate/hello.nvs"));
+
+        let drain = nvs_server::Draining::detached();
+        let workers = super::Workers::draining(drain.clone());
+        let mut sched = nvs_host::Scheduler::new();
+        // The grant is the *snapshot*'s and not a context's, because a worker builds its own
+        // context out of the run's configuration — the module doc's *Why the grants are the run's
+        // own* section — and `script.spawn` is denied by default at the resolve door.
+        let snapshot = Arc::new(crate::script::granting_snapshot());
+        super::start(&mut sched, &workers, &bounds(1), &block, &snapshot);
+        let began = Rc::new(Cell::new(None));
+        draining_once_the_job_leaves(&mut sched, &block, id, &[PENDING, CLAIMED], drain, &began);
+
+        // The compiler is installed for the length of the run, exactly as both binaries install it:
+        // a worker reaches it through `nvs_runtime::script::resolve`, and without one every job is
+        // refused with no resolver rather than run.
+        let compiler = crate::script::Compiler::default();
+        nvs_runtime::script::scoped(&compiler, || served(&mut sched));
+
+        assert_eq!(
+            state(&seeded, id),
+            Some(SUCCEEDED),
+            "the job an instance with one worker was left alone with is not `succeeded`, so the \
+             queue this process serves is not draining"
+        );
+        drop(seeded);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A served instance holding workers ends within a bound once the drain begins, and the bound
+    /// is enforced from outside the run.
+    ///
+    /// **The half that cannot be asserted from inside.** A worker deaf to the drain is a task
+    /// always parked, so `nvs_host::run_until_idle` never returns and a case driving it in this
+    /// thread would hang the suite rather than fail — which is the failure this whole ordering
+    /// exists to turn into a red test
+    /// (`rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s "a server nothing but
+    /// killing the process could stop"). So the run gets a thread of its own and this one waits on
+    /// a channel: a run that never ends arrives as a timeout naming it.
+    ///
+    /// **Two workers and a job in flight**, because neither is the assertion alone. The job is what
+    /// proves the workers were live — a run whose connection never opened ends promptly for a
+    /// reason that has nothing to do with the drain — and the second worker is what makes the end
+    /// *every* worker's rather than one's. The drain arrives while the claim is in flight, so the
+    /// tail measured is § 6's write-back finishing plus the other worker's idle turn, which is what
+    /// `[queue] workers`'s shutdown actually costs a deployment.
+    #[test]
+    fn a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins() {
+        // Long enough that a slow machine never reaches it, and finite so a worker ignoring the
+        // drain is reported instead of waited on.
+        const ARRIVES_WITHIN: Duration = Duration::from_secs(60);
+        // What the shutdown is allowed to cost once the drain has begun: one claim written back and
+        // one `IDLE_TURN`, with room for a loaded machine. A worker waiting out its visibility
+        // window or its connect deadline instead lands well outside it.
+        const TAIL: Duration = Duration::from_secs(2);
+
+        let (reached, arrived) = std::sync::mpsc::channel();
+        // Every value below is built inside this thread: a scheduler, a reactor and a connection
+        // are one thread's, and what crosses back is the one duration this case is about.
+        std::thread::spawn(move || {
+            let (block, path) = a_queue_file("workers-exit-on-the-drain");
+            let seeded = converged(&block);
+            let id = pushed(&seeded, &from_root("examples/isolate/hello.nvs"));
+
+            let drain = nvs_server::Draining::detached();
+            let workers = super::Workers::draining(drain.clone());
+            let mut sched = nvs_host::Scheduler::new();
+            let snapshot = Arc::new(crate::script::granting_snapshot());
+            super::start(&mut sched, &workers, &bounds(2), &block, &snapshot);
+            let began = Rc::new(Cell::new(None));
+            draining_once_the_job_leaves(&mut sched, &block, id, &[PENDING], drain, &began);
+
+            let compiler = crate::script::Compiler::default();
+            nvs_runtime::script::scoped(&compiler, || served(&mut sched));
+
+            let tail = began
+                .get()
+                .expect("the drain began before the run ended")
+                .elapsed();
+            let landed = state(&seeded, id);
+            drop(seeded);
+            let _ = std::fs::remove_file(&path);
+            let _ = reached.send((tail, landed));
+        });
+
+        let (tail, landed) = arrived.recv_timeout(ARRIVES_WITHIN).expect(
+            "a served instance holding queue workers did not end within its deadline after the \
+             drain began, so a worker is not reading it and nothing but killing the process would \
+             stop this server",
+        );
+        assert!(
+            landed != Some(PENDING),
+            "no worker claimed the job, so this run ended for a reason that is not the drain"
+        );
+        assert!(
+            tail < TAIL,
+            "the instance took {tail:?} to end after the drain began, where what it owes is one \
+             write-back and one idle turn"
         );
     }
 }
