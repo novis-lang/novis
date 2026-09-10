@@ -1026,3 +1026,137 @@ impl Framed<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// The names a `select` or `returning` list answers, in its own order.
+    ///
+    /// An ` as ` alias reads as the name it binds, because that is what a reader asking by position
+    /// gets: `attempts + 1 as attempts` is `attempts` to everything downstream of it.
+    fn answered(list: &str) -> Vec<&str> {
+        list.split(',')
+            .map(|column| {
+                let column = column.trim();
+                column.rsplit(" as ").next().unwrap_or(column).trim()
+            })
+            .collect()
+    }
+
+    /// The six positions above are a claim's column list written down twice, and this is the
+    /// second copy asserted against the first.
+    ///
+    /// Nothing else would notice them disagreeing: every column of the list is text or an integer,
+    /// so a job whose `script` was read out of the `args` slot runs a file named by its own
+    /// payload — and it type-checks, and the claim still answers six values. Asked of both
+    /// dialects, since [`nvs_stdlib::queue::CLAIM_MYSQL`] carries the same list as a `select` and
+    /// one of its entries is computed rather than named.
+    #[test]
+    fn the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them() {
+        let postgres = nvs_stdlib::queue::CLAIM_POSTGRES
+            .rsplit_once("returning ")
+            .expect("the claim answers a `returning` list")
+            .1;
+        let selected = nvs_stdlib::queue::CLAIM_MYSQL
+            .first
+            .split_once("select ")
+            .expect("the framed claim reads the row first")
+            .1;
+        let mysql = selected
+            .split_once(" from ")
+            .expect("that read names the table it reads")
+            .0;
+        for (dialect, list) in [("postgres", postgres), ("mysql", mysql)] {
+            let columns = answered(list);
+            assert_eq!(
+                columns.len(),
+                6,
+                "{dialect}: the claim answers {columns:?}, and this file reads six positions"
+            );
+            for (at, name) in [
+                (super::ID, "id"),
+                (super::SCRIPT, "script"),
+                (super::ARGS, "args"),
+                (super::ATTEMPTS, "attempts"),
+                (super::MAX_ATTEMPTS, "max_attempts"),
+                (super::BACKOFF, "backoff_ms"),
+            ] {
+                assert_eq!(
+                    columns[at], name,
+                    "{dialect}: position {at} answers `{}` where this file reads `{name}`",
+                    columns[at]
+                );
+            }
+        }
+    }
+
+    /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`: the row that exhausted its
+    /// attempts arrives in the dead-letter table carrying its tag.
+    ///
+    /// **A move is three column lists that have to agree**, and the two dialects write them in two
+    /// shapes, so this asserts the agreement rather than the presence of a word: a `tag` added to
+    /// the insert list and not to the `select` beside it shifts every value after it into the wrong
+    /// column, and the server takes it — the columns on either side of it are text as well. The
+    /// trailing pair is what the move itself adds, and it is named, so a list that grew a fourth
+    /// value fails here too.
+    #[test]
+    fn a_dead_letter_move_carries_the_tag_across_with_the_rest_of_the_row() {
+        for (dialect, statement, from) in [
+            ("postgres", nvs_stdlib::queue::DEAD_LETTER_POSTGRES, "moved"),
+            (
+                "mysql",
+                nvs_stdlib::queue::DEAD_LETTER_MYSQL.first,
+                "nvs_jobs",
+            ),
+        ] {
+            let (columns, rest) = statement
+                .split_once("insert into nvs_dead_jobs (")
+                .expect("the move writes the dead-letter table")
+                .1
+                .split_once(") select ")
+                .expect("it writes what it just read");
+            let columns = answered(columns);
+            let carried = answered(
+                rest.split_once(&format!(" from {from}"))
+                    .expect("the read names where the row is coming from")
+                    .0,
+            );
+            assert_eq!(
+                columns.len(),
+                carried.len(),
+                "{dialect}: {columns:?} is written from {carried:?}"
+            );
+            assert!(
+                columns.contains(&"tag"),
+                "{dialect}: the dead-letter row loses its tag, so a purge by tag cannot reach the \
+                 work that failed"
+            );
+            let copied = columns.len() - 2;
+            assert_eq!(
+                columns[..copied],
+                carried[..copied],
+                "{dialect}: the two lists name the columns in two orders"
+            );
+            assert_eq!(
+                &columns[copied..],
+                &["failed_at", "errors"],
+                "{dialect}: the move adds something other than when it failed and what it threw"
+            );
+            if dialect == "postgres" {
+                let removed = answered(
+                    statement
+                        .split_once("returning ")
+                        .expect("PostgreSQL's move reads the row out of its own delete")
+                        .1
+                        .split_once(") insert into")
+                        .expect("the delete's list ends where the insert begins")
+                        .0,
+                );
+                assert_eq!(
+                    removed,
+                    carried[..copied],
+                    "the delete answers a list the insert does not write"
+                );
+            }
+        }
+    }
+}
