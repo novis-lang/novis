@@ -39,6 +39,7 @@ Usage:  python tools/brief.py                 # the digest
         python tools/brief.py --where words   # the rules and homes matching every word
 """
 
+import ast
 import re
 import subprocess
 import sys
@@ -682,6 +683,85 @@ def first_sentence(text):
     text = INTRA_DOC_RE.sub(r"\1", strip_links(text))
     depth_safe = re.split(r"(?<=[a-z\)`])\.\s+(?=[A-Z\[`])", text, maxsplit=1)
     return depth_safe[0].strip().rstrip(".")
+
+
+def py_doc(text):
+    """The opening paragraph of a Python file's module docstring, or "" if it has none.
+
+    Parsed rather than pattern-matched. A tool's docstring opens with a usage block full of quotes
+    and backslashes, and every regex that tried to find where it ended got one of them wrong; `ast`
+    already knows, and the file is read once.
+
+    The paragraph, not the whole docstring, because the line after it is a `python tools/...`
+    usage block and `first_sentence` cannot end a sentence inside one: no `.` there is followed by
+    a space and a capital, so `chain.py` handed the map its entire twelve-line synopsis. PEP 257
+    puts the summary in the first paragraph, and every tool here follows it."""
+    try:
+        doc = ast.get_docstring(ast.parse(text)) or ""
+    except (SyntaxError, ValueError):
+        return ""
+    return doc.split("\n\n", 1)[0].strip()
+
+
+def md_doc(text):
+    """A markdown file's first `#` heading and the opening sentence beneath it, as one line.
+
+    The heading alone is usually a noun -- `# Carried gaps` -- and says what the file is called
+    rather than what it holds, so the sentence under it does the work. Either half may be missing,
+    and what is there is what comes back."""
+    head, para = "", []
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if not head:
+            if line.startswith("# "):
+                head = line[2:].strip()
+            continue
+        if line.startswith("#"):
+            break  # the next heading, with nothing but headings between: no prose to quote
+        if line:
+            para.append(line)
+        elif para:
+            break
+    body = first_sentence(" ".join(para)) if para else ""
+    return f"{head} -- {body}" if head and body else (head or body)
+
+
+#: How a file that is not a crate module says what it is, keyed by suffix. A shape absent here has
+#: no header this tool can read -- a `.nvst` case, a workflow, a fixture -- and the map prints its
+#: path alone rather than guessing, which is the honest answer and still resolves the selector.
+#: How long a derived summary may be before the map cuts it. A `[context] modules` line is a
+#: reminder of what a file is, not the file's own introduction.
+SUMMARY_MAX = 200
+
+PATH_SUMMARY = {
+    ".py": lambda text: first_sentence(py_doc(text)),
+    ".md": md_doc,
+    ".rs": lambda text: first_sentence(module_doc(text)),
+    ".ts": lambda text: first_sentence(header_doc(text)),
+    ".tsx": lambda text: first_sentence(header_doc(text)),
+}
+
+
+def path_summary(path):
+    """One line describing any file in the tree, or "" for a shape that carries no header.
+
+    This exists because a goal's `[context] modules` names whatever files its slices touch, and
+    `crates/` plus `editors/` is not that set: goals name `tools/*.py`, `docs/agent/*.md`, a
+    conformance case, a workflow. Those used to resolve to nothing, print nothing, and warn -- and
+    an optimization pass then deleted the selector for being unresolvable, which is backwards. The
+    file the goal named is the fact; what this repository can say about it is the variable."""
+    text = read(path)
+    if text is None:
+        return ""
+    fn = PATH_SUMMARY.get(Path(path).suffix)
+    if not fn:
+        return ""
+    # One line, and a bounded one. A crate module's `//!` is written to be read here and is trusted
+    # at whatever length it is; these files were not, and a header that runs long is a header that
+    # was written for its own file rather than for a digest. The cut is on the summary this tool
+    # derives, never on the file.
+    line = " ".join(fn(text).split())
+    return line if len(line) <= SUMMARY_MAX else line[:SUMMARY_MAX].rstrip(" ,;:-") + "..."
 
 
 def crate_modules():

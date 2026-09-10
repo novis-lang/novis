@@ -1116,10 +1116,50 @@ def run_spec(m: Manifest) -> None:
         emit(body)
 
 
+#: How many files a manifest's leftover patterns may put in the pack before the listing is cut
+#: short. A selector is normally a handful of files; one broad enough to match hundreds is a
+#: manifest bug, and printing all of them would spend the pack on the mistake rather than report it.
+NAMED_FILES_MAX = 40
+
+
+def named_files(patterns: list[str]) -> tuple[dict[str, list[tuple[str, str]]], set[str], int]:
+    """`(group -> [(filename, summary)], the patterns that matched nothing, how many were cut)`.
+
+    The second half of the map, and the reason a goal may name any file it touches. `crates/` and
+    `editors/` are enumerated ahead of this because their modules are what most sessions read; the
+    rest of the tree is not enumerated at all -- it is far too big, and almost none of it is ever
+    named -- so the patterns left over after that pass are resolved against `git ls-files` instead.
+    A manifest naming `tools/holes.py`, `docs/agent/carried-gaps.md` or a `.nvst` case therefore
+    resolves, and a warning now means one thing only: **nothing in the repository matches**.
+
+    It used to mean two things, and the ambiguity cost a selector. A pattern naming a real file of
+    the wrong *shape* warned in the same words as a pattern naming nothing, so an optimization pass
+    read the warning, believed the files were gone, and deleted six selectors whose files were all
+    on disk and all being hand-fetched by the sessions the manifest had meant to hand them to.
+    """
+    tracked = [p for p in git("ls-files").split("\n") if p]
+    groups: dict[str, list[tuple[str, str]]] = {}
+    hit: set[str] = set()
+    kept = 0
+    for path in tracked:
+        matched = [pat for pat in patterns
+                   if fnmatch.fnmatch(path, pat) or fnmatch.fnmatch(path, pat.rstrip("/") + "/**")]
+        if not matched:
+            continue
+        hit.update(matched)
+        kept += 1
+        if kept > NAMED_FILES_MAX:
+            continue
+        group, _, name = path.rpartition("/")
+        groups.setdefault(group or ".", []).append((name, brief.path_summary(ROOT / path)))
+    return groups, set(patterns) - hit, max(0, kept - NAMED_FILES_MAX)
+
+
 def run_map(m: Manifest) -> None:
     section(
         "THE MAP, SCOPED",
-        f"each module's own `//!` first sentence, filtered to [context] modules ({len(m.modules)} pattern(s))",
+        f"what each file the goal names says it is, filtered to [context] modules "
+        f"({len(m.modules)} pattern(s))",
     )
     # A crate is keyed by its bare name and lives under `crates/`; an editor package is already
     # keyed by its ROOT-relative path. One dict of `(group -> prefix)` keeps the loop below from
@@ -1159,11 +1199,28 @@ def run_map(m: Manifest) -> None:
             emit(f"  {within:<{width}}  {summary}")
             shown += 1
 
+    named, unmatched, cut = named_files(sorted(unmatched))
+    extra = sum(len(entries) for entries in named.values())
+    for group in sorted(named):
+        entries = sorted(named[group])
+        emit()
+        emit(group)
+        width = max(len(name) for name, _ in entries)
+        for name, summary in entries:
+            emit(f"  {name:<{width}}  {summary}" if summary else f"  {name}")
+    if cut:
+        emit()
+        emit(f"...and {cut} more file(s) the manifest's patterns match, not listed. A selector this "
+             f"broad is naming the tree rather than the goal's file set.")
+
     emit()
-    emit(f"{shown} of {total} module(s) are in scope. For one that is not, `python tools/brief.py`")
-    emit("prints the whole map -- and if you needed it, the manifest is missing a pattern.")
+    also = f", plus {extra} file(s) it names outside them" if extra else ""
+    emit(f"{shown} of {total} crate and editor module(s) are in scope{also}. For one that is not,")
+    emit("`python tools/brief.py` prints the whole map -- and if you needed it, the manifest is")
+    emit("missing a pattern.")
     for pat in sorted(unmatched):
-        warn(f"[context] modules pattern {pat!r} matched no module -- it moved, or the glob is wrong")
+        warn(f"[context] modules pattern {pat!r} matches no file in the tree -- it moved, or the "
+             f"glob is wrong. The shape does not have to be Rust: any tracked file resolves.")
 
 
 #: Shapes that only make sense together, as {shape: the one it implies}. A decision is two files --
