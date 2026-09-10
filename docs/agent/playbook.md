@@ -1990,12 +1990,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Hand the worker a flag saying it is the one that ticks and arm inside its body:
   `crates/nvs-cli/src/serve.rs`'s `Core::ticks` is the shape.
   [until: gone crates/nvs-server/src/schedule.rs:Rc<Cell<usize>>]
-- **A registry row whose return type carries `tainted` fails a closed roster in `nvs-types`, and
-  the message names neither the roster nor your row.**
-  `core_lib::tests::a_verified_signature_does_not_launder_its_claims` hard-codes every
-  `(class, member, answer)` whose answer contains `tainted`, so a new one is a bare `left`/`right`
-  set diff in `-p nvs-types --lib`. A qualified return owes that entry and the prose above it —
-  grep `nvs-types` for the qualifier before writing the row. [until: reviewed 2026-09-09]
 - **A `Core` member whose return type mentions `tainted` fails a test in `nvs-types`, and the
   message names neither the roster nor the member you added.** `core_lib.rs`'s
   `a_verified_signature_does_not_launder_its_claims` asserts a closed `BTreeSet` of every
