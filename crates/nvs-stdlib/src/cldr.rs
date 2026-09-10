@@ -152,6 +152,7 @@
 //!    then be a compile error rather than the throw [`compile`] returns
 //!    today. Nothing about this module changes when that lands — it gains a
 //!    second caller.
+//!    — owner: unowned
 //! 2. **The letters still refused are the ones needing data or a second
 //!    calendar** — `Y` and `e` (week-based year and local weekday number, both
 //!    of which read the per-territory week data this module does not carry),
@@ -161,6 +162,7 @@
 //!    `v`, which name a zone the way `X`, `x` and `VV` already do. Each names
 //!    itself rather than emitting a literal. `Y` is the one with a caller
 //!    waiting, since a week-based year beside `w` is the pair ISO 8601 writes.
+//!    — owner: gap-zero
 //! 3. **[`RULES`] is a roster, not all of CLDR**, and it names no absence.
 //!    It carries the languages whose published cardinal rules are transcribed
 //!    here; every other one throws, per the section above. The twenty this
@@ -171,12 +173,14 @@
 //!    `af` and refuses Danish is a roster with a hole rather than a boundary.
 //!    `every_language_named_absent_in_the_gap_note_now_has_a_rule` is what
 //!    holds this paragraph to the table.
+//!    — owner: gap-zero
 //! 4. **[`ORDINALS`] is the languages that mark a form, and a language that
 //!    marks one but is missing from it answers `Other` silently** — which is
 //!    the cost of the default the section above argues for, stated plainly.
 //!    The cardinal roster has no such failure mode: a missing row there
 //!    throws. Widening this one is a row, and an arm only where the published
 //!    rule is a shape no arm has.
+//!    — owner: gap-zero
 
 use std::cmp::Ordering;
 use std::ops::RangeInclusive;

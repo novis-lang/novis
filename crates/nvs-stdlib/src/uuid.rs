@@ -52,8 +52,10 @@
 //!
 //! What it costs is one allocation per `toString()` rather than one per
 //! construction, which is AGENTS.md's priority 5 spent to buy priority 3 at
-//! the commoner of the two sites. A single `bytes` slot would be the natural
-//! third answer and is gap 1: `nvs_runtime::Tag` has no `Bytes` variant yet.
+//! the commoner of the two sites. A single `bytes` slot is the natural third
+//! answer and waits on nothing — `nvs_runtime::Tag::Bytes` is a live tag — but
+//! it is refcounted where a `uint` slot is immediate, so the two halves are
+//! held, copied and compared without touching a heap allocation at all.
 //!
 //! # The dependency, and why `uuid`
 //!
@@ -81,22 +83,32 @@
 //! 16-byte slots — charged to the request that produced it and released with
 //! it. Nothing is retained between calls, and no table grows with traffic.
 //!
+//! # Two UUIDs holding the same bits are not `==`
+//!
+//! `rule:expressions/equality-semantics`'s non-scalar row makes `==` object
+//! identity, so two instances parsed from one string are two values, and
+//! comparing `toString()` is the spelling that works today. That is every
+//! `Core`-owned instance's answer rather than this class's, and it is why no
+//! member here answers `bool` about another UUID.
+//!
+//! # `v7` orders across milliseconds, not inside one
+//!
+//! RFC 9562's optional monotonic counter is not built, so two UUIDs drawn
+//! inside the same millisecond order randomly against each other. Across
+//! milliseconds the ordering is exact, which is the property a database key is
+//! chosen for; a program that needs a total order inside one millisecond needs
+//! a sequence, not a UUID.
+//!
 //! # Known gaps
 //!
 //! 1. **There is no `bytes` round trip**, which is what an `rule:core-classes/db-one-api` driver
-//!    binding a native `UUID` column will want. It waits on the same
-//!    `nvs_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
-//! 2. **`==` on two `Uuid` values is object identity**, so two instances
-//!    holding the same 128 bits are not equal
-//!    (`rule:expressions/equality-semantics`'s non-scalar row). Comparing `toString()` is the spelling that works
-//!    today. This is every `Core`-owned instance's gap, not this class's, and
-//!    it is why no member here answers `bool` about another UUID.
-//! 3. **`v7` has no intra-millisecond counter.** RFC 9562's optional
-//!    monotonic counter is not built, so two UUIDs drawn inside the same
-//!    millisecond order randomly against each other. Across milliseconds the
-//!    ordering is exact, which is the property a database key is chosen for;
-//!    a program that needs a total order inside one millisecond needs a
-//!    sequence, not a UUID.
+//!    binding a native `UUID` column will want: sixteen bytes in and out with
+//!    no 36-character detour between them. Nothing under it is missing —
+//!    `nvs_runtime::Tag::Bytes` is a live tag and [`crate::instance`] holds
+//!    whatever Novis can hold — so what has to be decided is whether spec
+//!    § 11's second table gains the pair at all, since all four members it
+//!    names are here and a fifth widens the surface rather than repairing it.
+//!    — owner: unowned
 
 use rand::Rng;
 use uuid::{Builder, Uuid};
