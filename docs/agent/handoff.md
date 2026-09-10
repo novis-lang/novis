@@ -2,48 +2,49 @@
 
 ## State
 
-**Goal `gap-owners`, stage 4 "wired" is green.** Both of its checks' own `argv` run clean here:
-`python tools/verify.py --list` prints nine steps and exits 0, and `python tools/brief.py --where
-unowned` routes to the register and names its size. Stage 3 is unchanged — 147 tagged items in 69
-blocks across 68 files, nothing untagged, nothing `unowned` without a reason.
+**Goal `unowned-sweep` — the gaps a past milestone left and no goal claimed — has just started; nothing of it has
+landed yet.** Goal `gap-owners`'s whole list is this goal's Stage 1 floor.
 
-**The order the gate walks now has one home.** `tools/verify.py:375`'s `steps_for` is it; `--list`
-prints that list without spawning anything, and `-p`, `--fast` and `--doc` narrow the listing exactly
-as far as they narrow a run. The hand-written copy of the order in `docs/agent/commands.md` was
-already stale — it omitted `lints` and `extension` — and is gone rather than corrected.
+Five gaps, each recorded in a module doc, each real, none owned by any goal before this one.
+**Four of the five are one gap wearing different clothes**: a member that needs an options bag the
+registry could not spell — which is exactly the spelling [goal `input-shapes`](goals/20-input-shapes.md) lands
+(`{name?: T}` on `Ty::Shape`, and `rule:core-api/shape-parameter`'s `CoreTy` shape parameter). This goal is that
+follow-through.
 
-**The register's count is measured, never typed.** `tools/brief.py:481`'s `ownership_line` imports
-`owners` and classifies the tree: 106 of 147 tagged items, in 55 files, are `unowned` today. Only a
-keyword that routes to `docs/agent/carried-gaps.md` § *Unowned* pays the third of a second it costs.
-
-Nothing is blocked, and every stage of `docs/agent/loop-goal.toml` passes locally; the driver's own
-acceptance sweep is what ends the run.
+The other two are the decisions the user took when the unowned list was drawn up: **`array<T>` widens
+to accept a covariant read**, and the panic hook `rule:errors/helper-abi` has wanted since M5 removed its
+blocker.
 
 ## Next group
 
-**Stage 4: it stays true where the loop is not running** — one file set: `.github/workflows/ci.yml`,
-`docs/agent/commands.md` and `tools/session.py`. Both items wire the gate this goal built into a
-place that outlives the goal, since a check in `loop-goal.toml` stops running the day the goal
-retires.
+**Stage 2: the options bag** — one file set: `crates/nvs-stdlib/src/uri.rs`,
+`crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-types/src/core_lib.rs`.
 
-- [ ] **CI's `docs` job runs the ownership gate** — `.github/workflows/ci.yml:359` runs `rules.py
-      --check` and seven siblings in a Python-only job, and `owners.py --check
-      --untagged-is-an-error --reasons` is not one of them, so the register stays true only while
-      this goal's stage-3 checks are live. Add the step beside them and name it in the list at
-      `docs/agent/commands.md:263`, which is that job's one home; the goal's § *Standing decisions*
-      ("the gate has no allowlist") is what it must enforce.
-- [ ] **A wrap cannot commit a gap that names nobody** — `tools/session.py:880`'s gate families run
-      `rules.py`, `records.py` and `check-migration.py` in-process, each only for a session that
-      touched the tree feeding it, through `tools/session.py:953`'s `tree_gate`. The same shape with
-      `crates` as the tree and `owners.py --check --untagged-is-an-error --reasons` as the gate
-      refuses a wrap whose own edit left a `# Known gaps` item untagged, which is where that
-      decision is cheapest. The scan is 0.3s, so the trigger can be any crate edit at all.
+- [ ] **`Core\Uri::with` gains a removal spelling** — `uri.rs` gap 1 names the fix exactly: today an
+      omitted option and a written `null` arrive as the same `Tag::Null`, so the option types are
+      `string` rather than `?string`. With an optional field they are distinguishable. **Not** an
+      `""`-means-remove rule: `""` is already an empty query and `query()` reports it as distinct from
+      `null`.
+- [ ] **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the shape the
+      registry could not spell. `queue.rs` gap 1 says this is the same blocker `Core\Db::open` waits on
+      and that "the two lift together"; goal `carried-gaps` owns the `Core\Db` half, so check the two spellings
+      against each other.
+- [ ] **`Core\Queue`'s `$args` refuses a `secret`** — gap 2. `CoreTy::Mixed` carries no qualifier, so
+      this needed a spelling rather than a line. A queued row is written to a database and read back by
+      another process, which is a sink by every test `rule:security/secret-qualifier` applies.
 
 ## Backlog
 
-- `owners.py --json` carries each gap's whole lead paragraph, so a caller that wants only sizes reads
-  megabytes; a `--counts` shape would serve it (tools/owners.py:457).
-- `carried-gaps.md` § *Unowned* is 63 entries against 106 tagged items, because an entry names a file
-  and a tag names an item — say so in that section's header (docs/agent/carried-gaps.md).
-- Stage "4 suites" is the standing conformance/differential floor and owes nothing new
-  (docs/agent/loop-goal.toml:6796).
+- **Stage 3 (`array<T>` variance)** is `nvs_types::expr::assign`'s `is_assignable` admitting an
+  element-covariant array. **Decided by the user; do not re-argue it.** Sound because an Novis array is
+  copy-on-write — an element-covariant *read* cannot be aliased into an unsound write, since a callee
+  that writes gets its own copy. It accepts strictly more programs and breaks none, so no migration and
+  no diagnostic. The negative proof matters as much as the positive one.
+- **Stage 4 (the two small ones)**: the panic hook routes a served request's panic into
+  `Ctx::write_log_record` with its request id — the CLI default hook's stderr stays right, and the hook
+  is presentation, never containment, so nothing about it lets a panic be recovered. `[limits]
+  max_output` bounds a capture at `Core\Process` **and** `Core\IO::read`, which the module doc says the
+  same signature closes — both or neither.
+- **Stage 5** rewrites `carried-gaps.md` § *Unowned* to what survives. One entry is expected to: `rule:security/arena-is-an-ownership-root`'s optional in-flight cycle collector, which is an **open decision rather than an unclosed gap**
+  and stays visible for exactly that reason.

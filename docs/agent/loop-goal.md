@@ -1,124 +1,136 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 30 — a module doc's gap names its owner, and a gate says so
+# Loop goal 31 — the gaps a past milestone left and no goal claimed
 
-Every crate module doc records what its subsystem still owes under `# Known gaps`. There are **50 such
-blocks holding 152 enumerated items**, and [carried-gaps.md](carried-gaps.md) indexes 22 of them
-while [carried-refusals.md](carried-refusals.md) covers `nvs-ir`'s 15. The rest — about 110 recorded
-gaps — name no owner, appear in no index, and are invisible to every tool, because nothing in the tree
-is shaped wrong. When this goal is green each one carries an owner in its own doc, a tool derives the
-list rather than copying it, and a gap added without an owner fails a check.
-
-**This is the same failure `carried-gaps.md` was created to fix, one level down.** That file exists
-because the handoff could not hold a gap; it turns out the module docs could not either, because
-nothing read them. Goal `carried-gaps` stage 2 built the gate for an *outstanding spec key* — a key whose owner is
-not a live goal fails. This goal builds the same gate for a *module-doc gap*, and the argument is
-goal `carried-gaps`'s argument verbatim.
+Five gaps that goals `core-depth` through `unix-sockets` shipped around, each recorded in the module doc that owns it, each real, and
+none of them owned by any goal on the chain. Four of the five are the *same* gap wearing
+different clothes: **a member that needs an options bag the registry could not spell**, which is
+precisely the spelling [goal `input-shapes`](goals/20-input-shapes.md) lands. This goal is that follow-through, plus the
+two decisions the user took when the unowned list was drawn up.
 
 ## Why here
 
-**It sits after the M8 goals** because those close a large share of what would otherwise need
-attributing, and attributing a gap that is about to be closed is work done twice. Goal
-`carried-gaps` stage 2 built the gate for an outstanding spec key — a key whose owner is not a live
-goal fails — and this is the same gate for a module-doc gap.
+**It sits last of the goals added after `unix-sockets`** because every one of its items waits on
+something an earlier goal delivers — goal `input-shapes`'s optional shape field for four of them,
+and goal `gap-owners`'s attribution pass for the confidence that these five are the whole list
+rather than the five somebody remembered.
 
 ## Stage 0 — the catch-up
 
-1. **`carried-gaps.md`'s two sections keep their shape.** Goal `carried-gaps` built a check against them and this
-   goal does not move the file out from under it. What changes is that the file stops being the *only*
-   record: it keeps the entries whose ownership needs an argument, and the machine list is derived.
-2. **The four attribution errors already known** are corrected as part of this stage rather than left
-   for the tool to report: `Core\Metrics` is goal `server`'s and was listed unowned; § 17's four are M8's
-   Tier 0 roster and `spec-classes-part-two-outstanding.txt` said M9 carried them. Goals `per-core` through `formats` and 29
-   struck
-   most of this; whatever survives is corrected here.
+1. **Four module docs state the blocker as open** and are rewritten when it closes, not amended:
+   `crates/nvs-stdlib/src/uri.rs` gap 1, `crates/nvs-stdlib/src/queue.rs` gaps 1–2,
+   `crates/nvs-stdlib/src/lib.rs` gap 4, `crates/nvs-runtime/src/lib.rs` gap 4.
+2. **`carried-gaps.md` § *Unowned* loses the bullets this goal closes**, per that file's contract: an
+   entry leaves exactly one way, which is the gap being closed.
 
 ## Stage 1 — the floor
 
-Goal `xml-tree`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `gap-owners`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the keystone: an owner tag, in the doc that owns the gap
+## Stage 2 — the keystone: an options bag can tell omitted from written `null`
 
-1. **A gap item ends with an owner tag.** One trailing marker per enumerated item in a `# Known gaps`
-   block — `— owner: unowned-sweep`, `— owner: M9`, or `— owner: unowned`, on a line of its own at
-   the item's end. The tag sits with the gap because
-   every fact in this repository has one home and a gap's home is its module; the index is then
-   *derived* rather than a second copy, which is the rule `holes.py` already follows.
-2. **Three owner kinds and no fourth.**
-   - **A goal slug** naming a live goal in [the goals directory](goals/README.md) — never its
-     number, which is a position and moves the moment anything is inserted ahead of it. The entry
-     closes the gap or the tag is wrong.
-   - **A milestone tag** — `M9`, `M11` — for a gap a *future* milestone's plan already covers. This is
-     not an unclosed gap; it is scheduled work, and conflating the two is what made the list of 110
-     look alarming. The milestone's own file must state the scope, and the tool checks that the
-     milestone exists and carries no live goal that should have claimed it instead.
-   - **`unowned`**, which requires a bullet carrying the reason: in `carried-gaps.md` § *Unowned*, or,
-     for a gap whose sites `carried-refusals.md` already carries, in the entry that holds them. This is
-     a legitimate state and a scheduling question for the user; it is never the absence of an answer.
-3. **`tools/owners.py`, derived and never copied.** It walks every `//! # Known gaps` block in
-   `crates/*/src/**`, extracts each enumerated item and its tag, and prints the roster: owned by goal,
-   deferred to a milestone, unowned, and — the interesting output — **untagged**. `--unowned` prints
-   only the scheduling questions; `--json` prints one object. Its help text carries the argument for
-   the three kinds, the way `holes.py`'s and `gaps.py`'s already do.
-4. **The gate.** An untagged gap item fails, and so does a tag naming a goal that is not on the chain,
-   a milestone that does not exist, or `unowned` with no bullet behind it. This is not an exemption
-   list; there is no allowlist and adding one is the move the gate forbids.
+Goal `input-shapes` gave `Ty::Shape` an optional field, `{name?: T}`, and
+`rule:core-api/shape-parameter` gave a `Core`
+signature a shape parameter that carries its arms. This stage is what those were for, and
+**`rule:core-api/omission-is-not-a-written-null` is the rule it
+implements** — read it first. The design is settled; a session takes it rather than re-deriving it.
 
-## Stage 3 — the attribution pass
+1. **`Core\Uri::with` gains a removal spelling**, `rule:core-api/a-nullable-field-omits-as-the-never-written-marker` and `rule:core-api/the-bag-abi-is-unchanged` and § 5.
+   `crates/nvs-stdlib/src/uri.rs`'s `written` owns the mechanism and the gap names the fix exactly:
+   today an omitted option and a written `null` arrive as the same `Tag::Null`, so the option types
+   are `string` rather than `?string`. The fix is § 1's pairing — a field admitting `null` omits as
+   `Tag::Unset` rather than `Const::Null` — so the two are distinguishable and `port`, `query` and
+   `fragment` become nullable: a written `null` removes, an omitted key leaves alone. `path`, `host`
+   and `scheme` do **not** join them, and § 5 gives each its own reason. **Not** an `""`-means-remove
+   rule: `""` is already an empty query, which `?` with nothing after it produces and which `query()`
+   reports as distinct from `null`. Five places restate the invariant this replaces and must read as
+   `rule:core-api/omission-is-not-a-written-null` does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
+   two tests, `core_lib.rs`'s `shape_fills`, `uri.rs`'s `written`, and `value.rs`'s `Tag::Unset`.
+2. **`Core\Uri` gains `queryParameter` and `withQueryParameter`** — `rule:core-classes/uri-removable-components`'s second level.
+   `queryParameter(string $name): mixed` and `withQueryParameter(string $name, mixed $value): Uri`,
+   both composing `parseQuery`, `buildQuery` and `with` rather than adding a mechanism, so a query
+   string gains no second canonicalization. A `null` value removes the pair, which `buildQuery`
+   already does; a value may itself be an `array<mixed>`, so the bracket convention needs no second
+   spelling; and removing the last parameter leaves **no** query rather than a bare `?`. This is the
+   one item in the goal that *adds* a spec row rather than editing one, so note what that costs:
+   `crates/nvs-stdlib/tests/spec_registry_coverage.rs` treats a spec row with no registry entry as the
+   regression it exists to catch, so § 12's two new rows, the registry entries, the conformance cases
+   and the `docs/reference/core/Uri.md` example are **one edit**. `spec-members-outstanding.txt` gains
+   nothing — that file's exception is for a member blocked on something unbuilt, and these two need
+   only members that already ship.
+3. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
+   registry could not spell. The gap notes this is the same blocker `Core\Db::open` waits on and that
+   "the two lift together"; goal `carried-gaps` owns the `Core\Db` half, so this stage takes the other and the two
+   are checked against each other.
+4. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
+   qualifier, so the refusal needed a spelling rather than a line. A durable row is an output and
+   `rule:security/secret-qualifier`'s sinks are the shape of the
+   answer: a queued job's arguments are written to a database and read back by another process, which
+   is a sink by every test that ADR applies.
 
-1. **Every one of the ~110 items gets a tag**, module by module, and the judgement is the work: a gap
-   that a future milestone plans takes that milestone, a gap a live goal's item list covers takes the
-   goal, and everything else is `unowned` with a reason written into `carried-gaps.md`.
-2. **Known deferrals, so a session does not re-derive them**: `crates/nvs-cli/src/bundle.rs`'s `.nvsx`
-   embedding is M9's; the inlining items in `crates/nvs-runtime/src/decimal.rs` and the string
-   fast-path in `crates/nvs-runtime/src/lib.rs` are M12's optimising tier.
-3. **Known non-gaps, struck rather than tagged**: an item that says it is deliberate is not a gap —
-   `crates/nvs-stdlib/src/time.rs`'s "there is no `Core\Month`, and there is not going to be one" and
-   `crates/nvs-syntax/src/casing.rs`'s "left out deliberately" are decisions, and they move out of
-   `# Known gaps` into the module doc's ordinary prose so the roster counts what is owed.
-4. **A stale gap is closed, not tagged.** `crates/nvs-stdlib/src/router.rs`'s gap 3 says
-   `Core\Router::match` is absent while the plan's *Open now* says a request is matched — one of the
-   two is wrong, and finding out which is this stage's job.
-5. **`carried-gaps.md` § *Unowned* is rewritten from what the pass finds**, and it is the only place a
-   reason lives.
+## Stage 3 — `array<T>` accepts a covariant read
 
-## Stage 4 — it stays true
+**The user decided this when the unowned list was drawn up**; it is recorded here rather than
+re-argued. `crates/nvs-stdlib/src/lib.rs` gap 4 and `nvs_types::expr::is_assignable`'s own docs argue
+both sides, and the widening side wins:
 
-1. **`verify.py` runs the gate**, so a gap added without an owner fails before it is committed rather
-   than two milestones later.
-2. **`brief.py --where` routes to it**, and the orientation pack names the count of unowned items so a
-   session sees the number without reading the file.
-3. **The tag survives a goal switch.** `tools/goal-switch.py` carries checks forward and item lists not
-   at all — which is the mechanism that orphaned everything this goal indexes — and a tag in a module
-   doc is untouched by it. That property is what makes this the right home and it is stated in the
-   tool's own doc.
+1. **`is_assignable` admits an element-covariant `array<T>`** — an `array<int>` satisfies an
+   `array<int|string>` parameter. Today it does not, so an `array<int|string>` parameter takes only
+   that exact spelling.
+2. **It is sound because an Novis array is a copy-on-write value.** An element-covariant *read* cannot
+   be aliased into an unsound write: the callee that widens gets its own copy the moment it writes.
+   This sentence is the whole argument and it lives in `is_assignable`'s doc comment, not in three
+   places.
+3. **It accepts strictly more programs and breaks none**, which is why it needs no migration and no
+   diagnostic — nothing that compiles today stops compiling.
+4. **The proof is a case that does not compile now and does after**, plus the negative: a write
+   through the widened parameter does not affect the caller's array.
+
+## Stage 4 — the two small ones
+
+1. **A custom panic hook**, `rule:errors/helper-abi`:
+   the panic message routed to the request log with its request id. `crates/nvs-runtime/src/lib.rs`
+   gap 4 says the blocker went away in M5 — the request log exists as `Ctx::write_log_record` under
+   `nvs_stdlib::log` — and that `nvs_helper!` already captures the message into `Ctx`, so what is left
+   is the hook. **The default hook's stderr output stays the right destination for a CLI script**; this
+   is the served case only. It is presentation rather than containment, which is why it waited, and it
+   is one item rather than a stage of its own.
+2. **`[limits] max_output` bounds a capture.** `crates/nvs-stdlib/src/process.rs` gap 1:
+   `rule:core-classes/process-run` reuses that directive rather than
+   adding a cap and nothing reads it, so what bounds a child's stdout today is the request's memory
+   limit. `Core\IO::read` is the same question with the same answer, and the module doc says the same
+   signature closes both — so both are closed here or neither is.
+
+## Stage 5 — the list is shorter, and says so
+
+`carried-gaps.md` § *Unowned* is rewritten to what survives. What is expected to survive is one
+entry — `rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
+collector — because it is an **open decision rather than an unclosed gap**, and it stays visible for
+exactly that reason. Its consequence is visible in a second place and that is not a duplicate: it is
+one of the two flags `nvs_safepoint` clears and ignores (`crates/nvs-runtime/src/lib.rs` gap 5), the
+other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
 
 ## Standing decisions
 
-- **This goal opens no ADR number.** It is a process gate over documents that already exist; nothing
-  about the language, the runtime or an interface changes.
-- **The owner lives with the gap, never in a second list.** An index that is maintained by hand
-  alongside the thing it indexes is the failure this goal exists to end, and building a second one
-  would repeat it.
-- **A future milestone's plan is an owner.** Only a gap in a milestone that has already been carried —
-  its goals walked or closed — and that no chain entry claims is `unowned`. This distinction is the
-  whole point: without it the roster is 110 alarming items, and with it it is a short list of real
-  scheduling questions.
-- **A `carried-refusals.md` entry is a reason, not an owner.** It names refusal *sites*, and a site is
-  not a goal, so the three kinds stay three: a gap block those sites index is `unowned`, and that entry
-  is its reason. `owners.py`'s `unowned_paths` reads that file beside `carried-gaps.md` for the reason
-  it reads either — the entry already names the module doc that owns the detail, so the link is the
-  path and no key has to be invented. The alternative, reading an owner off the entry's prose sentence
-  naming the goal that closes it, is the failure this goal exists to end, and it has already happened
-  once: entry 901 named goal `typed-callable`, that goal retired without closing a site, and all
-  fifteen are still open.
-- **`unowned` always carries a reason, and the reason names what has to be decided.** "Nobody has got
-  to it" is not a reason; "this needs an options bag that can tell an omitted option from a written
-  `null`, which is a registry question" is.
-- **The gate has no allowlist.** A gap that cannot be tagged is a gap whose owner has to be decided,
-  and that decision is cheap exactly once — when the gap is written.
-- **Ambiguity about whether something is a gap or a decision resolves toward *decision*, and it moves
-  out of the block.** A `# Known gaps` list that holds settled non-goals is a list nobody trusts.
-- **What this spends**, per `rule:programs/memory-priority`: nothing at run time.
-  One tool invocation in `verify.py`, over doc comments already parsed by nothing.
+- **A session on this goal opens no ADR number.** Every item is a folded edit to an ADR whose body
+  already states the rule — 0002's *Corollary*, 0033's sinks, 0044 § 1,
+  [0147](../decisions/0147.md) for stage 2 — or
+  a widening whose argument lives in a doc comment.
+- **`array<T>` widening is decided and is not re-litigated by a session.** The user took it; a session
+  that finds the invariant position more comfortable has found a decision, not a question.
+- **An options bag distinguishes omitted from written `null`, everywhere, and never by a sentinel** —
+  `rule:core-api/omission-is-not-a-written-null`, which owns
+  this and is not re-argued by a session. No `""`-means-remove, no magic string, no second parameter
+  meaning "and also clear these". Where a bag admits `null` it means *remove* and nothing else, and a
+  field is made nullable only where the member has a removal to offer; if it has none, the field stays
+  non-nullable and the member waits.
+- **The panic hook changes presentation and never containment.** A panic still ends the request the
+  way it does today; what changes is where the message is written. Anything that would let a hook
+  *recover* is out of scope and stays out.
+- **Ambiguity resolves toward closing the gap rather than re-scoping it**, recorded in the module doc.
+  These five have each waited a milestone or more; a session that finds a sixth writes it into
+  `carried-gaps.md` and moves on, per [loop-authoring.md](loop-authoring.md) § 8.
+- **What this spends**, per `rule:programs/memory-priority`: nothing per request.
+  The panic hook holds one message on a path that was already ending; `max_output` *reduces* what a
+  capture may hold; the widening is a compile-time judgement.

@@ -1,12 +1,12 @@
-# Goal 30 -- a module doc's gap names its owner, and a gate says so.
+# Goal 31 -- the gaps a past milestone left and no goal claimed.
 # The acceptance test, as data.
 #
-# `30-gap-owners.md` is the prose. One home each.
+# `31-unowned-sweep.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # No new fixture: this goal writes a tool and a set of doc comments, and changes no program's output.
+  "examples/uri-without-fragment.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/xml-tree.nvs",
   "examples/html-sanitize.nvs",
@@ -88,72 +88,59 @@ files = [
 [context]
 
 modules = [
-  # Stage 2 -- the sibling gate one level up, and the file whose contract this one extends.
-  "docs/agent/carried-gaps.md",
-  # Stage 2 -- the refusal-site half of the same idea, and the `--unattributed` output to model on.
-  "tools/holes.py",
-  # Stage 2 -- the other derived worklist, and the help-text shape both of these use.
-  "tools/gaps.py",
-  # Stage 2 -- how a chain entry is read, so a tag naming a goal can be checked against the schedule.
-  "tools/chain.py",
-  # Stage 4 -- where the new gate is added, in order, stopping at the first failure.
-  "tools/verify.py",
-  # Stage 4 -- what the orientation pack prints, and where an unowned count joins it.
-  "tools/brief.py",
-  # Stage 3 -- the largest single block, 17 items, and already owned by carried-refusals 901.
-  "crates/nvs-ir/src/lib.rs",
-  # Stage 3 -- seven items, two of which are the deferrals the prose names.
-  "crates/nvs-runtime/src/lib.rs",
-  # Stage 3 -- the stale one: gap 3 says `match` is absent and the plan says a request is matched.
-  "crates/nvs-stdlib/src/router.rs",
-  # `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable
-  # single-file executable: `nvs build --compile` on the way out, and the footer check every `nvs`
-  # process makes on the way in.
-  "crates/nvs-cli/src/bundle.rs",
-  # `rule:concurrency/connection-bounds-are-finite`'s connection bounds: the numbers an open
-  # WebSocket is held inside, every one of them finite before anything is configured.
-  "crates/nvs-server/src/bounds.rs",
-  # `Core\Uri` — docs/spec/01-core-library.md § 12's first table, which has two halves.
+  # Stage 2 -- `with`, `written`, and gap 1 naming the options bag as the fix.
   "crates/nvs-stdlib/src/uri.rs",
-  # `rule:expressions/intrinsic-list-is-closed`'s closed list: the `Core` members whose
-  # pattern-like argument the compiler reads while checking, and the hook that consults it.
-  "crates/nvs-types/src/intrinsics.rs",
-  # `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache:
-  # one immutable, content-addressed file per compiled unit, and the writer that publishes one by
-  # a single atomic rename.
-  "crates/nvs-cli/src/cache.rs",
-  # The in-process worker `rule:core-classes/queue-storage-is-a-table`'s `[queue] workers` starts:
-  # a task beside the script's, on the scheduler this run already turns.
-  "crates/nvs-cli/src/worker.rs",
-  # The IR's own value-representation type lattice — deliberately smaller and flatter than
-  # `nvs_types::ty::Ty`, and not the same type.
-  "crates/nvs-ir/src/ty.rs",
+  # Stage 2 -- `limits`/`grants` as shape parameters, and `$args` refusing a secret.
+  "crates/nvs-stdlib/src/queue.rs",
+  # Stage 2 -- the registry rows the three members are declared in.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 2 -- `rule:core-api/shape-parameter`'s `CoreTy` shape arm, which goal `input-shapes` landed and this goal is the second caller of.
+  "crates/nvs-types/src/core_lib.rs",
+  # Stage 3 -- `is_assignable`, whose own docs argue both sides of the variance question.
+  "crates/nvs-types/src/expr/assign.rs",
+  # Stage 3 -- gap 4, the invariance entry, rewritten when the widening lands.
+  "crates/nvs-stdlib/src/lib.rs",
+  # Stage 4 -- gap 4, the panic hook, and gap 5's two flags that stay inert.
+  "crates/nvs-runtime/src/lib.rs",
+  # Stage 4 -- `Ctx::write_log_record`, the request log the hook routes into.
+  "crates/nvs-stdlib/src/log.rs",
+  # Stage 4 -- gap 1, `[limits] max_output`, and `Core\IO::read`'s half of the same signature.
+  "crates/nvs-stdlib/src/process.rs",
+  "crates/nvs-stdlib/src/io.rs",
 ]
 
-# 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
-# gaps are most often mis-attributed, so a session reading this goal has the rule in front of it.
-# This goal writes no stage table: it opens no ADR and names no section, so its base IS what every
-# stage of it needs, and a stage with nothing of its own does not get one.
+# 0036 and 0135 are the shape spelling goal `input-shapes` landed and 0147 is the rule stage 2 implements on top
+# of it; 0033 is the sink a queued row is; 0002's Corollary is the panic hook; 0044 § 1 is the
+# directive a capture is bounded by.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADR 0042 came out: it created more than eight rules, so naming
+# decision. ADR 0007 came out: it created more than eight rules, so naming
 # it here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  "0004",
-  "0116",
+  "0036",
+  "0135",
+  "0147",
+  "0033",
   "0002",
+  "0044",
+  "0004",
 ]
 
-adrs = []
+adrs = ["0147", "0002", "0044 §1", "0033 §5"]
 
-shapes = ["A commit message"]
+shapes = ["A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
 
 playbook = [
+  'Writing Novis itself > core is',
   'Tooling > a core class',
   'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -171,18 +158,47 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `31-unowned-sweep.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+rules = ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/omission-is-not-a-written-null", "core-api/shape-parameter", "core-api/the-bag-abi-is-unchanged", "core-classes/uri-removable-components", "security/secret-qualifier"]
+
+[context.stage.4]
+rules = ["core-classes/process-run", "errors/helper-abi"]
+
+[context.stage.5]
+rules = ["security/arena-is-an-ownership-root"]
+
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Nothing here needs a daemon. The floor is goal `xml-tree`'s, which is goals `core-part-ii` through `server`'s.
+# Stage 2's queue half runs against both dialects, so the daemon is this goal's own requirement and
+# not only its floor's.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["postgres", "redis"]
-memoize_on = ["tools", "docs/agent"]
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 457 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6727,80 +6743,170 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the tool, derived and never copied.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the tool"
+stage = "1 floor"
 name = "owners.py walks every Known gaps block and answers"
 argv = ["python", "tools/owners.py", "--json"]
 
 [[check]]
 kind = "command"
-stage = "2 the tool"
+stage = "1 floor"
 name = "the gate: every gap item names an owner the chain or the plan knows"
 argv = ["python", "tools/owners.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "2 the tool"
+stage = "1 floor"
 name = "the unowned list is the scheduling questions and nothing else"
 argv = ["python", "tools/owners.py", "--unowned"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the attribution pass. The gate above is what proves it complete.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 attributed"
+stage = "1 floor"
 name = "no untagged gap item survives anywhere in crates/"
 argv = ["python", "tools/owners.py", "--check", "--untagged-is-an-error"]
 
 [[check]]
 kind = "command"
-stage = "3 attributed"
+stage = "1 floor"
 name = "every `unowned` tag has a reason bullet behind it"
 argv = ["python", "tools/owners.py", "--check", "--reasons"]
 
 [[check]]
 kind = "command"
-stage = "3 attributed"
+stage = "1 floor"
 name = "the chain still walks, and every goal a tag names is on it"
 argv = ["python", "tools/chain.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- it stays true.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "4 wired"
+stage = "1 floor"
 name = "verify.py runs the gate in order"
 argv = ["python", "tools/verify.py", "--list"]
 
 [[check]]
 kind = "command"
-stage = "4 wired"
+stage = "1 floor"
 name = "the orientation pack names the unowned count"
 argv = ["python", "tools/brief.py", "--where", "unowned"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- nothing a doc-comment pass does changes an answer.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 suites"
+stage = "1 floor"
 name = "the conformance tree"
 args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "nvs-suite"
-stage = "4 suites"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- an options bag can tell omitted from written `null`. `rule:core-api/omission-is-not-a-written-null` is the rule; `rule:types/shape-type`
+# and `rule:core-api/shape-flattens-at-the-abi` are the shape and the ABI fill it amends.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 options bag"
+name = "nvs-stdlib (Core\\Uri::with can remove a component)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone",
+  "an_empty_query_stays_distinct_from_an_absent_one",
+  "there_is_no_empty_string_means_remove_rule_anywhere_in_with",
+  "a_nullable_option_omits_as_unset_and_a_non_nullable_one_omits_as_null",
+  "a_null_written_into_a_non_nullable_option_is_still_refused",
+  "with_query_parameter_sets_one_pair_and_leaves_every_other_alone",
+  "a_null_value_removes_one_pair_and_the_last_one_leaves_no_query_at_all",
+  "a_query_parameter_round_trips_an_array_value_through_the_bracket_convention",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 options bag"
+name = "nvs-stdlib (Core\\Queue declares its two shapes and refuses a secret)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "limits_and_grants_are_declared_shape_parameters_rather_than_undeclared_mixed",
+  "a_secret_argument_to_push_is_refused_where_the_call_is_written",
+  "the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `array<T>` accepts a covariant read. The user's decision, recorded not re-argued.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 variance"
+name = "nvs-types (an element-covariant array is assignable)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_array_of_int_satisfies_an_array_of_int_or_string_parameter",
+  "the_widening_accepts_strictly_more_programs_and_breaks_none_that_compile_today",
+  "a_write_through_the_widened_parameter_does_not_reach_the_callers_array",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two small ones.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 hook and cap"
+name = "nvs-runtime (a panic reaches the request log with its request id)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_panic_on_a_served_request_is_written_to_the_request_log_with_its_request_id",
+  "a_cli_scripts_panic_still_reaches_stderr_through_the_default_hook",
+  "the_hook_changes_presentation_and_never_lets_a_panic_be_recovered",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 hook and cap"
+name = "nvs-stdlib (max_output bounds a capture, at both readers)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded",
+  "core_io_read_is_bounded_by_the_same_directive_and_the_same_signature",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the list is shorter, and says so.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 shorter"
+name = "the unowned list holds only the open decision it should"
+argv = ["python", "tools/owners.py", "--unowned", "--check"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
