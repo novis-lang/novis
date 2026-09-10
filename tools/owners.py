@@ -18,6 +18,12 @@ it:
     //!    that can tell an omitted option from a written `null`.
     //!    — owner: unowned
 
+The block itself is written two ways and both are read: a `# Known gaps` heading, and a
+`**Known gaps**` bold run with the same items under it. A bold run carries no heading level, so what
+ends one is the next bold run or heading in the same doc comment rather than a level comparison.
+Eight modules record their gaps that way, and while this file saw only headings the roster could go
+green over a module that named nobody for anything it owed.
+
 The index is then *derived* -- this file walks the crates and prints the roster -- rather than a
 second copy maintained beside the first, which is the failure `carried-gaps.md` was created to fix
 one level up, and repeating it here would be the same mistake with more files. `holes.py` follows
@@ -91,10 +97,13 @@ SOURCES = ["crates/*/src/**/*.rs"]
 #: A module doc line. The run of them is the doc; a gap block is a heading inside one.
 DOC = re.compile(r"^\s*//!(?: ?(.*))?$")
 
-#: A heading inside a doc run, and the two spellings the crates use for the block. Both `# Known
+#: A heading inside a doc run, and the bold run that is the block's other opening. Both `# Known
 #: gaps` over a numbered list and `# Known gap: <what it is>` over a paragraph are in the tree, and
-#: the second is not a lesser kind -- it is one gap stated as prose, so it is one item.
+#: the second is not a lesser kind -- it is one gap stated as prose, so it is one item. `GAPS` reads
+#: a heading's title and a bold run's phrase alike, which is what makes the two spellings one block
+#: kind; `BOLD` also matches a bold run that is not a gap block, because that is what ends one.
 HEADING = re.compile(r"^(#{1,6})\s+(\S.*?)\s*$")
+BOLD = re.compile(r"^\*\*(.+?)(?:\*\*|$)")
 GAPS = re.compile(r"^Known gaps?\b", re.IGNORECASE)
 
 #: An item inside a block, and the marker that names its owner. Both list markers count: the crates
@@ -139,13 +148,21 @@ def doc_runs(lines: list[str]):
 
 
 def blocks(run: list[tuple[int, str]]):
-    """Every `# Known gaps` heading in one doc run, with the body under it.
+    """Every gap block in one doc run, with the body under it, in the order they open.
 
-    The body ends at the next heading of the same or a higher level, which is what makes a `## Known
-    gaps` nested under a `# ` section stop at its sibling rather than swallowing the rest of the doc.
+    A heading's body ends at the next heading of the same or a higher level, which is what makes a
+    `## Known gaps` nested under a `# ` section stop at its sibling rather than swallowing the rest
+    of the doc. A bold run has no level to compare, so its body ends at the next line that opens a
+    bold run of its own or at the next heading -- and it *starts* on the label's own line, since the
+    rest of that sentence is the block's first line of prose: a run opening `**Known gaps**, beyond
+    the ones this crate's docs name: a `switch` case that ...` states its one gap right there.
     """
     heads = [(i, HEADING.match(text)) for i, (_, text) in enumerate(run)]
     heads = [(i, len(m.group(1)), m.group(2)) for i, m in heads if m]
+    bolds = [(i, BOLD.match(text)) for i, (_, text) in enumerate(run)]
+    bolds = [(i, m.group(1), m.end()) for i, m in bolds if m]
+    stops = sorted([i for i, _, _ in heads] + [i for i, _, _ in bolds])
+    found = []
     for n, (idx, level, title) in enumerate(heads):
         if not GAPS.match(title):
             continue
@@ -154,7 +171,15 @@ def blocks(run: list[tuple[int, str]]):
             if later_level <= level:
                 end = later
                 break
-        yield run[idx][0], title, run[idx + 1:end]
+        found.append((idx, title, run[idx + 1:end]))
+    for idx, phrase, cut in bolds:
+        if not GAPS.match(phrase):
+            continue
+        end = next((i for i in stops if i > idx), len(run))
+        line, text = run[idx]
+        found.append((idx, phrase, [(line, text[cut:].strip(" ,.:—-"))] + run[idx + 1:end]))
+    for idx, title, body in sorted(found, key=lambda block: block[0]):
+        yield run[idx][0], title, body
 
 
 def items_of(body: list[tuple[int, str]], title: str) -> list[dict]:
@@ -173,7 +198,10 @@ def items_of(body: list[tuple[int, str]], title: str) -> list[dict]:
         if not text:
             return []
         _, sep, rest = title.partition(":")
-        lead = rest.strip() if sep else (LEAD.search(text).group(1) if LEAD.search(text) else text)
+        lead = rest.strip() if sep else ""
+        if not lead:
+            m = LEAD.search(text)
+            lead = m.group(1) if m else text
         return [{"num": 1, "line": body[0][0], "lead": one_line(lead), "body": body}]
     out = []
     for n, (idx, number) in enumerate(starts):
