@@ -1482,15 +1482,14 @@ mod tests {
 
     /// A token for `payload` under `ring`, with no expiry.
     fn minted(payload: &Value, ring: &Value) -> String {
-        mint(
-            Domain::Payload,
-            None,
-            payload,
-            &ring_borrowed(ring),
-            SIGN,
-            "$payload",
-        )
-        .expect("a payload of scalars mints")
+        minted_at(Domain::Payload, None, payload, ring)
+    }
+
+    /// A token for `payload` at `door`, stating `until`, under `ring` — the
+    /// two axes a refusal is not allowed to tell apart.
+    fn minted_at(door: Domain, until: Option<Until>, payload: &Value, ring: &Value) -> String {
+        mint(door, until, payload, &ring_borrowed(ring), SIGN, "$payload")
+            .expect("a payload of scalars mints")
     }
 
     /// What `token` opens as under `ring`, at the payload door.
@@ -1786,5 +1785,206 @@ mod tests {
             positions.len() >= 2,
             "no statement-text position was found, so the assertion above ran over nothing"
         );
+    }
+
+    /// A lifetime far from any clock a test could be run under, so that a case
+    /// naming the second on either side of it says what it means.
+    const UNTIL: Until = Until {
+        second: 1_700_000_000,
+        nano: 0,
+    };
+
+    /// The clause every expiry refusal carries and nothing else does.
+    const EXPIRED: &str = "the signature expired at";
+
+    /// The clause the one refusal carries, whichever way the token failed.
+    const FORGED: &str = "$token is not a signature this ring made";
+
+    /// `Core\Signature::verify($token, $keys)` on a clock fixed at `second`,
+    /// as the payload it answered or the sentence it refused with.
+    ///
+    /// The whole member through `nvs_runtime::call` rather than [`open`] and
+    /// [`judge`] apart, because what the three cases below assert is the
+    /// *order* those two are reached in, which neither of them holds on its
+    /// own.
+    fn verified(second: i64, token: &str, ring: &Value) -> Result<Value, String> {
+        let mut ctx = Ctx::buffered();
+        ctx.set_fixed_clock(i128::from(second) * i128::from(NANOS_PER_SECOND));
+        let carried = Value::str(NvsStr::new(token.as_bytes()));
+        let answered = nvs_runtime::call(nvs_core_signature_verify, &mut ctx, &[carried, *ring]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        dropped(carried);
+        match answered {
+            Ok(payload) => Ok(payload),
+            Err(_) => Err(refusal.expect("a refusal leaves its message on the context")),
+        }
+    }
+
+    /// Stage 5's one distinguishable refusal, asserted on both sides of the
+    /// bound it turns on: the same token under the same ring is a payload one
+    /// second before its `until` and the expiry sentence one second after it
+    /// (`rule:core-api/one-refusal-except-expiry`).
+    ///
+    /// Both sides, because a door that never read the lifetime at all would
+    /// pass the first half alone, and one that refused every token would pass
+    /// the second.
+    #[test]
+    fn a_token_past_its_until_throws_the_expired_error() {
+        let keys = ring_of(&[&[3_u8; 32]]);
+        let held = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let token = minted_at(Domain::Payload, Some(UNTIL), &held, &keys);
+
+        let live = verified(UNTIL.second - 1, &token, &keys)
+            .expect("a token one second inside its own lifetime verifies");
+        dropped(live);
+
+        let expired = verified(UNTIL.second + 1, &token, &keys)
+            .expect_err("a token one second past its own lifetime does not");
+        assert!(
+            expired.contains(EXPIRED),
+            "an expired token was refused with something other than the expiry sentence: {expired}"
+        );
+        assert!(
+            expired.starts_with(VERIFY),
+            "the expiry sentence names some other member: {expired}"
+        );
+        assert!(
+            !expired.contains(FORGED),
+            "the expiry refusal also carries the indistinguishable sentence, so the two have \
+             stopped being told apart: {expired}"
+        );
+
+        dropped(held);
+        dropped(keys);
+    }
+
+    /// The ordering that makes naming expiry safe: `open` checks the tag
+    /// before `judge` reads the lifetime, so a token that is *both* forged and
+    /// past its `until` says only that it is not authentic.
+    ///
+    /// The same token, the same clock and two rings, so neither half is
+    /// vacuous — the ring that minted it answers the expiry sentence at that
+    /// very second, which is what makes the other ring's silence about the
+    /// lifetime a decision rather than an accident. A door that judged first
+    /// would hand a forger the fact that some key in the ring once minted a
+    /// token expiring then (`rule:core-api/one-refusal-except-expiry`).
+    #[test]
+    fn a_token_both_forged_and_past_its_until_throws_the_invalid_error_not_the_expired_one() {
+        let mine = ring_of(&[&[4_u8; 32]]);
+        let theirs = ring_of(&[&[5_u8; 32]]);
+        let held = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let token = minted_at(Domain::Payload, Some(UNTIL), &held, &theirs);
+
+        let forged = verified(UNTIL.second + 1, &token, &mine)
+            .expect_err("a token no key in this ring minted");
+        assert!(
+            forged.contains(FORGED),
+            "a forgery was refused with something other than the one sentence: {forged}"
+        );
+        assert!(
+            !forged.contains(EXPIRED),
+            "a forged token was told its lifetime had passed, so the expiry check ran before the \
+             tag was authenticated: {forged}"
+        );
+
+        let known = verified(UNTIL.second + 1, &token, &theirs)
+            .expect_err("its own ring, at the same second, does reach the lifetime");
+        assert!(
+            known.contains(EXPIRED),
+            "the ring that minted the token did not reach the expiry check, so the case above \
+             asserts nothing: {known}"
+        );
+        assert_ne!(
+            forged, known,
+            "the two refusals are one sentence, so the holder of a real token cannot be told \
+             apart from a forger — which is the half of the rule that is not about secrecy"
+        );
+
+        dropped(held);
+        dropped(theirs);
+        dropped(mine);
+    }
+
+    /// Every way of not being authentic other than expiry, asserted by
+    /// **counting the distinct sentences** rather than by reading each one:
+    /// a member that answered plausibly for each way separately still fails
+    /// here the moment two of them differ by a word
+    /// (`rule:core-api/one-refusal-except-expiry`).
+    ///
+    /// The list is `refused`'s own — text that is not base64, a token too
+    /// short to hold a tag, a tag no key authenticates, a token minted for
+    /// another door, and a document whose payload is not what this door
+    /// answers. Every one of them is reached with a live lifetime, so nothing
+    /// here can be passing because the clock refused it first.
+    #[test]
+    fn every_other_way_of_not_being_authentic_raises_one_error_with_one_sentence() {
+        let keys = ring_of(&[&[6_u8; 32]]);
+        let others = ring_of(&[&[7_u8; 32]]);
+        let text = payload(&[("id", Value::str(NvsStr::new(b"7")))]);
+        let numeric = payload(&[("id", Value::int(7))]);
+
+        let ways = [
+            (
+                "text that is not base64",
+                "not a token, and not base64".to_owned(),
+            ),
+            // Valid base64 of twelve octets, which is under the tag's own
+            // length — there is nothing to authenticate against.
+            (
+                "a token too short to hold a tag",
+                "AAAAAAAAAAAAAAAA".to_owned(),
+            ),
+            (
+                "a tag that authenticates under no key",
+                minted(&text, &others),
+            ),
+            (
+                "a token minted for another door",
+                minted_at(Domain::Uri, None, &text, &keys),
+            ),
+            (
+                "a document whose payload is not text",
+                minted(&numeric, &keys),
+            ),
+        ];
+
+        let mut sentences = std::collections::BTreeSet::new();
+        for (way, token) in &ways {
+            match verified(UNTIL.second, token, &keys) {
+                Ok(answered) => {
+                    dropped(answered);
+                    panic!("{way} verified, so it is not a way of failing at all");
+                }
+                Err(refusal) => {
+                    assert!(
+                        !refusal.contains(EXPIRED),
+                        "{way} was refused for its lifetime rather than for what it is: {refusal}"
+                    );
+                    sentences.insert(refusal);
+                }
+            }
+        }
+
+        assert_eq!(
+            sentences.len(),
+            1,
+            "the {} ways of not being authentic produced {} different sentences, so a forgery \
+             now says which half of the check it failed: {sentences:?}",
+            ways.len(),
+            sentences.len()
+        );
+        let one = sentences
+            .iter()
+            .next()
+            .expect("the sweep asked at least one question");
+        assert!(
+            one.contains(FORGED),
+            "the one sentence is no longer `refused`'s: {one}"
+        );
+
+        dropped(numeric);
+        dropped(text);
+        dropped(others);
+        dropped(keys);
     }
 }
