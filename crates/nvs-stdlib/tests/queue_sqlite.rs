@@ -437,3 +437,503 @@ fn a_sqlite_push_with_no_key_lands_every_row_it_is_given() {
     );
     assert_eq!(int(&counted[0][0]), 2);
 }
+
+/// One statement's affected count, which is what a member answers where
+/// PostgreSQL reads a `returning` row.
+///
+/// `sqlite3_changes` is read off the finished statement, so the rows are
+/// materialized here for [`rows`]'s reason and the count is taken from the same
+/// handle rather than from a `select changes()` after it.
+fn affected(conn: &SqliteConn, sql: &str, params: Vec<SqliteValue>) -> u64 {
+    conn.query(sql, params)
+        .unwrap_or_else(|refused| panic!("`{sql}` runs: {refused}"))
+        .affected()
+}
+
+/// `DEAD_LETTER_SQLITE`'s pair, taken whole: the copy into § 2's second table and
+/// the delete that follows it, both keyed on the lease the claim wrote.
+///
+/// `crates/nvs-cli/src/worker.rs` runs these two in this order, and what holds
+/// them as one moment here is the immediate transaction rather than anything in
+/// the text.
+fn dead_letter(conn: &SqliteConn, id: i64, lease: i64) {
+    conn.begin_immediate().expect("the write lock, up front");
+    rows(
+        conn,
+        queue::DEAD_LETTER_SQLITE.first,
+        vec![
+            SqliteValue::Int(lease),
+            SqliteValue::Text(queue::dead_errors(
+                lease,
+                "LogicError",
+                "the last attempt threw",
+            )),
+            SqliteValue::Int(id),
+            SqliteValue::Int(lease),
+        ],
+    );
+    rows(
+        conn,
+        queue::DEAD_LETTER_SQLITE.then,
+        vec![SqliteValue::Int(id), SqliteValue::Int(lease)],
+    );
+    conn.commit().expect("the move's transaction closes");
+}
+
+/// `STATUS_SQLITE`'s answer for one receipt, or `None` when no row in either
+/// table carries it.
+fn status(conn: &SqliteConn, id: i64) -> Option<i64> {
+    let read = rows(
+        conn,
+        queue::STATUS_SQLITE,
+        vec![
+            SqliteValue::Int(id),
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Int(id),
+            SqliteValue::Text(String::from(QUEUE)),
+        ],
+    );
+    read.first().map(|row| int(&row[0]))
+}
+
+/// `STATUS_SQLITE` is MySQL's text and this is the case that says so by running
+/// it: one receipt read at three states, the last of them from the other table.
+///
+/// The `union all` under one `limit` is the construct worth executing rather than
+/// reading — it is the same statement in both dialects only if the `limit` binds
+/// to the compound and not to its second arm, and a statement that answered the
+/// dead-letter arm first would read plausibly against any single state.
+#[test]
+fn a_sqlite_status_reads_the_live_state_and_then_the_dead_letter_ordinal() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-status-both-arms");
+    let pushed = push(&worker, NOW, 0, 0, None);
+
+    assert_eq!(
+        status(&reader, pushed),
+        Some(0),
+        "a pushed job answers `State::Pending`'s ordinal"
+    );
+    let claimed = claim(&worker, NOW, NOW).expect("the pushed job is due");
+    assert_eq!(int(&claimed[0]), pushed);
+    assert_eq!(
+        status(&reader, pushed),
+        Some(1),
+        "a claim writes the state the same receipt then reads back"
+    );
+
+    dead_letter(&worker, pushed, NOW);
+    assert_eq!(
+        status(&reader, pushed),
+        Some(3),
+        "§ 6 moved the row, and the second arm is what keeps the receipt answerable"
+    );
+    assert_eq!(
+        status(&reader, pushed + 1),
+        None,
+        "a receipt naming no row in either table answers nothing rather than a state"
+    );
+}
+
+/// `CANCEL_SQLITE`'s answer for one receipt: the affected count, which is what
+/// this backend has in place of a `returning` row.
+fn cancel(conn: &SqliteConn, id: i64) -> u64 {
+    affected(
+        conn,
+        queue::CANCEL_SQLITE,
+        vec![SqliteValue::Int(id), SqliteValue::Text(String::from(QUEUE))],
+    )
+}
+
+/// The member's whole semantics are `and state = 0`, and this is that bound
+/// asserted on both sides on a real engine: a pending job is cancelled, and a
+/// claimed one and an already-cancelled one both change nothing.
+///
+/// The count is the assertion rather than the row's state alone, because
+/// `Counted::touched` is what tells a caller *this call* is what cancelled it —
+/// a statement matching no row is an ordinary answer here and not an error, so a
+/// text that dropped the state arm would still leave the column reading `4`.
+///
+/// The key is pushed through `INSERT_SQLITE` so the last assertion can be about
+/// `dedupe_pending`: cancel releases a key with the same `null` the claim writes,
+/// which is § 2's guarantee holding across a state no worker reached.
+#[test]
+fn a_sqlite_cancel_takes_a_pending_job_and_changes_nothing_else() {
+    let (worker, canceller) = two_connections("nvs-stdlib-queue-cancel-only-pending");
+    let (landed, _) = push_in_two(&canceller, Some("welcome:9"), NOW);
+
+    assert_eq!(
+        cancel(&canceller, landed),
+        1,
+        "a pending job is cancellable, and the count is what says this call did it"
+    );
+    assert_eq!(
+        cancel(&canceller, landed),
+        0,
+        "a cancelled job is no longer pending, so the same call changes nothing"
+    );
+
+    let claimed = push(&worker, NOW, 1, 1, Some(NOW));
+    assert_eq!(
+        cancel(&canceller, claimed),
+        0,
+        "a claimed job is not cancellable at all, and the `where` is what refuses it"
+    );
+
+    let stored = rows(
+        &worker,
+        "select state from nvs_jobs where id = ?",
+        vec![SqliteValue::Int(landed)],
+    );
+    assert_eq!(
+        int(&stored[0][0]),
+        4,
+        "the row the count claimed carries `State::Cancelled`'s ordinal"
+    );
+
+    let (again, deduped) = push_in_two(&canceller, Some("welcome:9"), NOW);
+    assert!(
+        !deduped,
+        "a cancel releases the dedupe key with the same `dedupe_pending = null` a claim writes"
+    );
+    assert_ne!(again, landed, "so the same key pushes a second row");
+}
+
+/// `COUNTS_SQLITE`'s four counters, as the integers a caller decodes.
+///
+/// [`int`] is the assertion and not a convenience: what a `cast(… as signed)`
+/// answers on this backend is the whole question the alias rests on, so a column
+/// that came back a text or a real fails here by name.
+fn counts(conn: &SqliteConn) -> [i64; 4] {
+    let read = rows(
+        conn,
+        queue::COUNTS_SQLITE,
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            SqliteValue::Text(String::from(QUEUE)),
+        ],
+    );
+    let row = read
+        .first()
+        .expect("an aggregate with no `group by` is exactly one row");
+    [int(&row[0]), int(&row[1]), int(&row[2]), int(&row[3])]
+}
+
+/// `stats` answers one row of four integers on this backend too, and the empty
+/// queue is the half that decides it: `count` over no rows is `0`, and the
+/// `coalesce` is what keeps a `sum` over no rows from answering `null` where § 6
+/// means zero.
+///
+/// The `cast(… as signed)` is MySQL's and inert here, which is a claim only a run
+/// can carry — SQLite reads a type name it does not have by its affinity rules,
+/// and `COUNTS_SQLITE`'s doc owns why that leaves the sum an integer.
+///
+/// Asserted across the dead-letter move, because the fourth counter is a subquery
+/// over the *other* table: counters that all read `nvs_jobs` would answer
+/// plausibly until a job was lost, which is the one moment an operator reads
+/// `stats` for.
+#[test]
+fn sqlite_stats_answer_four_integers_over_an_empty_queue_and_a_worked_one() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-four-counters");
+
+    assert_eq!(
+        counts(&reader),
+        [0, 0, 0, 0],
+        "an empty queue answers zero four times, and the third one is not a null"
+    );
+
+    push(&worker, NOW, 0, 5, None);
+    let claimed = push(&worker, NOW, 1, 2, Some(NOW));
+    assert_eq!(
+        counts(&reader),
+        [1, 1, 7, 0],
+        "one waiting, one in flight, the attempts of both, and an empty dead-letter table"
+    );
+
+    dead_letter(&worker, claimed, NOW);
+    assert_eq!(
+        counts(&reader),
+        [1, 0, 5, 1],
+        "the depth comes from the other table, and the sum follows the row that moved out of this one"
+    );
+}
+
+/// `DELETE_SQLITE`'s pair, taken whole: both arms inside one immediate
+/// transaction, and the member's `bool` is either of them having removed a row.
+///
+/// `then` runs whatever `first` answered, which is what makes this the one
+/// `Split` here that is not keyed on its first statement's row — the constant's
+/// own doc owns why, and why the transaction is still what the pair means.
+fn delete_in_two(conn: &SqliteConn, id: i64) -> bool {
+    conn.begin_immediate().expect("the write lock, up front");
+    let receipt = vec![SqliteValue::Int(id), SqliteValue::Text(String::from(QUEUE))];
+    let gone = affected(conn, queue::DELETE_SQLITE.first, receipt.clone());
+    let buried = affected(conn, queue::DELETE_SQLITE.then, receipt);
+    conn.commit().expect("the removal's transaction closes");
+    assert!(
+        gone + buried <= 1,
+        "§ 6 moves a job, so a receipt is in one of § 2's tables and never in both"
+    );
+    gone + buried > 0
+}
+
+/// The rows of § 2's two tables that still carry a receipt.
+fn present(conn: &SqliteConn, id: i64) -> (i64, i64) {
+    let read = rows(
+        conn,
+        "select (select count(*) from nvs_jobs where id = ?), \
+         (select count(*) from nvs_dead_jobs where id = ?)",
+        vec![SqliteValue::Int(id), SqliteValue::Int(id)],
+    );
+    (int(&read[0][0]), int(&read[0][1]))
+}
+
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete` on the
+/// one backend where it is two statements: a finished job goes from either table,
+/// and a claimed one goes from neither.
+///
+/// Executed rather than read because this member is the stage's only construct —
+/// two arms standing in for a data-modifying CTE — and a pair that removed from
+/// the wrong table, or that let the second arm answer for the first, reads
+/// plausibly in either text alone.
+#[test]
+fn a_sqlite_delete_removes_a_receipt_from_either_table_and_a_claimed_job_from_neither() {
+    let (worker, caller) = two_connections("nvs-stdlib-queue-delete-two-arms");
+
+    let finished = push(&worker, NOW, 2, 1, None);
+    assert!(
+        delete_in_two(&caller, finished),
+        "a succeeded job is removable, and the count is what says this call removed it"
+    );
+    assert_eq!(present(&caller, finished), (0, 0));
+    assert!(
+        !delete_in_two(&caller, finished),
+        "a receipt naming no row in either table removes nothing"
+    );
+
+    let claimed = push(&worker, NOW, 1, 1, Some(NOW));
+    assert!(
+        !delete_in_two(&caller, claimed),
+        "a claimed job is not removable at all, and `state <> 1` is what refuses it"
+    );
+    assert_eq!(
+        present(&caller, claimed),
+        (1, 0),
+        "the row a worker holds a lease on is still there"
+    );
+
+    let lost = push(&worker, NOW, 0, 1, None);
+    // The cutoff is a window back rather than `NOW`, because the claimed row above is still here:
+    // at `NOW` the claim's second arm would find its lease due and take that job instead.
+    let taken = claim(&worker, NOW, NOW - WINDOW).expect("the pending job is due");
+    assert_eq!(int(&taken[0]), lost);
+    dead_letter(&worker, lost, NOW);
+    assert_eq!(present(&caller, lost), (0, 1), "§ 6 moved it");
+    assert!(
+        delete_in_two(&caller, lost),
+        "the second arm is what keeps a receipt removable across that move"
+    );
+    assert_eq!(present(&caller, lost), (0, 0));
+}
+
+/// `PURGE_SQLITE`'s selection: the state set the call named, narrowed by an
+/// optional tag and an optional age, and never more rows than the bound.
+fn purge(
+    conn: &SqliteConn,
+    state: Option<i64>,
+    tag: Option<&str>,
+    before: Option<i64>,
+    limit: i64,
+) -> u64 {
+    let state = state.map_or(SqliteValue::Null, SqliteValue::Int);
+    let tag = tag.map_or(SqliteValue::Null, |tag| {
+        SqliteValue::Text(String::from(tag))
+    });
+    let before = before.map_or(SqliteValue::Null, SqliteValue::Int);
+    affected(
+        conn,
+        queue::PURGE_SQLITE,
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            state.clone(),
+            state,
+            tag.clone(),
+            tag,
+            before.clone(),
+            before,
+            SqliteValue::Int(limit),
+        ],
+    )
+}
+
+/// The ids left in one of § 2's tables, oldest first.
+fn remaining(conn: &SqliteConn, table: &str) -> Vec<i64> {
+    rows(
+        conn,
+        &format!("select id from {table} where queue = ? order by id"),
+        vec![SqliteValue::Text(String::from(QUEUE))],
+    )
+    .iter()
+    .map(|row| int(&row[0]))
+    .collect()
+}
+
+/// `purge` over the jobs table, which on this backend carries its bound in a
+/// subquery because `delete … limit` needs a build option nothing here sets.
+///
+/// Every arm of the text is asked something a broken one would answer wrongly:
+/// the age selects the row on the far side of the cutoff and not the one just
+/// inside it, the bound removes exactly one row and takes the oldest, the
+/// default set is what has finished, `State::Pending` is opt-in, and
+/// `State::Claimed` is refused by the text even when a call names it.
+#[test]
+fn a_sqlite_purge_selects_the_finished_set_and_never_more_rows_than_its_bound() {
+    let (worker, sweeper) = two_connections("nvs-stdlib-queue-purge-jobs");
+
+    let oldest = push(&worker, NOW - 5_000, 2, 1, None);
+    let cancelled = push(&worker, NOW - 4_000, 4, 1, None);
+    let pending = push(&worker, NOW, 0, 0, None);
+    let claimed = push(&worker, NOW, 1, 1, Some(NOW));
+    let succeeded = push(&worker, NOW, 2, 1, None);
+
+    assert_eq!(
+        purge(&sweeper, None, None, Some(NOW - 4_500), 10),
+        1,
+        "the age is asked of `created_at`, so only the row on the far side of the cutoff goes"
+    );
+    assert_eq!(
+        remaining(&sweeper, "nvs_jobs"),
+        vec![cancelled, pending, claimed, succeeded],
+        "and the row just inside it stays"
+    );
+    assert_eq!(
+        oldest,
+        cancelled - 1,
+        "the fixture's ids run in push order, which is what `order by id` sweeps in"
+    );
+
+    assert_eq!(
+        purge(&sweeper, Some(1), None, None, 10),
+        0,
+        "`state <> 1` refuses a claimed job in the text as well as at the call"
+    );
+    assert_eq!(
+        purge(&sweeper, None, None, None, 1),
+        1,
+        "the bound is a subquery here and it is the same bound"
+    );
+    assert_eq!(
+        remaining(&sweeper, "nvs_jobs"),
+        vec![pending, claimed, succeeded],
+        "and the row it took is the oldest of the set, not wherever the scan started"
+    );
+
+    assert_eq!(
+        purge(&sweeper, None, None, None, 10),
+        1,
+        "the default set is what has finished, which leaves the pending job where it is"
+    );
+    assert_eq!(
+        purge(&sweeper, Some(0), None, None, 10),
+        1,
+        "`State::Pending` goes only when a call names it"
+    );
+    assert_eq!(
+        remaining(&sweeper, "nvs_jobs"),
+        vec![claimed],
+        "and the one state with no removal in it is what is left"
+    );
+}
+
+/// `PURGE_DEAD_SQLITE`'s selection over the other table: no state, the same tag
+/// and age, and the same bound.
+fn purge_dead(conn: &SqliteConn, tag: Option<&str>, before: Option<i64>, limit: i64) -> u64 {
+    let tag = tag.map_or(SqliteValue::Null, |tag| {
+        SqliteValue::Text(String::from(tag))
+    });
+    let before = before.map_or(SqliteValue::Null, SqliteValue::Int);
+    affected(
+        conn,
+        queue::PURGE_DEAD_SQLITE,
+        vec![
+            SqliteValue::Text(String::from(QUEUE)),
+            tag.clone(),
+            tag,
+            before.clone(),
+            before,
+            SqliteValue::Int(limit),
+        ],
+    )
+}
+
+/// One dead-lettered row, tagged as the enqueue would have tagged it.
+///
+/// The tag is written onto the job before the move rather than into the dead
+/// table afterwards, because that is § 6's own claim: a group tagged at enqueue
+/// is still that group once its work was lost, and the move's `select` is what
+/// has to carry the column for a purge to be able to ask about it.
+fn buried(conn: &SqliteConn, created_at: i64, tag: Option<&str>) -> i64 {
+    let id = push(conn, created_at, 0, 1, None);
+    if let Some(tag) = tag {
+        rows(
+            conn,
+            "update nvs_jobs set tag = ? where id = ?",
+            vec![SqliteValue::Text(String::from(tag)), SqliteValue::Int(id)],
+        );
+    }
+    let claimed = claim(conn, NOW, NOW).expect("the fixture's job is due");
+    assert_eq!(int(&claimed[0]), id, "and it is the one just pushed");
+    dead_letter(conn, id, NOW);
+    id
+}
+
+/// `purge` over the dead-letter table: the record that work was lost, swept by
+/// the two options § 6 moves the columns for and by the same bound.
+///
+/// A tag that names no row is the first assertion, because a filter that fell
+/// through to *everything* would pass every other one here.
+#[test]
+fn a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_table() {
+    let (worker, sweeper) = two_connections("nvs-stdlib-queue-purge-dead");
+
+    let old_tagged = buried(&worker, NOW - 5_000, Some("batch:7"));
+    let old_plain = buried(&worker, NOW - 5_000, None);
+    let new_tagged = buried(&worker, NOW, Some("batch:7"));
+
+    assert_eq!(
+        purge_dead(&sweeper, Some("batch:9"), None, 10),
+        0,
+        "a tag naming no row removes nothing at all"
+    );
+    assert_eq!(
+        purge_dead(&sweeper, Some("batch:7"), Some(NOW - 4_500), 10),
+        1,
+        "the two options narrow together, so only the old row of that group goes"
+    );
+    assert_eq!(
+        remaining(&sweeper, "nvs_dead_jobs"),
+        vec![old_plain, new_tagged]
+    );
+
+    assert_eq!(
+        purge_dead(&sweeper, None, None, 1),
+        1,
+        "the bound is this text's as well, in `PURGE_SQLITE`'s subquery shape"
+    );
+    assert_eq!(
+        remaining(&sweeper, "nvs_dead_jobs"),
+        vec![new_tagged],
+        "and it took the oldest of the table"
+    );
+
+    assert_eq!(purge_dead(&sweeper, None, None, 10), 1);
+    assert_eq!(
+        remaining(&sweeper, "nvs_dead_jobs"),
+        Vec::<i64>::new(),
+        "a sweep naming no option is still bounded, and this one reached the end"
+    );
+    assert_eq!(
+        old_tagged + 1,
+        old_plain,
+        "the fixture's ids run in push order, which is what `order by id` sweeps in"
+    );
+}
