@@ -3132,10 +3132,14 @@ mod tests {
         answer
     }
 
-    /// `Core\Uri::parse($text)->toString()` — the text the instance kept.
-    fn own_text(text: &str) -> String {
+    /// `$uri->toString()` — the text an instance kept — taking over the
+    /// reference it is handed.
+    ///
+    /// Separate from [`own_text`] because the `with` cases below hold a `Uri`
+    /// a *member* built rather than one `parse` did, and the question they
+    /// ask it is the same one.
+    fn text_of(uri: Value) -> String {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        let uri = uri_of(text);
         let answer = call(super::nvs_core_uri_to_string, &mut ctx, &[uri])
             .expect("`toString` reads a slot and never throws");
         let out = String::from_utf8(
@@ -3147,14 +3151,19 @@ mod tests {
         .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
         #[expect(
             unsafe_code,
-            reason = "this frame owns the instance and the reference `toString` \
-                      handed back"
+            reason = "this frame owns the instance it was handed and the \
+                      reference `toString` handed back"
         )]
         unsafe {
             answer.release();
             uri.release();
         }
         out
+    }
+
+    /// `Core\Uri::parse($text)->toString()` — the text the instance kept.
+    fn own_text(text: &str) -> String {
+        text_of(uri_of(text))
     }
 
     /// RFC 3986 § 6.2.2's three normalizations, and the three places the
@@ -3275,5 +3284,262 @@ mod tests {
                 "{subject:?} recomposes to {recomposed:?}, which is a different URI"
             );
         }
+    }
+
+    /// The positions in [`omitting`]'s array, which is `with`'s option order
+    /// with the receiver taken off the front.
+    const SCHEME: usize = 0;
+    const HOST: usize = 1;
+    const PORT: usize = 2;
+    const PATH: usize = 3;
+    const QUERY: usize = 4;
+    const FRAGMENT: usize = 5;
+
+    /// `with`'s six options, each the value an **omitting** call site
+    /// materializes: a null for the three non-nullable text options and the
+    /// never-written marker for the three nullable ones, which is the pairing
+    /// `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`
+    /// holds over every registered row. A case overwrites the one position it
+    /// is asking about, so each row below reads as the `{}` a program writes
+    /// with a single key added.
+    fn omitting() -> [Value; 6] {
+        [
+            Value::null(),
+            Value::null(),
+            Value::unset(),
+            Value::null(),
+            Value::unset(),
+            Value::unset(),
+        ]
+    }
+
+    /// A written `string` option, as the call site's own text.
+    fn wrote(text: &str) -> Value {
+        Value::str(nvs_runtime::NvsStr::new(text.as_bytes()))
+    }
+
+    /// One nullable option in the state a call site put it in: `None` is the
+    /// key left out, `Some(None)` a written `null`, and `Some(Some(text))` a
+    /// replacement — [`super::removable`]'s own three states, spelled here so
+    /// a row can name a state and every call still gets a reference of its
+    /// own to release.
+    fn state_of(state: Option<Option<&str>>) -> Value {
+        match state {
+            None => Value::unset(),
+            Some(None) => Value::null(),
+            Some(Some(text)) => wrote(text),
+        }
+    }
+
+    /// `Core\Uri::parse($subject)->with({…})`, as the `Uri` the caller then
+    /// owns — or the status a refusal returned.
+    ///
+    /// The options are taken over. `with` borrows its arguments rather than
+    /// consuming them, so this frame owes every reference in the array a
+    /// release, and doing it here keeps the `unsafe` block out from under
+    /// every row of every case below.
+    fn with_of(subject: &str, options: [Value; 6]) -> Result<Value, i32> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let args: Vec<Value> = std::iter::once(uri_of(subject)).chain(options).collect();
+        let answer = call(super::nvs_core_uri_with, &mut ctx, &args);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the receiver it parsed and every option \
+                      it was handed, and `with` borrows rather than consumes"
+        )]
+        unsafe {
+            for argument in args {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// [`with_of`] with one option written and every other key left out.
+    fn one(subject: &str, option: usize, written: Value) -> Result<Value, i32> {
+        let mut options = omitting();
+        options[option] = written;
+        with_of(subject, options)
+    }
+
+    /// One nullable reader's answer for a `Uri` this frame hands over: `None`
+    /// where the component is absent, `Some(text)` where it is there —
+    /// **including** where it is there and empty. Reading it off the tag
+    /// rather than off the recomposed text is the point: those are the two
+    /// states `rule:core-api/omission-is-not-a-written-null` exists to keep
+    /// apart, and a text with a `?` in it is not evidence about either one.
+    fn nullable(
+        uri: Value,
+        member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+    ) -> Option<String> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let answer = call(member, &mut ctx, &[uri]).expect("a component reader never throws");
+        let out = answer.as_str_bytes().map(|bytes| {
+            String::from_utf8(bytes.to_vec())
+                .expect("`rule:types/bytes` guarantees a `string` is UTF-8")
+        });
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the instance it was handed and the \
+                      answer the reader built"
+        )]
+        unsafe {
+            answer.release();
+            uri.release();
+        }
+        out
+    }
+
+    /// A call site's two ways of not giving a component a value, on the three
+    /// `rule:core-classes/uri-removable-components` gives a removal to. The
+    /// identity row is what makes each of the others a *removal*: a member
+    /// that rewrote what it was not asked about would pass every removal line
+    /// here and fail that one.
+    #[test]
+    fn a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone() {
+        const SUBJECT: &str = "https://user@example.com:8443/a/b?x=1#top";
+
+        assert_eq!(
+            text_of(with_of(SUBJECT, omitting()).expect("no throw")),
+            SUBJECT
+        );
+        for (option, written, expected) in [
+            (PORT, Value::null(), "https://user@example.com/a/b?x=1#top"),
+            (
+                PORT,
+                Value::int(80),
+                "https://user@example.com:80/a/b?x=1#top",
+            ),
+            (
+                QUERY,
+                Value::null(),
+                "https://user@example.com:8443/a/b#top",
+            ),
+            (
+                QUERY,
+                wrote("y=2"),
+                "https://user@example.com:8443/a/b?y=2#top",
+            ),
+            (
+                FRAGMENT,
+                Value::null(),
+                "https://user@example.com:8443/a/b?x=1",
+            ),
+            (
+                FRAGMENT,
+                wrote("end"),
+                "https://user@example.com:8443/a/b?x=1#end",
+            ),
+        ] {
+            assert_eq!(
+                text_of(one(SUBJECT, option, written).expect("no throw")),
+                expected
+            );
+        }
+
+        // All three at once, because a removal is no shortcut around anything:
+        // the result goes back through `read` and `unmoved` exactly as a
+        // replacement does.
+        let mut options = omitting();
+        options[PORT] = Value::null();
+        options[QUERY] = Value::null();
+        options[FRAGMENT] = Value::null();
+        assert_eq!(
+            text_of(with_of(SUBJECT, options).expect("no throw")),
+            "https://user@example.com/a/b"
+        );
+
+        // Removing a component that is not there is the identity too, rather
+        // than something a caller has to check for first.
+        assert_eq!(
+            text_of(one("http://h/p", QUERY, Value::null()).expect("no throw")),
+            "http://h/p"
+        );
+    }
+
+    /// A `?` written with nothing after it is an empty query, an absent query
+    /// is a third answer again, and `with` can produce and clear either — the
+    /// distinction PHP's own `parse_url` does not report at all, and the one
+    /// that collapses the day `""` becomes a removal spelling.
+    #[test]
+    fn an_empty_query_stays_distinct_from_an_absent_one() {
+        const SUBJECT: &str = "http://h/p?x=1";
+
+        for (state, text, query) in [
+            (None, "http://h/p?x=1", Some("x=1")),
+            (Some(None), "http://h/p", None),
+            (Some(Some("")), "http://h/p?", Some("")),
+            (Some(Some("y=2")), "http://h/p?y=2", Some("y=2")),
+        ] {
+            assert_eq!(
+                text_of(one(SUBJECT, QUERY, state_of(state)).expect("no throw")),
+                text,
+                "for {state:?}"
+            );
+            assert_eq!(
+                nullable(
+                    one(SUBJECT, QUERY, state_of(state)).expect("no throw"),
+                    super::nvs_core_uri_query,
+                )
+                .as_deref(),
+                query,
+                "for {state:?}"
+            );
+        }
+
+        // Where an empty query comes from in the first place: one a client
+        // wrote, which `parse` keeps and `query` reports as `""` rather than
+        // as nothing.
+        assert_eq!(
+            nullable(uri_of("http://h/p?"), super::nvs_core_uri_query).as_deref(),
+            Some("")
+        );
+        // And removing that one leaves no `?` at all, rather than the bare
+        // one a caller editing the text by hand is left holding.
+        assert_eq!(
+            text_of(one("http://h/p?", QUERY, Value::null()).expect("no throw")),
+            "http://h/p"
+        );
+    }
+
+    /// `rule:core-api/a-written-null-removes`'s second half, swept across the
+    /// options rather than asserted on one: `""` is a component that is there
+    /// and empty, everywhere, and never an absence. Each row names what `""`
+    /// writes beside what the removal of the same component writes, so a
+    /// member that grew a `""`-means-remove shortcut fails on the pair even
+    /// where either line alone still reads plausibly.
+    #[test]
+    fn there_is_no_empty_string_means_remove_rule_anywhere_in_with() {
+        const SUBJECT: &str = "http://h/p?x=1#top";
+
+        for (option, empty, removed) in [
+            (QUERY, "http://h/p?#top", Some("http://h/p#top")),
+            (FRAGMENT, "http://h/p?x=1#", Some("http://h/p?x=1")),
+            // The other three text options have no removal to offer at all —
+            // `rule:core-classes/uri-removable-components` says why for each —
+            // so `""` is the empty component and there is no second answer to
+            // compare it against. A `null` written into one of them is a
+            // *compile* error rather than a removal, which is the checker's
+            // half of this rule.
+            (HOST, "http:///p?x=1#top", None),
+            (PATH, "http://h?x=1#top", None),
+        ] {
+            assert_eq!(
+                text_of(one(SUBJECT, option, wrote("")).expect("no throw")),
+                empty
+            );
+            if let Some(removed) = removed {
+                assert_eq!(
+                    text_of(one(SUBJECT, option, Value::null()).expect("no throw")),
+                    removed
+                );
+                assert_ne!(empty, removed, "an empty component is not an absent one");
+            }
+        }
+
+        // The scheme is the one option an empty string cannot even recompose
+        // into a reference: `://h/p?x=1#top` is refused by the grammar rather
+        // than quietly becoming a relative one.
+        assert!(one(SUBJECT, SCHEME, wrote("")).is_err());
     }
 }
