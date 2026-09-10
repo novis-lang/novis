@@ -179,7 +179,7 @@
 //! spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
 //! commit to send and no read-only transaction to offer at all. What
 //! [`crate::queue`]'s four members run on is narrower than this section and is
-//! that module's gap 5: `nvs_stdlib::queue::runs` is the roster, and a driver
+//! that module's gap 4: `nvs_stdlib::queue::runs` is the roster, and a driver
 //! missing from it is missing a text rather than a send path.
 //!
 //! **SQLite reaches every member the other four do**: [`rendering_for`] binds a

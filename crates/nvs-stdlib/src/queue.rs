@@ -98,15 +98,14 @@
 //!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //!    — owner: unowned
-//! 4. **Two of the five backends open a connection this module will not send a statement over**,
-//!    and the text is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all
-//!    five. SQL Server has no dialect here and cannot have one yet, because
-//!    `rule:core-classes/queue-storage-is-a-table` orders the filtered index its nulls need before
-//!    a fourth dialect is written. SQLite has every statement this module names — the worker's half
-//!    and the six members' — and lacks the third arm of [`Queued`] that would carry any of them to a
-//!    connection, so what is written and executed by `crates/nvs-stdlib/tests/queue_sqlite.rs` is
-//!    still unreachable from a program. [`no_dialect`] carries both sentences, and is where an
-//!    operator reads which of the two they are waiting on.
+//! 4. **SQL Server opens a connection this module will not send a statement over**, and the text
+//!    is this module's to write rather than [`crate::db`]'s: `Core\Db` reaches all five. It has no
+//!    dialect here and cannot have one yet, because `rule:core-classes/queue-storage-is-a-table`
+//!    orders the filtered index its nulls need before a fourth dialect is written, and
+//!    [`no_dialect`] is where an operator reads that. SQLite is [`Queued`]'s third arm and every
+//!    member above it sends over it; what does not reach it yet is the worker, whose own `Wire` in
+//!    `crates/nvs-cli/src/worker.rs` has no arm for it, so a job pushed onto a SQLite queue is
+//!    enqueued and never claimed.
 //!    — owner: gap-zero
 
 use std::collections::BTreeMap;
@@ -1126,7 +1125,7 @@ pub const DELETE_MYSQL: &str = "delete j, d \
 ///
 /// **This is the one [`Split`] whose second statement is not keyed on the first's row.** A claim, a
 /// push and a dead-letter move each read something the next statement then acts on; here both texts
-/// are the member's own arms, so [`Self::then`] runs whatever [`Self::first`] answered and the
+/// are the member's own arms, so [`Split::then`] runs whatever [`Split::first`] answered and the
 /// member's `bool` is either arm having removed a row. At most one of them can: § 6 *moves* a job,
 /// so an id is in one of § 2's tables and never in both, which is the same fact
 /// [`DELETE_POSTGRES`]'s `union all` rests on.
@@ -2368,19 +2367,24 @@ fn job_of(value: Value, member: &str) -> Result<(u64, String), Fault> {
 #[must_use]
 pub fn runs(driver: nvs_db::Driver) -> bool {
     match driver {
-        nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => true,
-        nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => false,
+        nvs_db::Driver::Postgres
+        | nvs_db::Driver::MySql
+        | nvs_db::Driver::MariaDb
+        | nvs_db::Driver::Sqlite => true,
+        nvs_db::Driver::SqlServer => false,
     }
 }
 
-/// The queue's connection, as the dialect the member's statements are written in.
+/// The queue's connection, as the send path the member's statements go out over.
 ///
-/// **Two arms and not five, because that is how many dialects this module has** — § 2's two
-/// migration lists, and § 4's statements once as PostgreSQL's single-statement text and once as a
-/// [`Split`]. The second arm is [`crate::db::Framed`] rather than a pair of its own: MySQL and
-/// MariaDB are one send path and one dialect here, and that constant's doc owns why a driver
-/// difference that is only the type of the borrow is flattened at the call sites. [`runs`] is the
-/// same roster as a predicate, for the readers that need to ask without holding a connection.
+/// **Three arms where the module has two dialects**, and the third is a *binding* rather than a
+/// spelling: § 4's statements are PostgreSQL's single texts and MySQL's, some of them [`Split`]s,
+/// and SQLite runs that second set — [`STATUS_SQLITE`] and its siblings are those constants aliased.
+/// What it does not share is how a value reaches the statement, and [`Sent`] is where that is
+/// argued. The MySQL and MariaDB arm is [`crate::db::Framed`] for the opposite reason, and that
+/// type's doc owns why a driver difference that is only the type of the borrow is flattened at the
+/// call sites. [`runs`] is the same roster as a predicate, for the readers that need to ask without
+/// holding a connection.
 ///
 /// # Errors
 ///
@@ -2410,6 +2414,7 @@ fn queue_connection<'a>(
         nvs_db::Connection::Postgres(postgres) => Ok(Queued::Postgres(postgres)),
         nvs_db::Connection::MySql(mysql) => Ok(Queued::Framed(crate::db::Framed::MySql(mysql))),
         nvs_db::Connection::MariaDb(maria) => Ok(Queued::Framed(crate::db::Framed::MariaDb(maria))),
+        nvs_db::Connection::Sqlite(sqlite) => Ok(Queued::Sqlite(sqlite)),
         other => Err(no_dialect(member, block, other.driver())),
     }
 }
@@ -2426,6 +2431,11 @@ enum Queued<'a> {
     /// [`INSERT_MYSQL`], [`CLAIM_MYSQL`] and [`DEAD_LETTER_MYSQL`], each a [`Split`] the caller
     /// runs inside one transaction — and MariaDB runs every one of them unchanged.
     Framed(crate::db::Framed<'a>),
+    /// The same texts, and a different way of reaching them: [`INSERT_SQLITE`] is its own literal,
+    /// [`STATUS_SQLITE`] and the rest are MySQL's aliased, and every one of them binds owned
+    /// [`nvs_db::SqliteValue`]s rather than encoded octets ([`Sent`]). The [`Split`]s among them run
+    /// inside the immediate transaction `rule:concurrency/claiming-is-one-statement` names.
+    Sqlite(&'a mut nvs_db::SqliteConn),
 }
 
 /// The refusal a connection this module cannot run its statements over earns.
@@ -2436,14 +2446,13 @@ enum Queued<'a> {
 /// driver arriving here lacks is § 4's and § 6's texts: [`INSERT_POSTGRES`] and [`INSERT_MYSQL`] are
 /// the two this module holds, and [`queue_connection`] is the seam that reaches them.
 ///
-/// **The two arms name two different gaps**, which is why they are two sentences rather than one.
-/// SQLite is one text away — its unique keys read nulls as distinct, so the shape [`schema`]
-/// converges to is already the guarantee `rule:core-classes/queue-storage-is-a-table` states. SQL
-/// Server is two, and the order is that rule's own: two nulls are equal there, so `dedupe_pending`'s
-/// plain unique key admits one released row rather than any number of them, and the vocabulary grows
-/// the filtered index `rule:core-classes/schema-plan` keeps out of v1 before a fourth dialect is
-/// written against it. An operator told that statements are the only thing left would be waiting on
-/// half of what SQL Server needs.
+/// **SQL Server is the one driver this answers for, and what it waits on is two things rather than
+/// one.** The order is `rule:core-classes/queue-storage-is-a-table`'s own: two nulls are equal
+/// there, so `dedupe_pending`'s plain unique key admits one released row rather than any number of
+/// them, and the vocabulary grows the filtered index `rule:core-classes/schema-plan` keeps out of v1
+/// before a fourth dialect is written against it. An operator told that statements are the only
+/// thing left would be waiting on half of what SQL Server needs, which is why the sentence names
+/// both.
 ///
 /// Every arm is spelled rather than left to a `_`, so a sixth driver arrives as a build failure here
 /// instead of as whichever sentence happens to be written last. [`runs`] is the roster the last arm
@@ -2456,16 +2465,11 @@ fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
              `dedupe_pending`'s unique key needs a filtered index the schema vocabulary does not \
              hold yet and § 4's statements are written after it"
         }
-        nvs_db::Driver::Sqlite => {
-            "and the queue does not run its statements over it yet — `nvs queue migrate` converges \
-             `rule:core-classes/queue-storage-is-a-table`'s tables here and § 4's statements are written for this \
-             dialect, but nothing carries a call to one until the members and the worker take a \
-             third arm"
-        }
-        // Unreachable: [`queue_connection`] matches all three of these out before it asks.
-        nvs_db::Driver::Postgres | nvs_db::Driver::MySql | nvs_db::Driver::MariaDb => {
-            "and it is one of the three the queue does run — this is a bug"
-        }
+        // Unreachable: [`queue_connection`] matches every one of these out before it asks.
+        nvs_db::Driver::Postgres
+        | nvs_db::Driver::MySql
+        | nvs_db::Driver::MariaDb
+        | nvs_db::Driver::Sqlite => "and it is one the queue does run — this is a bug",
     };
     Fault::thrown(format!(
         "{member}: `[db.{block}]` is a {} connection, {missing}",
@@ -2530,12 +2534,14 @@ nvs_runtime::nvs_helper! {
         // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like
         // every other value — twice, since it writes it to two columns and a `?` cannot repeat.
         // One array per order over one set of buffers, rather than a second encoding of the same
-        // integers.
-        let dedupe = key.map(String::into_bytes);
-        let tagged = tag.map(String::into_bytes);
-        let queued = queue.clone().into_bytes();
-        let scripted = script.into_bytes();
-        let payloaded = payload.map(String::into_bytes);
+        // integers. A text parameter's octets are the string's own on both dialects, so the four
+        // strings are borrowed and only the numbers are rendered; SQLite takes neither form, and
+        // [`Sent`] is where its own values are built.
+        let dedupe = key.as_deref().map(str::as_bytes);
+        let tagged = tag.as_deref().map(str::as_bytes);
+        let queued = queue.as_bytes();
+        let scripted = script.as_bytes();
+        let payloaded = payload.as_deref().map(str::as_bytes);
         let state = PENDING.to_string().into_bytes();
         let attempts = max_attempts.to_string().into_bytes();
         let backing = backoff.to_string().into_bytes();
@@ -2552,36 +2558,55 @@ nvs_runtime::nvs_helper! {
         let id = match queue_connection(ctx, handle, &block, PUSH)? {
             Queued::Postgres(postgres) => {
                 let bound: [Option<&[u8]>; 10] = [
-                    dedupe.as_deref(),
-                    Some(&queued),
-                    Some(&scripted),
-                    payloaded.as_deref(),
+                    dedupe,
+                    Some(queued),
+                    Some(scripted),
+                    payloaded,
                     Some(&state),
                     Some(&attempts),
                     Some(&backing),
                     Some(&due),
                     Some(&created),
-                    tagged.as_deref(),
+                    tagged,
                 ];
                 push_in_one(postgres, &bound, &block, &mut spans)?
             }
             Queued::Framed(framed) => {
                 let bound: [Option<&[u8]>; 11] = [
-                    Some(&queued),
-                    Some(&scripted),
-                    payloaded.as_deref(),
+                    Some(queued),
+                    Some(scripted),
+                    payloaded,
                     Some(&state),
                     Some(&attempts),
                     Some(&backing),
                     Some(&due),
                     // `dedupe_key` and `dedupe_pending`: one value in two columns, which
                     // `INSERT_MYSQL`'s doc owns and `INSERT_POSTGRES` spells as `$1` twice.
-                    dedupe.as_deref(),
-                    dedupe.as_deref(),
+                    dedupe,
+                    dedupe,
                     Some(&created),
-                    tagged.as_deref(),
+                    tagged,
                 ];
-                push_in_two(framed, dedupe.as_deref(), &bound, &block, &mut spans)?
+                push_in_two(framed, dedupe, &bound, &block, &mut spans)?
+            }
+            // [`INSERT_SQLITE`]'s eleven slots, which are the framed dialect's in the framed
+            // dialect's order — the same value in `dedupe_key` and `dedupe_pending` among them.
+            Queued::Sqlite(sqlite) => {
+                let keyed = sqlite_text(key.as_deref());
+                let values = vec![
+                    sqlite_text(Some(&queue)),
+                    sqlite_text(Some(&script)),
+                    sqlite_text(payload.as_deref()),
+                    nvs_db::SqliteValue::Int(i64::from(PENDING)),
+                    nvs_db::SqliteValue::Int(i64::from(max_attempts)),
+                    nvs_db::SqliteValue::Int(backoff),
+                    nvs_db::SqliteValue::Int(run_at.unwrap_or(now)),
+                    keyed.clone(),
+                    keyed,
+                    nvs_db::SqliteValue::Int(now),
+                    sqlite_text(tag.as_deref()),
+                ];
+                push_in_sqlite(sqlite, key.as_deref(), values, &block, &mut spans)?
             }
         };
         spans.file(ctx);
@@ -2709,6 +2734,164 @@ fn push_in_two(
             Err(failed)
         }
     }
+}
+
+/// [`push_in_two`] on the backend whose parameters are values, and whose transaction is the mutual
+/// exclusion itself.
+///
+/// **The transaction is what makes the read and the insert one moment**, and [`INSERT_SQLITE`] owns
+/// why a deferred one would fail under exactly the concurrency the pair exists to survive:
+/// [`sqlite_opened`] is which level this opens and why.
+///
+/// A push naming no key opens nothing, for [`push_in_two`]'s reason: there is no read for the
+/// insert to be keyed on, so one statement is the whole enqueue.
+///
+/// # Errors
+///
+/// [`insert_refused`] for anything SQLite refused, including the transaction commands, and a
+/// [`Fault::fatal`] for a pending row whose id is not an integer.
+fn push_in_sqlite(
+    sqlite: &mut nvs_db::SqliteConn,
+    dedupe: Option<&str>,
+    values: Vec<nvs_db::SqliteValue>,
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let Some(key) = dedupe else {
+        return sqlite_inserted(sqlite, values, block, spans);
+    };
+    let refused = |failed: &dyn std::fmt::Display| insert_refused(block, failed);
+    sqlite_opened(sqlite, block, &refused, spans)?;
+    match sqlite_deduped(sqlite, key, values, block, spans) {
+        Ok(id) => {
+            let closed = sqlite
+                .commit()
+                .map_err(|refused| insert_refused(block, &refused))?;
+            spans.named(block, closed);
+            Ok(id)
+        }
+        Err(failed) => {
+            // Best effort, and the enqueue's own refusal is what the caller hears, for
+            // [`push_in_two`]'s reason.
+            let _undone = sqlite.roll_back();
+            Err(failed)
+        }
+    }
+}
+
+/// The transaction a [`Split`] runs inside, opened at whichever level the request left the
+/// connection at.
+///
+/// **An immediate transaction where there is none, and a savepoint inside one.**
+/// `nvs_db::SqliteConn::begin_immediate` takes the write lock up front, which is what
+/// `rule:concurrency/claiming-is-one-statement` rests on here, and it is an outermost transaction by
+/// construction: that method refuses a nested level rather than turning it into a savepoint, because
+/// a savepoint holds whatever lock the level around it took. A member called inside the request's
+/// own transaction therefore opens the nested level — the write lock is already held by then, the
+/// pair is still undone as one by a rollback to it, and
+/// `rule:concurrency/enqueue-commits-with-your-write` still commits it with the caller's own write.
+///
+/// # Errors
+///
+/// Whatever `refused` makes of a refusal.
+fn sqlite_opened(
+    sqlite: &nvs_db::SqliteConn,
+    block: &str,
+    refused: &dyn Fn(&dyn std::fmt::Display) -> Fault,
+    spans: &mut Spans,
+) -> Result<(), Fault> {
+    let opened = if sqlite.depth() == 0 {
+        sqlite.begin_immediate()
+    } else {
+        sqlite.begin(None, false)
+    }
+    .map_err(|failed| refused(&failed))?;
+    spans.named(block, opened);
+    Ok(())
+}
+
+/// [`deduped`] on SQLite: the pending key read first, and the insert only if nothing holds it.
+///
+/// # Errors
+///
+/// [`insert_refused`]'s, and a [`Fault::fatal`] for a `first` whose row answered no integer id —
+/// [`deduped`]'s reading of the same column.
+fn sqlite_deduped(
+    sqlite: &mut nvs_db::SqliteConn,
+    key: &str,
+    values: Vec<nvs_db::SqliteValue>,
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    // Scoped, because `nvs_db::SqliteRows` borrows the connection until it is dropped and the
+    // insert below is the second statement of this transaction.
+    let pending = {
+        let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, INSERT_SQLITE.first);
+        let mut answered = sqlite
+            .query(
+                INSERT_SQLITE.first,
+                vec![nvs_db::SqliteValue::Text(key.to_owned())],
+            )
+            .map_err(|refused| insert_refused(block, &refused))?;
+        let mut pending: Option<u64> = None;
+        while let Some(row) = answered.next_row() {
+            span.row();
+            if pending.is_some() {
+                continue;
+            }
+            let Some(nvs_db::SqliteValue::Int(id)) = row.first() else {
+                return Err(Fault::fatal(format!(
+                    "{PUSH}: `{JOBS_TABLE}`.`id` came back as something other than an integer, and \
+                     this module's own schema is what declares it one"
+                )));
+            };
+            pending = u64::try_from(*id).ok();
+        }
+        span.finished(None);
+        spans.named(block, span);
+        pending
+    };
+    if let Some(already) = pending {
+        return Ok(already);
+    }
+    sqlite_inserted(sqlite, values, block, spans)
+}
+
+/// [`INSERT_SQLITE`]'s insert, and the id the connection reports for it.
+///
+/// **The id is `sqlite3_last_insert_rowid` and not a `returning` clause**, for [`CANCEL_SQLITE`]'s
+/// reason: this driver already answers what the text would have to spell, and a clause of its own
+/// would be a difference between [`INSERT_SQLITE`] and the statement it is otherwise a
+/// transcription of.
+///
+/// # Errors
+///
+/// [`insert_refused`]'s, and a [`Fault::fatal`] for an insert the connection reports no row id for.
+fn sqlite_inserted(
+    sqlite: &nvs_db::SqliteConn,
+    values: Vec<nvs_db::SqliteValue>,
+    block: &str,
+    spans: &mut Spans,
+) -> Result<u64, Fault> {
+    let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, INSERT_SQLITE.then);
+    let mut answered = sqlite
+        .query(INSERT_SQLITE.then, values)
+        .map_err(|refused| insert_refused(block, &refused))?;
+    // Drained rather than skipped, for `Core\Db`'s reason: the result set is what holds the
+    // connection until it is done with, and this transaction has a commit after it.
+    while answered.next_row().is_some() {}
+    let landed = answered.last_insert_id();
+    span.finished(Some(answered.affected()));
+    spans.named(block, span);
+    u64::try_from(landed)
+        .ok()
+        .filter(|id| *id != 0)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PUSH}: the insert into `{JOBS_TABLE}` reported no row id, and `0` is how this \
+                 driver spells no row having been inserted on this connection at all"
+            ))
+        })
 }
 
 /// [`Split::first`] and then [`Split::then`], inside the transaction [`push_in_two`] opened.
@@ -2883,9 +3066,11 @@ impl Counted {
 
 /// One statement, on whichever dialect the connection speaks, and the first row's integers.
 ///
-/// **The two texts and their two bindings arrive together**, because a dialect is not only its
+/// **Each send path's text and its own binding arrive together**, because a dialect is not only its
 /// SQL: [`STATUS_MYSQL`] binds four parameters where [`STATUS_POSTGRES`] binds two, and a signature
-/// taking one binding for both would make that impossible to say. What it is *not* is a rewrite —
+/// taking one binding for both would make that impossible to say. SQLite's arrives as a thunk and
+/// not as a value, so a member holding a `String` and an `i64` builds [`Sent`]'s owned values on
+/// the connection that takes them and nowhere else. What it is *not* is a rewrite —
 /// `nvs_db::sql::rewrite` renders one spelling into another, and these are two statements.
 ///
 /// `columns` is how many of the row's columns to read, so `cancel` asks for none and reads
@@ -2896,16 +3081,25 @@ impl Counted {
 /// Whatever `refused` makes of a server's refusal — one wording per member, since what an operator
 /// does about it depends on what was being asked — and a [`Fault::fatal`] for a row narrower than
 /// the result set described it, which is a `nvs-db` bug rather than a program's.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a text and its own binding per send path, plus the row width, the block, the \
+              member's own refusal and § 11's spans"
+)]
 fn counted_row(
     queued: Queued<'_>,
     postgres: (&str, &[Option<&[u8]>]),
     framed: (&str, &[Option<&[u8]>]),
+    sqlite: &dyn Fn() -> Sent,
     columns: usize,
     block: &str,
     refused: &dyn Fn(&dyn std::fmt::Display) -> Fault,
     spans: &mut Spans,
 ) -> Result<Counted, Fault> {
     match queued {
+        Queued::Sqlite(connection) => {
+            sqlite_counted(connection, sqlite(), columns, block, refused, spans)
+        }
         Queued::Postgres(connection) => {
             let mut answered = connection
                 .query(postgres.0, postgres.1)
@@ -2986,6 +3180,148 @@ fn counted_row(
     }
 }
 
+/// § 4's statements as SQLite takes them: the text, and the values typed rather than rendered.
+///
+/// **A form of its own and not a third `&[Option<&[u8]>]`**, because this driver binds a *value*
+/// where the others bind a rendering of one — `nvs_db::SqliteConn::query` takes owned
+/// [`nvs_db::SqliteValue`]s and `crates/nvs-db/src/sqlite.rs`'s `encode` is that conversion for
+/// `Core\Db`. A `?` still binds by position, so the order and the count are [`STATUS_MYSQL`]'s and
+/// the placeholder arithmetic beside it is unchanged.
+/// A receipt's id as the storage class SQLite holds it in.
+///
+/// **Saturating rather than refusing**, where `crates/nvs-db/src/sqlite.rs`'s `encode` refuses: that
+/// one is answering for a value a program wrote, and this is § 2's `integer primary key`, which this
+/// backend cannot have issued past [`i64::MAX`]. A receipt that large names no row, so the statement
+/// it goes into answers nothing — which is the member's own *no such job* answer rather than a
+/// second wording of it.
+fn sqlite_id(id: u64) -> nvs_db::SqliteValue {
+    nvs_db::SqliteValue::Int(i64::try_from(id).unwrap_or(i64::MAX))
+}
+
+/// A queue, a tag or a payload as SQLite holds it: `TEXT`, or the `NULL` an absent option is.
+fn sqlite_text(text: Option<&str>) -> nvs_db::SqliteValue {
+    text.map_or(nvs_db::SqliteValue::Null, |held| {
+        nvs_db::SqliteValue::Text(held.to_owned())
+    })
+}
+
+enum Sent {
+    /// One statement, whose row and count are the member's whole answer.
+    One(&'static str, Vec<nvs_db::SqliteValue>),
+    /// A [`Split`]'s two statements and the values each of them binds, whose counts add up —
+    /// [`DELETE_SQLITE`], the one member with no single-statement shape on this backend.
+    Pair(Split, Vec<nvs_db::SqliteValue>, Vec<nvs_db::SqliteValue>),
+}
+
+/// [`counted_row`]'s SQLite arm, and the one that may open a transaction of its own.
+///
+/// **A [`Sent::Pair`] is one moment because of the transaction and not because of the text**, which
+/// is `rule:concurrency/claiming-is-one-statement`'s mechanism on this backend and
+/// [`DELETE_SQLITE`]'s own argument for why the pair may not be run as two. Which transaction that
+/// is, and why a deferred one would fail under exactly the concurrency it exists to survive, is
+/// [`sqlite_opened`]'s.
+///
+/// # Errors
+///
+/// Whatever `refused` makes of a refusal, including the transaction commands'.
+fn sqlite_counted(
+    sqlite: &mut nvs_db::SqliteConn,
+    sent: Sent,
+    columns: usize,
+    block: &str,
+    refused: &dyn Fn(&dyn std::fmt::Display) -> Fault,
+    spans: &mut Spans,
+) -> Result<Counted, Fault> {
+    let (split, first, then) = match sent {
+        Sent::One(sql, values) => {
+            return sqlite_statement(sqlite, sql, values, columns, block, refused, spans);
+        }
+        Sent::Pair(split, first, then) => (split, first, then),
+    };
+    sqlite_opened(sqlite, block, refused, spans)?;
+    let both = match sqlite_statement(sqlite, split.first, first, 0, block, refused, spans) {
+        Ok(head) => {
+            sqlite_statement(sqlite, split.then, then, 0, block, refused, spans).map(|tail| {
+                Counted {
+                    row: None,
+                    affected: Some(
+                        head.affected
+                            .unwrap_or(0)
+                            .saturating_add(tail.affected.unwrap_or(0)),
+                    ),
+                }
+            })
+        }
+        Err(failed) => Err(failed),
+    };
+    match both {
+        Ok(counted) => {
+            let closed = sqlite.commit().map_err(|failed| refused(&failed))?;
+            spans.named(block, closed);
+            Ok(counted)
+        }
+        Err(failed) => {
+            // Best effort, and the member's own refusal is what the caller hears — [`push_in_two`]
+            // states the reading, and a poisoned connection is `nvs-db`'s to close either way.
+            let _undone = sqlite.roll_back();
+            Err(failed)
+        }
+    }
+}
+
+/// One SQLite statement, drained, with § 11's span opened here rather than by the driver.
+///
+/// **The count is a write's and never a read's.** `nvs_db::SqliteRows::affected` answers what the
+/// last data-changing statement on this *connection* reported, so a `select` would read whatever
+/// wrote before it; a member asking for columns is asking for a row, and [`Counted::touched`] is
+/// not what it reads. `crates/nvs-stdlib/src/db/execute.rs`'s two SQLite walks split the same way
+/// and for the same reason.
+///
+/// The span is this module's on this backend alone, for that module's reason: there is no round
+/// trip for a driver-side one to time, and what it does time is the handoff to `nvs_host::blocking`
+/// and back.
+///
+/// # Errors
+///
+/// Whatever `refused` makes of a refusal.
+fn sqlite_statement(
+    sqlite: &nvs_db::SqliteConn,
+    sql: &str,
+    values: Vec<nvs_db::SqliteValue>,
+    columns: usize,
+    block: &str,
+    refused: &dyn Fn(&dyn std::fmt::Display) -> Fault,
+    spans: &mut Spans,
+) -> Result<Counted, Fault> {
+    let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, sql);
+    let mut answered = sqlite
+        .query(sql, values)
+        .map_err(|failed| refused(&failed))?;
+    let mut row: Option<Vec<Option<i64>>> = None;
+    // Every row is read for [`counted_row`]'s reason, and here the set is in hand before the first
+    // one is looked at: this driver steps the whole result on the blocking pool.
+    while let Some(reading) = answered.next_row() {
+        span.row();
+        if row.is_some() {
+            continue;
+        }
+        row = Some(
+            reading
+                .into_iter()
+                .take(columns)
+                .map(|cell| match cell {
+                    nvs_db::SqliteValue::Int(number) => Some(number),
+                    _ => None,
+                })
+                .collect(),
+        );
+    }
+    let affected = (columns == 0).then(|| answered.affected());
+    span.finished(affected);
+    spans.named(block, span);
+    Ok(Counted { row, affected })
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Queue::status(Queue\Id $job): Queue\State` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
@@ -3032,6 +3368,18 @@ nvs_runtime::nvs_helper! {
             // The same two values a second time, which is [`STATUS_MYSQL`]'s whole difference: a
             // `?` cannot be named twice where a `$1` can.
             (STATUS_MYSQL, &twice),
+            // That text and that order, bound as values rather than as their octets.
+            &|| {
+                Sent::One(
+                    STATUS_SQLITE,
+                    vec![
+                        sqlite_id(id),
+                        sqlite_text(Some(&queue)),
+                        sqlite_id(id),
+                        sqlite_text(Some(&queue)),
+                    ],
+                )
+            },
             1,
             &block,
             &refused_by_server,
@@ -3126,6 +3474,7 @@ nvs_runtime::nvs_helper! {
             queue_connection(ctx, handle, &block, CANCEL_OF)?,
             (CANCEL_POSTGRES, &bound),
             (CANCEL_MYSQL, &bound),
+            &|| Sent::One(CANCEL_SQLITE, vec![sqlite_id(id), sqlite_text(Some(&queue))]),
             0,
             &block,
             &refused_by_server,
@@ -3205,6 +3554,13 @@ nvs_runtime::nvs_helper! {
             queue_connection(ctx, handle, &block, DELETE_OF)?,
             (DELETE_POSTGRES, &bound),
             (DELETE_MYSQL, &bound),
+            // The one member that is a pair on this backend, and each arm binds the receipt for
+            // itself: [`DELETE_SQLITE`] owns why neither other dialect's construct exists here, and
+            // the two counts add up to the same `bool` a single statement answers with.
+            &|| {
+                let receipt = vec![sqlite_id(id), sqlite_text(Some(&queue))];
+                Sent::Pair(DELETE_SQLITE, receipt.clone(), receipt)
+            },
             0,
             &block,
             &refused_by_server,
@@ -3319,16 +3675,21 @@ fn purge_before_of(args: &[Value]) -> Result<Option<i64>, Fault> {
     )))
 }
 
-/// The two dialects' texts for a selection, and the table they remove from.
+/// Each send path's text for a selection, and the table they remove from.
 ///
 /// A function rather than a `match` inside the member, because *which table a selection reads* is
 /// the half of `rule:concurrency/queue-deletion-is-explicit-and-bounded` that a statement's own
 /// text cannot state: [`PURGE_DEAD_POSTGRES`] naming [`DEAD_TABLE`] says nothing about which call
 /// is routed to it.
-fn purge_texts(selection: Selection) -> (&'static str, &'static str, &'static str) {
+fn purge_texts(selection: Selection) -> (&'static str, &'static str, &'static str, &'static str) {
     match selection {
-        Selection::Jobs(_) => (PURGE_POSTGRES, PURGE_MYSQL, JOBS_TABLE),
-        Selection::Dead => (PURGE_DEAD_POSTGRES, PURGE_DEAD_MYSQL, DEAD_TABLE),
+        Selection::Jobs(_) => (PURGE_POSTGRES, PURGE_MYSQL, PURGE_SQLITE, JOBS_TABLE),
+        Selection::Dead => (
+            PURGE_DEAD_POSTGRES,
+            PURGE_DEAD_MYSQL,
+            PURGE_DEAD_SQLITE,
+            DEAD_TABLE,
+        ),
     }
 }
 
@@ -3388,9 +3749,11 @@ nvs_runtime::nvs_helper! {
         // Shared, for `delete`'s reason: removing on a second connection would be removing from
         // outside whatever transaction the request has open on the first.
         let handle = crate::db::open_named(ctx, &block, true, None, PURGE_OF)?;
-        let (postgres, framed_text, table) = purge_texts(selection);
+        let (postgres, framed_text, sqlite_sql, table) = purge_texts(selection);
         let queue_sent = queue.clone().into_bytes();
-        let tag_sent = tag.map(String::into_bytes);
+        // Cloned as the queue is, because the values below are one rendering of this option and the
+        // SQLite binding is the option itself.
+        let tag_sent = tag.clone().map(String::into_bytes);
         let before_sent = before.map(|at| at.to_string().into_bytes());
         let limit_sent = limit.to_string().into_bytes();
         let sending: Vec<Option<Vec<u8>>> = match selection {
@@ -3431,6 +3794,25 @@ nvs_runtime::nvs_helper! {
             queue_connection(ctx, handle, &block, PURGE_OF)?,
             (postgres, &bound),
             (framed_text, &framed),
+            // The framed dialect's slots over the framed dialect's text, as values: the `repeated`
+            // list above is the same arithmetic, so what changes is what a slot holds.
+            &|| {
+                let queued = sqlite_text(Some(&queue));
+                let tagged = sqlite_text(tag.as_deref());
+                let aged = before.map_or(nvs_db::SqliteValue::Null, nvs_db::SqliteValue::Int);
+                let bounded = nvs_db::SqliteValue::Int(i64::try_from(limit).unwrap_or(i64::MAX));
+                let base = match selection {
+                    Selection::Jobs(state) => vec![
+                        queued,
+                        state.map_or(nvs_db::SqliteValue::Null, nvs_db::SqliteValue::Int),
+                        tagged,
+                        aged,
+                        bounded,
+                    ],
+                    Selection::Dead => vec![queued, tagged, aged, bounded],
+                };
+                Sent::One(sqlite_sql, repeated.iter().map(|at| base[*at].clone()).collect())
+            },
             0,
             &block,
             &refused_by_server,
@@ -3499,6 +3881,13 @@ nvs_runtime::nvs_helper! {
             // The queue a second time, for [`STATUS_MYSQL`]'s reason: the dead-letter subquery and
             // the aggregate's own `where` each bind their own `?`.
             (COUNTS_MYSQL, &twice),
+            // That text, and the queue twice for its reason.
+            &|| {
+                Sent::One(
+                    COUNTS_SQLITE,
+                    vec![sqlite_text(Some(&queue)), sqlite_text(Some(&queue))],
+                )
+            },
             4,
             &block,
             &refused_by_server,
@@ -4231,8 +4620,12 @@ mod tests {
                 );
                 continue;
             };
-            let (postgres, framed, table) = purge_texts(selection);
-            for (dialect, sql) in [("postgres", postgres), ("mysql", framed)] {
+            let (postgres, framed, sqlite, table) = purge_texts(selection);
+            for (dialect, sql) in [
+                ("postgres", postgres),
+                ("mysql", framed),
+                ("sqlite", sqlite),
+            ] {
                 assert!(
                     sql.contains("state <> 1") || table == DEAD_TABLE,
                     "{dialect}: `{case}` selects a text that could remove a claimed row: {sql}"
@@ -4323,10 +4716,14 @@ mod tests {
             let Ok(selection) = purge_state_of(&purge_reading(Value::int(*ordinal))) else {
                 continue;
             };
-            let (postgres, framed, table) = purge_texts(selection);
+            let (postgres, framed, sqlite, table) = purge_texts(selection);
             if *case == "Dead" {
                 reading += 1;
-                for (dialect, sql) in [("postgres", postgres), ("mysql", framed)] {
+                for (dialect, sql) in [
+                    ("postgres", postgres),
+                    ("mysql", framed),
+                    ("sqlite", sqlite),
+                ] {
                     assert!(
                         table == DEAD_TABLE
                             && sql.contains(DEAD_TABLE)

@@ -75,11 +75,12 @@ struct Leg {
 /// This process's leg, when it names a driver [`queue::runs`] answers for.
 ///
 /// Three shapes of `None` and none of them is a failure: no harness at all; a
-/// leg reached by path rather than over a socket, which is SQLite; and a leg
+/// leg reached by path rather than over a socket, which is SQLite, whose own
+/// statements are executed by `queue_sqlite.rs` beside this file; and a leg
 /// naming a driver the queue has § 2's schema for but no statements — which is
-/// SQLite again and SQL Server, and is what [`queue::runs`] is asked. The
-/// per-case gates below narrow it once more, because a case is written against
-/// one dialect's spelling even where both have one.
+/// SQL Server, and is what [`queue::runs`] is asked. The per-case gates below
+/// narrow it once more, because a case is written against one dialect's
+/// spelling even where both have one.
 fn endpoint() -> Option<Leg> {
     let endpoint = matrix::endpoint()?;
     let Location::Server(server) = endpoint.location else {
