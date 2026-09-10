@@ -35,10 +35,11 @@ the same rule for a refusal site, and `gaps.py` for a missing conformance case.
     conflating the two is what made a hundred-odd careful sentences read as a hundred-odd problems.
     The milestone must exist and must not be `done` in the plan's table.
 
-*   **`unowned`**, which requires a bullet in `carried-gaps.md` § *Unowned* naming the module's
-    path. That bullet carries the reason, and the reason names what has to be *decided* -- "nobody
-    has got to it" is not one. Unowned is a legitimate state and a scheduling question for the
-    user; it is never the absence of an answer.
+*   **`unowned`**, which requires a bullet naming the module's path in one of the two files that
+    hold a reason: `carried-gaps.md` § *Unowned*, or `carried-refusals.md` for a gap whose sites
+    `holes.py` already carries. That bullet carries the reason, and the reason names what has to be
+    *decided* -- "nobody has got to it" is not one. Unowned is a legitimate state and a scheduling
+    question for the user; it is never the absence of an answer.
 
 **The gate has no allowlist, and it arrives in three pieces.** A tag that resolves to nothing --
 naming no goal on the chain, a milestone that is absent or `done`, or a word that is none of the
@@ -81,6 +82,7 @@ import orient as orientmod  # noqa: E402  -- section slicing lives there and is 
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 CARRIED_GAPS = ROOT / "docs" / "agent" / "carried-gaps.md"
+CARRIED_REFUSALS = ROOT / "docs" / "agent" / "carried-refusals.md"
 
 #: Where a gap may be recorded. A crate's own source and nothing else: a gap in a tool or a doc has
 #: no module doc to live in, and `carried-gaps.md` is where those go.
@@ -219,16 +221,26 @@ def milestones() -> dict[str, str]:
 
 
 def unowned_paths() -> set[str]:
-    """The module paths named by a `carried-gaps.md` § *Unowned* bullet.
+    """The module paths a reason names, in either of the two files that hold one.
 
     A bullet is prose and stays prose; what makes it machine-readable is that it already names the
     file whose module doc owns the detail, because the contract's fourth rule asks it to point
     rather than restate. So the link is the path, and no key has to be invented for either side.
+
+    `carried-gaps.md` § *Unowned* is one such file and `carried-refusals.md` is the other, whole:
+    a refusal site's reason is written there in full, and the goal's § *Standing decisions* is why
+    copying it under § *Unowned* to satisfy this reader would be the second index the gate exists
+    to end.
     """
-    if not CARRIED_GAPS.is_file():
-        return set()
-    section = orientmod.slice_section(CARRIED_GAPS.read_text(encoding="utf-8"), "Unowned") or ""
-    return set(re.findall(r"crates/[A-Za-z0-9_\-./]+\.rs", section))
+    found: set[str] = set()
+    for path, heading in ((CARRIED_GAPS, "Unowned"), (CARRIED_REFUSALS, None)):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if heading is not None:
+            text = orientmod.slice_section(text, heading) or ""
+        found |= set(re.findall(r"crates/[A-Za-z0-9_\-./]+\.rs", text))
+    return found
 
 
 def collect() -> list[dict]:
@@ -267,9 +279,9 @@ def classify(found: list[dict]) -> dict:
             if gap["file"] in paths:
                 out["unowned"].append(gap)
             else:
-                out["unreasoned"].append({**gap, "why": "`unowned` with no bullet in "
-                                                        "carried-gaps.md § *Unowned* naming this "
-                                                        "file"})
+                out["unreasoned"].append({**gap, "why": "`unowned` with no reason naming this file, "
+                                                        "in carried-gaps.md § *Unowned* or in "
+                                                        "carried-refusals.md"})
         elif MILESTONE.match(owner):
             carried = plan.get(owner)
             if carried is None:
@@ -349,7 +361,8 @@ def report(kinds: dict, found: list[dict]) -> None:
     if not kinds["milestone"]:
         print("  none")
 
-    print("\n== UNOWNED -- the scheduling questions, each with its reason in carried-gaps.md")
+    print("\n== UNOWNED -- the scheduling questions, each with its reason in carried-gaps.md "
+          "or carried-refusals.md")
     for gap in kinds["unowned"]:
         print(line_of(gap))
     if not kinds["unowned"]:
@@ -427,7 +440,7 @@ def main() -> int:
         for gap in kinds["unowned"]:
             print(line_of(gap))
         print(f"\n  {len(kinds['unowned'])} item(s), each with its reason in "
-              f"docs/agent/carried-gaps.md § *Unowned*")
+              f"docs/agent/carried-gaps.md § *Unowned* or docs/agent/carried-refusals.md")
         return 0
     report(kinds, found)
     return 0
