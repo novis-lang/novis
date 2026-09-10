@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">An image is an immutable value carrying a plan — nothing decodes until a terminal runs it, under a cap read off the header.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#uri-removable-components"><code>Core\Uri</code> spends the omitted-versus-null distinction on three components and on one query parameter at a time</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pipeline">An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pixel-model">Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-format-roster">The format roster is a closed table of decoders and encoders, each naming what implements it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pixel-cap">The pixel cap is read off the header before a buffer is allocated, and a call may only lower it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-correct-by-default"><code>open</code> orients and converts to sRGB, and <code>encode</code> strips metadata unless the plan kept it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-one-entry-point-per-job">Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#uri-removable-components"><code>Core\Uri</code> spends the omitted-versus-null distinction on three components and on one query parameter at a time</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#decompression-bound">Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pipeline">An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pixel-model">Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-format-roster">The format roster is a closed table of decoders and encoders, each naming what implements it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-pixel-cap">The pixel cap is read off the header before a buffer is allocated, and a call may only lower it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-correct-by-default"><code>open</code> orients and converts to sRGB, and <code>encode</code> strips metadata unless the plan kept it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#image-one-entry-point-per-job">Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="uri-removable-components">
 
@@ -46,16 +46,61 @@ close it, composing the three existing members so no second canonicalization exi
 `null` value removes the parameter, the bracket convention comes free because a value may itself be
 an array, and removing the last parameter leaves no query at all rather than a bare `?`.
 
-**Not shipped.** `crates/nvs-stdlib/src/uri.rs` records it as a known gap: `with`'s option types are
-non-nullable, so an omitted key and a written `null` arrive identically, and the two parameter
-members do not exist.
+**The first level is shipped and the second is not.** `crates/nvs-stdlib/src/uri.rs`'s `with` takes
+`port`, `query` and `fragment` as `?T` and its `removable` helper reads the three states; the two
+query-parameter members do not exist yet, and that module's known gap 1 is what records them.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>There is no <code>parse_url</code>/<code>http_build_query</code> round trip to lose a component in — removing one is a written <code>null</code>, and an empty query is a different value from no query</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#signature" title="Core\Signature signs a canonicalized payload, and the lifetime rides inside the signed bytes"><code>core-classes/signature</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md">record 0146</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst"><code>tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst"><code>tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#signature" title="Core\Signature signs a canonicalized payload, and the lifetime rides inside the signed bytes"><code>core-classes/signature</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0146.md">record 0146</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst"><code>tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst"><code>tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"><code>tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"><code>tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="decompression-bound">
+
+## Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#decompression-bound"><code>core-classes/decompression-bound</code></a>
+</div>
+
+Every decompression runs under an absolute output ceiling and a ratio of output to input, and a
+call may lower either and raise neither. The two are one bound: an absolute ceiling alone is one
+every request may reach whatever it sent, and a ratio alone lets a large input buy a proportionately
+large output, so what a decode compares against is `min(input × ratio, ceiling)`.
+
+`[limits] max_decompressed` and `[limits] max_decompression_ratio` carry the ceiling, default to
+64 MiB and 1000:1, and are `System`-class — an operator's decision, never a request's. A call names
+`$maxBytes` and `$maxRatio` to ask for less, and gets the smaller of the ask and the configured
+value on each axis independently. **There is no spelling for an unbounded decompression**: not an
+argument, since the largest `uint` is still clamped and `0` is a bound of zero; and not a
+configuration, since `false` — which [`config/three-changeability-classes`](/docs/rules/config/changeability-classes/#three-changeability-classes "nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes") reads as "no ceiling"
+for the limits a request may raise — reads here as the shipped default.
+
+A breach throws rather than truncating, because a truncated decompression that looks like success is
+the failure this bound exists to prevent. The throw is a `ParseError` naming this rule, never an
+`IOError`: a hostile archive and a failing disk are different questions, and a caller that cannot
+tell them apart retries the one it should have refused. The bound is applied while the output grows
+rather than to a buffer already allocated, so a bomb costs the ceiling and never the size its own
+header claims.
+
+`Core\Compress` and `Core\Zip` share this one rule, and `Core\Zip` applies it per entry *and* across
+the archive — an archive whose entries are each within the bound and whose total is not is the same
+attack one level up. This is why both classes are Tier 0 rather than sandboxed components
+([`core-api/tier-roster`](/docs/rules/core-api/what-belongs-in-core/#tier-roster "Every subsystem's tier is recorded once in the roster, including the ones no milestone has built")): a sandboxed decoder gets a memory cap for free and this rule not at
+all.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>$max_length</code> was optional and defaulted to unlimited, so the safe call was the one the caller had to remember to write</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/what-belongs-in-core/#tier-roster" title="Every subsystem's tier is recorded once in the roster, including the ones no milestone has built"><code>core-api/tier-roster</code></a> <a href="/docs/rules/config/changeability-classes/#three-changeability-classes" title="nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes"><code>config/three-changeability-classes</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0166.md">record 0166</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst"><code>tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst"><code>tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/compress.rs"><code>crates/nvs-stdlib/src/compress.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/zip.rs"><code>crates/nvs-stdlib/src/zip.rs</code></a></dd></div></dl>
 
 </div>
 

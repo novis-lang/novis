@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Every developer-facing output is one closed record. Five producers build it, and the sink in force picks the rendering.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">7</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#diagnostic-record">Every developer-facing output is one closed record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#record-producers">Five producers build the one record</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#record-transformations">Redaction, control bytes, bidi and elision are decided in the record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#renderings">The sink in force picks the rendering, and no call site may name one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-render-hook">A class cannot change how it is dumped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#debug-dump">A dump goes to the log, and reaches a response body only in development</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-write">One write path, and the engine floor is its other caller</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#log-level">Five levels, and the mapping to syslog is fixed</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-fields">A record's fields are named and typed, not a stringly bag</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#diagnostic-record">Every developer-facing output is one closed record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#record-producers">Five producers build the one record</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-record-names-where-it-was-produced">A record names the file, line and member it was produced at, and a <code>Throwable</code>'s location is that same datum</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#record-transformations">Redaction, control bytes, bidi and elision are decided in the record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#renderings">The sink in force picks the rendering, and no call site may name one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-render-hook">A class cannot change how it is dumped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#debug-dump">A dump goes to the log, and reaches a response body only in development</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-write">One write path, and the engine floor is its other caller</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#log-level">Five levels, and the mapping to syslog is fixed</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-fields">A record's fields are named and typed, not a stringly bag</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-repeat-is-bounded-at-the-sink-that-suffers">A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="diagnostic-record">
 
@@ -85,6 +85,44 @@ most-read diagnostic output in any language, and leaving it outside would have m
 implementation of [`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record").
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#debug-dump" title="A dump goes to the log, and reaches a response body only in development"><code>errors/debug-dump</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-record-names-where-it-was-produced">
+
+## A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-record-names-where-it-was-produced"><code>errors/a-record-names-where-it-was-produced</code></a>
+</div>
+
+A record's envelope carries where it was produced — the file as the program named it, its one-based
+line, and the enclosing `Class::member` where there is one — filled by the producer from a constant
+the compiler already knows, and a `Throwable`'s `location` is that same datum rather than a second
+spelling of it.
+
+Two spellings of "where" that could disagree would be worse than one that was missing, so there is
+one construction with two readers. A producer that has no source to give omits the field, on the
+envelope's existing rule that an absent field is omitted rather than rendered empty.
+
+**No stack is captured per record.** Where a trace is active the record already carries `span_id`
+([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](/docs/rules/observability/metrics/#a-log-record-carries-trace-ids-when-a-trace-is-active "A log record inside an active trace carries trace_id and span_id, and outside one omits both rather than writing them empty")) and the trace already
+records call entry and exit at every call site, so *how execution arrived* is reconstructable for
+exactly the sessions that asked for a trace. Where one is not, the file, line and member are the
+answer, and they are enough to open an editor in the right place. Matching PHP's snapshot-the-whole-
+stack behaviour would need a walk of Novis's own frame chain and is not bought here.
+
+The cost stays where [`errors/propagation`](/docs/rules/errors/how-an-error-travels/#propagation "An error propagates as a checked return, never by unwinding") put it. A `source` is read at the call that produces a
+record, never maintained as running state, so no path that produces no record pays anything for it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>No stack is captured per record, where <code>getTrace</code> snapshots the whole stack at construction; the call path is the trace's answer and a record carries only where it was produced</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-producers" title="Five producers build the one record"><code>errors/record-producers</code></a> <a href="/docs/rules/errors/how-an-error-travels/#propagation" title="An error propagates as a checked return, never by unwinding"><code>errors/propagation</code></a> <a href="/docs/rules/observability/metrics/#a-log-record-carries-trace-ids-when-a-trace-is-active" title="A log record inside an active trace carries trace_id and span_id, and outside one omits both rather than writing them empty"><code>observability/a-log-record-carries-trace-ids-when-a-trace-is-active</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0165.md">record 0165</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-record-names-the-member-it-was-produced-in.nvst"><code>tests/conformance/core/a-record-names-the-member-it-was-produced-in.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.nvst"><code>tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/throwable.rs"><code>crates/nvs-runtime/src/throwable.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/source.rs"><code>crates/nvs-runtime/src/source.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -338,5 +376,43 @@ A record is charged to the request's budget, and a record shed under burst press
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0076.md">record 0076</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-write-omits-an-empty-fields-object.nvst"><code>tests/conformance/core/log-write-omits-an-empty-fields-object.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst"><code>tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-repeat-is-bounded-at-the-sink-that-suffers">
+
+## A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-repeat-is-bounded-at-the-sink-that-suffers"><code>errors/a-repeat-is-bounded-at-the-sink-that-suffers</code></a>
+</div>
+
+A run of identical records is bounded at the sink that would suffer from it, and each sink answers
+for what is scarce in it: a disk-bounded target coalesces before the write, and an indexed target
+stores every occurrence and groups them at read time.
+
+[`http-server/the-floor-cannot-fill-the-disk`](/docs/rules/http-server/containment/#the-floor-cannot-fill-the-disk "The floor cannot fill the disk it writes to: a file target rotates under a retention bound, repeats coalesce into one record with a count, and a cache write failure compiles in memory") puts the bound on the sink rather than on the
+caller "so that no caller has to be trusted to be rare", and that holds here unchanged. What differs
+is what each sink is protecting. The diagnostic log's bound is a finite disk, and the cheapest place
+to protect one is before the bytes exist. The debug stream's bound is an index that holds a million
+rows without complaint, so merging occurrences before storing them would spend the developer's
+information to save nothing scarce — its ingester already computes a per-record hash, and the viewer
+collapses a run into one row saying how many it stands for, which expands.
+
+**The log target's window is a small fixed table, not the floor's single slot.** The floor keeps one
+because a fault loop repeats one record; application code interleaves, and a single slot coalesces
+none of that. Memory stays a constant, just a larger one.
+
+The identity is the floor's: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count` are
+cleared before hashing, because those are what distinguish two occurrences of one thing. Everything
+else counts, `source` included — two identical messages from two lines are two facts. **A record that
+differs is written immediately and never held behind a window**, and the next occurrence after a
+window closes carries how many it stands for.
+
+Coalescing bounds what is *stored*, not what is *spent*: a duplicate is only known to be one after
+its record has been built and rendered, so a loop still pays for every record it makes.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/http-server/containment/#the-floor-cannot-fill-the-disk" title="The floor cannot fill the disk it writes to: a file target rotates under a retention bound, repeats coalesce into one record with a count, and a cache write failure compiles in memory"><code>http-server/the-floor-cannot-fill-the-disk</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-fields" title="A record's fields are named and typed, not a stringly bag"><code>errors/log-fields</code></a> <a href="/docs/rules/testing/coverage-and-probes/#the-ingester-runs-whether-or-not-anyone-is-looking" title="The ingester owns every write to the index and runs without a browser, and the viewer only ever reads"><code>testing/the-ingester-runs-whether-or-not-anyone-is-looking</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0165.md">record 0165</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/floor.rs"><code>crates/nvs-runtime/src/floor.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/log.rs"><code>crates/nvs-stdlib/src/log.rs</code></a></dd></div></dl>
 
 </div>

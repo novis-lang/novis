@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Two first-party extensions that perform no I/O and write nothing a reader would execute, byte-identical for equal input.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">11</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">14</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">13</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#pdf-render-has-no-io">PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-one-engine">The only input language is HTML plus a CSS subset, and every backend answers that one interface</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-css-subset">The CSS subset is documented, and the render result lists every declaration it dropped</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#pdf-output-is-inert">The writer emits nothing a reader would execute, and equal input gives byte-equal output</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#pdf-page-is-an-image-source">A PDF page is a decode-only format of the image component: one page per <code>open</code>, priced by the pixel cap</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-decode-refusals">An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spreadsheet-has-no-io">The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-formula-is-a-value">Only an explicit <code>Formula</code> value writes a formula cell, so an export built from user data is inert</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-bulk-boundary">A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-evaluation-and-roster">The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spreadsheet-output-is-inert">The writer embeds no executable content and no entropy, so equal input gives byte-equal output</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#pdf-render-has-no-io">PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-one-engine">The only input language is HTML plus a CSS subset, and every backend answers that one interface</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-css-subset">The CSS subset is documented, and the render result lists every declaration it dropped</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#pdf-output-is-inert">The writer emits nothing a reader would execute, and equal input gives byte-equal output</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#pdf-page-is-an-image-source">A PDF page is a decode-only format of the image component: one page per <code>open</code>, priced by the pixel cap</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#pdf-decode-refusals">An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spreadsheet-has-no-io">The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-formula-is-a-value">Only an explicit <code>Formula</code> value writes a formula cell, so an export built from user data is inert</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-bulk-boundary">A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#spreadsheet-evaluation-and-roster">The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#spreadsheet-output-is-inert">The writer embeds no executable content and no entropy, so equal input gives byte-equal output</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#net-one-api-three-transports"><code>Core\Net</code> is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#net-a-socket-does-not-outlive-its-request">A <code>Core\Net</code> socket closes with the request that opened it, so there is no persistent connection and no pool across requests</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#net-udp-carries-no-reliability-layer">A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="pdf-render-has-no-io">
 
@@ -385,5 +385,98 @@ compare bytes ends up comparing nothing.
 **Not shipped.** There is no spreadsheet package in the tree.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/pdf-and-spreadsheets/#pdf-output-is-inert" title="The writer emits nothing a reader would execute, and equal input gives byte-equal output"><code>core-classes/pdf-output-is-inert</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#spreadsheet-evaluation-and-roster" title="The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call"><code>core-classes/spreadsheet-evaluation-and-roster</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0123.md">record 0123</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0121.md">record 0121</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="net-one-api-three-transports">
+
+## `Core\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#net-one-api-three-transports"><code>core-classes/net-one-api-three-transports</code></a>
+</div>
+
+`Core\Net` is the whole socket surface, replacing PHP's `socket_*`, `stream_socket_*` and `fsockopen`
+with one class over three transports: TCP, UDP and Unix-domain sockets. A program reaches them through
+five entry points — an outbound TCP connection, a listening TCP socket, a bound UDP socket, an
+outbound Unix-domain connection and a listening Unix-domain socket — and accepting is a member on the
+listener rather than a sixth way in.
+
+**No entry point decides between transports by reading its argument.** A host and a socket path are
+separate members taking separately-typed arguments, so [`security/a-path-is-not-a-url`](/docs/rules/security/closed-doors/#a-path-is-not-a-url "A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one")'s refusal —
+no member dispatches on the textual content of a path — holds by construction rather than by a check.
+That is why the surface is five members where PHP has two: `stream_socket_client("unix://…")` and
+`stream_socket_client("tcp://…")` are one function distinguished by a prefix, and the second member is
+the security property.
+
+Every one of those sockets parks on the runtime's own reactor. `crates/nvs-host/src/net.rs` is the
+contract they share — a `Read` and a `Write` that hand the core back instead of blocking it — and
+`crates/nvs-host/src/reactor.rs` is its readiness half. A second event loop is never the answer: it
+would be a second poll structure whose fairness, shutdown, deadline and drain semantics must be made
+to agree with the reactor's by hand, and whose disagreements appear only under load, which is what
+[`concurrency/one-scheduler`](/docs/rules/concurrency/tasks/#one-scheduler "Concurrency is the Core\Task roster over the runtime's own single scheduler") refuses for the scheduler on the same ground. A shape that cannot be
+expressed over the reactor is cut, not given a loop of its own.
+
+The connected transports answer a `Read` and a `Write` shaped like every other stream in the language.
+A datagram socket does not, because it has no stream to read: it sends and receives whole messages,
+addressed one at a time.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/scopes-and-denial/#net-listen-is-a-separate-grant-from-net-connect" title="The grant follows what the program is doing rather than the transport: reaching out is net.connect, binding is net.listen, and neither widens the other"><code>security/net-listen-is-a-separate-grant-from-net-connect</code></a> <a href="/docs/rules/security/closed-doors/#a-path-is-not-a-url" title="A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one"><code>security/a-path-is-not-a-url</code></a> <a href="/docs/rules/concurrency/tasks/#one-scheduler" title="Concurrency is the Core\Task roster over the runtime's own single scheduler"><code>concurrency/one-scheduler</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#net-udp-carries-no-reliability-layer" title="A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them"><code>core-classes/net-udp-carries-no-reliability-layer</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0162.md">record 0162</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/net-a-tcp-echo-round-trips-over-the-reactor.nvst"><code>tests/conformance/core/net-a-tcp-echo-round-trips-over-the-reactor.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/net-a-closed-socket-refuses-every-member-that-needs-it.nvst"><code>tests/conformance/core/net-a-closed-socket-refuses-every-member-that-needs-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/net-a-read-is-bounded-by-its-max-and-leaves-the-rest.nvst"><code>tests/conformance/core/net-a-read-is-bounded-by-its-max-and-leaves-the-rest.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/net-no-door-reads-a-transport-out-of-its-argument.nvst"><code>tests/conformance/core/net-no-door-reads-a-transport-out-of-its-argument.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="net-a-socket-does-not-outlive-its-request">
+
+## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#net-a-socket-does-not-outlive-its-request"><code>core-classes/net-a-socket-does-not-outlive-its-request</code></a>
+</div>
+
+A socket opened through `Core\Net` closes with the request that opened it. There is no persistent
+connection, no pool held across requests and no handle a later request can find, which is
+[`security/no-cross-request-state`](/docs/rules/security/closed-doors/#no-cross-request-state "Nothing a request does is observable by another request except through an explicit, capability-gated store") applied to the one subsystem whose PHP ancestor offered the
+opposite: `pfsockopen`'s whole purpose was a connection that outlived the script, and its row in the
+migration table is a member whose persistent half is dropped.
+
+What this spends, per [`programs/memory-priority`](/docs/rules/programs/claims-and-priorities/#memory-priority "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"): one reactor registration per open socket,
+attributable to the request that opened it and released with its arena. The process therefore holds
+one registration per socket **in flight** and nothing per socket served, which is the O(in-flight)
+bound that separates a cost from a leak.
+
+A program that wants a connection to survive a request wants a store, and the stores are the ones
+already granted by name — [`config/cache-shared-is-the-grant-over-the-configured-store`](/docs/rules/config/stores-and-caches/#cache-shared-is-the-grant-over-the-configured-store "A store an operator configured is authorized by the configuring — cache.shared is the grant, unscoped, and asks no address")'s shared
+cache and [`core-classes/db-one-api`](/docs/rules/core-classes/connecting-to-a-database/#db-one-api "Core\Db is the only database API, and every statement it runs is prepared")'s database — where the endpoint is an operator's and the
+lifetime is the runtime's.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/pdf-and-spreadsheets/#net-one-api-three-transports" title="Core\Net is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor"><code>core-classes/net-one-api-three-transports</code></a> <a href="/docs/rules/security/closed-doors/#no-cross-request-state" title="Nothing a request does is observable by another request except through an explicit, capability-gated store"><code>security/no-cross-request-state</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0162.md">record 0162</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="net-udp-carries-no-reliability-layer">
+
+## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#net-udp-carries-no-reliability-layer"><code>core-classes/net-udp-carries-no-reliability-layer</code></a>
+</div>
+
+A `Core\Net` datagram socket sends and receives messages, reports what it sent and what arrived, and
+offers nothing above that: no ordering, no retransmission, no fragmentation and no acknowledgement. A
+datagram that is lost is lost, and a program that cannot tolerate that wants TCP.
+
+The refusal is written down because the pressure to add "just a retry" is constant and its result is
+always the same — a reliability layer nobody specified, whose failure modes belong to the library
+while the timing budget it spends belongs to the program. A protocol that genuinely provides reliable
+datagrams is a protocol, placed by [`core-api/tier-placement`](/docs/rules/core-api/what-belongs-in-core/#tier-placement "A library candidate is placed by six ordered tests, not by PHP's extension list") like any other, and Tier 0 is not
+where it lands.
+
+A program that builds ordering or retries over this surface is making that choice explicitly, which is
+the point: the trade is visible in the program rather than hidden in a member's contract.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/pdf-and-spreadsheets/#net-one-api-three-transports" title="Core\Net is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor"><code>core-classes/net-one-api-three-transports</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#tier-placement" title="A library candidate is placed by six ordered tests, not by PHP's extension list"><code>core-api/tier-placement</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0162.md">record 0162</a></dd></div></dl>
 
 </div>

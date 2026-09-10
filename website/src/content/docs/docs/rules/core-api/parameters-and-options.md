@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Optional knobs are one trailing shape literal — and required, optional and nullable stay three separate questions.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">3</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">6</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#callback-receives-value-and-key">A callback always receives <code>($value, $key)</code>, and may declare fewer parameters than the call site passes</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#parameters-are-callable-by-name">Every <code>Core</code> parameter is callable by the name the spec writes, and that name is compatibility surface</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#options-bag">A member's optional knobs are one trailing shape literal, never a flag or a bitmask</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#required-optional-and-nullable">Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#omission-is-not-a-written-null">An options bag tells an omitted key from a written <code>null</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-nullable-field-omits-as-the-never-written-marker">A bag or shape field is nullable exactly when its omission fills the never-written marker</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-written-null-removes">Wherever a <code>Core</code> member admits a written <code>null</code> it means remove, and <code>&quot;&quot;</code> is never a removal spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-marker-never-reaches-a-program">The never-written marker is not in the type system and is never handed to user code</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-bag-abi-is-unchanged">The three-state bag changes which constant fills a slot and nothing else about the ABI</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#callback-receives-value-and-key">A callback always receives <code>($value, $key)</code>, and may declare fewer parameters than the call site passes</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#parameters-are-callable-by-name">Every <code>Core</code> parameter is callable by the name the spec writes, and that name is compatibility surface</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#options-bag">A member's optional knobs are one trailing shape literal, never a flag or a bitmask</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#required-optional-and-nullable">Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#omission-is-not-a-written-null">An options bag tells an omitted key from a written <code>null</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-nullable-field-omits-as-the-never-written-marker">A bag or shape field is nullable exactly when its omission fills the never-written marker</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-written-null-removes">Wherever a <code>Core</code> member admits a written <code>null</code> it means remove, and <code>&quot;&quot;</code> is never a removal spelling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#the-marker-never-reaches-a-program">The never-written marker is not in the type system and is never handed to user code</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-bag-abi-is-unchanged">The three-state bag changes which constant fills a slot and nothing else about the ABI</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="callback-receives-value-and-key">
 
@@ -151,7 +151,7 @@ constant the *call site* emits and a native decoder is not a call site.
 ## An options bag tells an omitted key from a written `null`
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#omission-is-not-a-written-null"><code>core-api/omission-is-not-a-written-null</code></a>
 </div>
@@ -168,16 +168,17 @@ so the helper reads three states out of one argument and the flattening is untou
 is a value the field's own type admits, so user data can arrive as one by accident; that is the bug class
 this removes rather than relocates.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/registry.rs` still holds the old invariant, under the
-guards `a_shape_field_is_never_nullable` and `a_union_option_excludes_null`, so no bag field is nullable
-today and `Core\Uri::with` still has no clearing spelling.
+`crates/nvs-stdlib/src/registry.rs`'s `Const::NeverWritten` is the declaration and its two guards,
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
+`Core\Uri::with` is the first member to spend it.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>PHP has no way to ask either question of an argument; here the two are different requests at every <code>Core</code> member</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#a-nullable-field-omits-as-the-never-written-marker" title="A bag or shape field is nullable exactly when its omission fills the never-written marker"><code>core-api/a-nullable-field-omits-as-the-never-written-marker</code></a> <a href="/docs/rules/core-api/parameters-and-options/#a-written-null-removes" title="Wherever a Core member admits a written null it means remove, and  is never a removal spelling"><code>core-api/a-written-null-removes</code></a> <a href="/docs/rules/core-api/parameters-and-options/#the-bag-abi-is-unchanged" title="The three-state bag changes which constant fills a slot and nothing else about the ABI"><code>core-api/the-bag-abi-is-unchanged</code></a> <a href="/docs/rules/core-api/parameters-and-options/#options-bag" title="A member's optional knobs are one trailing shape literal, never a flag or a bitmask"><code>core-api/options-bag</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#a-nullable-field-omits-as-the-never-written-marker" title="A bag or shape field is nullable exactly when its omission fills the never-written marker"><code>core-api/a-nullable-field-omits-as-the-never-written-marker</code></a> <a href="/docs/rules/core-api/parameters-and-options/#a-written-null-removes" title="Wherever a Core member admits a written null it means remove, and  is never a removal spelling"><code>core-api/a-written-null-removes</code></a> <a href="/docs/rules/core-api/parameters-and-options/#the-bag-abi-is-unchanged" title="The three-state bag changes which constant fills a slot and nothing else about the ABI"><code>core-api/the-bag-abi-is-unchanged</code></a> <a href="/docs/rules/core-api/parameters-and-options/#options-bag" title="A member's optional knobs are one trailing shape literal, never a flag or a bitmask"><code>core-api/options-bag</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"><code>tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -186,7 +187,7 @@ today and `Core\Uri::with` still has no clearing spelling.
 ## A bag or shape field is nullable exactly when its omission fills the never-written marker
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#a-nullable-field-omits-as-the-never-written-marker"><code>core-api/a-nullable-field-omits-as-the-never-written-marker</code></a>
 </div>
 
@@ -207,10 +208,12 @@ default is a null or a literal. A registry row getting the pairing wrong fails t
 The pairing is what makes "filled" readable at all: the constant standing for *omitted* has to be one no
 written value can also be, or the two states collapse again.
 
-**Designed, not shipped.** The guards in `crates/nvs-stdlib/src/registry.rs` still assert the old, stronger
-invariant that no such field is ever nullable.
+The two guards in `crates/nvs-stdlib/src/registry.rs` —
+`a_nullable_option_omits_as_the_never_written_marker` and
+`a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
+spelling, over every registered row.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#omission-is-not-a-written-null" title="An options bag tells an omitted key from a written null"><code>core-api/omission-is-not-a-written-null</code></a> <a href="/docs/rules/core-api/parameters-and-options/#the-marker-never-reaches-a-program" title="The never-written marker is not in the type system and is never handed to user code"><code>core-api/the-marker-never-reaches-a-program</code></a> <a href="/docs/rules/core-api/shape-parameters/#shape-flattens-at-the-abi" title="A shape argument flattens into one argument per field of the merged list, so no shape exists at run time"><code>core-api/shape-flattens-at-the-abi</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#omission-is-not-a-written-null" title="An options bag tells an omitted key from a written null"><code>core-api/omission-is-not-a-written-null</code></a> <a href="/docs/rules/core-api/parameters-and-options/#the-marker-never-reaches-a-program" title="The never-written marker is not in the type system and is never handed to user code"><code>core-api/the-marker-never-reaches-a-program</code></a> <a href="/docs/rules/core-api/shape-parameters/#shape-flattens-at-the-abi" title="A shape argument flattens into one argument per field of the merged list, so no shape exists at run time"><code>core-api/shape-flattens-at-the-abi</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst"><code>tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -219,7 +222,7 @@ invariant that no such field is ever nullable.
 ## Wherever a `Core` member admits a written `null` it means remove, and `""` is never a removal spelling
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#a-written-null-removes"><code>core-api/a-written-null-removes</code></a>
 </div>
@@ -241,15 +244,16 @@ can be cleared and a caller reads it off the type rather than off prose. `""` is
 on any member: it is a legal value of most of these fields and is already distinguishable — an empty query
 is not an absent one — so overloading it would reinstate the in-band sentinel this removes.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/uri.rs`'s `written` helper still records the opposite:
-with no second null to spend, `with` replaces and never removes.
+`crates/nvs-stdlib/src/uri.rs`'s `removable` helper is the first reader of the three states, and
+`Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
+`{fragment: null}` each clear their component, where omitting the key carries it over.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>PHP spreads clearing across <code>unset</code>, <code>&quot;&quot;</code>, <code>false</code> and per-function sentinels; here one spelling means one thing at every member</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#omission-is-not-a-written-null" title="An options bag tells an omitted key from a written null"><code>core-api/omission-is-not-a-written-null</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#a-lifetime-is-written" title="A signature's lifetime is a required key and null is the forever spelling"><code>core-api/a-lifetime-is-written</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#no-mode-strings" title="A mode is an enum, never a string or an integer constant, and only four grammars are exempt"><code>core-api/no-mode-strings</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/uri.rs"><code>crates/nvs-stdlib/src/uri.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/parameters-and-options/#omission-is-not-a-written-null" title="An options bag tells an omitted key from a written null"><code>core-api/omission-is-not-a-written-null</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#a-lifetime-is-written" title="A signature's lifetime is a required key and null is the forever spelling"><code>core-api/a-lifetime-is-written</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#no-mode-strings" title="A mode is an enum, never a string or an integer constant, and only four grammars are exempt"><code>core-api/no-mode-strings</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/uri.rs"><code>crates/nvs-stdlib/src/uri.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst"><code>tests/conformance/core/uri-with-tells-an-omitted-component-from-a-written-null.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -258,7 +262,7 @@ with no second null to spend, `with` replaces and never removes.
 ## The never-written marker is not in the type system and is never handed to user code
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#the-marker-never-reaches-a-program"><code>core-api/the-marker-never-reaches-a-program</code></a>
 </div>
 
@@ -287,7 +291,7 @@ exactly the observable marker this rule refuses.
 ## The three-state bag changes which constant fills a slot and nothing else about the ABI
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#the-bag-abi-is-unchanged"><code>core-api/the-bag-abi-is-unchanged</code></a>
 </div>
 
@@ -306,9 +310,10 @@ What it spends ([`programs/memory-priority`](/docs/rules/programs/claims-and-pri
 omitting call site emits one constant either way. A non-nullable field is unaffected in every respect, so
 every member registered today lowers to the same instructions and nothing needs migrating.
 
-**Designed, not shipped.** `crates/nvs-runtime/src/value.rs` carries the marker tag; no call site
-materializes it.
+`crates/nvs-runtime/src/value.rs` carries the marker tag, `nvs_ir::ir::InstKind::ConstUnset` is the
+one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
+zero payload. Every member registered before this lowers byte for byte as it did.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/shape-parameters/#shape-flattens-at-the-abi" title="A shape argument flattens into one argument per field of the merged list, so no shape exists at run time"><code>core-api/shape-flattens-at-the-abi</code></a> <a href="/docs/rules/core-api/parameters-and-options/#a-nullable-field-omits-as-the-never-written-marker" title="A bag or shape field is nullable exactly when its omission fills the never-written marker"><code>core-api/a-nullable-field-omits-as-the-never-written-marker</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/value.rs"><code>crates/nvs-runtime/src/value.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/shape-parameters/#shape-flattens-at-the-abi" title="A shape argument flattens into one argument per field of the merged list, so no shape exists at run time"><code>core-api/shape-flattens-at-the-abi</code></a> <a href="/docs/rules/core-api/parameters-and-options/#a-nullable-field-omits-as-the-never-written-marker" title="A bag or shape field is nullable exactly when its omission fills the never-written marker"><code>core-api/a-nullable-field-omits-as-the-never-written-marker</code></a> <a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0147.md">record 0147</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0135.md">record 0135</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0022.md">record 0022</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-runtime/src/value.rs"><code>crates/nvs-runtime/src/value.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-ir/src/ir.rs"><code>crates/nvs-ir/src/ir.rs</code></a></dd></div></dl>
 
 </div>

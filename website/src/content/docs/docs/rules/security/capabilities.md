@@ -89,10 +89,12 @@ capability is not a promise about any one argument; the scope is asked every tim
 </div>
 
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the metadata command renders
-it, the reference documentation prints it beside a member's card, and the closure test reads it.
-Enforcement is the doors ([`security/capability-check-at-the-door`](/docs/rules/security/capabilities/#capability-check-at-the-door "The capability check lives inside the function that performs the effect, and that door is the only way out of the process")), which do not consult it, so
-the table cannot be the thing an attacker edits to gain a permission.
+capability. **The table is never read at run time.** It is audit data — the closure test reads it, and
+the metadata command renders it as a roster of its own, which is how any renderer that wants a
+member's capability beside its card gets one ([`tooling/one-json-several-renderers`](/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers "nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"); the join is
+on `(class, member)` at render time). Enforcement is the doors
+([`security/capability-check-at-the-door`](/docs/rules/security/capabilities/#capability-check-at-the-door "The capability check lives inside the function that performs the effect, and that door is the only way out of the process")), which do not consult it, so the table cannot be the
+thing an attacker edits to gain a permission.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
@@ -103,7 +105,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/capabilities/#capability-check-at-the-door" title="The capability check lives inside the function that performs the effect, and that door is the only way out of the process"><code>security/capability-check-at-the-door</code></a> <a href="/docs/rules/testing/coverage-and-probes/#capability-closure-test" title="Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist"><code>testing/capability-closure-test</code></a> <a href="/docs/rules/security/capabilities/#capability-roster-is-closed" title="Every capability name that exists is on one roster, and a name outside it is refused where it is written"><code>security/capability-roster-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/capability.rs"><code>crates/nvs-stdlib/tests/capability.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/capabilities/#capability-check-at-the-door" title="The capability check lives inside the function that performs the effect, and that door is the only way out of the process"><code>security/capability-check-at-the-door</code></a> <a href="/docs/rules/testing/coverage-and-probes/#capability-closure-test" title="Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist"><code>testing/capability-closure-test</code></a> <a href="/docs/rules/security/capabilities/#capability-roster-is-closed" title="Every capability name that exists is on one roster, and a name outside it is refused where it is written"><code>security/capability-roster-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/capability.rs"><code>crates/nvs-stdlib/tests/capability.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/meta.rs"><code>crates/nvs-cli/tests/meta.rs</code></a></dd></div></dl>
 
 </div>
 

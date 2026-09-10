@@ -5700,6 +5700,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   stated refusal into a crash. Price the frame against that stack rather than against the constant,
   and put the stack on the heap: `crates/nvs-stdlib/src/xml.rs:@instance_of` is the shape.
   [until: reviewed 2026-09-09]
+- **Replacing a bag guard's "never nullable" invariant with the omitted-versus-null pairing turns
+  every `CoreTy::Mixed` option red, not just the one you set out to make nullable.** `mixed` admits
+  `null` without spelling it, so `Core\Queue::push`'s `args` had to take `Const::NeverWritten` the
+  moment `Core\Uri::with` did — a class away from the slice, and the assertion names the member
+  rather than the rule. Before landing such a pairing, `grep -n 'CoreTy::Mixed' crates/nvs-stdlib/src/`
+  for the rows it will reach, and widen each helper's "not given" branch from `Tag::Null` to
+  `Tag::Null | Tag::Unset` in the same edit. [until: reviewed 2026-09-10]
 
 ## Divergences and refusals already pinned
 

@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">A doc comment is exactly <code>///</code>, and one JSON document is the machine-readable source every renderer consumes.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">12</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">6</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#doc-comment-is-three-slashes">A doc comment is exactly <code>///</code>; <code>////</code> and longer runs are ordinary comments, and <code>#</code> never is one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#doc-comment-attaches-to-the-next-declaration">A <code>///</code> run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#doc-comment-tags-are-see-and-example">A doc comment is Markdown plus <code>@see</code> and <code>@example</code>, each of which must resolve, and any other <code>@tag</code> is a diagnostic</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#strict-docs">Nothing requires a doc comment by default; <code>nvs check --strict-docs</code> reports a public member without one, and no autofix can satisfy it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nvs-doc-renders-and-decides-nothing"><code>nvs doc &lt;entry&gt;</code> writes one Markdown page per class from the JSON and has no source of truth of its own</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-json-several-renderers"><code>nvs meta --json</code> is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#meta-json"><code>nvs meta --json</code> prints the whole <code>Core</code> registry as one JSON document, and a field with nothing written is an absent key rather than an empty one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#meta-json-takes-a-program"><code>nvs meta --json &lt;entry&gt;</code> emits that program's own declarations beside the <code>Core</code> registry, in the registry's own shape</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#doc-comment-is-three-slashes">A doc comment is exactly <code>///</code>; <code>////</code> and longer runs are ordinary comments, and <code>#</code> never is one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#doc-comment-attaches-to-the-next-declaration">A <code>///</code> run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#doc-comment-tags-are-see-and-example">A doc comment is Markdown plus <code>@see</code> and <code>@example</code>, each of which must resolve, and any other <code>@tag</code> is a diagnostic</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#strict-docs">Nothing requires a doc comment by default; <code>nvs check --strict-docs</code> reports a public member without one, and no autofix can satisfy it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#nvs-doc-renders-and-decides-nothing"><code>nvs doc &lt;entry&gt;</code> writes one Markdown page per class from the JSON and has no source of truth of its own</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-json-several-renderers"><code>nvs meta --json</code> is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#meta-json"><code>nvs meta --json</code> prints the whole <code>Core</code> registry as one JSON document, and a field with nothing written is an absent key rather than an empty one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#meta-json-takes-a-program"><code>nvs meta --json &lt;entry&gt;</code> emits that program's own declarations beside the <code>Core</code> registry, in the registry's own shape</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#an-agent-asks-the-binary"><code>nvs agent</code> answers a coding agent from the registry in four commands, and the check loop is part of the surface</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-index-is-one-line-per-member"><code>nvs agent index</code> prints one derived line per registered member, carrying its signature and the capability it is gated on</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-primer-claim-is-executed">The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#an-adapter-carries-protocol-and-never-language"><code>nvs agent init</code> writes one pointer per harness, and no adapter ever states a language fact</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
 
 <div class="nv-rule" id="doc-comment-is-three-slashes">
 
@@ -183,7 +183,7 @@ sentence — that is a lint's design and belongs with the publisher.
 ## `nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#nvs-doc-renders-and-decides-nothing"><code>tooling/nvs-doc-renders-and-decides-nothing</code></a>
 </div>
@@ -203,7 +203,7 @@ ecosystem that does not exist yet, which is why it is kept cheap to replace.
 <p>The renderer ships inside the binary rather than as a phpDocumentor-style tool a project installs</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/doc.rs"><code>crates/nvs-cli/tests/doc.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -222,8 +222,9 @@ every renderer consumes it:
 
 ```
                       ┌─ tools/reference.py  → docs/novis.md
-nvs meta --json ──────┼─ website sync:core    → core.json → MDX
-                      └─ nvs doc              → Markdown pages
+                      ├─ website sync:core    → core.json → MDX
+nvs meta --json ──────┼─ nvs doc              → Markdown pages
+                      └─ nvs agent            → the primer, the index, one card
 ```
 
 Nothing re-derives documentation from source, and no renderer is authoritative for content. The `Core`
@@ -236,12 +237,16 @@ Two renderers already sit on the `Core` half — the one-file reference and the 
 neither reads a Rust file to find a description. A third source of truth for user declarations would be
 exactly the duplication that shape exists to avoid.
 
+The fourth arm answers a coding agent rather than a reader ([`tooling/an-agent-asks-the-binary`](/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary "nvs agent answers a coding agent from the registry in four commands, and the check loop is part of the surface")),
+and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
+the binary that compiles a program is the binary that documents it.
+
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>PhpDocumentor re-derives documentation from source at every run; here nothing does, and the renderers share one JSON</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#nvs-doc-renders-and-decides-nothing" title="nvs doc &lt;entry&gt; writes one Markdown page per class from the JSON and has no source of truth of its own"><code>tooling/nvs-doc-renders-and-decides-nothing</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#reference-card" title="An implemented Core member carries its reference card in the registry declaration beside its code"><code>core-api/reference-card</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#nvs-doc-renders-and-decides-nothing" title="nvs doc &lt;entry&gt; writes one Markdown page per class from the JSON and has no source of truth of its own"><code>tooling/nvs-doc-renders-and-decides-nothing</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#reference-card" title="An implemented Core member carries its reference card in the registry declaration beside its code"><code>core-api/reference-card</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div></dl>
 
 </div>
 
@@ -279,7 +284,7 @@ never as an error. `docs/novis.md` and the website's core data are both built fr
 <p>There is no <code>php --rf</code>, no reflection dump and no phpDocumentor pass over the standard library; one command from the binary is the reference's only input</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#reference-card" title="An implemented Core member carries its reference card in the registry declaration beside its code"><code>core-api/reference-card</code></a> <a href="/docs/rules/core-api/shape-parameters/#field-wise-precedence" title="Where the registry and the spec both describe an implemented member, precedence is field by field"><code>core-api/field-wise-precedence</code></a> <a href="/docs/rules/core-api/parameters-and-options/#parameters-are-callable-by-name" title="Every Core parameter is callable by the name the spec writes, and that name is compatibility surface"><code>core-api/parameters-are-callable-by-name</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/meta.rs"><code>crates/nvs-cli/tests/meta.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/meta.rs"><code>crates/nvs-cli/src/meta.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/lifetimes-and-absences/#reference-card" title="An implemented Core member carries its reference card in the registry declaration beside its code"><code>core-api/reference-card</code></a> <a href="/docs/rules/core-api/shape-parameters/#field-wise-precedence" title="Where the registry and the spec both describe an implemented member, precedence is field by field"><code>core-api/field-wise-precedence</code></a> <a href="/docs/rules/core-api/parameters-and-options/#parameters-are-callable-by-name" title="Every Core parameter is callable by the name the spec writes, and that name is compatibility surface"><code>core-api/parameters-are-callable-by-name</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program" title="nvs meta --json &lt;entry&gt; emits that program's own declarations beside the Core registry, in the registry's own shape"><code>tooling/meta-json-takes-a-program</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/meta.rs"><code>crates/nvs-cli/tests/meta.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/meta.rs"><code>crates/nvs-cli/src/meta.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -288,7 +293,7 @@ never as an error. `docs/novis.md` and the website's core data are both built fr
 ## `nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#meta-json-takes-a-program"><code>tooling/meta-json-takes-a-program</code></a>
 </div>
 
@@ -310,6 +315,133 @@ shape is the registry's and is unchanged by this; the user half is this rule's.
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example" title="A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic"><code>tooling/doc-comment-tags-are-see-and-example</code></a> <a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example" title="A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic"><code>tooling/doc-comment-tags-are-see-and-example</code></a> <a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0117.md">record 0117</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/meta.rs"><code>crates/nvs-cli/tests/meta.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-agent-asks-the-binary">
+
+## `nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#an-agent-asks-the-binary"><code>tooling/an-agent-asks-the-binary</code></a>
+</div>
+
+`nvs agent` is the surface a coding agent reads the language through, and it is four commands that
+answer from the registry the binary already carries: `primer` prints the short document that makes an
+agent productive, `index` prints one line per member, `find <query>` prints the index lines matching a
+query, and `show <symbol>` prints one member's card. Nothing is written to disk and nothing is cached,
+so the binary that compiles a program is the binary that answers for it and an answer can never
+describe a version that is not installed.
+
+All four render `nvs meta --json`'s document and decide nothing ([`tooling/one-json-several-renderers`](/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers "nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content")),
+which makes them a fourth consumer rather than a fifth source of truth. `find` is a command rather than
+an instruction to grep the index, because a namespaced name loses its backslash to the shell before
+`grep` sees it and the empty result that follows is indistinguishable from a name the language does not
+have.
+
+The protocol is three calls and a check: read `primer` once, `find` a name, `show` its card, then
+`nvs check`. A diagnostic is the cheapest documentation the system has — it is read only by the agent
+that got something wrong — so the check loop is part of the surface rather than an alternative to it.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#one-json-several-renderers" title="nvs meta --json is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content"><code>tooling/one-json-several-renderers</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#the-index-is-one-line-per-member" title="nvs agent index prints one derived line per registered member, carrying its signature and the capability it is gated on"><code>tooling/the-index-is-one-line-per-member</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#a-primer-claim-is-executed" title="The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it"><code>tooling/a-primer-claim-is-executed</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#an-adapter-carries-protocol-and-never-language" title="nvs agent init writes one pointer per harness, and no adapter ever states a language fact"><code>tooling/an-adapter-carries-protocol-and-never-language</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/agent.rs"><code>crates/nvs-cli/tests/agent.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-index-is-one-line-per-member">
+
+## `nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#the-index-is-one-line-per-member"><code>tooling/the-index-is-one-line-per-member</code></a>
+</div>
+
+`nvs agent index` prints exactly one line for every member the registry holds, and one for every enum,
+exception and attribute beside them. It is derived at the call and kept nowhere
+([`testing/roster-is-derived`](/docs/rules/testing/the-four-proofs/#roster-is-derived "The roster of features is read from the registry and the reference chapters, never kept as a list")'s shape), so a member that lands owes its line at once and no list is
+ever stale.
+
+Completeness is the property the command exists to have. An agent that greps a complete list learns
+something from an empty result — that the name it guessed does not exist — and learns nothing at all
+from an empty result over a list that merely happens not to mention it. That is why the index is
+enumerated from the registry rather than written, and why the guard is a member-for-member
+correspondence rather than a count.
+
+A line carries the member's signature in the spec's own spelling and the capability the call is gated
+on, written after it in brackets: `Core\IO::read(string $path): string  [fs.read]`. The capability is
+joined from [`security/capability-declaration-is-one-table`](/docs/rules/security/capabilities/#capability-declaration-is-one-table "What each Core member needs is declared once in one table, and nothing at run time reads it")'s one table at render time, never
+copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather
+than reshaping it. So an agent learns the gate from the name of the thing it is about to call, which is
+where every arm of `0167`'s investigation was stopped.
+
+A line carries no behaviour: what `header: true` does to a row is the card's answer, which is what
+`show` is for.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary" title="nvs agent answers a coding agent from the registry in four commands, and the check loop is part of the surface"><code>tooling/an-agent-asks-the-binary</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#meta-json" title="nvs meta --json prints the whole Core registry as one JSON document, and a field with nothing written is an absent key rather than an empty one"><code>tooling/meta-json</code></a> <a href="/docs/rules/testing/the-four-proofs/#roster-is-derived" title="The roster of features is read from the registry and the reference chapters, never kept as a list"><code>testing/roster-is-derived</code></a> <a href="/docs/rules/security/capabilities/#capability-check-at-the-door" title="The capability check lives inside the function that performs the effect, and that door is the only way out of the process"><code>security/capability-check-at-the-door</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/agent.rs"><code>crates/nvs-cli/tests/agent.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-primer-claim-is-executed">
+
+## The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-primer-claim-is-executed"><code>tooling/a-primer-claim-is-executed</code></a>
+</div>
+
+Every claim the primer makes is proven against the compiler that ships with it: each example in it is
+run and must print what the primer says it prints, and each refusal it states must name a diagnostic
+code that compiler declares. `python tools/reference.py --primer --check` is that proof, and it is the
+harness `docs/novis.md`'s examples already run under, applied to the one document that is read by
+someone who has nothing else.
+
+A refusal is checked as its code rather than as a program because its PHP cell is a fragment — a
+`list($a) = $b`, an untyped `as $each` — that no `nvs check` can be handed. The `E0xxx` beside it is
+the executable half: it either names a constant in the diagnostic registry or it names nothing, and a
+refusal the compiler cannot raise is the one lie a document generated from marked sections can still
+tell.
+
+The primer is generated — from marked sections of the reference chapters, those chapters' front matter,
+and the registry — so it cannot drift from the language, and a section that stops being true stops being
+rendered rather than becoming a lie. What it carries is fixed by what an agent gets wrong without it:
+the lookup protocol, one complete worked program with every shape annotated, the capability model and
+the smallest `nvs.toml` that grants a file read, the refusal table, and the chapter map.
+
+The refusal table is the highest-value part and the reason the order puts it late rather than first: a
+model's prior for a language that reads like PHP is confident and wrong, so what Novis refuses and what
+to write instead is worth more per byte than what Novis has. Its budget is a low four figures of tokens,
+and it is met by what the primer selects — never by trimming what a selected section says.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary" title="nvs agent answers a coding agent from the registry in four commands, and the check loop is part of the surface"><code>tooling/an-agent-asks-the-binary</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#the-index-is-one-line-per-member" title="nvs agent index prints one derived line per registered member, carrying its signature and the capability it is gated on"><code>tooling/the-index-is-one-line-per-member</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/agent.rs"><code>crates/nvs-cli/tests/agent.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/reference.py"><code>tools/reference.py</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-adapter-carries-protocol-and-never-language">
+
+## `nvs agent init` writes one pointer per harness, and no adapter ever states a language fact
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#an-adapter-carries-protocol-and-never-language"><code>tooling/an-adapter-carries-protocol-and-never-language</code></a>
+</div>
+
+`nvs agent init` installs the surface into a project by writing one pointer per harness — an `AGENTS.md`
+stanza, which is harness-neutral, and beside it an adapter for each harness that is present, such as a
+Claude Code skill at `.claude/skills/novis/SKILL.md`. Each names the four `nvs agent` commands and the
+`nvs check` loop.
+
+**No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
+fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
+read by an agent that has no way to know it is old — which is the failure the whole surface is arranged
+to avoid. An adapter says where to ask; the binary answers.
+
+That is what keeps the adapter list open. Another harness is another short pointer file, adding one
+decides nothing and reopens nothing, and none of them can disagree with the language, because none of
+them says anything about it.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary" title="nvs agent answers a coding agent from the registry in four commands, and the check loop is part of the surface"><code>tooling/an-agent-asks-the-binary</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#a-primer-claim-is-executed" title="The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it"><code>tooling/a-primer-claim-is-executed</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-guides-an-install-and-never-bundles-one" title="The extension ships no nvs binary: a missing one is a guided install the user starts, verified against the release's own SHA256SUMS"><code>ide/the-extension-guides-an-install-and-never-bundles-one</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0167.md">record 0167</a></dd></div></dl>
 
 </div>

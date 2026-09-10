@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Two copy depths, neither of which a class customizes, and a serialization format closed to everything it did not write.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">5</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">5</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">3</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#two-copy-depths">A copy is either <code>clone</code>'s one level or the graph copy, and no class customizes either</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#clone-is-shallow"><code>clone</code> copies an object's declared storage one level deep and shares every object it reaches</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#graph-copy">The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#serialize-is-a-closed-format"><code>Core\Serialize::decode</code> accepts only bytes this build's <code>encode</code> produced, and refuses everything else outright</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-class-alias">A class is reachable under its declared name and nowhere else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#two-copy-depths">A copy is either <code>clone</code>'s one level or the graph copy, and no class customizes either</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#clone-is-shallow"><code>clone</code> copies an object's declared storage one level deep and shares every object it reaches</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#graph-copy">The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#serialize-is-a-closed-format"><code>Core\Serialize::decode</code> accepts only bytes this build's <code>encode</code> produced, and refuses everything else outright</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-encoder-ends-a-cycle-by-identity">Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-class-alias">A class is reachable under its declared name and nowhere else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="two-copy-depths">
 
@@ -145,6 +145,47 @@ at all.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/classes/copying-and-serializing/#graph-copy" title="The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side"><code>classes/graph-copy</code></a> <a href="/docs/rules/classes/copying-and-serializing/#two-copy-depths" title="A copy is either clone's one level or the graph copy, and no class customizes either"><code>classes/two-copy-depths</code></a> <a href="/docs/rules/classes/declaring-a-class/#definite-property-initialization" title="Every property a class declares is definitely assigned on every path out of every constructor"><code>classes/definite-property-initialization</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0023.md">record 0023</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/serialize-refuses-a-closure-and-foreign-bytes-by-name.nvst"><code>tests/conformance/core/serialize-refuses-a-closure-and-foreign-bytes-by-name.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst"><code>tests/conformance/reject/serialize-decode-refuses-a-tainted-operand.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-encoder-ends-a-cycle-by-identity">
+
+## Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#an-encoder-ends-a-cycle-by-identity"><code>classes/an-encoder-ends-a-cycle-by-identity</code></a>
+</div>
+
+Every encoder that walks a value graph carries the identity of the objects on the path from the root
+to the value it is writing, and the first value it meets twice ends the walk there — refused, naming
+the property chain that closed the cycle, never recursing until a depth cap stops it.
+
+The set is the **ancestor chain, not everything already seen**, because the two answer different
+questions. One object held by two properties is shared rather than cyclic, and it encodes: a format
+with no way to express sharing writes it out twice, which is the only answer available. Only a repeat
+on the current path is a cycle. This is the one place an encoder's answer differs from a record's,
+where [`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record") gives every object an identity precisely so that sharing
+and cycles both survive into the rendering.
+
+**No marker is invented in the document.** A record rendering may emit a reference because its
+consumer is our own tooling; an encoder producing somebody else's payload may not, because a
+Novis-specific key would make the served shape disagree with the published contract. So a cyclic
+graph has no encoding, and the program is told so with the path in the message rather than with a
+count of levels.
+
+The depth cap stays and bounds what this does not: a structure that is acyclic and simply deeper than
+any encoder should walk. After this rule the two failures are distinguishable, which is what was
+wrong with reporting a cycle as nesting. `Core\Serialize` reaches the same property through
+[`classes/graph-copy`](/docs/rules/classes/copying-and-serializing/#graph-copy "The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side")'s walk rather than through this rule.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>json_encode</code> reports a recursive reference by returning <code>false</code> and setting <code>JSON_ERROR_RECURSION</code>, and names no path; here the encoder throws and the message carries the property chain that closed the cycle</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/classes/copying-and-serializing/#graph-copy" title="The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side"><code>classes/graph-copy</code></a> <a href="/docs/rules/classes/copying-and-serializing/#serialize-is-a-closed-format" title="Core\Serialize::decode accepts only bytes this build's encode produced, and refuses everything else outright"><code>classes/serialize-is-a-closed-format</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-transformations" title="Redaction, control bytes, bidi and elision are decided in the record"><code>errors/record-transformations</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0164.md">record 0164</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/json-encode-ends-a-cycle-at-the-first-repeat-and-names-its-path.nvst"><code>tests/conformance/core/json-encode-ends-a-cycle-at-the-first-repeat-and-names-its-path.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/json.rs"><code>crates/nvs-stdlib/src/json.rs</code></a></dd></div></dl>
 
 </div>
 

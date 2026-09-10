@@ -2,49 +2,46 @@
 
 ## State
 
-**Goal `unowned-sweep` — the gaps a past milestone left and no goal claimed — has just started; nothing of it has
-landed yet.** Goal `gap-owners`'s whole list is this goal's Stage 1 floor.
+**Goal `unowned-sweep`, stage 2.** ADR 0147's mechanism is landed end to end: `Const::NeverWritten`
+in the registry, `ConstArg::NeverWritten` in `nvs-types`, `InstKind::ConstUnset` in `nvs-ir` and the
+codegen arm that writes `Tag::Unset` over a zero payload. `rule:core-api/omission-is-not-a-written-null`,
+`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`,
+`rule:core-api/a-written-null-removes`, `rule:core-api/the-marker-never-reaches-a-program` and
+`rule:core-api/the-bag-abi-is-unchanged` are all `shipped`.
 
-Five gaps, each recorded in a module doc, each real, none owned by any goal before this one.
-**Four of the five are one gap wearing different clothes**: a member that needs an options bag the
-registry could not spell — which is exactly the spelling [goal `input-shapes`](goals/20-input-shapes.md) lands
-(`{name?: T}` on `Ty::Shape`, and `rule:core-api/shape-parameter`'s `CoreTy` shape parameter). This goal is that
-follow-through.
+`Core\Uri::with` is the first member to spend it — `port`, `query` and `fragment` are `?T` and a
+written `null` removes; the other three refuse one. `Core\Queue::push`'s `args` took the marker as
+its omission fill because `mixed` admits a written `null`; both states still mean *no payload*.
 
-The other two are the decisions the user took when the unowned list was drawn up: **`array<T>` widens
-to accept a covariant read**, and the panic hook `rule:errors/helper-abi` has wanted since M5 removed its
-blocker.
+`rule:core-classes/uri-removable-components` stays `designed`: its second level, the
+`queryParameter`/`withQueryParameter` pair, is `crates/nvs-stdlib/src/uri.rs`'s known gap 1 now.
+Nothing is blocked.
+
+The website rule mirror was stale before this session — `node website/scripts/sync-rules.mjs`
+regenerated 30-odd pages that had nothing to do with this work, and it landed as its own commit.
 
 ## Next group
 
-**Stage 2: the options bag** — one file set: `crates/nvs-stdlib/src/uri.rs`,
-`crates/nvs-stdlib/src/queue.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-types/src/core_lib.rs`.
+**Stage 2: the options bag, continued** — one file set: `crates/nvs-stdlib/src/queue.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`.
 
-- [ ] **`Core\Uri::with` gains a removal spelling** — `uri.rs` gap 1 names the fix exactly: today an
-      omitted option and a written `null` arrive as the same `Tag::Null`, so the option types are
-      `string` rather than `?string`. With an optional field they are distinguishable. **Not** an
-      `""`-means-remove rule: `""` is already an empty query and `query()` reports it as distinct from
-      `null`.
-- [ ] **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the shape the
-      registry could not spell. `queue.rs` gap 1 says this is the same blocker `Core\Db::open` waits on
-      and that "the two lift together"; goal `carried-gaps` owns the `Core\Db` half, so check the two spellings
-      against each other.
-- [ ] **`Core\Queue`'s `$args` refuses a `secret`** — gap 2. `CoreTy::Mixed` carries no qualifier, so
-      this needed a spelling rather than a line. A queued row is written to a database and read back by
-      another process, which is a sink by every test `rule:security/secret-qualifier` applies.
+- [ ] **`Core\Queue`'s `$args` refuses a `secret`** — `crates/nvs-stdlib/src/queue.rs:64` is gap 2
+      and `crates/nvs-stdlib/src/queue.rs:981` the row. `rule:security/secret-qualifier` and
+      `rule:security/secret-sinks-refuse`: a durable row read back by another process is a sink by
+      every test either applies. `CoreTy::Mixed` carries no qualifier —
+      `crates/nvs-stdlib/src/registry.rs:1031` is `classification`, whose leaf list is where a
+      spelling would go — so this is a registry spelling before it is a line in the helper.
+- [ ] **`Core\Queue`'s `limits` and `grants` are declared** — `crates/nvs-stdlib/src/queue.rs:55` is
+      gap 1: each is an *option* whose value is itself a `{…}`, and
+      `rule:core-api/shape-parameter` makes a shape only ever a whole parameter, so a
+      `CoreOption`'s type is never a bag and `crates/nvs-stdlib/src/registry.rs:771`'s `CoreField`
+      is never a `CoreTy::Shape`. `Core\Db::open` no longer waits on it — its settings literal *is*
+      a whole parameter — so what is left is whether an option may carry one at all.
 
 ## Backlog
 
-- **Stage 3 (`array<T>` variance)** is `nvs_types::expr::assign`'s `is_assignable` admitting an
-  element-covariant array. **Decided by the user; do not re-argue it.** Sound because an Novis array is
-  copy-on-write — an element-covariant *read* cannot be aliased into an unsound write, since a callee
-  that writes gets its own copy. It accepts strictly more programs and breaks none, so no migration and
-  no diagnostic. The negative proof matters as much as the positive one.
-- **Stage 4 (the two small ones)**: the panic hook routes a served request's panic into
-  `Ctx::write_log_record` with its request id — the CLI default hook's stderr stays right, and the hook
-  is presentation, never containment, so nothing about it lets a panic be recovered. `[limits]
-  max_output` bounds a capture at `Core\Process` **and** `Core\IO::read`, which the module doc says the
-  same signature closes — both or neither.
-- **Stage 5** rewrites `carried-gaps.md` § *Unowned* to what survives. One entry is expected to: `rule:security/arena-is-an-ownership-root`'s optional in-flight cycle collector, which is an **open decision rather than an unclosed gap**
-  and stays visible for exactly that reason.
+- `Core\Uri`'s `queryParameter`/`withQueryParameter` pair — `crates/nvs-stdlib/src/uri.rs` gap 1,
+  `rule:core-classes/uri-removable-components`' second level; stage 2 work, unclaimed by any item.
+- `array<T>` widens to accept a covariant read — goal `unowned-sweep`'s own standing decision.
+- The panic hook `rule:errors/helper-abi` has wanted since M5 — presentation only, never containment.
+- `nvs meta --json` spells `Const::NeverWritten` as `(omitted)`; no consumer pins that string yet.

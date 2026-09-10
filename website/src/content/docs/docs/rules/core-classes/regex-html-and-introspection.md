@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">A two-tier regex engine, auto-escaping output with one typed bypass, read-only reflection, and an inert parse tree.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">13</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">11</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">9</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">15</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">15</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">11</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#regex-two-tiers">A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#regex-literal-tiering">A literal pattern is validated and tiered while checking, and a malformed one is a compile error</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#regex-syntax">Regex syntax is PCRE's with no <code>u</code> modifier, and a construct neither engine supports is diagnosed by name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-auto-escape"><code>echo</code> in an HTTP request escapes everything it is given, and <code>Core\Html\Markup</code> is the only raw-write bypass</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-escape-answers-markup"><code>Core\Html::escape</code> answers a <code>Markup</code>, so the eager-escape habit stops compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-to-source"><code>Core\Html::toSource</code> is the one way out of a <code>Markup</code>, and it takes a written reason</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#html-sanitize"><code>Core\Html::sanitize</code> answers a <code>Markup</code> by rebuilding the document, never by filtering it</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#html-parsing">HTML parses by the WHATWG algorithm onto <code>Core\Xml</code>'s own tree, and that parse never fails</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#validate-has-no-type-predicates"><code>Core\Validate</code> carries no predicate that names a type, because <code>as ?T</code> already is one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-reveal"><code>Core\Secret::reveal</code> is the one named way out of <code>secret</code>, and it carries a written reason</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#reflect"><code>Core\Reflect</code> is read-only structural introspection, and it is a first-class feature rather than an extension</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ast-is-inert"><code>Core\Ast</code> runs the compiler's own parser and hands back typed, inert nodes</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#topic"><code>Core\Topic</code> is the only way two connections meet, and a slow subscriber is closed rather than tolerated</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#regex-two-tiers">A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#regex-literal-tiering">A literal pattern is validated and tiered while checking, and a malformed one is a compile error</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#regex-syntax">Regex syntax is PCRE's with no <code>u</code> modifier, and a construct neither engine supports is diagnosed by name</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-auto-escape"><code>echo</code> in an HTTP request escapes everything it is given, and <code>Core\Html\Markup</code> is the only raw-write bypass</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-escape-answers-markup"><code>Core\Html::escape</code> answers a <code>Markup</code>, so the eager-escape habit stops compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#html-to-source"><code>Core\Html::toSource</code> is the one way out of a <code>Markup</code>, and it takes a written reason</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#html-sanitize"><code>Core\Html::sanitize</code> answers a <code>Markup</code> by rebuilding the document, never by filtering it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#html-parsing">HTML parses by the WHATWG algorithm onto <code>Core\Xml</code>'s own tree, and that parse never fails</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#xml-tree-and-stream"><code>Core\Xml</code> is a materialising tree beside a one-window stream, and no operation is available through both</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#xml-refuses-by-construction"><code>Core\Xml</code> refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#validate-has-no-type-predicates"><code>Core\Validate</code> carries no predicate that names a type, because <code>as ?T</code> already is one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#secret-reveal"><code>Core\Secret::reveal</code> is the one named way out of <code>secret</code>, and it carries a written reason</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#reflect"><code>Core\Reflect</code> is read-only structural introspection, and it is a first-class feature rather than an extension</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#ast-is-inert"><code>Core\Ast</code> runs the compiler's own parser and hands back typed, inert nodes</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#topic"><code>Core\Topic</code> is the only way two connections meet, and a slow subscriber is closed rather than tolerated</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="regex-two-tiers">
 
@@ -226,7 +226,7 @@ reserved for the operation that actually inverts `escape` and which this is not.
 ## `Core\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#html-sanitize"><code>core-classes/html-sanitize</code></a>
 </div>
 
@@ -238,11 +238,24 @@ never a filter that deletes what looks dangerous. A filter answering a carrier w
 sanitizer wearing a type — it would claim a guarantee it cannot establish, because "what looks
 dangerous" is a list an attacker gets to extend.
 
-**Not shipped.** `crates/nvs-stdlib/src/html.rs` carries `escape` and `toSource` and no sanitizer.
-The member waits on the WHATWG tree ([`core-classes/html-parsing`](/docs/rules/core-classes/regex-html-and-introspection/#html-parsing "HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails")), which is what it would parse
-into.
+**The rebuild is three steps and only the middle one holds a policy.** The document is parsed by the
+WHATWG algorithm, which cannot fail; a new tree is built from a closed list of elements, each with the
+attributes it may carry; and that tree is written back out under the serialization rules of the door it
+came through. An element the list does not hold contributes no tag — dropped with its content when its
+content model is raw text, since a `<script>`'s character data is neither markup nor prose, and
+unwrapped otherwise, because `html`, `head` and `body` are elements the algorithm inserts around every
+fragment. An attribute the list does not grant is not written, and a `href` or `src` naming a scheme
+outside the ones that fetch is not written either.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#html-escape-answers-markup" title="Core\Html::escape answers a Markup, so the eager-escape habit stops compiling"><code>core-classes/html-escape-answers-markup</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-parsing" title="HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails"><code>core-classes/html-parsing</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape" title="echo in an HTTP request escapes everything it is given, and Core\Html\Markup is the only raw-write bypass"><code>core-classes/html-auto-escape</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0133.md">record 0133</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0122.md">record 0122</a></dd></div></dl>
+**The list is closed in both senses.** It is a list of what is allowed rather than of what is refused,
+and the member takes the document and nothing else — no options bag, no policy argument — so a
+deployment cannot hold a hole its own configuration opened. An element a real application needs is
+added to the list in a commit that says why.
+
+The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
+says the approved document is the one a browser will build.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#html-escape-answers-markup" title="Core\Html::escape answers a Markup, so the eager-escape habit stops compiling"><code>core-classes/html-escape-answers-markup</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-parsing" title="HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails"><code>core-classes/html-parsing</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape" title="echo in an HTTP request escapes everything it is given, and Core\Html\Markup is the only raw-write bypass"><code>core-classes/html-auto-escape</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0133.md">record 0133</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0122.md">record 0122</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-sanitize-rebuilds-a-document-and-writes-no-tag-for-what-the-allowlist-lacks.nvst"><code>tests/conformance/core/html-sanitize-rebuilds-a-document-and-writes-no-tag-for-what-the-allowlist-lacks.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-sanitize-reaches-a-fixed-point-over-a-document-that-mutates.nvst"><code>tests/conformance/core/html-sanitize-reaches-a-fixed-point-over-a-document-that-mutates.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-escape-and-html-sanitize-are-two-launderers-for-one-sink.nvst"><code>tests/conformance/core/html-escape-and-html-sanitize-are-two-launderers-for-one-sink.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst"><code>tests/conformance/core/html-sanitize-grants-what-describes-the-text-and-nothing-a-page-selects-on.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst"><code>tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/html.rs"><code>crates/nvs-stdlib/src/html.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -251,7 +264,7 @@ into.
 ## HTML parses by the WHATWG algorithm onto `Core\Xml`'s own tree, and that parse never fails
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#html-parsing"><code>core-classes/html-parsing</code></a>
 </div>
@@ -273,16 +286,121 @@ PDF renderer parse HTML identically: one behaviour to document, one parser to fu
 What it spends, per parse: the materialised tree, proportional to the document, attributed to the
 request and gone with it.
 
-**Not shipped**, and neither half may land alone: the milestone that schedules `Core\Xml`'s tree API
-builds this parse in the same milestone, because the tree and the builder interface are one
-implementation and the second one built would otherwise be shaped by whichever landed first.
+**The tree came first and this parse is written against it**, rather than beside it: the tree and the
+builder interface are one implementation, so whichever was built second would otherwise have been
+shaped by the first. `Core\Html::parse` drives `html5ever` through a tree builder of ours straight
+into those nodes, so the boundary between the crate and the tree is where the one-family rule is
+enforced — a construct one door could produce that the other could not would have to be a sixth kind
+of node, and there is no way to write one.
+
+Two placements follow from the family being closed at five, and both are refusals to invent a node
+rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's answer to what the
+other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
+separate fragment has no kind here and a program looks for them under the element it wrote.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>There is no <code>LIBXML_*</code> flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#html-sanitize" title="Core\Html::sanitize answers a Markup by rebuilding the document, never by filtering it"><code>core-classes/html-sanitize</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#pdf-one-engine" title="The only input language is HTML plus a CSS subset, and every backend answers that one interface"><code>core-classes/pdf-one-engine</code></a> <a href="/docs/rules/errors/ambiguous-input/#ambiguous-input-refused" title="Ambiguous input is refused whole, never repaired"><code>errors/ambiguous-input-refused</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0122.md">record 0122</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0095.md">record 0095</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0121.md">record 0121</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#html-sanitize" title="Core\Html::sanitize answers a Markup by rebuilding the document, never by filtering it"><code>core-classes/html-sanitize</code></a> <a href="/docs/rules/core-classes/pdf-and-spreadsheets/#pdf-one-engine" title="The only input language is HTML plus a CSS subset, and every backend answers that one interface"><code>core-classes/pdf-one-engine</code></a> <a href="/docs/rules/errors/ambiguous-input/#ambiguous-input-refused" title="Ambiguous input is refused whole, never repaired"><code>errors/ambiguous-input-refused</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0122.md">record 0122</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0095.md">record 0095</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0063.md">record 0063</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0121.md">record 0121</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-parse-never-fails-and-supplies-what-a-document-left-out.nvst"><code>tests/conformance/core/html-parse-never-fails-and-supplies-what-a-document-left-out.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-places-misnested-and-stray-content-where-the-algorithm-says.nvst"><code>tests/conformance/core/html-places-misnested-and-stray-content-where-the-algorithm-says.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-and-xml-are-two-front-doors-onto-one-node-family.nvst"><code>tests/conformance/core/html-and-xml-are-two-front-doors-onto-one-node-family.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst"><code>tests/conformance/core/html-and-xml-agree-about-the-tree-of-a-sanitized-document.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst"><code>tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst"><code>tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/html.rs"><code>crates/nvs-stdlib/src/html.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="xml-tree-and-stream">
+
+## `Core\Xml` is a materialising tree beside a one-window stream, and no operation is available through both
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#xml-tree-and-stream"><code>core-classes/xml-tree-and-stream</code></a>
+</div>
+
+`Core\Xml` is one subsystem in two shapes — a tree that materialises the whole document and a
+reader and writer that hold one window — and **no operation is available through both**, so a program
+picks the shape that fits how much of the document it needs at once and pays for that shape only.
+
+The two are not two spellings of one capability. The tree's defining property is that a program may
+walk it in any order and any number of times; the stream's is that memory is O(one window) rather than
+O(document). Neither shape can offer the other's property, so a program with a large export and a
+program with a small configuration file are not being offered a preference — they are being offered the
+only two answers that exist.
+
+Spec § 17 names this outright as "the one place in this file where two shapes of the same subsystem
+coexist", so it is the **named** exception to [`core-api/one-paradigm-per-operation`](/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods") rather than a
+quiet one, and the naming is what stops it spreading: a subsystem that wants two shapes has to earn its
+own sentence. The disjointness is what makes it survivable — an operation reachable through both would
+put a seam in the API where the memory story stops being a property of the door a program came in
+through, and every member added afterwards would have to answer which side it belongs to.
+
+Both shapes answer the same node family, the one [`core-classes/html-parsing`](/docs/rules/core-classes/regex-html-and-introspection/#html-parsing "HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails") makes both parsers
+produce, so a program that outgrows the tree does not learn a second vocabulary. The split is stated
+once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
+
+What it spends, per [`programs/memory-priority`](/docs/rules/programs/claims-and-priorities/#memory-priority "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"): the tree is proportional to the document,
+attributed to the request that parsed it and released with its arena; reading through the stream holds
+one window, and writing through it holds the document being built and no tree of nodes at all.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>DOMDocument</code>, <code>SimpleXMLElement</code>, <code>XMLReader</code> and the expat callbacks are four vocabularies for one document — there are two here, they share a node family, and they share no operation</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#html-parsing" title="HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails"><code>core-classes/html-parsing</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#xml-refuses-by-construction" title="Core\Xml refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded"><code>core-classes/xml-refuses-by-construction</code></a> <a href="/docs/rules/core-api/one-way-to-do-each-thing/#one-paradigm-per-operation" title="No operation is reachable two ways, and a domain class's statics never mirror an object's own methods"><code>core-api/one-paradigm-per-operation</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0168.md">record 0168</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-reader-answers-one-node-at-a-time-in-document-order.nvst"><code>tests/conformance/core/xml-a-reader-answers-one-node-at-a-time-in-document-order.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst"><code>tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-writer-refuses-every-call-that-would-not-leave-a-document.nvst"><code>tests/conformance/core/xml-a-writer-refuses-every-call-that-would-not-leave-a-document.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-writers-indent-is-layout-and-never-lands-beside-character-data.nvst"><code>tests/conformance/core/xml-a-writers-indent-is-layout-and-never-lands-beside-character-data.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-node-writes-its-own-subtree-and-escapes-what-it-carries.nvst"><code>tests/conformance/core/xml-a-node-writes-its-own-subtree-and-escapes-what-it-carries.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst"><code>tests/conformance/core/xml-a-tree-writes-back-out-as-a-document-that-parses-to-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst"><code>tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst"><code>tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="xml-refuses-by-construction">
+
+## `Core\Xml` refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#xml-refuses-by-construction"><code>core-classes/xml-refuses-by-construction</code></a>
+</div>
+
+`Core\Xml` refuses a `<!DOCTYPE …>` whole and resolves no entity beyond the five predefined ones, so
+the three classic XML attacks are **absent code paths rather than bounded ones** — there is no flag to
+have defaulted to off, because there is nothing for a flag to have switched.
+
+Each of the three is answered by subtraction rather than by a limit:
+
+- **External entity resolution** does not exist. One function in the module resolves a reference, its
+  vocabulary is closed at `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` and numeric character references,
+  and no branch anywhere reaches a filesystem, a network or another document. This is
+  [`security/no-runtime-grant`](/docs/rules/security/scopes-and-denial/#no-runtime-grant "Two layers enforce a capability and only the static one grants; nothing anywhere widens") applied to a parser: the authority is not withheld, it was never
+  wired.
+- **A DTD naming an external subset** is refused at the `<!DOCTYPE` token, before the identifier is
+  read, so the refusal cannot depend on telling a `SYSTEM` identifier from a `PUBLIC` one.
+- **A billion-laughs expansion** needs an internal subset to declare its entities in. There is no
+  internal subset, so there is no expansion, so there is no expansion factor to meter — this is closed
+  at the declaration rather than metered by [`core-classes/decompression-bound`](/docs/rules/core-classes/uris-and-images/#decompression-bound "Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off")'s ratio and ceiling,
+  and refusal is one comparison where metering would be a DTD parser, an entity table, a substitution
+  pass and a bound over it.
+
+The five predefined entities and numeric character references still expand, and they are not an
+exception: they are the document's own characters written another way, they resolve without consulting
+anything, and refusing them would be refusing well-formed XML rather than refusing an attack.
+
+**Depth is the one bound that stays a number.** Element nesting is written by a document rather than
+declared by it, so there is no token to refuse: `DEPTH_CEILING` caps how deeply elements may nest, at
+the same figure `Core\Json::decode` carries and for the same reason — a document engineered to be deep
+costs work before any value exists, and a stated bound is one a caller can reason about. The parse loop
+is iterative, so it is a policy rather than a guard over the native stack.
+
+A program that needs to fetch something fetches it with `Core\Http\Client` and parses the bytes it got
+back. Both refusals are `ParseError` throws naming what was written, per
+[`errors/ambiguous-input-refused`](/docs/rules/errors/ambiguous-input/#ambiguous-input-refused "Ambiguous input is refused whole, never repaired"); `Core\Html`'s WHATWG entry is the door for input that is
+HTML-shaped rather than well-formed, and it never fails ([`core-classes/html-parsing`](/docs/rules/core-classes/regex-html-and-introspection/#html-parsing "HTML parses by the WHATWG algorithm onto Core\Xml's own tree, and that parse never fails")).
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>libxml_disable_entity_loader</code>, no <code>LIBXML_NOENT</code> and no entity loader for either to have switched — a <code>&lt;!DOCTYPE …&gt;</code> does not parse at all</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#xml-tree-and-stream" title="Core\Xml is a materialising tree beside a one-window stream, and no operation is available through both"><code>core-classes/xml-tree-and-stream</code></a> <a href="/docs/rules/core-classes/uris-and-images/#decompression-bound" title="Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off"><code>core-classes/decompression-bound</code></a> <a href="/docs/rules/security/scopes-and-denial/#no-runtime-grant" title="Two layers enforce a capability and only the static one grants; nothing anywhere widens"><code>security/no-runtime-grant</code></a> <a href="/docs/rules/errors/ambiguous-input/#ambiguous-input-refused" title="Ambiguous input is refused whole, never repaired"><code>errors/ambiguous-input-refused</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0168.md">record 0168</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-expands-the-five-predefined-entities-and-nothing-else.nvst"><code>tests/conformance/core/xml-expands-the-five-predefined-entities-and-nothing-else.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-refuses-malformed-input-rather-than-repairing-it.nvst"><code>tests/conformance/core/xml-refuses-malformed-input-rather-than-repairing-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst"><code>tests/conformance/core/xml-the-deepest-tree-the-parser-accepts-writes-back-out.nvst</code></a></dd></div></dl>
 
 </div>
 

@@ -346,7 +346,14 @@ The divergence is the point rather than an inconsistency, and it is pinned as on
 asserted side by side on one route, so a reader holding two adjacent lines of one signature knows they
 fail two ways.
 
-**Not shipped.** The declaration half — the marker, its type list, its optional bit
+**A path capture at a class built from text is on the query value's side of that line**, and for the
+query value's reason. It is not one of the conversions the matcher performs
+([`security/route-capture-is-laundered-by-its-type`](/docs/rules/security/laundering/#route-capture-is-laundered-by-its-type "A route capture is laundered by the parameter's own type, and a string capture stays tainted")): it matches on shape and converts where the
+match crosses into the program, so by the time the class can refuse anything the route has already been
+chosen and there is nothing to continue to. Its refusal is therefore a `400`, and what makes the two
+kinds of capture differ is which of them the router itself reads.
+
+**The query half is not shipped.** The declaration — the marker, its type list, its optional bit
 ([`routing/a-query-parameter-is-declared-like-a-capture`](/docs/rules/routing/declaring-a-route/#a-query-parameter-is-declared-like-a-capture "A #[Query] parameter is declared with a capture's type list, and a default is what makes it optional")) — compiles today; nothing in the tree yet
 converts a query value into a bound parameter or answers `400` for one. `Core\Router\Match::params`
 carries the path captures alone, and a program reads `Core\Request::query()` raw.
@@ -356,7 +363,7 @@ carries the path captures alone, and a program reads `Core\Request::query()` raw
 <p>A bad query value is refused with a 400 before the handler sees it, instead of arriving as a string the handler casts and checks</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/routing/declaring-a-route/#a-query-parameter-is-declared-like-a-capture" title="A #[Query] parameter is declared with a capture's type list, and a default is what makes it optional"><code>routing/a-query-parameter-is-declared-like-a-capture</code></a> <a href="/docs/rules/security/laundering/#route-capture-is-laundered-by-its-type" title="A route capture is laundered by the parameter's own type, and a string capture stays tainted"><code>security/route-capture-is-laundered-by-its-type</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0102.md">record 0102</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0077.md">record 0077</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/routing/declaring-a-route/#a-query-parameter-is-declared-like-a-capture" title="A #[Query] parameter is declared with a capture's type list, and a default is what makes it optional"><code>routing/a-query-parameter-is-declared-like-a-capture</code></a> <a href="/docs/rules/security/laundering/#route-capture-is-laundered-by-its-type" title="A route capture is laundered by the parameter's own type, and a string capture stays tainted"><code>security/route-capture-is-laundered-by-its-type</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0102.md">record 0102</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0077.md">record 0077</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0160.md">record 0160</a></dd></div></dl>
 
 </div>
 

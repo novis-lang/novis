@@ -127,17 +127,32 @@ declared type is what the segment is converted to during matching. A failed conv
 match**: matching continues, and if nothing else matches the result is a 404 — which is what every
 framework otherwise writes by hand as a digit constraint on the placeholder.
 
+**A capture typed at a class built from text is the one exception, and it fails the other way.** The
+matcher narrows on the conversions it reads natively — `int`, `uint`, `decimal`, `Core\Uuid` and a
+closed set — and a capture declared at any *other* class implementing `Parses` matches on **shape**.
+Matching runs at the door with no program installed, so calling that class's `parse` there would put an
+implementor's body over every request URL, including the ones that match no route, ahead of everything
+that rate-limits it — the priority-1 objection this rule already makes to a regex, and a `parse` body is
+strictly more than a regex. The class's `parse` runs at the binding site instead, where the match
+crosses into the program, so a segment it refuses is a **`400`** over a route that did match rather than
+a `404` ([`routing/a-bad-query-value-is-a-400`](/docs/rules/routing/declaring-a-route/#a-bad-query-value-is-a-400 "A query value that fails to convert is a 400, where a path capture that fails is a 404")). Two captures spelled the same way therefore fail
+two ways, and what decides which is who runs at the door.
+
 **A converted capture arrives unqualified.** A checked conversion launders
 ([`security/taint-propagation`](/docs/rules/security/tainted-data/#taint-propagation "A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free")), so an integer or enum capture is a plain value, while a `string`
 capture and a trailing-segment capture stay `tainted string`, because nothing about them was checked.
-No new sink, no new launderer, no new rule — the existing one arriving somewhere useful.
+A capture at a class built from text arrives as an instance of that class, which carries no qualifier
+because `tainted` is a property of `string` and `bytes` and never of a class
+([`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string, bytes and a shape of them, spellable in any declaration and erased before codegen")) — an implementor that keeps the text in a plain `string` field is
+refused by the assignability rule that already stands. No new sink, no new launderer, no new rule — the
+existing one arriving somewhere useful.
 
 **A regex constraint is not among the admitted types and never will be.** An application-authored
 pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
 unauthenticated denial of service; a closed set is spelled as a union of literal types or a subset of
 an enum's cases instead.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/tainted-data/#taint-propagation" title="A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free"><code>security/taint-propagation</code></a> <a href="/docs/rules/security/protocols-and-tokens/#access-is-checked-for-presence-not-meaning" title="The compiler proves a route's access decision was written, never that it was honoured"><code>security/access-is-checked-for-presence-not-meaning</code></a> <a href="/docs/rules/types/text-and-literal-types/#literal-types" title="A string or int literal is its own type, and a union of them is a closed set"><code>types/literal-types</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0077.md">record 0077</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0102.md">record 0102</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst"><code>tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/router-match-converts-a-capture-before-anything-decodes-it.nvst"><code>tests/conformance/core/router-match-converts-a-capture-before-anything-decodes-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/routes.rs"><code>crates/nvs-types/tests/routes.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/tainted-data/#taint-propagation" title="A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free"><code>security/taint-propagation</code></a> <a href="/docs/rules/security/protocols-and-tokens/#access-is-checked-for-presence-not-meaning" title="The compiler proves a route's access decision was written, never that it was honoured"><code>security/access-is-checked-for-presence-not-meaning</code></a> <a href="/docs/rules/types/text-and-literal-types/#literal-types" title="A string or int literal is its own type, and a union of them is a closed set"><code>types/literal-types</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0077.md">record 0077</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0102.md">record 0102</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0160.md">record 0160</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst"><code>tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/router-match-converts-a-capture-before-anything-decodes-it.nvst"><code>tests/conformance/core/router-match-converts-a-capture-before-anything-decodes-it.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/routes.rs"><code>crates/nvs-types/tests/routes.rs</code></a></dd></div></dl>
 
 </div>
 

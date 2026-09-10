@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 937,
-    "shipped": 651,
-    "designed": 286,
-    "diverging": 556
+    "total": 957,
+    "shipped": 676,
+    "designed": 281,
+    "diverging": 562
   },
   "topics": [
     {
@@ -1214,10 +1214,10 @@
       "url": "/docs/rules/classes/",
       "single": false,
       "counts": {
-        "total": 37,
-        "shipped": 36,
+        "total": 38,
+        "shipped": 37,
         "designed": 1,
-        "diverging": 22
+        "diverging": 23
       },
       "sections": [
         {
@@ -1538,10 +1538,10 @@
           "blurb": "Two copy depths, neither of which a class customizes, and a serialization format closed to everything it did not write.",
           "url": "/docs/rules/classes/copying-and-serializing/",
           "counts": {
-            "total": 5,
-            "shipped": 5,
+            "total": 6,
+            "shipped": 6,
             "designed": 0,
-            "diverging": 3
+            "diverging": 4
           },
           "rules": [
             {
@@ -1575,6 +1575,14 @@
               "status": "shipped",
               "href": "/docs/rules/classes/copying-and-serializing/#serialize-is-a-closed-format",
               "diverges": "PHP's open, cross-version `serialize` wire format is not readable, and no hook fires during reconstruction, so the object-injection class has nothing to drive"
+            },
+            {
+              "id": "classes/an-encoder-ends-a-cycle-by-identity",
+              "slug": "an-encoder-ends-a-cycle-by-identity",
+              "title": "Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap",
+              "status": "shipped",
+              "href": "/docs/rules/classes/copying-and-serializing/#an-encoder-ends-a-cycle-by-identity",
+              "diverges": "`json_encode` reports a recursive reference by returning `false` and setting `JSON_ERROR_RECURSION`, and names no path; here the encoder throws and the message carries the property chain that closed the cycle"
             },
             {
               "id": "classes/no-class-alias",
@@ -1918,10 +1926,10 @@
       "url": "/docs/rules/errors/",
       "single": false,
       "counts": {
-        "total": 26,
-        "shipped": 24,
+        "total": 28,
+        "shipped": 26,
         "designed": 2,
-        "diverging": 17
+        "diverging": 18
       },
       "sections": [
         {
@@ -2054,10 +2062,10 @@
           "blurb": "Every developer-facing output is one closed record. Five producers build it, and the sink in force picks the rendering.",
           "url": "/docs/rules/errors/diagnostics-and-logging/",
           "counts": {
-            "total": 9,
-            "shipped": 7,
+            "total": 11,
+            "shipped": 9,
             "designed": 2,
-            "diverging": 6
+            "diverging": 7
           },
           "rules": [
             {
@@ -2075,6 +2083,14 @@
               "status": "designed",
               "href": "/docs/rules/errors/diagnostics-and-logging/#record-producers",
               "diverges": null
+            },
+            {
+              "id": "errors/a-record-names-where-it-was-produced",
+              "slug": "a-record-names-where-it-was-produced",
+              "title": "A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum",
+              "status": "shipped",
+              "href": "/docs/rules/errors/diagnostics-and-logging/#a-record-names-where-it-was-produced",
+              "diverges": "no stack is captured per record, where `getTrace` snapshots the whole stack at construction; the call path is the trace's answer and a record carries only where it was produced"
             },
             {
               "id": "errors/record-transformations",
@@ -2130,6 +2146,14 @@
               "title": "A record's fields are named and typed, not a stringly bag",
               "status": "shipped",
               "href": "/docs/rules/errors/diagnostics-and-logging/#log-fields",
+              "diverges": null
+            },
+            {
+              "id": "errors/a-repeat-is-bounded-at-the-sink-that-suffers",
+              "slug": "a-repeat-is-bounded-at-the-sink-that-suffers",
+              "title": "A repeat is bounded at the sink that suffers from it: a disk-bounded target coalesces before the write, and an indexed one groups at read time",
+              "status": "shipped",
+              "href": "/docs/rules/errors/diagnostics-and-logging/#a-repeat-is-bounded-at-the-sink-that-suffers",
               "diverges": null
             }
           ]
@@ -2196,9 +2220,9 @@
       "url": "/docs/rules/tooling/",
       "single": false,
       "counts": {
-        "total": 56,
-        "shipped": 20,
-        "designed": 36,
+        "total": 60,
+        "shipped": 25,
+        "designed": 35,
         "diverging": 40
       },
       "sections": [
@@ -2514,9 +2538,9 @@
           "blurb": "A doc comment is exactly `///`, and one JSON document is the machine-readable source every renderer consumes.",
           "url": "/docs/rules/tooling/doc-comments-and-metadata/",
           "counts": {
-            "total": 8,
-            "shipped": 1,
-            "designed": 7,
+            "total": 12,
+            "shipped": 6,
+            "designed": 6,
             "diverging": 6
           },
           "rules": [
@@ -2556,7 +2580,7 @@
               "id": "tooling/nvs-doc-renders-and-decides-nothing",
               "slug": "nvs-doc-renders-and-decides-nothing",
               "title": "`nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#nvs-doc-renders-and-decides-nothing",
               "diverges": "the renderer ships inside the binary rather than as a phpDocumentor-style tool a project installs"
             },
@@ -2580,8 +2604,40 @@
               "id": "tooling/meta-json-takes-a-program",
               "slug": "meta-json-takes-a-program",
               "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/tooling/doc-comments-and-metadata/#meta-json-takes-a-program",
+              "diverges": null
+            },
+            {
+              "id": "tooling/an-agent-asks-the-binary",
+              "slug": "an-agent-asks-the-binary",
+              "title": "`nvs agent` answers a coding agent from the registry in four commands, and the check loop is part of the surface",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#an-agent-asks-the-binary",
+              "diverges": null
+            },
+            {
+              "id": "tooling/the-index-is-one-line-per-member",
+              "slug": "the-index-is-one-line-per-member",
+              "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#the-index-is-one-line-per-member",
+              "diverges": null
+            },
+            {
+              "id": "tooling/a-primer-claim-is-executed",
+              "slug": "a-primer-claim-is-executed",
+              "title": "The primer is generated, and every refusal it states and every example it shows is proven against the compiler that ships with it",
+              "status": "shipped",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#a-primer-claim-is-executed",
+              "diverges": null
+            },
+            {
+              "id": "tooling/an-adapter-carries-protocol-and-never-language",
+              "slug": "an-adapter-carries-protocol-and-never-language",
+              "title": "`nvs agent init` writes one pointer per harness, and no adapter ever states a language fact",
+              "status": "designed",
+              "href": "/docs/rules/tooling/doc-comments-and-metadata/#an-adapter-carries-protocol-and-never-language",
               "diverges": null
             }
           ]
@@ -3418,9 +3474,9 @@
       "url": "/docs/rules/testing/",
       "single": false,
       "counts": {
-        "total": 48,
+        "total": 53,
         "shipped": 38,
-        "designed": 10,
+        "designed": 15,
         "diverging": 15
       },
       "sections": [
@@ -3704,9 +3760,9 @@
           "blurb": "One per-request flag word at fixed probe sites, exporting formats existing tooling already reads — never a second compiled tier.",
           "url": "/docs/rules/testing/coverage-and-probes/",
           "counts": {
-            "total": 6,
+            "total": 11,
             "shipped": 4,
-            "designed": 2,
+            "designed": 7,
             "diverging": 1
           },
           "rules": [
@@ -3756,6 +3812,46 @@
               "title": "The conformance suite runs with the probes on, and once per optimisation level",
               "status": "designed",
               "href": "/docs/rules/testing/coverage-and-probes/#probes-on-is-a-tested-configuration",
+              "diverges": null
+            },
+            {
+              "id": "testing/writing-a-debug-record-to-disk-is-its-own-gate",
+              "slug": "writing-a-debug-record-to-disk-is-its-own-gate",
+              "title": "`[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on",
+              "status": "designed",
+              "href": "/docs/rules/testing/coverage-and-probes/#writing-a-debug-record-to-disk-is-its-own-gate",
+              "diverges": null
+            },
+            {
+              "id": "testing/the-debug-stream-reaches-the-service-through-the-disk",
+              "slug": "the-debug-stream-reaches-the-service-through-the-disk",
+              "title": "A debug record reaches the service through a sealed spool file that one writer owns, never over a socket",
+              "status": "designed",
+              "href": "/docs/rules/testing/coverage-and-probes/#the-debug-stream-reaches-the-service-through-the-disk",
+              "diverges": null
+            },
+            {
+              "id": "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
+              "slug": "the-ingester-runs-whether-or-not-anyone-is-looking",
+              "title": "The ingester owns every write to the index and runs without a browser, and the viewer only ever reads",
+              "status": "designed",
+              "href": "/docs/rules/testing/coverage-and-probes/#the-ingester-runs-whether-or-not-anyone-is-looking",
+              "diverges": null
+            },
+            {
+              "id": "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
+              "slug": "a-bad-line-degrades-and-a-bad-file-is-quarantined",
+              "title": "A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops",
+              "status": "designed",
+              "href": "/docs/rules/testing/coverage-and-probes/#a-bad-line-degrades-and-a-bad-file-is-quarantined",
+              "diverges": null
+            },
+            {
+              "id": "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
+              "slug": "the-viewer-shows-the-stream-and-hands-off-every-artifact",
+              "title": "The viewer renders the correlated request stream and hands every artifact with an existing viewer to it",
+              "status": "designed",
+              "href": "/docs/rules/testing/coverage-and-probes/#the-viewer-shows-the-stream-and-hands-off-every-artifact",
               "diverges": null
             }
           ]
@@ -3900,9 +3996,9 @@
       "url": "/docs/rules/security/",
       "single": false,
       "counts": {
-        "total": 84,
+        "total": 85,
         "shipped": 68,
-        "designed": 16,
+        "designed": 17,
         "diverging": 26
       },
       "sections": [
@@ -4154,9 +4250,9 @@
           "blurb": "How a path scope is decided, why a denial is catchable, and why the network address policy lives inside the capability itself.",
           "url": "/docs/rules/security/scopes-and-denial/",
           "counts": {
-            "total": 9,
+            "total": 10,
             "shipped": 7,
-            "designed": 2,
+            "designed": 3,
             "diverging": 2
           },
           "rules": [
@@ -4222,6 +4318,14 @@
               "title": "`net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address",
               "status": "shipped",
               "href": "/docs/rules/security/scopes-and-denial/#net-address-policy",
+              "diverges": null
+            },
+            {
+              "id": "security/net-listen-is-a-separate-grant-from-net-connect",
+              "slug": "net-listen-is-a-separate-grant-from-net-connect",
+              "title": "The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other",
+              "status": "designed",
+              "href": "/docs/rules/security/scopes-and-denial/#net-listen-is-a-separate-grant-from-net-connect",
               "diverges": null
             },
             {
@@ -5313,8 +5417,8 @@
       "single": false,
       "counts": {
         "total": 56,
-        "shipped": 46,
-        "designed": 10,
+        "shipped": 51,
+        "designed": 5,
         "diverging": 28
       },
       "sections": [
@@ -5629,8 +5733,8 @@
           "url": "/docs/rules/core-api/parameters-and-options/",
           "counts": {
             "total": 9,
-            "shipped": 3,
-            "designed": 6,
+            "shipped": 8,
+            "designed": 1,
             "diverging": 5
           },
           "rules": [
@@ -5670,7 +5774,7 @@
               "id": "core-api/omission-is-not-a-written-null",
               "slug": "omission-is-not-a-written-null",
               "title": "An options bag tells an omitted key from a written `null`",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-api/parameters-and-options/#omission-is-not-a-written-null",
               "diverges": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member"
             },
@@ -5678,7 +5782,7 @@
               "id": "core-api/a-nullable-field-omits-as-the-never-written-marker",
               "slug": "a-nullable-field-omits-as-the-never-written-marker",
               "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-api/parameters-and-options/#a-nullable-field-omits-as-the-never-written-marker",
               "diverges": null
             },
@@ -5686,7 +5790,7 @@
               "id": "core-api/a-written-null-removes",
               "slug": "a-written-null-removes",
               "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-api/parameters-and-options/#a-written-null-removes",
               "diverges": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member"
             },
@@ -5694,7 +5798,7 @@
               "id": "core-api/the-marker-never-reaches-a-program",
               "slug": "the-marker-never-reaches-a-program",
               "title": "The never-written marker is not in the type system and is never handed to user code",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-api/parameters-and-options/#the-marker-never-reaches-a-program",
               "diverges": null
             },
@@ -5702,7 +5806,7 @@
               "id": "core-api/the-bag-abi-is-unchanged",
               "slug": "the-bag-abi-is-unchanged",
               "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-api/parameters-and-options/#the-bag-abi-is-unchanged",
               "diverges": null
             }
@@ -5872,10 +5976,10 @@
       "url": "/docs/rules/core-classes/",
       "single": false,
       "counts": {
-        "total": 74,
-        "shipped": 48,
-        "designed": 26,
-        "diverging": 45
+        "total": 80,
+        "shipped": 55,
+        "designed": 25,
+        "diverging": 48
       },
       "sections": [
         {
@@ -5978,10 +6082,10 @@
           "blurb": "A two-tier regex engine, auto-escaping output with one typed bypass, read-only reflection, and an inert parse tree.",
           "url": "/docs/rules/core-classes/regex-html-and-introspection/",
           "counts": {
-            "total": 13,
-            "shipped": 11,
-            "designed": 2,
-            "diverging": 9
+            "total": 15,
+            "shipped": 15,
+            "designed": 0,
+            "diverging": 11
           },
           "rules": [
             {
@@ -6036,7 +6140,7 @@
               "id": "core-classes/html-sanitize",
               "slug": "html-sanitize",
               "title": "`Core\\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/regex-html-and-introspection/#html-sanitize",
               "diverges": null
             },
@@ -6044,9 +6148,25 @@
               "id": "core-classes/html-parsing",
               "slug": "html-parsing",
               "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/regex-html-and-introspection/#html-parsing",
               "diverges": "there is no `LIBXML_*` flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes"
+            },
+            {
+              "id": "core-classes/xml-tree-and-stream",
+              "slug": "xml-tree-and-stream",
+              "title": "`Core\\Xml` is a materialising tree beside a one-window stream, and no operation is available through both",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/regex-html-and-introspection/#xml-tree-and-stream",
+              "diverges": "`DOMDocument`, `SimpleXMLElement`, `XMLReader` and the expat callbacks are four vocabularies for one document — there are two here, they share a node family, and they share no operation"
+            },
+            {
+              "id": "core-classes/xml-refuses-by-construction",
+              "slug": "xml-refuses-by-construction",
+              "title": "`Core\\Xml` refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/regex-html-and-introspection/#xml-refuses-by-construction",
+              "diverges": "there is no `libxml_disable_entity_loader`, no `LIBXML_NOENT` and no entity loader for either to have switched — a `<!DOCTYPE …>` does not parse at all"
             },
             {
               "id": "core-classes/validate-has-no-type-predicates",
@@ -6097,8 +6217,8 @@
           "url": "/docs/rules/core-classes/connecting-to-a-database/",
           "counts": {
             "total": 8,
-            "shipped": 7,
-            "designed": 1,
+            "shipped": 8,
+            "designed": 0,
             "diverging": 5
           },
           "rules": [
@@ -6146,7 +6266,7 @@
               "id": "core-classes/db-unix-socket-path",
               "slug": "db-unix-socket-path",
               "title": "A Unix-socket host is the string that deployment already holds, and MSSQL refuses one",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/connecting-to-a-database/#db-unix-socket-path",
               "diverges": null
             },
@@ -6416,10 +6536,10 @@
           "blurb": "An image is an immutable value carrying a plan — nothing decodes until a terminal runs it, under a cap read off the header.",
           "url": "/docs/rules/core-classes/uris-and-images/",
           "counts": {
-            "total": 7,
-            "shipped": 0,
+            "total": 8,
+            "shipped": 1,
             "designed": 7,
-            "diverging": 6
+            "diverging": 7
           },
           "rules": [
             {
@@ -6429,6 +6549,14 @@
               "status": "designed",
               "href": "/docs/rules/core-classes/uris-and-images/#uri-removable-components",
               "diverges": "there is no `parse_url`/`http_build_query` round trip to lose a component in — removing one is a written `null`, and an empty query is a different value from no query"
+            },
+            {
+              "id": "core-classes/decompression-bound",
+              "slug": "decompression-bound",
+              "title": "Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/uris-and-images/#decompression-bound",
+              "diverges": "`$max_length` was optional and defaulted to unlimited, so the safe call was the one the caller had to remember to write"
             },
             {
               "id": "core-classes/image-pipeline",
@@ -6486,9 +6614,9 @@
           "blurb": "Two first-party extensions that perform no I/O and write nothing a reader would execute, byte-identical for equal input.",
           "url": "/docs/rules/core-classes/pdf-and-spreadsheets/",
           "counts": {
-            "total": 11,
-            "shipped": 0,
-            "designed": 11,
+            "total": 14,
+            "shipped": 1,
+            "designed": 13,
             "diverging": 6
           },
           "rules": [
@@ -6579,6 +6707,30 @@
               "status": "designed",
               "href": "/docs/rules/core-classes/pdf-and-spreadsheets/#spreadsheet-output-is-inert",
               "diverges": null
+            },
+            {
+              "id": "core-classes/net-one-api-three-transports",
+              "slug": "net-one-api-three-transports",
+              "title": "`Core\\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/pdf-and-spreadsheets/#net-one-api-three-transports",
+              "diverges": null
+            },
+            {
+              "id": "core-classes/net-a-socket-does-not-outlive-its-request",
+              "slug": "net-a-socket-does-not-outlive-its-request",
+              "title": "A `Core\\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests",
+              "status": "designed",
+              "href": "/docs/rules/core-classes/pdf-and-spreadsheets/#net-a-socket-does-not-outlive-its-request",
+              "diverges": null
+            },
+            {
+              "id": "core-classes/net-udp-carries-no-reliability-layer",
+              "slug": "net-udp-carries-no-reliability-layer",
+              "title": "A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them",
+              "status": "designed",
+              "href": "/docs/rules/core-classes/pdf-and-spreadsheets/#net-udp-carries-no-reliability-layer",
+              "diverges": null
             }
           ]
         }
@@ -6591,8 +6743,8 @@
       "single": false,
       "counts": {
         "total": 31,
-        "shipped": 17,
-        "designed": 14,
+        "shipped": 19,
+        "designed": 12,
         "diverging": 23
       },
       "sections": [
@@ -6697,8 +6849,8 @@
           "url": "/docs/rules/observability/traces/",
           "counts": {
             "total": 16,
-            "shipped": 5,
-            "designed": 11,
+            "shipped": 7,
+            "designed": 9,
             "diverging": 10
           },
           "rules": [
@@ -6810,7 +6962,7 @@
               "id": "observability/memory-is-three-numbers-on-core-budget",
               "slug": "memory-is-three-numbers-on-core-budget",
               "title": "A request reads its own memory as `memoryHeld`, `memoryPeak` and `memoryLimit` on `Core\\Budget`, and the process's resident bytes are `Core\\Os`'s",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#memory-is-three-numbers-on-core-budget",
               "diverges": "there is no `$real_usage` boolean and no second accounting behind it: `memory_get_usage`'s two numbers were one member with a flag, where the request's held bytes and the process's resident set are two members on the two classes that own them"
             },
@@ -6818,7 +6970,7 @@
               "id": "observability/a-memory-peak-is-recorded-not-asked-for",
               "slug": "a-memory-peak-is-recorded-not-asked-for",
               "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#a-memory-peak-is-recorded-not-asked-for",
               "diverges": "`memory_get_peak_usage` reads a mark PHP keeps because its allocator holds its chunks; here the mark is kept deliberately, because deterministic release means the current figure falls back to the baseline and hides the spike"
             },
@@ -6894,10 +7046,10 @@
       "url": "/docs/rules/http-server/",
       "single": false,
       "counts": {
-        "total": 64,
-        "shipped": 56,
+        "total": 65,
+        "shipped": 57,
         "designed": 8,
-        "diverging": 50
+        "diverging": 51
       },
       "sections": [
         {
@@ -6906,10 +7058,10 @@
           "blurb": "What the server is and is not, how mounts expand at boot, and the valve that answers 503 before an isolate exists.",
           "url": "/docs/rules/http-server/listening-and-admission/",
           "counts": {
-            "total": 12,
-            "shipped": 10,
+            "total": 13,
+            "shipped": 11,
             "designed": 2,
-            "diverging": 10
+            "diverging": 11
           },
           "rules": [
             {
@@ -6926,7 +7078,7 @@
               "title": "The `[server]` block is `Boot`-class, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#the-server-block-is-boot-class",
-              "diverges": "`listen` is the origin's own address rather than a php-fpm pool's, and there is no `pm.*` worker pool to size"
+              "diverges": "`listen` is the origin's own address rather than a php-fpm pool's, and `workers` counts accept cores rather than sizing a `pm.*` process pool"
             },
             {
               "id": "http-server/a-mount-table-expands-at-boot",
@@ -6975,6 +7127,14 @@
               "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#an-unsafe-or-unbounded-default-is-a-defect",
               "diverges": "php-fpm behind nginx ships no security headers, no cookie flags and no outbound timeout until somebody writes them; here nothing written is already the safe and finite configuration"
+            },
+            {
+              "id": "http-server/the-accept-fan-out-is-one-worker-per-core",
+              "slug": "the-accept-fan-out-is-one-worker-per-core",
+              "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
+              "status": "shipped",
+              "href": "/docs/rules/http-server/listening-and-admission/#the-accept-fan-out-is-one-worker-per-core",
+              "diverges": "php-fpm sizes a pool of request *processes* with `pm.*`; `workers` counts accept cores, and one core answers many requests at once"
             },
             {
               "id": "http-server/max-in-flight-refuses-before-allocating",
@@ -7805,8 +7965,8 @@
       "single": false,
       "counts": {
         "total": 68,
-        "shipped": 54,
-        "designed": 14,
+        "shipped": 56,
+        "designed": 12,
         "diverging": 44
       },
       "sections": [
@@ -8387,8 +8547,8 @@
           "url": "/docs/rules/config/stores-and-caches/",
           "counts": {
             "total": 9,
-            "shipped": 3,
-            "designed": 6,
+            "shipped": 5,
+            "designed": 4,
             "diverging": 5
           },
           "rules": [
@@ -8396,7 +8556,7 @@
               "id": "config/cache-shared-is-the-grant-over-the-configured-store",
               "slug": "cache-shared-is-the-grant-over-the-configured-store",
               "title": "A store an operator configured is authorized by the configuring — `cache.shared` is the grant, unscoped, and asks no address",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/stores-and-caches/#cache-shared-is-the-grant-over-the-configured-store",
               "diverges": "a Redis on loopback needs one grant naming the store, not a host allow-list plus an exception for the loopback range the store lives in"
             },
@@ -8427,8 +8587,8 @@
             {
               "id": "config/net-local-is-named-and-not-on-the-roster",
               "slug": "net-local-is-named-and-not-on-the-roster",
-              "title": "A program-supplied socket path needs `net.local`, a path-scoped grant that is named and not yet on the roster",
-              "status": "designed",
+              "title": "A program-supplied socket path needs `net.local`, a path-scoped grant carrying no address policy and governing both ends",
+              "status": "shipped",
               "href": "/docs/rules/config/stores-and-caches/#net-local-is-named-and-not-on-the-roster",
               "diverges": null
             },
