@@ -107,6 +107,12 @@ modules = [
   # Stage 4 -- gap 1, `[limits] max_output`, and `Core\IO::read`'s half of the same signature.
   "crates/nvs-stdlib/src/process.rs",
   "crates/nvs-stdlib/src/io.rs",
+  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
+  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
+  "crates/nvs-types/src/expr/calls.rs",
+  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
+  # one representation, two independent axes, and the sinks that refuse them.
+  "crates/nvs-types/src/expr/quals.rs",
 ]
 
 # 0036 and 0135 are the shape spelling goal `input-shapes` landed and 0147 is the rule stage 2 implements on top
