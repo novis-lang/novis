@@ -117,6 +117,12 @@
 //! `rule:core-classes/html-sanitize` specifies and the only member that answers
 //! `Core\Html\Markup`.
 //!
+//! **Whitespace between elements is text**, and that is what the document says
+//! rather than a hole in the tree. A pretty-printed document has a text node
+//! between every pair of siblings, exactly as the XML it is says it does, and
+//! dropping them would be a guess about which whitespace mattered — the guess
+//! `rule:errors/ambiguous-input-refused` is the general answer to.
+//!
 //! # Known gaps
 //!
 //! 1. **A name is the name as written, prefix and all.** `<x:a/>` answers
@@ -124,10 +130,7 @@
 //!    program comparing qualified names is comparing the document's own
 //!    spelling, which is right for a document it controls and not enough for
 //!    one it does not.
-//! 2. **Whitespace between elements is text.** A pretty-printed document has a
-//!    text node between every pair of siblings, exactly as the XML it is says
-//!    it does. Dropping them would be a guess about which whitespace mattered,
-//!    which `rule:errors/ambiguous-input-refused` is the general answer to.
+//!    — owner: unowned
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
