@@ -5794,6 +5794,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Grep for the sibling variant you copied (`ExprKind::Conversion`) across `crates/` and add an arm
   everywhere it appears, rather than trusting `cargo check` to list them.
   [until: reviewed 2026-09-10]
+- **`is_assignable` is not "holds one at run time", and the gap is exactly one row.** A fold that reads
+  `$x is T` as *is the subject assignable to `T`* answers `true` for `int $n; $n is float`, because
+  `rule:types/conversion`'s one implicit conversion lets an `int` **occupy** a `float` position while
+  carrying a tag it never has. Decompose unions yourself and refuse that pair before calling it —
+  `always_holds` in `crates/nvs-types/src/expr/type_test.rs` is the shape, and the `false` direction
+  reuses `types_are_disjoint` rather than negating this one. [until: reviewed 2026-09-10]
 
 ## Divergences and refusals already pinned
 
