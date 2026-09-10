@@ -1438,6 +1438,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Run `holes.py --item <n>` before tagging a module-doc gap `unowned` against an entry, and read its
   owner sentence as a claim to check.
   [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]
+- **`owners.py --check --reasons` matches an `unowned` tag to a *path*, not to an item, so the gate
+  goes green the moment either reason file names that crate file anywhere.** `unowned_paths` reads
+  `carried-gaps.md` § *Unowned* and the whole of `carried-refusals.md` for `crates/….rs` spellings
+  and keeps only the set of paths, so one bullet about one gap silently licenses every other
+  `unowned` in the same file. Write the bullet for the next reader rather than for the tool — say
+  which shapes in that file it covers and what has to be decided — and check each tag against it by
+  hand, because nothing else will. [until: gone tools/owners.py:def unowned_paths]
 
 ## Running things
 

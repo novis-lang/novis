@@ -37,6 +37,17 @@
 //! meaning behind it, which is [`crate::registry::ENUMS`]' own test for
 //! admitting an entry.
 //!
+//! **The parse of a verb into one of these cases is [`crate::request`]'s**, not
+//! this module's: `Core\Request::method` is the one reader that turns a method
+//! token into a case, and its module doc owns the two decisions in it — `HEAD`
+//! answering `Get`, and a token outside this roster being refused rather than
+//! mapped. A served request carrying an unrecognized verb never reaches that
+//! reader: it is answered **501 at the door**, before an isolate exists
+//! (`nvs_server::serve`'s `Answer::not_implemented`, `501` and not `405`
+//! because the route table has not been asked yet), so the throw inside the
+//! program is only what a program reading `Core\Request::method` for itself
+//! gets.
+//!
 //! # Known gaps
 //!
 //! 1. **A name this module is handed is one the compiler could not fold.** The
@@ -48,6 +59,7 @@
 //!    argument, which is folded as a computed name would be and throws for a
 //!    reason a reader has to look up. Closing that gap is what would make
 //!    [`no_such_route`] answer only the case § 4 named.
+//!    — owner: unowned
 //! 2. **The mount prefix is the half of the laundering that has nowhere to come
 //!    from.** [`substitute`] percent-encodes every value it puts in a segment,
 //!    which is § 4's launder and is real; what is not is
@@ -57,16 +69,7 @@
 //!    reason and says so where a program can see it: it reads
 //!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
 //!    resolved none, rather than answering an empty authority.
-//! 3. **The parse of a verb into one of these cases is [`crate::request`]'s**,
-//!    not this module's — `Core\Request::method` is the one reader that turns a
-//!    method token into a case, and its module doc owns the two decisions in
-//!    it: `HEAD` answering `Get`, and a token outside this roster being refused
-//!    rather than mapped. The half above it has landed: a served request
-//!    carrying an unrecognized verb is answered **501 at the door**, before an
-//!    isolate exists — `nvs_server::serve`'s `Answer::not_implemented`, `501`
-//!    and not `405` because the route table has not been asked yet — so the
-//!    throw inside the program is now only what a program reading
-//!    `Core\Request::method` for itself gets.
+//!    — owner: signed-urls
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
