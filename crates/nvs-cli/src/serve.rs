@@ -702,6 +702,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             }
         });
     }
+    // `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s third
+    // subsystem, armed where the ticker is and for the ticker's reasons.
+    let queue_workers = arm_queue_workers(sched, &snapshot, ticks, &draining);
+    if queue_workers > 0 {
+        println!(
+            "arming {queue_workers} queue worker{}",
+            if queue_workers == 1 { "" } else { "s" }
+        );
+    }
     // One task per listener, because a parked accept loop answers one socket
     // and every entry of `[server] listen` is bound. They share this core, its
     // handler and the units behind it; the other cores are running this same
@@ -806,6 +815,72 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         return false;
     }
     !stopped.get()
+}
+
+/// What this core arms of `rule:core-classes/queue-storage-is-a-table`'s `[queue]`: the bounds the
+/// boot resolved and the `[db.<name>]` block whose tables those jobs live in, or nothing.
+///
+/// **`ticks` gates this for the reason it gates the roster above.** `workers` is a count per
+/// *instance* and never per core (`rule:concurrency/who-runs-a-job-is-configuration`), so arming it
+/// on every core would turn an operator's `workers = 4` into four times this machine's parallelism —
+/// on the one key whose job is to say how many connections a deployment holds open against its
+/// database. Today this command turns one scheduler on one core and the two coincide; this is where
+/// that has to be honoured rather than discovered.
+///
+/// [`nvs_config::queue::queue_for`] is the resolution the boot already accepted, so a refusal is
+/// impossible by the time this runs and `.ok()` swallows none; `run_run` reads it exactly this way,
+/// which is what makes moving queue work between the two binaries operational and never
+/// behavioural. `workers = 0` is § 2's enqueue-only deployment and arms nothing, which is also what
+/// a tree writing no `[queue]` block at all costs.
+fn queue_on_this_core(
+    config: &nvs_config::Config,
+    ticks: bool,
+) -> Option<(nvs_config::queue::QueueBounds, nvs_config::tree::Database)> {
+    if !ticks {
+        return None;
+    }
+    nvs_config::queue::queue_for(config, &std::collections::BTreeMap::new())
+        .ok()
+        .flatten()
+        .filter(|bounds| bounds.workers > 0)
+        .and_then(|bounds| {
+            let block = config.db.get(&bounds.connection)?.clone();
+            Some((bounds, block))
+        })
+}
+
+/// [`crate::worker::start`]'s tasks on this core's scheduler, and how many of them there are.
+///
+/// Called beside the ticker and **before the accept loop is spawned**, for the ticker's own reason:
+/// a task queued here runs on the core the requests are served on, and both are queued before
+/// anything is accepted so that neither waits out a connection to take its first turn.
+///
+/// Two things differ from the ticker three lines above. **The drain**, because a served instance has
+/// no script whose exit could set [`crate::worker::Workers::stop`] — a worker reading the drain is
+/// what lets this process end at all, since one that ignored it would be a task always parked and
+/// so a server nothing but a kill could stop. **The root**, which is
+/// [`crate::worker::start`]'s `TaskRoot::Worker` where the ticker holds `TaskRoot::Request`.
+///
+/// No lease and no `nvs_server::Leases`, unlike `arm`: `rule:concurrency/claiming-is-one-statement`
+/// puts the mutual exclusion in the database, so a fleet of instances each running their own
+/// workers is the intended deployment rather than the hazard a `fleet` schedule entry would be.
+fn arm_queue_workers(
+    sched: &mut nvs_host::Scheduler,
+    snapshot: &Arc<nvs_config::Snapshot>,
+    ticks: bool,
+    draining: &nvs_server::Draining,
+) -> u32 {
+    let Some((bounds, block)) = queue_on_this_core(&snapshot.config, ticks) else {
+        return 0;
+    };
+    crate::worker::start(
+        sched,
+        &crate::worker::Workers::draining(draining.clone()),
+        &bounds,
+        &block,
+        snapshot,
+    );
+    bounds.workers
 }
 
 /// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
@@ -1114,6 +1189,20 @@ mod tests {
 
     fn tcp(written: &str) -> Listen {
         Listen::Tcp(written.parse::<SocketAddr>().expect("a literal address"))
+    }
+
+    /// A tree whose `[queue]` names a SQLite file, which is a block that needs no
+    /// server to be reachable — and is never opened here anyway, since a worker's
+    /// handshake is its first act once it is *given a turn* and no case below
+    /// runs one. A TOML literal string, because a Windows path is backslashes and
+    /// a basic string would read them as escapes.
+    fn queue_over_sqlite(workers: u32, name: &str) -> String {
+        let path = std::env::temp_dir().join(format!("nvs-serve-{name}.db"));
+        format!(
+            "[db.jobs]\ndriver = 'sqlite'\npath = '{}'\n\n[queue]\nconnection = 'jobs'\nworkers = \
+             {workers}\n",
+            path.display()
+        )
     }
 
     /// The typed tree one written block deserializes into — the boot reads a
@@ -1535,6 +1624,120 @@ mod tests {
     /// shortest of several is the least contaminated estimate of each side, and
     /// interleaving keeps a slow patch of the machine from landing on one side of
     /// the ratio alone.
+    /// A snapshot whose tree is the written one, which is what the boot hands
+    /// every core.
+    fn snapshot_of(written: &str) -> Arc<nvs_config::Snapshot> {
+        Arc::new(nvs_config::Snapshot {
+            config: config_of(written),
+            ..Default::default()
+        })
+    }
+
+    /// `[queue]` off the boot snapshot arms that many worker tasks, on the
+    /// scheduler this command already turns.
+    ///
+    /// **What "before the accept loop is spawned" is read as here**: the arming
+    /// returns with the scheduler holding those tasks and nothing else, which is
+    /// the state the listener loop below it is then queued onto. Where the call
+    /// sits in [`super::serve_on_worker`] is a line rather than a state, so it is
+    /// not what this asserts — what it asserts is that arming needs no listener,
+    /// no reactor and no request to have happened first.
+    #[test]
+    fn serve_arms_queue_workers_from_the_boot_snapshot_before_the_accept_loop_is_spawned() {
+        let snapshot = snapshot_of(&queue_over_sqlite(2, "arms-from-the-snapshot"));
+        let mut sched = nvs_host::Scheduler::new();
+        let armed = super::arm_queue_workers(
+            &mut sched,
+            &snapshot,
+            true,
+            &nvs_server::Draining::detached(),
+        );
+        assert_eq!(
+            armed, 2,
+            "the boot snapshot's `[queue] workers = 2` armed {armed} worker(s)"
+        );
+        assert_eq!(
+            sched.tracked_tasks(),
+            2,
+            "the scheduler the accept loops are spawned onto holds {} task(s) after the queue was \
+             armed on it",
+            sched.tracked_tasks()
+        );
+    }
+
+    /// `workers` is a count per instance, so the core that ticks is the core that
+    /// arms and every other core arms nothing.
+    ///
+    /// Both halves, because the count alone would pass on a build that armed it
+    /// everywhere: a thirty-two-core host reading `workers = 4` per core is
+    /// a hundred and twenty-eight connections against a database an operator
+    /// sized for four (`rule:concurrency/who-runs-a-job-is-configuration`).
+    #[test]
+    fn workers_is_armed_once_per_instance_and_never_once_per_core() {
+        let config = config_of(&queue_over_sqlite(4, "once-per-instance"));
+        let (bounds, _) =
+            super::queue_on_this_core(&config, true).expect("the core that ticks arms the queue");
+        assert_eq!(
+            bounds.workers, 4,
+            "the ticking core armed {} worker(s) where the operator wrote four",
+            bounds.workers
+        );
+        assert!(
+            super::queue_on_this_core(&config, false).is_none(),
+            "a core that does not tick armed a second set of workers, so `workers` is a count per \
+             core rather than per instance"
+        );
+    }
+
+    /// A tree with no `[queue]` block arms nothing and spawns no task, which is
+    /// the ticker's shape: an `Option` read at boot and no cost beyond it.
+    #[test]
+    fn a_tree_with_no_queue_block_arms_no_worker_and_spawns_no_task() {
+        let snapshot = snapshot_of("[server]\nlisten = ['127.0.0.1:8000']\n");
+        assert!(
+            super::queue_on_this_core(&snapshot.config, true).is_none(),
+            "a tree writing no `[queue]` block resolved one anyway"
+        );
+        let mut sched = nvs_host::Scheduler::new();
+        let armed = super::arm_queue_workers(
+            &mut sched,
+            &snapshot,
+            true,
+            &nvs_server::Draining::detached(),
+        );
+        assert_eq!(armed, 0, "{armed} worker(s) armed off a tree with no queue");
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "a tree with no `[queue]` block spawned {} task(s)",
+            sched.tracked_tasks()
+        );
+    }
+
+    /// `workers = 0` arms no worker and is not an error: it is the enqueue-only
+    /// deployment `rule:core-classes/queue-storage-is-a-table` names, which is how
+    /// an operator separates the machines that accept requests from the ones that
+    /// drain the queue.
+    ///
+    /// The resolution is asserted to succeed as well as to arm nothing, because a
+    /// refusal would also arm nothing — and would take the whole boot with it,
+    /// over a tree that is spelled the way the rule spells it.
+    #[test]
+    fn workers_zero_arms_no_worker_and_is_not_an_error() {
+        let config = config_of(&queue_over_sqlite(0, "enqueue-only"));
+        let resolved = nvs_config::queue::queue_for(&config, &BTreeMap::new())
+            .expect("`workers = 0` is a deployment and not a refusal");
+        assert_eq!(
+            resolved.map(|bounds| bounds.workers),
+            Some(0),
+            "the tree's `workers = 0` did not survive resolution"
+        );
+        assert!(
+            super::queue_on_this_core(&config, true).is_none(),
+            "an enqueue-only instance armed a worker"
+        );
+    }
+
     #[test]
     fn serve_throughput_scales_from_one_core_to_four_by_the_margin_this_test_names() {
         const CORES: usize = 4;
