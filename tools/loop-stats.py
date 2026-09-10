@@ -128,11 +128,11 @@ def bucket_of(name, text):
 def subagent_cost(path):
     """The sessions this transcript delegated to, out of `.loop/logs/<stem>.subagents/`.
 
-    A subagent's turns never appear in the parent's stream, so without this a delegated read
-    is a session that mysteriously did a great deal with very few calls. `tools/loop.py`
-    copies the harness's own transcripts there; if the directory is absent, nothing was
-    delegated -- or the run predates that capture, which is why the count is reported
-    separately rather than folded into the session's own figures."""
+    A subagent's turns are inlined in the parent's stream and `read_session` drops them there,
+    so without this a delegated read is a session that mysteriously did a great deal with very
+    few calls. `tools/loop.py` copies the harness's own transcripts there; if the directory is
+    absent, nothing was delegated -- or the run predates that capture, which is why the count is
+    reported separately rather than folded into the session's own figures."""
     directory = path.with_suffix(".subagents")
     if not directory.is_dir():
         return []
@@ -174,6 +174,14 @@ def read_session(path):
             event = json.loads(line)
         except json.JSONDecodeError:
             continue  # a truncated final line is normal for a killed run
+        # A subagent's turns are inlined here, tagged with the tool call that spawned them, and
+        # they are the parent's context only in the sense that it waited for them: its own window
+        # holds the Agent tool's one result. Counted, they charge the parent for calls it never
+        # made and put a 124k -> 12k -> 129k step in its context series, which `drops` below reads
+        # as a compaction -- and a compaction is what loop-authoring.md's table turns into "the
+        # ceiling is far too high". `subagent_cost` prices them from `<stem>.subagents/` instead.
+        if event.get("parent_tool_use_id"):
+            continue
         kind = event.get("type")
         if kind == "loop_pack":
             pack_bytes = event.get("bytes") or 0
