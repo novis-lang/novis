@@ -141,6 +141,7 @@ Conventions the whole file uses:
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
+| [`Core\Signature`](#core-core-signature) |  |
 | [`Core\Html`](#core-core-html) |  |
 | [`Core\Html\Markup`](#core-core-html-markup) |  |
 | [`Core\Xml`](#core-core-xml) |  |
@@ -18563,6 +18564,52 @@ Answers the claims `$token` carries, having checked that this key signed it and 
 **Returns** `array<tainted string>` — Every claim in the payload, by name, each one `tainted`: a signature proves who wrote a value, not that it is safe for any sink. `exp` and `iat` are present in it, in their own decimal spelling.
 
 **Throws** `LogicError` — `$key` is shorter than 32 octets — a value that was never a signing key.; `RuntimeError` — The token is not one this key signed, which is one sentence for every way of not being one; or it is, and has expired, carries no `exp`, or carries a claim that is not text.
+
+<a id="core-core-signature"></a>
+### `Core\Signature`
+
+Keywords: sign, verify
+
+| Member | Signature |
+|---|---|
+| [`Core\Signature::sign`](#core-core-signature-sign) | `sign(array<string> $payload, ? $settings): string` |
+| [`Core\Signature::verify`](#core-core-signature-verify) | `verify(string $token, array<secret bytes> $keys): array<tainted string>` |
+
+<a id="core-core-signature-sign"></a>
+#### `Core\Signature::sign`
+
+```nvs skip
+Core\Signature::sign(array<string> $payload, ? $settings): string
+```
+
+Signs `$payload` under the newest key in `$settings.keys` and answers a token. The payload is canonicalized here — keys sorted, every value written with the tag of its own type — so there is no assembled string for the two sides of a signature to disagree about.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$payload` | `array<string>` | The claims to sign, by name. Insertion order is not signed and does not come back: a verified payload is in canonical order. |
+| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that `verify` still accepts tokens minted before the last rotation. A ring of one is `[$key]`.; `until` (?Core\Time\Instant) When the signature stops being valid, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed link is a permanent bearer credential. |
+
+**Returns** `string` — Unpadded URL-safe base64 — `A-Za-z0-9-_`, every octet of which a query string and a `Set-Cookie` header carry unescaped. About `4/3 × (payload + 40)` characters, and the same token every time for the same inputs, because a signature is deterministic where a seal is not.
+
+**Throws** `LogicError` — `$settings.keys` is empty, so there is no newest key; or its first entry is not 32 octets long — a `bytes` that was never a key.
+
+<a id="core-core-signature-verify"></a>
+#### `Core\Signature::verify`
+
+```nvs skip
+Core\Signature::verify(string $token, array<secret bytes> $keys): array<tainted string>
+```
+
+Authenticates `$token` against every key in `$keys`, checks the lifetime it carries, and answers the payload that was signed, or throws. The payload comes back **`tainted`**: a signature proves origin, not safety for any sink.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$token` | `string` (neutral) | The token, as it arrived. A `tainted` value is accepted here — that is the point of the member. |
+| `$keys` | `array<secret bytes>` | The same ring `sign` was given, newest first. A token minted under any key still in the ring verifies; one minted under a key that has been dropped off the end does not. |
+
+**Returns** `array<tainted string>` — The signed payload in canonical key order, every value a `tainted string`. Insertion order is not part of what was signed, so it is not part of what comes back.
+
+**Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — `$token` is not authentic under any key in `$keys` — it was altered, it is not base64 at all, it was minted for another door, or the key it was minted under has been retired. The four are one message on purpose. Expiry is the one refusal with a sentence of its own, because only the holder of a genuinely signed token ever reaches it.
 
 <a id="core-core-html"></a>
 ### `Core\Html`
