@@ -1986,10 +1986,14 @@ fn is_signature_name(written: &str) -> bool {
 /// fails" is a rule about the *text* that arrived
 /// (`rule:core-api/signing-is-over-a-payload`).
 ///
-/// `query` is [`equivalent`]'s, so § 6.2.2.2 has already restored every escape
-/// spelling an unreserved character and the token needs no decoding of its
-/// own: unpadded URL-safe base64 is unreserved from end to end.
-fn without_signature(query: &str) -> (Vec<&str>, String) {
+/// **The token is taken undecoded, and needs no decoding**: unpadded URL-safe
+/// base64 is unreserved from end to end, so § 6.2.2.2 has already restored any
+/// escaped spelling of one in [`equivalent`]'s query, and a served request's
+/// own query string — which is what `crate::router`'s `signedRoute` hands over,
+/// having had no normalization at all — carries those characters themselves. A
+/// token written with an escape in it is one that does not authenticate, which
+/// is the caller's one refusal rather than a second reading of the text.
+pub(crate) fn without_signature(query: &str) -> (Vec<&str>, String) {
     let mut tokens = Vec::new();
     let mut rest = Vec::new();
     for pair in query.split('&') {
@@ -4542,6 +4546,38 @@ mod tests {
             .split(['&', '#'])
             .next()
             .expect("a split answers at least once")
+    }
+
+    /// The other half of `crate::router`'s
+    /// `url_signed_verifies_through_signed_route_after_the_mount_prefix_changes`,
+    /// and the whole reason `Core\Router` carries a signing pair of its own.
+    ///
+    /// A signature taken over a **path** is a signature over where the module
+    /// happens to be mounted, and a mount moves: one compiled table serves at
+    /// `/ModuleA`, at `/ModuleB` or at `/`
+    /// (`rule:http-server/a-mount-table-expands-at-boot`). Nothing here is a
+    /// defect — this door signs a URL because a URL is what its caller holds —
+    /// but it is the failure a signed *route* does not have, and asserting it
+    /// beside the other member is what keeps the pair from looking redundant.
+    #[test]
+    fn the_same_link_signed_as_a_path_stops_verifying_when_the_mount_moves() {
+        let keys = ring();
+        let link = signed_text("https://example.com/ModuleA/shop/7", keys);
+        assert!(
+            verify(&link, keys).is_ok(),
+            "the link verifies where it was signed"
+        );
+
+        let moved = link.replace("/ModuleA/", "/ModuleB/");
+        assert_ne!(moved, link, "the remount is a different path");
+        let refusal = verify(&moved, keys)
+            .expect_err("and a different path is a different URL, whatever route it reaches");
+        assert!(
+            refusal.contains("not one $keys signed"),
+            "refused as any other edit is: {refusal}"
+        );
+
+        dropped(keys);
     }
 
     /// The round trip, and the property the whole design is for: every

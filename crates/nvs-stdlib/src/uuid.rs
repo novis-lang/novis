@@ -290,6 +290,26 @@ pub(crate) fn of_octets(octets: [u8; 16]) -> Value {
     built(Uuid::from_bytes(octets))
 }
 
+/// The buffer [`canonical`] renders into, zeroed. A caller copies it, so the
+/// width of the canonical form is written here and nowhere else.
+pub(crate) const TEXT: Text = [0; uuid::fmt::Hyphenated::LENGTH];
+
+/// See [`TEXT`].
+pub(crate) type Text = [u8; uuid::fmt::Hyphenated::LENGTH];
+
+/// `octets` in the canonical rendering — hyphenated and lower case, § 9's own
+/// spelling and [`nvs_core_uuid_to_string`]'s answer.
+///
+/// A function rather than a second `encode_lower` at each caller, because
+/// `nvs_stdlib::router`'s `signedRoute` derives the text of a `Core\Uuid`
+/// capture in order to compare it against the text that was signed, and
+/// `rule:core-api/signing-is-over-a-payload` is precisely about a canonical
+/// form that only the signature depends on: a second spelling here would be one
+/// no other test constrains.
+pub(crate) fn canonical(octets: [u8; 16], into: &mut Text) -> &str {
+    Uuid::from_bytes(octets).hyphenated().encode_lower(into)
+}
+
 /// [`of_octets`]'s twin for a `Core\Uuid` that arrives as text — `rule:core-classes/db-column-types`'s
 /// SQLite half, where a `uuid` column holds the canonical rendering because
 /// SQLite has no type that holds sixteen octets as anything but a `BLOB`.
@@ -510,8 +530,8 @@ nvs_runtime::nvs_helper! {
     /// where it names none.
     fn nvs_core_uuid_to_string(_ctx, args: [1]) {
         let value = uuid_of(args, 0, "toString")?;
-        let mut buffer = [0_u8; uuid::fmt::Hyphenated::LENGTH];
-        let text = value.hyphenated().encode_lower(&mut buffer);
+        let mut buffer = TEXT;
+        let text = canonical(value.into_bytes(), &mut buffer);
         Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }

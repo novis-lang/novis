@@ -73,11 +73,12 @@
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
+use crate::keyring::KEY;
 use crate::registry::{
     CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
     ShapeKeyDoc,
 };
-use crate::signature::Domain;
+use crate::signature::{Confirmed, Domain};
 use crate::uri::{Form, SIG_NAME, encode};
 
 /// `Core\Http\Method`'s fully-qualified name, written once so the registry row
@@ -276,6 +277,25 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&URL_SIGNED_DOC),
         },
         CoreMethod {
+            name: "signedRoute",
+            names: &["keys"],
+            // The ring alone. There is no path, no name and no `$params`
+            // here, and that is the shape of the claim: what this member
+            // verifies is the request the door already matched, so a
+            // parameter naming any part of it would be a second reading of
+            // the URL and something the two halves could disagree about
+            // (`rule:routing/matched-once-before-the-handler`).
+            params: &[CoreTy::Array(&KEY)],
+            defaults: &[],
+            // Not nullable, and not a `bool`: every way of not verifying
+            // throws (`rule:core-api/one-refusal-except-expiry`), so there is
+            // no falsy answer a caller could drop on the floor, and what comes
+            // back is the match itself rather than a second reading of it.
+            return_ty: CoreTy::Instance(MATCH_NAME),
+            symbol: "nvs_core_router_signed_route",
+            doc: Some(&SIGNED_ROUTE_DOC),
+        },
+        CoreMethod {
             name: "match",
             names: &["method", "path"],
             params: &[CoreTy::Enum(METHOD_NAME), CoreTy::Text(Qual::Neutral)],
@@ -393,6 +413,44 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is \
                    not 32 octets long — a `bytes` that was never a key.",
+        },
+    ],
+};
+
+/// `Core\Router::signedRoute`'s reference card — `rule:core-api/reference-card`.
+const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
+    short: "Confirms that the request this program is answering carries a signature `$keys` made \
+            for the route it matched, and answers that match — `urlSigned`'s read half, over the \
+            route's name and its parameters rather than over the path they rendered to.",
+    params: &[ParamDoc {
+        name: "keys",
+        desc: "The key ring, **newest first**, and the same one `urlSigned` was given: a token \
+               authenticating under any entry is authentic, which is what lets a key be retired \
+               without breaking every link already sent.",
+        shape: &[],
+    }],
+    ret: "The request's own `Core\\Router\\Match`, the value `Core\\Request::route()` answers, \
+          once the signature over its name and parameters has been confirmed. A link that does \
+          not verify is a throw and never a value: nothing here renders a refusal, because the \
+          program that renders one is the program that should decide when to ask.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "When this request carries no signature this ring made for the route it \
+                   matched — no `_sig` parameter or two of them, an altered token, one minted at \
+                   another door or under a retired key, a parameter added, removed or edited, and \
+                   a request that matched no named route: one sentence for all of it. When the \
+                   signature has expired, which is the one failure with a sentence of its own and \
+                   is reached only after the token has been found authentic. And when a query \
+                   parameter's escapes decode to octets that are not UTF-8, which says something \
+                   about the URL that arrived and nothing about the token.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "When this program is not answering a request at all — a CLI program, a \
+                   scheduled script, a job worker or a test — which is a different fact from a \
+                   request that carries no signature. Or when `$keys` is empty or its first entry \
+                   is not 32 octets long, as every door over a ring refuses.",
         },
     ],
 };
@@ -676,6 +734,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
         "nvs_core_router_url_signed" => (nvs_core_router_url_signed as *const ()).cast(),
         "nvs_core_router_link_signed" => (nvs_core_router_link_signed as *const ()).cast(),
+        "nvs_core_router_signed_route" => (nvs_core_router_signed_route as *const ()).cast(),
         "nvs_core_router_match" => (nvs_core_router_match as *const ()).cast(),
         "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
@@ -954,12 +1013,13 @@ fn carries_reserved(params: &Value) -> bool {
         .is_some_and(|raw| crate::arr::borrowed(raw).has_key(SIG_NAME.as_bytes()))
 }
 
-/// Releases the one reference [`signed_payload`] built, which is handed to
-/// nobody: [`crate::signature::mint`] borrows its payload.
+/// Releases the one reference [`signed_payload`] or [`derived_payload`] built,
+/// which is handed to nobody: [`crate::signature::mint`] and
+/// [`crate::signature::confirm`] both borrow the payload they are given.
 fn discard(payload: Value) {
     #[expect(
         unsafe_code,
-        reason = "`signed_payload` builds exactly the reference passed here"
+        reason = "the two payload builders each hand over exactly the reference passed here"
     )]
     unsafe {
         payload.release();
@@ -1036,6 +1096,207 @@ nvs_runtime::nvs_helper! {
         out.push('=');
         out.push_str(&token);
         produced(&out)
+    }
+}
+
+/// `Core\Router::signedRoute`, spelled the way [`crate::keyring`]'s refusals
+/// name it.
+const SIGNED_ROUTE: &str = r"Core\Router::signedRoute";
+
+/// The one sentence every refused verification produces before the lifetime has
+/// been looked at — [`crate::signature`]'s own `refused`, read at this door.
+///
+/// One function for the same reason that one has: the refusals are told apart
+/// only by which of them a caller can *write*, so a second wording at a second
+/// site is how "the token is forged" and "the request matched nothing" would
+/// come to be distinguishable here and nowhere else
+/// (`rule:core-api/one-refusal-except-expiry`).
+fn unverified() -> Fault {
+    Fault::thrown(format!(
+        "Core\\Router::signedRoute(): this request carries no signature `$keys` made for the \
+         route it matched. Every way of not carrying one — no `{SIG_NAME}` parameter and two of \
+         them, an altered token, one minted at another door or under a key that has been \
+         retired, a parameter added, removed or edited, and a request that matched no named \
+         route at all — is this one sentence, so a forgery says nothing about which half of it \
+         failed."
+    ))
+}
+
+/// One capture as the text that was signed for it — [`capture_value`]'s arms,
+/// read as text rather than as the value a handler receives.
+///
+/// **It reaches no program code**, which [`capture_value`]'s `Parses` arm does.
+/// The payload has to be derivable *before* the tag has been checked, so a
+/// class's own `parse` running on the way to a refusal would be a side effect a
+/// forger could ask for — and a distinguishable one, since what came back would
+/// be the implementor's sentence rather than [`unverified`]'s. A class-typed
+/// capture is therefore its segment, which is exactly what a text one is: the
+/// text `Core\Router::urlSigned` signed, one step short of the encoding
+/// [`substitute`] then applied to write it into the path.
+///
+/// The four converted arms answer [`nvs_runtime::value_to_string`]'s own
+/// rendering of the value the matcher built — `Display` for a `decimal`, the
+/// canonical hyphenated form for a `Core\Uuid` — because that is what
+/// [`segment_text`] wrote for the same parameter on the minting side. Two
+/// spellings of one typed value are one signed thing, which is `rule:core-classes/router-signed-url`'s
+/// "the name and its parameters" taken at its word: `/shop/007` and `/shop/7`
+/// are the same route with the same `int`, and a signature over the identity
+/// says so.
+///
+/// # Errors
+///
+/// [`crate::uri::decode_capture`]'s throw, for a segment whose escapes decode
+/// to octets that are not UTF-8 — the same one [`capture_value`] raises over
+/// the same segment, so a request this refuses is one `Core\Request::route()`
+/// would have refused too.
+fn capture_text(name: &str, capture: &nvs_runtime::routes::Param) -> Result<String, Fault> {
+    use nvs_runtime::routes::Param;
+
+    Ok(match capture {
+        Param::Text(text) | Param::Parses { text, .. } => crate::uri::decode_capture(text, name)?,
+        Param::Int(number) => number.to_string(),
+        Param::Uint(number) => number.to_string(),
+        Param::Decimal(value) => value.to_string(),
+        Param::Uuid(octets) => {
+            let mut buffer = crate::uuid::TEXT;
+            crate::uuid::canonical(*octets, &mut buffer).to_owned()
+        }
+    })
+}
+
+/// [`signed_payload`]'s document for the link this request arrived on, rebuilt
+/// out of what the door already recorded.
+///
+/// **Nothing is re-parsed.** The captures are the match's own, taken once
+/// before any application code ran (`rule:routing/matched-once-before-the-handler`),
+/// and the query is the request's own text with the reserved parameter already
+/// lifted out of it — so the two halves of `$params` come back from the two
+/// places `urlSigned` wrote them to, and the URL is never read a second time to
+/// find out what it says.
+///
+/// **The query is parsed first and a capture may not collide with it.** The
+/// minting side writes the query out of what the path did *not* consume
+/// ([`crate::uri::build`] takes the consumed keys and omits them), so a request
+/// carrying a query pair under a capture's name is one no signed link could
+/// have been minted as. Refusing it is what makes the signature cover the whole
+/// of what arrived: every other added pair changes the payload and fails on the
+/// comparison, and this is the one that would otherwise have been overwritten
+/// by the capture and never noticed.
+///
+/// # Errors
+///
+/// [`unverified`] for that collision, [`capture_text`]'s decode, and
+/// [`crate::uri::parse_query`]'s throw for a parameter name or value whose
+/// escapes decode to octets that are not UTF-8. The partly built array is
+/// released by its own `Drop` on the way out.
+fn derived_payload(
+    name: &str,
+    matched: &nvs_runtime::routes::Match,
+    query: &str,
+    member: &str,
+) -> Result<Value, Fault> {
+    let mut params = crate::uri::parse_query(query, member, crate::uri::Values::Text)?;
+    for (bound, capture) in matched.params() {
+        if params.has_key(bound.as_bytes()) {
+            return Err(unverified());
+        }
+        let text = capture_text(bound, capture)?;
+        params.set(
+            NvsStr::new(bound.as_bytes()),
+            Value::str(NvsStr::new(text.as_bytes())),
+        );
+    }
+
+    let mut payload = NvsArray::new();
+    payload.set(
+        NvsStr::new(b"route"),
+        Value::str(NvsStr::new(name.as_bytes())),
+    );
+    payload.set(NvsStr::new(b"params"), Value::array(params));
+    Ok(Value::array(payload))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::signedRoute(array<secret bytes> $keys): Core\Router\Match`
+    /// — the read half of [`nvs_core_router_link_signed`], and the member
+    /// `rule:core-classes/router-signed-url` names as verifying "against the
+    /// match the server already made".
+    ///
+    /// **It takes no URL**, and that is the property rather than a
+    /// convenience. A member handed a path would have to match it, and a
+    /// second match is a second answer about which route this is
+    /// (`rule:routing/matched-once-before-the-handler`); a member handed a
+    /// route name would let the caller nominate which signature to check. What
+    /// is verified here is the request itself, so there is nothing for a caller
+    /// to get wrong except the ring.
+    ///
+    /// The order is load-bearing, exactly as `$uri->verifySignature`'s is. The
+    /// payload is derived without reaching a program's own `parse`
+    /// ([`capture_text`]); [`crate::signature::confirm`] checks the tag, the
+    /// door and *this* payload before any of it is trusted — a token that
+    /// authenticates over some other route is the whole of the attack; and the
+    /// expiry is judged last, which is what makes it safe to give it a sentence
+    /// of its own (`rule:core-api/one-refusal-except-expiry`). The match is
+    /// built after all of that, because building it is what runs a class-typed
+    /// capture's `parse`, and no forged link should be able to reach it.
+    ///
+    /// **Cost:** one parse of the request's own query string, one document the
+    /// size of the route's name and its parameters, and one HMAC per key tried
+    /// until one authenticates. All of it inside the call
+    /// (`rule:programs/memory-priority`), and a program that verifies nothing
+    /// pays none of it — this member is called by hand, wherever the
+    /// application keeps its refusal, because nothing verifies a signature for
+    /// you.
+    fn nvs_core_router_signed_route(ctx, args: [1]) {
+        const MEMBER: &str = "signedRoute";
+
+        let ring = crate::keyring::borrow(args, 0, SIGNED_ROUTE)?;
+        // Taken off the carrier before anything else needs the context, for
+        // `Core\Request::route()`'s own reason: the answer is `match_value`'s,
+        // which reaches this program's classes for a capture typed as one, and
+        // the borrow the carrier is read through cannot be alive while it does.
+        let inbound = crate::request::served(ctx, SIGNED_ROUTE)?;
+        let matched = inbound.route().cloned();
+        let query = inbound.query().to_owned();
+
+        // A request that matched nothing, and one whose route declares no name,
+        // are folded into the refusal rather than answered apart: `urlSigned`
+        // signs a name, so neither could be a link it minted, and saying which
+        // would tell a holder something about the table.
+        let Some(matched) = matched else {
+            return Err(unverified());
+        };
+        let Some(name) = matched.name() else {
+            return Err(unverified());
+        };
+
+        let (tokens, rest) = crate::uri::without_signature(&query);
+        // Neither none nor two, for `$uri->verifySignature`'s reason: checking
+        // one of two is letting an attacker pick which one gets tried.
+        if tokens.len() != 1 {
+            return Err(unverified());
+        }
+
+        let payload = derived_payload(name, &matched, &rest, MEMBER)?;
+        // `confirm` borrows the payload, so this frame still owns the one
+        // reference `derived_payload` built — and owns it on the refusing path
+        // too, which is why the `?` is below the release rather than on the
+        // call.
+        let confirmed = crate::signature::confirm(
+            tokens[0],
+            Domain::Route,
+            &payload,
+            &ring,
+            SIGNED_ROUTE,
+            "$params",
+        );
+        discard(payload);
+        let Confirmed::Signed(until) = confirmed? else {
+            return Err(unverified());
+        };
+        crate::signature::judge(ctx, until, SIGNED_ROUTE)?;
+
+        match_value(ctx, &matched)
     }
 }
 
@@ -1879,6 +2140,164 @@ mod tests {
         );
 
         dropped(params);
+        dropped(ring);
+    }
+
+    /// The table the two `signedRoute` cases below match against — one named
+    /// route with one `int` capture, which is the shape `urlSigned` signs.
+    fn shop() -> nvs_runtime::routes::Routes {
+        nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
+            "Get",
+            "/shop/{id}",
+            Some("Shop::show".to_owned()),
+            "Shop::show",
+            None,
+            vec![nvs_runtime::routes::Capture {
+                name: "id".to_owned(),
+                conv: nvs_runtime::routes::CaptureConv::Int,
+            }],
+        )])
+    }
+
+    /// A context answering a request the door has already dealt with.
+    ///
+    /// `arrived` is the path the request carries and `matched` is the path the
+    /// table was asked about — the same thing everywhere except in the case
+    /// that proves this member reads the door's answer rather than the URL.
+    /// `mount` is what the door stripped, which is a fact about where the unit
+    /// is served and never about which route it is.
+    fn serving(mount: &str, arrived: &str, matched: Option<&str>, query: &str) -> Ctx {
+        let mut inbound = nvs_runtime::Inbound::new("GET", arrived, query);
+        inbound.set_mount(mount, &[]);
+        if let Some(path) = matched {
+            inbound.set_route(
+                shop()
+                    .match_request("GET", path)
+                    .expect("the table claims the path the case names"),
+            );
+        }
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.set_inbound(inbound);
+        ctx
+    }
+
+    /// `Core\Router::signedRoute($ring)` over that context — the matched
+    /// route's name, or the sentence it refused with.
+    fn verified(ctx: &mut Ctx, ring: Value) -> Result<String, String> {
+        let answered = nvs_runtime::call(super::nvs_core_router_signed_route, ctx, &[ring]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        let matched = match answered {
+            Ok(matched) => matched,
+            Err(_) => {
+                return Err(refusal.expect("a refusal leaves its message on the context"));
+            }
+        };
+        // Read through the member a program reads it through, so that a match
+        // built with its slots the wrong way round fails here.
+        let named = nvs_runtime::call(super::nvs_core_router_match_name, ctx, &[matched])
+            .expect("a match answers its own name");
+        let name = String::from_utf8(
+            named
+                .as_str_bytes()
+                .expect("this route declares a name")
+                .to_vec(),
+        )
+        .expect("a route's name is `str`");
+        dropped(named);
+        dropped(matched);
+        Ok(name)
+    }
+
+    /// One signed link for route `Shop::show`, as the path and query a request
+    /// would arrive carrying.
+    fn signed_link(ring: Value, id: i64) -> (String, String) {
+        let template = format!(
+            "{}/shop{}{}id",
+            super::link::LITERAL as char,
+            super::link::PIECE_SEPARATOR,
+            super::link::REQUIRED as char
+        );
+        let mut params = nvs_runtime::NvsArray::new();
+        params.set(nvs_runtime::NvsStr::new(b"id"), Value::int(id));
+        let params = Value::array(params);
+        let link = linked(
+            super::nvs_core_router_link_signed,
+            &[
+                Value::str(nvs_runtime::NvsStr::new(template.as_bytes())),
+                Value::str(nvs_runtime::NvsStr::new(b"Shop::show")),
+                params,
+                ring,
+                Value::null(),
+            ],
+        );
+        dropped(params);
+        let (path, query) = link.split_once('?').expect("a signed link carries `_sig`");
+        (path.to_owned(), query.to_owned())
+    }
+
+    /// The property the pair exists for, and the one a signature over the
+    /// assembled path cannot have: one compiled table serves at `/ModuleA`, at
+    /// `/ModuleB` or at `/` (`rule:http-server/a-mount-table-expands-at-boot`),
+    /// and a link minted before an operator remounted still verifies after.
+    ///
+    /// Asserted over two requests that differ *only* in what the door stripped,
+    /// because that is exactly what a remount changes: the same link, the same
+    /// ring, the same match, and the same answer. `crate::uri`'s
+    /// `the_same_link_signed_as_a_path_stops_verifying_when_the_mount_moves` is
+    /// the other half — the door where the same move is fatal.
+    #[test]
+    fn url_signed_verifies_through_signed_route_after_the_mount_prefix_changes() {
+        let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
+        let (path, query) = signed_link(ring, 7);
+        assert_eq!(path, "/shop/7", "the link is minted mounted nowhere");
+
+        let mut here = serving("/ModuleA", &path, Some(&path), &query);
+        let mut moved = serving("/ModuleB", &path, Some(&path), &query);
+        assert_eq!(
+            verified(&mut here, ring),
+            Ok("Shop::show".to_owned()),
+            "the link verifies where it was minted"
+        );
+        assert_eq!(
+            verified(&mut moved, ring),
+            verified(&mut here, ring),
+            "and says the same thing one remount later"
+        );
+
+        dropped(ring);
+    }
+
+    /// `rule:routing/matched-once-before-the-handler` read at this door: the
+    /// captures the payload is rebuilt from are the door's match, and the URL
+    /// is never asked what it says.
+    ///
+    /// The two halves are asserted against each other rather than described. A
+    /// request whose *path* says `id = 9` while the match the door recorded
+    /// says `id = 7` still verifies a token minted for `7`, which a member that
+    /// re-parsed the path could not do; and a request whose path would match
+    /// the table but which carries no match refuses, which a member that
+    /// matched for itself could not do. Either one alone is satisfied by a
+    /// member that reads the right thing for the wrong reason.
+    #[test]
+    fn signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing() {
+        let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
+        let (path, query) = signed_link(ring, 7);
+
+        let mut elsewhere = serving("", "/shop/9", Some(&path), &query);
+        assert_eq!(
+            verified(&mut elsewhere, ring),
+            Ok("Shop::show".to_owned()),
+            "the payload is the recorded match's, so the path it arrived on is not read"
+        );
+
+        let mut unmatched = serving("", &path, None, &query);
+        let refused = verified(&mut unmatched, ring)
+            .expect_err("a request the door claimed nothing for carries no signed route");
+        assert!(
+            refused.contains("carries no signature"),
+            "and it is the one sentence rather than a second one: {refused}"
+        );
+
         dropped(ring);
     }
 }

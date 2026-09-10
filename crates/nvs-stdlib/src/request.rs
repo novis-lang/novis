@@ -1688,17 +1688,37 @@ fn urlencoded_form(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Faul
 /// owns it, and a second wording of it at a second site is how two members
 /// would come to disagree about what "no request" means.
 fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
-    ctx.inbound().ok_or_else(|| {
-        Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "Core\\Request::{member}(): there is no request here — this program is not \
-                 answering one, as a CLI program, a scheduled script, a job worker and a test \
-                 are not. That is refused rather than answered empty, because \"no request \
-                 arrived\" and \"the request sent nothing\" are different facts"
-            ),
-        )
-    })
+    ctx.inbound()
+        .ok_or_else(|| no_request(&format!("Core\\Request::{member}")))
+}
+
+/// The same carrier, for a reader that is not a member of this class — `who`
+/// spelled `Core\Class::member`.
+///
+/// `Core\Router::signedRoute` verifies against the match the door took before
+/// the program ran (`rule:routing/matched-once-before-the-handler`) and reads
+/// the `_sig` parameter off the same request's query, so it asks this carrier
+/// the two questions [`nvs_core_request_route`] and [`nvs_core_request_query`]
+/// ask and owes the same answer where no request arrived. It hands over the
+/// whole spelling rather than a member name because the sentence names the
+/// member a program actually wrote.
+pub(crate) fn served<'a>(ctx: &'a Ctx, who: &str) -> Result<&'a Inbound, Fault> {
+    ctx.inbound().ok_or_else(|| no_request(who))
+}
+
+/// `rule:security/request-state-throws-in-an-isolate`'s refusal itself, so that
+/// the two readers above cannot come to word it differently — the same reason
+/// [`inbound_of`] exists at all, one layer up.
+fn no_request(who: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{who}(): there is no request here — this program is not answering one, as a CLI \
+             program, a scheduled script, a job worker and a test are not. That is refused rather \
+             than answered empty, because \"no request arrived\" and \"the request sent nothing\" \
+             are different facts"
+        ),
+    )
 }
 
 /// Whether `verb` names one of [`crate::router::METHOD`]'s eight cases at all —
