@@ -56,6 +56,8 @@
 //! changing one is a rebuild. The keys are the obvious follow-on and belong
 //! beside [`nvs_config::server::waits_for`]'s, which is where a `[server]`
 //! duration is already parsed, refused at zero and given an origin note.
+//!
+//! — owner: unowned
 
 use std::time::Duration;
 

@@ -338,6 +338,7 @@
 //!    an options bag that can tell the two apart, not an `""`-means-remove
 //!    rule: `""` is already an empty query, which `?` written with nothing
 //!    after it produces and which `query()` reports as distinct from `null`.
+//!    — owner: unowned-sweep
 //!
 //! # What these members do with a qualifier
 //!

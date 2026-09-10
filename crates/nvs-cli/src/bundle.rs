@@ -43,6 +43,7 @@
 //!
 //! * § 6's `.nvsx` entries are not embedded yet — Tier 1 extensions do not
 //!   load at all today, so there is nothing for the flat list to carry.
+//!   — owner: M9
 //! * `rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build` has the build
 //!   sign; here the macOS ad-hoc signing runs `codesign --sign -` and reports a failure
 //!   as a warning rather than failing the build: an unsigned bundle is still
