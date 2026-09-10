@@ -1,13 +1,14 @@
-# Goal 31 -- the gaps a past milestone left and no goal claimed.
+# Goal 32 -- signing a URL, and the payload behind it.
 # The acceptance test, as data.
 #
-# `31-unowned-sweep.md` is the prose. One home each.
+# `32-signed-urls.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  "examples/uri-without-fragment.nvs",
+  "examples/signed-url.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/uri-without-fragment.nvs",
   "examples/xml-tree.nvs",
   "examples/html-sanitize.nvs",
   "examples/compress-roundtrip.nvs",
@@ -88,65 +89,51 @@ files = [
 [context]
 
 modules = [
-  # Stage 2 -- `with`, `written`, and gap 1 naming the options bag as the fix.
-  "crates/nvs-stdlib/src/uri.rs",
-  # Stage 2 -- `limits`/`grants` as shape parameters, and `$args` refusing a secret.
-  "crates/nvs-stdlib/src/queue.rs",
-  # Stage 2 -- the registry rows the three members are declared in.
+  # Stage 2 -- the new class: the canonical payload encoding every other member in this goal calls.
+  "crates/nvs-stdlib/src/signature.rs",
+  # Stage 2 -- the AEAD construction and `generateKey`, which the ring is made of.
+  "crates/nvs-stdlib/src/crypto.rs",
+  # Stage 2 -- the key ring, the base64 spelling and the one-refusal argument, all to be shared
+  # rather than written a second time.
+  "crates/nvs-stdlib/src/signed_cookie.rs",
+  # Stages 2-4 -- the registry rows all five members are declared in, and `Qual`'s taint marks.
   "crates/nvs-stdlib/src/registry.rs",
-  # Stage 2 -- `rule:core-api/shape-parameter`'s `CoreTy` shape arm, which goal `input-shapes` landed and this goal is the second caller of.
+  # Stage 3 -- `equivalent()`, the RFC 3986 6.2.2 normalization that is what gets signed, and the
+  # module doc sentence that is rewritten when it gains its second caller.
+  "crates/nvs-stdlib/src/uri.rs",
+  # Stage 4 -- `url`/`urlAbsolute`, the mount prefix, and the launder mark the signed pair copies.
+  "crates/nvs-stdlib/src/router.rs",
+  # Stage 4 -- `Core\Request::route()`, the match `signedRoute` verifies against.
+  "crates/nvs-stdlib/src/request.rs",
+  # Stages 2-3 -- `Time\Instant`, which `until` is one of and `null` is the other.
+  "crates/nvs-stdlib/src/time.rs",
+  # Stages 2-4 -- `rule:core-api/shape-parameter`'s `CoreTy` shape arm, so `{keys, until}` is a declared shape and `until`
+  # is a required key holding a nullable value rather than an undeclared `mixed`.
   "crates/nvs-types/src/core_lib.rs",
-  # Stage 3 -- `is_assignable`, whose own docs argue both sides of the variance question.
-  "crates/nvs-types/src/expr/assign.rs",
-  # Stage 3 -- gap 4, the invariance entry, rewritten when the widening lands.
-  "crates/nvs-stdlib/src/lib.rs",
-  # Stage 4 -- gap 4, the panic hook, and gap 5's two flags that stay inert.
-  "crates/nvs-runtime/src/lib.rs",
-  # Stage 4 -- `Ctx::write_log_record`, the request log the hook routes into.
-  "crates/nvs-stdlib/src/log.rs",
-  # Stage 4 -- gap 1, `[limits] max_output`, and `Core\IO::read`'s half of the same signature.
-  "crates/nvs-stdlib/src/process.rs",
-  "crates/nvs-stdlib/src/io.rs",
-  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
-  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
-  "crates/nvs-types/src/expr/calls.rs",
-  # `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`:
-  # one representation, two independent axes, and the sinks that refuse them.
-  "crates/nvs-types/src/expr/quals.rs",
-  # The `nvs` binary.
-  "crates/nvs-cli/src/main.rs",
-  # `rule:errors/propagation`'s calling convention, and the macro that makes it impossible to
-  # write a helper without it.
-  "crates/nvs-runtime/src/abi.rs",
-  # `rule:errors/panics-bypass-user-code` and `rule:errors/log-write`'s **tier 4** — the engine
-  # floor: what reports a failure when there is no script left to run and no second attempt to
-  # make.
-  "crates/nvs-runtime/src/floor.rs",
-  # The ceilings a request runs inside, and how it reports crossing one.
-  "crates/nvs-runtime/src/ctx/limits.rs",
-  # The per-request context: the first argument of every compiled function and every helper.
-  "crates/nvs-runtime/src/ctx/mod.rs",
+  # Stage 5 -- `ThrownClass`, which the two refusals are two arms of, beside the one `open` raises.
+  "crates/nvs-runtime/src/throwable.rs",
 ]
 
-# 0036 and 0135 are the shape spelling goal `input-shapes` landed and 0147 is the rule stage 2 implements on top
-# of it; 0033 is the sink a queued row is; 0002's Corollary is the panic hook; 0044 § 1 is the
-# directive a capture is bounded by.
+# 0060 is the roster this is the fifth entry of; 0146 is the design; 0024/0033 are the two qualifier
+# axes every row here is marked on; 0096 is the written-not-omitted rule `until` copies; 0004 prices
+# it. The mount prefix and the one match are stage 4's, and they are named there by rule id.
 # The rule ids this goal's prose cites, then the records that are a readable map of a
-# decision. ADR 0007 came out: it created more than eight rules, so naming
-# it here printed a whole chapter of titles to every stage,
+# decision. ADRs 0063, 0097, 0102 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
 # and the rules that bind this goal are named by id above. `brief.py --where` reaches
 # the rest in one call.
 rules = [
-  "0036",
-  "0135",
-  "0147",
+  "0060",
+  "0146",
+  "0024",
   "0033",
-  "0002",
-  "0044",
+  "0096",
   "0004",
 ]
 
-adrs = ["0147", "0002", "0044 §1", "0033 §5"]
+# One entry per section: `orient.py` slices one heading per entry, so "0060 §§1,4,5" matched no
+# heading at all and this goal would have opened with none of the three it names.
+adrs = ["0146", "0060 §1", "0060 §4", "0060 §5"]
 
 shapes = ["A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
 
@@ -179,7 +166,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `31-unowned-sweep.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `32-signed-urls.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
@@ -191,13 +178,16 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/omission-is-not-a-written-null", "core-api/shape-parameter", "core-api/the-bag-abi-is-unchanged", "core-classes/uri-removable-components", "security/secret-qualifier"]
+rules = ["core-classes/signature", "security/verification-does-not-launder"]
+
+[context.stage.3]
+rules = ["core-api/signing-is-over-a-payload"]
 
 [context.stage.4]
-rules = ["core-classes/process-run", "errors/helper-abi"]
+rules = ["core-classes/router-signed-url", "http-server/a-mount-table-expands-at-boot", "routing/matched-once-before-the-handler"]
 
 [context.stage.5]
-rules = ["security/arena-is-an-ownership-root"]
+rules = ["core-api/a-lifetime-is-written", "security/access-is-checked-for-presence-not-meaning"]
 
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
@@ -205,13 +195,20 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Stage 2's queue half runs against both dialects, so the daemon is this goal's own requirement and
-# not only its floor's.
+# This goal's own checks need no container -- a signature is computed over a key and reaches no
+# store. The daemon is its FLOOR's requirement: stage 1 carries goals `core-part-ii`, `database` and `unowned-sweep`'s lists forward,
+# and those verify drivers and a queue against real servers.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 466 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -6834,16 +6831,13 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- an options bag can tell omitted from written `null`. `rule:core-api/omission-is-not-a-written-null` is the rule; `rule:types/shape-type`
 # and `rule:core-api/shape-flattens-at-the-abi` are the shape and the ABI fill it amends.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 options bag"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Uri::with can remove a component)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6859,7 +6853,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 options bag"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Queue's limits and grants stay refused by name)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6874,7 +6868,7 @@ tests = [
 # than through a `Core\Json::encode` the program wrote.
 [[check]]
 kind = "cargo-named"
-stage = "2 options bag"
+stage = "1 floor"
 name = "nvs-types (Core\\Queue::push refuses a secret payload)"
 args = ["test", "-p", "nvs-types"]
 tests = ["a_secret_argument_to_push_is_refused_where_the_call_is_written"]
@@ -6882,10 +6876,9 @@ tests = ["a_secret_argument_to_push_is_refused_where_the_call_is_written"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- `array<T>` accepts a covariant read. The user's decision, recorded not re-argued.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 variance"
+stage = "1 floor"
 name = "nvs-types (an element-covariant array is assignable)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -6897,10 +6890,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the two small ones.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 hook and cap"
+stage = "1 floor"
 name = "nvs-runtime (a panic reaches the request log with its request id)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -6911,7 +6903,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 hook and cap"
+stage = "1 floor"
 name = "nvs-stdlib (max_output bounds a capture, at both readers)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -6922,12 +6914,132 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the list is shorter, and says so.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 shorter"
+stage = "1 floor"
 name = "the unowned list holds only the open decision it should"
 argv = ["python", "tools/owners.py", "--unowned", "--check"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: `Core\Signature`, over a payload and never over text. `rule:core-api/signing-is-over-a-payload` section 1.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 signature"
+name = "nvs-stdlib (a payload signs and verifies, and the encoding is canonical)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_payload_round_trips_through_sign_and_verify_unchanged",
+  "the_canonical_encoding_sorts_keys_so_two_orderings_sign_identically",
+  "an_int_one_and_a_string_one_encode_to_different_bytes",
+  "the_token_is_unpadded_url_safe_base64_and_needs_no_further_escaping",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 signature"
+name = "nvs-stdlib (the key ring is SignedCookie's, and verify answers tainted)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "sign_uses_the_newest_key_alone_and_verify_walks_the_whole_ring_in_order",
+  "a_token_under_a_rotated_out_key_still_verifies_while_new_tokens_use_the_newest",
+  "a_token_under_a_key_dropped_past_the_end_of_the_ring_fails",
+  "a_verified_payload_reaching_a_query_text_position_is_refused_as_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a `Uri` signs itself, over the form `compareTo` already defines. `rule:core-api/signing-is-over-a-payload` section 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 uri"
+name = "nvs-stdlib (a signed Uri covers what compareTo normalizes, and only that)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_signed_uri_round_trips_and_one_appended_query_parameter_invalidates_it",
+  "a_removed_query_parameter_invalidates_it",
+  "reordering_the_query_still_verifies_because_ordering_is_not_canonical",
+  "rewriting_an_escapes_hex_digits_in_the_other_case_still_verifies",
+  "changing_or_adding_a_fragment_still_verifies_because_a_fragment_is_never_signed",
+  "signing_calls_the_same_equivalent_that_compare_to_calls_and_not_a_second_one",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 uri"
+name = "nvs-stdlib (the _sig parameter is reserved, single and self-excluding)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "signing_a_uri_that_already_carries_sig_replaces_it_rather_than_nesting",
+  "a_url_carrying_two_sig_parameters_fails_under_either_of_them",
+  "a_url_with_no_sig_fails_with_the_same_error_a_forged_one_raises",
+  "verify_signature_answers_nothing_and_throws_rather_than_returning_a_bool",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the router pair, for the mount prefix and nothing else. `rule:core-api/signing-is-over-a-payload` section 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 router"
+name = "nvs-stdlib (a signed route identity survives a remount, a signed path does not)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "url_signed_verifies_through_signed_route_after_the_mount_prefix_changes",
+  "the_same_link_signed_as_a_path_stops_verifying_when_the_mount_moves",
+  "signed_route_verifies_against_the_match_the_server_already_made_and_reparses_nothing",
+  "url_signed_launders_for_the_url_path_sink_exactly_as_url_does",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- one refusal, except expiry, and the ordering that makes it safe. `rule:core-api/signing-is-over-a-payload` sections 3, 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 refusals"
+name = "nvs-stdlib (expiry is the one distinguishable failure, and it is checked second)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_token_past_its_until_throws_the_expired_error",
+  "a_token_both_forged_and_past_its_until_throws_the_invalid_error_not_the_expired_one",
+  "every_other_way_of_not_being_authentic_raises_one_error_with_one_sentence",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 refusals"
+name = "until is written and never omitted"
+args = ["test", "tests/conformance/core/signature/"]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (the three spec rows this goal owns are registered, and their keys are gone)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_one_spec_member_is_registered",
+  "every_part_two_spec_class_is_registered",
+  "every_outstanding_key_names_an_owner",
+  "a_key_whose_member_is_now_registered_fails_as_a_stale_line",
+]
 
 [[check]]
 kind = "nvs-suite"
