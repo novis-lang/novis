@@ -4338,12 +4338,14 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
 
 # ------------------------------------------------------------------- subagent transcripts
 #
-# A subagent's turns do NOT appear in the parent's `stream-json`; only the tool call and the
-# report it returned do. The harness does write each one's full transcript, next to the parent
-# session's, so the whole cost of a delegated read is on disk -- it is simply somewhere nothing
-# in this repository was looking. Copying it under .loop/logs/ closes that blind spot, so
-# loop-stats.py can charge a subagent's calls, seconds and context to the session that spawned
-# it rather than reporting a session that mysteriously did a lot with very few calls.
+# A subagent's turns arrive in the parent's `stream-json` interleaved with the parent's own,
+# each tagged with the `parent_tool_use_id` of the call that spawned it -- so a reader taking the
+# stream at face value charges a session for calls it never made and reads the step back down to
+# the subagent's small context as a compaction. `loop-stats.py`'s `read_session` drops them for
+# that reason. What the parent's own window actually holds is the tool call and the report it
+# returned. The harness writes each subagent's full transcript next to the parent session's, and
+# copying it under .loop/logs/ is what lets loop-stats.py price a delegated read on its own terms
+# rather than reporting a session that mysteriously did a lot with very few calls.
 #
 # The session id is a UUID, so globbing every project directory for it is exact and needs no
 # knowledge of how the harness mangles a working-directory path into a directory name.
