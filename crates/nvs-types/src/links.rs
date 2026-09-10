@@ -47,11 +47,14 @@
 //!    legal and records no site, so it throws at run time as a computed name
 //!    would. Reading one needs the slot mapping `check_args_typed` already
 //!    built and this pass is not handed.
+//!    — owner: unowned
 //! 2. **An enum-case capture has no closed set to check against**, so [`within_set`]
 //!    passes every value written for one. `crate::routes::closed_set` owns why:
-//!    what segment text arrives at a case is `Core\Router::match`'s decision and
-//!    that member is out of scope, so the set has no spelling to compare with
-//!    yet rather than being one this pass declines to read.
+//!    what segment text arrives at a case is `Core\Router::match`'s decision, and
+//!    that member lands with the rest of the request-facing half, so the set has
+//!    no spelling to compare with yet rather than being one this pass declines to
+//!    read.
+//!    — owner: M7
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
