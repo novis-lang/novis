@@ -66,6 +66,13 @@ __pycache__/
 # verify the chain rather than merely encrypt (tests/db/compose.yaml's header).
 /tests/db/ca.crt
 
+# The queue `examples/queue-sqlite.nvs` runs against — the one database in this
+# repository that is a file rather than a server, named by that fixture's own
+# `examples/queue-sqlite.toml` and created by `nvs queue migrate`. It holds
+# every job that fixture ever pushed, and a checkout that has never run the
+# acceptance sweep has no reason to hold one.
+/tests/db/queue-sqlite.db
+
 # Scratch commit-message file (AGENTS.md: a multi-line message goes through a
 # file, never an inline `-m`); never part of the tree it describes.
 /.agent-tmp/

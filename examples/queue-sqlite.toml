@@ -1,0 +1,37 @@
+# The configuration `examples/queue-sqlite.nvs` runs under, and the only thing in it that the
+# repository's own `nvs.toml` does not already say: the jobs live in a SQLite file rather than on
+# the PostgreSQL server `[queue] connection = "main"` names.
+#
+# It is a file of its own because `[queue]` is one block per deployment — `connection` names the
+# single place a deployment's jobs live — so a second queue cannot be spelled beside the first.
+# `nvs run --config` names this tree and disables the search for `./nvs.toml` entirely, which is
+# why every block the fixture needs is here rather than inherited.
+#
+# `path` is relative, and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`
+# resolves it against this file: `tests/db/queue-sqlite.db`, beside the compose file that starts
+# the servers every other queue fixture needs and this one needs none of. The file is created by
+# `nvs queue migrate`, which the acceptance sweep runs above the fixture for the reason
+# `examples/queue.nvs`'s own pair of checks states — nothing else in the sweep creates `nvs_jobs`.
+
+[[app]]
+entry = "queue-sqlite.nvs"
+
+# A job is a file a `spawn script` isolate runs, and ADR 0118 § 1 denies that by default — so a
+# worker started by the block below is refused every job it claims without this grant, and reports
+# the refusal as a failed attempt rather than as a configuration mistake. It is `true` for the
+# reason the repository's own tree gives it: a queue subject is a path the *program* wrote, and
+# narrowing it here would be a second spelling of the examples directory.
+[app.capabilities.script]
+spawn = true
+
+[db.jobs]
+driver = "sqlite"
+path = "../tests/db/queue-sqlite.db"
+
+# `workers = 2` rather than `nvs.toml`'s `1`, and the second one is the point: SQLite has a single
+# writer, so two workers against this file take the claim's immediate transaction in turn and wait
+# out the busy timeout rather than proceeding in parallel. The fixture asserts that both jobs still
+# run, which is the property that contention is *waited out* rather than reported as an error.
+[queue]
+connection = "jobs"
+workers = 2

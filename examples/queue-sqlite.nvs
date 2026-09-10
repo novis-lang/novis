@@ -1,0 +1,105 @@
+<?nvs
+// The durable queue with no server behind it: `Core\Queue` over a SQLite file.
+//
+// `rule:concurrency/claiming-is-one-statement` is what these five lines pin,
+// and this backend is the one where the mechanism is not a locking clause: a
+// worker claims inside an *immediate* transaction, which SQLite's single writer
+// makes exclusive on its own. `for update skip locked` is what the same claim
+// says on a backend with row locks and concurrent writers to need them from;
+// here there is nothing left for it to do, and [ADR 0170](/docs/decisions/0170.md)
+// is why that is a stronger answer rather than a weaker one.
+//
+// So this fixture is the whole of ADR 0084's design running against a file:
+// § 1's job names a file, § 4's claim is the database's to arbitrate, and § 6's
+// write-back is what makes `status` answer `Succeeded`. Nothing about the
+// program says which backend it is on, and that is the claim — the four members
+// a request asks are the same four here as on the servers
+// `examples/queue.nvs` and `examples/queue-purge.nvs` need.
+//
+// `examples/queue-sqlite.toml` is the tree it runs under, named with `nvs run
+// --config`; that file's comments own why the configuration is its own rather
+// than the repository's, where the database file lives and what converges its
+// two tables. `workers = 2` is written there on purpose: SQLite admits one
+// writer, so a second worker waits out the busy timeout rather than claiming in
+// parallel, and `both ran` below is the assertion that waiting is what it does.
+//
+// The five lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 6); the source is not.
+
+use Core\Queue;
+use Core\Queue\State;
+
+class Poll {
+    // Waiting for a worker is the one thing this program does that is not a
+    // `Core\Queue` call, and it is `examples/queue.nvs`'s wait for that
+    // fixture's reason: bounded rather than open-ended, since a fixture that
+    // hangs when the feature regresses is worse than one that prints the wrong
+    // line.
+    public static function until(callable $test): bool {
+        var $turns = 0;
+        while ($turns < 200) {
+            if ($test() as bool) {
+                return true;
+            }
+            Core\Time::sleep(25ms);
+            $turns = $turns + 1;
+        }
+        return false;
+    }
+
+    // The same wait, answering with the count it saw rather than with whether
+    // it saw one. `Claimed` is a state a job passes through, so a counter this
+    // program prints has to be read by the wait that waited for it: asking
+    // again afterwards is a second instant, and a worker that has since
+    // finished answers `0` to a question that was already true.
+    public static function counted(callable $test): uint {
+        var $turns = 0;
+        while ($turns < 200) {
+            var $seen = $test() as uint;
+            if ($seen > 0) {
+                return $seen;
+            }
+            Core\Time::sleep(25ms);
+            $turns = $turns + 1;
+        }
+        return 0;
+    }
+}
+
+// The run owns its queue, for `examples/queue.nvs`'s reason: the jobs table is
+// the deployment's rather than this program's and nothing empties it between
+// runs, so a fixture naming a fixed queue would count its own previous runs.
+// That the table here is a file the acceptance sweep keeps rather than a
+// server's is exactly the same fact — `nvs queue migrate` is idempotent and the
+// rows it finds are the ones the last run left.
+var $queue = Core\Uuid::v4()->toString();
+
+var $receipt = Queue::push("examples/queue/receipt.nvs", {args: {order: 7}, queue: $queue});
+echo "enqueued", "\n";
+
+// One job and two workers, and the count is `1` rather than a race: the claim
+// is one transaction the database arbitrates, so the worker that arrives second
+// waits for the write lock and by the time it proceeds the row is no longer
+// due.
+echo "claimed ", Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
+
+// § 6's write-back, read as the state it leaves behind rather than as a
+// callback: delivery is at-least-once, so "it ran" is something a row says.
+Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
+echo "ran", "\n";
+
+// Two jobs now, against the same single writer. Neither worker can be inside
+// the other's transaction, so the two claims happen in some order and both jobs
+// still run — a busy timeout is a wait, and the thing this line would fail on
+// is a claim that reported contention as an error instead of waiting for it.
+var $first = Queue::push("examples/queue/receipt.nvs", {queue: $queue});
+var $second = Queue::push("examples/queue/receipt.nvs", {queue: $queue});
+Poll::until(fn (): bool => {
+    return Queue::status($first) == State::Succeeded
+        && Queue::status($second) == State::Succeeded;
+});
+echo "both ran", "\n";
+
+// And the counter the operator watches, from the same instant the three rows
+// reached: nothing is left waiting on a queue whose every job has been run.
+echo "pending=", Queue::stats($queue)->pending(), "\n";

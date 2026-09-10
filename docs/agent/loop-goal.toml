@@ -187,8 +187,13 @@ rules = ["concurrency/attempts-are-finite-and-a-dead-letter-is-kept"]
 [context.stage.4]
 rules = ["concurrency/queue-deletion-is-explicit-and-bounded"]
 
+# `examples/queue-sqlite.nvs` is here for the reason `examples/cache-shared-socket.nvs` is: the
+# sweep runs `nvs run <file>` with no arguments at all, and both fixtures are the tree their own
+# `--config` names rather than the repository's. Without the flag this one is not a weaker claim
+# but a different one -- the PostgreSQL queue, running under a SQLite fixture's name.
 [valgrind]
-skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs"]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs",
+        "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
@@ -7467,4 +7472,43 @@ cases = [
   "tests/conformance/core/queue-push-and-status-run-against-a-sqlite-file.nvst",
   "tests/conformance/core/queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst",
   "tests/conformance/core/queue-cancel-releases-a-dedupe-key-on-sqlite.nvst",
+]
+
+# The database the fixture's jobs live in, converged before it runs. `examples/queue.nvs`'s own
+# pair says why a block like this exists at all -- nothing else in the sweep creates `nvs_jobs` --
+# but the ordering argument is a different one: this is a `command` check and the fixture below is
+# a program check, so the sweep runs every one of these before any of those and position in this
+# file decides nothing. `--config` names the tree `examples/queue-sqlite.toml` holds, whose own
+# comments own where the `[db.jobs]` path resolves to.
+#
+# Idempotent for the reason the PostgreSQL pair is, and this is the assertion of it: the sweep runs
+# it against the file the last iteration already converged. It touches no port and starts no
+# container -- the whole of what it needs is a directory it may write a file in.
+[[check]]
+kind = "command"
+stage = "6 the fixture"
+name = "nvs queue migrate converges the fixture's SQLite file"
+argv = ["{nvs}", "queue", "migrate", "--config", "examples/queue-sqlite.toml"]
+want = ["jobs: applied", "dead_letter: applied"]
+
+# `args` is what makes this the SQLite fixture: `--config` disables the search for `./nvs.toml`
+# entirely, so the tree it names carries the `[[app]]` grant the jobs need beside the `[queue]`
+# block that puts them in a file. `[valgrind] skip` above holds the fixture for the consequence of
+# that, and says why.
+#
+# `claimed 1` is one job and two workers, and it is the whole of what this goal's backend does
+# differently: the second worker waits for the write lock rather than coming back with the same
+# row. `both ran` is that contention waited out rather than reported as an error, and `pending=0`
+# is the three rows having reached a terminal state on a database with a single writer.
+[[check]]
+kind = "exact"
+stage = "6 the fixture"
+file = "examples/queue-sqlite.nvs"
+args = ["--config", "examples/queue-sqlite.toml"]
+want = [
+  "enqueued",
+  "claimed 1",
+  "ran",
+  "both ran",
+  "pending=0",
 ]
