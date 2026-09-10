@@ -9,6 +9,15 @@ thread-per-core server does not multiply an operator's number by its core count 
 32-core host is four workers and four connections. A deployment that wants thirty-two writes
 thirty-two.
 
+**On SQLite the count stops buying throughput at the file's single writer.** That backend admits one
+writer at a time, so workers above one against a `[queue]` whose connection is a SQLite file take the
+claim's immediate transaction in turn and wait out the busy timeout rather than draining in parallel
+(`rule:concurrency/claiming-is-one-statement`). Every job still runs and the contention is waited out
+rather than reported as an error; what the higher count buys there is a worker ready the moment the
+file is free, and not two jobs claimed at once. That is a property of the database and not a defect of
+the queue, so there is no key here to raise: a deployment that needs its jobs drained in parallel
+names a connection whose backend has concurrent writers.
+
 Both spellings drive the identical isolate (`rule:concurrency/a-job-runs-as-a-root-isolate`) over the
 identical claim statement (`rule:concurrency/claiming-is-one-statement`), so moving work between them
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
