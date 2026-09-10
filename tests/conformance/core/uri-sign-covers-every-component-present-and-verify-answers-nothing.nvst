@@ -1,0 +1,74 @@
+--TEST--
+$uri->sign answers the receiver with the reserved `_sig` set, $uri->verifySignature answers nothing, and adding, editing or dropping any parameter is one refusal — `rule:core-api/signing-is-over-a-payload`, `rule:core-api/one-refusal-except-expiry`
+--FILE--
+<?nvs
+// A signed URL is a `Uri`, not a string a caller assembles: it composes with
+// `with`, `withQueryParameter` and `toString` like every other member here.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+Core\Uri $link = Core\Uri::parse("https://example.com/invoice?id=7&scope=own")
+    ->sign({keys: $ring, until: null});
+
+echo $link->host(), $link->path(), "\n";
+echo $link->queryParameter("_sig") == null
+    ? "no token"
+    : "the reserved parameter carries the token", "\n";
+
+// It answers nothing. There are no claims to hand back — the claim is the URL
+// the caller is already holding — and a `bool` is a value a caller can drop on
+// the floor, so reaching the next statement is what says the link is good.
+$link->verifySignature($ring);
+echo "verified", "\n";
+
+// Every component present is covered, so appending a parameter is a different
+// URL whatever it is called. This is the bypass every framework in this space
+// has shipped as an option naming which parameters are signed, and there is no
+// such option at any of the three doors.
+try {
+    Core\Uri::parse($link->toString() . "&admin=1")->verifySignature($ring);
+    echo "an appended parameter accepted", "\n";
+} catch (RuntimeError $appended) {
+    echo $appended->message, "\n";
+}
+
+// Dropping the parameter that *narrows* the link is as much a forgery as
+// adding one, and the signature covers both directions.
+try {
+    $link->withQueryParameter("scope", null)->verifySignature($ring);
+    echo "a removed parameter accepted", "\n";
+} catch (RuntimeError $removed) {
+    echo $removed->message, "\n";
+}
+
+try {
+    $link->withQueryParameter("id", "8")->verifySignature($ring);
+    echo "an edited parameter accepted", "\n";
+} catch (RuntimeError $edited) {
+    echo $edited->message, "\n";
+}
+
+// And the URL with no `_sig` at all — the code path a naive verifier treats as
+// "no signature to check" — is the same sentence, because telling it apart is
+// telling an attacker that stripping the parameter is the cheaper attack.
+try {
+    Core\Uri::parse("https://example.com/invoice?id=7&scope=own")->verifySignature($ring);
+    echo "an unsigned URL accepted", "\n";
+} catch (RuntimeError $missing) {
+    echo $missing->message, "\n";
+}
+
+// The bound's other side: the untouched link still verifies, so the four
+// refusals above are about their URLs and not about a member that refuses
+// everything.
+$link->verifySignature($ring);
+echo "and the untouched link still verifies", "\n";
+--EXPECT--
+example.com/invoice
+the reserved parameter carries the token
+verified
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+and the untouched link still verifies

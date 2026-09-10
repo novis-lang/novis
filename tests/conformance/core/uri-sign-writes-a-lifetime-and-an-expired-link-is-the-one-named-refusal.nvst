@@ -1,0 +1,62 @@
+--TEST--
+$uri->sign takes a written lifetime with `null` as the forever spelling, the lifetime rides inside the signed bytes, and an expired link is the one refusal $uri->verifySignature names apart from the others — `rule:core-api/a-lifetime-is-written`, `rule:core-api/one-refusal-except-expiry`
+--FILE--
+<?nvs
+// A permanent signed URL is a permanent bearer credential — it ends up in
+// browser history, `Referer` headers, proxy logs and chat unfurls — so
+// "forever" is a thing a person types rather than a key they leave out.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+Core\Uri $forever = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: null});
+$forever->verifySignature($ring);
+echo "a link written as forever verifies", "\n";
+
+Core\Time\Instant $hence = Core\Time::now()->plus(1h);
+Core\Uri $live = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: $hence});
+$live->verifySignature($ring);
+echo "and one that runs out in an hour verifies", "\n";
+
+// The lifetime is *inside* the signed region rather than beside it, so the two
+// tokens differ and a holder cannot edit an expiry the tag covers.
+echo $forever->queryParameter("_sig") == $live->queryParameter("_sig")
+    ? "the lifetime is not signed"
+    : "the lifetime is signed", "\n";
+
+// One hour ago, so the link was already past its lifetime when it was minted —
+// the state a signed URL reaches by sitting in a chat unfurl for a day.
+Core\Time\Instant $ago = Core\Time::now()->minus(1h);
+Core\Uri $stale = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: $ago});
+
+// Both refusals are caught as the same class, so what tells them apart is the
+// sentence and not a type a program has to catch. Expiry is safe to name
+// precisely because it is judged *after* the tag: only the holder of a
+// genuinely signed link ever sees it, and telling them the link has expired
+// rather than that they are being attacked is why an application catches this.
+string $expired = "";
+try {
+    $stale->verifySignature($ring);
+    echo "an expired link verified", "\n";
+} catch (RuntimeError $past) {
+    $expired = $past->message;
+}
+
+string $refused = "";
+try {
+    Core\Uri::parse("https://example.com/a?id=7")->verifySignature($ring);
+    echo "an unsigned URL verified", "\n";
+} catch (RuntimeError $unsigned) {
+    $refused = $unsigned->message;
+}
+
+// The expiry message carries the two instants, so it is not printed here.
+// What this pins is that the two are different sentences, which is the whole
+// of the rule, and that the shared one is unchanged.
+echo $expired == $refused ? "one sentence for both" : "expiry has its own sentence", "\n";
+echo $refused, "\n";
+--EXPECT--
+a link written as forever verifies
+and one that runs out in an hour verifies
+the lifetime is signed
+expiry has its own sentence
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.

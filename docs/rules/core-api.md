@@ -1115,8 +1115,10 @@ Every component present is covered, so appending any parameter invalidates the s
 option naming which parameters are signed, because that option is where every framework's bypass has lived.
 The fragment is never signed, since it is not sent to the server.
 
-**Designed, not shipped.** No signature class is registered in `crates/nvs-stdlib/src/registry.rs`, and
-`crates/nvs-stdlib/src/uri.rs` carries the canonical form with only its comparison caller.
+**Two doors of the three are on disk.** `Core\Signature` signs and verifies a payload map, and
+`$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
+query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
+so a signature survives a remount — is not registered yet.
 
 <sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
 

@@ -13,8 +13,3 @@
 #
 # Grouped by section for reading; the test compares sets, so order means nothing
 # to it.
-
-# §12's two signing members are the exception the file's own rule allows for: the spec writes them as
-# table rows and they need `Core\Crypto`, so they land with M8 rather than with the rest of Part I.
-§12 $uri->sign             # signed-urls
-§12 $uri->verifySignature  # signed-urls

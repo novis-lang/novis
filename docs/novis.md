@@ -13703,7 +13703,7 @@ Closes the stream and answers the digest of everything `update` fed it, as `hash
 <a id="core-core-uri"></a>
 ### `Core\Uri`
 
-Keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, queryParameter, withQueryParameter, resolve, compareTo
+Keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, queryParameter, withQueryParameter, resolve, compareTo, sign, verifySignature
 
 `Core\Uri::parse` reads a URI *reference* and answers an instance whose readers report each
 component exactly as written — still percent-encoded, in its own case. Every reader but `path` is
@@ -13782,6 +13782,8 @@ a%20b%26c a+b%26c
 | [`Core\Uri->withQueryParameter`](#core-core-uri-withqueryparameter) | `withQueryParameter(string $name, mixed $value): Core\Uri` |
 | [`Core\Uri->resolve`](#core-core-uri-resolve) | `resolve(string $reference): Core\Uri` |
 | [`Core\Uri->compareTo`](#core-core-uri-compareto) | `compareTo(Core\Uri $other): int` |
+| [`Core\Uri->sign`](#core-core-uri-sign) | `sign(? $settings): Core\Uri` |
+| [`Core\Uri->verifySignature`](#core-core-uri-verifysignature) | `verifySignature(array<secret bytes> $keys): void` |
 
 <a id="core-core-uri-parse"></a>
 #### `Core\Uri::parse`
@@ -14085,6 +14087,40 @@ Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms �
 | `$other` | `Core\Uri` | The `Uri` to compare against. |
 
 **Returns** `int` — `-1`, `0` or `1`: component by component in `scheme`, `userInfo`, `host`, `port`, `path`, `query`, `fragment` order, an absent component before a present one. `http://h:80/` and `http://h/` differ — no scheme default is known.
+
+<a id="core-core-uri-sign"></a>
+#### `Core\Uri->sign`
+
+```nvs skip
+$uri->sign(? $settings): Core\Uri
+```
+
+Answers the receiver with the reserved `_sig` query parameter set, over a signature taken across everything `compareTo` normalizes — scheme, userInfo, host, port, path and the query's parameters. Appending, removing or editing any parameter invalidates it; reordering them does not, and neither does a fragment.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$settings` | `?` | The key ring and the lifetime, written as one literal because neither has a sensible value this member could choose. Keys: `keys` (array<secret bytes>) The key ring, **newest first**: `$keys[0]` signs, and the rest exist so that a link minted before the last rotation still verifies. The same ring `Core\Signature` takes, and a token minted at one door does not verify at the other.; `until` (?Core\Time\Instant) When the link stops working, inside the signed bytes where a holder cannot edit it. `null` is the forever spelling, and it has to be written — a permanent signed URL is a permanent bearer credential, and it ends up in browser history, `Referer` headers and chat unfurls. |
+
+**Returns** `Core\Uri` — A new `Uri`, the receiver with `_sig` set — so it composes with `with` and `toString` like every other member here. A receiver already carrying `_sig` has it replaced rather than nested, and the same URL under the same key and lifetime always mints the same token. The token carries the signed form as well as the tag, so it adds about `4/3 × (URL + 40)` characters. A **relative** reference signs without a scheme, host or port, so its token is valid on any origin: `$uri->scheme()` is what says which you are holding.
+
+**Throws** `LogicError` — `$settings.keys` is empty, so there is no newest key; or its first entry is not 32 octets long — a `bytes` that was never a key.
+
+<a id="core-core-uri-verifysignature"></a>
+#### `Core\Uri->verifySignature`
+
+```nvs skip
+$uri->verifySignature(array<secret bytes> $keys): void
+```
+
+Checks the receiver's `_sig` against every key in `$keys`, and the lifetime that rode inside it. Answers nothing: a signed URL carries no claims to hand back — the claim is the URL the caller already holds — and a `bool` is a value a caller can drop.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$keys` | `array<secret bytes>` | The same ring `sign` was given, newest first. A link minted under any key still in the ring verifies; one minted under a key that has been dropped off the end does not. |
+
+**Returns** `void` — Nothing. Reaching the next statement is what says the URL is authentic and live.
+
+**Throws** `LogicError` — `$keys` is empty, or one of its entries is not 32 octets long.; `RuntimeError` — The URL is not one this ring signed — a parameter was added, removed or edited, the token was altered, it was minted for another door or under a retired key, there is no `_sig` at all, or there are two of them. Every one of those is one message. Expiry is the single refusal with a sentence of its own, because only the holder of a genuinely signed link ever reaches it.
 
 <a id="core-core-router"></a>
 ### `Core\Router`

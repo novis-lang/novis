@@ -1,0 +1,57 @@
+--TEST--
+`_sig` is reserved, excluded from its own input and single: signing a link that already carries one replaces it, a URL carrying two is refused rather than checked under either, and a token minted at another door does not open this one — `rule:core-api/signing-is-over-a-payload`, `rule:core-api/each-door-takes-a-different-thing`
+--FILE--
+<?nvs
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+// The reserved parameter excludes itself from its own input, so a link can be
+// signed again — after a key rotation, say — without one token ending up
+// nested inside the next one's payload.
+Core\Uri $once = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: null});
+Core\Uri $twice = $once->sign({keys: $ring, until: null});
+echo $once->queryParameter("_sig") == $twice->queryParameter("_sig")
+    ? "signing twice signs the same URL"
+    : "the token was nested inside the second payload", "\n";
+$twice->verifySignature($ring);
+echo "and the twice-signed link verifies", "\n";
+
+// Two of them is a refusal and not a choice: picking one is picking which of
+// two answers an attacker gets to try, and every parser downstream picks a
+// different one.
+try {
+    Core\Uri::parse($once->toString() . "&_sig=AAAA")->verifySignature($ring);
+    echo "a second _sig accepted", "\n";
+} catch (RuntimeError $two) {
+    echo $two->message, "\n";
+}
+
+// The same URL with the forged token *first* — so it is refused whichever one
+// a reader would have reached for.
+try {
+    Core\Uri::parse("https://example.com/a?id=7&_sig=AAAA")
+        ->withQueryParameter("wrapper", "x")
+        ->verifySignature($ring);
+    echo "a forged single token accepted", "\n";
+} catch (RuntimeError $forged) {
+    echo $forged->message, "\n";
+}
+
+// One ring, three doors, and a domain octet inside the signed bytes: a token
+// `Core\Signature` minted over a payload does not open as a URL signature,
+// however well it authenticates.
+string $payloadToken = Core\Signature::sign(["id" => "7"], {keys: $ring, until: null});
+try {
+    Core\Uri::parse("https://example.com/a?id=7")
+        ->withQueryParameter("_sig", $payloadToken)
+        ->verifySignature($ring);
+    echo "a payload token opened a URL", "\n";
+} catch (RuntimeError $otherDoor) {
+    echo $otherDoor->message, "\n";
+}
+--EXPECT--
+signing twice signs the same URL
+and the twice-signed link verifies
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.
+Core\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being one — a parameter added, removed or edited, an altered token, a token minted for another door or under a key that has been retired, no `_sig` at all, and two of them — is this one sentence, so a forgery says nothing about which half of it failed.

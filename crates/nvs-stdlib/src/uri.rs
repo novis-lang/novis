@@ -86,8 +86,12 @@
 //! asking whether two references name the same resource is asking a question
 //! about *equivalence*, not about spelling.
 //!
-//! So the normalization lives on `$uri->compareTo($other)` and nowhere else.
-//! It is the whole of § 6.2.2 and no more:
+//! So the normalization is written once, on `$uri->compareTo($other)`, and
+//! `$uri->sign` reaches that same function rather than carrying one of its own
+//! — a canonical form used by nothing but a signature is a form no other test
+//! constrains, which is where every framework's signed-URL bug in this space
+//! has come from (`rule:core-api/signing-is-over-a-payload`). It is the whole
+//! of § 6.2.2 and no more:
 //!
 //! - **§ 6.2.2.1, case.** The scheme and the host fold to lower case; every
 //!   other component keeps its own. Every `%XX` escape's hex digits fold to
@@ -367,7 +371,9 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ShapeKeyDoc,
 };
+use crate::signature::{Confirmed, Domain};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -620,6 +626,40 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Int,
             symbol: "nvs_core_uri_compare_to",
             doc: Some(&COMPARE_TO_DOC),
+        },
+        CoreMethod {
+            name: "sign",
+            // The shape [`crate::signature`] writes once for all three doors,
+            // and nothing beside it: an options bag naming which parameters
+            // are covered is where every framework's bypass has lived, so
+            // there is no second parameter for one to arrive in
+            // (`rule:core-api/signing-is-over-a-payload`).
+            // `settings`, not `options`: a shape is a positional parameter a
+            // caller writes in full, and `rule:core-api/a-lifetime-is-written`
+            // is the whole reason it is not a bag — an omitted `until` does
+            // not compile. The spec's § 12 signature column writes the name,
+            // which is what `every_registry_rows_names_are_the_specs_signature_column`
+            // reads it from.
+            names: &["settings"],
+            params: &[CoreTy::Shape(crate::signature::SIGNING)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "nvs_core_uri_sign",
+            doc: Some(&SIGN_DOC),
+        },
+        CoreMethod {
+            name: "verifySignature",
+            // The ring alone. This member takes a *different* thing from
+            // `sign` and answers a different thing
+            // (`rule:core-api/each-door-takes-a-different-thing`): there is no
+            // lifetime to write, because the one that counts rode inside the
+            // token, and no payload, because the URL is the payload.
+            names: &["keys"],
+            params: &[CoreTy::Array(&crate::keyring::KEY)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_uri_verify_signature",
+            doc: Some(&VERIFY_SIGNATURE_DOC),
         },
     ],
     slots: &[
@@ -983,6 +1023,78 @@ const COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `$uri->sign`'s reference card — `rule:core-api/reference-card`.
+const SIGN_DOC: MethodDoc = MethodDoc {
+    short: "Answers the receiver with the reserved `_sig` query parameter set, over a signature \
+            taken across everything `compareTo` normalizes — scheme, userInfo, host, port, path \
+            and the query's parameters. Appending, removing or editing any parameter invalidates \
+            it; reordering them does not, and neither does a fragment.",
+    params: &[ParamDoc {
+        name: "settings",
+        desc: "The key ring and the lifetime, written as one literal because neither has a \
+               sensible value this member could choose.",
+        shape: &[
+            ShapeKeyDoc {
+                key: "keys",
+                ty: "array<secret bytes>",
+                desc: "The key ring, **newest first**: `$keys[0]` signs, and the rest exist so \
+                       that a link minted before the last rotation still verifies. The same ring \
+                       `Core\\Signature` takes, and a token minted at one door does not verify at \
+                       the other.",
+            },
+            ShapeKeyDoc {
+                key: "until",
+                ty: "?Core\\Time\\Instant",
+                desc: "When the link stops working, inside the signed bytes where a holder cannot \
+                       edit it. `null` is the forever spelling, and it has to be written — a \
+                       permanent signed URL is a permanent bearer credential, and it ends up in \
+                       browser history, `Referer` headers and chat unfurls.",
+            },
+        ],
+    }],
+    ret: "A new `Uri`, the receiver with `_sig` set — so it composes with `with` and `toString` \
+          like every other member here. A receiver already carrying `_sig` has it replaced rather \
+          than nested, and the same URL under the same key and lifetime always mints the same \
+          token. The token carries the signed form as well as the tag, so it adds about \
+          `4/3 × (URL + 40)` characters. A **relative** reference signs without a scheme, host or \
+          port, so its token is valid on any origin: `$uri->scheme()` is what says which you are \
+          holding.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$settings.keys` is empty, so there is no newest key; or its first entry is not 32 \
+               octets long — a `bytes` that was never a key.",
+    }],
+};
+
+/// `$uri->verifySignature`'s reference card — `rule:core-api/reference-card`.
+const VERIFY_SIGNATURE_DOC: MethodDoc = MethodDoc {
+    short: "Checks the receiver's `_sig` against every key in `$keys`, and the lifetime that rode \
+            inside it. Answers nothing: a signed URL carries no claims to hand back — the claim is \
+            the URL the caller already holds — and a `bool` is a value a caller can drop.",
+    params: &[ParamDoc {
+        name: "keys",
+        desc: "The same ring `sign` was given, newest first. A link minted under any key still in \
+               the ring verifies; one minted under a key that has been dropped off the end does \
+               not.",
+        shape: &[],
+    }],
+    ret: "Nothing. Reaching the next statement is what says the URL is authentic and live.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$keys` is empty, or one of its entries is not 32 octets long.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The URL is not one this ring signed — a parameter was added, removed or \
+                   edited, the token was altered, it was minted for another door or under a \
+                   retired key, there is no `_sig` at all, or there are two of them. Every one of \
+                   those is one message. Expiry is the single refusal with a sentence of its own, \
+                   because only the holder of a genuinely signed link ever reaches it.",
+        },
+    ],
+};
+
 /// [`CLASS`]'s slots, by index. `TEXT_SLOT` holds the whole reference and the
 /// seven after it hold the components of it, which is the trade the module
 /// docs' *What it spends* states.
@@ -1023,6 +1135,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_uri_resolve" => (nvs_core_uri_resolve as *const ()).cast(),
         "nvs_core_uri_compare_to" => (nvs_core_uri_compare_to as *const ()).cast(),
+        "nvs_core_uri_sign" => (nvs_core_uri_sign as *const ()).cast(),
+        "nvs_core_uri_verify_signature" => (nvs_core_uri_verify_signature as *const ()).cast(),
         "nvs_core_uri_encode_component" => (nvs_core_uri_encode_component as *const ()).cast(),
         "nvs_core_uri_decode_component" => (nvs_core_uri_decode_component as *const ()).cast(),
         "nvs_core_uri_encode_form_value" => (nvs_core_uri_encode_form_value as *const ()).cast(),
@@ -1562,6 +1676,96 @@ fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Faul
     )))
 }
 
+/// The receiver in `slots`, rebuilt with query parameter `name` set to
+/// `value` — or removed, where that is [`None`].
+///
+/// [`nvs_core_uri_with_query_parameter`]'s whole body below its argument read,
+/// lifted out because [`nvs_core_uri_sign`] answers a `Uri` carrying the
+/// reserved `_sig` and has to reach the *same* edit. Two spellings of "set a
+/// parameter and read the result back" is how the query a program writes and
+/// the query a signature is checked against would come to differ.
+///
+/// Takes over `value`'s reference, exactly as [`NvsArray::set`] does.
+///
+/// # Errors
+///
+/// [`parse_query`]'s, for a name in the receiver's own query whose escapes
+/// decode to octets that are not UTF-8; [`build`]'s; and [`unmoved`]'s, which
+/// neither caller is expected to reach.
+fn with_parameter(
+    slots: &[Value; 8],
+    member: &str,
+    name: &str,
+    value: Option<Value>,
+) -> HelperResult {
+    let parsed = held(slots, QUERY_SLOT, member).and_then(|query| match query {
+        Some(query) => parse_query(query, member, Values::Octets),
+        // No `?` at all, so there is nothing to read and the answer is a
+        // URI with one parameter — or, for a removal, the receiver again.
+        None => Ok(NvsArray::new()),
+    });
+    let mut parameters = match parsed {
+        Ok(parameters) => parameters,
+        Err(refused) => {
+            // The caller handed its reference over before this frame could
+            // fail, so the refusing path owes the release the array below
+            // would have taken — `parse_query` throws for a name in the
+            // receiver's own query that decodes to octets no `string` holds.
+            if let Some(held) = value {
+                discard(held);
+            }
+            return Err(refused);
+        }
+    };
+    match value {
+        None => {
+            parameters.unset(name.as_bytes());
+        }
+        Some(held) => parameters.set(NvsStr::new(name.as_bytes()), held),
+    }
+
+    // `build` borrows the pointer it is handed ([`crate::arr::borrowed`]),
+    // so the one reference `into_raw` handed over is still this frame's to
+    // release — and it is released on the throwing path too, which is why
+    // the `?` is below the reconstruction rather than on the call.
+    let empty = parameters.is_empty();
+    let root = parameters.into_raw();
+    let rebuilt = if empty {
+        Ok(None)
+    } else {
+        build(root, "Core\\Uri", member, &[]).map(Some)
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`into_raw` handed this frame the one reference the handle \
+                  held, and `build` borrowed the pointer rather than taking \
+                  it over"
+    )]
+    unsafe {
+        drop(NvsArray::from_raw(root));
+    }
+    let query = rebuilt?;
+
+    // The receiver's own port, which is an `int` in its slot and text in a
+    // recomposition — `nvs_core_uri_with`'s conversion, without its bag,
+    // since this edit replaces one component and reads the other six.
+    let port = slots[PORT_SLOT].as_int().map(|port| port.to_string());
+    let composed = Composed {
+        scheme: held(slots, SCHEME_SLOT, member)?,
+        user_info: held(slots, USER_INFO_SLOT, member)?,
+        host: held(slots, HOST_SLOT, member)?,
+        port: port.as_deref(),
+        path: held(slots, PATH_SLOT, member)?.unwrap_or(""),
+        query: query.as_deref(),
+        fragment: held(slots, FRAGMENT_SLOT, member)?,
+    };
+    let text = recompose(&composed);
+    let reference = read(&text, member)?;
+    unmoved(&composed, &reference)?;
+
+    built(&reference, member)
+}
+
 // ============================================================================
 // Equivalence — RFC 3986 § 6.2.2, run at the comparison and never at the parse
 // ============================================================================
@@ -1735,6 +1939,130 @@ fn equivalent(args: &[Value], at: usize, member: &str) -> Result<Equivalent, Fau
         query: component(QUERY_SLOT, false)?,
         fragment: component(FRAGMENT_SLOT, false)?,
     })
+}
+
+// ============================================================================
+// Signing — the same normal form, reached a second time rather than invented
+// ============================================================================
+
+/// `Core\Uri::sign`, spelled the way [`crate::keyring`]'s refusals name it.
+const SIGN: &str = r"Core\Uri::sign";
+
+/// `Core\Uri::verifySignature`, spelled the same way.
+const VERIFY_SIGNATURE: &str = r"Core\Uri::verifySignature";
+
+/// The one query parameter this class reserves: the token [`nvs_core_uri_sign`]
+/// writes and [`nvs_core_uri_verify_signature`] reads.
+///
+/// Reserved rather than configurable. A name a caller chooses is a name the
+/// two sides can disagree about, and a signed URL whose parameter name is part
+/// of the caller's vocabulary is one an attacker can rename.
+const SIG_NAME: &str = "_sig";
+
+/// Whether `written` — a query pair's name, still percent-encoded — names the
+/// reserved parameter.
+///
+/// Decoded first, and the bracket base taken, so neither `%5Fsig` nor
+/// `_sig[0]` is a way of smuggling a second signature past the count in
+/// [`without_signature`]: the base is the key [`with_parameter`] writes, so
+/// anything rooted at `_sig` is a pair `sign` would overwrite.
+fn is_signature_name(written: &str) -> bool {
+    let decoded = decode(written, Form::FormValue);
+    let base = path_of(&decoded).map_or(decoded.as_slice(), |(base, _)| base);
+    base == SIG_NAME.as_bytes()
+}
+
+/// The tokens `query`'s reserved pairs carry, and the query without them.
+///
+/// Splitting on `&` rather than reading the parsed map back, because the map
+/// cannot count: `_sig=a&_sig=b` parses to one entry — the last write wins,
+/// as it does everywhere in this class — and "a URL carrying two of them
+/// fails" is a rule about the *text* that arrived
+/// (`rule:core-api/signing-is-over-a-payload`).
+///
+/// `query` is [`equivalent`]'s, so § 6.2.2.2 has already restored every escape
+/// spelling an unreserved character and the token needs no decoding of its
+/// own: unpadded URL-safe base64 is unreserved from end to end.
+fn without_signature(query: &str) -> (Vec<&str>, String) {
+    let mut tokens = Vec::new();
+    let mut rest = Vec::new();
+    for pair in query.split('&') {
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        if is_signature_name(name) {
+            tokens.push(value);
+        } else {
+            rest.push(pair);
+        }
+    }
+    (tokens, rest.join("&"))
+}
+
+/// What both signing members take a signature over: [`equivalent`]'s output,
+/// with the query as its `parameters`.
+///
+/// **Not a second normalization.** Every component here is the one
+/// [`nvs_core_uri_compare_to`] compares — scheme and host folded, escapes'
+/// digits upper-cased, an escaped unreserved character restored, dot segments
+/// gone — reached through the same function rather than reproduced, which is
+/// the whole of `rule:core-api/signing-is-over-a-payload`: a canonical form
+/// used by nothing but the signature is a form no other test constrains.
+///
+/// Two departures from `compareTo`, both deliberate. The **fragment is absent**
+/// — RFC 3986 § 3.5 never sends one to the server, so signing one would mint
+/// links that cannot verify. And the query is its **parameters** rather than
+/// its text, so writing the same pairs in another order is the same signature,
+/// which is the one thing a query string genuinely does not carry; a
+/// consequence is that a query with no pairs and no query at all sign alike.
+fn payload_of(form: &Equivalent, parameters: NvsArray) -> Value {
+    let text = |held: Option<&String>| {
+        held.map_or_else(Value::null, |held| Value::str(NvsStr::new(held.as_bytes())))
+    };
+    let mut payload = NvsArray::new();
+    payload.set(NvsStr::new(b"scheme"), text(form.scheme.as_ref()));
+    payload.set(NvsStr::new(b"userInfo"), text(form.user_info.as_ref()));
+    payload.set(NvsStr::new(b"host"), text(form.host.as_ref()));
+    payload.set(
+        NvsStr::new(b"port"),
+        form.port.map_or_else(Value::null, Value::int),
+    );
+    payload.set(
+        NvsStr::new(b"path"),
+        Value::str(NvsStr::new(form.path.as_bytes())),
+    );
+    payload.set(NvsStr::new(b"query"), Value::array(parameters));
+    Value::array(payload)
+}
+
+/// Releases a reference this module owns and is not handing to anyone — the
+/// payload [`payload_of`] built, or the value a refusing [`with_parameter`]
+/// was handed and never stored.
+fn discard(value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "both call sites own exactly the reference they pass"
+    )]
+    unsafe {
+        value.release();
+    }
+}
+
+/// The one sentence [`nvs_core_uri_verify_signature`] produces for every way
+/// of not being a signature this ring made.
+///
+/// One function so the call sites cannot drift into several sentences, which
+/// is the whole of what makes them indistinguishable
+/// (`rule:core-api/one-refusal-except-expiry`). A missing `_sig` and a forged
+/// one are the same message on purpose: the first is what a caller who strips
+/// the parameter produces, and telling it apart is telling an attacker that
+/// stripping is the cheaper attack.
+fn unsigned() -> Fault {
+    Fault::thrown(
+        "Core\\Uri::verifySignature(): this URL is not one $keys signed. Every way of not being \
+         one — a parameter added, removed or edited, an altered token, a token minted for another \
+         door or under a key that has been retired, no `_sig` at all, and two of them — is this \
+         one sentence, so a forgery says nothing about which half of it failed."
+            .to_owned(),
+    )
 }
 
 // ============================================================================
@@ -2377,67 +2705,22 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        let mut parameters = match held(&slots, QUERY_SLOT, MEMBER)? {
-            Some(query) => parse_query(query, MEMBER, Values::Octets)?,
-            // No `?` at all, so there is nothing to read and the answer is a
-            // URI with one parameter — or, for a removal, the receiver again.
-            None => NvsArray::new(),
-        };
-        if matches!(args[2].tag(), Some(Tag::Null)) {
-            parameters.unset(name.as_bytes());
-        } else {
-            #[expect(
-                unsafe_code,
-                reason = "`set` takes over a reference and a helper only \
-                          borrows its arguments, so the array needs one of \
-                          its own"
-            )]
-            unsafe {
-                args[2].retain();
+        let written = match args[2].tag() {
+            Some(Tag::Null) => None,
+            _ => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`with_parameter` takes over a reference, as \
+                              `NvsArray::set` does, and a helper only borrows \
+                              its arguments"
+                )]
+                unsafe {
+                    args[2].retain();
+                }
+                Some(args[2])
             }
-            parameters.set(NvsStr::new(name.as_bytes()), args[2]);
-        }
-
-        // `build` borrows the pointer it is handed ([`crate::arr::borrowed`]),
-        // so the one reference `into_raw` handed over is still this frame's to
-        // release — and it is released on the throwing path too, which is why
-        // the `?` is below the reconstruction rather than on the call.
-        let written = parameters.is_empty();
-        let root = parameters.into_raw();
-        let rebuilt = if written {
-            Ok(None)
-        } else {
-            build(root, "Core\\Uri", MEMBER, &[]).map(Some)
         };
-        #[expect(
-            unsafe_code,
-            reason = "`into_raw` handed this frame the one reference the \
-                      handle held, and `build` borrowed the pointer rather \
-                      than taking it over"
-        )]
-        unsafe {
-            drop(NvsArray::from_raw(root));
-        }
-        let query = rebuilt?;
-
-        // The receiver's own port, which is an `int` in its slot and text in a
-        // recomposition — `nvs_core_uri_with`'s conversion, without its bag,
-        // since this member replaces one component and reads the other six.
-        let port = slots[PORT_SLOT].as_int().map(|port| port.to_string());
-        let composed = Composed {
-            scheme: held(&slots, SCHEME_SLOT, MEMBER)?,
-            user_info: held(&slots, USER_INFO_SLOT, MEMBER)?,
-            host: held(&slots, HOST_SLOT, MEMBER)?,
-            port: port.as_deref(),
-            path: held(&slots, PATH_SLOT, MEMBER)?.unwrap_or(""),
-            query: query.as_deref(),
-            fragment: held(&slots, FRAGMENT_SLOT, MEMBER)?,
-        };
-        let text = recompose(&composed);
-        let reference = read(&text, MEMBER)?;
-        unmoved(&composed, &reference)?;
-
-        built(&reference, MEMBER)
+        with_parameter(&slots, MEMBER, name, written)
     }
 }
 
@@ -2542,6 +2825,118 @@ nvs_runtime::nvs_helper! {
             std::cmp::Ordering::Equal => 0,
             std::cmp::Ordering::Greater => 1,
         }))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uri->sign({keys: array<secret bytes>, until: ?Core\Time\Instant}): Uri`
+    /// — the door onto `rule:core-api/signing-is-over-a-payload` where someone
+    /// holding a URL will look, replacing the `hash_hmac` over an assembled
+    /// query string that every framework grows its own slightly different copy
+    /// of.
+    ///
+    /// **It signs [`equivalent`]'s output**, which is [`nvs_core_uri_compare_to`]'s
+    /// — one function reached twice, not a second normalization. That is the
+    /// whole reason these two members sit on this class rather than beside
+    /// [`crate::crypto`]: every signed-URL bug in this space comes from a
+    /// canonical form used by nothing but the signature, so nothing else
+    /// exercises it and no other test constrains it. [`payload_of`] is where
+    /// the two departures from `compareTo` are written down.
+    ///
+    /// The answer is the receiver with [`SIG_NAME`] set, through the same
+    /// [`with_parameter`] a program's own `withQueryParameter` reaches, so a
+    /// receiver already carrying one has it **replaced** rather than nested —
+    /// the token is stripped before the payload is built, so signing twice
+    /// signs the same URL twice.
+    ///
+    /// **Cost:** one document the size of the URL's components, one HMAC, and
+    /// the recomposition [`with_parameter`] already pays. All of it inside the
+    /// call (`rule:programs/memory-priority`), and a program that signs
+    /// nothing pays none of it. What it spends on the *link* is the token
+    /// [`crate::signature::mint`] writes, which carries the signed document as
+    /// well as the tag: about `4/3 × (URL + 40)` characters, so a signed URL
+    /// runs a little over twice the length of the URL it signs. It buys one
+    /// wire format for all three doors, rather than a second, shorter one for
+    /// the door whose payload happens to be derivable — and a token nothing
+    /// outside [`crate::signature`] assembles.
+    fn nvs_core_uri_sign(_ctx, args: [3]) {
+        const MEMBER: &str = "sign";
+
+        let ring = crate::keyring::borrow(args, 1, SIGN)?;
+        let until = crate::signature::until_of(args, 2, MEMBER)?;
+        let form = equivalent(args, 0, MEMBER)?;
+        let (_, rest) = without_signature(form.query.as_deref().unwrap_or(""));
+        let payload = payload_of(&form, parse_query(&rest, MEMBER, Values::Octets)?);
+
+        // `mint` borrows the payload, so this frame still owns the one
+        // reference `payload_of` built — and owns it on the refusing path too,
+        // which is why the `?` is below the release rather than on the call.
+        let minted = crate::signature::mint(Domain::Uri, until, &payload, &ring, SIGN, "$uri");
+        discard(payload);
+        let token = minted?;
+
+        let receiver = crate::instance::receiver(args[0], &CLASS, MEMBER)?;
+        let slots: [Value; 8] =
+            std::array::from_fn(|index| crate::instance::slot(receiver, index));
+        with_parameter(
+            &slots,
+            MEMBER,
+            SIG_NAME,
+            Some(Value::str(NvsStr::new(token.as_bytes()))),
+        )
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uri->verifySignature(array<secret bytes> $keys): void` — the read
+    /// half, and **the reason it answers nothing**: a signed URL carries no
+    /// claims to hand back, since the claim is the URL the caller is already
+    /// holding, and a `bool` is a value a caller can drop on the floor.
+    ///
+    /// The order is load-bearing. The token is lifted out of the query and the
+    /// payload rebuilt from what is left; [`crate::signature::confirm`] checks
+    /// the tag, the door and *this* payload before a field is trusted — a
+    /// token that authenticates over some other URL is the whole of the attack
+    /// this member is written against — and the expiry is judged last, which
+    /// is what makes it safe to give it a sentence of its own
+    /// (`rule:core-api/one-refusal-except-expiry`).
+    ///
+    /// # Errors
+    ///
+    /// [`unsigned`]'s one sentence, [`crate::signature::judge`]'s expiry, and
+    /// [`parse_query`]'s for a parameter name in the receiver's own query
+    /// whose escapes decode to octets that are not UTF-8 — which says
+    /// something about the URL the caller is holding and nothing about the
+    /// token, so it is not a second refusal that sentence has to cover.
+    fn nvs_core_uri_verify_signature(ctx, args: [2]) {
+        const MEMBER: &str = "verifySignature";
+
+        let ring = crate::keyring::borrow(args, 1, VERIFY_SIGNATURE)?;
+        let form = equivalent(args, 0, MEMBER)?;
+        let (tokens, rest) = without_signature(form.query.as_deref().unwrap_or(""));
+        // Neither none nor two. A URL with two `_sig` parameters is refused
+        // rather than checked under either, because picking one is picking
+        // which of two answers an attacker gets to try.
+        if tokens.len() != 1 {
+            return Err(unsigned());
+        }
+        let payload = payload_of(&form, parse_query(&rest, MEMBER, Values::Octets)?);
+
+        let confirmed = crate::signature::confirm(
+            tokens[0],
+            Domain::Uri,
+            &payload,
+            &ring,
+            VERIFY_SIGNATURE,
+            "$uri",
+        );
+        discard(payload);
+        let Confirmed::Signed(until) = confirmed? else {
+            return Err(unsigned());
+        };
+        crate::signature::judge(ctx, until, VERIFY_SIGNATURE)?;
+
+        Ok(Value::null())
     }
 }
 
@@ -4068,5 +4463,333 @@ mod tests {
             ),
             Some("c".to_owned())
         );
+    }
+
+    /// A key ring of one, as `array<secret bytes>`. A fixed key rather than a
+    /// drawn one, because every assertion below compares two tokens and a
+    /// signature is deterministic.
+    fn ring() -> Value {
+        let mut keys = nvs_runtime::NvsArray::new();
+        keys.append(Value::bytes(nvs_runtime::NvsStr::new(&[7_u8; 32])));
+        Value::array(keys)
+    }
+
+    /// Releases what one of these tests built.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "a test frame owns exactly the reference it built"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// `Core\Uri::parse($subject)->sign({keys: $keys, until: null})->toString()`
+    /// — the signed link, as text, which is the form every assertion below
+    /// tampers with.
+    fn signed_text(subject: &str, keys: Value) -> String {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let uri = uri_of(subject);
+        let signed = call(
+            super::nvs_core_uri_sign,
+            &mut ctx,
+            &[uri, keys, Value::null()],
+        )
+        .expect("a ring of one 32-octet key signs");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the receiver it parsed, and `sign` \
+                      borrows rather than consumes"
+        )]
+        unsafe {
+            uri.release();
+        }
+        text_of(signed)
+    }
+
+    /// `Core\Uri::parse($subject)->verifySignature($keys)` — the answer, or the
+    /// message it refused with.
+    fn verify(subject: &str, keys: Value) -> Result<Value, String> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let uri = uri_of(subject);
+        let answered = call(super::nvs_core_uri_verify_signature, &mut ctx, &[uri, keys]);
+        let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the receiver it parsed, and \
+                      `verifySignature` borrows rather than consumes"
+        )]
+        unsafe {
+            uri.release();
+        }
+        answered.map_err(|_| refusal.expect("a refusal leaves its message in the context"))
+    }
+
+    /// The token the reserved parameter carries, out of a link this suite
+    /// signed — stopping at a fragment, which rides after it and is not part
+    /// of it.
+    fn token_of(link: &str) -> &str {
+        link.rsplit("_sig=")
+            .next()
+            .expect("a signed link carries one")
+            .split(['&', '#'])
+            .next()
+            .expect("a split answers at least once")
+    }
+
+    /// The round trip, and the property the whole design is for: every
+    /// component present is covered, so one more parameter is a different URL.
+    ///
+    /// This is the bypass every framework in this space has shipped — an
+    /// option naming which parameters are signed — asserted as absent rather
+    /// than described (`rule:core-api/signing-is-over-a-payload`).
+    #[test]
+    fn a_signed_uri_round_trips_and_one_appended_query_parameter_invalidates_it() {
+        let keys = ring();
+        let link = signed_text("https://example.com/report?id=7", keys);
+        assert!(
+            link.starts_with("https://example.com/report?id=7&_sig="),
+            "the answer is the receiver with the reserved parameter set: {link}"
+        );
+
+        assert!(
+            verify(&link, keys).is_ok(),
+            "the link this ring just signed verifies"
+        );
+        assert!(
+            verify(&format!("{link}&admin=1"), keys).is_err(),
+            "and appending one parameter is a different URL, whatever it is called"
+        );
+
+        dropped(keys);
+    }
+
+    /// The other direction of the same rule, which a signature over an
+    /// assembled string routinely misses: dropping a parameter is as much a
+    /// forgery as adding one.
+    #[test]
+    fn a_removed_query_parameter_invalidates_it() {
+        let keys = ring();
+        let link = signed_text("https://example.com/report?id=7&scope=own", keys);
+        assert!(link.contains("scope=own&_sig="), "{link}");
+
+        assert!(
+            verify(&link.replace("scope=own&", ""), keys).is_err(),
+            "a narrowing parameter a holder can drop is the whole attack"
+        );
+        assert!(
+            verify(&link, keys).is_ok(),
+            "and the bound's other side: the untouched link still verifies"
+        );
+
+        dropped(keys);
+    }
+
+    /// The one thing a query string genuinely does not carry.
+    ///
+    /// A proxy, a redirect or a form may write the same pairs in another
+    /// order, so a signature that covered the order would fail on URLs nobody
+    /// tampered with — `crates/nvs-stdlib/src/signature.rs` sorts a payload's
+    /// keys and [`super::payload_of`] hands it parameters rather than text.
+    #[test]
+    fn reordering_the_query_still_verifies_because_ordering_is_not_canonical() {
+        let keys = ring();
+        let link = signed_text("https://example.com/report?id=7&scope=own", keys);
+        let token = token_of(&link).to_owned();
+
+        assert!(
+            verify(
+                &format!("https://example.com/report?scope=own&id=7&_sig={token}"),
+                keys
+            )
+            .is_ok(),
+            "the same pairs in the other order are the same URL"
+        );
+        assert_eq!(
+            token_of(&signed_text(
+                "https://example.com/report?scope=own&id=7",
+                keys
+            )),
+            token,
+            "and signing them in that order mints the same token"
+        );
+
+        dropped(keys);
+    }
+
+    /// § 6.2.2.1's fold, reached through the same function `compareTo` reaches
+    /// it through: an escape rewritten in the other case is not a tampered
+    /// URL.
+    #[test]
+    fn rewriting_an_escapes_hex_digits_in_the_other_case_still_verifies() {
+        let keys = ring();
+        let link = signed_text("https://example.com/a%2fb?id=7", keys);
+        assert!(
+            link.contains("%2f"),
+            "signing does not rewrite the receiver's own spelling: {link}"
+        );
+
+        assert!(
+            verify(&link.replace("%2f", "%2F"), keys).is_ok(),
+            "the two spellings are one URL, and a second normalization is what \
+             would have made them two"
+        );
+
+        dropped(keys);
+    }
+
+    /// RFC 3986 § 3.5: a fragment is never sent to the server, so signing one
+    /// would mint links that cannot verify where it matters.
+    #[test]
+    fn changing_or_adding_a_fragment_still_verifies_because_a_fragment_is_never_signed() {
+        let keys = ring();
+        let link = signed_text("https://example.com/a?id=7", keys);
+        assert!(
+            verify(&format!("{link}#top"), keys).is_ok(),
+            "a fragment added after the fact changes nothing the server sees"
+        );
+
+        let fragmented = signed_text("https://example.com/a?id=7#one", keys);
+        assert!(fragmented.contains("#one"), "{fragmented}");
+        assert_eq!(
+            token_of(&fragmented),
+            token_of(&link),
+            "so the receiver's own fragment is not in the payload either"
+        );
+        assert!(
+            verify(&fragmented.replace("#one", "#two"), keys).is_ok(),
+            "and editing it is not a forgery"
+        );
+
+        dropped(keys);
+    }
+
+    /// Agreement, over the pair of members that must not grow two canonical
+    /// forms: two references `compareTo` calls one URI sign identically, and
+    /// one it orders apart signs apart.
+    ///
+    /// The shape that catches the failure this whole design is written against
+    /// — a normalization written for the signature alone, which no other test
+    /// constrains. A `sign` that folded one case less would still round-trip
+    /// against itself and pass every other assertion here.
+    #[test]
+    fn signing_calls_the_same_equivalent_that_compare_to_calls_and_not_a_second_one() {
+        let keys = ring();
+        let plain = "http://example.com/a/b?id=7";
+        let dressed = "HTTP://Example.COM/a/./b?id=7";
+        let apart = "http://example.com/a/c?id=7";
+
+        assert_eq!(
+            compared(plain, dressed),
+            0,
+            "§ 6.2.2 folds the scheme, the host and the dot segment"
+        );
+        assert_eq!(
+            token_of(&signed_text(plain, keys)),
+            token_of(&signed_text(dressed, keys)),
+            "so the two sign identically, because it is one function reached twice"
+        );
+
+        assert_ne!(
+            compared(plain, apart),
+            0,
+            "a different path is a different URI"
+        );
+        assert_ne!(
+            token_of(&signed_text(plain, keys)),
+            token_of(&signed_text(apart, keys)),
+            "and it signs differently"
+        );
+
+        dropped(keys);
+    }
+
+    /// The reserved parameter excludes itself from its own input, so a link
+    /// can be signed again — after a rotation, say — without nesting one token
+    /// inside the next payload.
+    #[test]
+    fn signing_a_uri_that_already_carries_sig_replaces_it_rather_than_nesting() {
+        let keys = ring();
+        let once = signed_text("https://example.com/a?id=7", keys);
+        let twice = signed_text(&once, keys);
+
+        assert_eq!(
+            twice.matches("_sig=").count(),
+            1,
+            "one token, not one wrapped around another: {twice}"
+        );
+        assert_eq!(
+            token_of(&twice),
+            token_of(&once),
+            "and it is the same token, because the payload is the URL without it"
+        );
+        assert!(verify(&twice, keys).is_ok());
+
+        dropped(keys);
+    }
+
+    /// A URL with two of them is refused rather than checked under one:
+    /// picking one is picking which of two answers an attacker gets to try,
+    /// and every parser downstream picks a different one.
+    #[test]
+    fn a_url_carrying_two_sig_parameters_fails_under_either_of_them() {
+        let keys = ring();
+        let link = signed_text("https://example.com/a?id=7", keys);
+        let token = token_of(&link).to_owned();
+
+        for doubled in [
+            format!("https://example.com/a?id=7&_sig={token}&_sig={token}"),
+            format!("https://example.com/a?id=7&_sig=AAAA&_sig={token}"),
+            format!("https://example.com/a?id=7&_sig={token}&_sig=AAAA"),
+        ] {
+            assert!(
+                verify(&doubled, keys).is_err(),
+                "two of them is a refusal and not a choice: {doubled}"
+            );
+        }
+
+        dropped(keys);
+    }
+
+    /// The refusal a naive verifier treats as "no signature to check" is the
+    /// same sentence a forged one gets (`rule:core-api/one-refusal-except-expiry`).
+    #[test]
+    fn a_url_with_no_sig_fails_with_the_same_error_a_forged_one_raises() {
+        let keys = ring();
+        let link = signed_text("https://example.com/a?id=7", keys);
+
+        let missing = verify("https://example.com/a?id=7", keys)
+            .expect_err("a URL with no `_sig` is not a signed URL");
+        let forged = verify(&format!("{link}AAAA"), keys)
+            .expect_err("four more characters of the alphabet still reach the tag check");
+        assert_eq!(
+            missing, forged,
+            "which half failed is exactly what a forger is probing for"
+        );
+
+        dropped(keys);
+    }
+
+    /// `void`, and a throw: there are no claims to hand back — the claim is
+    /// the URL the caller already holds — and a `bool` is a value a caller can
+    /// drop on the floor.
+    #[test]
+    fn verify_signature_answers_nothing_and_throws_rather_than_returning_a_bool() {
+        let keys = ring();
+        let link = signed_text("https://example.com/a?id=7", keys);
+
+        let answer = verify(&link, keys).expect("the link this ring signed verifies");
+        assert_eq!(
+            answer.tag(),
+            Some(nvs_runtime::Tag::Null),
+            "the row answers `void`, which is not a `bool` to test"
+        );
+        assert!(
+            verify("https://example.com/a?id=7", keys).is_err(),
+            "and a URL that does not verify throws rather than answering `false`"
+        );
+
+        dropped(keys);
     }
 }

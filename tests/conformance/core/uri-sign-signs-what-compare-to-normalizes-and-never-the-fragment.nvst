@@ -1,0 +1,59 @@
+--TEST--
+$uri->sign takes its signature over the RFC 3986 § 6.2.2 form $uri->compareTo already defines, so two spellings of one URI sign identically, reordering the query is not a forgery and the fragment is never covered — `rule:core-api/signing-is-over-a-payload`
+--FILE--
+<?nvs
+// Agreement, asked of the two members that must never grow two canonical
+// forms. Every framework's signed-URL bug class comes from a normalization
+// written for the signature alone: nothing else exercises it, so no other test
+// constrains it. Here it is one function reached twice.
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+
+Core\Uri $plain = Core\Uri::parse("http://example.com/a/b?id=7");
+Core\Uri $dressed = Core\Uri::parse("HTTP://Example.COM/a/./b?id=7");
+echo $plain->compareTo($dressed) == 0 ? "compareTo calls them one URI" : "two URIs", "\n";
+
+Core\Uri $signedPlain = $plain->sign({keys: $ring, until: null});
+Core\Uri $signedDressed = $dressed->sign({keys: $ring, until: null});
+echo $signedPlain->queryParameter("_sig") == $signedDressed->queryParameter("_sig")
+    ? "and so they sign identically"
+    : "two signatures", "\n";
+
+// Neither side is rewritten, exactly as `compareTo` rewrites neither: the
+// signed link keeps the spelling its receiver was parsed from.
+echo $signedDressed->scheme(), "\n";
+
+// So a token minted under one spelling verifies under the other. An escape's
+// hex digits fold too (§ 6.2.2.1), which is the difference a proxy is most
+// likely to introduce on its own.
+$dressed->withQueryParameter("_sig", $signedPlain->queryParameter("_sig"))
+    ->verifySignature($ring);
+echo "a link signed under one spelling verifies under the other", "\n";
+
+Core\Uri $escaped = Core\Uri::parse("https://example.com/a%2fb?id=7")->sign({keys: $ring, until: null});
+Core\Uri::parse("https://example.com/a%2Fb?id=7")
+    ->withQueryParameter("_sig", $escaped->queryParameter("_sig"))
+    ->verifySignature($ring);
+echo "and an escape rewritten in the other case is not a tampered URL", "\n";
+
+// The query is signed as its *parameters*, not as its text, so writing the
+// same pairs in another order is the same URL — the one thing a query string
+// genuinely does not carry, and the one a redirect or a form may change.
+Core\Uri $ordered = Core\Uri::parse("https://example.com/r?id=7&scope=own")->sign({keys: $ring, until: null});
+Core\Uri::parse("https://example.com/r?scope=own&id=7")
+    ->withQueryParameter("_sig", $ordered->queryParameter("_sig"))
+    ->verifySignature($ring);
+echo "the same pairs in another order are the same URL", "\n";
+
+// RFC 3986 § 3.5: a fragment is never sent to the server, so signing one would
+// mint links that cannot verify where it matters.
+$ordered->with({fragment: "top"})->verifySignature($ring);
+echo "and a fragment is never signed, so adding one is not a forgery", "\n";
+--EXPECT--
+compareTo calls them one URI
+and so they sign identically
+HTTP
+a link signed under one spelling verifies under the other
+and an escape rewritten in the other case is not a tampered URL
+the same pairs in another order are the same URL
+and a fragment is never signed, so adding one is not a forgery
