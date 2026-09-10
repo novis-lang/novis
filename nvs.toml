@@ -232,6 +232,25 @@ entry = "examples/schema.nvs"
 connect = ["schema"]
 schema = ["schema"]
 
+# The retention entry ADR 0153 § 5 is written around, and the only program in this repository that
+# removes queue rows at all. `queue.purge` is deny-by-default and covers `Core\Queue`'s `delete` and
+# `purge` together, because the authority the two need is the same one — permission to make a
+# queue's rows stop existing — and one row at a time in a loop is that same answer at a different
+# rate. It is the one grant `examples/queue-purge.nvs` needs: the connection its rows live on is the
+# one `[queue] connection` names, opened on the program's behalf rather than by it, which is why
+# `examples/queue.nvs` needs no block in this file at all.
+#
+# `true` rather than the list of queue names this capability is scoped by, and the fixture's own
+# header says why: it draws its four names at run time, since a fixed name would count its own
+# previous runs, so nothing written here could name them. The scoped spelling is what `nvs check`
+# reads a *literal* queue name against under `E0637`, and `crates/nvs-types`' own cases are where
+# that half is pinned — a program whose queues exist only while it runs is not where it could be.
+[[app]]
+entry = "examples/queue-purge.nvs"
+
+[app.capabilities.queue]
+purge = true
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
