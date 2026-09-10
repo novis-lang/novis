@@ -205,6 +205,7 @@ python tools/verify.py -p nvs-ir                               # the same, scope
 python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
 python tools/verify.py --no-cache                              # re-run even on an unchanged tree
 python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)
+python tools/verify.py --list                                  # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
@@ -231,10 +232,12 @@ It is the same verification: the same steps in the same order, the same green ca
 Nothing is traded for the overlap, which is why this is the shape to use for step 3 whenever the wrap is
 the next thing you were going to do anyway.
 
-`verify.py` runs `cargo fmt`, `build`, `test`, the two `.nvst` trees, `reference.py` and
-`clippy --all-targets -- -D warnings` in that order, stops at the first failure, and prints about ten
-lines when green — run separately those are seven calls and tens of thousands of tokens of output nobody
-reads once it passes. Every step's full output is
+**`--list` is what the order is.** It prints the steps in the order the gate walks them and runs none of
+them, narrowed by `-p`, `--fast` and `--doc` exactly as far as those narrow a run — so a sentence here
+naming the steps would be a second copy that goes stale the day one moves, and this one does not try.
+The run stops at the first failure and prints about ten lines when green — run separately those steps are
+as many calls and tens of thousands of tokens of output nobody reads once it passes. Every step's full
+output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
 
