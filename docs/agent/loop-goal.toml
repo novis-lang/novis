@@ -93,6 +93,14 @@ modules = [
   "crates/nvs-stdlib/src/signature.rs",
   # Stage 2 -- the AEAD construction and `generateKey`, which the ring is made of.
   "crates/nvs-stdlib/src/crypto.rs",
+  # Stages 2-4 -- the key ring itself, shared by every door that takes one.
+  "crates/nvs-stdlib/src/keyring.rs",
+  # Stage 2 -- `hmac_sha256`, which a signature keys where a cookie keys a cipher, and the
+  # constant-time comparison its tag is checked with.
+  "crates/nvs-stdlib/src/hash.rs",
+  # Stage 2 -- `build`, `receiver` and `slot`, which are how a member reads the `Time\Instant`
+  # that `until` is and builds one back.
+  "crates/nvs-stdlib/src/instance.rs",
   # Stage 2 -- the key ring, the base64 spelling and the one-refusal argument, all to be shared
   # rather than written a second time.
   "crates/nvs-stdlib/src/signed_cookie.rs",

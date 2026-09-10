@@ -2,51 +2,58 @@
 
 ## State
 
-**Goal `signed-urls`, stage 2: the canonical payload encoding is on disk and green, and nothing is
-registered yet.** `crates/nvs-stdlib/src/signature.rs` is the whole of it — `document()` writes the
-signed region, `read_document()` reads one back, and its module doc is the home of the wire format,
-of why a key is text, and of the domain byte that keeps one key ring from being replayed across the
-three doors. Five `-p nvs-stdlib` tests cover it, two of them stage 2's named ones.
+**Goal `signed-urls`, stage 2: the codec, the token envelope and the shared key ring are on disk and
+green, and nothing is registered yet.** `crates/nvs-stdlib/src/keyring.rs` is new and is the home of
+what a key ring is — newest first, rotation is prepending, an empty one and an entry that is not 32
+octets are the two `LogicError`s, and `KEY` is the `CoreTy` every row that takes a ring declares.
+`Core\SignedCookie` reads it now instead of its own `ring_of`/`cipher_at` pair.
+`crates/nvs-stdlib/src/signature.rs` gained `mint` and `open`: `tag ‖ document` in unpadded URL-safe
+base64, the domain checked inside `open` so a door cannot forget it, and expiry deliberately left to
+the caller as the one distinguishable refusal.
 
-The file carries a module-level `#![allow(dead_code)]` with the reason written on it: the codec's
-first caller is `Core\Signature`'s two rows, which have not landed. **The slice that registers those
-rows deletes that attribute** — nothing else may.
+**Five of stage 2's eight named tests are green** — the three ring ones, the round trip and the
+base64 one — asserted over `mint`/`open` rather than through the registry.
+`a_verified_payload_reaching_a_query_text_position_is_refused_as_tainted` needs the registered row.
 
-Stage 1's floor and every other goal's work are untouched. Goal `unowned-sweep`'s list still passes.
+The module-level `#![allow(dead_code)]` at `crates/nvs-stdlib/src/signature.rs:83` still stands and
+still names its own condition: the first caller is `Core\Signature`'s two rows. **The slice that
+registers them deletes it** — nothing else may.
 
 ## Next group
 
-**Stage 2: `Core\Signature`'s two rows, over the codec that landed** — one file set:
-`crates/nvs-stdlib/src/signature.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/signed_cookie.rs`, `crates/nvs-types/src/core_lib.rs`.
+**Stage 2: `Core\Signature`'s two rows, over the codec and the envelope that landed** — one file
+set: `crates/nvs-stdlib/src/signature.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/time.rs`, `crates/nvs-types/src/core_lib.rs`. It is one slice, not three: the
+registry's coverage floor is three `.nvst` cases per member, so a row without its cases fails
+`cargo test -p nvs-stdlib` on the spot.
 
-- [ ] **The key ring, shared not copied** — `crates/nvs-stdlib/src/signed_cookie.rs:252` (`ring_of`,
-      the empty-ring `LogicError`) and `crates/nvs-stdlib/src/signed_cookie.rs:282` (`cipher_at`) are
-      the walk. A signature keys `crate::hash::hmac_sha256` rather than a cipher, so what is shared is
-      the refusal and the 32-octet check at `crates/nvs-stdlib/src/crypto.rs:315`, not `cipher()`
-      itself. `rule:core-classes/signature`.
-- [ ] **The two rows, `sign`'s payload contagious** — the class joins
-      `crates/nvs-stdlib/src/registry.rs:1371` and its symbols `crates/nvs-stdlib/src/lib.rs:285`;
-      the bodies, the cards and the `address` arm go in `crates/nvs-stdlib/src/signature.rs:87`, and
-      this slice deletes the `#![allow(dead_code)]` at `crates/nvs-stdlib/src/signature.rs:80`.
-      `verify` answers `CoreTy::Array(&CoreTy::TaintedStr)`'s shape of answer per
-      `rule:security/verification-does-not-launder`. `rule:core-classes/signature`.
-- [ ] **`{keys, until}` as a declared shape** — `crates/nvs-stdlib/src/db/registry.rs:41` is the
-      worked `CoreTy::Shape`; `until` is a required key holding a nullable value, so `default: None`
-      over `CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME))`
+- [ ] **`{keys, until}` as a declared shape** — `crates/nvs-stdlib/src/registry.rs:720` is
+      `CoreTy::Shape(&[&[CoreField]])` and `crates/nvs-stdlib/src/db/registry.rs:41` is the worked
+      one. `until` is a required key holding a nullable value, so `default: None` over
+      `CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME))`
       (`crates/nvs-stdlib/src/time.rs:1119`), and `crates/nvs-types/src/core_lib.rs` is where the
       checker reads it. `rule:core-api/shape-parameter`, `rule:core-api/a-lifetime-is-written`.
+- [ ] **The two rows, `sign`'s payload contagious** — the class joins
+      `crates/nvs-stdlib/src/registry.rs:1371` and its symbols `crates/nvs-stdlib/src/lib.rs:285`;
+      the rows, the cards, the bodies and the `address` arm go in
+      `crates/nvs-stdlib/src/signature.rs:83`, which is also the `#![allow(dead_code)]` this slice
+      deletes. The bodies are thin: `sign` is `mint(Domain::Payload, until, payload, ring, …)` and
+      `verify` is `open(...)` plus the expiry judgement plus one refusal — the ring is
+      `crate::keyring::borrow(args, 1, WHO)` at both, and `KEY` is the element type.
+      `verify` answers `CoreTy::Array(&CoreTy::TaintedStr)` per
+      `rule:security/verification-does-not-launder`. `rule:core-classes/signature`.
+- [ ] **`until` in and out** — `crates/nvs-stdlib/src/time.rs:3179` (`instant_of`) and
+      `crates/nvs-stdlib/src/time.rs:3163` (`instant_built`) are the pair, and both are private:
+      make them `pub(crate)` rather than reading the slots again. `Timestamp::as_second()` and
+      `subsec_nanosecond()` are what `signature::Until`'s two fields take
+      (`crates/nvs-stdlib/src/signature.rs:207`).
 - [ ] **Strike `§16 Core\Signature  # 29`** from
       `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt:1`, in the same slice that
       registers the class and neither before nor after it.
 
 ## Backlog
 
-- Stage 3 — `$uri->sign` over the `equivalent()` `compareTo` already calls: `docs/agent/loop-goal.md`
-  § *Stage 3*, and `Domain::Uri` is already the byte it signs under.
-- Stage 4 — the router pair over a route's identity: `docs/agent/loop-goal.md` § *Stage 4*,
-  `Domain::Route`.
-- Stage 5 — one refusal except expiry, and the ordering test that makes it safe:
-  `docs/agent/loop-goal.md` § *Stage 5*.
-- `crates/nvs-stdlib/src/uri.rs`'s module doc still says the normalization "lives on `compareTo` and
-  nowhere else"; stage 3 rewrites that sentence rather than amending it.
+- `Core\Uri::sign`/`verifySignature` over `Domain::Uri` — stage 3, and `mint`/`open` already take it.
+- `Core\Router`'s signed pair over `Domain::Route` — stage 4.
+- `examples/signed-url.nvs`, which the driver's acceptance check names — stage 4, `docs/agent/loop-goal.md`.
+- Expiry as the one distinguishable refusal — stage 5, `rule:core-api/one-refusal-except-expiry`.
