@@ -2,58 +2,55 @@
 
 ## State
 
-**Goal `editor-install` — The extension guides an install instead of shipping a binary — has just started; nothing of it has landed yet.** Goal `serve-runs-the-queue`'s whole list is this goal's Stage 1 floor.
+**Goal `editor-install` — stage 2 is landed and stage 3 is untouched.** The extension can now say
+which archive a machine needs and which release built it, and nothing of the fetch exists yet.
 
-**The design is settled and is not a session's to reopen.** [ADR 0155](../decisions/0155.md) landed
-with `rule:ide/the-extension-guides-an-install-and-never-bundles-one`, and the goal prose's
-*Standing decisions* carry its four load-bearing calls: no bundled binary on any platform, the
-managed copy is tried **last** and never written to `nvs.path`, the hash check lands in the same
-slice as the fetch, and nothing reaches the network without a user invoking a command. A session
-that finds any of those inconvenient writes a better message, not a background task.
+`editors/vscode/src/install.ts` is pure decision: it reads no configuration, touches no disk and
+reaches no network, so every part of it is provable offline. It holds `TARGETS` (the seven
+`(platform, arch, libc)` rows), `currentLibc`, `targetFor`/`currentTarget`, `archiveName` and
+`newestInSeries`. `crates/nvs-lsp/tests/extension_release.rs` pins the table to
+`.github/workflows/release.yml`'s `build` matrix — names, archive format and the musl flag — and
+reads both files as text, so no YAML parser and no new npm dependency exists to fail
+`contributions.test.ts`'s allowlist.
 
-**What is already on disk to build on.** `.github/workflows/release.yml` builds the seven archives,
-writes `SHA256SUMS` over them and attaches Sigstore provenance — none of it added for this goal, all
-of it what makes the fetch checkable. `editors/vscode/src/version.ts` already computes the
-`major.minor` series stage 2's selector needs. `crates/nvs-lsp/tests/extension_reference.rs` is the
-shape stage 2's pin copies: one Rust test holding two files in different languages together.
+`editors/vscode/src/version.ts` gained `parts()`, which is now the one home for what a release
+number looks like: `series()` is its first two fields joined and `install.ts` orders a release list
+by the rest. Tags carry a `v` and archives do not, so `releaseVersion` strips it.
 
-**The trap that will cost a session if it is not read first:** the extension's dependency allowlist
-is asserted by `contributions.test.ts`, so the release-matrix pin cannot be TypeScript — reading the
-workflow means a YAML parser, and a new dependency fails that test. It is Rust for that reason and
-no other.
+**The design is settled** — [ADR 0155](../decisions/0155.md) and
+`rule:ide/the-extension-guides-an-install-and-never-bundles-one`, with the four load-bearing calls in
+the goal prose's *Standing decisions*. Nothing is blocked.
+
+**The one decision stage 3 owes in its first slice: how it unpacks with no new dependency.** Two
+candidates, both inside `contributions.test.ts`'s allowlist because neither adds a package — Node's
+own `zlib` plus a minimal tar reader in `install.ts`, or the platform's `tar`/`Expand-Archive`
+through `child_process`. Not decided here.
 
 ## Next group
 
-**Stage 2: the platform table, pinned to the release matrix** — one file set: a new
-`editors/vscode/src/install.ts` and a new `crates/nvs-lsp/tests/extension_release.rs`. Nothing here
-touches the network, so the whole stage is provable offline.
+**Stage 3: the fetch and what it refuses** — one file set: `editors/vscode/src/install.ts` and a new
+`editors/vscode/test/install/`. Design is `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
+and ADR 0155 § 5, which `[context.stage.3]` already slices.
 
-- [ ] **The target table** — `editors/vscode/src/install.ts`. Every `(process.platform,
-      process.arch)` pair the extension claims onto one of the seven names
-      `.github/workflows/release.yml:205` builds. An unsupported pair resolves to nothing rather
-      than throwing; stage 4 is what reports it.
-- [ ] **musl detection**, same file. `process.report.getReport().header.glibcVersionRuntime` absent
-      means musl. It runs on the remote, because the extension is `extensionKind: ["workspace"]`,
-      so the remote's libc is the one that decides.
-- [ ] **The archive name and the series selector**, same file. `nvs-<version>-<name>.tar.gz`
-      (`.zip` on Windows) matching `tools/release.py --package`; and the newest release whose series
-      equals `editors/vscode/src/version.ts:@series` of the client's own version — never "latest",
-      because `refusal` in that file would refuse what arrived.
-- [ ] **The pin** — `crates/nvs-lsp/tests/extension_release.rs`, reading both the table and the
-      workflow matrix and failing when either side gains a target the other lacks.
+- [ ] **The download and its verification, in one slice** — `editors/vscode/src/install.ts:152`,
+      under `newestInSeries`. The archive and the release's `SHA256SUMS` from the same release,
+      hashed before anything is unpacked; a mismatch aborts, keeps nothing and names the file. The
+      transport is a parameter so a case can feed it fixtures — the standing decisions forbid an
+      intermediate state where the fetch lands without the check.
+- [ ] **The unpack** — same file, into `context.globalStorageUri`, with the executable bit set on
+      unix. The archive holds `nvs-<version>-<name>/nvs[.exe]`, which is
+      `tools/release.py:482`'s staging read from the other end.
+- [ ] **The suite** — `editors/vscode/test/install/` , discovered by
+      `editors/vscode/scripts/headless.mjs:23` and printing `install:`. A tampered `SHA256SUMS` that
+      must leave nothing on disk, the series selector over a list spanning several series, and the
+      table's unsupported-pair answer. No network in any case.
 
 ## Backlog
 
-- **Stage 3 (the fetch and its refusal)** shares `editors/vscode/src/install.ts` with stage 2 and
-  adds `editors/vscode/test/install/`. Cheap to take in the same session if stage 2's slices land
-  under the context gate — it is the same file plus a new suite directory.
-- **Stage 4 (the chain, the two commands, the status item)** is a different file set:
-  `editors/vscode/src/extension.ts`, `editors/vscode/package.json`, `editors/vscode/src/version.ts`.
-  It needs stage 3 to exist, because the refusal cannot offer an install that has no code behind it.
-- **Stage 5 (the reference chapter)** is `docs/reference/tools/40-editor.md` alone, and is the only
-  stage that touches no TypeScript.
-- **Not in this goal, and not to be swept in:** the three frozen-and-unanswered commands from goal
-  17 (`docs/agent/playbook.md:1261` holds that trap and its `[until:]`), Marketplace publishing, and
-  any version pin or multi-version switching.
-- When this goal's last check goes green the driver takes goal `dossier`.
-  `docs/agent/goals/` is the schedule and this does not restate it.
+- Stage 4: the three-candidate order, the two commands and the status item —
+  `editors/vscode/src/extension.ts:98`; it also re-points `version.ts`'s refusal sentence.
+- Stage 5: the install section of the reference chapter — `docs/reference/tools/40-editor.md`.
+- The musl leg is `optional: true` in the matrix (`.github/workflows/release.yml:213`), so a musl
+  machine can meet a release that has no archive for it; that is stage 4's report, not a table gap.
+- No aarch64 musl archive exists, so Alpine on ARM resolves to nothing —
+  `editors/vscode/src/install.ts:43` says so where the table is.
