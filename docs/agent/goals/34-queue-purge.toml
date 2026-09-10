@@ -109,13 +109,16 @@ modules = [
   "crates/nvs-config/src/capability.rs",
   # Stage 4 -- `[app.capabilities.queue]`, one struct beside `Db` and `Script`.
   "crates/nvs-config/src/tree.rs",
-  # Stage 4 -- E0635. The E06xx configuration-and-capabilities band is the live one.
+  # Stage 4 -- E0637. The E06xx configuration-and-capabilities band is the live one.
   "crates/nvs-diagnostics/src/lib.rs",
   # Stage 4 -- where `E0618` asks the same question about a written `Core\Db::open` host. This is the
   # shape to copy, and the conditions to copy with it.
   "crates/nvs-types/src/intrinsics.rs",
   # Stage 4 -- the door a run-time refusal comes out of, for the half `nvs check` cannot see.
   "crates/nvs-runtime/src/capability.rs",
+  # `rule:core-classes/schema-plan` and `rule:core-classes/schema-absence-never-destroys`: a plan
+  # is a document, and a step in it is a change plus the reason it costs what it costs.
+  "crates/nvs-db/src/plan.rs",
 ]
 
 # 0153 is the design and is named as its rules. 0084 is the queue this extends; 0112 the roster the
@@ -187,8 +190,12 @@ rules = [
   "concurrency/cancel-is-a-race-it-can-lose",
   "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
   "concurrency/claiming-is-one-statement",
+  # The members carry the statements, and a member that removes rows asks for the grant before it
+  # opens anything — so the door's rule belongs to whichever stage writes a body, not to stage 4
+  # alone, which is where the grant itself is declared.
+  "security/capability-check-at-the-door",
 ]
-adrs = ["0153 §2", "0153 §4", "0153 §6"]
+adrs = ["0153 §2", "0153 §4", "0153 §5", "0153 §6"]
 
 # Section 5 is why these two take a grant and the other four do not.
 [context.stage.4]
@@ -7303,12 +7310,12 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "4 the diagnostic"
-name = "nvs-types (E0635 reads a written name and says nothing about a computed one)"
+name = "nvs-types (E0637 reads a written name and says nothing about a computed one)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  "a_written_purge_queue_name_outside_the_grant_is_e0635",
+  "a_written_purge_queue_name_outside_the_grant_is_e0637",
   "a_computed_purge_queue_name_is_not_refused_before_it_runs",
-  "e0635_is_not_asked_when_the_checking_machine_read_no_configuration",
+  "e0637_is_not_asked_when_the_checking_machine_read_no_configuration",
   "delete_has_no_static_half_and_is_refused_at_the_door",
 ]
 

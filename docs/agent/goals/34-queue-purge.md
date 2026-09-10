@@ -111,7 +111,7 @@ One file set: `crates/nvs-config/src/capability.rs`, `crates/nvs-config/src/tree
 2. **`[app.capabilities.queue] purge`** — one field on one new struct in `tree.rs`. `grant_of` already
    reads `true`, a bare string, a list and an empty list; nothing new is written for the three-way
    grant.
-3. **`E0635`** — a *written* `Core\Queue::purge` whose literal queue name the compiling machine's
+3. **`E0637`** — a *written* `Core\Queue::purge` whose literal queue name the compiling machine's
    grant does not cover. This is `E0618` one class over and is asked under `E0618`'s conditions and no
    others: a literal name, a configuration this machine actually read, the same list walked by the
    same `Capabilities::allows`. A computed name says nothing.
@@ -160,7 +160,7 @@ evidence rather than assumption: every other fixture in the tree runs with no `q
   stage 3's, restated here because they are what a caller gets wrong and therefore what a session is
   most likely to "fix" in the other direction. `Dead` and `Pending` are named or untouched.
 - **`delete` has no static half**, so there is no second diagnostic to design. Its queue name arrives in
-  a `Queue\Id` at run time and it is refused at the door like any other ungranted act; `E0635` is
+  a `Queue\Id` at run time and it is refused at the door like any other ungranted act; `E0637` is
   `E0618` one class over and is asked under `E0618`'s conditions and no others.
 - **What this spends**, per `rule:programs/memory-priority`: one nullable column and one index on
   `(queue, tag)` per jobs table, written once per `push` and read by nothing on the request path — the

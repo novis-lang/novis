@@ -1792,6 +1792,33 @@ pub mod code {
     /// core count something the file cannot state.
     pub const E_NO_WORKERS: Code = Code::new("E0636");
 
+    /// A **written** `Core\Queue::purge` queue name that the compiling
+    /// machine's `queue.purge` grant does not cover —
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s grant, read
+    /// before the program runs rather than at the door alone.
+    ///
+    /// `E0618` one class over, and asked under `E0618`'s conditions and no
+    /// others: a literal queue name, a configuration this machine actually
+    /// read, and the same grant list walked by the same
+    /// `nvs_config::capability::Capabilities`. So it refuses nothing
+    /// `nvs_runtime::capability::require` would have allowed, which is
+    /// `rule:expressions/preparation-preserves-behaviour`'s earlier answer and
+    /// never a different one; a computed name, or a check run with no
+    /// configuration in front of it, says nothing and leaves the refusal to
+    /// the door.
+    ///
+    /// The scope is a queue name matched exactly, not `db.open`'s host
+    /// pattern: a queue name is a flat string the program itself picked, so
+    /// there are no labels for a `*.` to match at and a grant that covered a
+    /// prefix would cover queues nobody had named yet.
+    ///
+    /// `Core\Queue::delete` has no code of its own. Its queue arrives inside a
+    /// `Queue\Id` at run time, so there is no written name to read and the
+    /// door is the only place the question can be asked. In this band rather
+    /// than the types one for `E0618`'s reason: what it reads is a grant, not
+    /// a type.
+    pub const E_UNGRANTED_QUEUE: Code = Code::new("E0637");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
