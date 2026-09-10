@@ -214,6 +214,68 @@ fn a_folded_test_emits_no_code_at_all() {
 }
 
 #[test]
+fn a_literal_test_is_one_tag_comparison_with_a_payload_compare_behind_it() {
+    // Two comparisons and not one: the tag says the payload word may be read
+    // at this representation, and only then does the compare say whether it
+    // holds the value. Both `is` spellings of the same subject pay one tag
+    // compare each and neither reaches a walk.
+    let source = "<?nvs\nmixed $m = 1;\necho $m is 1, $m is 2;\n";
+    let program = kinds(source);
+    assert_eq!(count(&program, "TagIs"), 2, "{program:?}");
+    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
+    assert_eq!(output_of(source), "1");
+    // The tag *miss* is the half that would not merely answer wrongly: a
+    // `string` literal's payload compare is `nvs_str_eq` through two
+    // pointers, so running it on a value tagged `Tag::Int` dereferences a
+    // `1`. Asked of both subjects in one program, so a shape that answered
+    // the miss by never comparing at all fails the hit beside it.
+    let crossed =
+        "<?nvs\nmixed $m = 1;\nmixed $s = \"yay\";\necho $m is 'yay', $s is 'yay', $s is 'nay';\n";
+    assert_eq!(output_of(crossed), "1");
+    // A subject carrying exactly one tag has answered the first comparison
+    // already, so the payload one stands alone — and `$n is 3` is not a row
+    // the checker could have folded, an `int` and a `3` being neither
+    // disjoint nor one inside the other.
+    let typed = "<?nvs\nint $n = 3;\necho $n is 3, $n is 4;\n";
+    let typed_program = kinds(typed);
+    assert_eq!(count(&typed_program, "TagIs"), 0, "{typed_program:?}");
+    assert_eq!(output_of(typed), "1");
+    // The constant every `string` comparison allocates is released as soon as
+    // the comparison has read it: a missing release leaks 50_000 buffers, and
+    // a doubled one crashes.
+    let repeated = "<?nvs\nmixed $s = \"yay\";\nvar $i = 0;\nvar $hits = 0;\nwhile ($i < 50000) {\n    if ($s is 'yay') { $hits = $hits + 1; }\n    $i = $i + 1;\n}\necho $hits;\n";
+    assert_eq!(output_of(repeated), "50000");
+}
+
+#[test]
+fn an_enum_case_test_is_that_same_shape_one_representation_down() {
+    // `rule:enums/representation` makes a case its backing integer, so the
+    // tag is that integer's and the payload compare is against the case's own
+    // value. A subject whose static type is the enum has answered the tag
+    // half already, and the relabel to the backing integer is
+    // `InstKind::Reinterpret`, which emits no machine instruction — so both
+    // tests together are two machine compares.
+    let source = "<?nvs\nenum Rank {\n    Bronze,\n    Silver,\n    Gold,\n}\n\nRank $r = Rank::Silver;\necho $r is Rank::Silver, $r is Rank::Gold;\n";
+    let program = kinds(source);
+    assert_eq!(count(&program, "TagIs"), 0, "{program:?}");
+    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
+    assert_eq!(output_of(source), "1");
+    // A `mixed` subject pays the tag comparison, and answers the same for one
+    // holding the backing integer alone. That is `rule:enums/representation`'s
+    // own stated consequence — "a value that reaches `mixed` is not
+    // distinguishable there from its backing integer" — and not a choice this
+    // operator makes; the tag it reserves for an enum is what would separate
+    // the two. Pinned rather than left implicit, because the day that tag is
+    // spent this assertion is what says which answer changed.
+    let erased = "<?nvs\nenum Rank {\n    Bronze,\n    Silver,\n    Gold,\n}\n\nmixed $r = Rank::Silver;\nmixed $i = 1;\nmixed $s = \"x\";\necho $r is Rank::Silver, $i is Rank::Silver, $s is Rank::Silver;\n";
+    let erased_program = kinds(erased);
+    assert_eq!(count(&erased_program, "TagIs"), 3, "{erased_program:?}");
+    assert_eq!(output_of(erased), "11");
+}
+
+#[test]
 fn an_inherited_constructor_is_invoked_through_its_declaring_class() {
     // `new Dog(...)` on a subclass that declares no `constructor` of its own
     // must name `Animal::constructor`, the class that actually declares it —

@@ -10,6 +10,7 @@
 //! session editing one area does not carry the rest in context. The methods
 //! are `pub(crate)` so they reach across these modules and no further.
 
+use super::convert::{LiteralAtom, literal_constant};
 use super::*;
 
 /// What `nvs_types::expr_table::ExprInfo::ShapeProperty` resolved for one
@@ -4777,12 +4778,13 @@ impl<'a> Lowering<'a> {
         let result = match plan {
             TypeTestPlan::Settled(answer) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(answer)),
             TypeTestPlan::AtRunTime(tested) => {
-                let Some(shape) = test_shape(tested, self.checked_types) else {
+                let Some(shape) = test_shape(tested, self.checked_types, self.enums) else {
                     panic!(
                         "nvs-ir only lowers `is` against a scalar, `null`, `object`, a bare \
-                         `array` or a class — got {:?}; a named element type, a shape, a literal \
-                         and an enum case each need the element walk or a payload compare beside \
-                         the tag test, and see the crate docs' known gaps",
+                         `array`, a class, a literal or an enum case — got {:?}; an element type \
+                         no tag decides, a shape, `iterable` and `callable` each still need a \
+                         walk of their own, and `test_shape`'s own known gap is which of those \
+                         is a decision rather than a slice",
                         self.checked_types.get(tested)
                     );
                 };
@@ -4797,6 +4799,82 @@ impl<'a> Lowering<'a> {
                     ),
                     TestShape::Tag(repr) => {
                         self.emit(*cur, Ty::Bool, InstKind::ConstBool(subject == repr))
+                    }
+                    // A literal type is two comparisons rather than one: the
+                    // tag says the payload word may be read at this
+                    // representation, and the payload says whether it holds
+                    // the one value the type is. They are `&&`-shaped and not
+                    // folded together because the second must not run where
+                    // the first missed — a `string` literal's compare is
+                    // `nvs_str_eq` through two pointers, and the payload of a
+                    // value tagged anything else is not one.
+                    TestShape::Literal { repr, atom } if subject == Ty::Tagged => {
+                        let tagged = *cur;
+                        let (carries, _) = self.emit(
+                            tagged,
+                            Ty::Bool,
+                            InstKind::TagIs {
+                                operand: value,
+                                repr,
+                            },
+                        );
+                        let (missed, _) = self.emit(tagged, Ty::Bool, InstKind::ConstBool(false));
+                        let payload = self.new_block();
+                        let merge = self.new_block();
+                        let payload_edge = self.ids.next_edge(expr.span);
+                        let missed_edge = self.ids.next_edge(expr.span);
+                        self.seal(
+                            tagged,
+                            Terminator::Branch {
+                                cond: carries,
+                                then_block: payload,
+                                then_edge: payload_edge,
+                                else_block: merge,
+                                else_edge: missed_edge,
+                            },
+                        );
+                        // The unchecked narrowing [`InstKind::Untag`] is for,
+                        // with the branch above as the proof — and the proof
+                        // holds on this edge alone, which is the whole reason
+                        // for the block. Nothing is merged but the answer:
+                        // both edges assign nothing, so there is no `Env` to
+                        // reconcile, exactly as
+                        // [`Self::lower_literal_membership`]'s chain has none.
+                        let (narrowed, _) = self.emit(
+                            payload,
+                            payload_repr(repr),
+                            InstKind::Untag { operand: value },
+                        );
+                        let (equal, _) = self.literal_payload_eq(payload, narrowed, &atom);
+                        self.seal(payload, Terminator::Jump(merge));
+                        let answer = self.emit(
+                            merge,
+                            Ty::Bool,
+                            InstKind::Phi {
+                                incoming: vec![(tagged, missed), (payload, equal)],
+                            },
+                        );
+                        *cur = merge;
+                        answer
+                    }
+                    // A subject carrying exactly one tag has answered the
+                    // first comparison already, so the payload one stands
+                    // alone: `int $n; $n is 5` is one machine compare, and no
+                    // fold at the checker could have settled it — the two
+                    // types are not disjoint and neither contains the other.
+                    TestShape::Literal { repr, atom } if subject == repr => {
+                        // The reinterpret is an enum case's, for the reason
+                        // [`Self::reinterpret_enum_to_backing`] gives; every
+                        // other atom already arrives at the representation it
+                        // compares at, where that call is the identity.
+                        let (narrowed, _) = self.reinterpret_enum_to_backing(value, subject, cur);
+                        self.literal_payload_eq(*cur, narrowed, &atom)
+                    }
+                    // Every other representation carries a tag this literal's
+                    // is not, which is the class and element rows' constant
+                    // reached for the same reason.
+                    TestShape::Literal { .. } => {
+                        self.emit(*cur, Ty::Bool, InstKind::ConstBool(false))
                     }
                     // The walk `instanceof` and `as C` already emit, on the two
                     // representations that can reach a descriptor at all. Every
@@ -4857,6 +4935,39 @@ impl<'a> Lowering<'a> {
             self.emit_release(*cur, value);
         }
         result
+    }
+
+    /// The payload half of `rule:types/type-test`'s literal row: a value
+    /// already at the representation its tag names, against the one constant
+    /// the literal type is.
+    ///
+    /// [`Self::lower_literal_membership`]'s arm without the chain — one atom
+    /// rather than a set, and an answer rather than a branch to a throw —
+    /// over the same [`super::convert::literal_constant`] table, so `$x as
+    /// 'yay'` and `$x is 'yay'` compare the identical way.
+    fn literal_payload_eq(
+        &mut self,
+        block: BlockId,
+        value: ValueId,
+        atom: &LiteralAtom,
+    ) -> (ValueId, Ty) {
+        let (kind, ty) = literal_constant(atom);
+        let (wanted, _) = self.emit(block, ty, kind);
+        let equal = self.emit(
+            block,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::Eq,
+                lhs: value,
+                rhs: wanted,
+            },
+        );
+        // The constant is fresh and this comparison is its one and only use —
+        // the policy [`Self::lower_literal_membership`] applies to its own.
+        if ty.is_refcounted() {
+            self.emit_release(block, wanted);
+        }
+        equal
     }
 
     /// `$x instanceof Name` — the tested class comes from
@@ -5015,16 +5126,39 @@ enum TestShape {
     /// Never a second walk of its own either: the spelling that *answers*
     /// instead of throwing is `as ?array<T>`'s, over the same helper.
     ArrayOf(u64),
+    /// One tag comparison, and a payload compare behind it. A literal type
+    /// names a single value, so the tag only says the payload word is
+    /// readable at this representation and the compare says whether it is
+    /// that value — `rule:types/literal-types`' two halves, over the atom
+    /// `as` already reduces the same type to.
+    ///
+    /// `rule:types/enum-case-type`'s case is this row too, one representation
+    /// down: `rule:enums/representation` makes a case its backing integer, so
+    /// the tag is that integer's and the compare is against the constant the
+    /// run's enum table holds. That rule's own stated consequence rides along
+    /// — a value that reached `mixed` is not distinguishable there from its
+    /// backing integer, so a `mixed` holding `1` answers `is Rank::Silver`
+    /// exactly as one holding `Rank::Silver` does, and the reserved enum tag
+    /// is what would separate them.
+    Literal {
+        /// The representation whose tag the payload compare needs proved
+        /// first, and — through [`payload_repr`] — the one the payload is
+        /// then read at.
+        repr: Ty,
+        /// The value that payload has to hold.
+        atom: LiteralAtom,
+    },
 }
 
 /// Which shape `$x is T` takes, or `None` for a row that has neither yet.
 ///
 /// The tag rows are the ones that cost one comparison: a scalar, `null`, plain
-/// `object` and a bare `array`. The class row is the descriptor walk, and the
-/// element row is the array walk. `None` is a shape, a literal, an enum case,
-/// a union, an intersection, `iterable` and `callable` — each of which *also*
-/// begins with a tag, so a `None` is a row for `crate::lower` to grow a walk
-/// or a payload compare for and never a row to skip.
+/// `object` and a bare `array`. The class row is the descriptor walk, the
+/// element row is the array walk, and the literal row — an enum case included
+/// — is one tag comparison with a payload compare behind it. `None` is a
+/// shape, a union, an intersection, `iterable` and `callable` — each of which
+/// *also* begins with a tag, so a `None` is a row for `crate::lower` to grow a
+/// walk or a payload compare for and never a row to skip.
 ///
 /// `mixed` is not here and cannot arrive: it holds every value, so the checker
 /// folded that test to `true`.
@@ -5037,12 +5171,46 @@ enum TestShape {
 /// `is array<Foo>` is not, so that spelling reaches the caller's panic rather
 /// than a diagnostic. Closing it is a decision about
 /// `rule:types/type-test`'s table, not about this function.
-fn test_shape(tested: TypeId, checked_types: &TypeInterner) -> Option<TestShape> {
+fn test_shape(
+    tested: TypeId,
+    checked_types: &TypeInterner,
+    enums: &EnumTable,
+) -> Option<TestShape> {
     // `QName` is destructured rather than named, for
     // `super::closure::declared_class`'s reason: `nvs-hir` is a
     // dev-dependency of this crate.
     if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
         return Some(TestShape::Class(qname.to_string()));
+    }
+    // A literal type carries its own value, so its atom is built here — all
+    // but the enum case's, which `rule:types/enum-case-type` deliberately
+    // keeps out of the type (§ 3) and which the run's own enum table holds
+    // instead.
+    let literal = match checked_types.get(tested) {
+        CheckedTy::StringLiteral(text) => Some((Ty::Str, LiteralAtom::Str(text.clone()))),
+        CheckedTy::IntLiteral(value) => Some((Ty::Int, LiteralAtom::Int(*value))),
+        // `rule:types/grammar`'s two `bool` singletons, which are types here
+        // and not values: `$x is true` is this row, `$x == true` is not.
+        CheckedTy::True => Some((Ty::Bool, LiteralAtom::Bool(true))),
+        CheckedTy::False => Some((Ty::Bool, LiteralAtom::Bool(false))),
+        CheckedTy::EnumCase(qname, backing, case) => {
+            let value = enums.case(qname, case).unwrap_or_else(|| {
+                panic!(
+                    "nvs-ir: `{qname}::{case}` is an interned enum-case type with no entry in \
+                     the run's enum table — `nvs_types` interns one only for a case it \
+                     resolved, so the two tables disagree"
+                )
+            });
+            let repr = match backing {
+                nvs_types::EnumBacking::Int => Ty::Enum(EnumRepr::Int),
+                nvs_types::EnumBacking::Uint => Ty::Enum(EnumRepr::Uint),
+            };
+            Some((repr, LiteralAtom::EnumCase(value)))
+        }
+        _ => None,
+    };
+    if let Some((repr, atom)) = literal {
+        return Some(TestShape::Literal { repr, atom });
     }
     Some(TestShape::Tag(match checked_types.get(tested) {
         CheckedTy::Bool => Ty::Bool,
@@ -5078,6 +5246,23 @@ fn test_shape(tested: TypeId, checked_types: &TypeInterner) -> Option<TestShape>
         // there being no run-time bit to read.
         _ => return None,
     }))
+}
+
+/// The representation one [`TestShape::Literal`]'s payload compare happens at,
+/// which is the tested representation itself for every atom but an enum
+/// case's.
+///
+/// A case compares one representation down for
+/// [`Lowering::reinterpret_enum_to_backing`]'s reason — `nvs-codegen`'s binary
+/// operator table carries no [`Ty::Enum`] row — and the tag is unaffected,
+/// `nvs_codegen::ty::tag_of` already answering an enum with its backing type's
+/// (`rule:enums/representation`).
+fn payload_repr(repr: Ty) -> Ty {
+    match repr {
+        Ty::Enum(EnumRepr::Int) => Ty::Int,
+        Ty::Enum(EnumRepr::Uint) => Ty::Uint,
+        other => other,
+    }
 }
 
 pub(crate) struct NullsafeGuard {

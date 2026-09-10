@@ -1771,20 +1771,7 @@ impl<'a> Lowering<'a> {
         let (value, value_ty) = self.reinterpret_enum_to_backing(value, value_ty, cur);
         let hit = self.new_block();
         for member in &accepted.members {
-            let (kind, ty) = match member {
-                LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
-                LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
-                LiteralAtom::Bool(value) => (InstKind::ConstBool(*value), Ty::Bool),
-                // At the enum's *backing* scalar, not at `Ty::Enum` — see
-                // the reinterpret above for why the comparison happens one
-                // representation down.
-                LiteralAtom::EnumCase(nvs_types::EnumValue::Int(n)) => {
-                    (InstKind::ConstInt(*n), Ty::Int)
-                }
-                LiteralAtom::EnumCase(nvs_types::EnumValue::Uint(n)) => {
-                    (InstKind::ConstUint(*n), Ty::Uint)
-                }
-            };
+            let (kind, ty) = literal_constant(member);
             let (wanted, _) = self.emit(*cur, ty, kind);
             let (equal, _) = if value_ty == Ty::Tagged {
                 self.emit_fallible(
@@ -1927,19 +1914,43 @@ pub(crate) struct AcceptedSet {
 }
 
 /// One member of an [`AcceptedSet`], already reduced to the constant that
-/// tests for it.
+/// tests for it — and the payload half of `rule:types/type-test`'s literal
+/// row, which asks the identical question of the identical atom
+/// ([`Lowering::lower_type_test`]).
 ///
 /// § 3's enum case keeps its [`nvs_types::EnumValue`] rather than collapsing
 /// into [`Self::Int`]: the backing type decides both the constant's
 /// instruction and its representation, and an enum's tag is not `Ty::Int`
 /// even where its backing is (see [`Ty::Enum`]).
-enum LiteralAtom {
+pub(crate) enum LiteralAtom {
     Str(String),
     Int(i64),
     /// `true` or `false` — `rule:types/grammar`'s two `bool` singletons, whose
     /// closed set is the smallest one this crate builds.
     Bool(bool),
     EnumCase(nvs_types::EnumValue),
+}
+
+/// The constant one [`LiteralAtom`] tests for: the instruction that
+/// materializes it, and the representation it lands at.
+///
+/// A table of its own because two operators reduce the same atom the same
+/// way — `as`'s [`Lowering::lower_literal_membership`] and `is`'s
+/// [`Lowering::lower_type_test`] — and a second copy would be a second place
+/// an atom kind has to be added to.
+///
+/// An enum case lands at its *backing* scalar rather than at [`Ty::Enum`],
+/// which is what the atom kept an [`nvs_types::EnumValue`] for: the
+/// comparison happens one representation down, and the two backings are two
+/// instructions.
+pub(crate) fn literal_constant(atom: &LiteralAtom) -> (InstKind, Ty) {
+    match atom {
+        LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
+        LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
+        LiteralAtom::Bool(value) => (InstKind::ConstBool(*value), Ty::Bool),
+        LiteralAtom::EnumCase(nvs_types::EnumValue::Int(n)) => (InstKind::ConstInt(*n), Ty::Int),
+        LiteralAtom::EnumCase(nvs_types::EnumValue::Uint(n)) => (InstKind::ConstUint(*n), Ty::Uint),
+    }
 }
 
 /// The `T` of an `as ?T` annotation, or `None` for any other target.
