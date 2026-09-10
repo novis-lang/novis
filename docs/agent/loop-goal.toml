@@ -122,6 +122,10 @@ modules = [
   # floor: what reports a failure when there is no script left to run and no second attempt to
   # make.
   "crates/nvs-runtime/src/floor.rs",
+  # The ceilings a request runs inside, and how it reports crossing one.
+  "crates/nvs-runtime/src/ctx/limits.rs",
+  # The per-request context: the first argument of every compiled function and every helper.
+  "crates/nvs-runtime/src/ctx/mod.rs",
 ]
 
 # 0036 and 0135 are the shape spelling goal `input-shapes` landed and 0147 is the rule stage 2 implements on top
