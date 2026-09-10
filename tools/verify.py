@@ -33,6 +33,7 @@ green verification is one call and about ten lines.
     python tools/verify.py --wait           # collect what --start left, with its exit status
     python tools/verify.py --full           # do not truncate the failing step's output
     python tools/verify.py --no-cache       # re-run even if the tree is provably unchanged
+    python tools/verify.py --list           # the steps in order, running none of them
 
 `--start` / `--wait` exist because verification is 63.6% of a session's tool-execution time and
 the tail that follows it -- the wrap file -- is prose the session already knows and that cannot
@@ -446,6 +447,41 @@ def steps_for(opts):
     return steps
 
 
+def shown(step):
+    """One step's command as a reader would type it, which is not always what `run` spawns.
+
+    `sys.executable` is an absolute interpreter path and the case-tree steps' `exe` is an absolute
+    `target/debug/nvs`; printed whole they are the widest thing on the line and say nothing the
+    name does not. The directory is printed only when it is not the repo root, so the `extension`
+    step's `editors/vscode` stands out as the exception it is."""
+    exe = "python" if step.exe == sys.executable else Path(step.exe).name
+    line = " ".join([exe, *step.args])
+    if step.env:
+        line = " ".join(f"{k}={v}" for k, v in step.env.items()) + " " + line
+    if Path(step.cwd) != ROOT:
+        line += f"   (in {Path(step.cwd).relative_to(ROOT).as_posix()})"
+    return line
+
+
+def list_steps(opts):
+    """`--list`: the order the gate walks, without walking it.
+
+    The order is the specification -- `fmt` first because it rewrites what everything after it
+    reads, `lints` before the compile steps because it decides what they enforce, the `.nvst` trees
+    after `test` so a Rust fault is reported by the Rust step -- and a second copy of that list in
+    a document drifts the day a step moves. So this prints `steps_for`'s own list, and `-p`,
+    `--fast` and `--doc` narrow the listing exactly as far as they narrow a run.
+
+    Nothing is spawned, no cache is read or written, and the exit status is 0 for a list that came
+    out: the question `--list` answers is what the gate *is*, not what the tree currently says."""
+    steps = steps_for(opts)
+    scope = f" (-p {opts.package})" if opts.package else ""
+    print(f"verify: {len(steps)} step(s) in this order{scope}; `--list` runs none of them.")
+    for i, step in enumerate(steps, 1):
+        print(f"  {i}. {step.name:<13} {shown(step)}")
+    return 0
+
+
 # ------------------------------------------------------------------ the green cache
 
 
@@ -674,6 +710,8 @@ def main():
                     help="run detached and return at once; collect it with --wait")
     ap.add_argument("--wait", action="store_true",
                     help="collect the run --start left, with its exit status")
+    ap.add_argument("--list", action="store_true",
+                    help="print the steps in the order the gate walks them, and run none of them")
     ap.add_argument("--_detached", action="store_true", help=argparse.SUPPRESS)
     opts = ap.parse_args()
 
@@ -688,6 +726,13 @@ def main():
     if opts.doc and opts.fast:
         print("verify: --doc is a run of one step; --fast has nothing to narrow.")
         return 2
+    if opts.list:
+        # Before `--start`/`--wait`, which are two halves of a run: a listing has nothing to
+        # detach and nothing to collect, so the pair is a typo rather than a narrower listing.
+        if opts.start or opts.wait:
+            print("verify: --list runs nothing, so there is nothing to --start or --wait for.")
+            return 2
+        return list_steps(opts)
     if opts.start:
         return start_background(sys.argv[1:])
     if opts.wait:
