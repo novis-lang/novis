@@ -245,7 +245,7 @@ UNCHAINED_CELL_RE = re.compile(r"^(?:done\\?\*?|ongoing|backlog \d+)$")
 def chain_goals():
     """Every goal in `docs/agent/goals/`, in chain order.
 
-    `{pos, num, name, slug, md, milestone}` each. The chain is the schedule -- the driver walks
+    `{pos, num, slug, md, milestone}` each. The chain is the schedule -- the driver walks
     that directory in numeric order, and the index's `Carried by` cells are derived from each
     goal's front-matter `milestone` -- so a tree with no goals is a tree where those cells are all
     there is, and this answers `[]` for it. `tools/goals.py` is the reader; this only reshapes."""

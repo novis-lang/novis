@@ -5223,7 +5223,7 @@ def drive(opts, goal, chain):
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
         if not fail:
-            done = chain.current["name"]
+            done = chain.current.slug
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
             # The goal that just passed may have been the one that writes the rest of the chain.
