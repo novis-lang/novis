@@ -3556,6 +3556,141 @@ mod tests {
         }
     }
 
+    /// The tag the slot an omitting call site fills carries, or `None` where
+    /// the default is a **literal** of the option's own type.
+    ///
+    /// The two guards above hold which [`Const`] a row declares; this is the
+    /// value half of the same question, because a helper branches on a tag
+    /// rather than on a registry constant. It goes through
+    /// `nvs_runtime::Value`'s own constructors rather than naming a tag, so a
+    /// runtime that moved either one moves this with it. A literal states no
+    /// third state at all — it is a value a call site could equally have
+    /// written — which is why there is nothing here to hold about one.
+    fn omitted_tag(default: Const) -> Option<nvs_runtime::Tag> {
+        match default {
+            Const::NeverWritten => nvs_runtime::Value::unset().tag(),
+            Const::Null => nvs_runtime::Value::null().tag(),
+            _ => None,
+        }
+    }
+
+    /// `rule:core-api/the-bag-abi-is-unchanged`'s one moving part, read off
+    /// every registered row: which constant fills an omitted slot. A nullable
+    /// option or shape field fills it with the never-written marker, whose tag
+    /// no value the type system can spell carries
+    /// (`rule:core-api/the-marker-never-reaches-a-program`); everything else
+    /// fills it with a null or a literal, and lowers exactly as it did before
+    /// the distinction existed.
+    ///
+    /// The count at the end is what keeps this from passing vacuously the day
+    /// the rows stop spending the distinction: `Core\Uri::with`'s three
+    /// removable components are the floor
+    /// (`rule:core-classes/uri-removable-components`).
+    #[test]
+    fn a_nullable_option_omits_as_unset_and_a_non_nullable_one_omits_as_null() {
+        let marker = nvs_runtime::Value::unset().tag();
+        let mut nullable = 0;
+        // One walk over both spellings of the same checked type
+        // (`rule:core-api/one-checked-shape-type`), so an option and a shape
+        // field cannot come to fill a slot differently.
+        for class in CLASSES {
+            for method in class.members() {
+                let options = method.options().unwrap_or(&[]);
+                let fields = method.params.iter().flat_map(|param| match param {
+                    CoreTy::Shape(arms) => arms.iter().flat_map(|arm| arm.iter()).collect(),
+                    _ => Vec::new(),
+                });
+                let declared = options
+                    .iter()
+                    .map(|option| (option.name, &option.ty, Some(option.default)))
+                    .chain(fields.map(|field| (field.name, &field.ty, field.default)));
+                for (name, ty, default) in declared {
+                    // Required: no call site omits it, so no constant fills
+                    // anything.
+                    let Some(default) = default else {
+                        continue;
+                    };
+                    if admits_null(ty) {
+                        nullable += 1;
+                        assert_eq!(
+                            omitted_tag(default),
+                            marker,
+                            "{}::{}'s `{name}` admits `null`, so an omission that arrived as one \
+                             would be the argument a written `null` already is",
+                            class.name,
+                            method.name
+                        );
+                    } else {
+                        assert_ne!(
+                            omitted_tag(default),
+                            marker,
+                            "{}::{}'s `{name}` has no `null` for the marker to be told apart \
+                             from, so it would be a third state no helper can read",
+                            class.name,
+                            method.name
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            nullable >= 3,
+            "only {nullable} registered field(s) spend the omitted-versus-null distinction, \
+             which is fewer than `Core\\Uri::with`'s three removable components"
+        );
+    }
+
+    /// Why the checker's refusal is load-bearing rather than a courtesy: a
+    /// non-nullable option's *omission* already arrives under `Tag::Null`, so
+    /// a written `null` that got past the checker would be the very argument
+    /// the helper reads as **not given**. There is no run-time state left for
+    /// one to occupy, and no member can grow a removal for a component whose
+    /// row does not admit one.
+    /// `tests/conformance/reject/a-uri-component-with-no-removal-refuses-a-written-null.nvst`
+    /// pins that refusal from the language side; this holds the rows it rests
+    /// on.
+    ///
+    /// `Core\Uri::with` is named directly at the end because
+    /// `rule:core-classes/uri-removable-components` splits its six components
+    /// three and three on exactly this question — a fourth removal, or a lost
+    /// one, is a rule change rather than a row edit.
+    #[test]
+    fn a_null_written_into_a_non_nullable_option_is_still_refused() {
+        let written_null = nvs_runtime::Value::null().tag();
+        for class in CLASSES {
+            for method in class.members() {
+                for option in method.options().unwrap_or(&[]) {
+                    if admits_null(&option.ty) {
+                        continue;
+                    }
+                    assert!(
+                        omitted_tag(option.default).is_none()
+                            || omitted_tag(option.default) == written_null,
+                        "{}::{}'s option `{}` omits as {:?}, which is neither the null a written \
+                         one would be nor a literal of its own type",
+                        class.name,
+                        method.name,
+                        option.name,
+                        option.default
+                    );
+                }
+            }
+        }
+
+        let with = crate::uri::CLASS
+            .members()
+            .find(|method| method.name == "with")
+            .expect("`Core\\Uri::with` is registered");
+        let removable: Vec<&str> = with
+            .options()
+            .expect("`with` takes one options bag and nothing else")
+            .iter()
+            .filter(|option| admits_null(&option.ty))
+            .map(|option| option.name)
+            .collect();
+        assert_eq!(removable, ["port", "query", "fragment"]);
+    }
+
     /// Whether a declared type admits a written `null` — the left-hand column
     /// of `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s
     /// pairing, shared by the two guards that hold it so an option and a shape
