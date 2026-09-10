@@ -2,54 +2,53 @@
 
 ## State
 
-**Goal `gap-owners`, stage 3 is green over everything the tool can see.** `python tools/owners.py
---check --untagged-is-an-error --reasons` reports 121 tagged gaps and no untagged item, and `python
-tools/chain.py --check` walks 44 goals — all three of the stage's checks pass.
+**Goal `gap-owners`, stage 3 is green over every gap block in the tree.** `python tools/owners.py
+--check --untagged-is-an-error --reasons` reports **147 tagged items in 69 blocks across 68 files**,
+nothing untagged, nothing `unowned` without a reason, and `python tools/chain.py --check` walks 44
+goals.
 
-**The goal is not met, because the gate can go green over a module that names nobody.** Eight
-modules record their gaps under a **bold** run rather than a heading, and `tools/owners.py:98`'s
-`GAPS` regex is applied to headings only, so the roster has never seen one of those items. The
-playbook bullet at `docs/agent/playbook.md:1471` already carried this; it is now the next group.
+**The hole was closed in the tool, not by reshaping docs.** `tools/owners.py:141`'s `blocks` now
+reads a `**Known gaps**` bold run as a block whose body ends at the next bold run or heading, and
+whose first line is the label's own sentence. It was **21 blocks in 13 files, not the eight** the
+previous scope named: the singular `**Known gap:**` spelling is thirteen of them.
 
-**The last seven untagged items resolved three ways.** `response.rs` gap 1 is M7's — `docs/plan/m7.md:39`
-enforces the `echo` binding table from there, the HTML sink attached by a request and by nothing
-else. Four are `unowned` with reasons: `random.rs` gap 1, `response.rs` gap 2, `test.rs` gaps 1–2.
-Two left their blocks as decisions — `random.rs`'s fork gap, refused by M7's own `Type=notify` unit
-and by `rule:core-classes/process-is-argv-only`, and `storage.rs`'s missing `exists`, whose own
-first sentence called it deliberate.
+**Ten statements left a gap block as decisions**, per the goal's § *Standing decisions*.
+`crates/nvs-hir/src/members.rs`'s four are each closed in `nvs-types` — verified at
+`crates/nvs-types/src/expr/calls.rs:1604`, `crates/nvs-types/src/expr/members.rs:1560` and
+`crates/nvs-types/src/lower.rs:181` — so that block, `aliases.rs`'s and `nvs-types/src/check.rs`'s
+are gone rather than tagged.
 
-**`storage.rs` cited two shape rules by the wrong number** — R7 and R20 where `rule:core-api/shape-rules`
-puts "absence is `?T`" at R4 and "nothing is reachable two ways" at R17. Both are corrected.
-
-**`carried-gaps.md` § *Unowned* is forty-nine entries**, and `python tools/verify.py` is green.
+**Twelve § *Unowned* entries were written and the register is sixty-three.** Three gaps took live
+owners instead: `crates/nvs-lsp/src/completion.rs` is goal `workspace-index`'s (its own prose is
+"the completion arms the current rules already admit but nobody wrote"),
+`crates/nvs-runtime/src/budget.rs` is goal `resource-ceilings`' own acceptance line, and
+`crates/nvs-stdlib/src/heap.rs` is goal `gap-zero`'s, beside the six stdlib rows it already carries.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 3: the attribution pass, the blocks the roster cannot see** — one file set: `tools/owners.py`
-and the eight module docs holding a bold gap run. Owner kinds are the goal's § *Standing decisions*;
-`python tools/owners.py --untagged` is the worklist and `--check --untagged-is-an-error --reasons`
-the gate. Take the tool first: until it reads a bold run, none of the eight items can be tagged at
-all.
+**Stage 4: the gate names itself** — one file set: `tools/verify.py` and `tools/brief.py`. Both
+checks are `stage = "4 wired"` and both are the driver's current red line; the stage's own comment
+header is "it stays true", so each is a tool growing the flag its check calls.
 
-- [ ] **Teach `owners.py` to read a `**Known gaps**` bold run as a block** — `tools/owners.py:98`'s
-      `GAPS` regex, `tools/owners.py:142`'s block finder and `tools/owners.py:160`'s `items_of` are
-      the three halves of it. `docs/agent/playbook.md:1471` is the trap and says the fix is the tool
-      rather than a doc reshape; a bold run's items are `*`/`1.` bullets under one `//! **…**` line,
-      so what changes is where a block starts and not how its items are cut.
-- [ ] **Tag `crates/nvs-types`'s four bold runs** — `crates/nvs-types/src/ctor_init.rs:36`,
-      `crates/nvs-types/src/lateinit.rs:34`, `crates/nvs-types/src/locals.rs:80` and
-      `crates/nvs-types/src/signatures.rs:19`. Two of them say "deliberately out of scope for this
-      slice", which under § *Standing decisions* reads toward a decision that moves above the
-      heading rather than toward a tag.
-- [ ] **Tag the remaining four** — `crates/nvs-hir/src/members.rs:68`,
-      `crates/nvs-hir/src/requires.rs:69`, `crates/nvs-lsp/src/completion.rs:121` and
-      `crates/nvs-syntax/src/casing.rs:57`. `requires.rs` holds five items, the largest of the eight.
+- [ ] **`verify.py --list` prints the gate's steps in order and runs none of them** —
+      `tools/verify.py:375`'s `steps_for(opts)` is already the ordered list the gate walks and
+      `tools/verify.py:663`'s parser has no `--list` to print it. The check is
+      `docs/agent/loop-goal.toml:6776`, which asserts the order rather than the count, so print one
+      step per line in `steps_for`'s own order and let `-p`/`--fast` narrow it the way a run does.
+- [ ] **`brief.py --where unowned` routes to the unowned register and names its count** —
+      `tools/brief.py:453`'s table of the homes that are not rules is where a keyword lands when no
+      chapter holds it, and `tools/brief.py:476`'s `WHERE_CAP` bounds one answer. The check is
+      `docs/agent/loop-goal.toml:6786`; `carried-gaps.md` § *Unowned* is the home, and the count is
+      `python tools/owners.py --json`'s rather than a number typed into `brief.py`.
 
 ## Backlog
 
-- Whether a bold run should stay legal at all, or `owners.py` should refuse one, is the decision the
-  first item above implies — `docs/agent/loop-goal.md` § *Standing decisions* is where it belongs.
-- `crates/nvs-types/src/response.rs` does not exist under that name; `response.rs` gap 2 names
-  `nvs_types::response` as E0801's home, and the module it means was not located this session.
-- `python tools/decisions.py --check` stands at ~25 findings — a user-fired chore per
-  `docs/agent/decisions-summary.md`, and no goal may gate on it.
+- `docs/implementation-plan.md:44` and `:51` send a reader to a module doc's `# Known gaps`; a bold
+  run is equally a gap block now — the plan owns that pointer.
+- `tools/owners.py:223`'s `unowned_paths` keys a reason on any mention of the path, so a reason can
+  be satisfied by an unrelated entry (playbook, § *Tooling*).
+- `crates/nvs-ir/src/lower/convert.rs:963` records a `# Known gaps` heading in a `///` item doc,
+  which `tools/owners.py:89`'s `SOURCES`/`DOC` pair never reads — a third spelling, unowned.
+- Goal `unowned-sweep` stage 0 rewrites four module docs when goal `input-shapes` lands —
+  `docs/agent/goals/31-unowned-sweep.md:21`.

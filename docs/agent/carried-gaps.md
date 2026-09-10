@@ -67,7 +67,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Forty-nine entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Sixty-three entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -507,6 +507,135 @@ where taking it is the work and the code that follows it is not.
   is a supported configuration: if it is, this member owes a refusal rather than a silent non-match,
   and if it is not, the requirement belongs to whatever states the embedding contract rather than to
   an assertion. `crates/nvs-stdlib/src/test.rs` gap 2. [until: reviewed 2026-09-10]
+- **`rule:classes/definite-property-initialization` is checked over the part of a constructor body the
+  walk can see, and three corners sit outside it.** A property backed by a `set` hook is exempted
+  rather than checked against whether the hook commits a value; `scan_expr` descends into a handful of
+  composite expression forms, so a `$this->prop = ...` inside a closure body or a `match` arm is
+  diagnosed spuriously rather than missed silently; and a class with no explicit `constructor` is
+  never checked against the `parent::constructor(...)` obligation, since it has no body of its own for
+  such a call to sit in. These are M4 checker holes and M4 is carried, the same standing the entry
+  above records for `crates/nvs-types/src/lib.rs`'s two flow checks. What has to be decided is
+  whether this pass models a hook's body at all — `rule:classes/lateinit`'s *Revisiting* section
+  defers the hooked-property question to `docs/spec/`, so it is a language decision before it is a
+  checker one — and whether PHP's inherited constructor is modeled here or left to the runtime throw.
+  `crates/nvs-types/src/ctor_init.rs` gaps 1–3. [until: reviewed 2026-09-10]
+- **`rule:classes/lateinit`'s compile-time half stops at the declaring class.** An inherited
+  `lateinit` property read through `$this` in a subclass's own method is not checked by this pass,
+  which tracks a class's *own* properties only and leaves that read to the rule's runtime throw;
+  `scan_expr` shares `crate::ctor_init`'s partial descent, so a read inside a closure body or a
+  `match` arm is silently unchecked; and a `set`-hooked `lateinit` property is not modeled specially.
+  What has to be decided is whether the pass walks the `extends` chain — `own_required_properties`
+  took the opposite decision for the same reason, so taking this one alone leaves the two passes
+  inconsistent with each other — and the hooked case is the same `docs/spec/` question that rule's
+  *Revisiting* section defers. `crates/nvs-types/src/lateinit.rs` gaps 1–3.
+  [until: reviewed 2026-09-10]
+- **A `switch` case that falls through is checked from what was live before the whole `switch`.** No
+  explicit `break`/`continue` and not the last case means the case it falls into runs with the
+  previous one's assignments in hand, and the liveness walk hands it none of them, so a read only the
+  fall-through made live is refused where it stands — safe, and a refusal of a program PHP accepts.
+  The walk is structural rather than a CFG by this module's own design note, which is the bound the
+  entry above already records for the two flow checks `crates/nvs-types/src/lib.rs` is missing. What
+  has to be decided is whether that walk becomes a CFG at all, since a fall-through edge is precisely
+  what a structural walk cannot carry. `crates/nvs-types/src/locals.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **A promoted constructor parameter is a property no table records, so its visibility is enforced by
+  nobody.** `is_visible_from` is reached only for a property this signature table found, and
+  `nvs_hir::members`'s member table has the same hole, so `rule:core-api/written-visibility`'s level
+  is recorded for the constructor that declares it and not for the property it declares. Beside it, a
+  variadic parameter's declared type is matched against every argument from its position onward
+  rather than modeled as its own `array<T>`. What has to be decided is which table records a promoted
+  parameter as a property — this one or `nvs_hir::members`', since the visibility check hangs off
+  whichever finds it — and whether a variadic parameter carries an `array<T>` of its own inside the
+  body, which is a type-lattice question rather than a signature one.
+  `crates/nvs-types/src/signatures.rs` gaps 1–2. [until: reviewed 2026-09-10]
+- **A named constant is a legal property default and an illegal parameter default.** An enum case
+  (`Mode $m = Mode::Fast`) or another class's `const` becomes a `nvs_runtime::FieldDefault`
+  materialized straight into a slot, where the case *is* the integer it folded to; at a parameter
+  default `nvs_ir::lower::emit_const_arg` would have to hand a `ConstArg::Int` to a
+  `nvs_ir::ty::Ty::Enum` position, so `literal_default` refuses it as
+  `E_PARAM_DEFAULT_NOT_LITERAL`. What has to be decided is whether that emitter carries the
+  position's own IR type rather than the constant's — which closes the parameter half by widening
+  `literal_default`, and changes what every omitting call site emits — or the asymmetry stands as a
+  stated bound of a parameter default. `crates/nvs-types/src/defaults.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **A mount's entry script may echo a page and call a response body member, and nothing refuses it.**
+  `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5 run a `.nvs` file's top-level
+  frame as the request body, which is the one row of the shared-output table this pass does not
+  refuse; the same file is one compiled unit whether `nvs serve` ran it or `nvs run` did, so a static
+  refusal there would refuse the CLI use of every such file. What has to be decided is whether the
+  language gains a declaration that a file is an entry — the fact that is missing, and a surface
+  question rather than a checker one — or the row stays answered at run time by the default this
+  module's own doc names, where `echo` means `text/html` and a body member wins the `Content-Type` it
+  declared last. `crates/nvs-types/src/response.rs` gap 1. [until: reviewed 2026-09-10]
+- **A `Core` target on `extends`/`implements` is trusted to exist.** `QName::is_core` is a spelling
+  test, and this crate cannot hold a name to `nvs_stdlib::registry`'s roster the way
+  `nvs_types::expr::calls` holds a `new` target to it: `crates/nvs-hir/Cargo.toml` depends on
+  `nvs-diagnostics` and `nvs-syntax` and nothing else, which is the graph position that lets a class
+  link resolve before the stdlib exists at all. What has to be decided is which end closes it — a
+  roster this crate is handed at construction, or the `Core` half of a link checked in `nvs-types`,
+  which already reaches the registry — because the second answer makes one link error arrive from a
+  different pass than every other. `crates/nvs-hir/src/hierarchy.rs` gap 1.
+  [until: reviewed 2026-09-10]
+- **`require`'s statically-known path is a plain string literal and nothing else, with three more
+  corners around it.** Heredoc/nowdoc and any expression built out of a literal — a concatenation, a
+  `const`, an `as` conversion — is dynamic here even where a reader could work the value out; the
+  double-quoted cooker recognises a practical escape subset and leaves octal/hex/unicode un-cooked;
+  the name harvest is an over-approximation whose miss costs a class that fails to autoload; and
+  `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is produced and then
+  dropped. What has to be decided for each is where it lives rather than what the code is: a constant
+  folder that runs before the graph is walked, a string-literal cooker something besides this module
+  needs, a harvest derived from the AST rather than hand-written so a new node cannot be missed, and
+  whether the artifact key grows the `PathEntry` table
+  `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` names and nothing has built.
+  `crates/nvs-hir/src/requires.rs` gaps 1–4. [until: reviewed 2026-09-10]
+- **A `type` alias's own name is held to no casing rule.** `rule:core-api/identifier-casing`'s scope
+  table lists the categories the checker enforces and "type alias" is not one of them, so the
+  declaration walk passes over the one name it could check and does not guess a rule. What has to be
+  decided is whether that table gains the row — a rule change rather than a check, and the reason
+  this sits here rather than in the pass: the pass is four lines once the rule says which casing an
+  alias takes. `crates/nvs-syntax/src/casing.rs` gap 1. [until: reviewed 2026-09-10]
+- **`compiler_version_hash` is the release version, so two builds of the same version share an
+  artifact key.** A developer who rebuilds the compiler without bumping `CARGO_PKG_VERSION` keeps
+  every artifact keyed against the old one; `debug_assertions` separates a debug build from a release
+  build and nothing separates two debug builds. What has to be decided is whether the workspace takes
+  a `build.rs` for a stamp that moves with the source — this crate has none, and a stamp is a
+  workspace-wide build dependency rather than a line in this key — or a developer's stale artifact
+  stays their own problem. `crates/nvs-config/src/cache.rs` gap 1. [until: reviewed 2026-09-10]
+- **A bundled program resolves a `require` and not an autoload root.** `rule:programs/no-runtime-autoload`'s
+  probing lists real directories and is not routed through the embedded payload, so a name reached
+  only through an autoload root does not resolve inside a bundle, while
+  `rule:packaging/a-bundled-require-resolves-at-build-time` makes `require` closed-world and does.
+  What has to be decided is whether a bundle's build resolves its autoload roots into the payload —
+  which makes the root set part of what `nvs build --compile` freezes — or an autoload root is
+  declared unsupported in a bundle and refused where it is written.
+  `crates/nvs-diagnostics/src/embedded.rs` gap 1. [until: reviewed 2026-09-10]
+- **The stack ceiling is asserted rather than discovered.** `Ctx::new` arms from the stack pointer at
+  construction and a fixed `STACK_CEILING`, which is correct on a stack at least that deep and
+  permissive on a shallower one — where the guard page is still reached first and `enable_probestack`
+  still makes that a clean crash rather than a stack clash. Reading a thread's true bounds needs a
+  platform call this crate has no dependency for, and the module doc expects the request's stack to
+  become Novis's own to size at M6, which that milestone's plan does not state. What has to be
+  decided is where a request's stack comes from at all: a platform dependency that reads the running
+  thread's bounds, or a stack the runtime allocates and therefore already knows.
+  `crates/nvs-runtime/src/ctx/mod.rs` gap 1. [until: reviewed 2026-09-10]
+- **The door decides which requests a CSRF check covers and refuses none of them, and the route label
+  it derives has no caller.** Verification is `rule:security/protocol-roster`'s constant-time
+  comparison against a key bound to the issuing session, and this crate has neither half in reach:
+  `Core\Csrf::verify` is `nvs-stdlib`'s, deliberately not a dependency, and no `[http]` directive
+  names a key. The label is what `rule:observability/route-label-is-the-declared-name` reaches, and
+  no core owns a metrics registry because nothing exports one yet. What has to be decided is which
+  side verifies a token — the door with a configured key, or a handler calling `Core\Csrf` — and
+  which crate owns the registry a label lands in. `crates/nvs-server/src/route.rs`, both gap blocks.
+  [until: reviewed 2026-09-10]
+- **A write to a field of `Core\Task::all`'s result is checked against the tags of the literal that
+  started it.** The result is built with the argument's own shape class, because
+  `rule:types/object-top`'s shape class is named for its field names alone and those are identical on
+  both sides, but that descriptor's per-slot tags come from the literal, where every field is a
+  closure — so `$page->count = 5` is refused with a message naming `object`, while reading is
+  unaffected. What has to be decided is whether `nvs-ir` records the *result* shape's representations
+  at the call site, which degrades the shared class's tags to unchecked exactly as two disagreeing
+  literals of the same shape already do, or the two shapes stop sharing a class at all.
+  `crates/nvs-stdlib/src/task.rs` gap 1. [until: reviewed 2026-09-10]
 
 ## What is *not* on either list
 
