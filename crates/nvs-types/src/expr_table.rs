@@ -766,6 +766,28 @@ pub enum ExprInfo {
         /// The class or interface tested against.
         class: QName,
     },
+    /// `$x is T`, keyed by the *`is` expression's* own span: the type its
+    /// right-hand side lowered to.
+    ///
+    /// Recorded only where the test does real work. A settled test folds to
+    /// `true` or `false` and a refused right-hand side has no type to carry
+    /// (`crate::expr::type_test`), so neither records anything — an entry here
+    /// means the answer is a run-time `bool`, which is exactly the case a
+    /// consumer has something to do about: narrowing on the true edge
+    /// (`rule:types/narrowing`) and, for `nvs-ir`, a test to emit.
+    ///
+    /// Recorded rather than left to the consumer for [`ExprInfo::InstanceOf`]'s
+    /// reason, one step wider than a class name: the right-hand side is a
+    /// written *type*, and lowering one places every name in it by the
+    /// namespace and the imports of the site that wrote it and interns the
+    /// result — context `nvs-ir` has neither, holding no
+    /// [`crate::ty::TypeInterner`] at all.
+    TypeTest {
+        /// The type tested against, as [`crate::lower::lower_type`] interned
+        /// it. Never a `void`, a `never` or a qualified atom: those are the
+        /// right-hand sides `is` refuses.
+        tested: TypeId,
+    },
     /// `EnumName::CaseName`, keyed by the whole access's own span.
     ///
     /// `rule:enums/no-class-machinery` makes a case "an integer constant, inlined at every use

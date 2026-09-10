@@ -30,6 +30,11 @@
 //! third refusal in `rule:types/type-test`'s table is the parser's, where the
 //! `$` of `$x is $cls` is still in hand.
 //!
+//! A test that survives both folds and both refusals **records the type it
+//! lowered** ([`crate::expr_table::ExprInfo::TypeTest`]), because that is the
+//! one case with a run-time answer: narrowing reads it on the true edge, and
+//! `nvs-ir` reads it to emit the test.
+//!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context.
 
@@ -37,6 +42,7 @@ use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, Type};
 use rustc_hash::FxHashSet;
 
+use crate::expr_table::ExprInfo;
 use crate::locals::LocalScope;
 use crate::lower::lower_type;
 use crate::ty::{Ty, TypeId};
@@ -51,6 +57,12 @@ use super::operators::types_are_disjoint;
 ///
 /// The subject is checked for its own sake as much as for the fold: it is an
 /// ordinary expression, and nothing else in this walk would visit it.
+///
+/// A test that reaches `bool` records the type it lowered
+/// ([`ExprInfo::TypeTest`]), which is what [`crate::locals::narrow`] reads to
+/// narrow the subject on the true edge and what `nvs-ir` will read to emit the
+/// test. A folded or refused one records nothing: there is no run-time test
+/// left to narrow inside or to emit.
 pub(crate) fn infer_type_test(
     expr: &Expr,
     inner: &Expr,
@@ -71,6 +83,7 @@ pub(crate) fn infer_type_test(
     if never_holds(subject, tested, env) {
         return env.interner.false_ty();
     }
+    env.exprs.record(expr.span, ExprInfo::TypeTest { tested });
     env.interner.bool_ty()
 }
 
