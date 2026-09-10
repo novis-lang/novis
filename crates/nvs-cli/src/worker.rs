@@ -1178,16 +1178,25 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
         // a driver *gaining* a send path arrives here as a build failure instead of as a refusal
         // that has stopped being true.
         nvs_db::Driver::SqlServer => {
-            eprintln!(
-                "warning: no queue worker started: `[db.{name}]` names the {} driver, and \
-                 `Core\\Queue` has no worker statements for it yet — the gap is that roster and \
-                 not the connection, and a `Core\\Queue::push` against the same block refuses with \
-                 the sentence naming what this driver still needs",
-                driver.display_name()
-            );
+            eprintln!("warning: no queue worker started: {}", sql_server_gap(name));
             None
         }
     }
+}
+
+/// [`open`]'s answer for the one driver `nvs_stdlib::queue` has no statements for, as a value.
+///
+/// A sentence built here rather than printed inside the arm, because what an operator is told is
+/// itself asserted: that it names the block, names the driver as its vendor spells it, and puts the
+/// gap where it is. Nothing parses it — [`nvs_db::Driver::display_name`]'s own doc is why that
+/// stays true of every sentence that method appears in.
+fn sql_server_gap(name: &str) -> String {
+    format!(
+        "`[db.{name}]` names the {} driver, and `Core\\Queue` has no worker statements for it yet \
+         — the gap is that roster and not the connection, and a `Core\\Queue::push` against the \
+         same block refuses with the sentence naming what this driver still needs",
+        nvs_db::Driver::SqlServer.display_name()
+    )
 }
 
 /// [`open`]'s SQLite half, which resolves a path where every other arm resolves an address.
@@ -1482,5 +1491,67 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A `[queue] connection` naming a SQLite block starts a worker, and the statements that worker
+    /// will send are that dialect's.
+    ///
+    /// **The seam asserted is [`super::Wire::dialect`] and not the connection.** A block that opened
+    /// and was then read as another dialect would send a placeholder spelling this backend refuses,
+    /// and it would do so only once a job was actually due — a failure an operator meets in the work
+    /// that did not happen rather than at boot. The path is absolute because a `-p nvs-cli` fixture
+    /// has no `nvs.toml` for
+    /// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` to resolve a
+    /// relative one against.
+    #[test]
+    fn a_sqlite_block_opens_a_queue_worker() {
+        let path = std::env::temp_dir().join("nvs-worker-a-sqlite-block-opens-a-queue-worker.db");
+        let _ = std::fs::remove_file(&path);
+        let block = nvs_config::tree::Database {
+            driver: Some("sqlite".to_owned()),
+            path: Some(path.display().to_string()),
+            ..Default::default()
+        };
+        let mut wire = super::open("jobs", &block).expect("a SQLite block opens a worker");
+        assert!(
+            matches!(wire.dialect(), super::Dialect::Sqlite(_)),
+            "the worker opened the block and reads it as some other dialect's statements"
+        );
+        // The connection holds the file until it is dropped, and on Windows an open file is one
+        // nothing can remove.
+        drop(wire);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The driver `nvs_stdlib::queue` still has no statements for opens no worker, and the line an
+    /// operator reads names it.
+    ///
+    /// **Both halves, because neither is the assertion on its own**: a `None` is also what a block
+    /// naming no driver at all answers with, so the sentence is what says this refusal is about the
+    /// backend rather than about a block that could not be read. `rule:core-classes/db-drivers-are-an-enum`'s spelled arm is what
+    /// makes the day this driver gains a send path a build failure instead of a refusal that has
+    /// quietly stopped being true.
+    #[test]
+    fn a_sql_server_block_still_starts_no_worker_and_names_the_driver() {
+        let block = nvs_config::tree::Database {
+            driver: Some("mssql".to_owned()),
+            host: Some("127.0.0.1".to_owned()),
+            database: Some("novis_test".to_owned()),
+            ..Default::default()
+        };
+        assert!(
+            super::open("jobs", &block).is_none(),
+            "a SQL Server block opened a worker, and no statement that worker sends is written for \
+             it"
+        );
+        let said = super::sql_server_gap("jobs");
+        assert!(
+            said.contains(nvs_db::Driver::SqlServer.display_name()),
+            "the refusal is `{said}`, which does not name the driver it is about"
+        );
+        assert!(
+            said.contains("`[db.jobs]`"),
+            "the refusal is `{said}`, which does not name the block that opened nothing"
+        );
     }
 }

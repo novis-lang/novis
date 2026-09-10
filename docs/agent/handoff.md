@@ -2,52 +2,56 @@
 
 ## State
 
-**Goal `sqlite-queue`, stages 3 and 4 are green, and stage 5's `nvs-stdlib` half is now too.** All
-three of that check's names resolve: two of them because this session wrote them, one because it
-was already on disk under another name and the check now points at it.
+**Goal `sqlite-queue`, stage 5 is green on both halves.** The `nvs-cli` check's three names all
+resolve and pass; the earliest failing check is now stage 6's matrix leg.
 
-- **Stage 5's two drafted names were both wrong about the tree, in different ways**, and both are
-  corrected in `docs/agent/loop-goal.toml` and `docs/agent/goals/35-sqlite-queue.toml` alike.
-  `every_driver_the_queue_refuses_says_what_it_is_waiting_on` was
-  `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` all along;
-  `runs_answers_true_for_three_drivers_…` carried a count this goal grows, and is now
-  `runs_answers_false_for_sql_server_alone`. The playbook bullet owns the second one.
+- **The check's third name was a rename, not a test to write.** `crates/nvs-cli/src/worker.rs`
+  already carried `the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them`
+  over all three claim lists, which is what stage 2's third point ordered ("extend that test rather
+  than writing a second one"), so both `docs/agent/loop-goal.toml:7454` and the goal's own
+  `.toml` point at it under that name, with a comment saying why. The playbook bullet owns the
+  general shape.
+- **`open`'s SQL Server refusal is a value now** — `sql_server_gap` at
+  `crates/nvs-cli/src/worker.rs:1193` — because a test asserting what an operator is told cannot
+  read an `eprintln!` in an arm. The arm itself is unchanged in what it does and still spelled
+  rather than left to a `_`.
 - **Goal stage 6 item 2 — "queue.rs's own `Dialect` gains its third arm" — is superseded and should
-  not be taken**, carried unchanged from the previous handoff: `crates/nvs-stdlib/tests/queue.rs`
-  reaches a driver over a socket, and this backend's cases are `queue_sqlite.rs`'s, which need no
-  server.
-- What is left of stage 5 is the `nvs-cli` check, which is the group below. Nothing is blocked, and
-  no `[context]` field was missing from this session's pack.
+  not be taken**, carried unchanged: `crates/nvs-stdlib/tests/queue.rs` reaches a driver over a
+  socket, and this backend's cases are `queue_sqlite.rs`'s, which need no server.
+- Nothing is blocked, and no `[context]` field was missing from this session's pack.
 
 ## Next group
 
-**Stage 5: the seams, on the worker side** — one file set: `crates/nvs-cli/src/worker.rs`, whose
-`mod tests` already carries the `selected`/`answered` helpers all three of these read a claim with.
-Take the third item first: it is the one that says whether the two block-shaped ones can be written
-without a `[db.<name>]` fixture at all.
+**Stage 6: the matrix leg, then the cases it makes possible** — item 1 is one edit in
+`tools/db-matrix.py`; items 2 and 3 share `tests/conformance/core/` and both read the fixture tree
+`examples/queue-sqlite.toml`, which is already on disk. Take item 1 first: it is the check the
+driver reports next.
 
-- [ ] **`a_worker_reads_the_same_claim_columns_by_position_on_all_three_dialects`** — the shape is
-      `crates/nvs-cli/src/worker.rs:1385`'s
-      `the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them`, and the
-      helpers are `selected`/`answered` at `crates/nvs-cli/src/worker.rs:1353`. The claim readers
-      to agree are `postgres_claim` at `crates/nvs-cli/src/worker.rs:405`, `framed_claim` at
-      `crates/nvs-cli/src/worker.rs:490` and `sqlite_claim` at `crates/nvs-cli/src/worker.rs:616`,
-      under `rule:concurrency/claiming-is-one-statement`.
-- [ ] **`a_sqlite_block_opens_a_queue_worker`** — `open` is `crates/nvs-cli/src/worker.rs:1134` and
-      the arm it reaches is `sqlite_wire` at `crates/nvs-cli/src/worker.rs:1201`. The playbook's
-      *a `-p nvs-cli` runner fixture has no `nvs.toml`* bullet is the trap to read first, since a
-      `[db.<name>]` block built in Rust is what this needs.
-- [ ] **`a_sql_server_block_still_starts_no_worker_and_names_the_driver`** — same `open` at
-      `crates/nvs-cli/src/worker.rs:1134`, and the roster it must agree with is
-      `nvs_stdlib::queue::runs` at `crates/nvs-stdlib/src/queue.rs:2368`, under
-      `rule:core-classes/db-drivers-are-an-enum`.
+- [ ] **The SQLite leg runs the queue suites** — `SUITES` at `tools/db-matrix.py:114` names only
+      `["-p", "nvs-stdlib", "--test", "queue"]`, which is the socket suite; the SQLite backend's
+      cases are `crates/nvs-stdlib/tests/queue_sqlite.rs`. The note at `tools/db-matrix.py:108` is
+      the home of why that list is narrow, so decide there whether the second target is added for
+      every leg or only for the driver with no service (`tools/db-matrix.py:165`) — the four server
+      legs would otherwise pay for a suite that asks their server nothing. The check is
+      `docs/agent/loop-goal.toml:7473`, under `rule:core-classes/db-one-api`'s *Verification*
+      section, which `tools/db-matrix.py:13` cites as what this harness exists to point at.
+- [ ] **`tests/conformance/core/queue-push-and-status-run-against-a-sqlite-file.nvst`** — the case
+      list is `docs/agent/loop-goal.toml:7487`, the shape to copy is
+      `tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst:1`, and
+      the `[queue]`/`[db.jobs]` pair a case needs to reach a file is `examples/queue-sqlite.toml:1`.
+      Under `rule:core-classes/queue-storage-is-a-table`. **First decide how a conformance case
+      names that tree at all** — the suite runs `nvs test tests/conformance/` with no `--config`,
+      which is what makes this item the one that says whether the two after it are writable.
+- [ ] **The other two cases** — `queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst` and
+      `queue-cancel-releases-a-dedupe-key-on-sqlite.nvst`, same list at
+      `docs/agent/loop-goal.toml:7489`, same rule, same file set.
 
 ## Backlog
 
-- Stage 6's matrix leg: `python tools/db-matrix.py --driver sqlite` must print `sqlite: ok`
-  (`docs/agent/loop-goal.toml`, stage `6 the matrix leg`).
-- Stage 6's three conformance cases, all `…-on-sqlite`-shaped and none of them written
-  (`docs/agent/loop-goal.toml`, stage `6 the cases`).
-- Stage 6's fixture: `examples/queue-sqlite.nvs` and `examples/queue-sqlite.toml`, plus the
-  `nvs queue migrate --config` run that converges its file (`docs/agent/loop-goal.toml`, stage
-  `6 the fixture`).
+- Stage 6's fixture checks (`docs/agent/loop-goal.toml:7503` and `:7519`) name
+  `examples/queue-sqlite.nvs` and `examples/queue-sqlite.toml`, both on disk; whether they pass was
+  not checked this session.
+- Goal stage 6 item 4 — a fixture beside `examples/queue.nvs` is its own file, that example's lines
+  are frozen (`docs/agent/goals/35-sqlite-queue.md:171`).
+- Stage 6 wants no differential case: PHP has no queue
+  (`docs/agent/goals/35-sqlite-queue.md:169`).
