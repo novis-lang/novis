@@ -48,6 +48,7 @@
 //!    `kind()` names its production, which is the shape of the answer rather
 //!    than the answer: the roster refines it, and `nvs_syntax::walk`'s own
 //!    module doc owns which productions are nodes at all today.
+//!    — owner: M8
 //! 2. A node carries no position and no text, so a walk can count and classify
 //!    but not quote. See the second decision above for what adding it costs.
 //!    Closing this is also what makes userland architecture rules real: a
@@ -55,10 +56,12 @@
 //!    `file:line` it failed about, and a structural rule that cannot point is
 //!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
 //!    row).
+//!    — owner: unowned
 //! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
 //!    capability-bearing member (`rule:security/capability-declaration-is-one-table`
 //!    's `fs.read`) rather than a second spelling of this one, and the
 //!    `Core\IO` door it goes through is where that check already lives.
+//!    — owner: unowned
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
