@@ -115,6 +115,9 @@ modules = [
   "crates/nvs-server/src/bounds.rs",
   # `Core\Uri` — docs/spec/01-core-library.md § 12's first table, which has two halves.
   "crates/nvs-stdlib/src/uri.rs",
+  # `rule:expressions/intrinsic-list-is-closed`'s closed list: the `Core` members whose
+  # pattern-like argument the compiler reads while checking, and the hook that consults it.
+  "crates/nvs-types/src/intrinsics.rs",
 ]
 
 # 0004 is the priority ordering an owner decision is taken under; 0116 and 0002 are the ADRs whose
