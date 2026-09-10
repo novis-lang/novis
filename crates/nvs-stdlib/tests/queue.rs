@@ -929,6 +929,123 @@ fn cancel(conn: &mut Conn, id: &str, queue: &str) -> u64 {
     )
 }
 
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `delete` on the
+/// framed dialect, answering the count the server says it affected across both
+/// of the tables the statement names.
+///
+/// **[`cancel`]'s shape and for [`cancel`]'s reason**: [`queue::DELETE_MYSQL`]
+/// is read off its affected count where [`queue::DELETE_POSTGRES`] is read off
+/// a returned row, so a helper spanning both dialects would hand back two
+/// shapes. The PostgreSQL text is sent by
+/// [`delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one`], which
+/// is where that half is asserted.
+///
+/// **Two placeholders and not four**, unlike [`status`]: the pair is named once
+/// in the derived table the multi-table delete is driven from, and that
+/// constant's doc owns why.
+fn delete(conn: &mut Conn, id: &str, queue: &str) -> u64 {
+    apply(
+        conn,
+        queue::DELETE_MYSQL,
+        &[Some(id.as_bytes()), Some(queue.as_bytes())],
+    )
+}
+
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` over the jobs table, in
+/// whichever dialect this leg runs, answering the count it removed.
+///
+/// **One helper across both dialects, unlike [`cancel`]**, because both texts
+/// are read off the affected count: the count *is* the member's answer, so
+/// there is no second shape for a caller to unwrap.
+///
+/// **The framed leg binds the same five values in eight slots**, which
+/// [`queue::PURGE_MYSQL`]'s doc owns: a `$n` may be named twice and a `?` may
+/// not, so each of the two null-checked options costs a slot per mention. Doing
+/// that here rather than at each call site is [`status`]'s arrangement, for
+/// [`status`]'s reason.
+fn purge(
+    conn: &mut Conn,
+    queue: &str,
+    state: Option<&str>,
+    tag: Option<&str>,
+    before: Option<i64>,
+    limit: &str,
+) -> u64 {
+    let before = before.map(millis);
+    let before = before.as_deref();
+    let (name, state, tag) = (
+        Some(queue.as_bytes()),
+        state.map(str::as_bytes),
+        tag.map(str::as_bytes),
+    );
+    let bound = Some(limit.as_bytes());
+    let (sql, sent) = if conn.driver() == Driver::Postgres {
+        (queue::PURGE_POSTGRES, vec![name, state, tag, before, bound])
+    } else {
+        (
+            queue::PURGE_MYSQL,
+            vec![name, state, state, tag, tag, before, before, bound],
+        )
+    };
+    apply(conn, sql, &sent)
+}
+
+/// ADR 0153 § 6's other table: [`purge`] with `state: Dead`, which is a
+/// different statement because it is a different table.
+///
+/// It takes no state at all, and [`queue::PURGE_DEAD_POSTGRES`]'s doc says why:
+/// [`queue::DEAD_TABLE`] has no `state` column, since being in that table is
+/// what `Dead` is.
+fn purge_dead(
+    conn: &mut Conn,
+    queue: &str,
+    tag: Option<&str>,
+    before: Option<i64>,
+    limit: &str,
+) -> u64 {
+    let before = before.map(millis);
+    let before = before.as_deref();
+    let (name, tag) = (Some(queue.as_bytes()), tag.map(str::as_bytes));
+    let bound = Some(limit.as_bytes());
+    let (sql, sent) = if conn.driver() == Driver::Postgres {
+        (queue::PURGE_DEAD_POSTGRES, vec![name, tag, before, bound])
+    } else {
+        (
+            queue::PURGE_DEAD_MYSQL,
+            vec![name, tag, tag, before, before, bound],
+        )
+    };
+    apply(conn, sql, &sent)
+}
+
+/// One job put straight into `state`, with `lease` written to `claimed_at`.
+///
+/// **Setup and not an assertion**, which is why this is an ad-hoc `update`
+/// rather than the statement a worker would have run to get there. A purge is
+/// asked what a *selection* takes, and how a row reached the state it is in is
+/// a question [`queue::SUCCEEDED_POSTGRES`], [`queue::CANCEL_MYSQL`] and § 6's
+/// move each already have a case of their own for. Walking every row through
+/// its own claim would put four round trips in front of each assertion and make
+/// which row a claim took part of what the purge case depends on.
+fn set_state(conn: &mut Conn, id: &str, state: &str, lease: Option<i64>) {
+    let lease = lease.map(millis);
+    let lease = lease.as_deref();
+    let sql = if conn.driver() == Driver::Postgres {
+        "update nvs_jobs set state = $1::smallint, claimed_at = $2::bigint where id = $3::bigint"
+    } else {
+        "update nvs_jobs set state = ?, claimed_at = ? where id = ?"
+    };
+    assert_eq!(
+        apply(
+            conn,
+            sql,
+            &[Some(state.as_bytes()), lease, Some(id.as_bytes())]
+        ),
+        1,
+        "a case's own setup names one row by its id"
+    );
+}
+
 /// §§ 1 and 6's `stats` on the framed dialect, as the four columns
 /// [`queue::COUNTS_MYSQL`] answers with.
 ///
@@ -1656,6 +1773,270 @@ fn many_pending_jobs_share_one_tag_and_two_pending_jobs_never_share_one_key() {
         one(&mut conn, TAGGED, &counted),
         "4",
         "five pushes named the tag and the tag took every row that was written"
+    );
+}
+
+/// § 2's two ordinary arms against a real PostgreSQL server: `delete` removes a
+/// pending job and answers `true`, and refuses a claimed one and answers
+/// `false` — `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
+///
+/// **The bound is asserted on both sides**, because either half alone passes
+/// against a statement that has stopped asking. A [`queue::DELETE_POSTGRES`]
+/// whose `state <> 1` had been dropped removes both rows and looks right on the
+/// pending one; a text whose predicate refused everything removes neither and
+/// looks right on the claimed one. Naming the two together is what pins the
+/// place the statement stops.
+///
+/// **The claimed row is asserted still *claimed*, not merely still there**,
+/// which is one read rather than two: [`queue::STATUS_POSTGRES`] answers
+/// nothing at all for a row that was removed, so `Claimed` says both that the
+/// job survived the call and that the lease the worker is running under did.
+///
+/// **The answer is the row the statement returned**, which is what
+/// `Core\Queue::delete`'s `bool` is read off — the two data-modifying CTEs
+/// `union all` their `returning id` and the member asks whether a row came
+/// back. That is also why the receipt is asserted by value: either arm answers
+/// one row, and reading the id back is what says which job it was about.
+///
+/// **The two jobs are separated by `run_at` rather than by the order they were
+/// pushed**, so which one is claimed is decided by the statement rather than by
+/// this case: [`queue::CLAIM_POSTGRES`] takes the oldest *due* job, and a job
+/// due a second later is not due at the instant this claim is taken whatever
+/// else the table holds.
+#[test]
+fn delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one() {
+    const QUEUE: &str = "nvs-stdlib-tests-delete";
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let now = queue::now_millis();
+    let held = push(&mut conn, QUEUE, now, "3");
+    let waiting = push(&mut conn, QUEUE, now + 1_000, "3");
+
+    let took = claim(&mut conn, QUEUE, now, now);
+    assert_eq!(took.len(), 1, "the claim took the one job that was due");
+    assert_eq!(
+        took[0][ID].as_deref(),
+        Some(held.as_str()),
+        "the row a worker now holds is the one this case is about"
+    );
+
+    let name = Some(QUEUE.as_bytes());
+    let refused = rows(
+        &mut conn,
+        queue::DELETE_POSTGRES,
+        &[Some(held.as_bytes()), name],
+    );
+    assert!(
+        refused.is_empty(),
+        "a claimed job is not removable, so neither arm answered a row: {refused:?}"
+    );
+    assert_eq!(
+        status(&mut conn, &held, QUEUE).as_deref(),
+        Some("1"),
+        "the job is still there and still claimed, under the lease its worker is running on"
+    );
+
+    let removed = rows(
+        &mut conn,
+        queue::DELETE_POSTGRES,
+        &[Some(waiting.as_bytes()), name],
+    );
+    assert_eq!(
+        removed.len(),
+        1,
+        "the pending job was removed, and one row is what makes the member's answer `true`"
+    );
+    assert_eq!(
+        removed[0][0].as_deref(),
+        Some(waiting.as_str()),
+        "the row answered is the receipt the call named"
+    );
+    assert_eq!(
+        status(&mut conn, &waiting, QUEUE),
+        None,
+        "the pending row is gone rather than moved, so `status` has nothing to answer about"
+    );
+}
+
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s `purge` against a
+/// real PostgreSQL server: the default set is what has finished, each of the
+/// three filters narrows what that set reaches, and no call takes more rows than
+/// its `limit`.
+///
+/// **One queue holding one row in every state there is**, because what the rule
+/// says is about a selection, and a selection is only ever wrong about the rows
+/// it was not asked to take. A case with nothing pending, claimed or
+/// dead-lettered in it passes against a text whose `where` had been dropped
+/// altogether.
+///
+/// **The bound is asserted before the group it bounds is emptied**, and it is
+/// the first assertion for that reason: a `limit` of one over two rows that both
+/// match is the only arrangement in which taking one row rather than two is
+/// visible at all. Which of the two goes is the statement's `order by id` — the
+/// identity column numbers rows in the order they were enqueued, so the oldest
+/// is what a retention sweep drains first.
+///
+/// **`before` is asserted on both sides**, one millisecond apart, because either
+/// half alone passes against a text that had stopped asking: an inclusive bound
+/// and an exclusive one differ on exactly one instant, and that instant is the
+/// one a caller passing `now` writes.
+///
+/// **`Dead` and `Pending` are each asked twice** — once as rows a purge naming
+/// no state leaves alone, and once as a selection that names them and takes
+/// them. Opt-in is two claims and not one: a text that could never reach the
+/// dead-letter table would pass the first half of each pair.
+///
+/// **`Claimed` is asked of the statement and not only of the member.** The
+/// member refuses `State::Claimed` at the call, which is where a caller finds
+/// out; this asserts that a call that got past it anyway would still remove
+/// nothing, which is the arm ADR 0153 § 2 says is not a policy choice.
+#[test]
+fn purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit() {
+    const QUEUE: &str = "nvs-stdlib-tests-purge";
+    const TAG: &str = "nvs-stdlib-tests-purge:batch";
+    const DUE: i64 = 20_000;
+    const LATER: i64 = 30_000;
+    const LEASE: i64 = 21_000;
+    const FAILED: i64 = 21_500;
+
+    let Some(server) = postgres() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    // Six rows, one per state and one of them under no tag at all, pushed a
+    // millisecond apart so `created_at` orders them the way `id` does.
+    let done = push_marked(&mut conn, QUEUE, DUE, None, Some(TAG));
+    let gone = push_marked(&mut conn, QUEUE, DUE + 1, None, Some(TAG));
+    let plain = push_marked(&mut conn, QUEUE, DUE + 2, None, None);
+    let buried = push_marked(&mut conn, QUEUE, DUE + 3, None, Some(TAG));
+    let held = push_marked(&mut conn, QUEUE, DUE + 4, None, Some(TAG));
+    // The one row left pending, and the newest of the six, so the age filter
+    // below has a row on the far side of it as well.
+    let waiting = push_marked(&mut conn, QUEUE, LATER, None, Some(TAG));
+
+    set_state(&mut conn, &done, "2", None);
+    set_state(&mut conn, &gone, "4", None);
+    set_state(&mut conn, &plain, "2", None);
+    set_state(&mut conn, &held, "1", None);
+    // The dead-lettered row goes through § 6's own statement, because the row it
+    // writes into the other table is what this case's last assertion is about.
+    set_state(&mut conn, &buried, "1", Some(LEASE));
+    assert_eq!(
+        apply(
+            &mut conn,
+            queue::DEAD_LETTER_POSTGRES,
+            &[
+                Some(buried.as_bytes()),
+                Some(millis(LEASE).as_slice()),
+                Some(millis(FAILED).as_slice()),
+                Some(
+                    queue::dead_errors(LEASE, "IOError", "the receipt service refused").as_bytes()
+                ),
+            ],
+        ),
+        1,
+        "the row moved to the other table, which is where a `state: Dead` selection looks"
+    );
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, Some(TAG), None, "1"),
+        1,
+        "two tagged rows had finished and the bound took one of them"
+    );
+    assert_eq!(
+        status(&mut conn, &done, QUEUE),
+        None,
+        "and the one it took is the oldest, which is what makes a bounded loop drain"
+    );
+    assert_eq!(
+        status(&mut conn, &gone, QUEUE).as_deref(),
+        Some("4"),
+        "the row the bound stopped short of is untouched rather than half-removed"
+    );
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, Some(TAG), None, "10"),
+        1,
+        "the rest of the group is one row, and a roomy bound takes it"
+    );
+    assert_eq!(
+        status(&mut conn, &plain, QUEUE).as_deref(),
+        Some("2"),
+        "the finished job that named no tag is not in the group, so the tag is what narrowed it"
+    );
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, None, Some(DUE + 2), "10"),
+        0,
+        "`before` is the instant the row was enqueued and not one after it"
+    );
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, None, Some(DUE + 3), "10"),
+        1,
+        "and one millisecond later the same row is inside the age the call named"
+    );
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, None, None, "10"),
+        0,
+        "what is left has not finished, and a purge naming no state removes what has"
+    );
+    assert_eq!(
+        (
+            status(&mut conn, &waiting, QUEUE).as_deref(),
+            status(&mut conn, &held, QUEUE).as_deref(),
+            status(&mut conn, &buried, QUEUE).as_deref(),
+        ),
+        (Some("0"), Some("1"), Some("3")),
+        "a retention sweep leaves work waiting, work in flight and the record that work was lost"
+    );
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, Some("1"), None, None, "10"),
+        0,
+        "a claimed job is not removable, and no option reaches it"
+    );
+    assert_eq!(
+        purge(&mut conn, QUEUE, Some("0"), None, None, "10"),
+        1,
+        "`Pending` is opt-in rather than unreachable, which is what makes it a default and not a \
+         rule"
+    );
+    assert_eq!(
+        status(&mut conn, &waiting, QUEUE),
+        None,
+        "and the job that named it is gone"
+    );
+
+    assert_eq!(
+        purge_dead(
+            &mut conn,
+            QUEUE,
+            Some("nvs-stdlib-tests-purge:other"),
+            None,
+            "10"
+        ),
+        0,
+        "the dead-letter table carries the tag its row was enqueued under, and not another"
+    );
+    assert_eq!(
+        purge_dead(&mut conn, QUEUE, Some(TAG), None, "10"),
+        1,
+        "and a call that names `State::Dead` reaches the table § 6 moved the row into"
+    );
+    assert_eq!(
+        status(&mut conn, &buried, QUEUE),
+        None,
+        "which leaves the receipt naming nothing, because that record is what was purged"
     );
 }
 
@@ -2670,6 +3051,268 @@ fn a_framed_cancel_is_decided_by_the_statement_and_read_off_the_affected_count()
         1,
         "and it was cancellable all along, which is what separates the wrong pair from a job past \
          cancelling"
+    );
+}
+
+/// ADR 0153 § 6 on the framed dialect: a receipt names a job across the move, so
+/// `delete` finds it in the dead-letter table exactly as [`status`] already
+/// does — `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
+///
+/// **This is the arm a server decides and no unit agreement can.**
+/// [`queue::DELETE_MYSQL`] is a multi-table delete driven from a one-row derived
+/// table, and a job § 6 has already moved has no `nvs_jobs` row for the join to
+/// attach at all. The obvious spelling — the state predicate in a trailing
+/// `where` rather than on the `on` clause — drops the driving row for exactly
+/// that job, because `j.state <> 1` over a missing `j` is null; the arm that
+/// reads the other table then never runs, and the member becomes a receipt that
+/// expires the moment a job exhausts its attempts. Which of the two texts is on
+/// disk is a question only a server answers.
+///
+/// **Three states in one case, because each one is a different arm of the same
+/// statement**: the pending job the jobs arm removes, the claimed one the join's
+/// own predicate refuses, and the dead-lettered one the other arm reaches. A
+/// text that had lost any one of those still answers plausibly for the other
+/// two.
+///
+/// **The wrong queue is asked of the dead-lettered receipt** rather than of the
+/// pending one, because that is where the pair is most easily half-bound: the
+/// dead-letter arm carries its own copy of the queue condition, and a text
+/// missing it removes another queue's record of lost work while every other
+/// assertion here still passes.
+///
+/// **`1` and never `2` is the count § 6 promises.** The move is one moment, so
+/// a receipt is in one of the two tables and never in both, and a statement that
+/// affected two rows would be reporting a schema that had stopped being true.
+#[test]
+fn delete_finds_a_receipt_in_the_dead_letter_table_the_way_status_already_does() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-delete";
+    const OTHER: &str = "nvs-stdlib-tests-framed-delete-elsewhere";
+    const DUE: i64 = 9_000;
+    const TAKEN: i64 = 9_500;
+    const FAILED: i64 = 9_600;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    // Three jobs a millisecond apart, so which one each claim below takes is
+    // decided by `CLAIM_MYSQL`'s `order by run_at, id limit 1` rather than by
+    // the order this case happened to push them in.
+    let buried = push(&mut conn, QUEUE, DUE, "1");
+    let held = push(&mut conn, QUEUE, DUE + 1, "2");
+    let waiting = push(&mut conn, QUEUE, DUE + 2, "2");
+
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(took.len(), 1, "one due job is one claimed row");
+    assert_eq!(
+        took[0][ID].as_deref(),
+        Some(buried.as_str()),
+        "the oldest due job is the one claimed, and it is the one this case exhausts"
+    );
+    let lease = millis(TAKEN);
+    let errors = queue::dead_errors(TAKEN, "IOError", "the receipt service refused the order");
+    let split = queue::DEAD_LETTER_MYSQL;
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    assert_eq!(
+        apply(
+            &mut conn,
+            split.first,
+            &[
+                Some(millis(FAILED).as_slice()),
+                Some(errors.as_bytes()),
+                Some(buried.as_bytes()),
+                Some(lease.as_slice()),
+            ],
+        ),
+        1,
+        "the copy reads the columns while they still exist, keyed on the lease"
+    );
+    assert_eq!(
+        apply(
+            &mut conn,
+            split.then,
+            &[Some(buried.as_bytes()), Some(lease.as_slice())],
+        ),
+        1,
+        "and the delete is keyed on the same lease, which is what makes the pair one move"
+    );
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+    assert_eq!(
+        status(&mut conn, &buried, QUEUE).as_deref(),
+        Some("3"),
+        "the receipt still names a job, which is the whole of what § 6 owes a caller holding one"
+    );
+
+    let took = claim(&mut conn, QUEUE, TAKEN, 0);
+    assert_eq!(
+        took.len(),
+        1,
+        "the job § 6 moved is not work a worker sees, so the next due one is"
+    );
+    assert_eq!(
+        took[0][ID].as_deref(),
+        Some(held.as_str()),
+        "the second claim took the next due job, and a worker now holds it"
+    );
+
+    assert_eq!(
+        delete(&mut conn, &waiting, QUEUE),
+        1,
+        "the pending job was removed out of the jobs table, which is the member's `true`"
+    );
+    assert_eq!(
+        status(&mut conn, &waiting, QUEUE),
+        None,
+        "and it is in neither table, so the receipt has nothing left to name"
+    );
+
+    assert_eq!(
+        delete(&mut conn, &held, QUEUE),
+        0,
+        "a claimed job is not removable, and the join's own predicate is what refuses it"
+    );
+    assert_eq!(
+        status(&mut conn, &held, QUEUE).as_deref(),
+        Some("1"),
+        "the row is still there and still claimed, under the lease its worker is running on"
+    );
+
+    assert_eq!(
+        delete(&mut conn, &buried, OTHER),
+        0,
+        "the dead-letter arm is keyed on the pair, so another queue's name reaches no record"
+    );
+    assert_eq!(
+        delete(&mut conn, &buried, QUEUE),
+        1,
+        "and the receipt reaches the row in the other table, one row rather than two"
+    );
+    assert_eq!(
+        status(&mut conn, &buried, QUEUE),
+        None,
+        "which is the arm a `where` on the driving row would have dropped without saying so"
+    );
+}
+
+/// [`queue::PURGE_MYSQL`] and [`queue::PURGE_DEAD_MYSQL`] against a real MySQL or
+/// MariaDB server: the same bound, the same default set, and the same two tables
+/// as the PostgreSQL twin —
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
+///
+/// **The bound is where the two dialects genuinely differ**, and it is what a
+/// server has to decide rather than a unit agreement: PostgreSQL has no
+/// `delete … limit` and bounds a subquery instead, while this dialect takes
+/// `order by … limit` on the delete itself. Neither text can be checked against
+/// the other, because they are not the same construct.
+///
+/// **Eight placeholders for five values, sent once.** A `?` is a position that
+/// cannot be named twice, so every null-checked option here is bound as many
+/// times as it is mentioned; a text and a caller that disagree about how many
+/// there are is the failure this leg exists to catch, and it is invisible to
+/// anything that does not prepare the statement.
+///
+/// **The tag is asked for as a group nothing here is in.** No push on this leg
+/// names one, so a call naming a tag selects nothing — which is the answer that
+/// says the arm binds and narrows rather than being ignored.
+///
+/// **Everything the PostgreSQL twin asks about `before` and the opt-in states is
+/// asked there and not repeated here.** What differs between the two texts is
+/// the bound and the placeholders; the rest is one selection written twice, and
+/// a case that transcribed the whole of it would cost every framed leg the same
+/// six rows to assert nothing new.
+#[test]
+fn a_framed_purge_is_bounded_and_reaches_the_dead_letter_table_only_when_asked() {
+    const QUEUE: &str = "nvs-stdlib-tests-framed-purge";
+    const TAG: &str = "nvs-stdlib-tests-framed-purge:batch";
+    const DUE: i64 = 12_000;
+    const LATER: i64 = 13_000;
+    const LEASE: i64 = 12_500;
+    const FAILED: i64 = 12_600;
+
+    let Some(server) = framed() else {
+        return;
+    };
+    schema(&server);
+    let mut conn = open(&server);
+    clear(&mut conn, QUEUE);
+
+    let done = push(&mut conn, QUEUE, DUE, "2");
+    let gone = push(&mut conn, QUEUE, DUE + 1, "2");
+    let buried = push(&mut conn, QUEUE, DUE + 2, "2");
+    let held = push(&mut conn, QUEUE, DUE + 3, "2");
+    let waiting = push(&mut conn, QUEUE, LATER, "2");
+
+    set_state(&mut conn, &done, "2", None);
+    set_state(&mut conn, &gone, "4", None);
+    set_state(&mut conn, &held, "1", None);
+    set_state(&mut conn, &buried, "1", Some(LEASE));
+    let errors = queue::dead_errors(LEASE, "IOError", "the receipt service refused");
+    let lease = millis(LEASE);
+    let split = queue::DEAD_LETTER_MYSQL;
+    conn.begin(None, false)
+        .expect("the server opened the transaction");
+    apply(
+        &mut conn,
+        split.first,
+        &[
+            Some(millis(FAILED).as_slice()),
+            Some(errors.as_bytes()),
+            Some(buried.as_bytes()),
+            Some(lease.as_slice()),
+        ],
+    );
+    apply(
+        &mut conn,
+        split.then,
+        &[Some(buried.as_bytes()), Some(lease.as_slice())],
+    );
+    conn.commit()
+        .expect("the server closed the transaction the pair was one moment inside");
+
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, Some(TAG), None, "10"),
+        0,
+        "nothing on this leg was pushed under a tag, so the group the call named is empty"
+    );
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, None, None, "1"),
+        1,
+        "two rows had finished and the bound this dialect spells took one of them"
+    );
+    assert_eq!(
+        status(&mut conn, &done, QUEUE),
+        None,
+        "and it took the oldest, which is the `order by` in front of that bound"
+    );
+    assert_eq!(
+        purge(&mut conn, QUEUE, None, None, None, "10"),
+        1,
+        "the other finished row goes to the next call, as a caller's loop would make it"
+    );
+    assert_eq!(
+        (
+            status(&mut conn, &waiting, QUEUE).as_deref(),
+            status(&mut conn, &held, QUEUE).as_deref(),
+            status(&mut conn, &buried, QUEUE).as_deref(),
+        ),
+        (Some("0"), Some("1"), Some("3")),
+        "and left the pending row, the claimed one and the dead-lettered one where they were"
+    );
+
+    assert_eq!(
+        purge_dead(&mut conn, QUEUE, None, Some(LATER), "10"),
+        1,
+        "the dead-letter selection is its own statement, and it reads the age off the same column"
+    );
+    assert_eq!(
+        status(&mut conn, &buried, QUEUE),
+        None,
+        "which is the one table `State::Dead` selects, and the receipt now names nothing"
     );
 }
 
