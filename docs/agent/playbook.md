@@ -1567,6 +1567,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   keep the construct the *rule* mandates, and assert the two halves apart rather than dropping the
   index to make the sentence true.
   [until: gone crates/nvs-db/src/ddl.rs:An index is built over every existing row]
+- **A `## Next group` item anchored `file.rs:@symbol` passes the wrap and is not inlined into the
+  next pack.** `session.py --wrap` accepts it as an anchor, so the item reads as complete, but
+  `orient.py` inlines code only for a `file:NN` anchor — a session whose item said
+  `crates/nvs-db/src/sqlite.rs:@begin` therefore opened the pack with no code in it and paid three
+  reads to find what the previous session already had on screen. Write the line number, as the
+  handoff contract in `session-prompt.md` spells it, and let `python tools/peek.py --locate` produce
+  it. [until: gone tools/orient.py:re:@]
 
 ## Running things
 
@@ -4081,6 +4088,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and the answer is `an options argument must be written out as {...} at the call site` — the
   options are flattened one per argument, so there is nothing for a value to be checked against.
   Write the case, run `target/debug/nvs.exe test <file>`, and paste back the line it printed.
+  [until: reviewed 2026-09-10]
+- **A `-p nvs-stdlib` test *can* run a real statement, on exactly one driver.** The bullets above
+  are right that no `nvs_db::Connection` can be built there, and wrong by implication that no
+  statement can run: `nvs_db::sqlite::open` is public and answers a bare `SqliteConn`, so an
+  in-memory database is a real engine needing no container and no `NVS_DB_MATRIX_DRIVER`. Reach for
+  it when the subject is a *statement* rather than a member, build the schema from the value the
+  product uses so the fixture cannot drift, and see `crates/nvs-stdlib/tests/queue_sqlite.rs`.
   [until: reviewed 2026-09-10]
 
 ## Splitting a file that got too big

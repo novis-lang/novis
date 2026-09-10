@@ -450,9 +450,9 @@ fn framed_claim(
 /// [`nvs_stdlib::queue::Split::first`]'s row, then `then` against the id it named — inside the
 /// transaction [`framed_claim`] opened.
 ///
-/// The columns are at the ordinals the constants above name, on this dialect as on the other:
-/// `both_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds the two
-/// `select` lists to one set of positions, so nothing here is a second reading of § 4's list.
+/// The columns are at the ordinals the constants above name, on this dialect as on the others:
+/// `all_three_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds every
+/// `select` list to one set of positions, so nothing here is a second reading of § 4's list.
 fn claimed_in_two(
     framed: &mut Framed<'_>,
     bound: &[Option<&[u8]>],
@@ -908,8 +908,10 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
         // refusal that has stopped being true.
         nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
             eprintln!(
-                "warning: no queue worker started: `[db.{name}]` names the {} driver, which runs no \
-                 statement at all yet — `Core\\Db`'s own known gaps are the list",
+                "warning: no queue worker started: `[db.{name}]` names the {} driver, and \
+                 `Core\\Queue` has no worker statements for it yet — the gap is that roster and \
+                 not the connection, and a `Core\\Queue::push` against the same block refuses with \
+                 the sentence naming what this driver still needs",
                 driver.display_name()
             );
             None

@@ -2,62 +2,54 @@
 
 ## State
 
-**Goal 35 — the queue runs on SQLite — has just started; nothing of it has landed yet.** Goal
-`queue-purge`'s whole list is this goal's Stage 1 floor.
+**Goal `sqlite-queue`, stage 2 — the keystone — is landed except its ADR.** Both of stage 2's
+`[[check]]` blocks now name tests that exist and pass.
 
-What is settled before the first session:
-
-- **The mechanism is not a choice.** `rule:concurrency/claiming-is-one-statement` names it — "an
-  immediate transaction on SQLite, whose single-writer model makes contention moot" — and the goal
-  implements it rather than re-opening it. A session that prefers a single `update … where id =
-  (select …) returning …` has found a real alternative and still may not take it here: that is an
-  edit to the fragment through a record whose `changes:` block names it.
-- **The mechanism does not exist yet, and that is the whole keystone.** `SqliteConn::begin` emits a
-  bare `BEGIN` at depth 0 and ignores its `isolation` argument entirely, which SQLite reads as
-  `DEFERRED`. A deferred transaction that reads and then writes is answered with `SQLITE_BUSY` on
-  the upgrade *without honouring the busy timeout*, so `CLAIM_MYSQL`'s shape transcribed onto this
-  backend is a claim that fails only under two connections and never under one.
-- **`Core\Db`'s SQLite support is complete and always was.** The gap is `Core\Queue`'s § 4 texts
-  alone. `crates/nvs-cli/src/worker.rs:903-911` says otherwise to an operator's face and is stage
-  0's first correction.
-- **SQL Server stays out.** Its refusal is a schema question in front of a statement question, and
-  `no_dialect`'s SQL Server arm keeps its "filtered index" sentence exactly as it is.
+- `SqliteConn::begin_immediate` is at `crates/nvs-db/src/sqlite.rs:763`: its own entry point, not a
+  sixth `Isolation` case, refusing any depth above zero and moving the depth only after a command
+  SQLite accepted. Four cases hold it, all over two connections.
+- `queue::CLAIM_SQLITE` is at `crates/nvs-stdlib/src/queue.rs:713`, with no locking clause and the
+  sentence saying why one would be a syntax error rather than an improvement.
+- `crates/nvs-stdlib/tests/queue_sqlite.rs` executes it: three cases, two connections over one
+  in-memory database, no container and no matrix gate. It is the first queue suite that runs on the
+  default `python tools/verify.py` legs.
+- **Nothing past the claim exists.** `Queued` at `crates/nvs-stdlib/src/queue.rs:2224` still has two
+  arms, so `Core\Queue` refuses a SQLite block at `no_dialect` and `nvs serve` starts no worker for
+  one. That is stage 3's and stage 4's whole subject.
+- Nothing is blocked, and no design call is waiting on the user.
 
 ## Next group
 
-**Stage 2: the immediate transaction, and the claim on top of it** — one file set:
-`crates/nvs-db/src/sqlite.rs`, `crates/nvs-stdlib/src/queue.rs`.
+**Stage 2's ADR, then stage 3's seam** — one file set: `crates/nvs-stdlib/src/queue.rs`,
+`crates/nvs-cli/src/worker.rs`, and the rulebook pair the ADR edits.
 
-- [ ] **The primitive** — `crates/nvs-db/src/sqlite.rs:@begin`, whose depth-0 arm is the bare
-      `BEGIN`. A dedicated entry point rather than a new `Isolation` case, so
-      `Core\Db::transaction`'s behaviour does not move for any existing caller. Asking for one at a
-      depth above zero is the refusal to write, beside the two that method already has.
-- [ ] **The depth accounting** — the same file's `commit` deliberately leaves the depth where it was
-      on a refused outermost commit. An immediate transaction is an outermost one by definition, so
-      the new path must not invent a second rule for the counter.
-- [ ] **`CLAIM_SQLITE`** — `crates/nvs-stdlib/src/queue.rs:@CLAIM_MYSQL` is the shape: two statements
-      inside the transaction, answering `CLAIM_POSTGRES`'s six columns in its order, with
-      `attempts + 1 as attempts` for that constant's reason. **No locking clause**, and the comment
-      says why — the single writer is the mutual exclusion, and a later reader will otherwise try to
-      add `skip locked`.
-- [ ] **The check is two connections over one file.** A claim proven on one connection is a claim
-      whose whole failure mode was never exercised.
-- [ ] **The ADR** — this goal's one slot, taken here: the claim, the primitive, and where the
-      primitive sits.
-- [ ] **Stage 0's first correction**, since the file is open anyway:
-      `crates/nvs-cli/src/worker.rs:903-911` is wrong about `Core\Db` today.
+- [ ] **The ADR** — `docs/rules/concurrency/claiming-is-one-statement.md:1` and that rule's entry in
+      `docs/rules/concurrency.json:1`. This goal's one slot: the claim, the primitive, and where the
+      primitive sits. A record touching no rule is not a decision (`conventions.md` § *A decision
+      record*), and the fragment already names the immediate transaction — so what its
+      `changes.modifies` buys is the sentence the fragment does not have yet: on the one backend
+      with a single writer the exclusion *is* the immediate transaction, which is why that dialect's
+      claim carries no locking clause and cannot be given one. Re-read `docs/decisions/` for the
+      free number before creating the file, and finish with `python tools/rules.py --render`.
+- [ ] **The dispatch seam** — `crates/nvs-stdlib/src/queue.rs:2224` (`Queued`, two arms) and
+      `queue_connection` at `crates/nvs-stdlib/src/queue.rs:2192`, which sends SQLite to
+      `no_dialect` at `crates/nvs-stdlib/src/queue.rs:2253`. Every statement stages 3 and 4 owe
+      needs a third arm here first, and `no_dialect`'s SQLite sentence — "one text away" — is what
+      stops being true the day it lands.
+- [ ] **`INSERT_SQLITE`**, beside `CLAIM_SQLITE` at `crates/nvs-stdlib/src/queue.rs:713`.
+      `INSERT_MYSQL` is the `Split` shape and `rule:core-classes/queue-storage-is-a-table`'s
+      `dedupe_pending` is the column it maintains; `tests/queue_sqlite.rs`'s own `push` fixture is
+      the hand-written insert a real one replaces.
+- [ ] **The worker's claim path** — `crates/nvs-cli/src/worker.rs:456` (`claimed_in_two`) runs the
+      pair for `Framed` inside a `Framed` transaction. SQLite needs the same two statements inside
+      `begin_immediate`, and the columns are already at one set of ordinals for all three dialects.
 
 ## Backlog
 
-- **Stage 3 — the worker's other statements** (`crates/nvs-stdlib/src/queue.rs` alone): `INSERT`,
-  `DEAD_LETTER`, `SUCCEEDED`, `RETRY`, `QUEUES`. Cheap to take in the same session as stage 2 if the
-  budget holds — it is the same file and the same transaction.
-- **Stage 4 — the six members' statements** (`crates/nvs-stdlib/src/queue.rs` alone): `STATUS`,
-  `CANCEL`, `COUNTS`, `DELETE`, `PURGE`, `PURGE_DEAD`. `DELETE` is a `Split`; `PURGE` copies
-  PostgreSQL's subquery bound, never `delete … limit`.
-- **Stage 5 — the three seams** (`queue.rs` + `crates/nvs-cli/src/worker.rs`): `runs`, `Queued`,
-  `no_dialect`, `Wire`, the worker's local `Dialect`, and `open`'s refusal arm.
-- **Stage 6 — the matrix leg and the cases** (`crates/nvs-stdlib/tests/queue.rs`,
-  `tools/db-matrix.py`, `tests/conformance/`): the first queue coverage that runs on a machine with
-  no daemon.
-- When this goal's last check goes green the driver takes goal `serve-runs-the-queue`.
+- Stage 3's remaining statements — dedupe, the dead-letter move, the retry ladder, the roster —
+  `docs/agent/loop-goal.md` § *Stage 3*.
+- Stage 4's six members on SQLite, and stage 5's diagnostics — same file, § *Stage 4* and § *Stage 5*.
+- `[queue] workers` owes a sentence where an operator reads it, saying where the number stops buying
+  throughput against a single-writer database — the goal's § *Standing decisions*.
+- `crates/nvs-stdlib/tests/queue.rs:209` refuses SQLite in `open` and stays that way on purpose:
+  `tests/queue_sqlite.rs` is the SQLite home, because its gate is the opposite one.
