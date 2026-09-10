@@ -2,49 +2,51 @@
 
 ## State
 
-**Milestone M8, goal `queue-purge`. Stage 3 is landed:** `Core\Queue::purge(string $queue, {state?,
-tag?, before?, limit?}): uint` is written, gated on `queue.purge`, and held by four `-p nvs-stdlib`
-tests and three `.nvst` cases. `delete` and the `queue.purge` roster entry were already on disk.
-`python tools/verify.py` is green.
+**Milestone M8, goal `queue-purge`. Stage 4 is landed:** `E0637` (`E_UNGRANTED_QUEUE`) is declared at
+`crates/nvs-diagnostics/src/lib.rs:1820`, the intrinsic table reads a written `Core\Queue::purge`
+queue name against the compiling machine's `queue.purge` grant, and four `-p nvs-types` tests hold it
+to `E0618`'s conditions. Stages 3 and 5 were already on disk — the three
+`core_queue_declares_…`/`…_reference_card_…` tests stage 5 names live in `crates/nvs-stdlib/src/queue.rs:4147`.
 
-**The bound with nothing written is `DEFAULT_PURGE_LIMIT` = 1000**, decided this session because ADR
-0153 § 4 names none; the reasoning is that constant's own doc comment in
-`crates/nvs-stdlib/src/queue.rs`. The queue name is `Qual::Neutral` by
-`rule:security/sink-predicate` — a bound parameter the protocol frames, with the grant, not a
-qualifier, as what keeps a request from choosing which queue is swept.
+**The goal's prose said `E0635`, which is `E_NO_UNIX_TRANSPORT`.** The four check names, the check's
+own name, the stage comment and both goal `.md` copies now say `E0637`.
+[ADR 0153](../decisions/0153.md) § *Diagnostics* still says `E0635`: a record is frozen rationale, so
+the goal files carry the corrected number and the record is history.
 
-**Open:** stage 4's static half, and stage 6's fixture. `examples/queue-purge.nvs` — the driver's
-failing acceptance check — is stage 6 and wants a live database, so it is not the next thing.
+**The two goal files had drifted** — the live `docs/agent/loop-goal.toml` held `[context]` widenings
+`docs/agent/goals/34-queue-purge.toml` never got. They are byte-identical again.
 
-**Still a goal bug, not a gap:** stage 4's `-p nvs-types` check names `E0635`, which is already
-`E_NO_UNIX_TRANSPORT` at `crates/nvs-diagnostics/src/lib.rs:1778`. The band's next free code is
-`E0637`, and the four check names in `docs/agent/loop-goal.toml` have to be re-spelled with whatever
-number is chosen before their tests can be written.
+**Open:** stage 6's fixture alone. `python tools/reference.py --check` (stage 6's reference check)
+already passes.
 
 ## Next group
 
-**Stage 4: the static half, the one diagnostic** — one file set:
-`crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-types/src/intrinsics.rs`,
-`crates/nvs-types/tests/intrinsics.rs`, `docs/agent/loop-goal.toml`.
+**Stage 6: the fixture, and the grant a deployment writes for it** — one file set:
+`examples/queue-purge.nvs`, `nvs.toml`, `docs/agent/loop-goal.toml`.
 
-- [ ] **Claim the code and repair the check.** Declare it beside `E_UNGRANTED_HOST` at
-      `crates/nvs-diagnostics/src/lib.rs:1510` — the band's next free is `E0637`, re-read at the
-      moment of writing — and re-spell the four test names in the `stage = "4 the diagnostic"`
-      block at `docs/agent/loop-goal.toml:7316`, which currently say `e0635`. ADR 0153 § 5 and
-      `rule:security/capability-check-at-the-door` are what the code is about; it is `E0618` one
-      class over and is asked under `E0618`'s conditions and no others.
-- [ ] **The check, in `E0618`'s own shape**, at `crates/nvs-types/src/intrinsics.rs:635`: a
-      *written* `Core\Queue::purge` queue name that no `[capabilities.queue] purge` entry grants is
-      refused while checking, and a computed one is not refused before it runs. `delete` has no
-      static half at all — its queue arrives inside a `Queue\Id`.
-      `rule:expressions/intrinsic-list-is-closed` is the hook's own rule.
-- [ ] **The four `-p nvs-types` tests**, beside `crates/nvs-types/tests/intrinsics.rs:695`, which
-      is `reported(&ungranted, code::E_UNGRANTED_HOST)` — the same fixture one grant over. The
-      fourth of them asserts `delete` is refused at the door and not while checking.
+- [ ] **Write `examples/queue-purge.nvs`**, printing the eight lines frozen at
+      `docs/agent/loop-goal.toml:7344` in that order — `tagged=3`, `purged-pending=2`,
+      `dead-survives=1`, `purged-dead=1`, `claimed-delete=false`, `terminal-delete=true`,
+      `bounded=1`, `remaining=0`. That list is the specification and the properties it pins are
+      `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s: `Dead` and `Pending` are opt-in,
+      a claimed row is not removable, and `limit` bounds one call. `examples/db.nvs:20` is the
+      example that owns the same shape — its own comment says the connection is named in root-owned
+      config and the frozen lines live in the goal file, not in the source.
+- [ ] **Grant the fixture its queue**, as an `[[app]]` entry in the root `nvs.toml` beside the four
+      `[app.capabilities.db]` ones (line 196), with `[app.capabilities.queue] purge` naming exactly
+      the queue the fixture pushes to — `rule:security/capability-roster-is-closed`, and
+      `crates/nvs-config/src/tree.rs:536` is the block's own field, one `purge` key and nothing
+      else. That file's `[queue] connection = "main"` (line 359) resolves to the Postgres container
+      (line 278), so this leg needs a reachable Docker daemon and the check is red without one.
+- [ ] **Read the run back once** with `target/debug/nvs.exe run examples/queue-purge.nvs`, then fix
+      the source and never the `want` list at `docs/agent/loop-goal.toml:7345`: the eight lines are
+      the goal's, and a fixture edited to match what it printed pins nothing.
 
 ## Backlog
 
-- `examples/queue-purge.nvs` and its eight frozen `want` lines — stage 6, `docs/agent/loop-goal.toml:7344`.
-- The stage 6 conformance and differential suites, and `python tools/reference.py --check`.
-- `purge`'s server-side case already exists as `purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit` in `crates/nvs-stdlib/tests/queue.rs` — container-gated, so it is not run by `verify.py`.
+- The two stage 6 `nvs-suite` checks — the conformance and differential trees,
+  `docs/agent/loop-goal.toml:7363`.
+- `purge`'s server-side case is `purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit`
+  in `crates/nvs-stdlib/tests/queue.rs` — container-gated, so `verify.py` does not run it.
+- ADR 0153 § *Diagnostics* names `E0635` where the tree has `E0637`; frozen on purpose, do not "fix" it.
 - Carried gaps that outlive this goal are in `docs/agent/carried-gaps.md`.

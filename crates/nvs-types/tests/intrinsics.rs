@@ -12,7 +12,7 @@
 mod common;
 
 use common::{check_src, check_src_granted, check_src_table};
-use nvs_config::tree::{CapDb, Capabilities, Setting};
+use nvs_config::tree::{CapDb, CapQueue, Capabilities, Setting};
 use nvs_diagnostics::{Code, Diagnostics, code};
 use nvs_stdlib::regex::Tier;
 use nvs_types::expr_table::ExprTypeTable;
@@ -735,5 +735,125 @@ fn an_open_host_says_nothing_where_a_half_of_the_question_is_missing() {
     assert!(
         !computed.has_errors(),
         "a computed host was refused while checking: {computed:?}"
+    );
+}
+
+/// A deployment granting exactly one queue under `queue.purge`, and nothing
+/// else at all — `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s
+/// block as the compiling machine reads it, which is
+/// [`granting`]'s fixture one capability over.
+fn sweeping(queue: &str) -> Capabilities {
+    Capabilities {
+        queue: Some(CapQueue {
+            purge: Some(Setting::List(vec![queue.to_owned()])),
+        }),
+        ..Capabilities::default()
+    }
+}
+
+/// `Core\Queue::purge` with `queue` written as its subject, checked against
+/// `grants` — [`open`]'s call one member over, and the simpler address of the
+/// two: the name is the argument itself rather than a field inside a shape.
+fn purge(queue: &str, grants: Option<&Capabilities>) -> Diagnostics {
+    check_src_granted(
+        &format!(
+            "<?nvs\nclass Main {{\n  public static function main(): void {{\n    \
+             uint $swept = Core\\Queue::purge({queue}, {{limit: 100}});\n  }}\n}}\n"
+        ),
+        grants,
+    )
+}
+
+#[test]
+fn a_written_purge_queue_name_outside_the_grant_is_e0637() {
+    // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s grant, read
+    // before the program runs. Both halves are facts here — the name is a
+    // literal and the grant is this machine's — so the answer is the one
+    // `nvs_runtime::capability::require` would have given at the door, moved
+    // earlier per `rule:expressions/preparation-preserves-behaviour` rather
+    // than made stricter.
+    let caps = sweeping("retention");
+    let ungranted = purge("\"email\"", Some(&caps));
+    assert!(
+        reported(&ungranted, code::E_UNGRANTED_QUEUE),
+        "an ungranted literal queue compiled: {ungranted:?}"
+    );
+
+    // The pair that makes it a boundary rather than a ban, and the reason the
+    // list is walked instead of merely being present: the granted queue, in
+    // the same call, is fine.
+    let granted = purge("\"retention\"", Some(&caps));
+    assert!(
+        !granted.has_errors(),
+        "a granted literal queue was refused: {granted:?}"
+    );
+}
+
+#[test]
+fn a_computed_purge_queue_name_is_not_refused_before_it_runs() {
+    // Nothing is refused for being dynamic. A name this pass cannot fold is
+    // decided at the door with the value in hand, which is the same refusal
+    // one moment later and never a different one.
+    let caps = sweeping("retention");
+    let computed = check_src_granted(
+        "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+         string $q = Core\\Str::lower(\"EMAIL\");\n    \
+         uint $swept = Core\\Queue::purge($q, {limit: 100});\n  }\n}\n",
+        Some(&caps),
+    );
+    assert!(
+        !computed.has_errors(),
+        "a computed queue name was refused while checking: {computed:?}"
+    );
+}
+
+#[test]
+fn e0637_is_not_asked_when_the_checking_machine_read_no_configuration() {
+    // An `nvs check` outside a project root read no grants at all, and a
+    // refusal there would be one no deployment made — see
+    // `nvs_types::check_program_granted`.
+    let unconfigured = purge("\"email\"", None);
+    assert!(
+        !unconfigured.has_errors(),
+        "an unconfigured check denied a queue: {unconfigured:?}"
+    );
+
+    // Absent is not empty, which is the other side of that bound: a
+    // configuration this machine did read and that grants no queue at all is
+    // the denial `rule:security/capability-roster-is-closed`'s deny-by-default
+    // reading gives it.
+    let nothing = Capabilities::default();
+    let denied = purge("\"email\"", Some(&nothing));
+    assert!(
+        reported(&denied, code::E_UNGRANTED_QUEUE),
+        "an absent `queue` block granted a queue: {denied:?}"
+    );
+}
+
+#[test]
+fn delete_has_no_static_half_and_is_refused_at_the_door() {
+    // `delete`'s queue arrives inside the `Queue\Id` a receipt carries, so
+    // there is no written name for this pass to read however literal the rest
+    // of the call is — the grant is asked about at the door, where the value
+    // is in hand.
+    let caps = sweeping("retention");
+    let deleting = check_src_granted(
+        "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+         var $receipt = Core\\Queue::push(\"jobs/send-receipt.nvs\", {queue: \"email\"});\n    \
+         bool $gone = Core\\Queue::delete($receipt);\n  }\n}\n",
+        Some(&caps),
+    );
+    assert!(
+        !deleting.has_errors(),
+        "a `delete` was refused while checking: {deleting:?}"
+    );
+
+    // And the grant those same `caps` hold is live, so the silence above is
+    // `delete`'s shape rather than a fixture that grants everything: the
+    // queue that call names is one a written `purge` is refused for.
+    let swept = purge("\"email\"", Some(&caps));
+    assert!(
+        reported(&swept, code::E_UNGRANTED_QUEUE),
+        "the same grant let a written `purge` through: {swept:?}"
     );
 }
