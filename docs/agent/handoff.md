@@ -2,58 +2,49 @@
 
 ## State
 
-**Goal `unowned-sweep`, stage 2.** ADR 0147's mechanism is landed end to end and `Core\Uri::with` is
-the member spending it. Five of the stage-2 check's eight `-p nvs-stdlib` names now exist and pass —
-the three that drive the landed `with` through `nvs_runtime::call`, in
-`crates/nvs-stdlib/src/uri.rs`, and the two read off the registry rows, in
-`crates/nvs-stdlib/src/registry.rs` beside the pairing guard they extend.
+**Goal `unowned-sweep`, stage 2 — landed.** ADR 0147's mechanism is spent end to end and both levels
+of `rule:core-classes/uri-removable-components` are on disk: `with` clears a component, and the new
+pair `queryParameter` / `withQueryParameter` edits one query parameter by a name chosen at run time.
+All eight `-p nvs-stdlib` names the stage-2 check lists exist and pass; the other two stage-2 checks'
+names were already on disk. The rule's status is now `shipped`, and `docs/rules/`, `docs/novis.md`
+and `docs/ground-rules.md` are re-rendered.
 
-**The stage-2 line stays red until the last three names exist, and that is open work rather than a
-regression.** They belong to the `queryParameter` / `withQueryParameter` pair —
-`rule:core-classes/uri-removable-components`'s second level, which is why that rule is still
-`designed`, and `crates/nvs-stdlib/src/uri.rs`'s known gap 1. That pair is the next group; it was not
-taken here because it widens the file set to the spec, the reference page and the `.nvst` corpus.
+`crates/nvs-stdlib/src/uri.rs` has **no `# Known gaps` section left** — gap 1 was exactly this pair.
+The pair composes that module's own `query` slot, `parse_query` and `build`, so the query string
+gained no second canonicalization; it inherits `buildQuery`'s one divergence, where a name spelling
+brackets and an array value write the same bytes, and the writer's doc comment is that fact's home.
 
-`Core\Queue`'s gap 1 stays closed as a **decision**, and `crates/nvs-stdlib/src/queue.rs`'s module doc
-is its home: `limits` and `grants` wait on enforcement in `nvs_types::expr::isolate`, not on a
-spelling. Nothing is blocked.
+`Core\Queue`'s gap 1 stays closed as a **decision** in `crates/nvs-stdlib/src/queue.rs`'s module doc:
+`limits` and `grants` wait on enforcement in `nvs_types::expr::isolate`, not on a spelling. Nothing
+is blocked. **Stage 3 has none of its three `-p nvs-types` names on disk**, and is the next group.
 
 ## Next group
 
-**Stage 2: the query-parameter pair, `rule:core-classes/uri-removable-components`'s second level** —
-one file set: `crates/nvs-stdlib/src/uri.rs`, with `docs/spec/01-core-library.md` and
-`docs/reference/core/Uri.md` edited in the same slice as the row that lands.
+**Stage 3: `array<T>` accepts a covariant read, `rule:types/unions-and-mixed`'s assignability
+relation** — one file set: `crates/nvs-types/tests/arrays.rs`, over
+`crates/nvs-types/src/expr/assign.rs`. The user's decision, recorded and not re-argued
+(`docs/agent/loop-goal.md` § *Standing decisions*).
 
-- [ ] **`queryParameter(string $name)` — the singular reader** — `crates/nvs-stdlib/src/uri.rs:398` is
-      `CLASS`'s instance roster, `crates/nvs-stdlib/src/uri.rs:940` the `address()` arm whose miss is a
-      runtime panic naming the symbol, and `crates/nvs-stdlib/src/uri.rs:2392` the `parseQuery` walk it
-      composes with rather than parsing a second time. The gap it closes is
-      `crates/nvs-stdlib/src/uri.rs:331` item 1; the row's spec line goes in beside
-      `docs/spec/01-core-library.md:868`.
-- [ ] **`withQueryParameter(string $name, mixed $value)` — the singular writer** —
-      `crates/nvs-stdlib/src/uri.rs:2489` is `buildQuery` and `crates/nvs-stdlib/src/uri.rs:2111` is
-      `with`, and writing the rebuilt query back through that member is what keeps one
-      canonicalization. A `null` value removes the pair
-      (`rule:core-api/a-written-null-removes`), removing the last one leaves no query at all rather
-      than a bare `?`, and an array value rides the bracket convention `parseQuery` already reads.
-- [ ] **The check's last three names, plus the conformance floor** —
-      `crates/nvs-stdlib/src/uri.rs:3341` is the test module's `with_of` / `one` / `text_of` /
-      `nullable` helpers, which drive a member the way these need. The names are
-      `with_query_parameter_sets_one_pair_and_leaves_every_other_alone`,
-      `a_null_value_removes_one_pair_and_the_last_one_leaves_no_query_at_all` and
-      `a_query_parameter_round_trips_an_array_value_through_the_bracket_convention`; three `.nvst`
-      cases per member under `tests/conformance/core/` are the separate floor
-      `crates/nvs-stdlib/tests/conformance_coverage.rs` enforces.
+- [ ] **`an_array_of_int_satisfies_an_array_of_int_or_string_parameter`** — read
+      `crates/nvs-types/src/expr/assign.rs:172` **before writing any code**: that arm already
+      recurses `is_assignable` on the element type, so the widening may already hold and the item is
+      then the test that pins it rather than a change. The test's home is the end of
+      `crates/nvs-types/tests/arrays.rs:153`. `rule:types/unions-and-mixed`.
+- [ ] **`the_widening_accepts_strictly_more_programs_and_breaks_none_that_compile_today`** — the
+      other side of the same bound, over `crates/nvs-types/src/expr/assign.rs:60`'s entry point: an
+      `array<int|string>` argument still does *not* satisfy an `array<int>` parameter, so the
+      relation is one-way. Same file set. `rule:types/unions-and-mixed`.
+- [ ] **`a_write_through_the_widened_parameter_does_not_reach_the_callers_array`** — the check files
+      this under `-p nvs-types`, which cannot observe a runtime write; decide from
+      `crates/nvs-runtime/src/array.rs:853`, where `set` calls `make_unique`, whether the claim a
+      type test can carry is that an array parameter is a *value* parameter, and split the check if
+      it is not (`docs/agent/playbook.md` § *Tooling*, the `loop-goal.toml`-check bullets).
 
 ## Backlog
 
-- `Core\Queue` gap 2: the `existing` arm reads the table inside the statement that writes it, racy at
-  `read committed` — `crates/nvs-stdlib/src/queue.rs`'s own `# Known gaps`.
-- `limits`/`grants` become two ordinary options the day `spawn script` stops answering
-  `E_SPAWN_OPTION_UNSUPPORTED` — same gap list, item 1.
-- Stage 3, the `array<T>` covariant read the user already took —
-  `crates/nvs-types/src/expr/assign.rs`.
-- Stage 4, the panic hook and `[limits] max_output` — `crates/nvs-runtime/src/lib.rs`,
-  `crates/nvs-stdlib/src/process.rs`.
-- `Core\Db::open`'s half of the lifted blocker needs no edit of its own; the agreement is asserted
-  from `crates/nvs-stdlib/src/queue.rs` over every registered row.
+- Stage 4's two small ones — the panic hook's request id, and `max_output` over a capture —
+  `docs/agent/loop-goal.toml`, stage `4 hook and cap`.
+- `docs/reference/core/Uri.md`'s example is at ten lines of output; a further member added there
+  wants a second block rather than an eleventh line — `docs/reference/README.md`.
+- Whether any other `Core` member should spend the three-state bag now that `Uri` has —
+  `rule:core-api/omission-is-not-a-written-null`, and each member's own spec row.

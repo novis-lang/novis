@@ -4005,6 +4005,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   check. What that crate can hold is why the refusal must exist: the option's omission already arrives
   under `Tag::Null`, so a written one would be the argument the helper reads as not given. Ask what
   the row makes true before asking which crate compiles the refusal. [until: reviewed 2026-09-10]
+- **A `.nvst` `foreach` that binds a *typed* variable over an array **literal** is `E0401: expected
+  'string', found 'mixed'`, and the diagnostic points at the binding.** An array literal in an
+  unannotated position interns as `array<mixed>`, so its elements are `mixed` whatever was written
+  inside it, and the binding is the first place that becomes a mismatch. Declare the subject first —
+  `array<string> $names = [...]; foreach ($names as string $name)` — which is what the corpus already
+  does everywhere a `foreach` binding carries a type. [until: reviewed 2026-09-10]
 
 ## Splitting a file that got too big
 

@@ -13702,7 +13702,7 @@ Closes the stream and answers the digest of everything `update` fed it, as `hash
 <a id="core-core-uri"></a>
 ### `Core\Uri`
 
-Keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, resolve, compareTo
+Keywords: parse_url, filter_var, FILTER_VALIDATE_URL, rawurlencode, rawurldecode, urlencode, urldecode, parse_str, http_build_query, URL, URI, query string, percent-encoding, parse, tryParse, encodeComponent, decodeComponent, encodeFormValue, decodeFormValue, parseQuery, buildQuery, scheme, userInfo, host, port, path, query, fragment, toString, with, queryParameter, withQueryParameter, resolve, compareTo
 
 `Core\Uri::parse` reads a URI *reference* and answers an instance whose readers report each
 component exactly as written — still percent-encoded, in its own case. Every reader but `path` is
@@ -13710,7 +13710,11 @@ component exactly as written — still percent-encoded, in its own case. Every r
 the same read with `null` in place of `RuntimeError`, and is the spelling of "is this text a URI".
 `with` and `resolve` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
 `==` on two `Uri` objects is identity. `parseQuery` and `buildQuery` read and write the bracket
-convention, and `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+convention, and `queryParameter`/`withQueryParameter` are the same convention over **one** parameter
+by name — a name `with` cannot take as a bag key, because a bag's keys are declared and a parameter's
+name is chosen at run time. The name is top-level, so an array `$value` is what writes `a[b]`; a
+`null` `$value` removes the pair, and removing the last one leaves no query at all rather than a bare
+`?`. `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
 The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
 send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
 which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.
@@ -13735,6 +13739,8 @@ var $q = Core\Uri::parseQuery("a=1&b[]=2&b[]=3");
 echo Core\Str::join(Core\Arr::keys($q), ","), "\n";
 array<mixed> $params = ["name" => "a b", "page" => 2];
 echo Core\Uri::buildQuery($params), "\n";
+echo $u->queryParameter("x") as bytes as string, "\n";
+echo $u->withQueryParameter("y", null)->withQueryParameter("z", "3")->toString(), "\n";
 echo Core\Uri::encodeComponent("a b&c"), " ", Core\Uri::encodeFormValue("a b&c"), "\n";
 ```
 ```output
@@ -13747,6 +13753,8 @@ not a uri
 same uri
 a,b
 name=a+b&page=2
+1
+https://example.com:8443/a/b%20c?x=1&z=3#top
 a%20b%26c a+b%26c
 ```
 
@@ -13769,6 +13777,8 @@ a%20b%26c a+b%26c
 | [`Core\Uri->fragment`](#core-core-uri-fragment) | `fragment(): ?string` |
 | [`Core\Uri->toString`](#core-core-uri-tostring) | `toString(): string` |
 | [`Core\Uri->with`](#core-core-uri-with) | `with({scheme?: string, host?: string, port?: ?int, path?: string, query?: ?string, fragment?: ?string}): Core\Uri` |
+| [`Core\Uri->queryParameter`](#core-core-uri-queryparameter) | `queryParameter(string $name): mixed` |
+| [`Core\Uri->withQueryParameter`](#core-core-uri-withqueryparameter) | `withQueryParameter(string $name, mixed $value): Core\Uri` |
 | [`Core\Uri->resolve`](#core-core-uri-resolve) | `resolve(string $reference): Core\Uri` |
 | [`Core\Uri->compareTo`](#core-core-uri-compareto) | `compareTo(Core\Uri $other): int` |
 
@@ -14007,6 +14017,41 @@ A fresh `Uri` with the named components replaced and every other one carried ove
 **Returns** `Core\Uri` — A new `Uri`; the receiver is unchanged. A receiver whose port was written empty (`h:/`) loses that `:` on the way through.
 
 **Throws** `RuntimeError` — `port` is outside `0`–`65535`; a component makes the result text the RFC 3986 grammar does not admit; or the components do not recompose to a URI that still holds them — a `path` beside a `host` that lacks its leading `/` lands in the host — and the first component that moved is named.
+
+<a id="core-core-uri-queryparameter"></a>
+#### `Core\Uri->queryParameter`
+
+```nvs skip
+$uri->queryParameter(string $name): mixed
+```
+
+One query parameter by name, read through `Core\Uri::parseQuery`'s bracket convention instead of by parsing the query string at the call site.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The parameter's name, decoded and top-level: the brackets of `a[b]=c` belong to the value, so `"a"` is what reaches it. |
+
+**Returns** `mixed` — The value — `bytes`, or a nested `array<mixed>` where the convention built one — and `null` both for a name that is not there and for a URI with no query at all; `query()` is what tells those two apart.
+
+**Throws** `RuntimeError` — A name in the receiver's own query decodes to octets that are not valid UTF-8, which is `Core\Uri::parseQuery`'s refusal reached through it.
+
+<a id="core-core-uri-withqueryparameter"></a>
+#### `Core\Uri->withQueryParameter`
+
+```nvs skip
+$uri->withQueryParameter(string $name, mixed $value): Core\Uri
+```
+
+A fresh `Uri` with one query parameter set, replaced or removed and every other pair carried over — `Core\Uri::parseQuery`, the edit and `Core\Uri::buildQuery` in one member instead of three at the call site.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` | The parameter's name, decoded and top-level; brackets are written by an array `value`, never by spelling them into the name. |
+| `$value` | `mixed` | The new value: a scalar, or an array nested to any depth, which is written under the bracket convention. `null` removes the parameter. |
+
+**Returns** `Core\Uri` — A new `Uri`; the receiver is unchanged. Removing the last parameter leaves no query at all rather than a bare `?`, and every pair that is carried over is rewritten in `buildQuery`'s spelling rather than the one it arrived in.
+
+**Throws** `RuntimeError` — A name in the receiver's own query decodes to octets that are not valid UTF-8; `value` is neither a scalar nor a nested array; or the rebuilt reference does not still hold every component it was written out of, which is `with`'s refusal reached through the same recompose-and-reread path.
 
 <a id="core-core-uri-resolve"></a>
 #### `Core\Uri->resolve`

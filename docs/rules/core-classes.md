@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*25 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1517,7 +1517,7 @@ when to ask.
 
 <a id="core-classes-uri-removable-components"></a>
 
-## `Core\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time  *(designed — not yet in the compiler)*
+## `Core\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time
 
 `rule:core-classes/uri-removable-components`
 
@@ -1538,9 +1538,12 @@ close it, composing the three existing members so no second canonicalization exi
 `null` value removes the parameter, the bracket convention comes free because a value may itself be
 an array, and removing the last parameter leaves no query at all rather than a bare `?`.
 
-**The first level is shipped and the second is not.** `crates/nvs-stdlib/src/uri.rs`'s `with` takes
-`port`, `query` and `fragment` as `?T` and its `removable` helper reads the three states; the two
-query-parameter members do not exist yet, and that module's known gap 1 is what records them.
+`crates/nvs-stdlib/src/uri.rs` is where both levels are: `with` takes `port`, `query` and `fragment`
+as `?T` and its `removable` helper reads the three states, and `queryParameter` and
+`withQueryParameter` compose that module's own `query` slot, `parse_query` and `build` so that the
+query string gains no second canonicalization. The name a parameter is reached by is **top-level**,
+so an array value is what writes brackets — which is what makes the pair a round trip rather than
+two members that each invented a spelling.
 
 <sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md), [0146](../decisions/0146.md).</sub>
 
