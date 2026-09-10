@@ -72,6 +72,45 @@
 //!   `ParseError` — and a bare `Fault::thrown` means `RuntimeError`, which is
 //!   what a failure with nothing more specific to say is.
 //!
+//! # Every shape a §§ 1–12 signature writes can be stated
+//!
+//! [`registry::CoreTy`] spells the whole of what those sections' signature
+//! column writes, and each variant's own doc comment is the home for what it
+//! is and what it costs: a union in either direction, a `Core`-owned enum, a
+//! `Core`-owned instance ([`instance`] is the value behind it), a sequence, a
+//! `decimal`, `rule:core-api/shape-rules` R2's options bag, a shape parameter
+//! carrying its arms, a variadic tail, and
+//! `rule:expressions/nullable-conversion`'s `?T` — including as a parameter
+//! defaulting to `null`, which `Core\Str::slice`'s `?int $length = null`
+//! declares. A class constant sits beside them on [`registry::CoreConst`]
+//! rather than in the enum, since a constant has a value and no signature.
+//!
+//! A **named** or `...spread` argument at such a call is spelled too. Every
+//! parameter's name is on the row — [`registry::CoreMethod::names`], one per
+//! positional slot, the trailing bag under [`registry::OPTIONS_NAME`] — taken
+//! from the signature column of `docs/spec/01-core-library.md` and held there
+//! by `every_registry_rows_names_are_the_specs_signature_column`, which is
+//! `rule:core-api/shape-rules` R2's "a parameter's name is compatibility
+//! surface, versioned where its type is". `nvs_types::core_lib` reads them
+//! into `MethodSig::param_names`, so a `name:` at a `Core` call site resolves
+//! through the machinery a user-declared method's does — the same slot
+//! mapping, the same skipped default, and the same refusal for a name that
+//! reaches no parameter or reaches a variadic tail.
+//! [`registry::ParamDoc::name`] is a *key* into that list rather than a second
+//! copy of it.
+//!
+//! So a member the spec writes and this crate has not registered needs its row
+//! and its body, never a spelling: `rule:types/array-combination`'s four,
+//! `Arr::append`, `Arr::prepend`, `Path::join`, `diff`/`intersect`, § 9's
+//! three collections and § 12's `Uri` are each in that position.
+//!
+//! **A type variable is inferred, never declared by user code.**
+//! `rule:types/declaration`'s *Revisiting* section scopes `<T>` to
+//! declarations the compiler owns, which is exactly what
+//! [`registry::CoreTy::Var`] is; `nvs-types` owns the unification and
+//! substitution, and its own docs are the home for what that does and does not
+//! do yet.
+//!
 //! # Known gaps
 //!
 //! 1. **The registry holds spec §§ 1–12 whole; §§ 13–20 hold whatever the
@@ -98,75 +137,7 @@
 //!    position. What each of §§ 13–20 still owes is its own module's known
 //!    gaps; `docs/agent/carried-gaps.md` is where the ones no chain goal owns
 //!    are kept, and widening either gate past § 12 is an entry on it.
-//! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
-//!    one was a **variadic** parameter, and it is
-//!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
-//!    `array<T>` of the tail, built by `nvs_ir::lower::lower_variadic_tail`,
-//!    since a helper's `args: [N]` is a fixed arity. `Core\Str::format` is the
-//!    first row to declare one; `rule:types/array-combination`'s
-//!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
-//!    `Arr::prepend` and `Path::join` need only writing.
-//!
-//!    A **named** or `...spread` argument at such a call is no longer a gap
-//!    either: both lower, and `rule:core-api/shape-rules` R2's "every parameter is callable by
-//!    the spec's `$name`" holds end to end. Every parameter's name is on the
-//!    row — [`registry::CoreMethod::names`], one per positional slot, the
-//!    trailing bag under [`registry::OPTIONS_NAME`] — taken from the signature
-//!    column of `docs/spec/01-core-library.md` and held there by
-//!    `every_registry_rows_names_are_the_specs_signature_column`, which is
-//!    that rule's "a parameter's name is compatibility surface, versioned
-//!    where its type is". [`registry::ParamDoc::name`] is a *key* into that
-//!    list rather than a second copy of it.
-//!
-//!    `nvs_types::core_lib` reads them into `MethodSig::param_names`, so a
-//!    `name:` at a `Core` call site resolves through the machinery a
-//!    user-declared method's does — the same slot mapping, the same skipped
-//!    default, and the same refusal for a name that reaches no parameter or
-//!    reaches a variadic tail. No member's shape changed to get there.
-//!
-//!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
-//!    behind [`registry::CoreTy::Instance`], and that module's own docs own
-//!    what it is and what it spends — so § 9's three collections and § 12's
-//!    `Uri` need only their members written, exactly as § 4's `Duration`
-//!    already has.
-//!
-//!    A **sequence** parameter — whatever `foreach` accepts, `rule:iteration/foreach-subjects`'s
-//!    three shapes at once — is [`registry::CoreTy::Iterated`], first
-//!    declared by `Core\Arr::from`, and `nvs_runtime::sequence` is the one
-//!    place such an argument is read: an array walked directly, a cursor
-//!    driven by name through its class descriptor's own method table.
-//!
-//!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
-//!    it and `nvs_runtime::Decimal` is the value behind it, so `Arr::sum`,
-//!    `product` and `average` are written over the
-//!    `array<int|float|decimal>` subject the spec gives them.
-//!
-//!    A class **constant** is no longer among them: [`registry::CoreConst`] is
-//!    a roster on [`registry::CoreClass`], resolved by `nvs_types::expr`'s
-//!    `ClassConstAccess` arm and lowered as the inlined literal it is, so
-//!    `Core\Math`'s eleven are written and `Core\Path::SEPARATOR` needs only
-//!    its class. A **user-declared** class's constant is the same shape one
-//!    crate over — `nvs_types::signatures::ConstSig` — and nothing in `Core`
-//!    depends on that half.
-//!
-//!    Everything else the spec writes is expressible: `rule:core-api/shape-rules` R2's options
-//!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a
-//!    union in **either** direction ([`registry::CoreTy::Union`], first used
-//!    by `Core\Arr::hasKey`), a `Core`-owned enum
-//!    ([`registry::CoreTy::Enum`] over [`registry::ENUMS`], first used by
-//!    `Core\Arr::sort`), an **absent** option ([`registry::Const::Null`], the
-//!    same member), and `rule:expressions/nullable-conversion`'s `?T`
-//!    ([`registry::CoreTy::Nullable`], first used by `Core\Arr::first`) —
-//!    including as a **parameter** defaulting to `null`, the spec's most common
-//!    optional shape, which `Core\Str::slice`'s `?int $length = null` is the
-//!    first row to declare and the first call site to leave out.
-//!
-//!    Strict identity is no longer among them:
-//!    `nvs_runtime::value_identical` defines it and
-//!    `nvs_runtime::value_hash` indexes it, so `contains`, `keyOf` and
-//!    `unique` are registered and `diff`/`intersect` need only their `SetOn`
-//!    enum and their `on`/`by`/`comparator` bag — every one of which
-//!    [`registry`] can already state.
+//!    — owner: unowned
 //! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes
 //!    only that exact spelling.** `Core\Arr::flip` is the first member whose
 //!    spec signature declares one, and `Core\Arr::flip($stringArray)` is
@@ -178,12 +149,7 @@
 //!    an Novis array is a copy-on-write **value**, so an element-covariant read
 //!    cannot be aliased into an unsound write the way a mutable container's
 //!    could.
-//! 2. **A type variable is inferred, never declared by user code.** `rule:types/declaration`'s
-//!    *Revisiting* section and `docs/agent/loop-goal.md` both scope `<T>` to
-//!    declarations the compiler owns, which is exactly what
-//!    [`registry::CoreTy::Var`] is; `nvs-types` owns the unification and
-//!    substitution, and its own docs are the home for what that does and does
-//!    not do yet.
+//!    — owner: unowned-sweep
 
 pub mod arr;
 mod ast;

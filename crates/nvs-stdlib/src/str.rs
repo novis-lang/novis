@@ -2294,9 +2294,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// * **`limit` defaults to `uint`'s maximum**, which is "every
     ///   occurrence" — a string that fits in memory can never hold that many.
-    ///   A sentinel `0` would have been a magic value, and `?uint = null` is
-    ///   the shape `nvs_types::defaults` cannot state yet
-    ///   (`nvs-stdlib`'s known gap 3). A `limit` of `0` therefore means
+    ///   A sentinel `0` would have been a magic value, and `?uint = null` is a
+    ///   second spelling of "every occurrence" where the spec's table gives
+    ///   `limit` a plain `uint`. A `limit` of `0` therefore means
     ///   exactly what it says: replace nothing.
     /// * **An empty `$search` replaces nothing**, rather than inserting the
     ///   replacement between every character or looping forever. PHP returns

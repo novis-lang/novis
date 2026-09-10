@@ -19,18 +19,19 @@
 //! string edit, which is the correct amount of friction for something the
 //! whole language resolves against.
 //!
-//! # Known gap
+//! # What the enum covers
 //!
-//! The enum covers exactly what the members registered so far need, and
-//! [`CoreClass`] covers exactly the *kind* of member they are — [`crate`]'s
-//! own gap 3 owns what is left, and it is now a matter of *named* arguments
-//! rather than shapes. A **variadic** parameter is no longer on it: it is
-//! [`CoreTy::Variadic`], read through [`CoreMethod::variadic`]. A class
-//! **constant** is no longer on it — it is
-//! [`CoreConst`], a roster on [`CoreClass`] rather than a [`CoreTy`] variant,
-//! since a constant has a value and no signature. Nor is a `Core`-owned
-//! **instance**: it is [`CoreTy::Instance`] plus [`CoreClass::instance`] and
-//! [`CoreClass::slots`], and [`crate::instance`] is the value behind it.
+//! Exactly what a spec §§ 1–12 signature writes, and [`CoreClass`] exactly the
+//! *kind* of member those rows are — [`crate`] § *Every shape a §§ 1–12
+//! signature writes can be stated* is that claim's home. Three things a reader
+//! looks for in the enum are elsewhere on purpose: a **variadic** parameter is
+//! [`CoreTy::Variadic`], read through [`CoreMethod::variadic`]; a class
+//! **constant** is [`CoreConst`], a roster on [`CoreClass`] rather than a
+//! [`CoreTy`] variant, since a constant has a value and no signature; and a
+//! `Core`-owned **instance** is [`CoreTy::Instance`] plus
+//! [`CoreClass::instance`] and [`CoreClass::slots`], with [`crate::instance`]
+//! the value behind it. Widening the enum for a §§ 13–20 row is a change to
+//! this file, which is the friction the section above buys.
 //!
 //! # A `Core` enum is declared here too
 //!
