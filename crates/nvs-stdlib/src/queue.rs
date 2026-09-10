@@ -608,9 +608,12 @@ pub const DEAD_LETTER_POSTGRES: &str = "with moved as (\
 pub struct Split {
     /// The statement run first: the one that reads, and whose row the second one acts on.
     ///
-    /// It takes the row's locks — `for update`, and `skip locked` where § 4's mutual exclusion
-    /// rests on it — because a lock is what carries the pair's meaning across the gap between two
-    /// round trips that a single statement did not have.
+    /// **Something has to carry the pair's meaning across the gap between two round trips that a
+    /// single statement did not have, and which mechanism that is belongs to the dialect.** Where
+    /// the backend has row locks and concurrent writers to need them from, this statement takes
+    /// them and § 4's mutual exclusion rests on its `for update skip locked` ([`CLAIM_MYSQL`]).
+    /// Where the backend has one writer, the transaction around the pair is already the exclusion
+    /// and this statement carries no clause at all ([`CLAIM_SQLITE`]).
     pub first: &'static str,
     /// The statement run second, in the same transaction, keyed by what [`Self::first`] answered.
     pub then: &'static str,
@@ -661,7 +664,7 @@ pub const INSERT_MYSQL: Split = Split {
 /// **The `select` answers [`CLAIM_POSTGRES`]'s `returning` list, in its order**, so a worker reads
 /// the same column at the same ordinal whichever dialect it claimed with — the six slots
 /// `crates/nvs-cli/src/worker.rs` names by position, and
-/// `both_dialects_answer_a_claim_with_the_same_columns` is what holds them together.
+/// `all_three_dialects_answer_a_claim_with_the_same_columns` is what holds them together.
 /// `attempts + 1 as attempts` is what makes that true across the split: PostgreSQL's `returning`
 /// runs after its own `update` and so reads the incremented value, while here the `update` has not
 /// run yet, so the column is read as the value it is about to have. A claim answering the
@@ -683,6 +686,36 @@ pub const CLAIM_MYSQL: Split = Split {
             and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
             order by run_at, id limit 1 \
             for update skip locked",
+    then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ?, \
+           dedupe_pending = null where id = ?",
+};
+
+/// [`CLAIM_MYSQL`]'s two statements in SQLite's dialect, and it is
+/// `rule:concurrency/claiming-is-one-statement`'s immediate transaction that makes them a claim.
+///
+/// The columns are [`CLAIM_POSTGRES`]'s `returning` list in its order, `attempts + 1 as attempts`
+/// included and for [`CLAIM_MYSQL`]'s reason — the `update` has not run when the `select` answers,
+/// so the column is read as the value it is about to have.
+/// `all_three_dialects_answer_a_claim_with_the_same_columns` is what holds all three lists together.
+///
+/// **There is no locking clause, and the mutual exclusion is stronger rather than weaker.** SQLite
+/// has one writer: inside a `nvs_db::sqlite::SqliteConn::begin_immediate` transaction no second
+/// connection is writing at all, so two workers cannot come back with one row — which is what
+/// `for update skip locked` buys on a backend that has row locks and concurrent writers to need
+/// them from. A `skip locked` here would be a syntax error, and the reason not to reach for one is
+/// that there is nothing left for it to do. `crates/nvs-db/src/sqlite.rs`'s `begin_immediate` owns
+/// why the transaction has to be an immediate one: a deferred transaction that reads and then
+/// writes asks to upgrade a shared lock, and SQLite refuses an upgrade without honouring the busy
+/// timeout, so the pair below would fail under exactly the concurrency it exists to survive.
+///
+/// The `update` is keyed by `id` for [`CLAIM_MYSQL`]'s reason as well: [`Split::first`] has named
+/// the row, and there is no CTE to reach back into.
+pub const CLAIM_SQLITE: Split = Split {
+    first: "select id, script, args, attempts + 1 as attempts, max_attempts, backoff_ms \
+            from nvs_jobs \
+            where queue = ? \
+            and ((state = 0 and run_at <= ?) or (state = 1 and claimed_at <= ?)) \
+            order by run_at, id limit 1",
     then: "update nvs_jobs set state = 1, attempts = attempts + 1, claimed_at = ?, \
            dedupe_pending = null where id = ?",
 };
@@ -3375,15 +3408,16 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, CLASS, COUNTS_MYSQL,
-        COUNTS_POSTGRES, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, DEFAULT_PURGE_LIMIT,
-        DELETE_MYSQL, DELETE_POSTGRES, Fault, INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING,
-        PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_MYSQL, PURGE_POSTGRES, PURGE_STATE_ARG, PUSH,
-        QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS,
-        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
-        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
-        STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, Selection, ThrownClass, Value,
-        dead_errors, migration, no_dialect, purge_state_of, purge_texts, retry_at,
+        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, CLAIM_SQLITE, CLASS,
+        COUNTS_MYSQL, COUNTS_POSTGRES, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE,
+        DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, Fault, INSERT_MYSQL, INSERT_POSTGRES,
+        JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_MYSQL, PURGE_POSTGRES,
+        PURGE_STATE_ARG, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
+        RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT,
+        STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT,
+        STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, Selection, Split,
+        ThrownClass, Value, dead_errors, migration, no_dialect, purge_state_of, purge_texts,
+        retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -3783,35 +3817,50 @@ mod tests {
         );
     }
 
-    /// A worker reads a claimed job's columns **by ordinal**, so the two dialects owe each other
-    /// more than a column set here: the same names in the same order. Nothing else would notice
-    /// them diverging — a claim that swapped `attempts` and `max_attempts` still runs, still
-    /// answers six values, and puts § 6's ladder on the wrong number.
+    /// A worker reads a claimed job's columns **by ordinal**, so the dialects owe each other more
+    /// than a column set here: the same names in the same order. Nothing else would notice them
+    /// diverging — a claim that swapped `attempts` and `max_attempts` still runs, still answers six
+    /// values, and puts § 6's ladder on the wrong number.
     ///
     /// The alias is stripped rather than matched, because `attempts + 1 as attempts` is exactly the
     /// difference the split forces ([`CLAIM_MYSQL`]'s doc owns why) and it is not a difference in
     /// what the column *is*.
+    ///
+    /// One case over every dialect rather than a case each: what is asserted is that they **agree**,
+    /// and a per-dialect case can only assert what one of them answered.
     #[test]
-    fn both_dialects_answer_a_claim_with_the_same_columns() {
+    fn all_three_dialects_answer_a_claim_with_the_same_columns() {
         fn named(list: &str) -> Vec<&str> {
             list.split(',')
                 .map(|one| one.trim().rsplit(" as ").next().unwrap_or(one).trim())
                 .collect()
         }
+        fn read_by(claim: &Split, dialect: &str) -> Vec<&'static str> {
+            named(
+                claim
+                    .first
+                    .strip_prefix("select ")
+                    .and_then(|rest| rest.split_once(" from "))
+                    .unwrap_or_else(|| {
+                        panic!("{dialect}'s claim reads its columns before its table")
+                    })
+                    .0,
+            )
+        }
         let returned = CLAIM_POSTGRES
             .split_once("returning ")
             .expect("PostgreSQL's claim answers with a `returning` list")
             .1;
-        let selected = CLAIM_MYSQL
-            .first
-            .strip_prefix("select ")
-            .and_then(|rest| rest.split_once(" from "))
-            .expect("MySQL's claim reads its columns before its table")
-            .0;
+        let selected = read_by(&CLAIM_MYSQL, "MySQL");
         assert_eq!(
             named(returned),
-            named(selected),
-            "a worker reads these by position, so the two dialects answer one list or neither does"
+            selected,
+            "a worker reads these by position, so the dialects answer one list or none of them does"
+        );
+        assert_eq!(
+            read_by(&CLAIM_SQLITE, "SQLite"),
+            selected,
+            "a worker reads these by position, so the dialects answer one list or none of them does"
         );
     }
 

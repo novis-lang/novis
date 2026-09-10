@@ -2045,10 +2045,10 @@ fn purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit() {
 /// `CLAIM_POSTGRES` answers.
 ///
 /// **This is the first assertion in this file that is not PostgreSQL's**, and
-/// what it is for is the half a unit agreement cannot reach: [`queue`]'s two
+/// what it is for is the half a unit agreement cannot reach: [`queue`]'s
 /// rosters are held against each other by
-/// `both_dialects_answer_a_claim_with_the_same_columns`, which proves the two
-/// *texts* name the same columns and cannot prove that either text is one a
+/// `all_three_dialects_answer_a_claim_with_the_same_columns`, which proves the
+/// *texts* name the same columns and cannot prove that any of them is one a
 /// server accepts. § 2's DDL, `skip locked`, the generated column and the
 /// `AUTO_INCREMENT` id are each a construct only a server can refuse.
 ///
