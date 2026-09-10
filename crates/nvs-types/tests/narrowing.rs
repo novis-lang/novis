@@ -237,6 +237,57 @@ fn an_instanceof_against_an_interface_drops_null_too() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
+/// `rule:types/narrowing`'s fifth spelling, over the shape the `instanceof`
+/// cases above are written on: `is Node` proves the class the same way, so the
+/// nullable receiver the declared type carries is gone inside the block.
+#[test]
+fn an_is_test_narrows_its_subject_on_the_true_edge() {
+    let diags = check_with_node("if ($n is Node) {\n  echo $n->label();\n}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The two nominal spellings **agree** about the edge that proves nothing,
+/// which is what ADR 0150 § 9 decided and what makes false-edge narrowing a
+/// change to all five spellings at once rather than to this one. Asserted as
+/// one case for that reason: an `is` that grew a false edge of its own would
+/// still look right beside the `instanceof` case above.
+#[test]
+fn an_is_test_does_not_narrow_the_false_edge_and_neither_does_instanceof() {
+    let with_is =
+        check_with_node("if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n");
+    assert!(refuses_nullable_receiver(&with_is), "{with_is:?}");
+    let with_instanceof = check_with_node(
+        "if ($n instanceof Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
+    );
+    assert!(
+        refuses_nullable_receiver(&with_instanceof),
+        "{with_instanceof:?}"
+    );
+}
+
+/// `rule:types/narrowing`'s closing rule: the narrowing described the value
+/// that was there, not the slot, so a write inside the block widens the binding
+/// again — `LocalScope::overwrite` does not care which of the five tests
+/// installed one.
+#[test]
+fn a_write_inside_the_narrowed_block_widens_the_binding_again() {
+    let diags = check_with_node("if ($n is Node) {\n  $n = null;\n  echo $n->label();\n}\n");
+    assert!(refuses_nullable_receiver(&diags), "{diags:?}");
+}
+
+/// Narrowing changes what the checker knows on one path and never what the
+/// binding was declared as (`rule:types/narrowing`), which shows on both sides
+/// of the block: the write of a `null` inside it is checked against `?Node` and
+/// accepted, and the read after it is nullable again.
+#[test]
+fn narrowing_never_changes_the_declared_type_of_the_binding() {
+    let write_inside = check_with_node("if ($n is Node) {\n  $n = null;\n}\n");
+    assert!(!write_inside.has_errors(), "{write_inside:?}");
+    let read_after =
+        check_with_node("if ($n is Node) {\n  echo $n->label();\n}\necho $n->label();\n");
+    assert!(refuses_nullable_receiver(&read_after), "{read_after:?}");
+}
+
 /// Wraps `body` in a method taking a `"read"|"write"`, the shape `rule:types/literal-types`'s
 /// guard row is about, and declares a `"read"`-typed local it can only be
 /// assigned to where the comparison narrowed it.

@@ -2,50 +2,54 @@
 
 ## State
 
-**Goal `type-test` — stages 0, 2 and 3 are on disk.** `is` parses `expr is Type`, and the checker
-answers `bool` for every subject, folds a settled answer to `true` or `false`, and refuses only the
-right-hand side: `E0811` for `void`/`never`, `E0813` for a `tainted`/`secret` qualifier, `E0812` in
-the parser for `$x is $cls`. `crates/nvs-types/src/expr/type_test.rs` is the whole of it and its
-module doc is the map; the eight stage-3 acceptance tests live in `crates/nvs-types/tests/type_test.rs`.
+**Goal `type-test` — stages 0, 2, 3 and 4 are on disk.** `is` parses, answers `bool` for every
+subject, folds a settled answer, refuses only its right-hand side (`E0811`, `E0813`, and the parser's
+`E0812`), and now narrows its subject on the true edge as `rule:types/narrowing`'s fifth spelling.
+`crates/nvs-types/src/expr/type_test.rs` and `crates/nvs-types/src/locals.rs`' narrowing section are
+the two module docs that map it.
 
-**`E0810` is not this operator's, and the rule now says so.** That code has been
-`E_DECODED_FIELD_NOT_TAINTED` since long before ADR 0150 wrote its table, so the qualifier refusal
-took the band's next free code and `rule:types/type-test`'s cell, the goal's prose and the acceptance
-check's test name were corrected together. [ADR 0150](../decisions/0150.md) § 6 keeps its `E0810` —
-a record is frozen rationale and the fragment is the rule.
+**The recorded entry is the contract between the two halves.** A test whose answer is a run-time
+`bool` records `ExprInfo::TypeTest { tested }` on the `is` expression's own span; a folded or refused
+one records nothing. `locals::type_test_residue` leans on exactly that — the entry's existence is why
+it needs no guard against a target that would *widen* the binding, since such a target folded to
+`true` and never arrives. `nvs-ir` reads the same entry in stage 5.
 
 **Nothing lowers the node.** `nvs-ir` has never seen an `ExprKind::TypeTest`, so no program can run
-an `is` yet and `examples/type-test.nvs` (stage 6) cannot exist until stage 5 lands. Narrowing is
-stage 4 and is not written: the true edge still knows nothing.
+an `is` and `examples/type-test.nvs` (stage 6) cannot exist yet — the driver's red check naming that
+fixture is an item still open, not a regression. `E0810` is not this operator's; `rule:types/type-test`
+is the home of the corrected cell and [ADR 0150](../decisions/0150.md) § 6 keeps its frozen `E0810`.
 
 ## Next group
 
-**Stage 4: narrowing, the fifth spelling** — one file set: `crates/nvs-types/src/locals.rs`,
-`crates/nvs-types/src/expr_table.rs`, `crates/nvs-types/src/expr/type_test.rs`,
-`crates/nvs-types/tests/narrowing.rs`.
+**Stage 5: lowering and codegen, and no second walk** — one file set: `crates/nvs-ir/src/lower/expr.rs`,
+`crates/nvs-codegen/src/emit.rs`, `crates/nvs-codegen/tests/objects.rs`.
 
-- [ ] **The tested type is recorded at the test's span** — `locals::narrow` sees the AST and the
-      table and nothing else, so `is` records what it lowered the way `instanceof` records its class
-      at `crates/nvs-types/src/locals.rs:481`. The recording site is
-      `crates/nvs-types/src/expr/type_test.rs:54`, and the variant is `expr_table.rs`'s
-      `ExprInfo::InstanceOf`'s sibling. `rule:types/narrowing`.
-- [ ] **`narrow` gains the `is` arm, on the true edge alone** —
-      `crates/nvs-types/src/locals.rs:397`, beside the `instanceof` and `!= null` spellings. The
-      false edge stays empty for all five spellings (ADR 0150 § 9). `rule:types/type-test`.
-- [ ] **The subject-name walk accepts a `TypeTest`** — `crates/nvs-types/src/locals.rs:515` reads
-      which binding a condition tested, and today matches `ExprKind::InstanceOf` alone.
-      `rule:types/narrowing`.
-- [ ] **The four acceptance tests** — `an_is_test_narrows_its_subject_on_the_true_edge` and its
-      three siblings, named by the `stage = "4 narrowing"` check in `docs/agent/loop-goal.toml`, at
-      `crates/nvs-types/tests/narrowing.rs:37` beside the `instanceof` ones, which is also the
-      fixture shape they reuse. `rule:types/narrowing`.
+- [ ] **`lower_expr` gains a `TypeTest` arm, and a scalar test is one tag comparison** — the dispatch
+      at `crates/nvs-ir/src/lower/expr.rs:47` has no arm for the node, which is the silent trap: a
+      missing arm is a panic or a hole, not a compile error. The arm reads
+      `ExprInfo::TypeTest { tested }` back off the span the checker recorded it under, beside the
+      `ExprKind::InstanceOf` arm at `crates/nvs-ir/src/lower/expr.rs:267`. A folded test records
+      nothing and reaches here as the literal it already is, which is
+      `a_folded_test_emits_no_code_at_all`. `rule:types/type-test`.
+- [ ] **The class path emits the descriptor walk `instanceof` already emits** — the same
+      `InstKind::InstanceOf` built at `crates/nvs-ir/src/lower/expr.rs:4792` and emitted at
+      `crates/nvs-codegen/src/emit.rs:707`, never a second one. `rule:types/type-test`, and the goal's
+      § *Standing decisions* is the rule about reuse: a refactor to reach it is the slice, not a
+      second emitter.
+- [ ] **The `array<T>` path calls the same element walk `as array<T>` calls** — the conversion arm at
+      `crates/nvs-ir/src/lower/expr.rs:391` owns that walk today, and two element walks in the tree
+      means one is wrong. `rule:types/type-test` states the O(n) cost this pays.
+- [ ] **The four acceptance tests**, in `crates/nvs-codegen/tests/objects.rs:169`'s file, which is
+      where the `instanceof` codegen cases already live: `a_scalar_test_emits_one_tag_comparison`,
+      `a_class_test_emits_the_same_descriptor_walk_instanceof_emits`,
+      `an_array_element_test_calls_the_same_walk_the_conversion_calls_and_not_a_second_one`,
+      `a_folded_test_emits_no_code_at_all`.
 
 ## Backlog
 
-- Stage 5: lowering and codegen — one tag comparison, `instanceof`'s descriptor walk and
-  `as array<T>`'s element walk reused, never a second one. `docs/agent/loop-goal.md` § *Stage 5*.
-- Stage 6: `examples/type-test.nvs`, whose thirteen `want` lines are frozen in
-  `docs/agent/loop-goal.toml` — the acceptance check that has been red every session so far.
-- A folded test still checks its subject and still costs a walk; whether the fold reaches the IR at
-  all is stage 5's `a_folded_test_emits_no_code_at_all`.
-- Carried gaps that outlive this goal: [carried-gaps.md](carried-gaps.md).
+- Stage 6 is `examples/type-test.nvs`, the reference heading and the conformance case — all of it
+  needs stage 5 first; `docs/agent/loop-goal.toml`'s stage 6 checks are the specification.
+- `ExprInfo::TypeTest` has no unit case beside `an_instanceof_records_the_resolved_class` in
+  `crates/nvs-types/src/expr_table.rs`' own tests; `crates/nvs-types/tests/narrowing.rs` covers the
+  recording end to end instead.
+- False-edge narrowing stays out of scope for all five spellings at once — ADR 0150 § 9.
