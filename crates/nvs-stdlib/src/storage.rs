@@ -79,11 +79,11 @@
 //! (`rule:errors/ambiguous-input-refused` again). Filtering here rather than at the call site is what keeps a large disk's
 //! answer proportional to what was asked about.
 //!
-//! # Known gaps, recorded rather than worked around
+//! # There is no `exists`, and R17 is why rather than an omission
 //!
-//! **There is no `exists`, and that one is deliberate.** [`get`](CLASS) answers absence as `null`
-//! under `rule:core-api/shape-rules` R7, so a second member
-//! asking the same question would be the one operation reachable two ways that R20 forbids. The
+//! [`get`](CLASS) answers absence as `null` under `rule:core-api/shape-rules` R4 — failure throws
+//! and absence is `?T` — so a second member
+//! asking the same question would be the one operation reachable two ways that R17 forbids. The
 //! cost is real and named: `get` on a large object reads it to answer a question about its
 //! existence. [`list`](CLASS) under a `prefix` is the cheap half of that — it reads the directory
 //! and never the object — but it is a listing rather than a test, so a caller with one key in mind

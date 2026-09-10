@@ -96,12 +96,14 @@
 //!    by the ADR, and is a catchable throw naming `assertEqualsDeep` here; that
 //!    refusal is `nvs_types`' to make and wants the class graph this crate does
 //!    not hold. The mismatch error is already made, by the `T` above.
+//!    — owner: unowned
 //! 2. **`assertThrows` matches a class by name, so a failure with no class
 //!    installed matches nothing.** `nvs_runtime::Ctx::pending_conforms_to`
 //!    reads the ancestry off a descriptor, and a helper-raised failure carries
 //!    none until `Ctx::set_runtime_error_class` has installed one — which a
 //!    compiled unit always has, so this is reachable only from a host embedding
 //!    the runtime without one.
+//!    — owner: unowned
 //!
 //! # What these members do with a qualifier
 //!
