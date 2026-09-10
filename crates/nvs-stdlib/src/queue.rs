@@ -118,7 +118,7 @@ use crate::registry::{
 };
 
 /// `Core\Queue`'s fully-qualified name.
-const NAME: &str = r"Core\Queue";
+pub(crate) const NAME: &str = r"Core\Queue";
 
 /// `Core\Queue\Id`'s, as [`CoreTy::Instance`] spells it.
 pub(crate) const ID_NAME: &str = r"Core\Queue\Id";
@@ -140,6 +140,9 @@ const CANCEL_OF: &str = r"Core\Queue::cancel";
 
 /// `stats`'s.
 const STATS_OF: &str = r"Core\Queue::stats";
+
+/// `delete`'s, which a capability denial names as well as a refusal from the server does.
+const DELETE_OF: &str = r"Core\Queue::delete";
 
 /// The table § 2's `nvs queue migrate` creates and this module writes into.
 ///
@@ -1313,6 +1316,22 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_queue_stats",
             doc: Some(&STATS_DOC),
         },
+        // Beside the four rather than among them, which is
+        // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s own reading:
+        // this is the operator's half of the class, and the first member here to
+        // take a capability at all. It is asked with the same receipt `cancel` is
+        // and answers the same `bool` for the same reason — a job a worker holds
+        // is not removable, and finding that out is the ordinary case rather than
+        // an exceptional one.
+        CoreMethod {
+            name: "delete",
+            names: &["job"],
+            params: &[CoreTy::Instance(ID_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_queue_delete",
+            doc: Some(&DELETE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -1479,6 +1498,40 @@ const STATS_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "IOError",
             desc: "The queue's connection did not open, or the query was refused by the server — \
+                   most often because `nvs queue migrate` has not created the tables.",
+        },
+    ],
+};
+
+/// `Core\Queue::delete`'s reference card — `rule:core-api/reference-card`.
+const DELETE_DOC: MethodDoc = MethodDoc {
+    short: "Removes one job's row, wherever the receipt finds it — the jobs table, or the \
+            dead-letter table a job moved to when it exhausted its attempts. A job a worker is \
+            running now is left alone: there is no protocol for interrupting work in flight, and \
+            removing the row under it would let the job run to completion reporting into nothing. \
+            Needs the `queue.purge` capability for the queue the receipt names.",
+    params: &[ParamDoc {
+        name: "job",
+        desc: "The receipt `push` answered with, which names both the row and the queue it is in. \
+               It keeps naming the job across the move to the dead-letter table, so a receipt does \
+               not expire when a job fails for the last time.",
+        shape: &[],
+    }],
+    ret: "`true` if this call is what removed the row, and `false` if there was nothing to \
+          remove — because a worker is holding it, or because it was never in this queue, or \
+          because an earlier `delete` got there. Unlike `cancel`, nothing is left for `status` to \
+          answer about afterwards: the row is gone, not changed.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This deployment grants no `queue.purge` for the queue the receipt names, which \
+                   is the answer until an operator writes one; or it writes no `[queue]` block, so \
+                   nothing says which database the job would be in; or the queue's connection \
+                   names a driver that cannot yet run a statement.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The queue's connection did not open, or the delete was refused by the server — \
                    most often because `nvs queue migrate` has not created the tables.",
         },
     ],
@@ -2701,6 +2754,85 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Queue::delete(Queue\Id $job): bool` — `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
+    ///
+    /// **[`nvs_core_queue_cancel`]'s twin, down to the `bool`**, and the difference between them is
+    /// the whole of what the two members are for: `cancel` changes a state and leaves a row `status`
+    /// can still answer about, and this removes the row. ADR 0153 § 2's table is the one home for
+    /// which states each of them reaches.
+    ///
+    /// **The grant is asked first, before the queue's block is read and before anything is
+    /// opened.** `rule:security/capability-check-at-the-door` puts the check at the door, and the
+    /// ordering here is [`nvs_runtime::capability::pin_host`]'s: a caller outside the grant is
+    /// refused whether or not the deployment configures a queue at all, so the difference between
+    /// the two refusals cannot be read as a probe for what this program is wired to.
+    ///
+    /// **The queue it is asked about is the receipt's own**, which is what makes a scope possible
+    /// here at all: a `Queue\Id` carries the queue beside the row number ([`ID`]), so the name the
+    /// grant is matched against is one the program wrote at its own `push` rather than one this
+    /// member had to be handed. There is no static half to this — the name arrives at run time —
+    /// and `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s other member is where a
+    /// written one is refused while checking.
+    ///
+    /// **Both tables in one statement, and the claimed row refused inside it.** [`DELETE_POSTGRES`]
+    /// owns why the two arms are one moment rather than two, and why the state test is in the text
+    /// instead of in a read above it: a job § 6 moved between the two round trips of a
+    /// read-then-delete is exactly the row this member exists to leave alone.
+    ///
+    /// **What it spends:** one statement, on the connection the request either already held or now
+    /// holds for the rest of it — so a delete inside a transaction on that connection is undone
+    /// with it if that transaction rolls back, exactly as § 3's enqueue commits with it.
+    fn nvs_core_queue_delete(ctx, args: [1]) {
+        let (id, queue) = job_of(args[0], DELETE_OF)?;
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::QueuePurge,
+            nvs_config::capability::Scope::Name(&queue),
+            DELETE_OF,
+        )?;
+        let block = configured_queue(ctx, DELETE_OF)?.connection;
+        // Shared, for `push`'s reason: removing on a second connection would be removing from
+        // outside whatever transaction the request has open on the first, and a rolled-back
+        // request would have destroyed the row anyway.
+        let handle = crate::db::open_named(ctx, &block, true, None, DELETE_OF)?;
+        let sending: [Option<Vec<u8>>; 2] = [
+            Some(id.to_string().into_bytes()),
+            Some(queue.clone().into_bytes()),
+        ];
+        let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        let refused_by_server = |refused: &dyn std::fmt::Display| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{DELETE_OF}: removing job {id} from `{JOBS_TABLE}` and `{DEAD_TABLE}` on \
+                     `[db.{block}]` was refused: {refused} — `nvs queue migrate` is what creates \
+                     those tables"
+                ),
+            )
+        };
+        // `rule:observability/a-query-is-a-trace-event`'s event, as `push` files it and for the reason given there.
+        let mut spans = Spans::of(ctx, &block);
+        // No column is read, for [`nvs_core_queue_cancel`]'s reason: [`DELETE_POSTGRES`]'s
+        // `returning id` is there to make the removal observable and the caller already holds the
+        // id, so [`Counted::touched`] is the whole answer — and it is what [`DELETE_MYSQL`] gives
+        // on the framed dialect, which answers a count and no row at all.
+        let counted = counted_row(
+            queue_connection(ctx, handle, &block, DELETE_OF)?,
+            (DELETE_POSTGRES, &bound),
+            (DELETE_MYSQL, &bound),
+            0,
+            &block,
+            &refused_by_server,
+            &mut spans,
+        )?;
+        // As `push`: taken while the rows still lend the span out, filed once they have let the
+        // context go. A delete that found a claimed job sent a statement like any other.
+        spans.file(ctx);
+        Ok(Value::bool(counted.touched()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Queue::stats(string $queue): Queue\Stats` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
     /// **Asked about a queue and not about a job**, which is what makes it the odd member of § 1's
@@ -2846,6 +2978,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_queue_push" => (nvs_core_queue_push as *const ()).cast(),
         "nvs_core_queue_status" => (nvs_core_queue_status as *const ()).cast(),
         "nvs_core_queue_cancel" => (nvs_core_queue_cancel as *const ()).cast(),
+        "nvs_core_queue_delete" => (nvs_core_queue_delete as *const ()).cast(),
         "nvs_core_queue_stats" => (nvs_core_queue_stats as *const ()).cast(),
         "nvs_core_queue_stats_pending" => (nvs_core_queue_stats_pending as *const ()).cast(),
         "nvs_core_queue_stats_claimed" => (nvs_core_queue_stats_claimed as *const ()).cast(),

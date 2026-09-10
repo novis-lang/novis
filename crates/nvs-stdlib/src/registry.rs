@@ -2298,6 +2298,31 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::db::SCHEMA_NAME, "planAgainst", None),
     (crate::db::SCHEMA_NAME, "fromArray", None),
     (crate::db::SCHEMA_NAME, "toArray", None),
+    // `rule:concurrency/queue-four-members`'s four, which take no grant, beside
+    // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s removal, which
+    // takes the only one this class has. The `None` rows are the declaration and
+    // not an omission: `push` names no block for a grant to be about, and the
+    // other three read or release what the caller already holds a receipt for.
+    // Removal is the one act here that destroys the record that work existed, so
+    // it is the one asked about — scoped on the queue the receipt carries, which
+    // is `rule:core-classes/db-capabilities`' shape and not `net.connect`'s, the
+    // database behind it having been granted at `[queue] connection` already.
+    (crate::queue::NAME, "push", None),
+    (crate::queue::NAME, "status", None),
+    (crate::queue::NAME, "cancel", None),
+    (crate::queue::NAME, "stats", None),
+    (
+        crate::queue::NAME,
+        "delete",
+        Some(nvs_config::Cap::QueuePurge),
+    ),
+    // `Core\Queue\Stats`' four counters read slots off a record the statement
+    // already answered, and `Core\Queue\Id`'s row is not here because it has no
+    // member at all — both are `Core\Process\Result`'s reading one class over.
+    (crate::queue::STATS_NAME, "pending", None),
+    (crate::queue::STATS_NAME, "claimed", None),
+    (crate::queue::STATS_NAME, "attempts", None),
+    (crate::queue::STATS_NAME, "deadLettered", None),
     // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over `rule:core-api/tier-placement`'s
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key
