@@ -144,6 +144,9 @@ const STATS_OF: &str = r"Core\Queue::stats";
 /// `delete`'s, which a capability denial names as well as a refusal from the server does.
 const DELETE_OF: &str = r"Core\Queue::delete";
 
+/// `purge`'s, which names the same denial for the queue the call itself wrote.
+const PURGE_OF: &str = r"Core\Queue::purge";
+
 /// The table § 2's `nvs queue migrate` creates and this module writes into.
 ///
 /// Unqualified on purpose: the block's own `search_path` — the operator's, in root-owned
@@ -1191,6 +1194,31 @@ const KEY_ARG: usize = 6;
 /// `{tag: …}`'s. See [`ARGS_ARG`].
 const TAG_ARG: usize = 7;
 
+/// `purge`'s queue name, which is the whole of its positional half.
+const PURGE_QUEUE_ARG: usize = 0;
+
+/// `purge`'s `{state: …}`.
+const PURGE_STATE_ARG: usize = 1;
+
+/// `purge`'s `{tag: …}`.
+const PURGE_TAG_ARG: usize = 2;
+
+/// `purge`'s `{before: …}`.
+const PURGE_BEFORE_ARG: usize = 3;
+
+/// `purge`'s `{limit: …}`.
+const PURGE_LIMIT_ARG: usize = 4;
+
+/// How many rows a `purge` that wrote no `{limit: …}` removes.
+///
+/// ADR 0153 § 4 makes the bound finite with nothing written and names no number, so the number is
+/// this module's: it is what one statement may hold a lock for on the connection the application
+/// enqueues through without the enqueues behind it noticing, and it is large enough that draining a
+/// table which has been growing since the deployment is a loop of calls rather than a conversation.
+/// A caller with a maintenance window of its own writes its own bound; what it cannot write is no
+/// bound at all, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`.
+const DEFAULT_PURGE_LIMIT: u64 = 1_000;
+
 /// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -1331,6 +1359,60 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Bool,
             symbol: "nvs_core_queue_delete",
             doc: Some(&DELETE_DOC),
+        },
+        // The other half of the operator's pair, taking the same grant for ADR 0153 § 5's
+        // reason: a capability answers *may this program remove queue records*, and one row
+        // at a time in a loop is that same answer at a different rate. Its subject is a
+        // queue's name rather than a receipt, which makes it `stats`' twin rather than
+        // `cancel`'s — the member asked about a population — and what it answers is the count
+        // § 4's drain loop reads.
+        CoreMethod {
+            name: "purge",
+            names: &["queue"],
+            params: &[
+                // **Neutral, by `rule:security/sink-predicate` and for `push`'s `queue`
+                // option's reason**: the name is a bound parameter the wire protocol frames
+                // and a column compares, never text a parser executes. What keeps a request
+                // from choosing which queue is swept is the grant this member is scoped by,
+                // and a qualifier here would be a second answer to that question that the
+                // operator cannot see.
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(&[
+                    CoreOption {
+                        name: "state",
+                        ty: CoreTy::Enum(STATE_NAME),
+                        // Absent rather than a default case, because the default is a *set* of
+                        // two and no enum case names a set: [`PURGE_POSTGRES`] writes it as
+                        // its own two literals and [`purge_state_of`] reads `Tag::Null` for
+                        // the call that named none.
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "tag",
+                        // Neutral for `push`'s `tag`'s reason exactly, and it is that column:
+                        // a group named by the request that created the work is the commonest
+                        // tag there is, and it selects among rows the grant already covers.
+                        ty: CoreTy::Text(Qual::Neutral),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "before",
+                        ty: CoreTy::Instance(crate::time::INSTANT_NAME),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "limit",
+                        // The one option whose omission is a number rather than an absence,
+                        // which is [`DEFAULT_PURGE_LIMIT`]'s whole subject.
+                        ty: CoreTy::Uint,
+                        default: Const::Uint(DEFAULT_PURGE_LIMIT),
+                    },
+                ]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_purge",
+            doc: Some(&PURGE_DOC),
         },
     ],
     instance: &[],
@@ -1527,6 +1609,77 @@ const DELETE_DOC: MethodDoc = MethodDoc {
             desc: "This deployment grants no `queue.purge` for the queue the receipt names, which \
                    is the answer until an operator writes one; or it writes no `[queue]` block, so \
                    nothing says which database the job would be in; or the queue's connection \
+                   names a driver that cannot yet run a statement.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The queue's connection did not open, or the delete was refused by the server — \
+                   most often because `nvs queue migrate` has not created the tables.",
+        },
+    ],
+};
+
+/// `Core\Queue::purge`'s reference card — `rule:core-api/reference-card`.
+const PURGE_DOC: MethodDoc = MethodDoc {
+    short: "Removes a queue's finished jobs — `Core\\Queue\\State::Succeeded` and \
+            `Core\\Queue\\State::Cancelled`, which is the set a call naming no state selects — and \
+            answers how many rows went. `Core\\Queue\\State::Dead` and \
+            `Core\\Queue\\State::Pending` are reached only by a call that names one of them, \
+            because each is a record something else would otherwise lose silently, and \
+            `Core\\Queue\\State::Claimed` is not reachable at all. Bounded with nothing written, \
+            so a table that has been growing since the deployment is drained by calling this until \
+            it answers `0`. Needs the `queue.purge` capability for the queue it names.",
+    params: &[
+        ParamDoc {
+            name: "queue",
+            desc: "The queue to sweep, matched exactly: the name `push` wrote in its `{queue: …}` \
+                   option, and the name the grant is scoped on.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "state",
+            desc: "One state to remove in place of the default set. `Dead` reads the dead-letter \
+                   table instead of the jobs table, `Pending` removes work that has not run yet, \
+                   and `Claimed` throws — a worker is running that job, and there is no protocol \
+                   for interrupting work in flight.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "tag",
+            desc: "Only the jobs `push` tagged with this group name. Grouping is decided at the \
+                   enqueue, so nothing written here can group rows that were never grouped.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "before",
+            desc: "Only the jobs enqueued before this instant, which is a job's age rather than \
+                   its next attempt: the retry ladder moves `runAt` and never the row's age.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "limit",
+            desc: "How many rows at most, oldest first. It is finite with nothing written, \
+                   because an unbounded delete over the one table that grows without bound holds \
+                   a lock on the connection the application enqueues through for as long as it \
+                   takes.",
+            shape: &[],
+        },
+    ],
+    ret: "How many rows this call removed, and `0` when nothing matched — so \
+          `while (Core\\Queue::purge('email') > 0) {}` is the loop that drains a large table, and \
+          a count rather than a `bool` is what lets it terminate.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call named `Core\\Queue\\State::Claimed`, which is work a worker holds: \
+                   removing that row would leave the job running to completion with nothing to \
+                   report into.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This deployment grants no `queue.purge` for the queue named, which is the \
+                   answer until an operator writes one; or it writes no `[queue]` block, so \
+                   nothing says which database the jobs would be in; or the queue's connection \
                    names a driver that cannot yet run a statement.",
         },
         ErrorDoc {
@@ -2832,6 +2985,234 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// Which of § 6's two tables a `purge`'s `{state: …}` selects, and the ordinal that table's
+/// statement binds for it.
+///
+/// A call names at most one state, and § 6 puts a dead-lettered job in a table of its own — so the
+/// table and the ordinal are one answer rather than two the member would have to keep agreeing
+/// about.
+#[derive(Clone, Copy)]
+enum Selection {
+    /// [`JOBS_TABLE`], with the ordinal the call named — or [`None`] for the call that named no
+    /// state, whose set [`PURGE_POSTGRES`] writes as two literals of its own.
+    Jobs(Option<i64>),
+    /// [`DEAD_TABLE`], which is what `State::Dead` selects: being in that table is what the case
+    /// *is*, so [`PURGE_DEAD_POSTGRES`] binds no ordinal at all.
+    Dead,
+}
+
+/// `{state: …}` as the table it selects and the ordinal that table's statement binds.
+///
+/// **`State::Claimed` is refused here as well as in [`PURGE_POSTGRES`]'s own text**, and the two
+/// are not one check written twice: this is where a caller finds out, naming the case it wrote,
+/// and the text refusing it is what keeps *a claimed job is not removable* a property of the system
+/// rather than of the layer in front of it.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for `State::Claimed`. A [`Fault::fatal`] for a slot holding anything but
+/// one of [`STATE`]'s ordinals, which the row typing the option as that enum rules out.
+fn purge_state_of(args: &[Value]) -> Result<Selection, Fault> {
+    if matches!(args[PURGE_STATE_ARG].tag(), Some(Tag::Null)) {
+        return Ok(Selection::Jobs(None));
+    }
+    let ordinal = args[PURGE_STATE_ARG].as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{PURGE_OF}: expected a `{STATE_NAME}` case for `state`, got tag {}",
+            args[PURGE_STATE_ARG].tag_byte()
+        ))
+    })?;
+    // Named out of [`STATE`] rather than compared against a number written here: the ordinals are
+    // the column's, so a literal in front of the statement would be a third place they are spelled.
+    let (case, _) = STATE
+        .cases
+        .iter()
+        .find(|(_, value)| *value == ordinal)
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PURGE_OF}: `state` holds {ordinal}, which names no `{STATE_NAME}` case"
+            ))
+        })?;
+    match *case {
+        "Claimed" => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{PURGE_OF}: `{STATE_NAME}::Claimed` names work a worker is running now, and there \
+                 is no protocol for interrupting work in flight — removing the row under it would \
+                 leave the job running to completion with nothing to report into"
+            ),
+        )),
+        "Dead" => Ok(Selection::Dead),
+        _ => Ok(Selection::Jobs(Some(ordinal))),
+    }
+}
+
+/// `{tag: …}` as the group name a statement binds, or [`None`] for the call that left it out.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is not text, which the option's declared type rules out.
+fn purge_tag_of(args: &[Value]) -> Result<Option<String>, Fault> {
+    if matches!(args[PURGE_TAG_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    Ok(Some(
+        args[PURGE_TAG_ARG]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{PURGE_OF}: expected a `string` for `tag`, got tag {}",
+                    args[PURGE_TAG_ARG].tag_byte()
+                ))
+            })?
+            .to_owned(),
+    ))
+}
+
+/// `{before: …}` as epoch milliseconds, or [`None`] for the call that left it out.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot that is not a `Core\Time\Instant`, which the option's declared
+/// type rules out.
+fn purge_before_of(args: &[Value]) -> Result<Option<i64>, Fault> {
+    if matches!(args[PURGE_BEFORE_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let at = crate::time::instant_of(args, PURGE_BEFORE_ARG, "purge")?;
+    // Milliseconds, and saturating at both ends, for [`run_at_of`]'s reason: the column is a
+    // `bigint` of them, and an age far enough out to overflow selects the same rows either way.
+    Ok(Some(at.as_second().saturating_mul(1_000).saturating_add(
+        i64::from(at.subsec_nanosecond()) / 1_000_000,
+    )))
+}
+
+/// The two dialects' texts for a selection, and the table they remove from.
+///
+/// A function rather than a `match` inside the member, because *which table a selection reads* is
+/// the half of `rule:concurrency/queue-deletion-is-explicit-and-bounded` that a statement's own
+/// text cannot state: [`PURGE_DEAD_POSTGRES`] naming [`DEAD_TABLE`] says nothing about which call
+/// is routed to it.
+fn purge_texts(selection: Selection) -> (&'static str, &'static str, &'static str) {
+    match selection {
+        Selection::Jobs(_) => (PURGE_POSTGRES, PURGE_MYSQL, JOBS_TABLE),
+        Selection::Dead => (PURGE_DEAD_POSTGRES, PURGE_DEAD_MYSQL, DEAD_TABLE),
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Queue::purge(string $queue, {state?, tag?, before?, limit?}): uint` —
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`, ADR 0153 § 2 and § 4.
+    ///
+    /// **`stats`' subject and `delete`'s grant.** It is asked about a queue rather than about a
+    /// job, because what a retention sweep names is a population; and it takes the same
+    /// `queue.purge`, because a capability answers *may this program remove queue records* and one
+    /// row at a time in a loop is that answer at a different rate.
+    ///
+    /// **The grant is asked before the `[queue]` block is read and before anything opens**, so an
+    /// ungranted caller cannot read the difference between a deployment that configured no queue
+    /// and one that configured a queue it may not sweep.
+    ///
+    /// **One statement per call, and which one is [`purge_state_of`]'s whole answer.** § 6 puts a
+    /// dead-lettered job in another table, so `state: Dead` is a different text rather than another
+    /// arm of the same one; every other selection is [`PURGE_POSTGRES`] with the ordinal the call
+    /// named, or without one for the default set that statement writes as two literals.
+    ///
+    /// **What it spends:** one statement, on the connection the request either already held or now
+    /// holds for the rest of it — so a purge inside a transaction on that connection is undone with
+    /// it if that transaction rolls back, exactly as § 3's enqueue commits with it. Nothing is held
+    /// between calls and no row is read: the count is the statement's own completion, and how many
+    /// rows it may remove is [`DEFAULT_PURGE_LIMIT`] until a caller writes its own bound.
+    fn nvs_core_queue_purge(ctx, args: [5]) {
+        // Unreachable from source: the row types this parameter `string`, so a non-text argument is
+        // refused at `E0401` first — [`nvs_core_queue_stats`]'s guard states the same judgement.
+        let queue = args[PURGE_QUEUE_ARG]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{PURGE_OF}: expected a `string` queue, got tag {}",
+                    args[PURGE_QUEUE_ARG].tag_byte()
+                ))
+            })?
+            .to_owned();
+        nvs_runtime::capability::require(
+            ctx,
+            nvs_config::Cap::QueuePurge,
+            nvs_config::capability::Scope::Name(&queue),
+            PURGE_OF,
+        )?;
+        let selection = purge_state_of(args)?;
+        let tag = purge_tag_of(args)?;
+        let before = purge_before_of(args)?;
+        // Unreachable from source for the queue name's reason, and an omitting call site
+        // materializes the row's own default rather than an absence.
+        let limit = args[PURGE_LIMIT_ARG].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{PURGE_OF}: expected a `uint` for `limit`, got tag {}",
+                args[PURGE_LIMIT_ARG].tag_byte()
+            ))
+        })?;
+        let block = configured_queue(ctx, PURGE_OF)?.connection;
+        // Shared, for `delete`'s reason: removing on a second connection would be removing from
+        // outside whatever transaction the request has open on the first.
+        let handle = crate::db::open_named(ctx, &block, true, None, PURGE_OF)?;
+        let (postgres, framed_text, table) = purge_texts(selection);
+        let queue_sent = queue.clone().into_bytes();
+        let tag_sent = tag.map(String::into_bytes);
+        let before_sent = before.map(|at| at.to_string().into_bytes());
+        let limit_sent = limit.to_string().into_bytes();
+        let sending: Vec<Option<Vec<u8>>> = match selection {
+            Selection::Jobs(state) => vec![
+                Some(queue_sent),
+                state.map(|ordinal| ordinal.to_string().into_bytes()),
+                tag_sent,
+                before_sent,
+                Some(limit_sent),
+            ],
+            Selection::Dead => vec![Some(queue_sent), tag_sent, before_sent, Some(limit_sent)],
+        };
+        let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
+        // [`PURGE_MYSQL`]'s placeholder arithmetic, which is [`STATUS_MYSQL`]'s: a `$n` may be
+        // named as often as a statement likes and a `?` is a position that cannot, so every option
+        // the text asks about twice is bound twice, in the order it reads them.
+        let repeated: &[usize] = match selection {
+            Selection::Jobs(_) => &[0, 1, 1, 2, 2, 3, 3, 4],
+            Selection::Dead => &[0, 1, 1, 2, 2, 3],
+        };
+        let framed: Vec<Option<&[u8]>> = repeated.iter().map(|at| bound[*at]).collect();
+        let refused_by_server = |refused: &dyn std::fmt::Display| {
+            Fault::thrown_as(
+                ThrownClass::Io,
+                format!(
+                    "{PURGE_OF}: removing up to {limit} of the `{queue}` queue's rows from \
+                     `{table}` on `[db.{block}]` was refused: {refused} — `nvs queue migrate` is \
+                     what creates that table"
+                ),
+            )
+        };
+        // `rule:observability/a-query-is-a-trace-event`'s event, as `push` files it and for the reason given there.
+        let mut spans = Spans::of(ctx, &block);
+        // No column is read, for [`nvs_core_queue_delete`]'s reason: a bounded delete says how many
+        // rows it removed on the tag that completes it in either dialect, and that count is the
+        // whole of what this member has to answer.
+        let counted = counted_row(
+            queue_connection(ctx, handle, &block, PURGE_OF)?,
+            (postgres, &bound),
+            (framed_text, &framed),
+            0,
+            &block,
+            &refused_by_server,
+            &mut spans,
+        )?;
+        // As `push`: taken while the rows still lend the span out, filed once they have let the
+        // context go.
+        spans.file(ctx);
+        // A statement that matched nothing answers zero rather than no count at all, which is what
+        // makes § 4's drain loop terminate.
+        Ok(Value::uint(counted.affected.unwrap_or(0)))
+    }
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Queue::stats(string $queue): Queue\Stats` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
@@ -2979,6 +3360,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_queue_status" => (nvs_core_queue_status as *const ()).cast(),
         "nvs_core_queue_cancel" => (nvs_core_queue_cancel as *const ()).cast(),
         "nvs_core_queue_delete" => (nvs_core_queue_delete as *const ()).cast(),
+        "nvs_core_queue_purge" => (nvs_core_queue_purge as *const ()).cast(),
         "nvs_core_queue_stats" => (nvs_core_queue_stats as *const ()).cast(),
         "nvs_core_queue_stats_pending" => (nvs_core_queue_stats_pending as *const ()).cast(),
         "nvs_core_queue_stats_claimed" => (nvs_core_queue_stats_claimed as *const ()).cast(),
@@ -2993,15 +3375,18 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, COUNTS_MYSQL, COUNTS_POSTGRES,
-        DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, DELETE_MYSQL, DELETE_POSTGRES,
-        INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES,
-        PURGE_MYSQL, PURGE_POSTGRES, PUSH, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS,
-        RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
-        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
-        STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES,
-        dead_errors, migration, no_dialect, retry_at,
+        CANCEL_MYSQL, CANCEL_POSTGRES, CLAIM_MYSQL, CLAIM_POSTGRES, CLASS, COUNTS_MYSQL,
+        COUNTS_POSTGRES, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_TABLE, DEFAULT_PURGE_LIMIT,
+        DELETE_MYSQL, DELETE_POSTGRES, Fault, INSERT_MYSQL, INSERT_POSTGRES, JOBS_TABLE, PENDING,
+        PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_MYSQL, PURGE_POSTGRES, PURGE_STATE_ARG, PUSH,
+        QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL,
+        STATUS_POSTGRES, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, Selection, ThrownClass, Value,
+        dead_errors, migration, no_dialect, purge_state_of, purge_texts, retry_at,
     };
+    use super::{NAME, PURGE_DOC, PUSH_DOC};
+    use crate::registry::{CAPABILITIES, Const, CoreTy};
 
     /// An agreement test rather than a wording one, in `the_refusal_names_every_driver_that_sends`'s
     /// shape one module over: what this file must not do is tell an operator to fix the wrong thing.
@@ -3563,6 +3948,301 @@ mod tests {
                  bound holds a lock for as long as it takes: {purge}"
             );
         }
+    }
+
+    /// A `Value` array shaped like the one [`purge_state_of`] reads its `{state: …}` out of.
+    ///
+    /// Only that slot is written. The other three options have helpers of their own, and a text
+    /// `Value` would carry a reference this array has nothing to release it with.
+    fn purge_reading(state: Value) -> [Value; 5] {
+        let mut args = [Value::null(); 5];
+        args[PURGE_STATE_ARG] = state;
+        args
+    }
+
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s one arm that is not a policy
+    /// choice, asserted over the whole enum rather than over the case that is interesting: whatever
+    /// a call names, the text this member would send cannot reach a row a worker holds.
+    ///
+    /// **A sweep and not a line**, because the option is a closed enum: a sixth case added to
+    /// [`STATE`] arrives here as a selection nobody classified, and this is what says so. Each case
+    /// is either refused before a statement is chosen at all, or lands on a text carrying the
+    /// refusal itself — [`PURGE_POSTGRES`]'s `state <> 1`, or [`DEAD_TABLE`], where a claimed row
+    /// cannot be at all: § 6 moves a job there only once it has stopped being attempted.
+    #[test]
+    fn purge_has_no_option_that_reaches_a_claimed_row() {
+        for (case, ordinal) in STATE.cases {
+            let Ok(selection) = purge_state_of(&purge_reading(Value::int(*ordinal))) else {
+                assert_eq!(
+                    *case, "Claimed",
+                    "the refused case is the one a worker is holding, and it is the only one"
+                );
+                continue;
+            };
+            let (postgres, framed, table) = purge_texts(selection);
+            for (dialect, sql) in [("postgres", postgres), ("mysql", framed)] {
+                assert!(
+                    sql.contains("state <> 1") || table == DEAD_TABLE,
+                    "{dialect}: `{case}` selects a text that could remove a claimed row: {sql}"
+                );
+            }
+        }
+    }
+
+    /// The refusal a caller meets, which is the half a statement's text cannot carry: the message
+    /// is where a program finds out *which* case it wrote is the one with no removal in it.
+    ///
+    /// Thrown rather than fatal, and `LogicError` rather than the bare `RuntimeError` a
+    /// [`Fault::thrown`] would be: naming `Claimed` is a call site that asked for something the
+    /// runtime will not do, which is `push`'s `maxAttempts: 0` one member over.
+    #[test]
+    fn purge_naming_the_claimed_state_throws_logic_error_and_names_the_case() {
+        let claimed = STATE
+            .cases
+            .iter()
+            .find(|(name, _)| *name == "Claimed")
+            .expect("`Claimed` is one of the enum's cases")
+            .1;
+        let refused = purge_state_of(&purge_reading(Value::int(claimed)))
+            .err()
+            .expect("a purge naming the claimed state removes nothing and says so");
+        let Fault::Thrown(class, message) = refused else {
+            panic!("a call site error is thrown for a program to catch, not a fatal");
+        };
+        assert!(
+            matches!(class, ThrownClass::Logic),
+            "the class is the one `rule:core-api/shape-rules` gives an argument a member refuses"
+        );
+        assert!(
+            message.contains("Claimed"),
+            "the message names the case that was written: {message}"
+        );
+    }
+
+    /// ADR 0153 § 2's default set, asserted where the member *reads* it rather than where the
+    /// statement writes it.
+    ///
+    /// [`queue_statements_agree_with_the_state_enum`] holds the two ordinals inside
+    /// [`PURGE_POSTGRES`]'s own text; this holds the reading in front of them. A call naming no
+    /// state binds no ordinal at all, so the set is the statement's and cannot be one this layer
+    /// quietly widened — and each of `Dead` and `Pending` is reachable only by the call that names
+    /// it, which is what keeps *nothing is discarded silently* a property of every deployment
+    /// rather than of the runtime alone.
+    #[test]
+    fn purge_with_no_state_takes_succeeded_and_cancelled_and_neither_dead_nor_pending() {
+        assert!(
+            matches!(
+                purge_state_of(&purge_reading(Value::null())),
+                Ok(Selection::Jobs(None))
+            ),
+            "a call naming no state binds no ordinal, so the statement's own two literals are the \
+             whole of the default set"
+        );
+        for (case, ordinal) in STATE.cases {
+            if *case == "Claimed" {
+                continue;
+            }
+            let named = purge_state_of(&purge_reading(Value::int(*ordinal)))
+                .expect("every case but the claimed one selects something");
+            let reached = match named {
+                Selection::Jobs(state) => state == Some(*ordinal),
+                // Being in the other table is what `Dead` is, so its selection carries no ordinal.
+                Selection::Dead => *case == "Dead",
+            };
+            assert!(
+                reached,
+                "`{case}` is reached by the call that names it, and the nameless call above \
+                 reached none of them"
+            );
+        }
+    }
+
+    /// § 6's other table, asserted as the member's own routing: one case reads it, and it is the
+    /// one being in that table *is*.
+    ///
+    /// What the statements' texts can say is that [`PURGE_DEAD_POSTGRES`] names [`DEAD_TABLE`] and
+    /// no ordinal; what they cannot say is which call arrives there. A selection sending `Pending`
+    /// to the dead-letter table would remove the record that work was lost while every statement
+    /// in the module still read correctly on its own line.
+    #[test]
+    fn purge_naming_dead_reads_the_dead_letter_table_and_no_other_selection_does() {
+        let mut reading = 0;
+        for (case, ordinal) in STATE.cases {
+            let Ok(selection) = purge_state_of(&purge_reading(Value::int(*ordinal))) else {
+                continue;
+            };
+            let (postgres, framed, table) = purge_texts(selection);
+            if *case == "Dead" {
+                reading += 1;
+                for (dialect, sql) in [("postgres", postgres), ("mysql", framed)] {
+                    assert!(
+                        table == DEAD_TABLE
+                            && sql.contains(DEAD_TABLE)
+                            && !sql.contains(&format!("{JOBS_TABLE} ")),
+                        "{dialect}: `Dead` removes from the table § 6 moved the row into, and \
+                         from that one alone: {sql}"
+                    );
+                }
+            } else {
+                assert_eq!(
+                    table, JOBS_TABLE,
+                    "`{case}` is a state of a row in the jobs table, and is removed from there"
+                );
+            }
+        }
+        assert_eq!(
+            reading, 1,
+            "exactly one of the enum's cases reads the dead-letter table"
+        );
+    }
+
+    /// § 4's bound and § 1's answer, asserted on the registry row rather than on a text.
+    ///
+    /// [`every_purge_is_bounded_and_takes_the_oldest_rows_first`] holds that no statement can be
+    /// *sent* without a bound; this holds that no call can be *written* without one, which is a
+    /// different claim: the option's default is a number, so an omitting call site materializes
+    /// [`DEFAULT_PURGE_LIMIT`] rather than an absence some later reading would have to invent a
+    /// bound for. The count beside it is the other half of the same sentence — a `bool` there
+    /// would leave § 4's drain loop with nothing to terminate on.
+    #[test]
+    fn purge_is_bounded_with_nothing_written_and_answers_the_count_it_removed() {
+        let row = CLASS
+            .methods
+            .iter()
+            .find(|member| member.name == "purge")
+            .expect("`purge` is one of the class's members");
+        assert!(
+            matches!(row.return_ty, CoreTy::Uint),
+            "the answer is how many rows went, which is what a caller's loop reads"
+        );
+        let CoreTy::Options(options) = &row.params[1] else {
+            panic!("the filter is one trailing options shape, as `push`'s is");
+        };
+        let limit = options
+            .iter()
+            .find(|option| option.name == "limit")
+            .expect("the bound is one of the shape's fields");
+        assert!(
+            matches!(limit.default, Const::Uint(DEFAULT_PURGE_LIMIT)),
+            "an omitting call site materializes the bound itself, not an absence"
+        );
+        const {
+            assert!(
+                DEFAULT_PURGE_LIMIT > 0,
+                "a bound of zero is a member that removes nothing and a loop that never drains"
+            );
+        }
+    }
+
+    /// `rule:concurrency/queue-four-members`' four and ADR 0153 § 5's two, as one roster: what the
+    /// class declares, and which of its members a grant is asked about.
+    ///
+    /// **The six are asserted together, because the claim is about the boundary between them.** A
+    /// grant appearing on `push` would put the request path behind a list an operator has to keep,
+    /// and a grant missing from either removal member would leave the record that work existed
+    /// removable by anything that can reach a queue name. Written as an if-and-only-if over every
+    /// member rather than as two lines, so a seventh member added to the class fails here until
+    /// somebody decides which side of that boundary it is on.
+    #[test]
+    fn core_queue_declares_delete_and_purge_beside_its_four_and_both_declare_the_capability() {
+        let declared: Vec<&str> = CLASS.methods.iter().map(|member| member.name).collect();
+        assert_eq!(
+            declared,
+            ["push", "status", "cancel", "stats", "delete", "purge"],
+            "the operator's two sit beside the four a request asks, and not among them"
+        );
+        for member in CLASS.methods {
+            let (_, _, grant) = CAPABILITIES
+                .iter()
+                .find(|(class, name, _)| *class == NAME && *name == member.name)
+                .unwrap_or_else(|| panic!("`{}` declares what it may reach", member.name));
+            assert_eq!(
+                matches!(grant, Some(nvs_config::Cap::QueuePurge)),
+                matches!(member.name, "delete" | "purge"),
+                "`{}` is asked for `queue.purge` exactly when it is a member that removes rows",
+                member.name
+            );
+        }
+    }
+
+    /// `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them` as a reader of the reference
+    /// meets it: the two options are opposites at the point they touch, so the card that documents
+    /// one documents the other beside it and says which does which.
+    ///
+    /// **The adjacency is the assertion**, not decoration. A caller reaching for "delete this
+    /// batch" finds `key` first — it is the older option — and a card that explained dedupe
+    /// without the group name next to it is how a 500-job batch gets tagged with a key and becomes
+    /// a 1-job batch at the enqueue that created it.
+    #[test]
+    fn pushs_reference_card_documents_tag_beside_key_and_says_which_one_groups() {
+        let at = |name: &str| {
+            PUSH_DOC
+                .params
+                .iter()
+                .position(|param| param.name == name)
+                .unwrap_or_else(|| panic!("`{name}` is one of the options the card documents"))
+        };
+        assert_eq!(
+            at("tag"),
+            at("key") + 1,
+            "the two are read together, so the card documents them together"
+        );
+        let desc = |name: &str| PUSH_DOC.params[at(name)].desc;
+        assert!(
+            desc("tag").contains("group") && !desc("key").contains("group"),
+            "the card says which of the two names a group: {}",
+            desc("tag")
+        );
+        assert!(
+            desc("key").contains("dedupe"),
+            "and which admits one pending job: {}",
+            desc("key")
+        );
+    }
+
+    /// ADR 0153 § 2 as the reference states it, which is the one place a caller reads what a
+    /// `purge` naming nothing removes.
+    ///
+    /// **The default set and the two opt-ins have to be on the card and not only in the rule**,
+    /// because the failure they guard against is silent: a caller who believes the default sweeps
+    /// the dead-letter table writes a retention job that deletes the record an incident review
+    /// reads, and nothing at the call site would have told it otherwise. The count is on the same
+    /// card for the same reason — it is what `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s
+    /// drain loop reads, and a caller that never learns of it writes one call and believes the
+    /// table is empty.
+    #[test]
+    fn purges_reference_card_names_the_default_set_the_two_opt_ins_and_the_count() {
+        for case in ["Succeeded", "Cancelled", "Dead", "Pending"] {
+            assert!(
+                PURGE_DOC.short.contains(case),
+                "the card names `{case}`, which is a state a caller has to know the answer about"
+            );
+        }
+        let state = PURGE_DOC
+            .params
+            .iter()
+            .find(|param| param.name == "state")
+            .expect("the option that selects them is documented");
+        assert!(
+            state.desc.contains("Dead") && state.desc.contains("Pending"),
+            "the two opt-ins are explained where they are written: {}",
+            state.desc
+        );
+        assert!(
+            PURGE_DOC.ret.contains("removed") && PURGE_DOC.ret.contains('0'),
+            "the answer is the count, and the `0` is what ends the loop: {}",
+            PURGE_DOC.ret
+        );
+        let refused = PURGE_DOC
+            .errors
+            .iter()
+            .find(|thrown| thrown.error == "LogicError")
+            .expect("the one state with no removal in it throws, and the card says so");
+        assert!(
+            refused.desc.contains("Claimed"),
+            "the throw names the case that was written: {}",
+            refused.desc
+        );
     }
 
     /// The statements in this module write and read [`STATE`]'s ordinals as SQL literals, which no

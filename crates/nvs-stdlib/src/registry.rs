@@ -2316,6 +2316,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "delete",
         Some(nvs_config::Cap::QueuePurge),
     ),
+    (
+        crate::queue::NAME,
+        "purge",
+        Some(nvs_config::Cap::QueuePurge),
+    ),
     // `Core\Queue\Stats`' four counters read slots off a record the statement
     // already answered, and `Core\Queue\Id`'s row is not here because it has no
     // member at all — both are `Core\Process\Result`'s reading one class over.
