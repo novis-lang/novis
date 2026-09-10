@@ -1573,6 +1573,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   a message stating the file no longer holds a sentence it plainly still does. Grep the needle
   before writing the trailer, and shorten it to the longest run that sits on one line.
   [until: gone tools/playbook.py:A needle is a plain substring]
+- **`docs/agent/loop-goal.toml` is CRLF and its `docs/agent/goals/<goal>.toml` copy is LF, so a
+  plain `diff` of the pair reports every line as changed and buries the drift that matters.**
+  Compare them with `diff --strip-trailing-cr`: run that way this pair differed by exactly the two
+  `[context] modules` lines a session had added to the live copy alone, which the next
+  `goal-switch.py` would have dropped. Write each file in its own ending, and read `git diff
+  --numstat` afterwards to see that you did. [until: reviewed 2026-09-10]
 
 ## Running things
 

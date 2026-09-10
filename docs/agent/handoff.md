@@ -2,52 +2,58 @@
 
 ## State
 
-**Goal `sqlite-queue`, stage 5 is landed whole — both halves.** Every `Core\Queue` member sends over
-a SQLite connection (stage 5's stdlib half, already on disk) and the worker now claims and reports
-over one: `Wire` at `crates/nvs-cli/src/worker.rs:1234` has a fourth arm, `Dialect` at
-`crates/nvs-cli/src/worker.rs:1271` a third, and `roster`, `claim` and `report` each branch to it.
-The goal's one ADR slot stays taken by [0170](../decisions/0170.md).
+**Goal `sqlite-queue`, stage 6: the fixture is landed with the acceptance data that runs it.**
+`examples/queue-sqlite.nvs` is the first queue fixture in this repository that needs no server —
+0.7s, five frozen lines, five consecutive clean runs natively. The goal's one ADR slot stays taken
+by [0170](../decisions/0170.md).
 
-- **`open` refuses SQL Server alone**, still spelled rather than left to a `_`. A SQLite block goes
-  through `sqlite_wire`, which resolves a path where every other arm resolves an address, so it is
-  its own function and not an `open_as!` arm — no host, no port, no `CONNECT_DEADLINE`.
-- **The claim is `CLAIM_SQLITE`'s pair inside `begin_immediate`**, which is the whole mutual
-  exclusion on this backend (`rule:concurrency/claiming-is-one-statement`), and the write-backs are
-  the framed drivers' own texts under the SQLite aliases.
-- **Each arm of `roster` and `claim` builds what it sends.** An instant is the octets of its decimal
-  text to a wire driver and the integer itself to SQLite, so one shared binding would have been
-  built for an arm that cannot use it.
-- **`nvs queue migrate` already converges a SQLite block** — `crates/nvs-cli/src/queue.rs:69` says
-  there is no third refusal, because the schema is one value emitted in every dialect. Stage 6's
-  fixture needs no new command.
-- Nothing is blocked, no design call is waiting on the user, and no `[context]` field was missing
-  from this session's pack.
+- **The fixture runs under its own tree**, `examples/queue-sqlite.toml`, named with `nvs run
+  --config` exactly as `examples/cache-shared-socket.nvs` names its own. `[queue]` is one block per
+  deployment, so a second queue cannot be spelled beside the repository's; that file carries the
+  `[[app]]` and `script.spawn` grant a job needs, because `--config` disables the search for
+  `./nvs.toml` entirely.
+- **Its database is `tests/db/queue-sqlite.db`** (gitignored, resolved against the config file per
+  `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), converged by a
+  `command` check running `nvs queue migrate --config examples/queue-sqlite.toml`. That ordering is
+  structural rather than positional: every `command` check runs before every non-floor program
+  check (`tools/loop.py:2664`), and an ordinary `command` check is not remembered across runs, so a
+  deleted file is re-created by the next sweep.
+- **The fixture is in `[valgrind] skip`.** The sweep runs `nvs run <file>` with no arguments, so
+  without the flag this program is the PostgreSQL queue under a SQLite fixture's name. The cost is
+  that no valgrind leg sweeps the SQLite queue paths at all; it is in the backlog rather than
+  worked around here.
+- **Not verified on the WSL leg.** The Linux CLI under `/var/tmp/nvs-target-wsl` predates stage 5
+  and rebuilding it would have taken the running driver's target lock for minutes. What is
+  unchecked is SQLite's file locking on the drvfs mount, which is where this fixture would fail
+  first on that leg.
+- The two goal toml copies now agree in content again; nothing is blocked and no `[context]` field
+  was missing from this session's pack.
 
 ## Next group
 
-**Stage 6: the fixture and the two suites** — the goal's own § *Stage 6*, whose items 1, 2 and 4
-are below. They are three small files rather than one set; take them in this order, because the
-first is the acceptance check the driver has been failing since session 0006.
+**Stage 6: the suites on the SQLite leg** — one file set: `crates/nvs-stdlib/tests/queue.rs` and
+`tools/db-matrix.py`, in this order, because the leg cannot run a suite whose dialect table has no
+SQLite arm.
 
-- [ ] **`examples/queue-sqlite.nvs` exists and runs with no server** —
-      `docs/agent/loop-goal.toml:11` is where the frozen `files` list names it, and
-      `examples/queue-purge.nvs:1` is the shape beside it, under
-      `rule:core-classes/queue-storage-is-a-table`. `examples/queue.nvs` belongs to goal `database`
-      and its lines are frozen, so this is its own file rather than an edit to that one.
 - [ ] **`crates/nvs-stdlib/tests/queue.rs`'s own `Dialect` gains its third arm** —
-      `crates/nvs-stdlib/tests/queue.rs:314`, under `rule:core-classes/db-drivers-are-an-enum`. Its
-      doc at `crates/nvs-stdlib/tests/queue.rs:310` still says a third arm would be a driver with
-      nothing to send, and that sentence goes with the arm.
+      `crates/nvs-stdlib/tests/queue.rs:313` is the two-armed enum, beside the worker's that
+      already has three, under `rule:concurrency/claiming-is-one-statement`. The `Once` per schema
+      at `crates/nvs-stdlib/tests/queue.rs:397` is the trap the goal names: a poisoned one reports
+      nothing at all.
 - [ ] **`tools/db-matrix.py`'s SQLite leg runs the queue suites** — `tools/db-matrix.py:165` is the
-      leg ("a scratch file, no container"), and the suite list it runs is what this extends, under
-      `rule:core-classes/db-one-api`'s own *Verification* section.
+      leg ("a scratch file, no container") and its suite list is what this extends, under
+      `rule:core-classes/db-drivers-are-an-enum`. The driver roster is not edited; the check that
+      goes green is `the SQLite leg runs the queue suites, with no container at all`.
 
 ## Backlog
 
-- The conformance cases for the members, beside goal `queue-purge`'s — goal § *Stage 6* item 3;
-  no differential case, because PHP has no queue.
-- A sentence where an **operator** reads `[queue] workers` saying where the number stops buying
-  anything on SQLite — `nvs.toml`'s `[queue]` block; the engine-side half is now
-  `crates/nvs-cli/src/worker.rs`'s module doc § *What `[queue] workers` buys on SQLite*.
-- A dead-lettered row still carries the last attempt's error alone — `crates/nvs-cli/src/worker.rs`
-  § *Known gap*, owned by M8.
+- The three conformance cases of stage 6 — `docs/agent/loop-goal.toml`, stage `6 the cases`. How a
+  `.nvst` case reaches a *configured* SQLite queue is not checked, and it is the first question
+  that slice has to answer.
+- The sentence an operator reads beside `[queue] workers`, saying where a second worker stops
+  buying anything on SQLite — the goal's own § *Standing decisions* owes it.
+- No valgrind leg sweeps the SQLite queue paths, because the sweep passes no `--config` —
+  `docs/agent/loop-goal.toml`'s `[valgrind] skip` comment is where the reason lives.
+- `examples/queue-sqlite.nvs` runs three jobs against one file per sweep and nothing empties
+  `tests/db/queue-sqlite.db`; the queue names are drawn per run, so the counters stay right and the
+  file only grows.
