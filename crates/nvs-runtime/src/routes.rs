@@ -51,6 +51,15 @@
 //! That is `matchit`'s left-to-right precedence, which `rule:routing/path-grammar` names as the
 //! model, stated as a comparison rather than grown out of a trie.
 //!
+//! **The match crosses as the name and the captures, and never as the row.**
+//! `Core\Request::route()` answers with `nvs_stdlib::router`'s
+//! `Core\Router\Match`, built out of [`Match`] where the match crosses. The
+//! [`Route`] itself stays on this side, because a program that could read its
+//! handler label, its declared verb and its access decision is one step from the
+//! dispatch `rule:routing/matching-is-not-dispatching` refuses. The day
+//! something needs one of them is the day that refusal is re-argued, not the day
+//! this is widened.
+//!
 //! **What it spends:** one `Arc` clone per request that carries a table, over
 //! one `String` per row's verb, path, name, handler and access decision — tens
 //! of them for an application, and nothing at all for a program that declares no
@@ -76,15 +85,7 @@
 //!    right verb: the same answers, and a cost that grows with the table rather
 //!    than with the path. The shape a trie would replace is one function
 //!    ([`Routes::match_request`]) and the rank it already computes.
-//! 2. **The reader answers the name and the captures, and never the row.**
-//!    `Core\Request::route()` answers with `nvs_stdlib::router`'s
-//!    `Core\Router\Match`, built out of [`Match`] where the match crosses.
-//!    What does not cross is the [`Route`] itself — its
-//!    handler label, its declared verb and its access decision stay on this
-//!    side, because a program that could read them is one step from the
-//!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
-//!    something does is the day that refusal is re-argued rather than widened
-//!    here.
+//!    — owner: unowned
 
 use std::sync::Arc;
 
