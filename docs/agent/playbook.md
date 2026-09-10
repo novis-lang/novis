@@ -1506,6 +1506,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-stdlib/src/uuid.rs` writes `` `bytes` round trip ``. Copy the needle out of the file it
   watches, or point it at a plain-text state such as `owner: unowned` instead.
   [until: reviewed 2026-09-10]
+- **`owners.py` reads a gap item as running to the end of the module doc, so a paragraph *after* the
+  numbered list makes the owner tag "not the item's last line".** `crates/nvs-stdlib/src/process.rs`
+  kept its `**What it spends:**` paragraph inside `# Known gaps`, so the tag appended to item 1 left
+  the gate red with a message that reads like a formatting typo in the tag itself. Move the trailing
+  paragraph above the `# Known gaps` heading — where the rest of the crate already has it — rather
+  than moving the tag down past prose it does not belong to.
+  [until: gone tools/owners.py:the owner tag is not the item's last line]
 
 ## Running things
 

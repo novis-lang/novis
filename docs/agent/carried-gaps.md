@@ -69,7 +69,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Twenty-eight entries.** They arrive
+Nobody's, and each is a scheduling question rather than a session's. **Thirty-one entries.** They arrive
 three ways: an owner that went green without closing its gap and was struck rather than renamed, a
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
@@ -266,6 +266,29 @@ where taking it is the work and the code that follows it is not.
   `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
   `crates/nvs-stdlib/src/json.rs` gap 5.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
+- **The queue's two tables are the runtime's own, and two questions about what they carry are open.**
+  `nvs_jobs` gets its dedupe guarantee from a plain unique key over `dedupe_pending`, which
+  `rule:core-classes/queue-storage-is-a-table` states and the runtime's own schema carries — but that
+  key exists only where an operator has run `nvs queue migrate`, and `push` proves nothing about
+  whether they did, so a deployment behind on the converge is racy at `read committed` while reading
+  as healthy. What has to be decided is whether a member proves the constraint is there — an
+  introspection on first use, or a refusal to serve a queue whose schema is behind — or whether that
+  window stays an operational bound the migration command's own text names. Beside it, `stats`
+  answers the four counters the rule names and a dead-lettered job's attempts are in none of them,
+  because `nvs_dead_jobs` deliberately carries nothing beyond `id` and `queue`; what has to be decided
+  there is whether that table keeps the columns a fifth counter would read, through the same
+  `nvs queue migrate` converge goal `queue-purge` takes its `tag` column through.
+  `crates/nvs-stdlib/src/queue.rs` gaps 3 and 4.
+  [until: gone crates/nvs-stdlib/src/queue.rs:deployment that never ran]
+- **Nothing measures what spec §§ 13–20 still owe.** `tests/spec_registry_coverage.rs` and
+  `tests/conformance_coverage.rs` both stop at § 12, and past it there is no outstanding-members
+  file at all, so a row nobody has written fails nothing — `Core\Db`'s `stream`, `streamAs` and
+  `Connection::close` are spec § 18 rows in exactly that position. What has to be decided is whether
+  those two gates widen past § 12 at all, which means listing rows for classes no goal has built yet
+  and failing `cargo test -p nvs-stdlib` on every one of them from the day the file appears, or
+  whether §§ 13–20 stay measured one module doc at a time with this file as the index of what nobody
+  owns. `crates/nvs-stdlib/src/lib.rs` gap 1.
+  [until: gone crates/nvs-stdlib/src/lib.rs:§§ 13–20 hold whatever]
 - **`Core\Uuid` has no `bytes` round trip**, so a driver binding a native `UUID` column carries the
   36-character text between the two. Nothing under it is missing — `nvs_runtime::Tag::Bytes` is a
   live tag and a `Core` instance holds whatever Novis holds — so what has to be decided is whether
