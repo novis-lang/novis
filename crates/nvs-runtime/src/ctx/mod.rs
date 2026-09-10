@@ -338,6 +338,13 @@ pub struct Ctx {
     /// [`Self::refresh_limits`] to carve, and this one field is the whole of
     /// what the directive becomes.
     ///
+    /// **Read twice, in two units.** [`Self::output_limit`] reads it as the
+    /// running total above; [`Self::intake_limit`] reads the same number as the
+    /// ceiling on one buffer a `Core` member fills from outside the request,
+    /// which is what `rule:core-classes/process-run` reuses rather than adding a
+    /// second directive. Those two readings fail differently and that method's
+    /// doc owns why.
+    ///
     /// **What it spends:** one word per request.
     output_limit: usize,
     /// `rule:errors/on-limit`'s

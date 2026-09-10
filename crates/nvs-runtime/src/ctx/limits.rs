@@ -5,7 +5,9 @@
 //! arms it and the `*_breach` that turns a crossing into a [`crate::Fault`].
 //! [`Ctx::refresh_limits`] is where a configuration snapshot becomes armed
 //! numbers, and the `configured_*` readers below it are the one place a key's
-//! default is written down.
+//! default is written down. The `intake_*` triple is the one ceiling read per
+//! call rather than per request — the same directive as the output one, in a
+//! different unit, and [`Ctx::intake_limit`] owns why.
 //!
 //! A breach is *reported*, not raised. What runs on it is
 //! [`super::hooks`]'s handler, which is a separate question and a separate
@@ -127,6 +129,68 @@ impl Ctx {
     #[must_use]
     pub fn over_output_limit(&self) -> bool {
         self.output_limit != 0 && self.output_used() > self.output_limit
+    }
+
+    /// The largest single buffer a `Core` member may fill from **outside** this
+    /// request, in bytes, `0` for no cap.
+    ///
+    /// `[limits] max_output`'s number a second time, and deliberately not a
+    /// second directive: `rule:core-classes/process-run` reuses the one an
+    /// operator already writes rather than adding a cap they would have to keep
+    /// in step with it. `Core\Process::run`'s two captures and `Core\IO::read`'s
+    /// buffer are what ask, through [`Self::intake_bound`] and
+    /// [`Self::intake_breach`] — the three together are the whole of what a call
+    /// site needs, so no member does this arithmetic itself.
+    ///
+    /// **Per call, where [`Self::output_limit`] is per request.** A response is
+    /// a running total because every byte written to one stays in it; a buffer
+    /// read in from a child or a file is freed when the value holding it dies,
+    /// so a running total would bound a request's *lifetime* reading rather than
+    /// what it holds at once, and a loop reading a small file a thousand times
+    /// would fail on a ceiling meant to catch one enormous read. Each call is
+    /// measured on its own and nothing accumulates.
+    #[must_use]
+    pub fn intake_limit(&self) -> usize {
+        self.output_limit
+    }
+
+    /// [`Self::intake_limit`] as the count a bounded read stops at: one byte
+    /// past the ceiling, and `u64::MAX` where there is no ceiling at all.
+    ///
+    /// One past rather than the ceiling itself, so that a read which fills this
+    /// is over by exactly the byte that proves it — a reader stopping *at* the
+    /// ceiling cannot tell a file that exactly fits from one that does not.
+    /// Nothing unbounded is ever held: the extra byte is the whole of what a
+    /// refusal costs over an acceptance.
+    #[must_use]
+    pub fn intake_bound(&self) -> u64 {
+        match self.intake_limit() {
+            0 => u64::MAX,
+            limit => u64::try_from(limit).unwrap_or(u64::MAX).saturating_add(1),
+        }
+    }
+
+    /// The [`crate::Fault`] `member` owes for taking `bytes` in past
+    /// [`Self::intake_limit`], or `None` where the read is inside it.
+    ///
+    /// **A throw, where [`Self::output_breach`] is a `FATAL`**, and the two are
+    /// not the same event. A breach is the request having already gone too far,
+    /// noticed at a poll with nothing left to decide. This is a member
+    /// *refusing* before anything crosses that ceiling — nothing has reached the
+    /// response, so no limit has been exceeded and the request is intact. It is
+    /// `rule:security/denial-is-a-runtime-error`'s shape rather than
+    /// `rule:errors/on-limit`'s: the caller asked for something this request may
+    /// not hold, can catch that, and can ask for less.
+    #[must_use]
+    pub fn intake_breach(&self, member: &str, bytes: usize) -> Option<crate::Fault> {
+        let limit = self.intake_limit();
+        if limit == 0 || bytes <= limit {
+            return None;
+        }
+        Some(crate::Fault::thrown(format!(
+            "{member} read at least {bytes} bytes, past the `[limits] max_output` ceiling of {limit} \
+             this request holds a single read to",
+        )))
     }
 
     /// The [`crate::Fault`] a request past its memory ceiling owes, or `None`
