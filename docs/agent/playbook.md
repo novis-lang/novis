@@ -4140,6 +4140,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs queue migrate --config examples/queue-sqlite.toml --dry-run` into the case's own `--FILE--`,
   and create `nvs_dead_jobs` beside `nvs_jobs`: `status` reads a receipt back from both.
   [until: reviewed 2026-09-11]
+- **An `.lspt` case whose cursor lands on a construct no case had reached costs twelve more cases, not
+  one.** `nvs_lsp::coverage`'s vocabulary is every construct some cursor resolved to, so three cases
+  before a `}`, a `)` and a `]` opened `Block`, `Paren` and `ArrayLiteral` as columns and
+  `every_request_answers_every_construct` demanded four cursor rows and a whole-document row at each.
+  Price it with `nvs lsp-test tests/lsp/ --coverage` first, and put a claim about *many* cursors in a
+  `-p nvs-lsp` test, where it opens no column.
+  [until: gone crates/nvs-lsp/src/coverage.rs:which is the ratchet]
 
 ## Splitting a file that got too big
 

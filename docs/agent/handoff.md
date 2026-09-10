@@ -2,38 +2,49 @@
 
 ## State
 
-**Goal `workspace-index` — the language server grows past its first closed list — has just started; nothing of it has
-landed yet.** Goal `editor-install`'s whole acceptance list is this goal's floor.
+**Goal `workspace-index`, stage 0 is closed and green.** A receiver whose access ends at the cursor now
+offers its class's members: the parser has no token to make a member name from before a `}`, a `)`, a `]`
+or the end of the file, so the access stops at the arrow and `SyntaxIndex::at`'s half-open containment put
+the cursor outside every node of it. `crates/nvs-lsp/src/completion.rs:246` reaches such an access by
+asking the index about the byte before the cursor and keeping it only where it ends *at* the cursor; the
+containment itself is untouched, because `selectionRange` is frozen on a cursor being outside the node it
+touches.
 
-The design is not open. `rule:ide/five-features-are-one-reference-index` already specifies stage 2 and 3
-in full — one construction site, five readers, and the structural test that says so — and
-`rule:ide/check-scope-defaults-to-open-documents` already froze `nvs.check.scope` and
-`nvs.checkWorkspace`. What is *not* settled and is this goal's own record to settle: admitting
-`signatureHelp`, `typeDefinition` and `implementation` against ADR 0099 § 3's test, the two completion
-arms of stage 5, and reversing that same record's inlay-hint deferral in stage 6.
+**The `\` defect is still live and is stage 5's**, exactly as `docs/agent/loop-goal.md:30` says. Its check
+`every_trigger_character_reaches_an_arm_that_is_not_the_position_list` moved from stage 0 to stage 5's
+arms block, where its fix is: a catch-up failure returns before every other check in the sweep
+(`tools/loop.py:2639`), so gating a stage-5 fix at stage 0 would have reported no other stage until it
+landed. `capabilities.rs:174`'s trigger list is deliberately not trimmed.
 
-Two defects are live in a shipped extension right now and are stage 0's, not a later cleanup. Reproduce
-both before writing anything: a cursor after `Core\` answers 37 keywords because `\` is a declared
-trigger character with no arm, and `$b->` as the last statement of a block answers keywords while the
-same `$b->` above another statement answers the members. The second is a hole in the `.lspt` corpus —
-`crates/nvs-lsp/src/lib.rs:57`'s own example froze the case that works.
+Nothing is blocked. Stages 2, 3, 4, 5 and 6 are all open; stage 1 is goal `editor-install`'s floor.
 
 ## Next group
 
-**Stage 0, then stage 2.** They share no file set, so they are two groups; take stage 0 first because it
-is small, it is user-visible, and it tells you how the completion arms are shaped before you widen the
-index they will read.
+**Stage 2: the one workspace symbol index** — one file set: `crates/nvs-lsp/src/document.rs`,
+`crates/nvs-lsp/src/lib.rs`, `crates/nvs-lsp/tests/latency.rs`. Read
+`rule:ide/a-full-reanalysis-stays-under-a-bound` before choosing the invalidation shape: the bound has to
+hold with the index warm, which is what rules out rebuilding it per keystroke.
 
-- [ ] **Reproduce both stage 0 defects as `.lspt` cases** under `tests/lsp/completion/`, one per closing
-      delimiter. They fail on the day they are written.
-- [ ] **Fix the end-of-block recovery** in `crates/nvs-lsp/src/completion.rs`. The receiver is found by
-      walking to the enclosing access node; a `}` after the cursor is what currently leaves no access
-      node to find.
-- [ ] **Leave `\` alone until stage 5.** Removing it from `crates/nvs-lsp/src/capabilities.rs:174` would
-      have to be undone; the named test asserts every declared trigger reaches an arm, and stage 5 is
-      what makes it pass. Say so in the commit rather than half-fixing it.
-- [ ] **Then stage 2**, and read `rule:ide/a-full-reanalysis-stays-under-a-bound` before choosing the
-      invalidation shape — the bound has to hold with the index warm, which is what rules out
-      rebuilding it per keystroke.
-- [ ] **The record is one, not four.** Stages 4, 5 and 6 each argue one section of it. Open it before
-      stage 4, not after, because 0099 § 3's admission test is what its § *Decision* has to answer.
+- [ ] **One construction site, beside `Analysed`** at `crates/nvs-lsp/src/document.rs:254`, exported from
+      the module list at `crates/nvs-lsp/src/lib.rs:96`. `rule:ide/five-features-are-one-reference-index`
+      is the whole specification and the test is `the_crate_has_exactly_one_symbol_index_construction_site`.
+- [ ] **Invalidate the file and its readers and nothing else.** `Documents` at
+      `crates/nvs-lsp/src/document.rs:94` already holds the version per URI, so what changed is a fact it
+      has; the test is `a_change_invalidates_the_file_and_its_readers_and_nothing_else`.
+- [ ] **The warm bound**, copied from the guard shape already in the crate —
+      `crates/nvs-lsp/tests/latency.rs:130` is `a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound`
+      and is `#[cfg(debug_assertions)]` for the reason the playbook's `cargo-named` bullet gives. Test:
+      `a_warm_index_answers_within_the_reanalysis_bound`.
+- [ ] **Scope selects the tree, never the construction site** —
+      `rule:ide/check-scope-defaults-to-open-documents`, at the walk `crates/nvs-lsp/src/document.rs:381`.
+      Test: `check_scope_selects_the_tree_and_never_the_construction_site`.
+
+## Backlog
+
+- The corpus owes 15 cells before `}`, `)` and `]` can each hold a case: `docs/agent/loop-goal.md:26`
+  asks for one per closing delimiter, and `crates/nvs-lsp/src/coverage.rs` § *Decision* prices it.
+- Stage 4 opens this goal's one record, next free 0171 — `docs/agent/loop-goal.md` § *Standing decisions*.
+- Inherited members and visibility are still not applied to a member list —
+  `crates/nvs-lsp/src/completion.rs` § *Known gaps*.
+- `[context] modules` gained `crates/nvs-lsp/src/coverage.rs` this session; the pack never printed what a
+  `.lspt` case costs, which is what made stage 0 wider than its item read.
