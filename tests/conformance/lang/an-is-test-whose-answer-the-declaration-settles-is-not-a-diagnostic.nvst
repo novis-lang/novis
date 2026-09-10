@@ -1,0 +1,58 @@
+--TEST--
+A test the declared type already answers compiles and answers it, in both directions, and so does one written inside a branch that has already narrowed its subject — `rule:types/type-test`, `rule:types/narrowing`
+--FILE--
+<?nvs
+// `rule:types/type-test` is total: nothing is refused for having a knowable
+// answer. `int $n; $n is int` is `true` and `$n is string` is `false`, and
+// neither is a diagnostic — that is the whole of what this case pins, so it
+// is a case rather than a unit test: what is frozen is the answer a program
+// gets, not which pass settled it.
+//
+// The neighbouring operator does refuse a subject of this shape
+// (`rule:php-migration/a-declared-type-answers-before-the-program-runs`),
+// because `instanceof` needs a class to test against and a scalar has none.
+// `is` is applicable everywhere, every value having a representation, so a
+// knowable answer here is not a meaningless question.
+
+class Show {
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+int $n = 7;
+echo "int-is-int=", Show::yn($n is int), "\n";
+echo "int-is-string=", Show::yn($n is string), "\n";
+
+string $s = "ab";
+echo "string-is-string=", Show::yn($s is string), "\n";
+echo "string-is-int=", Show::yn($s is int), "\n";
+
+// A declaration that fixes the type to one a value can hold with `null`
+// beside it settles neither half by itself, and both spellings still read as
+// the same operator.
+?int $maybe = null;
+echo "nullable-is-null=", Show::yn($maybe is null), "\n";
+echo "nullable-is-int=", Show::yn($maybe is int), "\n";
+
+// `rule:types/narrowing`: the second reason nothing is refused here. Inside
+// the branch the guard proved, the subject is already an `int`, so the inner
+// test is statically true by construction — refusing it would let a flow
+// analysis turn working code into a compile error.
+mixed $m = 42;
+if ($m is int) {
+    echo "narrowed-again=", Show::yn($m is int), "\n";
+    echo "narrowed-is-string=", Show::yn($m is string), "\n";
+}
+--EXPECT--
+int-is-int=y
+int-is-string=n
+string-is-string=y
+string-is-int=n
+nullable-is-null=y
+nullable-is-int=n
+narrowed-again=y
+narrowed-is-string=n
