@@ -7451,6 +7451,10 @@ tests = [
   "no_sqlite_statement_binds_another_dialects_placeholder",
 ]
 
+# The third name is the one `crates/nvs-cli/src/worker.rs` already declares: one walk over all three
+# claim lists, asserting each answered column against the position the worker's own constant reads it
+# at. Stage 2's own third point says to extend that test to a third dialect rather than write a
+# second one, and it was extended, so this check points at it under the name it carries.
 [[check]]
 kind = "cargo-named"
 stage = "5 the seams"
@@ -7459,7 +7463,7 @@ args = ["test", "-p", "nvs-cli"]
 tests = [
   "a_sqlite_block_opens_a_queue_worker",
   "a_sql_server_block_still_starts_no_worker_and_names_the_driver",
-  "a_worker_reads_the_same_claim_columns_by_position_on_all_three_dialects",
+  "the_worker_reads_args_and_script_at_the_positions_the_claim_statement_returns_them",
 ]
 
 # ---------------------------------------------------------------------------------------------------
