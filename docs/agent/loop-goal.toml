@@ -7384,34 +7384,46 @@ tests = [
 # Stage 3 -- the worker's other statements.
 # ---------------------------------------------------------------------------------------------------
 
+# The names are `crates/nvs-stdlib/tests/queue_sqlite.rs`'s, which is where stage 2 put this
+# backend's cases and where every one of these runs against a real engine on every machine. The
+# five drafted here before that file existed were `..._on_sqlite`, a suffix no suite in this
+# repository uses; the claims are unchanged and the dedupe one was already pinned under the name
+# below. Stage 6's matrix leg runs the same binary a second time against a file rather than an
+# in-memory database, which is what `tools/db-matrix.py`'s `SUITES` reaches.
 [[check]]
 kind = "cargo-named"
 stage = "3 the worker's statements"
 name = "nvs-stdlib (dedupe, the dead-letter move, the retry ladder and the roster, on SQLite)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "a_second_push_of_a_pending_key_is_deduped_on_sqlite",
-  "a_dead_letter_move_leaves_the_row_in_both_tables_or_in_neither_on_sqlite",
-  "a_retry_puts_the_dedupe_key_back_on_sqlite",
-  "the_roster_answers_only_the_queues_holding_due_work_on_sqlite",
-  "a_worker_that_overran_its_visibility_window_reports_nothing_on_sqlite",
+  "a_sqlite_push_of_a_key_already_pending_answers_that_job_and_inserts_nothing",
+  "a_sqlite_dead_letter_move_carries_the_row_whole_into_the_other_table",
+  "a_sqlite_retry_puts_the_dedupe_key_back_on_the_row_it_released",
+  "a_sqlite_roster_names_only_the_queues_holding_due_work",
+  "a_sqlite_worker_that_overran_its_visibility_window_reports_nothing",
 ]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the six members' statements.
 # ---------------------------------------------------------------------------------------------------
 
+# The names are `crates/nvs-stdlib/tests/queue_sqlite.rs`'s, for the reason stage 3's comment
+# gives, and the list is the five members this check's own name reads rather than the four the
+# draft did: `status` and `cancel` are pinned there too. Each of the drafted names is a claim one
+# of these carries -- the delete case asks both the claimed job and the row § 6 has already moved,
+# and the purge case asks both the bound and the default state set -- so nothing was dropped.
 [[check]]
 kind = "cargo-named"
 stage = "4 the members"
 name = "nvs-stdlib (status, cancel, stats, delete and purge answer the same way on SQLite)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  "delete_refuses_a_claimed_job_on_sqlite",
-  "delete_finds_a_job_the_dead_letter_move_has_already_taken_on_sqlite",
-  "purge_never_removes_more_rows_than_its_bound_on_sqlite",
-  "purge_naming_no_state_removes_terminal_rows_and_nothing_else_on_sqlite",
-  "stats_answers_four_counters_from_one_instant_on_sqlite",
+  "a_sqlite_status_reads_the_live_state_and_then_the_dead_letter_ordinal",
+  "a_sqlite_cancel_takes_a_pending_job_and_changes_nothing_else",
+  "a_sqlite_delete_removes_a_receipt_from_either_table_and_a_claimed_job_from_neither",
+  "a_sqlite_purge_selects_the_finished_set_and_never_more_rows_than_its_bound",
+  "a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_table",
+  "sqlite_stats_answer_four_integers_over_an_empty_queue_and_a_worked_one",
   "queue_statements_agree_with_the_state_enum",
 ]
 
