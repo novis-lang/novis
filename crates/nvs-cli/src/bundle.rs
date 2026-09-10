@@ -29,6 +29,13 @@
 //! describe, so these bytes are invisible to both and the copy stays runnable
 //! as itself: an `nvs` that finds no footer is the `nvs` it always was.
 //!
+//! On macOS the copy is ad-hoc signed once the payload is on the end of it,
+//! which is `rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build`. A
+//! `codesign --sign -` that does not succeed is a warning and not a failed
+//! build: an unsigned bundle is still the artifact the author asked for, and on
+//! a machine with no developer tools installed refusing to produce one would be
+//! worse than saying so.
+//!
 //! ## What the shipped binary does with it
 //!
 //! [`embedded`] is read before clap sees a single argument, because a bundle's
@@ -39,20 +46,20 @@
 //! `nvs run` path — § 4's "the same code path with one different byte source
 //! for reads", so there is no second interpreter here to drift from the first.
 //!
-//! ## Known gaps
+//! Configuration is that same path's: naming no `--config` leaves the search
+//! for `./nvs.toml` in the working directory
+//! (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`),
+//! which is what a bundled process therefore gets. § 1's single trust domain is
+//! what makes reading a file beside the binary harmless — the person running it
+//! is the only principal — and the consequence is that a malformed `nvs.toml` in
+//! that directory refuses the run as the configuration error it is, before the
+//! bundled program is parsed.
+//!
+//! ## Known gap
 //!
 //! * § 6's `.nvsx` entries are not embedded yet — Tier 1 extensions do not
 //!   load at all today, so there is nothing for the flat list to carry.
 //!   — owner: M9
-//! * `rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build` has the build
-//!   sign; here the macOS ad-hoc signing runs `codesign --sign -` and reports a failure
-//!   as a warning rather than failing the build: an unsigned bundle is still
-//!   the artifact the author asked for, and on a machine with no developer
-//!   tools installed refusing to produce one would be worse than saying so.
-//! * A bundled process still resolves `./nvs.toml` from its working directory
-//!   the way `nvs run` does. § 1's single trust domain makes that harmless —
-//!   the person running the binary is the only principal — but it does mean a
-//!   malformed `nvs.toml` beside the bundle refuses the run.
 
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
@@ -276,8 +283,8 @@ fn write_bundle(files: &[(String, String)], out: &Path) -> std::io::Result<()> {
         fs::set_permissions(out, perms)?;
     }
     // § 5: appending after a Mach-O's signature invalidates it, so the result
-    // is ad-hoc signed here. A failure is a warning — see this module's *Known
-    // gaps*.
+    // is ad-hoc signed here. A failure is a warning rather than a failed build —
+    // this module's *What is appended* says why.
     #[cfg(target_os = "macos")]
     {
         let signed = std::process::Command::new("codesign")
