@@ -50,18 +50,29 @@
 //! a call, so AGENTS.md's "attributable to a request and O(in-flight)" rule is
 //! satisfied trivially: the generator belongs to the worker, not to the work.
 //!
+//! # Nothing forks, so no child inherits this state
+//!
+//! A `fork(2)` without an exec would leave the child drawing the parent's
+//! stream, and nothing here reseeds. Novis does not fork:
+//! `rule:core-classes/process-is-argv-only` makes a path and an argument array
+//! the one way to run another program, so every child is an exec that replaces
+//! this generator along with the rest of the image, and
+//! `rule:packaging/a-service-is-one-stored-argv`'s `run` is the service
+//! manager's own entry point into a fresh process — M7's plan writes a
+//! `Type=notify` unit, which is the systemd type that does not daemonize.
+//! Should a pre-fork model ever land, it owes `ThreadRng::reseed` in the child.
+//!
 //! # Known gaps
 //!
-//! 1. **`Core\Random\Seeded` is not built.** It is a separate object with the
-//!    same members, constructed from an explicit seed; making the distinction a
-//!    type is what stops a test helper being reached for in production, so it
-//!    is a class of its own here too rather than an option on these members.
-//! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in Novis forks today —
-//!    `rule:packaging/a-service-is-one-stored-argv`'s service-manager
-//!    registration (`install`/`run`/`start`/`stop`/`status`) is unbuilt, and
-//!    `nvs service unit` only writes a file — but a child process that inherits a parent's ChaCha state would
-//!    reproduce the parent's stream, so whatever lands there owes
-//!    `ThreadRng::reseed` in the child.
+//! 1. **`Core\Random\Seeded` is not built, and whether it should exist is the
+//!    open half.** Spec § 11 makes it a separate object with the same members,
+//!    constructed from an explicit seed, on the argument that making the
+//!    distinction a *type* is what stops a test helper being reached for in
+//!    production. `docs/novis.md`'s `Core\Random` chapter says there is no
+//!    seeded generator under any name, and ADR 0079 § 12 reaches reproducibility
+//!    from the other side: `#[Test(seed:)]` seeds this class for the isolate a
+//!    test runs in, which is the same argument it makes for the clock.
+//!    — owner: unowned
 //!
 //! # The one exception, and no program outside a test can select it
 //!
