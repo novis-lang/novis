@@ -22,8 +22,10 @@ Target forms, all of them `path` followed by `:` and a locator:
     path:120-160          those lines
     path:120+30           30 lines starting at 120
     path:@name            the line that *defines* `name`, plus --window lines of context
-    path:re:regex         every matching line, `grep -n` style
-    path:re:regex:3       every matching line with 3 lines of context either side
+    path:re:regex         every matching line and nothing around it, `grep -n` style -- a match
+                          on a heading or a `//!` line almost always wants context
+    path:re:regex:3       every matching line with 3 lines of context either side; `--context 3`
+                          says that for every target in the call, and a suffix wins over it
     path:/regex/          the same, in the familiar spelling -- but Git Bash on Windows
                           rewrites a leading `/` into a Win32 path before this tool sees it,
                           so prefer `re:` there
@@ -337,7 +339,7 @@ def emit_matches(path: Path, lines: list[str], rx, context: int) -> int:
     return printed
 
 
-def peek_one(spec: str, window: int, max_lines: int) -> tuple[int, int]:
+def peek_one(spec: str, window: int, max_lines: int, context: int) -> tuple[int, int]:
     """One target -> (bytes printed, targets that produced nothing)."""
     as_rule = rule_target(spec)
     pattern, locator = split_target(as_rule if as_rule else spec)
@@ -405,7 +407,10 @@ def peek_one(spec: str, window: int, max_lines: int) -> tuple[int, int]:
                 out(f"===== {pattern}  -- bad regex /{m.group(1)}/: {exc}")
                 out()
                 return printed, empty + 1
-            n = emit_matches(path, lines, rx, int(m.group(2) or 0))
+            # A `:0` suffix is a real answer, not a missing one, so the suffix wins whenever the
+            # group matched at all -- `"0" or context` is `"0"`, which is the point of testing the
+            # string rather than the int.
+            n = emit_matches(path, lines, rx, int(m.group(2) or context))
             printed += n
             if n:
                 sweep_hits += 1
@@ -424,7 +429,8 @@ def peek_one(spec: str, window: int, max_lines: int) -> tuple[int, int]:
             continue
 
         out(f"===== {rel(path)}  -- no heading matching {locator!r}, and it is not a line "
-            f"range. Forms: 120-160, 120+30, @symbol, /regex/, \"## Heading\".")
+            f"range. Forms: 120-160, 120+30, @symbol, re:pattern (re:pattern:3 for context), "
+            f"\"## Heading\".")
         out()
         empty += 1
 
@@ -595,8 +601,35 @@ def note_reads(targets: list[str]) -> list[str]:
     return lines
 
 
+def target_forms() -> str:
+    """The `Target forms` block of this file's docstring, verbatim. One home for the spelling."""
+    lines = (__doc__ or "").splitlines()
+    for i, line in enumerate(lines):
+        if not line.startswith("Target forms"):
+            continue
+        block = [line]
+        for nxt in lines[i + 1:]:
+            if nxt and not nxt.startswith("    "):
+                break
+            block.append(nxt)
+        return "\n".join(block).rstrip()
+    return ""
+
+
+class Parser(argparse.ArgumentParser):
+    """argparse answers a bad flag with the usage line alone, and that line is where a session
+    reaching for `grep`'s spelling gets stuck: it names `--window`, which applies to `@symbol` and
+    to nothing else, and says nothing about how a `re:` target widens. So an error prints the
+    target forms too -- the answer to the question the wrong flag was asking."""
+
+    def error(self, message: str):
+        self.print_usage(sys.stderr)
+        sys.stderr.write(f"{self.prog}: error: {message}\n\n{target_forms()}\n")
+        raise SystemExit(2)
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(
+    ap = Parser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("targets", nargs="*", metavar="TARGET",
@@ -610,7 +643,11 @@ def main() -> int:
     ap.add_argument("--in", dest="scope", metavar="GLOB",
                     help="restrict --locate to these files")
     ap.add_argument("--window", type=int, default=DEFAULT_WINDOW,
-                    help=f"lines of body after an @symbol hit (default {DEFAULT_WINDOW})")
+                    help=f"lines of body after an @symbol hit, and nothing else "
+                         f"(default {DEFAULT_WINDOW}); a re: target takes --context")
+    ap.add_argument("--context", "-C", type=int, default=0, metavar="N",
+                    help="lines either side of every re: match (default 0); a target's own "
+                         "re:pattern:N wins over this")
     ap.add_argument("--max-lines", type=int, default=DEFAULT_MAX_LINES,
                     help=f"refuse a whole file over this many lines (default {DEFAULT_MAX_LINES})")
     ap.add_argument("--quiet", action="store_true", help="omit the cost footer")
@@ -633,7 +670,7 @@ def main() -> int:
 
     total, empty = 0, 0
     for spec in opts.targets:
-        printed, missed = peek_one(spec, opts.window, opts.max_lines)
+        printed, missed = peek_one(spec, opts.window, opts.max_lines, opts.context)
         total += printed
         empty += missed
 

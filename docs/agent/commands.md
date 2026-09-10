@@ -164,9 +164,10 @@ python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \
 python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```
 
-Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (optionally `re:pattern:3` for context),
-`"## Heading"`, or nothing for a whole small file — and the path may be a glob, which is how one call
-sweeps a crate. Prefer `re:` to the `/pattern/` spelling: Git Bash rewrites a leading `/` into a Win32
+Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (which prints the matching line alone —
+`re:pattern:3`, or `--context 3` for every target in the call, is how it comes back with the block
+under it), `"## Heading"`, or nothing for a whole small file — and the path may be a glob, which is
+how one call sweeps a crate. Prefer `re:` to the `/pattern/` spelling: Git Bash rewrites a leading `/` into a Win32
 path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchors are made of.
 
 **A `rule:` citation is a target on its own** — `rule:types/conversion`, backticks and all if you
