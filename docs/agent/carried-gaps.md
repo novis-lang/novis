@@ -60,8 +60,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `Core\Uri::with` replaces a component and cannot remove one | `unowned-sweep` | `crates/nvs-stdlib/src/uri.rs` gap 1 |
 | `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | `unowned-sweep` | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
 | `array<T>` is invariant — **decided: widen to a covariant read** | `unowned-sweep` | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
-| No custom panic hook — `rule:errors/helper-abi`; its blocker went away in M5 | `unowned-sweep` | `crates/nvs-runtime/src/lib.rs` gap 4 |
-| `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | `unowned-sweep` | `crates/nvs-stdlib/src/process.rs` gap 1 |
 | The driver matrix has no socket leg, so `AF_UNIX` is asserted against no real server | `input-shapes` | `crates/nvs-db/src/matrix.rs` gap 1 |
 | An integer where a grant expects a bool, a path or a list validates clean and grants nothing: `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time | `config-is-written` | `crates/nvs-config/src/tree.rs:50`'s untagged `Setting`, which every directive shares |
 

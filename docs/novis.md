@@ -10498,7 +10498,7 @@ The whole content of a file, as text — `file_get_contents`. Needs the `fs.read
 
 **Returns** `string` — The file's bytes as a `string`, with nothing stripped and no encoding assumed.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path; the message names the capability in the spelling `nvs.toml` grants it under.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
+**Throws** `RuntimeError` — The configuration does not grant `fs.read` for this path; the message names the capability in the spelling `nvs.toml` grants it under. Or the file is larger than `[limits] max_output`, the one ceiling a request holds a single read to — the same directive that bounds a captured child's output.; `IOError` — The capability allowed it and the operating system did not — the file does not exist, is a directory, or could not be read.
 
 <a id="core-core-io-write"></a>
 #### `Core\IO::write`
@@ -11174,7 +11174,7 @@ Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP
 
 **Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit code and both captured streams. The child inherits none of this process's own standard streams — all three are piped — so a program that runs a child cannot have its own output interleaved with it.
 
-**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not executable, or the child could not be waited for.
+**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser. Or the child wrote more than `[limits] max_output` across the two streams, in which case it is killed and nothing is captured: the ceiling on a response is the ceiling on one capture too.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not executable, or the child could not be waited for.
 
 <a id="core-core-process-result"></a>
 ### `Core\Process\Result`

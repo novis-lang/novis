@@ -2,50 +2,54 @@
 
 ## State
 
-**Goal `unowned-sweep`, stage 4, first half — landed.** All three `-p nvs-runtime` names the check
-lists are on disk in `crates/nvs-runtime/src/floor.rs` and pass. `floor::install_panic_hook` is the
-hook and `floor::report_panic` is the half a test can ask a question of, because a `PanicHookInfo`
-cannot be constructed; `crates/nvs-cli/src/main.rs:849` installs it as `main`'s first statement, before
-the bundle footer read, so a bundled application carries it too. `crates/nvs-runtime/src/lib.rs`'s
-known gap 4 is struck — the list keeps its holes rather than renumbering, as it already did at 3.
+**Goal `unowned-sweep`, stage 4 — both checks green, and every test name in every stage of
+`loop-goal.toml` now exists on disk** (checked name by name). `[limits] max_output` bounds a capture
+at both readers: `crates/nvs-stdlib/src/process.rs:420`'s `drain` holds a child's two pipes to it and
+kills the child at the bound, and `crates/nvs-stdlib/src/io.rs:2648`'s `slurp` holds a whole-file read
+to it. Stage 5's `owners.py --unowned --check` is green; the two `nvs-suite` runs are what
+`verify.py` covers, so the goal is met if that run is.
 
-The hook reaches its context through `ctx::current`'s thread-local, the door
-`crate::object::dismantle` already uses: a hook's signature carries no context, and that thread-local
-is the only one there is. The claim test is `Ctx::inbound`, which is exactly what `stamp_envelope`
-gates on — so a `nvs run` panic falls through to the hook installed before this one and still reaches
-stderr, and `rule:http-server/containment-does-not-end-at-the-helper` is untouched: the hook runs
-before the unwind starts and returns, so `run_helper` and `run_task` contain a panic as they did.
+**The item's premise was stale and the correction is the useful part.** `[limits] max_output` already
+had a reader — `Ctx::output_limit`, `crates/nvs-runtime/src/ctx/limits.rs:112` — and had since it
+landed. What was missing was the *unit* a member needs: the response ceiling is a running total per
+request, and a capture is one buffer per call. So the number is now read twice, by
+`Ctx::intake_limit` / `intake_bound` / `intake_breach`
+(`crates/nvs-runtime/src/ctx/limits.rs:153`), and the field doc at
+`crates/nvs-runtime/src/ctx/mod.rs:327` names both readings.
 
-**Stage 4's second check has neither of its names on disk, and `max_output` has no reader anywhere in
-the tree** — `peek.py --locate max_output` finds it only in two decision records, so what is missing
-first is the directive reader beside `Ctx::memory_limit`, not a call site that forgot to ask.
+**The tradeoff, stated because it changes a landed member.** `Core\IO::read` of a file larger than
+`max_output` now throws where it used to succeed, and a chatty child is killed mid-write. Both
+refusals are **catchable** and are not `rule:errors/on-limit`'s `FATAL`: nothing reached the response,
+so the request exceeded no limit — a member declined to hold more than the request may produce.
+`rule:core-classes/process-run` is the home of that reading. Per request this spends nothing; it only
+lowers what a capture may hold.
 
 ## Next group
 
-**Stage 4: `[limits] max_output` bounds a capture, at both readers, `rule:core-classes/process-run`** —
-one file set: `crates/nvs-stdlib/src/process.rs` over `crates/nvs-stdlib/src/io.rs`, with the
-directive's reader in `crates/nvs-runtime/src/ctx/limits.rs`. ADR 0044 § 1 is already in the pack and
-says the shape: the directive is reused rather than a cap added, and a child that writes past it is
-killed with `run()` throwing, "the same shape an over-large response body already gets".
+**Stage 5: the two suites, and the `.nvst` half of the bound nothing pins yet** — one file set:
+`tests/conformance/core/` beside the two members that just changed,
+`crates/nvs-stdlib/src/process.rs` and `crates/nvs-stdlib/src/io.rs`. Both members' `-p nvs-stdlib`
+cases assert the bound; no conformance case does, and `rule:core-classes/process-run`'s guard list is
+`.nvst` cases. A case that configures anything is a multi-file case — the playbook's *A multi-file
+`.nvst` case* bullet owns the shape, and `try.py` cannot drive one.
 
-- [ ] **The directive gets a reader.** `crates/nvs-runtime/src/ctx/limits.rs:50` is `memory_limit`,
-      the shape a second limit takes, and `crates/nvs-runtime/src/ctx/limits.rs:60` its setter. Nothing
-      reads `[limits] max_output` today, so settle there whether it is bytes-per-capture or
-      bytes-per-request before either call site asks — the two members share one directive and
-      `rule:config/three-changeability-classes` owns which class it is.
-- [ ] **`a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded`** —
-      `crates/nvs-stdlib/src/process.rs:325` is `nvs_core_process_run`, and that module's known gap 1
-      at `crates/nvs-stdlib/src/process.rs:59` is what closes with it.
+- [ ] **A conformance case pins the refusal a program sees when a child writes past the ceiling.**
+      `tests/conformance/core/process-a-capture-is-whole-not-a-pipes-worth.nvst:1` is the sibling to
+      copy the shape from, and `crates/nvs-stdlib/src/process.rs:420` is what it exercises. The
+      refusal is a catchable `RuntimeError` naming `max_output` and the member —
       `rule:core-classes/process-run`.
-- [ ] **`core_io_read_is_bounded_by_the_same_directive_and_the_same_signature`** —
-      `crates/nvs-stdlib/src/io.rs:1969` is `nvs_core_io_read`. The gap above says the same signature
-      closes both, so both land here or neither does.
+- [ ] **The same for `Core\IO::read`, and that the two messages agree.**
+      `tests/conformance/core/io-read-and-read-text-name-one-door.nvst:1` already asks one question of
+      both doors and is the shape; `crates/nvs-stdlib/src/io.rs:2648` is the reader, and
+      `readText`/`lines` inherit the ceiling through it without a case of their own.
+- [ ] **A case for the accepted side, so the ceiling is pinned on both sides in the corpus too.**
+      `crates/nvs-runtime/src/ctx/limits.rs:166` is why one byte past is where a read stops: a file
+      exactly at the ceiling is read whole and must stay that way.
 
 ## Backlog
 
-- Stage 5 rewrites `docs/agent/carried-gaps.md` § *Unowned* to what survives — `docs/agent/loop-goal.md`
-  § *Stage 5* owns what is expected to.
-- `carried-gaps.md:63`'s panic-hook row is stale now that the gap is struck; stage 5's rewrite is where
-  it goes.
-- `[context] modules` names `crates/nvs-runtime/src/lib.rs` for stage 4 but not
-  `crates/nvs-runtime/src/floor.rs`, which is where the hook actually landed.
+- No `.nvst` case configures `[limits] max_output` at all — the whole ceiling is Rust-side only.
+- `Core\Process::spawn` and `ProcessOptions` are still `(designed)` — ADR 0044 §§ 2–3.
+- `drain` spends one OS thread per `run` for the child's lifetime; nothing measures it
+  (`crates/nvs-stdlib/src/process.rs:420` says what it buys).
+- ~106 module-doc gaps are still unowned — `docs/agent/carried-gaps.md` § *Unowned*.
