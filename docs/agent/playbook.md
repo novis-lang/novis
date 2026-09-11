@@ -1265,15 +1265,15 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   real editor holds. Stub the missing scope in `editors/vscode/test/grammar/tokenize.ts` as
   `text.html.basic` already is, rather than hunting a regex that looks wrong.
   [until: gone editors/vscode/test/grammar/tokenize.ts:PHP_STUB]
-- **`editors/vscode`'s headless gate is red on purpose, and exactly four names are the whole of
+- **`editors/vscode`'s headless gate is red on purpose, and exactly two names are the whole of
   it.** `contributions.test.ts` asserts that every contributed command reaches a `registerCommand`
-  call and every contributed setting reaches a reader, which `nvs.run`, `nvs.test`, `nvs.showAst` and
-  `nvs.lsp.debounce` do not — the manifest is a frozen roster rather than a list of what works, so an
-  identifier is contributed early to keep a keybinding stable and
+  call and every contributed setting reaches a reader, which `nvs.showAst` and `nvs.lsp.debounce` do
+  not — the manifest is a frozen roster rather than a list of what works, so an identifier is
+  contributed early to keep a keybinding stable and
   `rule:ide/contributions-are-frozen-and-only-ever-added` forbids the repair that would delete one.
-  Read the two failure lists before treating a red `extension` step as yours: those four names are
-  the designed state, goal `editor-surfaces`' stages 3 and 4 and the server half of its stage 0 are
-  what close them, and widening either assertion is the same refused repair in a different file.
+  Read the two failure lists before treating a red `extension` step as yours: those two names are
+  the designed state, goal `editor-surfaces`' stage 4 and the server half of its stage 0 are what
+  close them, and widening either assertion is the same refused repair in a different file.
   [until: exists editors/vscode/src/extension.ts:nvs.showAst]
 - **`session.py --wrap` cannot commit a rename: a `## commit:` naming the path that went away is
   refused with "no such path", and naming only the new one leaves the deletion uncommitted.** Every

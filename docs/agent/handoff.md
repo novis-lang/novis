@@ -2,50 +2,52 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Stage 2 is landed whole, and the ADR that freezes it is
-0172.** `nvs test --format=json` is `schemaVersion: 2` with `file`, `line` and `column` on every
-record; `nvs test --list` writes the discovery document, whose records sit under `listed` and carry
-no verdict; `nvs check --json` is version 1 and unchanged. The three tests stage 2's second
-`[[check]]` names pass in `crates/nvs-cli/src/runner.rs`, and two conformance cases pin both
-documents. JUnit and the plaintext report are byte-identical to what they were.
+**Goal `editor-surfaces` — milestone M10. Stage 3 is landed whole.** `contributes` now holds
+`taskDefinitions` (one type, `nvs`, requiring `command` and `file`) and one `problemMatchers` entry
+named `nvs`, a two-line regex over the renderer's format. `src/tasks.ts` builds the Task both entry
+points run, `src/binary.ts` is the one home for which `nvs` is spawned — the server in
+`extension.ts` reads it too — and `nvs.run`/`nvs.test` are registered beside the other four
+commands. `rule:ide/tasks-carry-a-problem-matcher` is `shipped` and names that suite as its guard.
 
-**Stage 0 is where it was, and stages 3 and 4 are what close it.** `tools/verify.py`'s `extension`
-step and the goal's earliest acceptance check are the same two contributions tests — `nvs.run`,
-`nvs.test` and `nvs.showAst` are contributed and unanswered — and `docs/agent/playbook.md:1268` is
-what says so. Nothing else in the gate is red.
+**The `surfaces:` suite exists**, at `editors/vscode/test/surfaces/`, printing `surfaces: 8
+passing`. It runs the contributed matcher over `recorded/check.txt`, which is byte-identical to what
+`target/debug/nvs` prints for `recorded/app.nvs` — three diagnostics under two codes, one of them
+past line 9 so the widened gutter is covered, and the `aborting due to` summary asserted to start no
+entry. Stages 4 to 6 add files to that directory rather than a suite of their own.
 
-**`nvs test --list` is on the CLI and nothing reads it yet.** Stage 5's explorer is its only
-consumer, and its shape is `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`.
+**Stage 0 is down to two names, and neither is stage 3's.** `nvs.showAst` is stage 4 and
+`nvs.lsp.debounce` is the server half; headless is `192 passing, 2 failing` and
+`docs/agent/playbook.md:1268` is what says the `extension` step is red on purpose. Nothing else in
+the gate is red.
+
+**`nvs test --list` still has no consumer** — stage 5's explorer is its only one, per
+`rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`.
 
 ## Next group
 
-**Stage 3: the Tasks, and the Problems panel** — one file set: `editors/vscode/package.json`,
-`editors/vscode/src/extension.ts`, `editors/vscode/scripts/headless.mjs` and a new
-`editors/vscode/test/surfaces/`. The first two answer two of stage 0's three unanswered commands;
-the third is the suite the stage's own `[[check]]` greps for as `surfaces:`.
+**Stage 4: the AST panel** — one file set: `editors/vscode/src/extension.ts`, a new
+`editors/vscode/src/ast.ts` beside `tasks.ts`, and `editors/vscode/test/surfaces/`. It answers the
+last of stage 0's three unanswered commands, and closes the command half of stage 0's check.
 
-- [ ] **`nvs run` and `nvs test` contributed as Tasks, each with a `problemMatcher`**, per
-      `rule:ide/tasks-carry-a-problem-matcher`: `contributes` at `editors/vscode/package.json:28`
-      holds neither `taskDefinitions` nor `problemMatchers` today. The pattern is two lines over the
-      renderer's existing format — `error[E0301]: message`, then `  --> file:line:col`
-      (`rule:errors/renderings`) — and nothing in the client parses a diagnostic itself.
-- [ ] **`nvs.run` and `nvs.test` answered as the commands that start those Tasks**, per
-      `rule:ide/contributions-are-frozen-and-only-ever-added`: register them beside the three at
-      `editors/vscode/src/extension.ts:72`, and let them execute the contributed Task rather than
-      spawning a second process. The roster the contributions test asserts is
-      `editors/vscode/test/contributions/contributions.test.ts:96`.
-- [ ] **The `surfaces:` suite exists and is discovered**, per the stage's own check: `ORDER` at
-      `editors/vscode/scripts/headless.mjs:21` lists three suites and the check wants four. Its
-      first case is the `problemMatcher`'s regex against a recorded `nvs check` rendering carrying a
-      real `error[E0301]` and its `-->` line — a regex over recorded text, so no editor runs.
+- [ ] **`nvs.showAst` registered, beside the two this session answered**, per
+      `rule:ide/the-ast-panel-shells-out-to-the-cli`: the roster's last unanswered id, joining
+      `editors/vscode/src/extension.ts:78`. It shells out rather than parsing anything in the
+      client, so what it needs from `tasks.ts` is only the binary — `src/binary.ts:15`.
+- [ ] **The panel renders `nvs ast --json` for the active file as a tree**, per
+      `rule:ide/ast-json-schema-is-frozen`: the document is `kind`, `span`, the node's own scalars
+      and `children`, built at `crates/nvs-cli/src/ast.rs:101`, and resilient by default so the
+      panel works on a file that does not compile. No second schema and no parser in the client;
+      `rule:ide/the-extension-builds-no-ui-the-editor-already-has` puts it in a `TreeView`.
+- [ ] **A recorded `nvs ast --json` in the `surfaces` suite**, the way the matcher is recorded:
+      a fixture beside `editors/vscode/test/surfaces/recorded/app.nvs`, and an `ast.test.ts` beside
+      `editors/vscode/test/surfaces/tasks.test.ts:1` asserting the shape the panel walks. Record it
+      from the built binary and diff it back, rather than hand-writing what it should print.
 
 ## Backlog
 
-- Stage 4: `nvs.showAst`, per `rule:ide/the-ast-panel-shells-out-to-the-cli` — the last of stage 0's
-  three unanswered commands, and the AST panel's whole client half.
-- Stage 5: the `TestController`, per `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`
-  — discovery from `--list`, runs through `--format=json --filter`, and `.nvst` as a second suite.
-- Stage 6: `nvs/regions` and the template services, per
-  `rule:ide/a-template-region-gets-services-but-no-second-formatter`.
-- `nvs test --coverage` exports nothing, so the explorer ships without coverage; `docs/plan/m10.md`
-  owns when the Clover/lcov exporters land.
+- `nvs.lsp.debounce` is contributed and read by nobody: the client forwards the whole `nvs` section
+  already, so the half that is missing is `crates/nvs-lsp/src/settings.rs` reading
+  `&["lsp", "debounce"]` and the analysis scheduler honouring it. Goal stage 0, second half.
+- Stage 5's Test Explorer over `nvs test --list` and `--format=json` `schemaVersion: 2`.
+- Stage 6's `nvs/regions` request and the embedded HTML/CSS/JS services.
+- A `.vscodeignore` is still absent, so `vsce package` ships `test/` and its recordings.
