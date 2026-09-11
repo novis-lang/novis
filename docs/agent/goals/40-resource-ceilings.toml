@@ -133,6 +133,13 @@ modules = [
   "crates/nvs-ir/src/ir.rs",
   # The ladder as a fixture -- the handler, the reserve, and the message shape stage 0 copies.
   "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+  # The seam a `Core` member reaches its host through — one thread-local, one trait, and one
+  # operation shaped like the promise it has to keep.
+  "crates/nvs-runtime/src/host.rs",
+  # One thread's CPU time, sampled by a thread that is not it.
+  "crates/nvs-host/src/cpuclock.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
 ]
 
 # The rules every stage of this goal works inside.
@@ -8017,9 +8024,13 @@ kind = "cargo-named"
 stage = "3 the clock"
 name = "a thread's own cpu time is sampled, and a slow wait is not a runaway"
 args = ["test", "-p", "nvs-host"]
+# The first two are the tree's own names for the first two claims, which landed
+# under them: the sampler's case reads one thread's clock from another and
+# asserts the waiting reader is charged none of what the spinner burned, and the
+# walk's case is the interval that flags a request past its ceiling.
 tests = [
-  "a_thread_cpu_clock_advances_with_work_and_not_with_waiting",
-  "a_core_past_its_cpu_ceiling_is_flagged_within_one_interval",
+  "a_clock_read_from_another_thread_follows_the_thread_that_burned_it",
+  "the_walk_stops_a_request_past_its_cpu_ceiling_and_leaves_one_under_it",
   "a_core_parked_on_io_past_the_same_wall_time_is_not_flagged",
   "a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot",
 ]
@@ -8029,9 +8040,14 @@ kind = "cargo-named"
 stage = "3 the clock"
 name = "both poll sites act on the flag the sampler raises"
 args = ["test", "-p", "nvs-runtime"]
+# The first two landed under the tree's own names: `nvs_safepoint` is the back
+# edge compiled code polls, and `bounded_loop` is the poll a member makes. The
+# third is the one still to write — `Ctx::run_limit_handler` lowers the flag for
+# the length of the handler and raises it again after, and nothing asserts that
+# a handler overrunning its widened ceiling is stopped rather than entered again.
 tests = [
-  "a_raised_cpu_flag_stops_compiled_code_at_its_next_back_edge",
-  "a_raised_cpu_flag_stops_a_bounded_loop_inside_a_member",
+  "a_limit_or_cancel_safepoint_is_fatal_and_uncatchable",
+  "a_fired_poll_names_the_ceiling_that_stopped_the_walk",
   "the_limit_handler_runs_once_and_is_not_re_entered_when_it_overruns",
 ]
 

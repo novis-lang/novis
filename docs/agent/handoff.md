@@ -2,53 +2,53 @@
 
 ## State
 
-**Goal `resource-ceilings`: stage 6's sweep now covers the two stores the goal never named.**
-`crates/nvs-stdlib/src/bus.rs` holds `budget::Detached` at both ends — the publish allocates the
-envelope inside one and the receiving core frees it inside another — which is sound because the
-detached balance is per thread and **signed** (`crates/nvs-runtime/src/budget.rs:225`).
-`crates/nvs-stdlib/src/topic.rs`'s per-core subscriber table brackets the name and the row it keys
-and leaves the `Weak` prune outside on purpose. Both module docs carry the decision, two new guards
-pin it, and `python tools/verify.py` is green.
+**Goal `resource-ceilings`: stage 3's first check is green, and its second is one test short.**
+Both copies of the goal TOML (`docs/agent/loop-goal.toml` and `docs/agent/goals/40-resource-ceilings.toml`,
+byte-identical again) now name the tests the tree holds. Two of that check's four names were claims
+landed under other names; the other two named real work and are written —
+`crates/nvs-host/src/watchdog.rs:1168` pins that a core parked past its ceiling in *wall* time is
+not flagged, and `crates/nvs-host/src/cpuclock.rs:@no_ceiling_note` is what a platform with no
+per-thread clock says at boot, printed by `crates/nvs-cli/src/serve.rs:372` as the fleet starts.
 
-**The driver's stage 3 check is a naming mismatch, not unlanded work, and that is why it repeats.**
-The sampler and both poll halves are on disk: `crates/nvs-host/src/cpuclock.rs:193` spins rather
-than sleeps and is the advances-with-work-not-with-waiting claim under another name, and
-`crates/nvs-host/src/watchdog.rs:1117` stops the request past its ceiling and leaves the one under
-it. The check's four drafted names are what has never run. This is the playbook's *a check can name
-a test the tree already declares under a different name*, and it is the next group.
+**The stage's second check is two renames and one unwritten test.** `nvs_safepoint`'s back edge and
+`bounded_loop`'s in-member poll are pinned under the tree's names, re-pointed here; nothing asserts
+that a limit handler overrunning its widened ceiling is stopped rather than entered a second time,
+which is the next group. The stage's third check is the `.nvst` case, which is on disk.
 
-**One store stays unbracketed on purpose**, and it is still the compiled-pattern cache —
+**One store stays unbracketed on purpose**, still the compiled-pattern cache —
 `crates/nvs-stdlib/src/regex.rs`'s gap 4 is the finding, waiting on M6's arena.
 
 ## Next group
 
-**Stage 3: the clock, whose checks name tests the tree took other names for** — one file set,
-`docs/agent/loop-goal.toml` with its copy `docs/agent/goals/40-resource-ceilings.toml`, reading
-`crates/nvs-host/src/{cpuclock,watchdog}.rs` without editing them.
-`rule:errors/on-limit` is what all four names are claims about.
+**Stage 3: the limit handler's zero-retry, the last name in the stage's second check** — one file
+set, `crates/nvs-runtime/src/ctx/hooks.rs` with `crates/nvs-runtime/src/ctx/limits.rs` beside it and
+`crates/nvs-host/tests/limits.rs` as the fixture to copy. `rule:errors/on-limit` is what all of it
+is a claim about.
 
-- [ ] **Re-point the first check's names to the claims the tree landed** —
-      `docs/agent/loop-goal.toml:8028` and `docs/agent/goals/40-resource-ceilings.toml:8021` are the
-      two copies of the same list. `crates/nvs-host/src/cpuclock.rs:193` and
-      `crates/nvs-host/src/watchdog.rs:1117` are the tests that already assert three of the four
-      claims; rename the check rather than writing a second test of a claim already pinned.
-- [ ] **Settle the fourth name before re-pointing it** — `a_platform_without_a_thread_clock_reports_no_cpu_ceiling_at_boot`
-      asks for a report *at boot*, and `crates/nvs-host/src/cpuclock.rs:177` is only the fallback
-      that answers `None`; `crates/nvs-host/src/watchdog.rs:973` is a case reading that answer, not
-      a boot line. The goal's § *Standing decisions* is the specification — write the boot report or
-      re-point the name, not both.
-- [ ] **Check the stage's second list the same way, before touching it** —
-      `docs/agent/loop-goal.toml:8034` names three `nvs-runtime` tests for the two poll sites, and
-      whether each is drafted or landed is the same question asked of a different crate.
+- [ ] **Read how a test builds a registered limit handler before writing one** —
+      `crates/nvs-host/tests/limits.rs:304` is the existing fixture and it is in `nvs-host`, while
+      the check is `args = ["test", "-p", "nvs-runtime"]`. If no `nvs-runtime` test can build a
+      closure value, the check's `args` is the half that is wrong and the name moves to the crate
+      that owns the fixture — the playbook's *a check can name a test in a crate that cannot host
+      it*.
+- [ ] **Write `the_limit_handler_runs_once_and_is_not_re_entered_when_it_overruns`** —
+      `crates/nvs-runtime/src/ctx/hooks.rs:543` is the slice: `run_limit_handler` widens
+      `cpu_limit` by `fatal_reserve_time`, lowers `SafepointFlags::CPU_LIMIT` for the length of the
+      call and raises only what it lowered on the way out. The claim is that a handler which burns
+      past the widened ceiling is stopped there rather than re-entered, which is
+      `crates/nvs-runtime/src/ctx/limits.rs:404`'s zero-retry rule.
+- [ ] **Then re-point or keep the third name, in both TOML copies** —
+      `docs/agent/loop-goal.toml:8043` and `docs/agent/goals/40-resource-ceilings.toml:8043` hold
+      the same list, and the comment above it names what is missing; the copies are byte-identical
+      and must stay so.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/instance.rs:243` and `:368` leak a `ClassTable` charged to whichever request
-  first constructs one — bounded and never freed, so nothing is credited, but the builder overpays.
-- `crates/nvs-stdlib/src/channel.rs:233`'s parked-waiter `Vec` grows on one request's balance and
-  never gives the buffer back — O(max concurrently parked), and the entries are the requests' own.
-- `crates/nvs-stdlib/src/identity_store.rs:59` and `crates/nvs-stdlib/src/cli.rs:2804` were read this
-  session and hold no cross-request heap; neither needs a bracket.
-- The indented `thread_local!`s in `command`, `fatal`, `reflect`, `router`, `script`, `session` and
-  `signal` are the unswept remainder of the store grep — most are inside a test module or a fn.
-- A goal switch overwrites this file; what must outlive one goes in `docs/agent/carried-gaps.md`.
+- `nvs run` says nothing where the platform has no clock — `crates/nvs-cli/src/main.rs:1993` builds
+  `RunningRequest` from `ThreadClock::current()` and is silent when it is `None`.
+- This goal's own record is still unopened; next free is `docs/decisions/0175.md`, re-checked
+  before it is claimed — goal `resource-ceilings` § *Standing decisions*.
+- The compiled-pattern cache stays unbracketed until M6's arena —
+  `crates/nvs-stdlib/src/regex.rs` § *Known gaps*, gap 4.
+- Stage 3's `[context]` printed no `crates/nvs-cli/src/serve.rs`; it was needed for the boot site
+  and the driver's `modules` sweep now carries it.
