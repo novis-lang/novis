@@ -617,6 +617,20 @@ mod tests {
         assert_eq!(table.get("B").expect("B").fields, ["v", "w"]);
     }
 
+    /// `nvs-stdlib` classifies a finished ending by the marker's *name*,
+    /// because it depends on `nvs-runtime` and on no part of the compiler —
+    /// `nvs_stdlib::script::FINISH_MARKER_NAME` says so at the spelling itself.
+    /// This crate sees both sides, so this is where the two are held together:
+    /// without it, renaming the class the compiler declares would leave every
+    /// finish reported as an uncaught throw and no build would say so.
+    #[test]
+    fn the_marker_the_runtime_classifies_by_is_the_one_the_compiler_declares() {
+        assert_eq!(
+            nvs_stdlib::script::FINISH_MARKER_NAME,
+            nvs_hir::errors::FINISH_MARKER
+        );
+    }
+
     /// A file declaring nothing still gets both rosters no source declares,
     /// and nothing else — `nvs_hir::errors`' classes and
     /// `nvs_hir::interfaces`' interfaces exist in every program, with the

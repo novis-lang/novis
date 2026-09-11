@@ -160,6 +160,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: ON_EXIT_SYMBOL,
             doc: Some(&ON_EXIT_DOC),
         },
+        CoreMethod {
+            name: "finish",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: FINISH_SYMBOL,
+            doc: Some(&FINISH_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -185,6 +194,20 @@ const ON_EXIT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Script::finish`'s reference card — `rule:core-api/reference-card`.
+const FINISH_DOC: MethodDoc = MethodDoc {
+    short: "Ends this script here and does not return. Every `finally` between the call and the \
+            root runs, then the exit queue drains — so it is the ending `exit` is not, and the \
+            one a request handler reaches for when it is done answering.",
+    params: &[],
+    ret: "Nothing, and nothing after the call runs. No `catch` arm sees the ending — the value \
+          raised is outside the `Throwable` tree — and the report each exit hook is handed names \
+          it `Finish` with status `0` and no error. Under a server the response the handler \
+          declared is the one sent and `Core\\Task::afterResponse` work still runs; under \
+          `nvs run` it is the end of the script.",
+    errors: &[],
+};
+
 /// `Core\Script\ExitReason`'s fully-qualified name — `rule:observability/script-on-exit`.
 ///
 pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReason";
@@ -200,14 +223,19 @@ pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReason";
 /// would be a value nothing can ever produce.
 pub(crate) const EXIT_REASON: crate::registry::CoreEnum = crate::registry::CoreEnum {
     name: EXIT_REASON_NAME,
-    cases: &[("Normal", 0), ("ExitCall", 1), ("UncaughtThrow", 2)],
+    cases: &[
+        ("Normal", 0),
+        ("ExitCall", 1),
+        ("UncaughtThrow", 2),
+        ("Finish", 3),
+    ],
     doc: Some(&EXIT_REASON_DOC),
 };
 
 /// [`EXIT_REASON`]'s reference card — `rule:core-api/reference-card`.
 const EXIT_REASON_DOC: EnumDoc = EnumDoc {
-    short: "Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have no \
-            case here because they run no hook at all.",
+    short: "Which ending ran the exit hooks. A `FATAL` and a cancellation have no case here \
+            because they run no hook at all.",
     cases: &[
         CaseDoc {
             name: "Normal",
@@ -222,6 +250,12 @@ const EXIT_REASON_DOC: EnumDoc = EnumDoc {
             name: "UncaughtThrow",
             desc: "A throw reached the root of the script with nothing left to catch it; the \
                    report carries the `Throwable` itself.",
+        },
+        CaseDoc {
+            name: "Finish",
+            desc: "`Core\\Script::finish()` ended the script from inside it — the ending every \
+                   `finally` observes and no `catch` arm does. The status is `0` and there is no \
+                   error, because a script that finished has not failed.",
         },
     ],
 };
@@ -335,6 +369,28 @@ const ARGS_SYMBOL: &str = "nvs_core_script_args";
 /// The symbol [`CLASS`]'s `onExit` row is reached through.
 const ON_EXIT_SYMBOL: &str = "nvs_core_script_on_exit";
 
+/// The symbol [`CLASS`]'s `finish` row carries, which `nvs_ir::lower` reads to
+/// recognise the call and no compiled program ever reaches.
+///
+/// `pub` for that reason, exactly as [`SPAWN_SYMBOL`] and [`AWAIT_SYMBOL`] are:
+/// `nvs_types` re-exports it as `CORE_SCRIPT_FINISH` and the lowering matches
+/// on it. The row and its address exist because a registered member is resolved
+/// through a symbol and `every_registered_member_has_an_implementation_address`
+/// holds every row to one — see [`nvs_core_script_finish`] for what happens if
+/// the lowering ever stops intercepting the call.
+pub const FINISH_SYMBOL: &str = "nvs_core_script_finish";
+
+/// The class `Core\Script::finish` raises, as the name a [`nvs_runtime::Thrown`]
+/// carries — [`is_finish`] is the one place it is compared.
+///
+/// `nvs_hir::errors::FINISH_MARKER` is the home of this spelling and of what the
+/// class is: a second, parentless root of the exception tree that no `catch` arm
+/// matches. This crate spells it rather than naming that constant for
+/// [`THROWABLE`]'s reason — it depends on `nvs-runtime` and on no part of the
+/// compiler — and `nvs_types`'s `the_marker_the_runtime_classifies_by_is_the_one_the_compiler_declares`
+/// holds the two spellings together.
+pub const FINISH_MARKER_NAME: &str = r"Core\Script\Finished";
+
 /// The symbols [`EXIT_REPORT`]'s three accessors are reached through.
 const REASON_SYMBOL: &str = "nvs_core_script_exit_report_reason";
 const STATUS_SYMBOL: &str = "nvs_core_script_exit_report_status";
@@ -385,6 +441,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         AWAIT_SYMBOL => (nvs_core_script_await as *const ()).cast(),
         ARGS_SYMBOL => (nvs_core_script_args as *const ()).cast(),
         ON_EXIT_SYMBOL => (nvs_core_script_on_exit as *const ()).cast(),
+        FINISH_SYMBOL => (nvs_core_script_finish as *const ()).cast(),
         REASON_SYMBOL => (nvs_core_script_exit_report_reason as *const ()).cast(),
         STATUS_SYMBOL => (nvs_core_script_exit_report_status as *const ()).cast(),
         ERROR_SYMBOL => (nvs_core_script_exit_report_error as *const ()).cast(),
@@ -436,6 +493,10 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> V
 /// - `Ok(())` — the last top-level statement ran: `Normal`, status `0`.
 /// - `Err(EXITED)` — `exit`: `ExitCall`, and the status the call named, which
 ///   `Ctx::exit_code` is already holding.
+/// - `Err(THROWN)` carrying the marker [`is_finish`] names — `Core\Script::
+///   finish()`: `Finish`, status `0`, no error. It arrives on the throw path
+///   because that is the path every `finally` lives on, and it is an *ordinary*
+///   ending all the same, which is why it is read before the arm below.
 /// - `Err(THROWN)` — an uncaught throw: `UncaughtThrow`, status `1`, and the
 ///   live `Throwable`.
 /// - **anything else** — a `FATAL`, which runs no hook at all. § 3 is the
@@ -455,6 +516,12 @@ pub fn run_exit_hooks(
     let report = match outcome {
         Ok(()) => report_of(NORMAL, 0, None),
         Err(status) if status == nvs_runtime::EXITED => report_of(EXIT_CALL, ctx.exit_code(), None),
+        Err(status)
+            if status == nvs_runtime::THROWN
+                && thrown.is_some_and(|thrown| is_finish(&thrown.class_name())) =>
+        {
+            report_of(FINISH, 0, None)
+        }
         Err(status) if status == nvs_runtime::THROWN => report_of(UNCAUGHT_THROW, 1, thrown),
         Err(_) => return,
     };
@@ -475,6 +542,24 @@ pub fn run_exit_hooks(
 const NORMAL: i64 = 0;
 const EXIT_CALL: i64 = 1;
 const UNCAUGHT_THROW: i64 = 2;
+const FINISH: i64 = 3;
+
+/// Whether the class that reached a root is the marker `Core\Script::finish()`
+/// raises rather than a `Throwable` a program could have caught.
+///
+/// **The one home of that question**, asked by every host that classifies an
+/// ending: `nvs-cli` for a `nvs run`, `nvs-host` for a served request, and
+/// [`run_exit_hooks`] for the report. A finish is an ordinary end that travels
+/// the throw path, so a host answering `true` here skips the uncaught-throw
+/// handler, the escalation ladder and the failure report, and keeps the status
+/// its own success path would have given.
+///
+/// It takes the *name* rather than the object because a host asks before it
+/// takes anything: `Ctx::pending_class` answers while the exception is still
+/// pending, which is what leaves the real one in place for the ladder.
+pub fn is_finish(class: &str) -> bool {
+    class == FINISH_MARKER_NAME
+}
 
 /// A slot of the receiving [`EXIT_REPORT`], retained because it is being
 /// answered — `crate::ratelimit`'s `slot_of`, over this class's layout.
@@ -931,6 +1016,30 @@ nvs_runtime::nvs_helper! {
         // the same pointer.
         ctx.set_exit_drain(run_exit_hooks);
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Script::finish(): void` — the ending whose raise belongs to the
+    /// lowering and not to this body.
+    ///
+    /// `nvs_ir::lower` recognises the call by [`FINISH_SYMBOL`] and seals the
+    /// block with a `Terminator::Throw` of a [`FINISH_MARKER_NAME`] instance, so
+    /// nothing emits a call to this address. That is what buys the whole
+    /// feature: the throw path is the path every `finally` lives on, and a
+    /// member that returned a status instead would be `exit` under another name.
+    fn nvs_core_script_finish(_ctx, _args: [0]) {
+        // The row exists so the compiler can resolve and type the call, and
+        // this body so the row has an address. The call itself is
+        // unreachable from source: the lowering emits none to this symbol.
+        // What it catches is a lowering that stopped intercepting `finish`,
+        // which would otherwise return here and let the script carry on past
+        // the ending it named.
+        Err(Fault::fatal(
+            "Core\\Script::finish reached its helper: the lowering raises the finish marker and \
+             emits no call to this symbol"
+                .to_string(),
+        ))
     }
 }
 

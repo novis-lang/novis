@@ -216,6 +216,10 @@ pub use expr_table::{
     Delegation, ExprId, ExprInfo, ExprTypeTable, ForeachDrive, LocalBinding, ResolvedCall, UrlPiece,
 };
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+/// The class `Core\Script::finish()` raises, for `nvs-ir` to build an instance
+/// of — that crate reaches the compiler's exception tree through this crate,
+/// exactly as it reaches every `Core` symbol below.
+pub use nvs_hir::errors::FINISH_MARKER as CORE_SCRIPT_FINISH_CLASS;
 pub use nvs_stdlib::cli::{
     NAME as CORE_CLI_TEXT_CLASS, TEXT_CONCAT_SYMBOL as CORE_CLI_TEXT_CONCAT,
 };
@@ -231,8 +235,8 @@ pub use nvs_stdlib::router::link::{
     SYMBOL as CORE_ROUTE_LINK,
 };
 pub use nvs_stdlib::script::{
-    AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, SPAWN_METHOD_SYMBOL as CORE_SCRIPT_SPAWN_METHOD,
-    SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
+    AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, FINISH_SYMBOL as CORE_SCRIPT_FINISH,
+    SPAWN_METHOD_SYMBOL as CORE_SCRIPT_SPAWN_METHOD, SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
 };
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, EnumCases, FieldDefault};
