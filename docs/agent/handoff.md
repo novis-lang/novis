@@ -2,45 +2,50 @@
 
 ## State
 
-**Goal 44 — markup is written as a literal, not composed with an operator — has just started; nothing of it has landed yet.** Goal `finish-response`'s whole list is this goal's Stage 1 floor.
+**Goal `markup-literal`, stage 2 is landed: `` html`…` `` lexes, and the AST node exists.** Stage 1 (goal
+`finish-response`'s list) is the untouched floor.
 
-**The design is already decided and landed.** [ADR 0169](../decisions/0169.md) holds all of it and
-`rule:core-classes/html-literal` states it at `designed`; no session writes a record for this goal, and
-the last stage is what flips that rule to `shipped`. The three things not to re-decide are in
-§ *Standing decisions*, and the first of them is the one that matters: **the compiler learns no HTML.**
-No tag tracking, no attribute model, no refusal that depends on where a hole sits.
+On disk in `crates/nvs-syntax/`: `TokenKind::MarkupOpen`/`MarkupClose`, a `Mode::Markup` frame that is
+`Mode::DoubleQuoted` with the closer swapped, the unterminated arm under the existing `E0002`, and
+`ExprKind::Markup(Vec<StringPart>)` with the two nvs-syntax walks reaching its holes. Both stage-2
+acceptance checks pass (seven `-p nvs-syntax` tests, all in `lexer.rs`'s test module).
 
-The literal is the double-quoted-string lexer with a different delimiter. Every frame it needs already
-exists — `{$` opens an ordinary code frame at `crates/nvs-syntax/src/lexer.rs:1260-1264`, brace depth is
-counted at `:1064-1090` so a closure inside a hole does not close it, and
-`crates/nvs-syntax/src/parser/expr.rs:2505-2527` already builds the `Vec<StringPart>`. A session that
-finds itself writing a scanner has taken a wrong turn.
+**Nothing produces `ExprKind::Markup` yet** — the parser primary is the next group's first item. Every
+`ExprKind` match outside `nvs-syntax` has a catch-all, so the day the parser produces one the build stays
+green while inference and lowering silently ignore it; the playbook bullet under *Writing Novis itself*
+is that trap, and the next group's items are where the arms get written deliberately.
+
+The escapes needed no new code: `lex_escape_in_place` already consumes `` \` `` and `\{` with the
+segment, which is exactly what the rule asks for, so the two escape slices landed as tests over the
+scanner rather than as cases in it.
 
 ## Next group
 
-**Stage 2: the literal lexes** — one file set: `crates/nvs-syntax/`, all of it.
+**Stage 3: the type, and what a hole admits** — one file set: `crates/nvs-syntax/src/parser/` and
+`crates/nvs-types/src/expr/`.
 
-- [ ] **The delimiter and the closer** — `crates/nvs-syntax/src/token.rs`, beside `DoubleQuoteOpen` and
-      `ComplexInterpClose`: `` html` `` opens, `` ` `` closes, and the mode between them is the
-      double-quoted one with those two swapped in.
-- [ ] **The two escapes** — `crates/nvs-syntax/src/lexer.rs`, in the segment scanner: `` \` `` is a
-      backtick and `\{` is a brace. Nothing else gains an escape, because a segment is opaque bytes.
-- [ ] **The unterminated arm** — `crates/nvs-syntax/src/lexer.rs:210-232`, one more `Mode` row, so an
-      unterminated literal reports `E0002` at the delimiter that opened it rather than running to end
-      of file unnamed. No new diagnostic code; ADR 0169 § *Diagnostics* is why.
-- [ ] **The node** — `crates/nvs-syntax/src/ast.rs`, carrying the same `StringPart` vector the
-      interpolated string carries, with the carrier type attached. One node, not a tree.
+- [ ] **The parser primary** — `crates/nvs-syntax/src/parser/expr.rs:1333`, beside the
+      `TokenKind::DoubleQuoteOpen` arm: `MarkupOpen` runs `parse_string_body(TokenKind::MarkupClose)`
+      (`crates/nvs-syntax/src/parser/expr.rs:2505`) into `ExprKind::Markup`. Unlike a string it must
+      **not** collapse a hole-free body to `ExprKind::Str` — `collapse_string_parts`
+      (`crates/nvs-syntax/src/parser/mod.rs:811`) is that collapse, and the node, not the part count, is
+      what says `Core\Html\Markup` (`rule:core-classes/html-literal`).
+- [ ] **The inference arm** — `crates/nvs-types/src/expr/mod.rs:258`, beside the `Interpolated` arm:
+      the literal is `Core\Html\Markup`, and each hole is checked exactly as `infer_interpolated`
+      (`crates/nvs-types/src/expr/literals.rs:409`) checks an interpolation's operand, except that a
+      hole already holding a `Markup` needs no conversion because it is spliced. Tests
+      `a_markup_literal_types_as_core_html_markup`, `a_markup_typed_hole_needs_no_conversion`.
+- [ ] **The qualified holes** — the same arm, `crates/nvs-types/src/expr/mod.rs:258`: a `tainted`
+      operand is admitted because the sink escapes it,
+      a `secret` one is refused where it is written (`rule:security/secret-sinks-refuse`). Tests
+      `a_tainted_hole_is_admitted_because_the_sink_escapes_it`,
+      `a_secret_hole_is_refused_where_it_is_written`. No new diagnostic code — ADR 0169 § *Diagnostics*.
 
 ## Backlog
 
-- **Stage 3, the type** — `crates/nvs-types/`. The literal is a `Core\Html\Markup`; a hole faces
-  exactly an interpolation's checks and a `Markup`-typed hole needs no conversion. Cheap to take
-  beside stage 2 only if stage 2 landed the node cleanly.
-- **Stage 4, the lowering** — `crates/nvs-ir/`, `crates/nvs-codegen/`. The constant fold and the
-  write-through. A different file set; its own session.
-- **Stage 5, `Core\Html::join`** — `crates/nvs-stdlib/src/html.rs`, `crates/nvs-types/src/core_lib.rs`.
-  One member on the five-edit shape, and the conformance case that is a `foreach` and a join.
-- **Stage 6, the rulebook** — flip `core-classes/html-literal` to `shipped`, fill its `guardedBy`,
-  `python tools/rules.py --render`, and correct stage 0's four sentences in
-  `crates/nvs-stdlib/src/html.rs`. Cheap beside stage 5, which is already in that file.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- Stage 4, the lowering and the two shapes that pay nothing — `docs/agent/loop-goal.md` § *Stage 4*.
+- Stage 5, `Core\Html::join` as one `Core` member — `docs/agent/loop-goal.md` § *Stage 5*.
+- Stage 6 flips `rule:core-classes/html-literal` to shipped and lands the three tool sentences —
+  `docs/agent/loop-goal.md` § *Stage 6*.
+- The `ExprKind` catch-alls in `nvs-hir/src/{members,requires}.rs`, `nvs-lsp/src/{hints,semantic}.rs`
+  and `nvs-ir/src/lower/control.rs` still ignore `Markup`; stages 3 and 4 own the arms they need.

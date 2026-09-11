@@ -408,6 +408,15 @@ fn expr(e: &Expr) -> Node {
             }
             "Interpolated"
         }
+        ExprKind::Markup(parts) => {
+            for part in parts {
+                match part {
+                    StringPart::Text(_) => {}
+                    StringPart::Expr(e) => kids.push(expr(e)),
+                }
+            }
+            "Markup"
+        }
         ExprKind::Variable(written) => {
             name = Some(*written);
             "Variable"

@@ -6256,6 +6256,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   missing manifest line rather than like the cycle it would be. Move the predicate and its constant
   down to `nvs-runtime`, and leave a `pub use` in the stdlib module so callers outside the host keep
   their spelling. [until: gone crates/nvs-stdlib/Cargo.toml:nvs-host.workspace]
+- **A new `ExprKind` variant compiles workspace-wide with one arm written, and that is not the same as
+  being handled.** `ExprKind::Markup` broke exactly one match — `crates/nvs-syntax/src/walk.rs:392`,
+  which is exhaustive — while `nvs-hir`, `nvs-lsp`, `nvs-ir` and `nvs-types` each swallowed it in a
+  catch-all, so a green `cargo check --workspace --all-targets` says nothing about whether inference or
+  lowering saw the node. Before the parser is taught to produce a new expression node, `grep -rn
+  "ExprKind::<the sibling variant>"` over `crates/` is the list of places that must gain a deliberate
+  arm. [until: reviewed 2026-09-12]
 
 ## Divergences and refusals already pinned
 

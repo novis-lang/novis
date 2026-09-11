@@ -795,6 +795,17 @@ pub enum ExprKind {
     Str(Span),
     /// A double-quoted string or heredoc with at least one interpolation site.
     Interpolated(Vec<StringPart>),
+    /// ``html`…` `` — a markup literal (`rule:core-classes/html-literal`).
+    ///
+    /// The same [`StringPart`] vector [`Interpolated`](Self::Interpolated)
+    /// carries, and for the same reason: a segment is literal text and a hole
+    /// is an ordinary expression. What differs is the type it is given and
+    /// what happens to a hole on the way out — the segments are trusted
+    /// because the author wrote them, and every hole is escaped. A literal
+    /// with no holes is one [`StringPart::Text`] rather than an
+    /// [`Str`](Self::Str), because the node, not the part count, is what says
+    /// this is `Core\Html\Markup`.
+    Markup(Vec<StringPart>),
     /// `$name`
     Variable(Span),
     /// A bare constant fetch: `FOO`, `Core\Bytes::class`'s `Core\Bytes` part is

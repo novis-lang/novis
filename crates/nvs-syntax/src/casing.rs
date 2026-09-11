@@ -691,7 +691,7 @@ fn check_new_target(target: &NewTarget, src: &SourceFile, diags: &mut Diagnostic
 )]
 fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
     match &expr.kind {
-        ExprKind::Interpolated(parts) => {
+        ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
             for part in parts {
                 if let StringPart::Expr(x) = part {
                     check_expr(x, src, diags);
