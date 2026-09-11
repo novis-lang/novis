@@ -359,6 +359,93 @@ const RETRY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Sse\Message`'s fully-qualified name, as [`CoreTy::Instance`] spells
+/// it.
+pub(crate) const MESSAGE_NAME: &str = r"Core\Sse\Message";
+
+/// [`MESSAGE`]'s slots, in the order a delivery is read into them.
+const MESSAGE_TOPIC: usize = 0;
+const MESSAGE_VALUE: usize = 1;
+
+/// `rule:concurrency/a-connection-is-a-loop`'s message for the door that has no
+/// peer: what a publisher put on a topic this stream subscribed to.
+///
+/// # Two readers, and neither answers `null` to mean "the other kind"
+///
+/// [`crate::socket::MESSAGE`] carries four because two sources meet in one
+/// wait — a frame the peer sent and a value the bus delivered — and `topic`
+/// is what tells them apart. An event stream is handed no socket
+/// (`rule:concurrency/two-doors-one-isolate`), so there is no second source
+/// and every message is a delivery. That is why `topic` answers a `string`
+/// rather than a `?string`: the discrimination the sibling's readers exist for
+/// has nothing here to discriminate, and a nullable topic would be a question
+/// with one answer.
+///
+/// # Its own class, not the sibling reused
+///
+/// A shared class would carry `text` and `bytes` that can only ever answer
+/// `null` on this door, which is the silent wrong answer
+/// `rule:errors/ambiguous-input-refused` refuses: a program would be free to
+/// ask an event stream's message for a frame's payload and read the `null` as
+/// "the peer sent nothing" rather than as "there is no peer". Two classes make
+/// that a name error where it is written.
+///
+/// **`value` carries no qualifier of this row's.** It came from another isolate
+/// on this side of the wire and crossed by `rule:classes/graph-copy`'s copy, so
+/// it arrives with whatever qualifiers it already had, exactly as the sibling's
+/// does.
+pub(crate) const MESSAGE: CoreClass = CoreClass {
+    name: MESSAGE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "topic",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: MESSAGE_TOPIC_SYMBOL,
+            doc: Some(&MESSAGE_TOPIC_DOC),
+        },
+        CoreMethod {
+            name: "value",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: MESSAGE_VALUE_SYMBOL,
+            doc: Some(&MESSAGE_VALUE_DOC),
+        },
+    ],
+    slots: &["topic", "value"],
+    constants: &[],
+};
+
+/// The symbols [`MESSAGE`]'s two readers are reached through.
+const MESSAGE_TOPIC_SYMBOL: &str = "nvs_core_sse_message_topic";
+const MESSAGE_VALUE_SYMBOL: &str = "nvs_core_sse_message_value";
+
+/// `Core\Sse\Message::topic`'s reference card — `rule:core-api/reference-card`.
+const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
+    short: "The topic this value was published to, which is one of the names this stream \
+            subscribed under.",
+    params: &[],
+    ret: "The topic's name. Never `null`: an event stream is handed no peer, so every message \
+          it receives is a delivery. It is the name this program subscribed under and not \
+          anything a client chose, so it is not `tainted`.",
+    errors: &[],
+};
+
+/// `Core\Sse\Message::value`'s reference card — `rule:core-api/reference-card`.
+const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "What a publisher put on the topic, copied across the isolate boundary the way every \
+            other value crosses one.",
+    params: &[],
+    ret: "The published value, with whatever qualifiers it already carried. It is a copy and \
+          never a shared reference, so writing to it changes nothing the publisher can see.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::registry::CLASSES`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -368,6 +455,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         CURRENT_SYMBOL => (nvs_core_sse_current as *const ()).cast(),
         SEND_SYMBOL => (nvs_core_sse_send as *const ()).cast(),
         RETRY_SYMBOL => (nvs_core_sse_retry as *const ()).cast(),
+        MESSAGE_TOPIC_SYMBOL => (nvs_core_sse_message_topic as *const ()).cast(),
+        MESSAGE_VALUE_SYMBOL => (nvs_core_sse_message_value as *const ()).cast(),
         _ => return None,
     })
 }
@@ -604,6 +693,21 @@ nvs_runtime::nvs_helper! {
                 )
             })?;
         onto_the_wire(ctx, nvs_runtime::sse::reconnect_after(wait), "retry")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Sse\Message::topic(): string` — the topic this delivery arrived
+    /// on, and one of the names this stream subscribed under.
+    fn nvs_core_sse_message_topic(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &MESSAGE, MESSAGE_TOPIC, "topic")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Sse\Message::value(): mixed` — the copy of what was published.
+    fn nvs_core_sse_message_value(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &MESSAGE, MESSAGE_VALUE, "value")
     }
 }
 

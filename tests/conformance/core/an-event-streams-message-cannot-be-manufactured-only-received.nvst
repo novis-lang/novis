@@ -1,0 +1,28 @@
+--TEST--
+A `Core\Sse\Message` cannot be constructed, so the only way to one is a `receive()` inside the isolate `Core\Sse::upgrade` opened — `rule:concurrency/two-doors-one-isolate` and `rule:concurrency/a-connection-is-a-loop`
+--FILE--
+<?nvs
+// An event stream's message is what a publisher put on a topic, and a topic is
+// the only way two connections meet. A program that could build one out of
+// nothing would be forging the delivery rather than receiving it -- and the
+// topic it forged is the name the reader below dispatches on. So this case
+// pins the other half of that: a `Core`-owned class has no constructor a
+// program can call, and this is one of the two where it matters most.
+class Feed {
+    public static function describe(Core\Sse\Message $msg): string {
+        if ($msg->value() != null) {
+            return $msg->topic();
+        }
+        return "nothing was published";
+    }
+}
+
+var $forged = new Core\Sse\Message();
+--EXPECTF-ERROR--
+error[E0405]: `Core\Sse\Message` has no member named `constructor`
+   --> case.nvs:17:15
+   |
+17 | var $forged = new Core\Sse\Message();
+   |               ^^^^^^^^^^^^^^^^^^^^^^ referenced here
+
+error: aborting due to 1 error

@@ -1,0 +1,27 @@
+--TEST--
+An event stream's message answers the name it was published under as a `string` and what was published as `mixed`, so the value reaches no typed position unchecked — `rule:concurrency/a-connection-is-a-loop`
+--FILE--
+<?nvs
+// Every message an event stream receives is a bus delivery, so `topic()` is a
+// `string` and never `null`: there is no second kind of message for a reader
+// to answer `null` about, and the `?` the sibling class costs its callers is
+// not owed here.
+//
+// `value()` is whatever the publisher put there, which is `mixed` and is
+// refused where a `string` is what the position takes -- the reading a decoded
+// document already gets, and the one that keeps a published value from
+// reaching a typed position on the strength of who sent it.
+class Feed {
+    public static function describe(Core\Sse\Message $msg): string {
+        echo $msg->topic(), "\n";
+        return $msg->value();
+    }
+}
+--EXPECTF-ERROR--
+error[E0403]: this method declares `string` but returns `mixed`
+   --> case.nvs:14:16
+   |
+14 |         return $msg->value();
+   |                ^^^^^^^^^^^^^ this is `mixed`
+
+error: aborting due to 1 error

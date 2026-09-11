@@ -508,6 +508,40 @@ pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
     }
 }
 
+/// Slot `index` of the receiver in `args[0]`, **retained** for the caller —
+/// the whole of a reader on a `Core` class that is built once and never
+/// written to.
+///
+/// One function rather than one per class, because a reader is the same three
+/// steps wherever it is written: check the receiver's tag, borrow the slot,
+/// and take the reference the value is handed back with.
+/// `Core\Socket\Message`'s four readers and `Core\Sse\Message`'s two are the
+/// callers, and neither module spells the retain itself.
+///
+/// # Errors
+///
+/// The [`receiver`] fault a wrongly-tagged receiver is, which compiled code
+/// cannot produce.
+pub(crate) fn read_slot(
+    args: &[Value],
+    class: &CoreClass,
+    index: usize,
+    member: &str,
+) -> Result<Value, Fault> {
+    let held = slot(receiver(args[0], class, member)?, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    // SAFETY: the receiver is live for the length of this call, so its slot is.
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

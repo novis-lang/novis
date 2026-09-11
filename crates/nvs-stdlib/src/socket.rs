@@ -938,26 +938,16 @@ fn send_frame(
 /// built with, retained for the caller.
 ///
 /// One helper rather than four bodies, for `crate::request`'s `part_slot`
-/// reason — none of them spells a slot index itself.
+/// reason — none of them spells a slot index itself. The read is
+/// [`crate::instance::read_slot`], which `crate::sse`'s two readers reach for
+/// the same three steps.
 ///
 /// # Errors
 ///
 /// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
 /// compiled code cannot produce.
 fn message_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
-    let receiver = crate::instance::receiver(args[0], &MESSAGE, member)?;
-    let held = crate::instance::slot(receiver, index);
-    #[expect(
-        unsafe_code,
-        reason = "the slot is owned by the receiver, which the argument slot holds a \
-                  reference to for the length of the call, so the copy handed back to \
-                  Novis code needs a reference of its own"
-    )]
-    // SAFETY: the receiver is live for the length of this call, so its slot is.
-    unsafe {
-        held.retain();
-    }
-    Ok(held)
+    crate::instance::read_slot(args, &MESSAGE, index, member)
 }
 
 nvs_runtime::nvs_helper! {

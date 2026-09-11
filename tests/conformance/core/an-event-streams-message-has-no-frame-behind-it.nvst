@@ -1,0 +1,30 @@
+--TEST--
+An event stream is handed no peer, so its message has no frame behind it and a frame's payload is a name error rather than a `null` — `rule:concurrency/two-doors-one-isolate` and `rule:concurrency/a-connection-is-a-loop`
+--FILE--
+<?nvs
+// `Core\Socket\Message` answers four readers because two sources meet in one
+// wait: a frame the peer sent, and a value the bus delivered. The other door
+// takes no socket, so there is no peer and no second source -- every message
+// an event stream receives is a delivery, which is why this class is `topic()`
+// and `value()` and nothing else.
+//
+// Asking it for a frame's payload is therefore refused where it is written. A
+// shared class would have answered `null` instead, which a program is free to
+// read as "the peer sent nothing" rather than as "there is no peer".
+class Feed {
+    public static function describe(Core\Sse\Message $msg): string {
+        if ($msg->value() != null) {
+            return $msg->topic();
+        }
+        $msg->text();
+        return "nothing was published";
+    }
+}
+--EXPECTF-ERROR--
+error[E0405]: `Core\Sse\Message` has no method named `text`
+   --> case.nvs:16:9
+   |
+16 |         $msg->text();
+   |         ^^^^ referenced here
+
+error: aborting due to 1 error

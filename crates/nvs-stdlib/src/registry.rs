@@ -1623,6 +1623,12 @@ pub const CLASSES: &[CoreClass] = &[
     // use of the first, and why this member is offered to every request a
     // server answers where its sibling is offered only to an upgradable one.
     crate::sse::CLASS,
+    // `rule:concurrency/a-connection-is-a-loop`'s message on the door with no
+    // peer, immediately after the class whose `receive` is the only thing that
+    // produces one — the sibling pair two rows up, read against a hand-over
+    // that took no socket. [`crate::sse`]'s own doc owns why it is two readers
+    // rather than the four beside it and why it is a class of its own.
+    crate::sse::MESSAGE,
     // `rule:errors/on-limit`, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
