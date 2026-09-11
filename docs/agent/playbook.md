@@ -1606,6 +1606,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   with a red one. Reproduce a program check as `target/debug/nvs.exe run <file>` and judge stdout
   alone — `exact` compares `stdout_lines` and never reads stderr, so a fixture whose stderr is full
   of warnings can still be green. [until: reviewed 2026-09-11]
+- **Adding a request that takes a cursor obliges a case at every construct the corpus has ever
+  reached, not one case.** `every_request_answers_every_construct` holds each row whose
+  `Request::takes_cursor()` is true to the whole vocabulary — 26 columns today — so `references`,
+  `documentHighlight` and `typeHierarchy` are 26 cases each, while `codeLens`, asked of the whole
+  document, owed one. Price the row with `nvs lsp-test tests/lsp/ --coverage` before landing the
+  variant, and take the cursor placements from `tests/lsp/actions/`, which is already one case per
+  construct. [until: gone crates/nvs-lsp/src/coverage.rs:which is the ratchet]
 
 ## Running things
 

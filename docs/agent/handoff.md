@@ -2,55 +2,57 @@
 
 ## State
 
-**Goal `workspace-index`, stage 3: all five readers have landed and the stage's first check is green.**
-`all_five_readers_query_the_one_index` passes beside the construction-site test, and it holds both
-directions — every query the five name is called from outside `index.rs`, and every read-only method the
-index offers is one of theirs.
+**Goal `workspace-index`, stage 3: both of the stage's checks are green.** `nvs lsp-test tests/lsp/
+--coverage` now prints the matrix and the verdict **under** it — it used to print the matrix instead,
+so the `nvs-suite` check reading the last line could never have found one — and the corpus is 195
+passing.
 
-The two new readers: **CodeLens** answers `textDocument/codeLens` from `declarations_in` and
-`occurrences`, running no front end at all, and `nvs.codeLens.enable` turned off is `None` rather than an
-empty list. **Type hierarchy** answers all three of its requests off a new `Declaration::supertypes` —
-the direct `extends`/`implements` edge, read off `nvs_hir`'s resolved graph rather than off the clause's
-own text — with `supertypes`/`subtypes` as the index's forward and reverse queries.
+**`codeLens` is the first of the four added requests to become `.lspt` vocabulary**, with three cases
+under `tests/lsp/lens/`. A lens renders as `L:C title`, which is its anchor's start and its count:
+`2:7 2 references`, `3:17 no references`. It is asked of the whole document, so it owed one row and
+not a column's worth of cases — see the new playbook bullet for what the other three cost.
 
-One thing to know before touching `capabilities.rs`: `lsp_types` 0.97 cannot express
-`typeHierarchyProvider`, so `declared_capabilities` adds it to the serialized object and
-`initialize_result` now returns `(PositionEncodingKind, Value)`. The playbook bullet is the whole of it.
+**A case is answered against an index of its own**, built by `crate::server`'s `lenses_of_case` at
+workspace scope over the directory the runner materialised the case into. It is built there and not
+in `crate::suite` because `crates/nvs-lsp/tests/index.rs` counts who may build one; that test now
+says every builder is `server.rs` rather than that there is exactly one call.
 
-Stage 3 still owes its second check — `nvs lsp-test tests/lsp/ --coverage` — because none of the four
-added requests has an `.lspt` case, and `render::Response` has no variant for any of them. Nothing is
-blocked; the goal's one ADR is still unopened.
+`crates/nvs-lsp/src/index.rs`'s `# Known gaps` grew two entries this session, both found by a lens
+reading zero where a reader would not: a class constant's read is no occurrence (`definition::Target`
+has no constant variant) and neither is a name in an `extends` or `implements` clause (a use is read
+off `Analysed::exprs` and a clause is not an expression).
 
-**Nothing in the extension declares or sends either setting**, so no developer can reach `nvs.check.scope`
-or `nvs.codeLens.enable` yet: `editors/vscode/package.json` contributes neither and `extension.ts` passes
-no `initializationOptions`.
+Nothing is blocked. The goal's one ADR is still unopened, and it still owes
+`rule:ide/the-request-set-is-closed` the amendment naming M10's additions beside M4B's nine.
 
 ## Next group
 
-**Stage 3: an `.lspt` case per added request** — one file set: `crates/nvs-lsp/src/case.rs`,
-`crates/nvs-lsp/src/render.rs`, `crates/nvs-lsp/src/suite.rs`, `crates/nvs-lsp/tests/coverage.rs`,
-`tests/lsp/`.
+**Stage 3: `textDocument/references` becomes `.lspt` vocabulary** — one file set:
+`crates/nvs-lsp/src/case.rs`, `crates/nvs-lsp/src/render.rs`, `crates/nvs-lsp/src/coverage.rs`,
+`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/suite.rs`, `tests/lsp/references/`.
 
-- [ ] **The four requests become `.lspt` vocabulary.** A variant each in the `Request` enum at
-      `crates/nvs-lsp/src/case.rs:55` — what a `--REQUEST--` line may name — and a matching variant plus
-      its rendering in `Response` at `crates/nvs-lsp/src/render.rs:135`, which is the one home for the
-      spelling an `--EXPECT--` compares against. A hierarchy item renders as a name and a kind; a lens as
-      a line and its title. `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case` is the format.
-- [ ] **The suite answers them.** An arm each in `crates/nvs-lsp/src/suite.rs:258`, which is `answer`'s
-      seam for a case and shares what does the work rather than the dispatch — a case holds no
-      `RequestId`. The four readers need an index, and `suite::store` at `crates/nvs-lsp/src/suite.rs:377`
-      is where a case's documents come from, so building one there is this slice's real question.
-- [ ] **A case per request under `tests/lsp/`**, each at a cursor and frozen, plus the coverage row
-      `every_request_answers_every_construct` at `crates/nvs-lsp/tests/coverage.rs:57` gains for each.
-      `references`, `documentHighlight`, `codeLens` and `typeHierarchy` each need one, and
-      `nvs lsp-test tests/lsp/ --coverage` is stage 3's second check.
+- [ ] **The variant and its rendering.** `Request::References` in the enum at
+      `crates/nvs-lsp/src/case.rs:57`, named in `ALL`, in `name()` and in `takes_cursor()`; a
+      `Response::References(Vec<Place>)` at `crates/nvs-lsp/src/render.rs:135` rendering one
+      `file:L:C` per line, sorted, the way `fn lens` at `crates/nvs-lsp/src/render.rs:474` was added
+      beside `fn place`. `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case` is the format.
+- [ ] **The arm.** A `pub(crate) fn references_of_case` beside
+      `crates/nvs-lsp/src/server.rs:778`, sharing `case_settings` at
+      `crates/nvs-lsp/src/server.rs:762`, and an arm at `crates/nvs-lsp/src/suite.rs:274` calling it
+      the way `fn code_lens` at `crates/nvs-lsp/src/suite.rs:559` does. `Materialised::spelling` is
+      what turns a `Location` back into the path a case wrote, as the `definition` arm shows. Decide
+      and say in the comment which `include_declaration` the runner asks with — a case writes a
+      document and a question, never a client's context.
+- [ ] **Twenty-six cases under `tests/lsp/references/`**, one per construct in the matrix
+      `nvs lsp-test tests/lsp/ --coverage` prints, or `every_request_answers_every_construct` at
+      `crates/nvs-lsp/tests/coverage.rs:57` fails naming each empty cell. `tests/lsp/actions/` is
+      the same 26 cursors already written down.
 
 ## Backlog
 
-- The extension contributes neither setting — `editors/vscode/package.json`, and
-  `crates/nvs-lsp/tests/extension_reference.rs` wants the chapter updated in the same commit.
-- The goal's one ADR is unopened; next free number is 0171 (re-derive before claiming it).
-- A lens shows the reference count only. Implementors and overrides are the same rule's other two
-  numbers and are now reachable from `SymbolIndex::subtypes` — `rule:ide/five-features-are-one-reference-index`.
-- `index.rs`'s known gap 1 stands: an enum case's uses are recorded against its enum, which is why a lens
-  skips an `EnumCase` declaration.
+- `documentHighlight` and `typeHierarchy`, 26 cases each, on the group above's shape — `docs/agent/loop-goal.md` stage 3.
+- `typeHierarchy` is three LSP methods under one request name: the `--REQUEST--` line needs a `direction=` argument under `rule:ide/a-request-line-is-closed`, or three variants and 78 cases.
+- A lens carries only the reference count; `rule:ide/five-features-are-one-reference-index` also names a type's implementors and a method's overrides.
+- `nvs.codeLens.enable` off answers `None` rather than an empty list, and no case can write a setting — that branch is a `-p nvs-lsp` test's.
+- The goal's one ADR (next free is 0171) — `docs/agent/loop-goal.md` § *Standing decisions*.
+- Nothing in `editors/vscode` declares `nvs.check.scope` or `nvs.codeLens.enable` yet — `rule:ide/contributions-are-frozen-and-only-ever-added`.
