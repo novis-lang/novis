@@ -955,8 +955,9 @@ fn existing_root(dir: &Path) -> &Path {
 }
 
 impl Cache {
-    /// The cache rooted at `dir` — `[cache] dir`, which [`nvs_config::tree::Cache`] holds — for
-    /// artifacts compiled against `env`, once § 5's ownership check has passed on that directory.
+    /// The cache rooted at `dir` — `opcache.file_cache_dir`, which [`nvs_config::tree::Opcache`]
+    /// holds and `docs/decisions/0175.md` makes the only spelling of — for artifacts compiled
+    /// against `env`, once § 5's ownership check has passed on that directory.
     ///
     /// It neither creates nor canonicalizes it: the first [`store`](Self::store) creates it, and
     /// the module doc says why the configured spelling is the one kept.
@@ -1608,7 +1609,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`, which is `rule:config/ownership-is-the-trust-boundary` applied to `[cache] dir`: a directory another local
+    /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`, which is `rule:config/ownership-is-the-trust-boundary` applied to `opcache.file_cache_dir`: a directory another local
     /// account can write is refused once, at construction, rather than entry by entry — that
     /// principal can compute a valid header and checksum over bytes of their own choosing, so
     /// there is nothing per entry that could catch them.
@@ -1644,6 +1645,69 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
+    /// The typed tree `text` deserializes to, or the [`Diagnostic`] refusing it — the two answers
+    /// the pair of cases below are about, both being claims about which key an operator writes.
+    ///
+    /// [`Diagnostic`]: nvs_diagnostics::Diagnostic
+    fn parsed(text: &str) -> Result<Config, nvs_diagnostics::Diagnostic> {
+        let mut sources = nvs_diagnostics::SourceMap::new();
+        nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", text).1
+    }
+
+    /// `docs/decisions/0175.md` § 2: `opcache.file_cache_dir` is where the artifact cache lives and
+    /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
+    /// struct literal so the case covers the whole chain — the text an operator writes, the field
+    /// the tree documents, and the root [`Cache::dir`] hands back.
+    #[test]
+    fn the_configured_cache_directory_is_read_from_the_key_the_tree_documents() {
+        let root = scratch("configured");
+        let dir = root.join("artifacts");
+        // A TOML literal string, since a Windows path is mostly backslashes.
+        let written = format!("[opcache]\nfile_cache_dir = '{}'\n", dir.display());
+
+        let config = parsed(&written).expect("the key the tree documents is the key it parses");
+        let cache = from_config(&config).expect("a directory this account owns is inside § 5");
+
+        assert_eq!(
+            cache.dir(),
+            dir,
+            "the written path is the cache root itself, not a per-build directory under it",
+        );
+
+        drop(fs::remove_dir_all(&root));
+    }
+
+    /// `docs/decisions/0175.md` § 4: the retired `[cache] dir` is not a field of the typed tree, so
+    /// a file still carrying it is refused as a directive that does not exist rather than parsed
+    /// and ignored. Silence is the defect the record is about — an operator who moved the cache and
+    /// restarted was served by a process still writing where it always had.
+    #[test]
+    fn a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored() {
+        let refusal = parsed("[cache]\ndir = '/srv/novis/artifacts'\n")
+            .expect_err("`dir` is no longer a field of `[cache]`, which denies an unknown key");
+
+        assert_eq!(
+            refusal.code,
+            Some(nvs_diagnostics::code::E_BAD_DIRECTIVE),
+            "a key that does not exist is `E0601`: {}",
+            refusal.message,
+        );
+        assert!(
+            refusal.message.contains("dir"),
+            "the refusal names the key that has to move: {}",
+            refusal.message,
+        );
+        assert!(
+            refusal.notes.iter().any(|note| note.contains("[cache]")),
+            "and the block holding it, which is where an operator looks: {:?}",
+            refusal.notes,
+        );
+        assert!(
+            parsed("[opcache]\nfile_cache_dir = '/srv/novis/artifacts'\n").is_ok(),
+            "the spelling that survives takes the same path in the same file",
+        );
+    }
+
     /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: the address is the content, the layout is a two-character fan-out, and a
     /// published file is never rewritten in place.
     #[test]
@@ -1653,7 +1717,7 @@ mod tests {
         assert_eq!(
             cache.dir(),
             dir,
-            "the root is `[cache] dir` and nothing under it"
+            "the root is `opcache.file_cache_dir` and nothing under it"
         );
 
         let first = b"; the first unit's payload".as_slice();
