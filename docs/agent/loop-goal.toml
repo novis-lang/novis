@@ -131,6 +131,12 @@ modules = [
   "crates/nvs-lsp/src/diagnostics.rs",
   # The `nvs.*` settings the client configured, and what they mean when it configured nothing.
   "crates/nvs-lsp/src/settings.rs",
+  # Parsing one `.lspt` file into a `Case`.
+  "crates/nvs-lsp/src/case.rs",
+  # Rendering one answer as the text a `.lspt` case freezes.
+  "crates/nvs-lsp/src/render.rs",
+  # Running a tree of `.lspt` cases, and the summary line the loop reads.
+  "crates/nvs-lsp/src/suite.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
