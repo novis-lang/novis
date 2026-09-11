@@ -122,6 +122,8 @@ modules = [
   # construct some cursor landed on, so a case at a new one owes five cursor rows and a
   # whole-document row. Read S *Decision* before adding a case whose cursor sits somewhere new.
   "crates/nvs-lsp/src/coverage.rs",
+  # One workspace symbol index, built in one place.
+  "crates/nvs-lsp/src/index.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
