@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check`, `cargo build`, `cargo test`,
-the `.nvst` trees through the binary the build just produced, `cargo clippy --all-targets -- -D
-warnings`, and -- once `editors/vscode` exists -- that extension's headless suites, in that order,
-stopping at the first failure. The two script gates precede the compile steps because they decide
-what the tree means rather than whether it builds. Green prints one
+`cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check` and `--check-template`, `cargo
+build`, `cargo test`, the `.nvst` trees through the binary the build just produced, `cargo clippy
+--all-targets -- -D warnings`, and -- once `editors/vscode` exists -- that extension's headless
+suites, in that order, stopping at the first failure. The script gates precede the compile steps
+because they decide what the tree means rather than whether it builds. Green prints one
 line per step; a failure prints that step's output and nothing else. `fmt` is the one step that
 *writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
 
@@ -361,6 +361,15 @@ def summarize_lints(out):
         "ran, but printed no summary line -- check the log"
 
 
+def summarize_template(out):
+    m = re.search(r"spells all (\d+) leaf keys", out)
+    if m:
+        return f"the default file spells all {m.group(1)} leaf keys, each once"
+    m = re.search(r"(\d+) problem\(s\) over (\d+) leaf key", out)
+    return f"{m.group(1)} of {m.group(2)} leaf keys are wrong in the default file" if m else \
+        "ran, but printed no summary line -- check the log"
+
+
 def summarize_directives(out):
     m = re.search(r"directives: (\d+) leaf keys", out)
     if m:
@@ -419,6 +428,13 @@ def steps_for(opts):
         # to keep this step green is how a gate becomes a rubber stamp.
         steps.append(Step("directives", ["tools/directives.py", "--check"],
                           summarize_directives, exe=sys.executable))
+        # The same roster against the file an operator actually reads. A key the tree gains and
+        # `crates/nvs-config/src/default.toml` omits is one nobody discovers; a key that file spells
+        # and the tree does not parse is one the next boot refuses. A separate step rather than a
+        # flag on the one above because the two fail for different reasons and a summary line that
+        # had to cover both would name neither.
+        steps.append(Step("template", ["tools/directives.py", "--check-template"],
+                          summarize_template, exe=sys.executable))
     steps.append(Step("build", ["build", *scope], summarize_build))
     steps.append(Step("test", ["test", *scope], summarize_test))
     if not opts.fast:

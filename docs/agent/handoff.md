@@ -2,65 +2,53 @@
 
 ## State
 
-**Goal `config-is-written` — stage 0 is green and stage 1 has landed.** `python
-tools/directives.py --check` passes at **212 leaf keys** and `--explain storage.<name>.root` exits 0,
-so both of stage 0's checks pass. `verify.py` is 10 of 10 green.
+**Goal `config-is-written` — stage 2 is green.** `crates/nvs-config/src/default.toml` is on disk with
+every one of the tree's 212 leaf keys spelled once and commented out, `nvs_config::default_file()`
+hands it to a caller, and the three tests stage 2 names pass. `python tools/directives.py
+--check-template` is green and is now step 4 of `verify.py`, so the file and the tree cannot drift
+outside the loop either.
 
-**Stage 2's gate exists and the file it gates does not.** `--check-template` catches four things: a
-roster key the file omits, a key `tree.rs` does not parse, a key spelled twice, and an `[unread:]`
-key with no `# NOT IMPLEMENTED` line naming its owner. A setting is `#key = value` with **no space
-after the `#`** — that is what separates it from the prose above it, and a live key is a problem.
-It takes an optional path, so a draft is gated where it is written. Today it exits 1 with
-`crates/nvs-config/src/default.toml is not written yet`, which is an open item, not a regression.
+**Stage 1 is what is still open, in two checks, and neither is a regression** — both name tests no
+crate has written yet. `nvs-cli` owes the artifact cache's one-spelling pair, and `nvs-config` owes
+the roster's two Rust assertions; the ledger line the driver repeats is the first of those.
 
-**The default file cannot be rendered from what the tree already says.** `--json` now carries each
-key's `tree.rs` doc comment and its block's, so the generator reads one call instead of `tree.rs`'s
-1075 lines — but those comments are maintainer prose: they carry the changeability class and a rule
-id and **never the default value**. `crates/nvs-config/src/directive.rs:65`'s row is `key`, `class`,
-`apply` and holds no default either, and `docs/reference/tools/20-config.md` covers `[limits]`,
-`[mode]`, `[capabilities]`, `[[app]]` and `[[include]]` in operator prose and no other block. So
-stage 2 is prose written by hand and held honest by the gate, not a render.
+**The file states a default only where the tree states one.** A value beside a key is that key's
+*spelling*; a claim about the shipped default appears only in a sentence opening `Unset,`, and the
+preamble says so. The three places one was derivable: `crates/nvs-config/src/mode.rs:69`'s `DERIVED`
+table (`[log] format` is `json`, `[log] level` is `Info`, `[http.errors] detail` is `generic`, each
+the production value a reader must assume because the table is not applied at boot),
+`crates/nvs-runtime/src/ctx/limits.rs:376` (an unset `[limits]` key is **no cap at all**, which is
+why that block claims none), and `DEFAULT_MAX_SCRIPT_DEPTH = 64`.
 
-**One decision sits inside stage 2 and the goal already frames it** (`loop-goal.md` § *Stage 2*
-point 2): a `Default:` line is true only once an unset key falls back to that value, and an unset
-`limits.cpu_time` is no ceiling at all today. Land the fallback first or print what is true — the
-safe option is to print what is true, because a comment claiming a ceiling that does not exist is
-`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` read backwards.
-
-**Five keys stay declared unread**, each with the rule that closes it — `debug.mode`,
-`metrics.listen`, `metrics.endpoint`, `trace.endpoint`, `server.socket_mode`. Each needs its
-`# NOT IMPLEMENTED` note in the default file, and `--check-template` fails on any that lacks one.
+**`[db.pool]`'s four bounds are the one place the file names keys an operator should not write.** The
+tree parses them, so `--check-template` requires them spelled; `nvs_config::db::validate` refuses a
+table of bounds written unscoped. The prose above them says both things and points at
+`[db.<name>.pool]`.
 
 ## Next group
 
-**Stage 2: the default file, against the gate that already holds the roster — one file set:**
-`crates/nvs-config/src/default.toml` (new), `crates/nvs-config/src/lib.rs`, `tools/verify.py`,
-`crates/nvs-config/tests/directives.rs`.
+**Stage 1: the roster's two Rust assertions, which `directives.py` already makes and no `cargo test`
+does — one file set:** `crates/nvs-config/tests/directives.rs`, `crates/nvs-config/src/tree.rs`.
 
-- [ ] **Write `crates/nvs-config/src/default.toml`, every key commented out.** The shape is exactly
-      what `tools/directives.py:624` enforces, and `python tools/directives.py --json` is the whole
-      input: 212 rows, each with its block, its `tree.rs` prose and its `[unread:]` owner. A map
-      block appears once as a named example — `[db.main]`, `[mail.default]`, `[storage.local]`.
-      Run `--check-template` against a draft under `.agent-tmp/` and let its missing-key list drive
-      the writing; the file may be inert because
-      `rule:config/no-configuration-file-is-a-complete-configuration` makes the shipped defaults a
-      complete configuration already.
-- [ ] **`include_str!` it as `nvs_config::default_file()`** beside the rest of the crate's surface at
-      `crates/nvs-config/src/lib.rs:96`, and add `directives.py --check-template` as a step beside
-      `directives` at `tools/verify.py:420` — in the same commit as the file, never before it, or
-      every session's verification goes red on an artefact that does not exist yet.
-- [ ] **The three tests `loop-goal.toml` stage 2 names**, beside the stage-1 block that ends at
-      `crates/nvs-config/tests/directives.rs:294`: `the_default_file_parses_with_deny_unknown_fields`,
-      `the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all`, and
-      `every_unimplemented_key_in_the_default_file_is_marked_as_one`. The second is the one with a
-      trap in it: a live `[limits]` header over no live key still deserializes to `Some(Limits)`
-      where no file at all gives `None`, so comment the headers too if the snapshots differ.
+- [ ] **`every_unread_key_names_what_is_missing_and_who_owns_it`.** `declared_unread()` at
+      `crates/nvs-config/tests/directives.rs:401` already parses every `[unread:]` trailer out of
+      `tree.rs`; what this adds is the assertion that each one names a non-empty *why* and an owner
+      that is a `rule:` id or a record number, the shape `tools/directives.py:515` refuses at.
+      Specified by `rule:config/three-changeability-classes`' roster half and the goal's stage 1.
+- [ ] **`no_key_with_a_reader_still_claims_to_be_unread`.** The half that needs a reader census, which
+      is a grep over the workspace (`tools/directives.py:515` is the same assertion in Python).
+      **Decide first** whether the Rust case walks `crates/**/*.rs` itself or asserts the narrower
+      thing it can see — the trailer set at `crates/nvs-config/src/tree.rs:379` against the keys the
+      crate's own modules read — and say which in the case's doc comment, because the narrower one is
+      a different claim from the check's name.
 
 ## Backlog
 
-- The `limits.cpu_time` fallback — an unset key is no ceiling today (`loop-goal.md` § *Stage 2*).
-- Stage 3, a project command writes the file, and its four refusals (`loop-goal.md` § *Stage 3*).
-- Stage 4, the record and the rule fragment for what stages 2 and 3 decided (`loop-goal.md` § *Stage 4*).
-- `debug.mode` is the one unread key whose subsystem exists — wiring it is a real slice, not a marking.
-- `docs/decisions/0175.md` § 4 and `loop-goal.md` § *Standing decisions* both name `E0604` for a
-  retired `[cache] dir`; the code the tree emits is `E0601`.
+- Stage 1's other half: the artifact cache's one spelling, `crates/nvs-cli/src/cache.rs` and a
+  `[unread:]`-free reader for `opcache.file_cache_dir` — ADR 0175 is the decision, the goal's stage 1
+  is the list.
+- Stage 3, the write: six tests over `nvs-cli`, four of them refusals — `docs/agent/loop-goal.toml`
+  stage `3 the write`.
+- `crates/nvs-config/src/default.toml` carries no `[db]`/`[mail]`/`[storage]` block name but one
+  example each (`main`, `default`, `local`); if a doc wants the canonical example names, that is
+  `docs/reference/tools/20-config.md`'s to state.

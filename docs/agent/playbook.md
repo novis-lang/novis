@@ -1704,6 +1704,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   "something shaped like a trailer that this does not read" rather than accepted. Write the whole
   trailer on one line whatever its length: `rustfmt.toml` sets no `wrap_comments`, so a 200-column
   doc line survives `cargo fmt` untouched. [until: reviewed 2026-09-11]
+- **A `NOT IMPLEMENTED` note in `crates/nvs-config/src/default.toml` stands over every key after it,
+  not only the one below it.** `tools/directives.py`'s template parser clears the prose block on a
+  blank line or a block header and nowhere else, and `--check-template` never notices, because it
+  reads that prose only for a key the tree declares unread. Leave a blank line after the last key a
+  note covers. [until: gone crates/nvs-config/src/default.toml:NOT IMPLEMENTED]
 
 ## Running things
 
