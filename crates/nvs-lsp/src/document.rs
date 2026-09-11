@@ -380,8 +380,24 @@ impl Analysed {
 #[must_use]
 pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     let document = documents.get(uri)?;
-    let path = document.path()?;
+    analyse_file(documents, document.path()?, document.version)
+}
 
+/// [`analyse`], for a file that need not be open.
+///
+/// The walk itself, with the entry named by path rather than by URI and its
+/// `version` handed in. Both callers have one to hand: a request analyses the
+/// document a client opened and stamped, and [`crate::index`] analyses whatever
+/// file the scope selected — which for a file no client has open has no client
+/// version at all, and records the one it is given. Nothing compares that
+/// version: [`Documents::is_current`] is asked about open documents, and
+/// nothing is published for a file nobody opened.
+///
+/// The open buffers are overlaid either way, so a file read from disk still
+/// resolves its graph against the text an editor holds
+/// (`rule:ide/an-open-document-is-its-own-entry-point`).
+#[must_use]
+pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<Analysed> {
     let mut map = SourceMap::new();
     documents.overlay(&mut map);
     // The entry is loaded rather than added, even though its text is right
@@ -436,7 +452,7 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
     Some(Analysed {
         map,
         entry,
-        version: document.version,
+        version,
         module,
         loaded,
         trivia,
