@@ -5926,6 +5926,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `depth()`: `begin_immediate` at zero and `begin(None, false)`'s savepoint inside one, which is
   `nvs_stdlib::queue`'s `sqlite_opened`.
   [until: gone crates/nvs-db/src/sqlite.rs:immediate transaction is an outermost one]
+- **`lsp_types` 0.97's `ServerCapabilities` has no `typeHierarchyProvider` member**, though it carries the
+  three requests, their params and the client half, so the gap reads as a misspelling. A capability the
+  struct cannot express is one no client ever asks about, which looks exactly like a handler nobody wired
+  up. `nvs_lsp::declared_capabilities` serializes the struct and inserts the key into the object.
+  [until: gone crates/nvs-lsp/src/capabilities.rs:typeHierarchyProvider]
 
 ## Divergences and refusals already pinned
 
