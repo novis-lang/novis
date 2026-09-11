@@ -1,0 +1,13 @@
+--TEST--
+a namespace segment offers the types the workspace index holds under it, labelled by the rest of the name so what is inserted resolves — `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+namespace App;
+interface Greets {}
+class User {}
+App\<|>
+--REQUEST--
+completion
+--EXPECT--
+Greets  interface App\Greets
+User    class     App\User

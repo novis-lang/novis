@@ -51,7 +51,7 @@ use lsp_types::request::{
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
-    Command, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
+    Command, CompletionItem, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
     DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
     DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
@@ -280,7 +280,7 @@ fn answer(
             }
         }
         Completion::METHOD => match serde_json::from_value::<CompletionParams>(params) {
-            Ok(params) => Response::new_ok(id, completion(documents, encoding, &params)),
+            Ok(params) => Response::new_ok(id, completion(documents, index, encoding, &params)),
             Err(error) => unreadable(id, &method, &error),
         },
         SelectionRangeRequest::METHOD => {
@@ -858,6 +858,23 @@ pub(crate) fn lenses_of_case(
     code_lens(documents, &index, &settings, encoding, uri)
 }
 
+/// [`completion`] for one `.lspt` case, over an index built for that case
+/// alone and for [`lenses_of_case`]'s reason.
+///
+/// The items and not a [`CompletionResponse`], because the runner narrows them
+/// by the two arguments a completion case may write before it renders any of
+/// them ([`crate::suite`]), and a wire shape has no place in between.
+pub(crate) fn items_of_case(
+    documents: &Documents,
+    analysed: &Analysed,
+    root: &Path,
+    offset: BytePos,
+) -> Vec<CompletionItem> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    completion::at(analysed, &index, offset)
+}
+
 /// [`references`] for one `.lspt` case, over an index built for that case
 /// alone and for [`lenses_of_case`]'s reason.
 ///
@@ -925,6 +942,7 @@ fn reference_count(count: usize) -> String {
 /// [`completion::at`], which the `.lspt` suite calls too.
 fn completion(
     documents: &Documents,
+    index: &SymbolIndex,
     encoding: PositionEncoding,
     params: &CompletionParams,
 ) -> CompletionResponse {
@@ -934,7 +952,7 @@ fn completion(
         return CompletionResponse::Array(Vec::new());
     };
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    CompletionResponse::Array(completion::at(&analysed, offset))
+    CompletionResponse::Array(completion::at(&analysed, index, offset))
 }
 
 /// `textDocument/hover` — what the name under the cursor documents.

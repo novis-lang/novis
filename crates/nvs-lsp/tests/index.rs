@@ -171,14 +171,26 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
     }
 
     // Every other module reads a `&SymbolIndex`. A module holding one by value
-    // is a module that built it. `lib.rs` is the crate's export list rather
-    // than a reader, and naming the type there is what makes it public at all;
-    // `server.rs` is the owner above.
-    for (file, _) in code_hits("SymbolIndex") {
+    // is a module that built it, and an import is how one says the name at all
+    // before it can take a reference to it. `lib.rs` is the crate's export list
+    // rather than a reader, and naming the type there is what makes it public
+    // at all; `server.rs` is the owner above.
+    for path in crate_sources() {
+        let file = name_of(&path);
+        if matches!(file.as_str(), "index.rs" | "lib.rs" | "server.rs") {
+            continue;
+        }
+        let text = fs::read_to_string(&path).expect("a crate source");
+        let held: Vec<&str> = text
+            .lines()
+            .map(str::trim_start)
+            .filter(|line| !line.starts_with("//") && !line.starts_with("use "))
+            .filter(|line| line.contains("SymbolIndex") && !line.contains("&SymbolIndex"))
+            .collect();
         assert!(
-            matches!(file.as_str(), "index.rs" | "lib.rs" | "server.rs"),
-            "{file} names SymbolIndex; a reader takes one by reference and the \
-             one construction site is index.rs"
+            held.is_empty(),
+            "{file} names SymbolIndex other than behind a `&`; a reader takes \
+             one by reference and the one construction site is index.rs: {held:?}"
         );
     }
 }

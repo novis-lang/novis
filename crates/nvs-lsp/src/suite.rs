@@ -52,7 +52,6 @@ use nvs_diagnostics::{BytePos, PositionEncoding};
 
 use crate::actions;
 use crate::case::{Case, MAIN_PATH, Request};
-use crate::completion;
 use crate::coverage::{self, Matrix};
 use crate::definition;
 use crate::diagnostics::{Phases, for_document};
@@ -264,7 +263,7 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         Request::Diagnostics => diagnostics(&analysed, case.args.phase_all),
         Request::Hover => hover(&analysed, at(case)),
         Request::Definition => definition(&analysed, &files, at(case)),
-        Request::Completion => completion(&analysed, case, at(case)),
+        Request::Completion => completion(&analysed, &documents, &files, case, at(case)),
         Request::SemanticTokens => semantic_tokens(&analysed, &case.args.types),
         Request::DocumentSymbol => document_symbol(&analysed),
         Request::SelectionRange => selection_range(&analysed, at(case)),
@@ -472,8 +471,14 @@ fn definition(analysed: &Analysed, files: &Materialised, offset: BytePos) -> Res
 /// first. `rule:ide/a-request-line-is-closed` is what keeps the pair closed;
 /// the client applies neither, because an editor filters as the developer
 /// types.
-fn completion(analysed: &Analysed, case: &Case, offset: BytePos) -> Response {
-    let mut items = completion::at(analysed, offset);
+fn completion(
+    analysed: &Analysed,
+    documents: &Documents,
+    files: &Materialised,
+    case: &Case,
+    offset: BytePos,
+) -> Response {
+    let mut items = crate::server::items_of_case(documents, analysed, &files.dir, offset);
     if let Some(prefix) = &case.args.prefix {
         items.retain(|item| item.label.starts_with(prefix));
     }

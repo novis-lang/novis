@@ -111,6 +111,41 @@
 //! function, so a name taken from the body outside would be one the checker
 //! refuses where it was offered.
 //!
+//! A statement position also offers the **types a bare name could reach**,
+//! beside those words rather than instead of them: the `use` declarations in
+//! force in the entry document, and every type the workspace index holds. Each
+//! is labelled with the shortest spelling that resolves at that cursor — an
+//! import's own short name, a last segment for a declaration in the namespace
+//! in force, and the qualified name for everything else — which is
+//! `nvs_hir::resolve_ref`'s order read backwards. It is admitted here and not
+//! at M4B for one reason, and it is ADR 0099 § 3's: at M4B it would have been
+//! a workspace symbol search with no index under it.
+//!
+//! # What a namespace separator offers
+//!
+//! A name with a separator in it is read from the root
+//! (`rule:statements/a-qualified-name-is-absolute`), so `Core\` is asking what
+//! that namespace holds. The answer is the two rosters the member arms already
+//! read — `nvs_stdlib::registry`'s classes and its enums — beside the
+//! declarations [`crate::index`] holds for the workspace, each filtered to the
+//! names that lie under the prefix. **No keyword is among them**, and that is
+//! the half of this arm which closes a defect rather than adding a feature:
+//! `\` is a declared trigger character, so before the arm existed a cursor
+//! after `Core\` was answered the words that open a statement, at the one
+//! place the parser refuses every one of them.
+//!
+//! Each item is labelled with the **rest** of the name and not its last
+//! segment. What a client replaces is the word it is completing, so `App\`
+//! offering `Models\User` writes a name that resolves where `User` alone would
+//! write one that does not.
+//!
+//! **The prefix is read off the source, because no node spans it.** `Core\St`
+//! is one `ConstFetch` covering both segments, while `Core\` with nothing
+//! after it is two statements — the name, and an expression covering the lone
+//! `\` that `E0240` reports — so there is no single production to ask. What is
+//! read is a name's own spelling, whose meaning `nvs_hir::QName` owns; the
+//! tree is still what says the cursor is in code at all, which is [`NOT_CODE`].
+//!
 //! # What a member's detail column says
 //!
 //! The declaration is the home, and there are two kinds of declaration. A user
@@ -148,8 +183,16 @@
 //! precedes rather than as the type position it is. The sixth is the inside of
 //! a string literal, answered as the position around it: the variables are
 //! what an interpolation slot takes and are right, and the words that open a
-//! statement sit beside them as noise no filter here removes.
+//! statement sit beside them as noise no filter here removes. The seventh is
+//! how far a namespace reaches: the declarations offered under a prefix are
+//! the ones the index holds, so under
+//! `rule:ide/check-scope-defaults-to-open-documents`'s default a type in a
+//! file nobody has opened is not among them. That setting is the answer, and
+//! this arm deliberately has no second one — a directory walk of its own is
+//! what `rule:ide/completion-offers-only-what-the-compiler-derived` refuses.
 //! — owner: workspace-index
+
+use std::collections::BTreeMap;
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nvs_diagnostics::{BytePos, SourceFile, Span};
@@ -164,6 +207,7 @@ use rustc_hash::FxHashMap;
 
 use crate::definition::{declared_type, text_of};
 use crate::document::Analysed;
+use crate::index::{DeclKind, SymbolIndex};
 
 /// Every access shape a member is written inside, as `nvs_syntax::walk` spells
 /// them, with the half of the class each one reaches.
@@ -195,11 +239,12 @@ enum Reach {
 /// the receiver half of one rather than the member half — which are one answer
 /// for a client, since LSP has no shape for "ask me again somewhere else".
 #[must_use]
-pub fn at(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
+pub fn at(analysed: &Analysed, symbols: &SymbolIndex, offset: BytePos) -> Vec<CompletionItem> {
     let path = analysed.index.at(offset);
     let mut items = match asked(analysed, &path, offset) {
         Asked::Member(class, reach) => members_of(analysed, &class, reach),
-        Asked::Position => position(analysed, &path, offset),
+        Asked::Namespace(prefix) => under(symbols, &prefix),
+        Asked::Position => position(analysed, symbols, &path, offset),
         Asked::Nothing => return Vec::new(),
     };
     items.sort_by(|left, right| left.label.cmp(&right.label));
@@ -212,6 +257,9 @@ enum Asked {
     /// The member half of an access, off the class it resolved to and reaching
     /// the half of it the access shape names.
     Member(QName, Reach),
+    /// A name reaching into the namespace these segments spell — what that
+    /// namespace holds, and no word.
+    Namespace(Vec<String>),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -232,8 +280,17 @@ fn members_of(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Completio
     }
 }
 
-/// Which of the three questions the cursor at `offset` is asking.
+/// Which of the four questions the cursor at `offset` is asking.
+///
+/// The namespace question is asked first and answers on its own terms: a
+/// separator has been written in the name the cursor is inside, which is true
+/// in no access — a member name carries none — so the order costs the arms
+/// below nothing and buys the receiver half of `Core\Str::` an answer it would
+/// otherwise be refused for standing before the receiver's end.
 fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
+    if let Some(prefix) = namespace_written(analysed, offset) {
+        return Asked::Namespace(prefix);
+    }
     let Some((access, reach)) = access_in(path).or_else(|| ended_at(analysed, offset)) else {
         return Asked::Position;
     };
@@ -272,6 +329,124 @@ fn access_in(path: &NodePath) -> Option<(IndexNode, Reach)> {
 fn ended_at(analysed: &Analysed, offset: BytePos) -> Option<(IndexNode, Reach)> {
     let before = analysed.index.at(offset.checked_sub(1)?);
     access_in(&before).filter(|(access, _)| access.span.end == offset)
+}
+
+/// The productions whose text is not code, so a separator written inside one
+/// belongs to a string, a comment or a run of markup rather than to a name.
+///
+/// The list is what the module doc's *What a namespace separator offers* leans
+/// on: the prefix is read off the source, and this is the tree's half of that —
+/// the one question only the tree can answer is whether the cursor is writing
+/// a program at all. `Whitespace` is `nvs_syntax::walk`'s node for a comment
+/// too, which is why a comment needs no entry of its own.
+const NOT_CODE: &[&str] = &["Str", "Interpolated", "InlineHtml", "Whitespace"];
+
+/// The namespace the name being written at `offset` reaches into, as its
+/// segments, or `None` where that name carries no separator.
+///
+/// The name is the run of name characters ending at the cursor. Reading it out
+/// of the source rather than off a node is the module doc's decision and its
+/// reasoning: `Core\` with nothing after it is two statements, so no one
+/// production covers the prefix in both of the shapes a half-written qualified
+/// name takes.
+fn namespace_written(analysed: &Analysed, offset: BytePos) -> Option<Vec<String>> {
+    let node = analysed.index.at(offset.checked_sub(1)?).innermost()?;
+    if NOT_CODE.contains(&node.kind) {
+        return None;
+    }
+    let upto = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(..offset as usize)?;
+    let start = upto
+        .char_indices()
+        .rev()
+        .take_while(|(_, ch)| is_name(*ch))
+        .last()
+        .map_or(upto.len(), |(at, _)| at);
+    let (prefix, _) = upto[start..].rsplit_once('\\')?;
+    if prefix.is_empty() {
+        return None;
+    }
+    Some(QName::parse(prefix).segments().to_vec())
+}
+
+/// Whether `ch` may appear in a qualified name.
+///
+/// The separator is one of them: what this bounds is the whole name the cursor
+/// is writing, and `Core\St` is one name and not two.
+fn is_name(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_' || ch == '\\'
+}
+
+/// Every type declared under `prefix`, labelled by the rest of its name.
+///
+/// Three rosters and no fourth: `nvs_stdlib::registry`'s classes and enums,
+/// which are the same two [`members_of`] reads a member list off, and the
+/// declarations the one workspace index holds — reached through
+/// [`SymbolIndex::files`] and [`SymbolIndex::declarations_in`], which are the
+/// queries it already answers `textDocument/codeLens` with. Nothing here walks
+/// a directory or asks anything off this machine
+/// (`rule:ide/completion-offers-only-what-the-compiler-derived`).
+///
+/// Keyed by label, so a name two files both declare is offered once rather
+/// than twice.
+fn under(symbols: &SymbolIndex, prefix: &[String]) -> Vec<CompletionItem> {
+    let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
+    let core = registry::CLASSES
+        .iter()
+        .map(|class| (class.name, CompletionItemKind::CLASS))
+        .chain(
+            registry::ENUMS
+                .iter()
+                .map(|core| (core.name, CompletionItemKind::ENUM)),
+        );
+    for (name, kind) in core {
+        if let Some(rest) = under_prefix(name, prefix) {
+            found.insert(rest.clone(), item(rest, kind, name.to_owned()));
+        }
+    }
+    for path in symbols.files() {
+        for declared in symbols.declarations_in(path) {
+            let Some(kind) = namespace_kind(declared.kind) else {
+                continue;
+            };
+            if let Some(rest) = under_prefix(&declared.symbol, prefix) {
+                found.insert(rest.clone(), item(rest, kind, declared.symbol.clone()));
+            }
+        }
+    }
+    found.into_values().collect()
+}
+
+/// The rest of `name` after `prefix`, or `None` for a name outside it.
+///
+/// Segment by segment rather than one string comparison, because `Core` is not
+/// a prefix of `Coroutine` and a text one would say it is.
+fn under_prefix(name: &str, prefix: &[String]) -> Option<String> {
+    let mut rest = name;
+    for segment in prefix {
+        rest = rest.strip_prefix(segment.as_str())?.strip_prefix('\\')?;
+    }
+    (!rest.is_empty()).then(|| rest.to_owned())
+}
+
+/// The kind a declaration is offered under after a separator, and `None` for
+/// one a separator does not reach.
+///
+/// A member is written after `->` or `::` and never after `\`, so the index's
+/// member rows are not a narrower answer here — they are no answer at all. The
+/// alias's spelling is `crate::server`'s, so the outline and this list call one
+/// thing by one name.
+fn namespace_kind(kind: DeclKind) -> Option<CompletionItemKind> {
+    match kind {
+        DeclKind::Class => Some(CompletionItemKind::CLASS),
+        DeclKind::Interface => Some(CompletionItemKind::INTERFACE),
+        DeclKind::Enum => Some(CompletionItemKind::ENUM),
+        DeclKind::TypeAlias => Some(CompletionItemKind::TYPE_PARAMETER),
+        DeclKind::Method | DeclKind::Property | DeclKind::Const | DeclKind::EnumCase => None,
+    }
 }
 
 /// The words that may open a statement, whether as a statement form of their
@@ -358,7 +533,12 @@ const CASE_WORDS: &[&str] = &["case"];
 /// cannot be the question. A member's own node — a property, a class constant,
 /// an enum case — is a value position with no local in scope and no word of
 /// its own, and answers nothing.
-fn position(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Vec<CompletionItem> {
+fn position(
+    analysed: &Analysed,
+    symbols: &SymbolIndex,
+    path: &NodePath,
+    offset: BytePos,
+) -> Vec<CompletionItem> {
     match path.innermost().map(|node| node.kind) {
         Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
         Some("EnumDecl") => words(CASE_WORDS),
@@ -366,6 +546,7 @@ fn position(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Vec<Comple
         _ => {
             let mut items = words(STATEMENT_WORDS);
             items.extend(in_scope(analysed, offset));
+            items.extend(in_reach(analysed, symbols, offset));
             items
         }
     }
@@ -406,6 +587,71 @@ fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
             )
         })
         .collect()
+}
+
+/// Every type a bare name at `offset` could be, spelled the way it may be
+/// written there.
+///
+/// One rule and three spellings of it: the shortest name that **resolves at
+/// this cursor**. An import in force answers with its own short name, a
+/// declaration in the namespace in force with its last segment, and everything
+/// else with the qualified name it is reached by. That is
+/// `nvs_hir::resolve_ref`'s own order read backwards, so no name offered here
+/// is one the resolver would refuse where it was offered — the same bar
+/// [`position`]'s keyword lists meet.
+///
+/// The two tables are the ones the compiler already keeps: the entry
+/// document's `use` declarations, and the workspace index's declaration side.
+/// A name the index does not hold is not searched for anywhere else.
+fn in_reach(analysed: &Analysed, symbols: &SymbolIndex, offset: BytePos) -> Vec<CompletionItem> {
+    let imports = imports_of(analysed);
+    let short: FxHashMap<String, String> = imports
+        .iter()
+        .map(|(name, target)| (target.to_string(), name.clone()))
+        .collect();
+    let here = namespace_at(analysed, offset);
+    let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
+    for path in symbols.files() {
+        for declared in symbols.declarations_in(path) {
+            let Some(kind) = namespace_kind(declared.kind) else {
+                continue;
+            };
+            let label = written_as(&declared.symbol, &here, &short);
+            found
+                .entry(label.clone())
+                .or_insert_with(|| item(label, kind, declared.symbol.clone()));
+        }
+    }
+    // An import whose target the index does not hold is still a name in force
+    // — a `Core` class, or one in a file the current scope does not reach
+    // (`rule:ide/check-scope-defaults-to-open-documents`). What it declares is
+    // read off the registry, which is the one table that can say.
+    for (name, target) in &imports {
+        let spelled = target.to_string();
+        found.entry(name.clone()).or_insert_with(|| {
+            let kind = if registry::core_enum(&spelled).is_some() {
+                CompletionItemKind::ENUM
+            } else {
+                CompletionItemKind::CLASS
+            };
+            item(name.clone(), kind, spelled)
+        });
+    }
+    found.into_values().collect()
+}
+
+/// How `symbol` is written at a cursor whose namespace is `here` and whose
+/// imports are `short`, keyed the way they are looked up — target to the name
+/// it was imported under.
+fn written_as(symbol: &str, here: &[String], short: &FxHashMap<String, String>) -> String {
+    if let Some(name) = short.get(symbol) {
+        return name.clone();
+    }
+    let segments = QName::parse(symbol).segments().to_vec();
+    if segments.len() == here.len() + 1 && segments.starts_with(here) {
+        return segments[here.len()].clone();
+    }
+    symbol.to_owned()
 }
 
 /// The class the value at `span` holds.
