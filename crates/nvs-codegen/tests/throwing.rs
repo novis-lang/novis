@@ -324,3 +324,181 @@ fn a_fatal_releases_the_frames_locals() {
         "a fatal left the frame's locals allocated"
     );
 }
+
+/// Three frames, each holding a `finally` of its own, with the innermost one
+/// ending the script through `Core\Script::finish()`.
+///
+/// Each `finally` echoes its own depth, so the output alone says which of them
+/// ran and in what order — the whole of what makes the fourth ending an ending
+/// rather than `exit` under another name.
+const FINISHES: &str = "<?nvs
+class Deep {
+    public static function level3(): void {
+        try {
+            Core\\Script::finish();
+            echo \"past the finish\";
+        } finally {
+            echo \"3\";
+        }
+    }
+    public static function level2(): void {
+        try {
+            Deep::level3();
+        } finally {
+            echo \"2\";
+        }
+    }
+    public static function level1(): void {
+        try {
+            Deep::level2();
+        } finally {
+            echo \"1\";
+        }
+    }
+}
+";
+
+#[test]
+fn a_finish_runs_every_finally_between_the_call_and_the_root() {
+    // `rule:errors/propagation`'s throw path is the path a `finally` body lives
+    // on, which is what `nvs_ir::lower`'s `lower_finish` buys by raising a
+    // marker instead of returning a status: every enclosing region's
+    // finally-and-re-raise block runs on the way out, the script's own included.
+    let mut ctx = Ctx::buffered();
+    let source =
+        format!("{FINISHES}\ntry {{\n    Deep::level1();\n}} finally {{\n    echo \"root\";\n}}\n");
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.take_buffered_output().as_deref(),
+        Some(&b"321root"[..]),
+        "a finally between the call and the root did not run"
+    );
+}
+
+#[test]
+fn a_finish_runs_them_innermost_first() {
+    // Three regions in one frame, so the order under test is the nesting order
+    // rather than the frame order the neighbour above covers.
+    let mut ctx = Ctx::buffered();
+    let source = "<?nvs\ntry {\n    try {\n        try {\n            \
+                  Core\\Script::finish();\n        } finally {\n            echo \"inner\";\n        \
+                  }\n    } finally {\n        echo \"middle\";\n    }\n} finally {\n    \
+                  echo \"outer\";\n}\n";
+    assert_eq!(run_with(&mut ctx, source).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.take_buffered_output().as_deref(),
+        Some(&b"innermiddleouter"[..]),
+        "the regions ran in some order other than innermost first"
+    );
+}
+
+#[test]
+fn a_finish_three_frames_down_still_reaches_the_root() {
+    // The marker arrives at the root intact: each frame returned `THROWN` and
+    // re-raised the very object it was handed, so what is pending at the root
+    // is still the class `nvs_runtime::is_finish` classifies an ending by —
+    // `rule:observability/three-endings-fire-the-exit-queue`'s report is read
+    // off exactly this.
+    let mut ctx = Ctx::buffered();
+    let source = format!("{FINISHES}\nDeep::level1();\necho \"past the call\";\n");
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.pending_class().as_deref(),
+        Some(nvs_runtime::FINISH_MARKER_NAME)
+    );
+    assert_eq!(
+        ctx.take_buffered_output().as_deref(),
+        Some(&b"321"[..]),
+        "the script carried on past the ending it named"
+    );
+}
+
+#[test]
+fn a_catch_throwable_does_not_admit_a_finish() {
+    // The widest arm a program can write, over the ending that is not a
+    // failure: the marker is a second, parentless root of the exception tree
+    // (`nvs_hir::errors::FINISH_MARKER`), so the arm dispatch's
+    // self-or-ancestor walk is false for it and the region's `finally` is all
+    // that runs. A `catch` that admitted it would turn an ending into a value
+    // a handler could swallow.
+    let mut ctx = Ctx::buffered();
+    let source = format!(
+        "{FINISHES}\ntry {{\n    Deep::level1();\n}} catch (Throwable $e) {{\n    \
+         echo \"caught\";\n}} finally {{\n    echo \"root\";\n}}\n"
+    );
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.take_buffered_output().as_deref(),
+        Some(&b"321root"[..]),
+        "a catch arm took the ending, or the finally beside it did not run"
+    );
+}
+
+#[test]
+fn a_finish_is_still_a_finish_after_it_has_passed_a_catch_region() {
+    // Passing an arm is not a promotion: nothing in the dispatch rewraps the
+    // object it declined, so the class at the root is still the one
+    // `nvs_runtime::is_finish` classifies an ending by — the property a host
+    // reads its report off after the marker has crossed three frames and two
+    // regions that each had a chance to take it.
+    let mut ctx = Ctx::buffered();
+    let source = format!(
+        "{FINISHES}\ntry {{\n    try {{\n        Deep::level1();\n    }} \
+         catch (LogicError $inner) {{\n        echo \"inner caught\";\n    }}\n}} \
+         catch (Throwable $outer) {{\n    echo \"outer caught\";\n}}\n"
+    );
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+    assert_eq!(
+        ctx.pending_class().as_deref(),
+        Some(nvs_runtime::FINISH_MARKER_NAME),
+        "the object a catch region declined did not arrive at the root intact"
+    );
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"321"[..]));
+}
+
+/// The `a_fatal_releases_the_frames_locals` guard above, over the ending that
+/// leaves a frame through its landing block rather than through a fatal: a
+/// finish takes the same error path, so the same releases have to be on it or
+/// a request that ended deliberately leaks everything it still held.
+///
+/// The allocation the run is meant to leave behind is the marker itself, which
+/// is pending at the root until something takes it — so it is taken here, and
+/// the balance is read after.
+#[cfg(debug_assertions)]
+#[test]
+fn a_finish_inside_a_try_releases_every_local_of_that_frame() {
+    /// The held string's length, big enough that no other allocation the run
+    /// makes could be mistaken for it.
+    const FILLER: usize = 512;
+
+    let filler = "x".repeat(FILLER);
+    let source = format!(
+        "<?nvs\nstring $held = \"{filler}\" . \"!\";\n\
+         array<float> $floats = [1.5, 2.5];\n\
+         try {{\n    Core\\Script::finish();\n}} finally {{\n    echo \"f\";\n}}\n"
+    );
+    let unit = compile(&source).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+    let entry = unit.script().expect("the script frame was compiled");
+
+    nvs_runtime::prime_empty_array();
+    let before = live_bytes();
+    let spent = allocated_bytes();
+    assert_eq!(entry.call(&mut ctx).err(), Some(THROWN));
+    assert!(
+        allocated_bytes() - spent >= FILLER,
+        "the local's buffer did not come through this allocator, so the \
+         balance below would prove nothing"
+    );
+
+    let marker = ctx.take_thrown();
+    drop(marker);
+    drop(ctx.take_buffered_output());
+
+    assert_eq!(
+        live_bytes(),
+        before,
+        "a finish left the frame's locals allocated"
+    );
+}
