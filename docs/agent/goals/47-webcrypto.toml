@@ -24,7 +24,7 @@ modules = [
   "crates/nvs-stdlib/src/signed_cookie.rs",
   # `draw`, the one CSPRNG seam every nonce, salt and private key comes through.
   "crates/nvs-stdlib/src/random.rs",
-  # `hmac_sha256` and the digest roster, which stay untouched.
+  # `of` (:352-365) is the enum-argument shape `seal` and `open` copy; the digest roster stays untouched.
   "crates/nvs-stdlib/src/hash.rs",
   # base64url, the JWE segment encoding, and hex for the vectors.
   "crates/nvs-stdlib/src/encoding.rs",
@@ -180,15 +180,18 @@ tests = [
 [[check]]
 kind = "nvs-suite"
 stage = "4 the members"
-name = "the interop tier's members, their bounds and their refusals"
+name = "one seal and open over every cipher, the derivations, the key classes, their bounds and refusals"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/crypto-aes-gcm-round-trips-and-refuses-every-forgery-with-one-message.nvst",
+  "tests/conformance/core/crypto-seal-and-open-take-a-cipher-and-round-trip-under-each.nvst",
+  "tests/conformance/core/crypto-opening-under-the-wrong-cipher-is-a-forgery.nvst",
   "tests/conformance/core/crypto-aes-gcm-sealed-bytes-are-nonce-then-ciphertext-then-tag.nvst",
+  "tests/conformance/core/crypto-generate-key-answers-the-cipher-s-key-length.nvst",
   "tests/conformance/core/crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst",
   "tests/conformance/core/crypto-derived-and-agreed-keys-are-secret-bytes.nvst",
   "tests/conformance/core/crypto-agree-refuses-a-public-key-that-is-not-on-its-curve.nvst",
   "tests/conformance/core/crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst",
+  "tests/conformance/core/crypto-a-key-pair-written-as-pkcs8-reads-back-and-agrees-the-same-secret.nvst",
 ]
 
 [[check]]

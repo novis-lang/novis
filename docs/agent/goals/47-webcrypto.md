@@ -4,17 +4,17 @@ milestone: M8
 # Loop goal 47 — a browser and a Novis server read each other's encrypted data
 
 Anything a browser encrypts with WebCrypto, a Novis server can decrypt, and the other way round, with no
-JavaScript crypto library on the browser side. `Core\Crypto` gains an **interop tier** beside the
-XChaCha20-Poly1305 construction it already has — AES-256-GCM, PBKDF2-HMAC-SHA256, HKDF-SHA256 and ECDH
-over P-256 and X25519, each a separately named member — and the protocol roster gains **`Core\Jwe`**, a
-closed subset of JSON Web Encryption (RFC 7516/7518) built on those primitives. What proves it is Node's
-own `crypto.subtle`, which is the W3C Web Cryptography API browsers expose, round-tripping every mode
-against the built `nvs` binary.
+JavaScript crypto library on the browser side. **One streamlined API serves every cipher**:
+`Core\Crypto::generateKey`, `seal` and `open` take a closed `Cipher` enum — XChaCha20-Poly1305, as today,
+or AES-256-GCM — the way `Core\Hash::of` takes a `Core\Digest`. Beside them sit the members whose
+parameters genuinely differ: PBKDF2 and HKDF derivation, and ECDH over P-256 and X25519 through typed key
+objects. The protocol roster gains **`Core\Jwe`**, a closed subset of JSON Web Encryption (RFC 7516/7518)
+whose algorithm follows from the type of the key it is handed. What proves it is Node's own
+`crypto.subtle`, the W3C Web Cryptography API browsers expose, round-tripping every mode against the built
+`nvs` binary.
 
-Nothing is removed. `Core\Crypto::generateKey`, `seal` and `open` keep their construction, their
-signatures and their bytes, and every `Core\Digest` case stays. XChaCha20-Poly1305 remains the
-construction a Novis program reaches for when both ends are Novis; the interop tier is for when one end
-is a browser.
+Nothing is taken away: XChaCha20-Poly1305 stays, and stays the default, and every `Core\Digest` case stays.
+Nothing has shipped publicly, so an existing signature is changed wherever the streamlined surface needs it.
 
 ## Why here
 
@@ -27,11 +27,12 @@ adds to it has run, and this goal adds and closes rows.
 
 What it needs already built, all on disk: `Core\Crypto`'s one construction and its three seams
 (`crates/nvs-stdlib/src/crypto.rs:103-113`), every draw through `crate::random::draw`
-(`crates/nvs-stdlib/src/crypto.rs:115-121`), JWT's compare-only header reading that JWE copies
-(`crates/nvs-stdlib/src/jwt.rs:11-22`), `Core\Signature`'s `tainted` payload answer
-(`docs/spec/01-core-library.md:1175`), base64url in `crates/nvs-stdlib/src/encoding.rs`, and the RustCrypto
-base the lockfile already carries — `aead` 0.6, `cipher` 0.5, `hmac` 0.13, `sha2` 0.11, `pbkdf2` 0.13
-and `curve25519-dalek` 5.
+(`crates/nvs-stdlib/src/crypto.rs:115-121`), `Core\Hash::of`'s enum-argument shape
+(`crates/nvs-stdlib/src/hash.rs:352-365`), JWT's compare-only header reading that JWE copies
+(`crates/nvs-stdlib/src/jwt.rs:11-22`), `Core\Signature`'s key ring and `tainted` payload answer
+(`docs/spec/01-core-library.md:1175`), base64url in `crates/nvs-stdlib/src/encoding.rs`, and the
+RustCrypto base the lockfile already carries — `aead` 0.6, `cipher` 0.5, `hmac` 0.13, `sha2` 0.11, `pbkdf2`
+0.13 and `curve25519-dalek` 5.
 
 ## Stage 0 — the catch-up
 
@@ -40,9 +41,12 @@ before editing: these are anchors, and files move.
 
 - `crates/nvs-stdlib/src/crypto.rs:1-2` — "as three members that take a key and a message and nothing
   else". Stage 4.
+- `crates/nvs-stdlib/src/crypto.rs:8-19` — § *No cipher argument*. Its argument was against a cipher
+  named as a string and against a mode that is not authenticated; a closed enum of AEADs is neither, and
+  `crates/nvs-stdlib/src/jwt.rs:24-28` is the argument for why a program choosing its own algorithm
+  chooses nothing an attacker supplied. Stage 4 rewrites the section as a whole to say that.
 - `crates/nvs-stdlib/src/crypto.rs:36-40` — "AES-GCM was the alternative and loses on two counts". Still
-  true as the reason XChaCha is the *default*; rewritten in stage 4 to say that, and that AES-GCM is here
-  for interop. Rewritten as a whole, never as a sentence added beside the old one.
+  the reason XChaCha is the *default*; stage 4 rewrites it to say so, and that AES-GCM is here for interop.
 - `crates/nvs-stdlib/src/crypto.rs:103-113` — "there is exactly one `XChaCha20Poly1305::new_from_slice`".
   Stage 4 says what the second construction is and that it has one home too.
 - `docs/rules/security/protocol-roster.md:1-3` and `docs/spec/01-core-library.md:1175` — a roster of five.
@@ -62,12 +66,12 @@ Goal `template-format`'s whole acceptance list, carried in verbatim by `tools/go
 
 One new record, and no other number. It creates `core-classes/crypto-interop-tier` and
 `security/jwe-compact-subset`, both `designed`, and modifies `security/protocol-roster`. Its body is
-§ *Standing decisions* below, argued: this is transcription, not design. It fixes the members'
-spellings, which the standing decisions leave to it under `rule:core-api/verb-lexicon`, and the numbers
-it tunes stay inside the bounds given there.
+§ *Standing decisions* below, argued: this is transcription, not design. It fixes the spellings the
+surface below leaves open — the enums' namespace, under `Core\Digest`'s precedent, and any name
+`rule:core-api/verb-lexicon` refuses — and the numbers it tunes stay inside the bounds given there.
 
-The spec rows move with it: `docs/spec/01-core-library.md:1173` gains the interop tier, and a `Core\Jwe`
-row joins § 16. The migration rows wait for stage 4 (the handoff says why).
+The spec rows move with it: `docs/spec/01-core-library.md:1173` becomes the streamlined surface, and a
+`Core\Jwe` row joins § 16. The migration rows wait for stage 4 (the handoff says why).
 
 ## Stage 3 — the keystone: the primitives, under their published vectors
 
@@ -88,20 +92,23 @@ specification publishes before any `Core` member calls it:
 The vectors go in as test source with the section they came from named beside each one. Every key, nonce
 and salt a primitive draws comes from `crate::random::draw`, so a `#[Test(seed: …)]` reproduces it.
 
-## Stage 4 — the `Core\Crypto` members
+## Stage 4 — the `Core\Crypto` surface
 
-The interop tier as `Core` members, five edits each (conventions.md § *A `Core` member*): AES-256-GCM
-seal and open, PBKDF2 and HKDF derivation, a key pair for each curve and the agreement between two, and
-public keys read and written in raw, SPKI and JWK form. Then `docs/spec/02-php-migration.md:811-812`
-becomes two `member` rows naming them, which `every_migration_member_row_names_a_registered_member` and
-`every_migration_member_row_has_a_conformance_case` hold. Stage 0's three `crypto.rs` sentences are
+The surface § *Standing decisions* fixes, five edits per member (conventions.md § *A `Core` member*):
+`generateKey`, `seal` and `open` over the `Cipher` enum, `deriveKey` and `expandKey`, `generateKeyPair`
+and `agree`, and the `KeyPair` and `PublicKey` classes. The existing crypto conformance cases are
+corrected to the new signatures where a signature changed — their source, never their expected output —
+and `crates/nvs-stdlib/src/signed_cookie.rs`, which reaches the construction through the crate-private
+seams, is kept on XChaCha. Then `docs/spec/02-php-migration.md:811-812` become two `member` rows naming
+`deriveKey` and `expandKey`, which `every_migration_member_row_names_a_registered_member` and
+`every_migration_member_row_has_a_conformance_case` hold. Stage 0's four `crypto.rs` sentences are
 rewritten here.
 
 ## Stage 5 — `Core\Jwe`
 
 A new `crates/nvs-stdlib/src/jwe.rs`, registered in `crates/nvs-stdlib/src/registry.rs` beside
-`crate::jwt::CLASS` (`:1706`): compact serialization, the subset the standing decisions fix, encrypt and
-decrypt, over stage 4's crate-private functions — never a second copy of a primitive.
+`crate::jwt::CLASS` (`:1706`): compact serialization, `encrypt` and `decrypt`, the subset the standing
+decisions fix, over stage 4's crate-private functions — never a second copy of a primitive.
 
 ## Stage 6 — the round trip with WebCrypto itself
 
@@ -118,41 +125,66 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
 
 ## Standing decisions
 
-- **Additive, and nothing shipped changes.** `generateKey`, `seal` and `open` keep their names,
-  signatures, output bytes and error text, and their six conformance cases are not edited. Every
-  `Core\Digest` case stays, the broken ones included. **Streamlining is allowed only inside the crate** —
-  one key-length `LogicError` shape, one forgery sentence, one nonce-draw path shared by both
-  constructions. A shipped member's observable behaviour is never the price of it.
+- **One member per job, and an enum where the parameters are the same.** Where two algorithms take the
+  same parameters they are one member with a closed enum argument, as `Core\Hash::of` takes a
+  `Core\Digest` (`crates/nvs-stdlib/src/hash.rs:352-365`). Where the parameters differ they are separate
+  members. No member name carries an algorithm, and no algorithm is ever a string.
+- **The surface.** Spellings may be adjusted by the record; the shape may not:
+
+  | Member | Does |
+  |---|---|
+  | `Crypto::generateKey(Cipher $cipher = Cipher::XChaCha20Poly1305): secret bytes` | a fresh key of the cipher's length |
+  | `Crypto::seal(bytes $message, secret bytes $key, Cipher $cipher = Cipher::XChaCha20Poly1305): bytes` | `nonce ‖ ciphertext ‖ tag` |
+  | `Crypto::open(bytes $sealed, secret bytes $key, Cipher $cipher = Cipher::XChaCha20Poly1305): bytes` | the plaintext, or one forgery `RuntimeError` |
+  | `Crypto::deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes` | PBKDF2-HMAC-SHA256, 32 octets |
+  | `Crypto::expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` | HKDF-SHA256, 32 octets |
+  | `Crypto::generateKeyPair(Curve $curve): Crypto\KeyPair` | P-256 or X25519 |
+  | `Crypto::agree(Crypto\KeyPair $mine, Crypto\PublicKey $theirs): secret bytes` | the raw shared secret, meant for `expandKey` |
+  | `Crypto\PublicKey::read(bytes $encoded, Curve $curve, KeyFormat $format): Crypto\PublicKey` / `->write(KeyFormat $format): bytes` | raw, SPKI or JWK, validated at read |
+  | `Crypto\KeyPair::read(secret bytes $pkcs8, Curve $curve): Crypto\KeyPair` / `->write(): secret bytes` / `->publicKey(): Crypto\PublicKey` | PKCS#8, so a server keeps its pair across requests |
+  | `Jwe::encrypt(string $payload, secret bytes\|Crypto\PublicKey\|secret string $key): string` | the compact token |
+  | `Jwe::decrypt(string $token, array<secret bytes>\|array<Crypto\KeyPair>\|secret string $keys): tainted string` | the payload, or one `RuntimeError` |
+
+  `Cipher` is `XChaCha20Poly1305` and `Aes256Gcm`; `Curve` is `P256` and `X25519`; `KeyFormat` is `Raw`,
+  `Spki` and `Jwk`. **XChaCha20-Poly1305 is the default** because it is the construction a program should
+  get without choosing (`crates/nvs-stdlib/src/crypto.rs:21-40`). Opening under the wrong cipher is a
+  forgery, never plausible bytes.
+- **Two fallbacks, because two things were not checked when this was written.** A `Core` member row's
+  defaults were seen only as `null` (`crates/nvs-stdlib/src/db/registry.rs:69`). If the registry cannot
+  default an enum parameter, `Cipher` becomes a **required** argument on all three members and every
+  call site is updated — `examples/crypto.nvs`, the existing crypto cases, anything the tree holds —
+  rather than a `?Cipher = null` that means XChaCha. If a member row cannot declare a union with `secret`
+  members, JWE's key becomes a `Jwe\Key` built by one static per kind (`shared`, `password`,
+  `recipient`, `own`), with still two `Jwe` members. Record whichever held in the record.
+- **Existing signatures may change; the good parts may not.** Nothing has shipped publicly, so a shipped
+  member's signature changes wherever the surface needs it, and the source of an existing case is
+  corrected to match (its expected output stays frozen). What stays: XChaCha20-Poly1305 as the default
+  construction and its sealed layout, every `Core\Digest` case, `Core\Password`, and
+  `signed_cookie.rs`'s use of the construction.
 - **The roster, closed.** In: AES-256-GCM, PBKDF2-HMAC-SHA256, HKDF-SHA256, ECDH over P-256 and X25519.
   Internal only, never a member: AES Key Wrap (PBES2 needs it) and Concat KDF (ECDH-ES needs it). Out,
   and not to be added by any session of this goal: AES-CBC, AES-CTR, AES-128, RSA in any form, and JWE's
   `A*CBC-HS*` content encryption. ECDSA and Ed25519 signatures are signing, not this goal.
-- **No cipher-name-as-string, anywhere.** Each primitive is its own member, as `Core\Hash::hmac` is not
-  and `Core\Jwt` is. An enum argument naming a curve is acceptable, because it is a closed set of values
-  and not a string. The record picks the spellings. If it cannot settle them, the fallback is
-  `sealAesGcm`/`openAesGcm`, `deriveKeyPbkdf2`, `expandKeyHkdf`, `generateKeyPair(Crypto\Curve)` and
-  `agree`, recorded as the record's choice.
 - **AES-GCM's sealed bytes are `nonce(12) ‖ ciphertext ‖ tag(16)`** — exactly what WebCrypto's `encrypt`
-  answers with its IV put in front, so a browser splits at byte 12 and does nothing else. The nonce is 96
-  random bits drawn through `crate::random::draw`, with no nonce parameter. The record and the member's
-  doc state the 2^32-messages-per-key bound this implies, and name XChaCha as the answer when that bound
-  matters. No additional-data parameter in this goal; JWE uses AAD internally.
-- **Keys.** A symmetric key is `secret bytes`, length-checked: the wrong length is a `LogicError` naming
-  the length wanted, never the bytes got (`crates/nvs-stdlib/src/crypto.rs:68-74`). A private EC key is
-  `secret bytes`, generated by Novis or imported raw or as PKCS#8. A public key is plain `bytes`, read and
-  written as raw (65-octet uncompressed SEC1 for P-256, 32 octets for X25519), SPKI DER and JWK text.
-  **Every public key is validated at import**: on the curve for P-256, and an all-zero X25519 shared
-  secret is refused. A public key off the wire that fails validation is a `RuntimeError` (a verdict),
-  while a malformed key the program itself built is a `LogicError` (a bug). JWK export of a private key
-  is out of scope.
+  answers with its IV put in front, so a browser splits at byte 12 and does nothing else. XChaCha's stay
+  `nonce(24) ‖ ciphertext ‖ tag(16)`. The nonce is random and drawn through `crate::random::draw`, with no
+  nonce parameter; the record and `seal`'s doc state AES-GCM's 2^32-messages-per-key bound and name
+  XChaCha as the answer when that bound matters. No additional-data parameter in this goal; JWE uses AAD
+  internally.
+- **Keys.** A symmetric key is `secret bytes`, length-checked against its cipher: the wrong length is a
+  `LogicError` naming the length wanted, never the bytes got (`crates/nvs-stdlib/src/crypto.rs:68-74`).
+  A private key never leaves a `KeyPair` except as `secret bytes` through `write`. **Every public key is
+  validated at `read`**: on the curve for P-256, and an all-zero X25519 shared secret is refused at
+  `agree`. A public key off the wire that fails is a `RuntimeError` (a verdict); a malformed key the
+  program built is a `LogicError` (a bug). JWK export of a private key is out of scope.
 - **PBKDF2 has a floor and a ceiling, and both are checked before the first HMAC.** The iteration count
   is a required parameter, because the other end chose it. It is refused below 100,000 and above
   2,000,000, and a salt shorter than 16 octets is refused. The record may move either number with a
   reason, never remove one. The ceiling is what makes PBES2 safe: `p2c` in a JWE header is
   attacker-supplied, and without it one token buys unbounded CPU.
 - **JWE, the subset.** Compact serialization only. `enc` is `A256GCM` and nothing else. **The algorithm
-  comes from the key** (`rule:security/algorithm-comes-from-the-key`): a 32-octet `secret bytes` means
-  `dir`, a P-256 or X25519 key means `ECDH-ES` (direct agreement, no key wrap), and a `secret string`
+  comes from the key's type** (`rule:security/algorithm-comes-from-the-key`): `secret bytes` means `dir`,
+  a `PublicKey` or `KeyPair` means `ECDH-ES` (direct agreement, no key wrap), and a `secret string`
   password means `PBES2-HS256+A128KW`. The header's `alg` and `enc` are read only to be **compared**, as
   `crates/nvs-stdlib/src/jwt.rs:11-22` does, and a mismatch is a refusal. The allowed header parameters
   are `alg`, `enc`, `epk`, `p2s`, `p2c`, `kid`, `typ` and `cty`. `zip`, `crit`, `jku`, `x5u`, `x5c`, a
@@ -160,9 +192,8 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
   URL-bearing ones are fetches. The protected header is length-capped before it is parsed.
 - **JWE answers like the rest of the roster.** The payload is `string` in and **`tainted string`** out,
   as with `Core\Signature::verify`, and every failure of authenticity is one `RuntimeError` with one
-  sentence (`crates/nvs-stdlib/src/crypto.rs:68-74`). Decrypt takes the key-ring shape
-  `Core\Signature::verify` takes, tried in order, except that a PBES2 ring holds exactly one password,
-  because every try costs a full derivation.
+  sentence. Decrypt's key ring is tried in order, as `Core\Signature::verify`'s is, except that a
+  password is exactly one, because every try costs a full derivation.
 - **Dependencies, all pure Rust, all on the generation already locked**: `aes-gcm` 0.11 (brings `aes`
   0.9), `aes-kw` 0.3, `p256` 0.14 with its `ecdh` feature, `x25519-dalek` 3.0, `hkdf` 0.13, and `pbkdf2`
   0.13 as a direct dependency. Default features are off and no `getrandom` anywhere: randomness reaches
@@ -178,7 +209,7 @@ filled from this goal's cases and tests, and `python tools/rules.py --render`.
   side is presumed wrong until a published vector says otherwise.
 - **What it spends**: per call, a few hundred bytes of cipher or curve state on the stack and one output
   buffer charged to the request through `nvs_runtime::budget`, passed through `nvs_runtime::affordable`
-  first, as `seal` is today. PBKDF2 is bounded in CPU by its ceiling. Nothing is held between calls, so
-  it is O(in-flight).
+  first, as `seal` is today. A `KeyPair` holds its private scalar for as long as the program holds the
+  object. PBKDF2 is bounded in CPU by its ceiling. Nothing is held between calls, so it is O(in-flight).
 - **Not this goal**: JWS with ES256 or EdDSA, JWK export of private keys, an additional-data parameter,
   streaming encryption. A session that finds one on its path writes it to the handoff's `## Backlog`.
