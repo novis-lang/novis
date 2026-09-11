@@ -385,19 +385,20 @@ where
     // return, a task standing on this stack is one a host may not force-unwind.
     // See [`HelperFrame`].
     let _frame = HelperFrame::enter();
-    // `rule:errors/on-limit`'s memory limit, asked *before* the body rather than after
-    // it: a member that has already run holds a `Value` this frame would then
-    // have to release on a path nothing else takes, and refusing in front of
-    // the allocation is what [`affordable`]'s own doc comment says this seam is
-    // for.
+    // `rule:errors/on-limit`'s memory limit, asked *before* the body: a member
+    // that has already run holds a `Value` this frame would then have to
+    // release on a path nothing else takes, and refusing in front of the
+    // allocation is what [`affordable`]'s own doc comment says this seam is
+    // for. The `Ok(Err(..))` arm below asks it a second time, on the one way
+    // out of a body that leaves no such `Value` behind.
     //
-    // One of the two places the question is asked, and no longer the only one:
-    // [`crate::budget`] arms the allocator with this request's ceiling, so a
-    // growing allocation that crosses it raises
+    // Not the only place it is asked at all: [`crate::budget`] arms the
+    // allocator with this request's ceiling, so an allocation that crosses it
+    // — or is refused in front of it — raises
     // [`SafepointFlags::MEMORY_LIMIT`] and the program is stopped at its next
-    // back edge. What this seam still answers alone is growth that reaches
-    // neither — no loop between the allocation and the call — and what it
-    // answers in every case is that no member's body runs past the ceiling.
+    // back edge. What this seam still answers alone is growth that reaches no
+    // back edge, and what it answers in every case is that no member's body
+    // runs past the ceiling.
     //
     // What it costs an uncapped request — every context with no configuration,
     // which is every test's — is one compare against a zero field: see
@@ -411,15 +412,7 @@ where
     if let Some(fault) = breach {
         #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
         let ctx = unsafe { &mut *ctx };
-        // `rule:errors/on-limit`'s tier 1, ahead of the record: the handler is what the
-        // program gets instead of the member this call was for, and it runs
-        // before the breach becomes the status the caller sees, so a fault of
-        // its own is overwritten by `record_fault` below rather than reported
-        // in place of the limit. `Ctx::run_limit_handler` owns the zero-retry
-        // rule that keeps the handler's own first helper call from arriving
-        // back here and calling it a second time.
-        ctx.run_limit_handler(crate::Limit::Memory);
-        return record_fault(ctx, fault);
+        return report_memory_breach(ctx, fault);
     }
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         #[expect(
@@ -467,7 +460,19 @@ where
             }
             OK
         }
-        Ok(Err(fault)) => record_fault(ctx, fault),
+        Ok(Err(fault)) => match ctx.memory_breach() {
+            // A member that failed *while* the request crossed its ceiling
+            // reports the ceiling and not its own error. A refused allocation
+            // is what a fallible producer reads as "no room", and one that
+            // words that as a throw would otherwise hand the program a `catch`
+            // to carry on from — which is the whole of what
+            // `rule:errors/escalation-ladder` puts a resource limit above. The
+            // question is asked on this arm and not on the `Ok` one for the
+            // reason the comment ahead of the body gives: there is no result
+            // `Value` to release here.
+            Some(breach) => report_memory_breach(ctx, breach),
+            None => record_fault(ctx, fault),
+        },
         Err(payload) => {
             if Teardown::in_progress() {
                 // Not a helper bug: this thread is tearing a task's stack down
@@ -486,6 +491,22 @@ where
             FATAL
         }
     }
+}
+
+/// Runs `rule:errors/on-limit`'s handler for `breach` and answers the status
+/// the breach becomes.
+///
+/// Two seams ask the same question and owe the same answer: [`run_helper`]
+/// ahead of a member's body, and the way out of a body that failed. The handler
+/// is what the program gets instead of the member the call was for, and it runs
+/// before the breach becomes the status the caller sees, so a fault of its own
+/// is overwritten by [`record_fault`] rather than reported in place of the
+/// limit. `Ctx::run_limit_handler` owns the zero-retry rule that keeps the
+/// handler's own first helper call from arriving back here and calling it a
+/// second time.
+fn report_memory_breach(ctx: &mut Ctx, breach: Fault) -> i32 {
+    ctx.run_limit_handler(crate::Limit::Memory);
+    record_fault(ctx, breach)
 }
 
 /// Records `fault` on `ctx` and answers the status it becomes.
