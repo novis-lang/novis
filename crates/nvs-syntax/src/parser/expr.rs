@@ -1331,6 +1331,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::DoubleQuoteOpen => self.parse_double_quoted_string(),
+            TokenKind::MarkupOpen => self.parse_markup_literal(),
             TokenKind::HeredocOpen | TokenKind::NowdocOpen => self.parse_heredoc_string(),
             TokenKind::Variable => {
                 if self.file.span_text(start) == Some("$_") {
@@ -2515,6 +2516,22 @@ impl<'src, 'd> Parser<'src, 'd> {
         let open = self.bump().span; // HeredocOpen or NowdocOpen
         let (parts, close) = self.parse_string_body(TokenKind::HeredocClose);
         collapse_string_parts(open.to(close), parts)
+    }
+
+    /// `` html`<span>{$name}</span>` `` — the string body with the backtick as
+    /// its closer (`rule:core-classes/html-literal`).
+    ///
+    /// It does not collapse a hole-free body the way a quoted string does: the
+    /// node is what says `Core\Html\Markup`, so ``html`<hr>` `` must stay an
+    /// [`ExprKind::Markup`] holding one text part rather than becoming an
+    /// [`ExprKind::Str`].
+    pub(super) fn parse_markup_literal(&mut self) -> Expr {
+        let open = self.bump().span; // MarkupOpen
+        let (parts, close) = self.parse_string_body(TokenKind::MarkupClose);
+        Expr {
+            span: open.to(close),
+            kind: ExprKind::Markup(parts),
+        }
     }
 
     pub(super) fn parse_string_body(&mut self, closer: TokenKind) -> (Vec<StringPart>, Span) {

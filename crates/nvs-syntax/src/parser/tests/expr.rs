@@ -749,6 +749,34 @@ fn double_quoted_string_with_interpolation() {
 }
 
 #[test]
+fn a_markup_literal_without_holes_stays_a_markup_node() {
+    // Unlike a quoted string, a hole-free body does not collapse to
+    // `ExprKind::Str`: the node, not the part count, is what says
+    // `Core\Html\Markup` (`rule:core-classes/html-literal`).
+    let e = parse_ok("html`<hr>`");
+    let ExprKind::Markup(parts) = e.kind else {
+        panic!("expected a markup literal: {e:?}");
+    };
+    assert_eq!(parts.len(), 1);
+    assert!(matches!(parts[0], StringPart::Text(_)));
+}
+
+#[test]
+fn a_markup_hole_is_a_strings_hole() {
+    let e = parse_ok("html`<span>{$u->fullName()}</span>`");
+    let ExprKind::Markup(parts) = e.kind else {
+        panic!("expected a markup literal: {e:?}");
+    };
+    assert_eq!(parts.len(), 3);
+    assert!(matches!(parts[0], StringPart::Text(_)));
+    assert!(matches!(parts[2], StringPart::Text(_)));
+    let StringPart::Expr(inner) = &parts[1] else {
+        panic!("expected a hole in the middle: {parts:?}");
+    };
+    assert!(matches!(inner.kind, ExprKind::MethodCall { .. }));
+}
+
+#[test]
 fn spawn_script_with_options() {
     let e = parse_ok("spawn script 'jobs/report.nvs' with(args: $a, grants: $g)");
     let ExprKind::SpawnScript { options, .. } = e.kind else {
