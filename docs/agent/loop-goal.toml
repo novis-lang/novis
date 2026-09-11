@@ -1,13 +1,14 @@
-# Goal 40 -- Every resource ceiling stops the request that breaks it
+# Goal 41 -- The configuration is written down, and every key in it is read
 # The acceptance test, as data.
 #
-# `40-resource-ceilings.md` is the prose. One home each.
+# `41-config-is-written.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # goal-switch.py unions the previous goal's list into this one. This goal's own cases are `.nvst`
-  # conformance cases rather than `examples/*.nvs` fixtures, so it names none of its own.
+  # goal-switch.py unions the previous goal's list into this one. This goal writes no
+  # `examples/*.nvs` fixture: what it produces is a generated file and a gate over it, and both are
+  # asserted from Rust and from Python rather than from a program's frozen output.
   # carried from the previous goal by tools/goal-switch.py
   "examples/queue.nvs",
   "examples/queue-sqlite.nvs",
@@ -93,63 +94,60 @@ files = [
 [context]
 
 modules = [
-  # `Ctx`'s hot line: which words compiled code loads inline, the offsets its own tests pin, and
-  # `deadline` -- the out-of-line word a non-owning thread writes, which stages 2 and 3 both copy.
-  "crates/nvs-runtime/src/ctx/mod.rs",
-  # The poll's slow path. Its CPU arm and its memory arm are both written and both unreachable.
-  "crates/nvs-runtime/src/ctx/safepoint.rs",
-  # Where every `Ctx` field is first given its value, `deadline`'s shared word included: the shape
-  # stage 2's handle is built to.
-  "crates/nvs-runtime/src/ctx/wiring.rs",
-  # `Ctx::child` and `Ctx::isolate` -- the two places a request tree grows, and so the two that
-  # stage 2's one-word-per-tree rule is enforced in.
-  "crates/nvs-runtime/src/ctx/isolate.rs",
-  # Where `SafepointFlags::CPU_LIMIT` is lowered and raised around the tier-1 handler, which is the
-  # writer stages 2 and 3 move off `&mut self`.
-  "crates/nvs-runtime/src/ctx/hooks.rs",
-  # The counters, and the module doc that already records the memory half as a known gap.
-  "crates/nvs-runtime/src/budget.rs",
-  # `refresh_limits` -- the one place a ceiling is computed, and so the one place stage 4 arms.
-  "crates/nvs-runtime/src/ctx/limits.rs",
-  # `run_helper`'s pre-body check, `bounded_loop`'s deadline poll, and `affordable`'s "not a budget"
-  # paragraph: the seams that work today, and the comment stage 4 rewrites.
-  "crates/nvs-runtime/src/abi.rs",
-  # `nvs_str_append`'s in-place and grow paths, `try_alloc_uninit`, `IMMORTAL_REFCOUNT`, and the
-  # block comment above the primitives that argues they cannot fail because allocation aborts.
-  "crates/nvs-runtime/src/string.rs",
-  # `nvs_array_next_slot`'s doc comment -- foreach walks a snapshot and a body write separates,
-  # which is the whole of why stage 5's refusal must be a complete no-op.
-  "crates/nvs-runtime/src/array.rs",
-  # One thread for the process, one entry per core, already waking on an interval: stage 3's sampler
-  # goes here rather than in a thread of its own.
-  "crates/nvs-host/src/watchdog.rs",
-  # The local tier: a `thread_local` that outlives a request, which is stage 6's first bracket.
-  "crates/nvs-stdlib/src/cache.rs",
-  # The poll's emit site, `ctx_p`'s binding in the ABI entry block, and the runtime signatures the
-  # ctx-less primitives share.
-  "crates/nvs-codegen/src/emit.rs",
-  # The `StrAppend`/`Concat` contracts: which operand is consumed, which is only read, and why
-  # neither carries a status check today.
-  "crates/nvs-ir/src/ir.rs",
-  # The ladder as a fixture -- the handler, the reserve, and the message shape stage 0 copies.
-  "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
-  # The seam a `Core` member reaches its host through — one thread-local, one trait, and one
-  # operation shaped like the promise it has to keep.
-  "crates/nvs-runtime/src/host.rs",
-  # One thread's CPU time, sampled by a thread that is not it.
-  "crates/nvs-host/src/cpuclock.rs",
-  # The `nvs` binary.
+  # The one home for what `nvs.toml` can hold. Every leaf field here is a key stage 0's roster
+  # derives and stage 2's file must print, and it is where stage 1 writes an `[unread:]` trailer.
+  "crates/nvs-config/src/tree.rs",
+  # `roots` -- step 1's `--config` list, step 2's `./nvs.toml` and step 3's fall-through, in twelve
+  # lines. Stage 3 adds the write at step 3 and changes neither of the first two.
+  "crates/nvs-config/src/resolve.rs",
+  # The changeability table, whose rows are prefixes rather than keys. `cache.dir` has a row here
+  # and no reader anywhere, which is stage 1's first item.
+  "crates/nvs-config/src/directive.rs",
+  # `trust::check` and `canonical` -- stage 3's refusal to create a configuration file in a
+  # directory another local account can write.
+  "crates/nvs-config/src/trust.rs",
+  # `Snapshot::get`'s flat dotted-key lookup: the *second* spelling of a reader, and the one a
+  # field-access search misses. `Core\Storage`'s root is read this way.
+  "crates/nvs-config/src/snapshot.rs",
+  # `LocalFiles`, `boot_snapshot` and `working_directory` -- where the CLI resolves a tree, and the
+  # module doc arguing why `nvs run` reads without the ownership check that `nvs serve` applies.
+  "crates/nvs-cli/src/config.rs",
+  # The subcommand enum. Stage 3's project-command table goes here, beside the arms it classifies.
   "crates/nvs-cli/src/main.rs",
+  # `from_config` and `default_dir` -- the artifact cache reading `opcache.file_cache_dir` and never
+  # `cache.dir`, which is the evidence for stage 1's first item; and § 4's "a failure to write is
+  # not an error anyone hears about", which is the discipline stage 3 copies.
+  "crates/nvs-cli/src/cache.rs",
+  # `Cap`'s roster, its names and its grant lookups -- including `DebugTrace`/`DebugProfile`, which
+  # are grantable and never asked.
+  "crates/nvs-config/src/capability.rs",
+  # "Nothing scrapes or pushes this", in the module doc of the registry that would be exported.
+  # The evidence behind stage 1's marking of the three exporter addresses.
+  "crates/nvs-server/src/metrics.rs",
+  # Generate-then-check as this repository already does it: one home, mechanically enforced, with
+  # `--check` as the gate. Stage 0's tool is this shape and stage 2's file is its output.
+  "tools/lints.py",
+  # Where a gate is wired, and the argument for why the generated-file step precedes the compile
+  # steps rather than following them.
+  "tools/verify.py",
 ]
 
 # The rules every stage of this goal works inside.
 rules = [
-  # What a resource-limit breach owes: a FATAL, tier 1's handler, and never a `catch`.
-  "errors/on-limit",
-  # Why an abort is the bug rather than the fallback, and what a change that spends memory owes.
-  "programs/memory-priority",
-  # One ceiling per tree, and why the poll word is the tree's rather than each context's.
-  "security/isolate-shares-nothing",
+  # The lookup this goal adds a step-3 write to, and does not otherwise touch.
+  "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+  # Why a host with no file is valid rather than broken -- still true after this goal, and the
+  # answer whenever stage 3 declines to write.
+  "config/no-configuration-file-is-a-complete-configuration",
+  # Ownership is the trust boundary: stage 3's fourth refusal, and why creating a file in a
+  # world-writable directory is the one thing this goal must not do.
+  "config/ownership-is-the-trust-boundary",
+  # Three changeability classes -- what a generated comment has to say about a key besides its
+  # default, and what `directive.rs`'s rows are for.
+  "config/three-changeability-classes",
+  # A default that is unsafe inbound or unbounded outbound is a defect: stage 2's argument for
+  # commenting every key rather than freezing today's numbers into every deployment.
+  "http-server/an-unsafe-or-unbounded-default-is-a-defect",
 ]
 
 adrs = []
@@ -158,22 +156,16 @@ shapes = [
   "A commit message",
   "A decision record",
   "A rule fragment",
-  "A `.nvst` test case",
   "A code comment",
 ]
 
 milestones = ["M6:verify"]
 
 playbook = [
-  # This goal's own file set.
-  'Writing a test case > a memory-limit',
-  'Writing a test case > a [limits]',
-  'Writing a test case > a livebytes',
-  'Running things > a #[globalallocator]',
-  'Running things > a ctx',
-  'Writing Novis itself > one runtimesig',
-  'Writing a test case > a compiled function',
-  'Running things > tools/leak-check.sh greps',
+  # This goal's own file set and tools.
+  'Tooling > A full diagnostic band',
+  'Tooling > A moved module takes',
+  'Tooling > Making a type `pub`',
 
   # The process traps, by hand.
   'Tooling > the end',
@@ -192,30 +184,34 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `40-resource-ceilings.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `41-config-is-written.md`, holding what only that stage needs.
 # ---------------------------------------------------------------------------------------------------
 
-[context.stage.2]
-# The poll's cost class, and why an instruction count is the headline and a timer is not.
-rules = ["testing/perf-two-mechanisms"]
-
-[context.stage.3]
-# What a helper owes a deadline it cannot otherwise reach, and the two rules that own what happens to
-# a core that stops turning -- neither of which this stage changes.
+[context.stage.1]
+# The three subsystems stage 1 marks rather than builds. Each is read to write one honest trailer --
+# what is missing and who owns it -- and none of them is built by this goal.
 rules = [
-  "http-server/time-is-bounded-inside-a-helper",
-  "http-server/a-wedged-core-is-detected-by-its-deadline",
-  "http-server/a-wedged-core-is-shed-never-killed",
+  "observability/the-exporters-are-crates",
+  "http-server/a-unix-socket-listener",
+  "testing/debug-probes",
+  "packaging/extension-loading-is-root-controlled",
 ]
 
-[context.stage.5]
-# Why a primitive may not unwind, which is what forces the degenerate return.
-rules = ["errors/helper-abi", "errors/propagation"]
+[context.stage.2]
+# Why a generated default is commented rather than live: a default that is unsafe or unbounded is a
+# defect, so a later tightening has to be able to reach a deployment that took this file.
+rules = ["http-server/an-unsafe-or-unbounded-default-is-a-defect"]
+shapes = ["A code comment"]
 
-[context.stage.7]
-# The shape stage 7's new fragment copies: bound the input, not the output.
-rules = ["core-classes/regex-two-tiers"]
+[context.stage.3]
+# What `nvs serve` defends that `nvs run` does not, and the ladder a declined write reports on.
+rules = [
+  "errors/escalation-ladder",
+  "config/the-resolved-root-is-announced-and-stored",
+]
 
+# Nothing here changes what a program allocates. The floor's entries are unioned in; this goal adds
+# none of its own.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
@@ -228,6 +224,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "redis"]
 memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 555 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -7968,17 +7970,14 @@ stage = "1 floor"
 name = "the one-file reference still regenerates from the binary"
 argv = ["python", "tools/reference.py", "--check"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- the three cases that say nothing notices. All red the day they are written; the CPU one
 # goes green at stage 3, the loop one at stage 4, the single-operation one at stage 5.
 # Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "0 the catch-up"
+stage = "1 floor"
 name = "a runaway is stopped whether it allocates, calls or does neither"
 args = ["test", "tests/conformance/error/"]
 cases = [
@@ -7990,10 +7989,9 @@ cases = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the word moves out of `Ctx` and the handle is hoisted. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the poll word"
+stage = "1 floor"
 name = "the poll word is the tree's, and the hot line is unchanged"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -8005,7 +8003,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the poll word"
+stage = "1 floor"
 name = "the handle is loaded once per call, not once per poll"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
@@ -8018,10 +8016,9 @@ tests = [
 # Stage 3 -- the clock. The sampler rides the watchdog thread; both halves of what it raises are
 # polled by code that already exists. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the clock"
+stage = "1 floor"
 name = "a thread's own cpu time is sampled, and a slow wait is not a runaway"
 args = ["test", "-p", "nvs-host"]
 # The first two are the tree's own names for the first two claims, which landed
@@ -8037,7 +8034,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the clock"
+stage = "1 floor"
 name = "both poll sites act on the flag the sampler raises"
 args = ["test", "-p", "nvs-runtime"]
 # All three are `nvs-runtime`'s own unit tests, under the tree's names:
@@ -8054,7 +8051,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the clock"
+stage = "1 floor"
 name = "a loop that allocates nothing is stopped by the cpu ceiling"
 args = ["test", "tests/conformance/error/"]
 cases = ["tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst"]
@@ -8062,10 +8059,9 @@ cases = ["tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-th
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the allocator publishes, which bounds a loop. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the allocator publishes"
+stage = "1 floor"
 name = "a growing allocation past the ceiling raises the flag, and an uncapped request arms nothing"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -8077,7 +8073,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "4 the allocator publishes"
+stage = "1 floor"
 name = "a loop that calls nothing is stopped at its own back edge"
 args = ["test", "tests/conformance/error/"]
 cases = ["tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst"]
@@ -8086,10 +8082,9 @@ cases = ["tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-me
 # Stage 5 -- the value allocators refuse, which bounds one operation. The cursor test is what says the
 # degenerate return is sound rather than merely cheap. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the refusal"
+stage = "1 floor"
 name = "a refused allocation never happens, and every string path is fallible"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -8102,7 +8097,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the refusal"
+stage = "1 floor"
 name = "a refused array write neither writes nor separates, so a live cursor still walks its snapshot"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -8115,10 +8110,9 @@ tests = [
 # Stage 6 -- the budget is the request's own. The cross-request case is the one an attacker reaches
 # through `Core\Cache::local`. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 whose bytes they are"
+stage = "1 floor"
 name = "freeing what an earlier request allocated buys no headroom"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -8129,7 +8123,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "6 whose bytes they are"
+stage = "1 floor"
 name = "every cross-request store is bracketed, the local cache tier first"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -8141,10 +8135,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- the records and the rulebook. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "7 the record"
+stage = "1 floor"
 name = "all three stage 0 cases are green, and the tree still is"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -8157,12 +8150,140 @@ cases = [
 
 [[check]]
 kind = "command"
-stage = "7 the record"
+stage = "1 floor"
 name = "the rulebook validates, including the fragment this goal adds"
 argv = ["python", "tools/rules.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "7 the record"
+stage = "1 floor"
 name = "every record this goal opened is complete and cited"
 argv = ["python", "tools/decisions.py", "--gate"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the roster. The tool exists before anything it would report on is fixed, because a
+# hand-audit is wrong the week after it is written. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "0 the roster"
+name = "the directive roster derives from the tree, and both spellings of a reader count"
+argv = ["python", "tools/directives.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "0 the roster"
+name = "a key read only through a flat dotted lookup is not reported unread"
+argv = ["python", "tools/directives.py", "--explain", "storage.<name>.root"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 1 -- implement or mark. The gate from stage 0 is what makes "nothing in between" enforceable:
+# a key with neither a reader nor a trailer fails, and so does a trailer over a key that now works.
+# Goal prose stage 1.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "1 implement or mark"
+name = "the artifact cache directory has one spelling, and it is the one an operator writes"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "the_configured_cache_directory_is_read_from_the_key_the_tree_documents",
+  "a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "1 implement or mark"
+name = "every key the tree parses is read or carries a reason, and no reason outlives its gap"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "every_unread_key_names_what_is_missing_and_who_owns_it",
+  "no_key_with_a_reader_still_claims_to_be_unread",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the default file. Commented, so the shipped defaults still apply and a later tightening
+# still reaches a deployment that took this file. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the default file"
+name = "the generated file holds every key the tree parses, exactly once, and nothing it does not"
+argv = ["python", "tools/directives.py", "--check-template"]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the default file"
+name = "the shipped file parses, resolves, and changes nothing about the run that takes it"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "the_default_file_parses_with_deny_unknown_fields",
+  "the_default_file_resolves_to_the_same_snapshot_as_no_file_at_all",
+  "every_unimplemented_key_in_the_default_file_is_marked_as_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a project command writes it. The four refusals are each a test, because each of them is a
+# way this stage could quietly become a defect. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "a project command with no tree writes one, and reads back exactly what it wrote"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_run_in_a_directory_with_no_config_writes_one_and_then_resolves_it",
+  "the_written_file_is_the_shipped_template_byte_for_byte",
+  "an_existing_nvs_toml_is_never_touched",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "the four refusals: a named config, an audit, an opt-out, and a directory that fails the check"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_config_flag_disables_the_write_even_when_every_named_file_is_missing",
+  "config_check_and_dump_and_lsp_never_write",
+  "no_init_and_the_environment_variable_each_disable_the_write",
+  "a_working_directory_that_fails_the_ownership_check_is_not_written_to",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the write"
+name = "a write that cannot happen is an info record and never a failure"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_read_only_working_directory_leaves_the_run_green_on_the_shipped_defaults",
+  "a_declined_write_says_which_reason_applied",
+  "nvs_init_writes_the_same_file_and_refuses_to_overwrite_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the records and the rulebook. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "the rulebook validates, including the fragment this goal adds"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "every record this goal opened is complete and cited"
+argv = ["python", "tools/decisions.py", "--gate"]
+
+[[check]]
+kind = "command"
+stage = "4 the record"
+name = "no document in the tree still cites this goal's subject by ADR number"
+argv = ["python", "tools/check-links.py"]
