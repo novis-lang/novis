@@ -107,7 +107,22 @@ async function start(context: ExtensionContext): Promise<void> {
   const command = settings.get<string>("path", "").trim() || "nvs";
   const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
-  const options: LanguageClientOptions = { documentSelector: SELECTOR, outputChannel: channel };
+  // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
+  // of `initialize`'s `initializationOptions` and there is no `didChangeConfiguration` arm on the
+  // other side, so this is the one moment a setting crosses the wire; a client that sent nothing —
+  // which this one did until now — left every server-side setting at its default however the user
+  // had configured it.
+  //
+  // The section goes over nested and whole, as the editor holds it, which is the shape that module
+  // walks: no dotted keys are rebuilt here, and no list of names is kept here to be forgotten when
+  // the server learns one. It is read from the root configuration rather than from `settings` above
+  // because a `WorkspaceConfiguration` is a proxy with methods on it and this crosses a JSON-RPC
+  // boundary, which wants a value.
+  const options: LanguageClientOptions = {
+    documentSelector: SELECTOR,
+    outputChannel: channel,
+    initializationOptions: workspace.getConfiguration().get<object>("nvs"),
+  };
 
   // The id is what the trace setting hangs off: `vscode-languageclient` reads `<id>.trace.server`,
   // which is the frozen `nvs.lsp.trace.server`.
