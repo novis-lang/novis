@@ -111,10 +111,11 @@ modules = [
   # `run_exit_hooks` and `report_of` (:450-467) -- the one door between an ending and a hook, and
   # where the fourth `ExitReason` is built.
   "crates/nvs-stdlib/src/script.rs",
-  # `finish` (:745-860) and the two drain gates (:665, :731). Stage 2 adds the hook drain beside the
-  # deferred one; stage 4 is one arm in `finish` and no edit to either gate.
+  # `finish` (:897), the one classifier both hosts share, with the ladder inside it (:923-925); and
+  # the two deferred drain gates (:818, :884). Stage 2's hook drain belongs inside `finish` rather
+  # than beside those gates; stage 4 is one arm in `finish` and no edit to either gate.
   "crates/nvs-host/src/isolate.rs",
-  # The CLI's three arms (:1811-1856) -- the only host that drains the exit queue today, and the
+  # The CLI's three arms (:1951-1993) -- the only host that drains the exit queue today, and the
   # shape stage 2 mirrors onto the served path.
   "crates/nvs-cli/src/main.rs",
   # `Terminator::Catch`'s emission (:3415-3425) and the status check every call site carries
