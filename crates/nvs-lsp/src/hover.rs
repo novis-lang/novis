@@ -1,4 +1,4 @@
-//! What the declaration under the cursor documents.
+//! What the declaration under the cursor documents, and the call it is inside.
 //!
 //! `textDocument/hover` answers three things in
 //! `rule:ide/the-request-set-is-closed`'s list, and all three are arms here
@@ -63,15 +63,27 @@
 //! than in code, which is a resolution of its own and so a slice of its own.
 //! Until then the tag renders as what was written, which is readable and not
 //! wrong.
+//!
+//! **`textDocument/signatureHelp` is the same reading asked of the call rather
+//! than of the name.** [`help_at`] walks outward to the call the cursor is
+//! inside and renders its row through [`signature`] — the line hover already
+//! shows above a `Core` member's card — so a registry row and a user class's
+//! declared parameter list come out in one shape and a parameter list has no
+//! second spelling. What it adds is which parameter the cursor is on, counted
+//! off the argument spans the parser produced rather than off commas looked
+//! for here.
 
-use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind};
+use lsp_types::{
+    Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
+    ParameterLabel, SignatureHelp, SignatureInformation,
+};
 use nvs_diagnostics::{BytePos, PositionEncoding};
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
-use nvs_syntax::DOC_MARKER;
 use nvs_syntax::ast::DocComment;
+use nvs_syntax::{DOC_MARKER, IndexNode};
 use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 
-use crate::definition::{Target, site, target_of};
+use crate::definition::{Target, site, target_of, text_of};
 use crate::document::Analysed;
 use crate::position::range_at;
 
@@ -107,6 +119,156 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
     })
 }
 
+/// The row of the call at `offset`, and which of its parameters the cursor is
+/// on.
+///
+/// **The enclosing call, not the innermost name.** [`at`] stops at the first
+/// node that names anything, because the nearest answer is the one a reader is
+/// pointing at; this walk keeps going outward past every target that is not a
+/// call, so a cursor on `$u->name` inside `take($u->name)` is still on `take`'s
+/// first parameter.
+///
+/// One signature and never a list. A call site either resolved to exactly one
+/// declaration or carries no `nvs_types::ResolvedCall` at all, so there is no
+/// overload set to choose between and `active_signature` is always the one
+/// entry — which is `rule:statements/nothing-gets-a-second-name`'s consequence
+/// here rather than a simplification.
+#[must_use]
+pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
+    let (call, node) =
+        analysed.index.at(offset).nodes().iter().find_map(|node| {
+            match target_of(analysed.exprs.lookup(node.span)?)? {
+                Target::Method(call) => Some((call, *node)),
+                _ => None,
+            }
+        })?;
+    let (label, params) = signature(&call.class.to_string(), call, &analysed.interner);
+    let active = active_parameter(analysed, node, offset, call);
+    Some(SignatureHelp {
+        signatures: vec![SignatureInformation {
+            label,
+            documentation: documentation(analysed, call),
+            parameters: Some(
+                params
+                    .into_iter()
+                    .map(|at| ParameterInformation {
+                        label: ParameterLabel::LabelOffsets(at),
+                        // The card's own parameter sentences are in the
+                        // signature's documentation below, written as one
+                        // block; splitting them per entry would be a second
+                        // reading of `MethodDoc::params` that a declared
+                        // method has no equivalent of.
+                        documentation: None,
+                    })
+                    .collect(),
+            ),
+            active_parameter: Some(active),
+        }],
+        active_signature: Some(0),
+        active_parameter: Some(active),
+    })
+}
+
+/// Which parameter of `call` the cursor at `offset` is on.
+///
+/// Counted from the arguments the call has already closed: an argument that
+/// ends before the cursor is one the reader has finished writing, so how many
+/// of them there are is the position being written now. A cursor at an
+/// argument's last byte is still on that argument — `take($a)` with the caret
+/// after `$a` is the first parameter and not the second — which is why the
+/// comparison is strict.
+///
+/// **The arguments are spans the parser produced, not commas found here.** They
+/// are the call node's own children after [`opens_at`]'s parenthesis, so a
+/// comma inside a string literal or inside a nested call is inside one of those
+/// spans and separates nothing. A variadic tail keeps the last parameter
+/// highlighted however many arguments follow it, because that parameter is what
+/// every one of them binds to.
+fn active_parameter(
+    analysed: &Analysed,
+    node: IndexNode,
+    offset: BytePos,
+    call: &ResolvedCall,
+) -> u32 {
+    let children = analysed.index.children_of(node);
+    let Some(open) = opens_at(analysed, node, &children) else {
+        return 0;
+    };
+    let closed = children
+        .iter()
+        .filter(|child| child.span.start >= open && child.span.end < offset)
+        .count();
+    let closed = if call.variadic {
+        closed.min(call.param_tys.len().saturating_sub(1))
+    } else {
+        closed
+    };
+    u32::try_from(closed).unwrap_or(0)
+}
+
+/// Where the argument list of the call at `node` opens.
+///
+/// The first `(` in the call that none of its children covers. Every form that
+/// carries a `nvs_types::ResolvedCall` writes what it calls as a name or as an
+/// expression the index holds as a child — `$this->of()->take(`, `Str::take(`,
+/// `new User(` — so a parenthesis belonging to the callee is inside that
+/// child's span and the first one left over is the argument list's.
+///
+/// `None` for a call whose parenthesis the parser never saw, which is a call
+/// the reader is in the middle of writing: the first parameter is what the
+/// caller then shows, and it is right.
+fn opens_at(analysed: &Analysed, node: IndexNode, children: &[IndexNode]) -> Option<BytePos> {
+    let text = text_of(analysed.map.file(analysed.entry), node.span);
+    text.char_indices()
+        .filter(|(_, ch)| *ch == '(')
+        .filter_map(|(at, _)| u32::try_from(at).ok())
+        .map(|at| node.span.start + at)
+        .find(|at| !children.iter().any(|child| child.span.contains(*at)))
+}
+
+/// What the call's own declaration documents, as the popup beside its row.
+///
+/// The two readings [`at`] already has, tried in its order: a `Core` member's
+/// reference card, and otherwise the `///` run above the declaration the call
+/// resolved to. A member that documents neither gets no popup rather than an
+/// empty one, which is [`at`]'s answer to the same case.
+fn documentation(analysed: &Analysed, call: &ResolvedCall) -> Option<Documentation> {
+    let value = registry_row(call)
+        .and_then(|member| member.doc.map(|doc| reference_card(member, doc)))
+        .or_else(|| run(analysed, &Target::Method(call)))?;
+    let value = value.trim().to_owned();
+    if value.is_empty() {
+        return None;
+    }
+    Some(Documentation::MarkupContent(MarkupContent {
+        kind: MarkupKind::Markdown,
+        value,
+    }))
+}
+
+/// The registry row `call` resolved to, and `None` for a call to anything a
+/// program declared.
+///
+/// The registry is asked rather than the symbol table, and a name it does not
+/// carry is not a `Core` member: `nvs_hir` resolves any `Core\…` without a
+/// declaration, so a member of a not-yet-implemented class is a name the
+/// checker refused rather than a row this can render.
+fn registry_row(call: &ResolvedCall) -> Option<&'static CoreMethod> {
+    let class = registry::class(&call.class.to_string())?;
+    class.members().find(|row| row.name == call.method)
+}
+
+/// The length of `text` in UTF-16 code units, which is what a parameter's label
+/// offsets are counted in.
+///
+/// Not the encoding `rule:ide/positions-have-one-home` negotiated: that one
+/// settles positions in a *document*, and an offset into a signature label is
+/// an offset into a string this server has just built. LSP fixes those at
+/// UTF-16 and there is nothing about them to negotiate.
+fn utf16_len(text: &str) -> u32 {
+    u32::try_from(text.chars().map(char::len_utf16).sum::<usize>()).unwrap_or(u32::MAX)
+}
+
 /// The `///` run above the declaration `target` resolves to, as Markdown.
 fn run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let declared = site(analysed, target)?;
@@ -137,19 +299,17 @@ fn declared(analysed: &Analysed, info: &ExprInfo) -> Option<String> {
 
 /// A `Core` member's row and reference card, or `None` for every other target.
 ///
-/// The registry is asked rather than the symbol table, and a name it does not
-/// carry falls through to the walk above: `nvs_hir` resolves any `Core\…`
-/// without a declaration, so a member of a not-yet-implemented class is a name
-/// the checker refused rather than a row this can render.
+/// The row is [`signature`]'s, which is also what signature help shows for a
+/// method a program declared: one renderer, so the two answers cannot come to
+/// disagree about how a parameter list is spelled.
 fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     let Target::Method(call) = target else {
         return None;
     };
-    let class = registry::class(&call.class.to_string())?;
-    let member = class.members().find(|row| row.name == call.method)?;
+    let member = registry_row(call)?;
     let mut value = format!(
         "```nvs\n{}\n```",
-        signature(class.name, call, &analysed.interner)
+        signature(&call.class.to_string(), call, &analysed.interner).0
     );
     if let Some(doc) = member.doc {
         value.push_str(&reference_card(member, doc));
@@ -157,7 +317,8 @@ fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
     Some(value)
 }
 
-/// One row as a program reads it — `Core\Str::length(string $s): uint`.
+/// One row as a program reads it — `Core\Str::length(string $s): uint` — and
+/// where in it each parameter sits.
 ///
 /// Spelled with `::` whether the member is static or an instance one, because
 /// what this line answers is *which* member the cursor is on and a `Core`
@@ -169,30 +330,33 @@ fn core(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
 /// as a `nvs_types::ConstArg` for `nvs-ir` to materialize, and rendering one
 /// would be a second spelling of `nvs meta --json`'s — what a caller may leave
 /// out is the card's sentence about it, which is right below this line.
-fn signature(class: &str, call: &ResolvedCall, interner: &TypeInterner) -> String {
+///
+/// **The offsets leave with the row rather than being searched for in it.**
+/// [`help_at`] hands each one to a client as the span to highlight, and a
+/// parameter located by looking its own text up again would land on the wrong
+/// one the first time `(string $search, string $s)` was declared.
+fn signature(class: &str, call: &ResolvedCall, interner: &TypeInterner) -> (String, Vec<[u32; 2]>) {
     let last = call.param_tys.len().saturating_sub(1);
-    let params: Vec<String> = call
-        .param_tys
-        .iter()
-        .enumerate()
-        .map(|(index, ty)| {
-            let name = call.param_names.get(index).map_or("", String::as_str);
-            let ty = interner.describe(*ty);
-            // The variadic tail keeps the element type the row wrote, which is
-            // what `ResolvedCall::param_tys` carries in that slot.
-            if call.variadic && index == last {
-                format!("{ty} ...${name}")
-            } else {
-                format!("{ty} ${name}")
-            }
-        })
-        .collect();
-    format!(
-        "{class}::{}({}): {}",
-        call.method,
-        params.join(", "),
-        interner.describe(call.return_ty)
-    )
+    let mut row = format!("{class}::{}(", call.method);
+    let mut params = Vec::with_capacity(call.param_tys.len());
+    for (index, ty) in call.param_tys.iter().enumerate() {
+        if index > 0 {
+            row.push_str(", ");
+        }
+        let name = call.param_names.get(index).map_or("", String::as_str);
+        let ty = interner.describe(*ty);
+        let start = utf16_len(&row);
+        // The variadic tail keeps the element type the row wrote, which is
+        // what `ResolvedCall::param_tys` carries in that slot.
+        if call.variadic && index == last {
+            row.push_str(&format!("{ty} ...${name}"));
+        } else {
+            row.push_str(&format!("{ty} ${name}"));
+        }
+        params.push([start, utf16_len(&row)]);
+    }
+    row.push_str(&format!("): {}", interner.describe(call.return_ty)));
+    (row, params)
 }
 
 /// The card under the signature line: what the member does, its parameters,
