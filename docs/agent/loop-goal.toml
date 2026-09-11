@@ -139,6 +139,8 @@ modules = [
   "crates/nvs-runtime/src/host.rs",
   # One thread's CPU time, sampled by a thread that is not it.
   "crates/nvs-host/src/cpuclock.rs",
+  # The `nvs` binary.
+  "crates/nvs-cli/src/main.rs",
 ]
 
 # The rules every stage of this goal works inside.
