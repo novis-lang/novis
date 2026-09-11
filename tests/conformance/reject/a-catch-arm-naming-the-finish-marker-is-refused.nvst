@@ -1,0 +1,21 @@
+--TEST--
+A `catch` arm naming `Core\Script\Finished` is refused — a finish is an ending, not a failure a request recovers from (`rule:observability/three-endings-fire-the-exit-queue`, `rule:concurrency/after-response-outlives-the-connection`)
+--FILE--
+<?nvs
+// The class `Core\Script::finish()` raises is a root of its own rather than
+// a `Throwable`, so an arm naming it would be false against every value that
+// ever reaches one. It is refused where it is written instead of matching
+// nothing quietly: the code a site wants to run on the way out belongs in a
+// `finally`, which the unwind runs, or in a `Core\Script::onExit` hook,
+// which the ending fires.
+try {
+    echo "body\n";
+} catch (Core\Script\Finished $done) {
+    echo "never\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0814]: `Core\Script\Finished` is not a class a `catch` can name
+%A
+error: aborting due to 1 error
