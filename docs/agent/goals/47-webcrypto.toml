@@ -1,0 +1,277 @@
+# Goal 47 -- a browser and a Novis server read each other's encrypted data
+# The acceptance test, as data.
+#
+# `47-webcrypto.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # Stage 6's example: seal, open, a tamper refused, a JWE round trip and a swapped header refused.
+  "examples/webcrypto.nvs",
+]
+
+[context]
+
+modules = [
+  # The one construction, its three seams (:103-113), the forgery and key-length errors (:68-74), and
+  # the module doc stage 4 rewrites. Stages 3 and 4 live here.
+  "crates/nvs-stdlib/src/crypto.rs",
+  # Compare-only header reading (:11-22) -- the shape JWE's `alg`/`enc` check copies.
+  "crates/nvs-stdlib/src/jwt.rs",
+  # `verify`'s key ring and its `tainted` payload answer -- the shape `Core\Jwe` decrypt copies.
+  "crates/nvs-stdlib/src/signature.rs",
+  # The construction's second caller; it must not notice the new tier.
+  "crates/nvs-stdlib/src/signed_cookie.rs",
+  # `draw`, the one CSPRNG seam every nonce, salt and private key comes through.
+  "crates/nvs-stdlib/src/random.rs",
+  # `hmac_sha256` and the digest roster, which stay untouched.
+  "crates/nvs-stdlib/src/hash.rs",
+  # base64url, the JWE segment encoding, and hex for the vectors.
+  "crates/nvs-stdlib/src/encoding.rs",
+  # Where `crypto::CLASS` (:1676) and `jwt::CLASS` (:1706) are registered; `Core\Jwe` joins them.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+# Every stage works inside these three: the key picks the algorithm, the roster JWE joins, and how a
+# refusal is reported.
+rules = [
+  "security/algorithm-comes-from-the-key",
+  "security/protocol-roster",
+  "security/verification-throws-and-compares-in-constant-time",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `47-webcrypto.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record, the roster's admission test JWE has to pass, how members are spelled, and the two spec
+# rows it moves.
+rules = ["security/protocol-admission-test", "core-api/verb-lexicon", "core-api/tier-roster"]
+adrs = ["0051"]
+spec = ["01 §16"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# Six crates enter the tree: what a dependency move proves, and the generated notice.
+rules = [
+  "packaging/a-dependency-move-proves-two-things",
+  "packaging/the-third-party-notice-is-generated-never-written-by-hand",
+  "packaging/a-c-dependency-answers-two-questions",
+]
+
+[context.stage.4]
+# The members: the five edits, the case shape, and what a `secret` key may cross.
+rules = ["security/secret-qualifier", "core-api/shape-rules"]
+spec = ["01 §16"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.5]
+# JWE's payload is attacker-supplied text, answered `tainted`.
+rules = ["security/tainted-sources", "security/verification-does-not-launder"]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.6]
+# The example is one of the four proofs a shipped feature owes.
+rules = ["testing/four-proofs"]
+shapes =["A feature's four proofs — an example, an attack, a bench, a `covers:` marker"]
+
+[context.stage.7]
+shapes = ["A rule fragment"]
+
+# Every buffer is a `Core` buffer charged through `nvs_runtime::budget`, and no member holds a
+# refcounted value across a call. No cycle shape, so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. The floor is goal `template-format`'s whole list,
+# which carries goal `finish-response`'s served-path and queue checks, and the daemons are theirs.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Matched on the id line, which stays true after stage 7
+# flips the status, so this check survives being folded into every later floor.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the interop tier is a rule"
+argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
+want = ["rule:core-classes/crypto-interop-tier"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the JWE subset is a rule"
+argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
+want = ["rule:security/jwe-compact-subset"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the primitives, each against the vectors its specification publishes. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the primitives"
+name = "every interop primitive matches its published vectors and refuses its classic bad input"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "aes_256_gcm_matches_the_nist_vectors_and_refuses_a_flipped_tag",
+  "pbkdf2_hmac_sha256_matches_rfc_7914",
+  "hkdf_sha256_matches_rfc_5869",
+  "x25519_matches_rfc_7748_and_refuses_a_low_order_point",
+  "p256_ecdh_matches_rfc_5903_and_refuses_a_point_off_the_curve",
+  "aes_key_wrap_matches_rfc_3394",
+  "concat_kdf_matches_rfc_7518_appendix_c",
+  "every_interop_nonce_salt_and_private_key_is_drawn_through_core_random",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the `Core\Crypto` members, and the two migration rows that now name them. Goal prose
+# stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the members"
+name = "the interop tier's members, their bounds and their refusals"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/crypto-aes-gcm-round-trips-and-refuses-every-forgery-with-one-message.nvst",
+  "tests/conformance/core/crypto-aes-gcm-sealed-bytes-are-nonce-then-ciphertext-then-tag.nvst",
+  "tests/conformance/core/crypto-pbkdf2-refuses-an-iteration-count-or-salt-outside-its-bounds.nvst",
+  "tests/conformance/core/crypto-derived-and-agreed-keys-are-secret-bytes.nvst",
+  "tests/conformance/core/crypto-agree-refuses-a-public-key-that-is-not-on-its-curve.nvst",
+  "tests/conformance/core/crypto-public-keys-read-raw-spki-and-jwk-and-write-them-back.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "the spec and the migration table name only registered, cased members"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_row_names_a_registered_member",
+  "every_migration_member_row_has_a_conformance_case",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `Core\Jwe`. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 jwe"
+name = "JWE round-trips under every key kind, and the header selects nothing"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/jwe-a-token-is-five-base64url-segments-and-round-trips-under-every-key-kind.nvst",
+  "tests/conformance/core/jwe-the-algorithm-comes-from-the-key-and-a-mismatched-header-is-refused.nvst",
+  "tests/conformance/core/jwe-refuses-zip-crit-and-every-unknown-header-with-one-sentence.nvst",
+  "tests/conformance/core/jwe-pbes2-refuses-an-iteration-count-past-its-ceiling-before-deriving.nvst",
+  "tests/conformance/core/jwe-ecdh-es-refuses-an-ephemeral-key-off-the-curve.nvst",
+  "tests/conformance/core/jwe-decrypt-answers-a-tainted-payload.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- WebCrypto itself, both directions, and the example. Goal prose stage 6. Node's
+# `crypto.subtle` is the browser API; the script uses no package and no network.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "6 the browser"
+name = "WebCrypto and Novis read each other's output in every mode"
+argv = ["node", "tools/webcrypto-interop.mjs"]
+want = [
+  "aes-256-gcm: webcrypto -> novis ok",
+  "aes-256-gcm: novis -> webcrypto ok",
+  "pbkdf2-sha256: same key",
+  "hkdf-sha256: same key",
+  "ecdh p-256: same secret",
+  "ecdh x25519: same secret",
+  "jwe dir: webcrypto -> novis ok",
+  "jwe dir: novis -> webcrypto ok",
+  "jwe ecdh-es: webcrypto -> novis ok",
+  "jwe ecdh-es: novis -> webcrypto ok",
+  "jwe pbes2: webcrypto -> novis ok",
+  "jwe pbes2: novis -> webcrypto ok",
+  "0 failed",
+]
+
+[[check]]
+kind = "exact"
+stage = "6 the browser"
+file = "examples/webcrypto.nvs"
+want = [
+  "sealed",
+  "opened",
+  "tamper refused",
+  "jwe round trip",
+  "header swap refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- the rulebook. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 the rulebook"
+name = "the interop tier is shipped"
+argv = ["python", "tools/rules.py", "--show", "core-classes/crypto-interop-tier"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "7 the rulebook"
+name = "the JWE subset is shipped"
+argv = ["python", "tools/rules.py", "--show", "security/jwe-compact-subset"]
+want = ["shipped"]
