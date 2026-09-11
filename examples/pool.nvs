@@ -20,9 +20,17 @@
 // beside it, so a wait that held the core would take the two in sequence and
 // this program would print how long it took instead of the verdict.
 //
-// The four lines this prints are frozen in `docs/agent/loop-goal.toml`
-// (stage 7); the source is not. `[db.tight]` is its own block and so its own
-// pool, and `examples/db.nvs`'s `[db.main]` is reached by nothing here.
+// **Both elapsed readings below are `Core\Time::monotonic`.** Each is measured
+// against a deadline the pool holds on the monotonic clock, and a wall clock is
+// entitled to step under a wait that really elapsed — so `Core\Time::now` here
+// could report a wait shorter than `acquire` and accuse the pool of refusing on
+// sight. That is what `Core\Time::monotonic` answering a `Duration` rather than
+// an instant is for: it is comparable with another reading of itself and with
+// nothing else.
+//
+// The four lines this prints are frozen in `docs/agent/loop-goal.toml`; the
+// source is not. `[db.tight]` is its own block and so its own pool, and
+// `examples/db.nvs`'s `[db.main]` is reached by nothing here.
 
 use Core\Db;
 use Core\Db\Connection;
@@ -96,12 +104,12 @@ echo "opened=", Ceiling::one($db, "select 1 as n"), "\n";
 //
 // No `timeout` is passed, deliberately: a shorter one is reported in its own
 // words, and the refusal this fixture is about is the one `acquire` produces.
-var $asked = Core\Time::now();
+var $asked = Core\Time::monotonic();
 try {
     Db::connect("tight", {shared: false});
     echo "refused: nothing — a second connection opened, which `max = 1` forbids", "\n";
 } catch (IOError $full) {
-    var $waited = Core\Time::now()->since($asked)->toMilliseconds();
+    var $waited = Core\Time::monotonic()->minus($asked)->toMilliseconds();
     echo "refused: ", Ceiling::verdict(
         $waited,
         Core\Str::contains($full->message, "`acquire` was up"),
@@ -123,7 +131,7 @@ echo "usable=", Ceiling::one($db, "select 1 as n"), "\n";
 // task child sees this request's configuration, which is what lets a
 // capability-gated member run inside one at all (`Ctx::child`'s doc owns why
 // the whole overlay crosses).
-var $started = Core\Time::now();
+var $started = Core\Time::monotonic();
 var $race = Core\Task::all({
     blocked: fn(): string => {
         try {
@@ -148,7 +156,7 @@ var $race = Core\Task::all({
     },
 });
 echo "parked: ", Ceiling::park(
-    Core\Time::now()->since($started)->toMilliseconds(),
+    Core\Time::monotonic()->minus($started)->toMilliseconds(),
     $race->blocked,
     $race->beside
 ), "\n";
