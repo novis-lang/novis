@@ -93,9 +93,10 @@ sits on it.
 
 ## Stage 2 — the framing, as a function over bytes
 
-Shares no file with stage 1's cell and needs no server to prove. `crates/nvs-server/src/sse.rs`, new,
+Shares no file with stage 1's cell and needs no server to prove. `crates/nvs-runtime/src/sse.rs`, new,
 the mirror of `crates/nvs-server/src/socket.rs`'s `Framed`, and **the only place in the workspace that
-writes a `data:` line.**
+writes a `data:` line.** It sits one crate below its mirror because both halves reach it: the payload is
+a `Core\Sse` member's, and `nvs-stdlib` cannot name `nvs-server` without closing a cycle.
 
 5. **Normalize before splitting.** The client parser terminates a line on `\r\n`, on `\r` **and** on
    `\n`, so a payload carrying a lone `\r` splits into two events on the far side. Every payload is

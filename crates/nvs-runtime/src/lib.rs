@@ -278,6 +278,7 @@ pub mod routes;
 pub mod script;
 pub mod sequence;
 pub mod source;
+pub mod sse;
 pub mod stream;
 mod string;
 pub mod sweep;

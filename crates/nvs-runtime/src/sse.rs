@@ -2,7 +2,7 @@
 //! events, framed: the bytes one event is on the wire, as a function over its
 //! payload.
 //!
-//! This is [`crate::socket`]'s mirror for the other door, and the shape is
+//! This is `nvs_server::socket`'s mirror for the other door, and the shape is
 //! deliberately the opposite one. There the framing is a codec that owns a
 //! descriptor, a clock and a connection's worth of state; here it is a
 //! **function over bytes**. Nothing in this module holds a socket, reads a
@@ -10,7 +10,13 @@
 //! whoever has the payload and written by whoever has the body — which is what
 //! makes the property below provable without a server running.
 //!
-//! It is also the only place in this workspace that writes a `data:` line.
+//! It is also the only place in this workspace that writes a `data:` line, and
+//! that is why it sits here rather than beside its mirror. Both halves have to
+//! reach it: the payload belongs to a `Core\Sse` member in `nvs_stdlib`, which
+//! cannot name `nvs_server` without closing a cycle, and the body belongs to
+//! the connection. This crate is the one both already depend on, and it is
+//! where [`crate::stream`] — the seam a body written over time crosses — lives
+//! for the same reason.
 //!
 //! # A payload cannot escape its own event
 //!

@@ -124,6 +124,10 @@ modules = [
   # `Core\Sse`'s registry rows and its `# What is not here yet` (:47) -- the door as it stands, and
   # the module every member in stages 3 and 4 is added to.
   "crates/nvs-stdlib/src/sse.rs",
+  # Stage 2's framing, `Event` and `Refused` -- and it is in `nvs-runtime` rather than in
+  # `nvs-server` because both halves have to reach it: the payload is a `Core\Sse` member's and
+  # `nvs-stdlib` cannot name `nvs-server` without closing a cycle.
+  "crates/nvs-runtime/src/sse.rs",
   # The sibling surface stages 3 and 4 mirror row for row: `current`, `receive`, `send`, and the
   # `MESSAGE` each wait answers with. Its module doc is the shared home for everything behind
   # either door.

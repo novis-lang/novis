@@ -66,12 +66,15 @@
 //! so a connection isolate's loop is straight-line code and not a second
 //! `async` seam.
 //!
-//! [`sse`] is the other door's framing, and it is the opposite shape: a
-//! function over bytes, holding no descriptor and no clock, because an event
-//! is framed by whoever has the payload and written by whoever has the body.
-//! Its own docs are why a payload is normalized before it is split, which is
-//! what stops a program escaping its own event; nothing there is re-exported
-//! at the crate root, so an event is written `sse::Event` wherever one is.
+//! [`nvs_runtime::sse`] is the other door's framing, and it is the opposite
+//! shape: a function over bytes, holding no descriptor and no clock, because
+//! an event is framed by whoever has the payload and written by whoever has
+//! the body. It lives one crate down for that reason — the half with the
+//! payload is a `Core\Sse` member in `nvs_stdlib`, which cannot reach this
+//! crate, and a second copy of the only place in the workspace that writes a
+//! `data:` line would be the wrong kind of duplication. Its own docs are why a
+//! payload is normalized before it is split, which is what stops a program
+//! escaping its own event.
 //!
 //! [`schedule`] is the other thing this core runs, and it is a **second task on
 //! the same scheduler** rather than a second scheduler: `rule:config/a-scheduled-run-is-a-root-isolate`'s ticker,
@@ -121,7 +124,6 @@ pub mod schedule;
 pub mod secure;
 pub mod serve;
 pub mod socket;
-pub mod sse;
 pub mod statics;
 pub mod trace;
 
