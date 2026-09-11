@@ -2,51 +2,57 @@
 
 ## State
 
-**Goal `workspace-index`, stage 5's PHP-name table is landed.** `crates/nvs-stdlib/build.rs` — the
-crate's first build script — joins the oracle inventory and the migration table into
-`nvs_stdlib::php_names::CANDIDATES`, one row per name the inventory lists, sorted by its PHP
-spelling so a completion arm can take a prefix range off it. `php_names::Item` is
-`rule:ide/three-of-four-item-shapes-insert-nothing`'s four rows as an enum, and `insertion()`
-returns an `Option` so "inserts nothing" is the absence of an edit.
+**Goal `workspace-index`, stage 5 is closed.** The PHP-name arm is
+`crates/nvs-lsp/src/completion.rs`'s `php_builtins`, offered beside the bare names at a statement
+position: `nvs_stdlib::php_names::starting_with` answers for the run of name characters before the
+cursor, and `php_item` turns each `Candidate::items()` entry into an item whose `insert_text` is
+`Item::insertion()` — or, for the three shapes that insert nothing, exactly the characters already
+typed, because a client replaces the word being completed with that field and the PHP spelling may
+never reach a file.
 
-**The registry is the third input and the build script cannot reach it**, so the join is two-stage:
-the documents in `build.rs`, `registry::class` in `php_names::Destination::is_registered`, and the
-refusal in `crates/nvs-stdlib/tests/php_names.rs` — which fails on a member spelling a *registered*
-class does not declare, the typo case nothing else in the tree distinguishes. A destination whose
-class the registry does not declare at all is the second item shape, not a failure. Both files'
-module docs own that split; the goal's ADR owes it a paragraph beside stage 2's index shape, stage
-4's request admissions and stage 5's two arms.
+**The arm answers a name, not a cursor.** `PHP_PREFIX` characters are written first (three), which is
+this session's call and is documented where the constant is: a one- or two-character prefix reaches
+hundreds of built-ins and buries the program's own names. One `.lspt` case had to narrow its
+`prefix=` because of it, and one new case freezes the layer's rendering.
 
-**`nvs-stdlib` now fails to build without `docs/spec/02-php-migration.md` and
-`tools/data/php-builtins.txt` on disk**, which is a deliberate difference from
-`crates/nvs-cli/build.rs`, whose own doc says nothing there may fail a build.
+**`nvs.completion.phpNames` is landed on both sides** — `crates/nvs-lsp/src/settings.rs`'s
+`PhpNames` (`all`/`resolved`/`off`, default `all`), threaded to the arm through `completion::at`, and
+contributed in `editors/vscode/package.json` with its row in `docs/reference/tools/40-editor.md`.
+`rule:ide/the-extension-claims-nvs-only`'s two guards used to scan the manifest for the three letters
+and now read the claims — a language id, a file extension, an activation event — because a frozen
+setting name says `php` and claims nothing.
+
+**Stage 6 is all that is left, and it is the driver's failing check.**
 
 ## Next group
 
-**Stage 5 (closing): the PHP-name arm and the setting that gates it** — one file set:
-`crates/nvs-lsp/src/completion.rs`, `crates/nvs-lsp/src/settings.rs`,
-`crates/nvs-lsp/tests/completion.rs`, `editors/vscode/package.json`.
+**Stage 6: inlay hints, the two settled shapes** — one file set: `crates/nvs-lsp/src/hints.rs` (new),
+`crates/nvs-lsp/src/capabilities.rs`, `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/case.rs`,
+`crates/nvs-lsp/src/render.rs`, `crates/nvs-lsp/tests/hints.rs` (new), `tests/lsp/hints/`.
 
-- [ ] **The arm.** The candidates `nvs_stdlib::php_names::starting_with` answers for, offered beside
-      the bare names at `crates/nvs-lsp/src/completion.rs:606`'s `in_reach` — one item per
-      `Candidate::items()` entry, with `Item::insertion()` and nothing else reaching the buffer.
-      `rule:php-migration/an-item-inserts-only-a-registered-member`.
-- [ ] **The setting.** `nvs.completion.phpNames` (`all`/`resolved`/`off`, default `all`) on
-      `crates/nvs-lsp/src/settings.rs:44`'s `Settings`, and in the extension's frozen roster in
-      `editors/vscode/package.json`. `crates/nvs-lsp/tests/extension_reference.rs:82`'s
-      `the_chapter_documents_every_contributed_setting_and_no_other` wants the reference chapter
-      in the same commit. `rule:ide/contributions-are-frozen-and-only-ever-added`.
-- [ ] **The source, enumerated.** `crates/nvs-lsp/tests/completion.rs:364`'s
-      `every_completion_source_names_a_compiler_table` is what the new arm has to satisfy: the
-      table it names is `nvs_stdlib::php_names::CANDIDATES`, which the compiler builds from two
-      audited documents rather than from a convention scan.
-      `rule:ide/completion-offers-only-what-the-compiler-derived`.
+- [ ] **The two shapes.** A new `crates/nvs-lsp/src/hints.rs` reading what the type phase already
+      recorded — `crates/nvs-lsp/src/document.rs:460`'s `exprs` — for the inferred type after a `var`
+      declaration with no annotation, and the parameter name at a call site whose argument is a bare
+      literal. Nothing else: `loop-goal.md` § *Stage 6* bounds the reversal to the two idioms that
+      have stopped moving, and [ADR 0099](../decisions/0099.md) § 3 is the deferral being reversed.
+      The acceptance names `an_inferred_var_declaration_carries_its_type_as_a_hint`,
+      `a_literal_argument_carries_its_parameter_name` and
+      `no_hint_is_produced_from_anything_the_type_phase_did_not_record`, which is the design.
+- [ ] **The wire.** `crates/nvs-lsp/src/capabilities.rs:260`'s `declared_capabilities` gains
+      `inlayHintProvider`, and `crates/nvs-lsp/src/server.rs:283`'s dispatch gains the arm beside
+      `completion`. `rule:ide/the-request-set-is-closed` names inlay hints as M10's and is the rule
+      the goal's ADR amends.
+- [ ] **The freezing.** `crates/nvs-lsp/src/case.rs:63`'s `Request` gains the request,
+      `crates/nvs-lsp/src/render.rs:135`'s `Response` gains its canonical rendering, and the cases go
+      under `tests/lsp/hints/`. `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`. Run
+      `target/debug/nvs.exe lsp-test tests/lsp/ --coverage` — `cargo test` does not.
 
 ## Backlog
 
-- Stage 6, inlay hints, reverses [ADR 0099](../decisions/0099.md) § 3's deferral — `loop-goal.md` § *Stage 6*.
-- The goal's one ADR is unopened and owes five stages' reasoning — `loop-goal.md` § *Standing decisions*.
+- The goal's one ADR is unopened and owes six stages' reasoning — `loop-goal.md` § *Standing decisions*.
+- `nvs.check.scope` and `nvs.codeLens.enable` are read by the server and contributed by neither the
+  manifest nor the chapter — `rule:ide/contributions-are-frozen-and-only-ever-added`.
 - A `NotRegistered` item cannot name the milestone it waits on: only `tests/migration-members-outstanding.txt` knows, and it is a test fixture — `php_names.rs` module doc.
 - A destination naming an interface (`Core\Db\Queryable`) inserts nothing, since the interface has no registry row — same.
-- A cursor in a type annotation or a parameter list reaches no arm — `completion.rs` § *Known gaps*.
+- A cursor in a type annotation or a parameter list reaches no arm of its own — `completion.rs` § *Known gaps*.
 - `registry`'s six global interfaces are reachable by no arm: they have no namespace to be under — same.

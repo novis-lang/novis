@@ -80,6 +80,7 @@ const SETTINGS = [
   "nvs.lsp.trace.server",
   "nvs.secrets.redact",
   "nvs.taint.mark",
+  "nvs.completion.phpNames",
 ];
 
 const COMMANDS = [
@@ -233,12 +234,25 @@ describe("the file types the extension claims", () => {
     assert.deepEqual(manifest.activationEvents, ["onLanguage:nvs"]);
   });
 
-  it("names php nowhere in the manifest", () => {
+  it("claims no php file type", () => {
     // Claiming `.php` would fight every PHP extension the user already has, and losing that
-    // fight silently looks like Novis being broken. `--ORACLE--`'s body is PHP and the case grammar
-    // includes `source.php` to colour it, which is a reference to a grammar and not a claim on a
-    // file type — it stays in `syntaxes/`, and no `embeddedLanguages` entry names php either.
-    assert.equal(/\bphp\b/i.test(manifestText), false, "the manifest mentions php");
+    // fight silently looks like Novis being broken. What is refused is the claim — a language id,
+    // a file extension, an activation event, an embedded language — and not the three letters:
+    // `nvs.completion.phpNames` is on the roster above and names PHP because the setting is about
+    // PHP's names. `--ORACLE--`'s body is PHP and the case grammar includes `source.php` to colour
+    // it, which is a reference to a grammar and not a claim on a file type — it stays in
+    // `syntaxes/`, and no `embeddedLanguages` entry names php either.
+    for (const language of manifest.contributes.languages) {
+      assert.ok(["nvs", "nvst"].includes(language.id),
+                `${language.id} is not one of Novis's own file types`);
+      for (const extension of language.extensions ?? []) {
+        assert.ok(!/php/i.test(extension), `${extension} is not Novis's to claim`);
+      }
+    }
+    for (const claim of ['.php"', '"php"', ":php", "phtml"]) {
+      assert.equal(manifestText.toLowerCase().includes(claim), false,
+                   `the manifest claims ${claim}`);
+    }
   });
 });
 
@@ -269,6 +283,8 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.secrets.redact"].default, true);
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
+    assert.equal(properties["nvs.completion.phpNames"].default, "all");
+    assert.deepEqual(properties["nvs.completion.phpNames"].enum, ["all", "resolved", "off"]);
   });
 });
 

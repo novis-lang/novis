@@ -250,6 +250,7 @@ as nothing.
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
+| `nvs.completion.phpNames` | `"all"` | which PHP built-ins are offered beside a half-written name — `all`, `resolved` for only the ones whose `Core` member exists, or `off`. Whatever the value, an item inserts a member only where the registry holds it |
 | `nvs.lsp.debounce` | `150` | milliseconds a keystroke is to wait before analysis starts. Contributed and not yet read — see below |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is

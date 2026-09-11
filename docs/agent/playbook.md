@@ -2207,6 +2207,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs_config::tree`, and the `ALL`/`name`/`grant`/`grant_mut` arms), then the row, whose
   `crate::<module>::NAME` is still private if that class had no rows before.
   [until: reviewed 2026-09-10]
+- **`cargo test -p nvs-lsp` and `python tools/verify.py` are both green while the `.lspt` corpus is
+  red.** Nothing under `tools/` runs `nvs lsp-test`, so the corpus is gated only by the loop's own
+  acceptance checks and a session that changes what a request *answers* hands the driver a failure it
+  did not cause. Run `target/debug/nvs.exe lsp-test tests/lsp/` and `--coverage` after touching an
+  answer, and expect the breakage at a cursor mid-word, where a case froze a list the new arm adds
+  to. [until: exists tools/verify.py:lsp-test]
 
 ## Writing a test case
 

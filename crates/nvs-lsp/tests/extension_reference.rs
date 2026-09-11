@@ -141,20 +141,46 @@ fn the_chapter_documents_every_contributed_command_and_no_other() {
     }
 }
 
+/// The extension wakes on a Novis document and claims no PHP file.
+///
+/// What `rule:ide/the-extension-claims-nvs-only` refuses is the *claim* — a
+/// language id, a file extension, an activation event — and not the three
+/// letters: `nvs.completion.phpNames` is on the frozen roster of
+/// `rule:ide/contributions-are-frozen-and-only-ever-added` and names PHP
+/// because the setting is about PHP's names. So what is scanned for is the file
+/// extension and the language id, which are the two spellings that would make
+/// VS Code hand this extension a `.php` buffer and lose that fight silently
+/// against every PHP extension the user already has.
 // covers: tools:editor/the-vs-code-extension
 #[test]
 fn the_chapter_and_the_manifest_agree_the_extension_claims_nvs_alone() {
     let manifest = manifest();
-    let raw = read(&workspace_root().join("editors/vscode/package.json"));
+    let raw = read(&workspace_root().join("editors/vscode/package.json")).to_lowercase();
 
     assert_eq!(
         manifest["activationEvents"],
         serde_json::json!(["onLanguage:nvs"]),
         "the chapter says the extension wakes on a Novis document and nothing else"
     );
-    assert!(
-        !raw.to_lowercase().contains("php"),
-        "the manifest names php somewhere, and the chapter says it claims none of it \
-         (`rule:ide/the-extension-claims-nvs-only`)"
-    );
+    for language in manifest["contributes"]["languages"]
+        .as_array()
+        .expect("the manifest contributes a language")
+    {
+        let id = language["id"]
+            .as_str()
+            .expect("a contributed language has an id");
+        assert!(
+            matches!(id, "nvs" | "nvst"),
+            "the manifest contributes the language `{id}`, which is not one of Novis's own"
+        );
+    }
+    // A quoted token and not the three letters: `nvs.completion.phpNames` is a
+    // setting name and `".php"` is a claim on somebody's file.
+    for claim in [".php\"", "\"php\"", ":php", "phtml"] {
+        assert!(
+            !raw.contains(claim),
+            "the manifest claims `{claim}`, and the chapter says it claims no PHP file \
+             (`rule:ide/the-extension-claims-nvs-only`)"
+        );
+    }
 }
