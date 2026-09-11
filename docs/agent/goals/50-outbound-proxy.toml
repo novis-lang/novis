@@ -1,0 +1,195 @@
+# Goal 50 -- an operator routes outbound calls through a forward proxy, and the grant says what the address policy can no longer see
+# The acceptance test, as data.
+#
+# `50-outbound-proxy.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No example of its own: a proxy is a deployment's, and every proof below is a Rust test against a
+  # loopback proxy and a loopback origin.
+]
+
+[context]
+
+modules = [
+  # The one connect (:252), the TLS server name (:36-54), the pool and the hop. Stages 3 and 4.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # The pin and its four questions, which `resolve = "proxy"` narrows. Stage 4.
+  "crates/nvs-stdlib/src/http.rs",
+  # Where `[http.client.proxy]` is declared and classed. Stages 3 and 4.
+  "crates/nvs-config/src/directive.rs",
+  # The TLS client a tunnel hands its stream to. Stage 3.
+  "crates/nvs-host/src/tls.rs",
+]
+
+# Every stage works inside these three: the address policy, where it lives, and the pin.
+rules = [
+  "security/net-address-policy",
+  "security/the-policy-lives-in-the-capability",
+  "http-server/allow-url-pins-the-address",
+]
+
+adrs = []
+
+shapes = [
+  "A commit message",
+  "A code comment",
+]
+
+milestones = ["M8:verify"]
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `50-outbound-proxy.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the record"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record answers 0058's open sentence; a mandatory word, and how a config key is classed.
+rules = ["config/scope-has-no-default", "config/three-changeability-classes"]
+adrs = ["0058"]
+shapes = ["A decision record", "A rule fragment", "Citing a document"]
+
+[context.stage.3]
+# A tunnelled connection is bounded and re-pinned by the rules every connection is. Goal `http-client`'s
+# pool rule joins this list once that goal has written it; naming it before then fails the rulebook.
+rules = [
+  "http-server/one-deadline-covers-the-whole-call",
+  "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+]
+
+[context.stage.4]
+# The proxy's password is a secret directive, and the environment is not configuration.
+rules = [
+  "config/a-secret-is-a-file-whose-content-is-the-value",
+  "security/no-cross-request-state",
+  "security/secret-sinks-refuse",
+]
+
+[context.stage.5]
+shapes = ["A rule fragment"]
+
+# A tunnel is a host socket like any other connection; no refcounted value crosses it. No cycle shape,
+# so nothing is added to the skip list.
+[valgrind]
+skip = []
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. The floor is goal `process-cache`'s whole list, whose
+# shared-tier and session checks need Redis, and the daemons are theirs.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/nvs-codegen"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 5
+# flips the status.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "an operator-configured proxy is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
+want = ["http-server/an-outbound-proxy-is-operator-configured"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a proxied call keeping its pin is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+want = ["http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a tunnel that keeps the pin. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the tunnel"
+name = "a tunnel is opened to the approved address, TLS names the approved host, and the pool knows the proxy"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "connect_tunnel_is_opened_to_the_pinned_address_and_tls_names_the_host",
+  "a_plain_http_url_is_tunnelled_and_never_sent_in_absolute_form",
+  "a_proxy_refusing_connect_is_an_io_error_and_407_names_authentication",
+  "a_refused_connect_is_not_retried_as_an_answer",
+  "a_tunnelled_connection_is_pooled_apart_from_a_direct_one",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the proxy resolves, a bypass list, and authentication. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 resolve, bypass and auth"
+name = "resolve proxy sends the host and warns, a bypass goes direct, and the password reaches CONNECT alone"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "resolve_proxy_sends_the_host_name_and_skips_only_the_address_check",
+  "a_bypassed_host_connects_directly_under_the_full_policy",
+  "proxy_authorization_is_sent_on_connect_and_never_to_the_destination",
+  "no_proxy_environment_variable_is_ever_read",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 resolve, bypass and auth"
+name = "a proxy block is refused without resolve, and resolve proxy warns at every boot"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_proxy_block_without_resolve_refuses_the_boot_naming_both_words",
+  "resolve_proxy_writes_one_warn_at_every_boot",
+  "a_proxy_password_and_its_file_together_are_refused",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the rulebook. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the rulebook"
+name = "an operator-configured proxy is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/an-outbound-proxy-is-operator-configured"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "5 the rulebook"
+name = "a proxied call keeping its pin is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"]
+want = ["shipped"]

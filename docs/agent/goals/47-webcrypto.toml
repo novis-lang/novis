@@ -244,6 +244,9 @@ cases = [
   "tests/conformance/core/crypto-a-pem-private-key-reads-back-as-the-pair-it-holds.nvst",
   "tests/conformance/core/crypto-generate-key-pair-refuses-an-rsa-kind-and-names-read.nvst",
   "tests/conformance/core/crypto-agree-refuses-an-ed25519-or-rsa-pair.nvst",
+  # Raw signatures over the same kinds.
+  "tests/conformance/core/crypto-sign-and-verify-take-their-scheme-from-the-key-kind.nvst",
+  "tests/conformance/core/crypto-verify-refuses-every-forgery-with-one-message.nvst",
 ]
 
 [[check]]
@@ -294,6 +297,7 @@ cases = [
   "tests/conformance/core/jwt-verify-issued-refuses-none-hs256-confusion-and-every-header-that-brings-a-key.nvst",
   "tests/conformance/core/jwt-key-set-selects-by-kid-skips-encryption-keys-and-refuses-private-members.nvst",
   "tests/conformance/core/jwt-key-set-refuses-an-rsa-key-with-no-alg-unless-the-scheme-is-named.nvst",
+  "tests/conformance/core/jwt-sign-writes-structured-claims-under-a-key-pair-and-refuses-them-under-a-shared-key.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -319,6 +323,8 @@ tests = [
   "webcrypto_jws_vectors_verify_to_their_claims",
   "webcrypto_jws_signs_reproduce_every_deterministic_token_byte_for_byte",
   "webcrypto_jws_refusals_are_each_refused_with_their_recorded_kind",
+  "webcrypto_signature_vectors_verify_and_deterministic_ones_resign_byte_for_byte",
+  "webcrypto_signature_refusals_are_each_refused_with_one_runtime_error",
 ]
 
 [[check]]

@@ -8,7 +8,9 @@ every core of it, held in memory only and gone when the process ends. Every tier
 `forget`. And a secret may now outlive the request that fetched it — **only sealed**: `putSecret` and
 `getSecret` take a key ring and store XChaCha20-Poly1305 ciphertext bound to the app, the entry's name and
 its expiry, so no `secret` value ever enters any tier, and `getSecret`'s `fill` fetches on a miss once per
-process while every other core waits for it. This is where an OAuth token lives between requests.
+process while every other core waits for it. This is where an OAuth token lives between requests — and a
+user's own token lives in their session the same way, sealed, through `Core\Session`'s `setSecret` and
+`getSecret`.
 
 ## Why here
 
@@ -23,7 +25,8 @@ answers (`crates/nvs-stdlib/src/cache.rs:147-250`); the local tier's per-core ma
 (`cache.rs:385-420`); the byte payload an entry is (`cache.rs:11-36`); the shared tier's Redis client
 (`crates/nvs-stdlib/src/cache/redis.rs`); the detached accounting bracket
 (`rule:concurrency/a-cross-request-stores-bytes-are-its-own-balance`); and the per-core workers
-`nvs serve` starts (`crates/nvs-cli/src/serve.rs`, whose count is tested at `:1519`).
+`nvs serve` starts (`crates/nvs-cli/src/serve.rs`, whose count is tested at `:1519`); and `Core\Session`'s
+rows over the byte carrier its record already crosses as (`crates/nvs-stdlib/src/session.rs:135-215`).
 
 ## Stage 0 — the catch-up
 
@@ -49,10 +52,10 @@ Goal `http-client`'s whole acceptance list, carried in verbatim by `tools/goal-s
 
 ## Stage 2 — the record
 
-One new record, and no other number. Its body is § *Standing decisions* below, argued. It creates three
+One new record, and no other number. Its body is § *Standing decisions* below, argued. It creates four
 rules, all `designed` — `concurrency/the-process-tier-is-one-store-per-process`,
-`concurrency/a-secret-is-cached-only-sealed` and `concurrency/a-secret-fill-runs-once-per-process` — and
-modifies the six Stage 0 names. **It decides whether `core-api/two-cache-tiers` is amended in place or
+`concurrency/a-secret-is-cached-only-sealed`, `concurrency/a-secret-fill-runs-once-per-process` and
+`http-server/a-session-holds-a-secret-only-sealed` — and modifies the six Stage 0 names. **It decides whether `core-api/two-cache-tiers` is amended in place or
 superseded** by a rule whose id does not count tiers; either way the three members stay three members with
 three contracts and no flag. The spec row at `:1178` moves with it.
 
@@ -132,16 +135,38 @@ This is the one step in `Core\Cache` that observes an entry and writes it, and t
 `rule:concurrency/put-and-get-are-the-whole-boundary` for `getSecret`'s `fill` alone. On the shared tier
 it is once per process, not once per fleet: a fleet-wide fill would be a lease, and that is not this goal.
 
-## Stage 7 — the rulebook
+## Stage 7 — a user's secret in the session
 
-Flip stage 2's three rules to `shipped`, with `guardedBy` filled from this goal's cases and tests, and
+`$session->setSecret(string $key, secret string $value, array<secret bytes> $keys): void` and
+`$session->getSecret(string $key, array<secret bytes> $keys): ?secret string`, in
+`crates/nvs-stdlib/src/session.rs:135-215`, over stage 5's sealing — one construction, and the session
+door's own domain byte, so a value sealed for the cache never opens as a session value. This is where a
+web app keeps the access and refresh token of the user it acts for.
+
+- **No `ttl`.** A session value lives as long as its session
+  (`rule:http-server/session-expiry-belongs-to-the-store`), and the sealed plaintext carries no expiry of
+  its own.
+- **The additional data is the domain byte ‖ the app ‖ the key, and not the session id**, because
+  `regenerate` issues a new id over the same record, and a value bound to the old id would stop opening.
+  Moving a ciphertext between two sessions takes write access to the store, which already means owning
+  every session in it.
+- **`get` answers `null` for a sealed value and `set` still refuses a secret**, as the cache's pair does.
+  A sealed value that does not open under the ring is absent, never an error.
+- The record crosses the store as the byte carrier it already does
+  (`docs/rules/http-server/a-session-store-answers-four-operations.md:15-16`), so no `secret` reaches the
+  store and `rule:security/secret-crosses-no-boundary` is unchanged here too.
+
+## Stage 8 — the rulebook
+
+Flip stage 2's four rules to `shipped`, with `guardedBy` filled from this goal's cases and tests, and
 `python tools/rules.py --render`.
 
 ## Standing decisions
 
 - **Settled with the user, not to re-decide:** the process tier is a general third tier, not a
   secrets-only store; a secret meets a cache only through `putSecret` and `getSecret`, both taking a key
-  ring, and is stored only sealed; `fill` is single-flight per process. The record argues these, and does
+  ring, and is stored only sealed; `fill` is single-flight per process; and a user's secret in the session
+  is sealed the same way, through `setSecret` and `getSecret`. The record argues these, and does
   not re-open them.
 - **What sealing buys, stated exactly.** It keeps a secret from being read by code that knows an entry's
   name but not the ring, it lets a secret reach the shared tier without leaving the process in the clear,
@@ -157,6 +182,6 @@ Flip stage 2's three rules to `shipped`, with `guardedBy` filled from this goal'
   of expiry.
 - **ADR slots**: the one record of stage 2.
 - **Not this goal**: a fleet-wide single fill, which is a lease over the shared tier; a `secret bytes`
-  value; where a *user's* refresh token lives, which must survive eviction and so is not a cache's; and
+  value; a user's refresh token in a cache tier, which must survive eviction and so goes to the session; and
   the REST package, which is the first caller of all of this. A session that finds one on its path writes
   it to the handoff's `## Backlog`.

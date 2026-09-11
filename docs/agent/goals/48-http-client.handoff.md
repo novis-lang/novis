@@ -9,7 +9,8 @@ that states it is not written yet.** Stage 2 writes it — one new record, the g
 transcribes those decisions rather than re-deriving them. The things not to re-decide: bodies are flat
 keys of the one bag, at most one per call and checked while compiling; `Client::request(Method, …)`
 replaces the spec's `send(Request)` and there is no `Core\Http\Request`; a stream's body is bounded by
-`idle` and `maxDuration`; gzip only; the pool is per core and keyed on the pinned address; a hop to
+`idle` and `maxDuration`; gzip only; the pool is per core and keyed on the pinned address and on the
+client identity (mTLS) a call may present; a hop to
 another origin drops credentials; a test answers outbound calls from a table.
 
 ## Next group
@@ -36,7 +37,7 @@ another origin drops credentials; a test answers outbound calls from a table.
 - Stage 5 — the reply's readers. `http.rs`, `transport.rs`'s `Reply`, and the decode-site roster in
   `nvs-types`. Shares `http.rs` with stage 4.
 - Stage 6 — streaming. `http.rs`, `transport.rs`, `crates/nvs-config/src/directive.rs`. Its own session.
-- Stages 7 and 8 — the pool, gzip, and the hop's credential rule. `transport.rs`, `compress.rs`,
-  `crates/nvs-host/src/tls.rs`, `directive.rs`. One file set, two stages, perhaps one session.
+- Stages 7 and 8 — the pool, gzip, the client identity, and the hop's credential rule. `transport.rs`,
+  `compress.rs`, `crates/nvs-host/src/tls.rs`, `directive.rs`. One file set, two stages, two sessions.
 - Stage 9 — the flips. `docs/rules/` only.
 - When this goal's last check goes green the driver takes goal `process-cache`.

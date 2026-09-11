@@ -284,6 +284,17 @@ tests = [
   "stale_pooled_connection_is_replaced_once_without_spending_an_attempt",
   "pool_holds_no_more_than_its_idle_cap_and_closes_past_its_idle_timeout",
   "gzip_reply_is_decoded_under_the_compress_bound_and_a_bomb_is_refused",
+  "client_identity_is_presented_when_asked_and_is_part_of_the_pool_key",
+  "a_call_without_an_identity_never_reuses_a_connection_that_presented_one",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 the pool and gzip"
+name = "a client identity reads a PEM chain over a key pair and refuses a leaf that does not match"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/http-identity-reads-a-pem-chain-and-a-key-pair-and-refuses-a-mismatch.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------

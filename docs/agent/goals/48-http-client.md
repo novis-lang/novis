@@ -9,7 +9,8 @@ a body — JSON, a form, raw bytes or multipart — `patch` joins the verbs, and
 shape through `jsonAs<T>`, or as bytes, and a long or large one is **streamed** — SSE events, lines,
 chunks, or saved to a file — rather than held whole. Connections are reused from a per-core pool that
 keeps every address pinned, a gzip reply is decoded under the bomb bound `Core\Compress` already has, a
-redirect to another origin drops the caller's credentials, and a test answers outbound calls from a table
+redirect to another origin drops the caller's credentials, a call can present a client certificate, and
+a test answers outbound calls from a table
 instead of standing up a listener. Everything the REST package (`nvs/rest`, not on this chain) needs from
 `Core`'s HTTP half is then on disk.
 
@@ -17,8 +18,8 @@ instead of standing up a listener. Everything the REST package (`nvs/rest`, not 
 
 Directly after goal `webcrypto`, on the user's call: the REST client with OAuth was split into three goals
 — `webcrypto` for the crypto, this one, and goal `process-cache` for where a token lives between requests
-— in that order. None of the three needs another's work: this goal shares no file with goal `webcrypto`
-but `crates/nvs-stdlib/src/registry.rs`, and goal `process-cache` needs nothing from this one. Before goal
+— in that order. It needs one thing goal `webcrypto` builds, `Crypto\KeyPair`, which stage 7's client
+identity is made from, and goal `process-cache` needs nothing from this one. Before goal
 `gap-zero` for that goal's standing reason — a register is emptied after everything that adds to it has
 run.
 
@@ -65,7 +66,7 @@ transcription, not design. It creates five rules, all `designed`:
 |---|---|
 | `http-server/an-outbound-request-carries-one-body` | at most one of the four body keys, a body on `get` or `head` refused, both while compiling |
 | `http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime` | `deadline` ends at the head; `idle` and `maxDuration` bound the body; no spelling for forever |
-| `http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned` | the pool's key, when a connection may go back, and its two caps |
+| `http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned` | the pool's key — pinned address, port, scheme, server name and client identity — when a connection may go back, and its two caps |
 | `http-server/a-cross-origin-redirect-drops-credentials` | the three headers and every `secret` value dropped on a hop to another origin |
 | `testing/an-outbound-call-is-answered-from-a-table` | `Core\Test`'s table, and that a faked call never connects |
 
@@ -158,6 +159,14 @@ once without spending an attempt; any later failure is an attempt under the retr
 at most `[http.client] pool_idle` idle connections per core and closes one idle past
 `pool_idle_timeout`. `Connection: close` leaves the request; `Accept-Encoding: gzip` joins it.
 
+**A client identity (mTLS).** `identity?: Core\Http\Identity` joins the bag, built by
+`Http\Identity::read(bytes $chainPem, Crypto\KeyPair $key)` over goal `webcrypto`'s key pair, whose kind
+is what the handshake is signed with; `read` refuses a chain whose leaf does not match the key. A call
+with an identity presents it when the server asks and never otherwise, and **the pool key includes it**,
+so two identities never share a connection and a call without one never reuses a connection that
+presented one. One `ClientConfig` serves the whole process today (`crates/nvs-host/src/tls.rs:87`,
+`:314`); an identity is a second config, built once per `Identity` and held as long as it is.
+
 **gzip is decoded under `crate::compress::decompress_within`'s bound**, the one `Core\Compress` already
 applies, so the ratio and the ceiling are one number with one home. A streamed reply decodes
 incrementally under the same ratio.
@@ -179,7 +188,8 @@ Flip stage 2's five rules to `shipped`, with `guardedBy` filled from this goal's
 
 - **Settled with the user, not to re-decide:** bodies are flat keys of the one bag; `request(Method, …)`
   replaces `send(Request)`, and there is no `Core\Http\Request`; a stream is bounded by `idle` and
-  `maxDuration` from `[http.client]`; gzip only; the pool is per core; the redirect credential rule; and
+  `maxDuration` from `[http.client]`; gzip only; the pool is per core; a client identity is an option and part of the pool key; the redirect
+  credential rule; and
   outbound calls in a test are answered from a table. The design was argued before the goal was written
   and its argument is the record's body.
 - **What stays exactly as it is:** the pin and `Core\Http::allowUrl`, one deadline over the whole
@@ -199,7 +209,6 @@ Flip stage 2's five rules to `shipped`, with `guardedBy` filled from this goal's
   shape: O(cores × pool_idle), never O(requests served).
 - **ADR slots**: the one record of stage 2.
 - **Not this goal**: the REST package and OAuth; where a token lives between requests (goal
-  `process-cache`); HTTP/2 and HTTP/3; brotli and zstd; a forward proxy
-  ([0058](../../decisions/0058.md) records why the address policy cannot see through one); client
-  certificates; a cookie jar; parsing `Link`, `Retry-After` for a program, or RFC 9457 problem details —
+  `process-cache`); HTTP/2 and HTTP/3; brotli and zstd; a forward proxy, which is goal `outbound-proxy`;
+  a cookie jar; generating a client from an OpenAPI document, which the user deferred to the package; parsing `Link`, `Retry-After` for a program, or RFC 9457 problem details —
   those are the package's. A session that finds one on its path writes it to the handoff's `## Backlog`.

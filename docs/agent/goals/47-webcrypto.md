@@ -19,7 +19,10 @@ inputs. The loop never runs Node.
 `Crypto\PublicKey` and `Crypto\KeyPair` this goal types, through `ring`, the provider TLS already links.
 `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\KeySet`, with the issuer and
 the audience required, and answers its claims as a `tainted` shape — so an ID token's list and object
-claims arrive typed rather than refused. The same frozen set carries the JWS vectors WebCrypto signed.
+claims arrive typed rather than refused. Beside JWT, `Crypto::sign` and `Crypto::verify` sign and check raw
+bytes under the same key kinds — an HTTP message signature, a webhook — and `Jwt::sign` writes structured
+claims under a key pair, which a signed request object needs. The same frozen set carries the JWS and raw
+signature vectors WebCrypto signed.
 
 Nothing is taken away: XChaCha20-Poly1305 stays and every `Core\Digest` case stays. Nothing has shipped
 publicly, so `seal` and `open` change signature, and **every existing call site moves in the same commit**
@@ -158,7 +161,8 @@ call no longer compiles. Then `docs/spec/02-php-migration.md:811-812` become two
 **The key classes take two more kinds.** `Crypto\Curve` becomes `Crypto\KeyKind` — `P256`, `X25519`,
 `Ed25519`, `RsaPkcs1` and `RsaPss` — and every row that took a curve takes a kind, so JWE, key agreement
 and JWT signing share one pair of key classes rather than growing a second family. Stage 3's signature
-primitives are what the new kinds read into; the members that *sign* with them are stage 6's.
+primitives are what the new kinds read into. `Crypto::sign` and `Crypto::verify` land here, over raw
+bytes and the same kinds; the `Jwt` members that sign with them are stage 6's.
 
 ## Stage 5 — `Core\Jwe`
 
@@ -173,7 +177,8 @@ signature primitives and stage 4's key classes — never a second copy of either
 
 - `Jwt::sign` takes a `Crypto\KeyPair` beside a shared key, and a trailing bag for `kid`, `typ` and
   `embedKey`. Its HS256 path, its header and its payload layout do not change, so every existing `Jwt`
-  case passes untouched.
+  case passes untouched. Under a key pair its claims may also be structured — a shape or a deriving
+  class — which a signed request object (RFC 9101, with RFC 9396's `authorization_details`) needs.
 - `Jwt\KeySet`, a new registered class with one static, `read`.
 - `Jwt::verifyIssued<T>`, whose type argument joins `Core\Request::jsonAs` on the decode-site roster in
   `crates/nvs-types/src/expr/args.rs:1517-1528`, checked by `check_decode_sites` and
@@ -210,6 +215,9 @@ the schema. Rust tests in `nvs-stdlib` read it with `include_str!` and `serde_js
   direction.
 - **`jws.refusals`** — each refused with its recorded kind: `policy` and `authenticity` the one
   `RuntimeError`, `time` the expiry error, `claims` a refusal naming the claim.
+- **`signatures.vectors`** — `Crypto::verify` accepts each recorded signature over its message under
+  `jws.keys[key]`, and `Crypto::sign` reproduces it byte for byte where `deterministic` is true.
+- **`signatures.refusals`** — each refused by `Crypto::verify` with the one `RuntimeError`.
 
 Then `examples/webcrypto.nvs`, the example `rule:testing/four-proofs` asks for, frozen by an `exact` check.
 It opens one of the set's tokens, so the example is itself a browser's output being read. It also
@@ -254,9 +262,11 @@ to `shipped`, with `guardedBy` filled from this goal's cases and tests, and `pyt
   | `Crypto\KeyPair::read(secret bytes $pkcs8, Crypto\KeyKind $kind): Crypto\KeyPair` | a stored pair back, as DER or PEM |
   | `$keyPair->write(): secret bytes` | PKCS#8, so a server keeps its pair across requests |
   | `$keyPair->publicKey(): Crypto\PublicKey` | the half that is sent |
+  | `Crypto::sign(bytes $message, Crypto\KeyPair $key): bytes` | the signature, its scheme the pair's kind |
+  | `Crypto::verify(bytes $message, bytes $signature, Crypto\PublicKey $key): void` | nothing, or one `RuntimeError` |
   | `Jwe::encrypt(string $payload, secret bytes\|Crypto\PublicKey\|secret string $key): string` | the compact token |
   | `Jwe::decrypt(string $token, array<secret bytes>\|array<Crypto\KeyPair>\|secret string $keys): tainted string` | the payload, or one `RuntimeError` |
-  | `Jwt::sign(array<string> $claims, Duration $lifetime, secret bytes\|Crypto\KeyPair $key, {kid?, typ?, embedKey?}): string` | HS256 under a shared key, as today; RS256, PS256, ES256 or EdDSA from the pair's kind |
+  | `Jwt::sign(array<string>\|object $claims, Duration $lifetime, secret bytes\|Crypto\KeyPair $key, {kid?, typ?, embedKey?}): string` | HS256 under a shared key, as today; RS256, PS256, ES256 or EdDSA from the pair's kind |
   | `Jwt::verifyIssued<T>(string $token, Jwt\KeySet\|Crypto\PublicKey $keys, string $issuer, string $audience, {leeway?, typ?, nonce?, maxAge?}): T` | a token another party issued, its claims as `T`, a `tainted` shape |
   | `Jwt\KeySet::read(tainted string $jwks, {rsaScheme?}): Jwt\KeySet` | a JWKS document the program fetched, admitted by the rules below |
 
@@ -336,6 +346,10 @@ to `shipped`, with `guardedBy` filled from this goal's cases and tests, and `pyt
     token is therefore reproducible byte for byte. `embedKey` writes the pair's public half as RFC 7638's
     minimal JWK under `jwk`, which is what a DPoP proof carries, and is a `LogicError` under a shared
     key. `exp` stays mandatory on everything `sign` writes (`rule:security/jwt-expiry-is-mandatory`).
+    **Structured claims** — a shape or a deriving class, and only under a key pair — are written as
+    `Core\Json::encode` writes them, with `iat` and `exp` appended in that order; `iat` or `exp` among
+    them is a `LogicError`, as it is today, and a `secret` field is refused, as `encode` refuses one. The
+    record fixes whether this is a union on `sign` or a second member.
   - **`verifyIssued`** refuses a header carrying `jku`, `x5u`, `x5c`, `jwk`, `crit`, `b64`, `zip` or
     `cty` — a key or a fetch the token brings, an extension, an unencoded or compressed payload, a nested
     token — and ignores every other member it does not read. That is looser than JWE on purpose: an
@@ -370,8 +384,16 @@ to `shipped`, with `guardedBy` filled from this goal's cases and tests, and `pyt
   it, and anything else is a diagnostic naming the field. `rule:security/verification-does-not-launder`
   is kept by the type rather than by flattening every claim to text. The registered claims are checked
   before `T` is decoded, and `T` may declare them to read them. `Jwt::verify` keeps its
-  `array<tainted string>` answer and its refusal of structured claims, because a token this program
-  signed carries only what `sign`'s `array<string>` can write.
+  `array<tainted string>` answer and its refusal of structured claims, and `sign` writes structured
+  claims only under a key pair — a token signed for another party — so a token this program signs under
+  a shared key still carries only what `verify` reads back.
+- **Raw signatures.** `Crypto::sign` answers the signature octets: RSASSA-PKCS1-v1_5 or RSASSA-PSS over
+  SHA-256 by the RSA kind, ECDSA P-256 over SHA-256 as the 64-octet `r ‖ s` that JWS and WebCrypto both
+  use — never DER — or Ed25519. `Crypto::verify` answers nothing or throws the one `RuntimeError`
+  `rule:security/verification-throws-and-compares-in-constant-time` asks for, whatever was wrong, and
+  never a `bool`. An X25519 pair signs nothing: a `LogicError`. The message is `bytes` in both — checking
+  what a peer sent is the point — and verifying launders nothing. Standard Webhooks' `v1a` and HTTP
+  Message Signatures (RFC 9421) are package code over these two members.
 - **Dependencies, all pure Rust, all on the generation already locked**: `aes-gcm` 0.11 (brings `aes`
   0.9), `aes-kw` 0.3, `p256` 0.14 with its `ecdh` feature, `x25519-dalek` 3.0, `hkdf` 0.13, and `pbkdf2`
   0.13 as a direct dependency. Default features are off and no `getrandom` anywhere: randomness reaches
@@ -406,6 +428,7 @@ to `shipped`, with `guardedBy` filled from this goal's cases and tests, and `pyt
   key-count cap and the no-try rule hold it to one — and a `Jwt\KeySet` holds its public keys for as long
   as the program holds it. `Core` caches no key set.
 - **Not this goal**: JWK export of private keys, an additional-data parameter, streaming encryption, the
-  JWS JSON serialization, a detached or unencoded JWS payload, JWE-encrypted ID tokens, fetching or
-  caching a key set, and structured claims under `Jwt::sign`. A session that finds one on its path writes
-  it to the handoff's `## Backlog`.
+  JWS JSON serialization, a detached or unencoded JWS payload, JWE-encrypted ID tokens and RSA-OAEP with
+  them — skipped by the user as rare and opt-in at every provider — fetching or caching a key set, and
+  structured claims under a shared key. A session that finds one on its path writes it to the handoff's
+  `## Backlog`.

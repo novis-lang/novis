@@ -75,8 +75,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [webcrypto](47-webcrypto.md) | M8, one ADR slot — the interop tier beside XChaCha20-Poly1305, and `Core\Jwe` as the roster's sixth protocol | `nvs-stdlib` and the workspace manifest — AES-256-GCM, PBKDF2, HKDF and ECDH that a browser's WebCrypto reads, nothing shipped removed |
 | [http-client](48-http-client.md) | M8, one ADR slot — bodies, the dynamic verb, streamed replies, the pinned pool and the redirect credential rule | `nvs-stdlib`, `nvs-types`, `nvs-config` — the client an API is driven through, and a test that answers it from a table |
 | [process-cache](49-process-cache.md) | M8, one ADR slot — the process tier, a lifetime on every tier, and a secret cached only sealed | `nvs-stdlib`, `nvs-config`, `nvs-cli` — the first state the cores share, and where a token lives between requests |
-| [gap-zero](50-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
-| [dossier](51-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [outbound-proxy](50-outbound-proxy.md) | M8, one ADR slot — a forward proxy the operator configures, and what the address policy keeps and loses through it | `nvs-stdlib`'s transport, `nvs-config` — a CONNECT tunnel that keeps the pin by default |
+| [gap-zero](51-gap-zero.md) | post-parity, one ADR — the streaming read across the five drivers | `tools/`, and every crate the register still names — last of the hand-written goals, because a gap register is emptied after everything that adds to it has run |
+| [dossier](52-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract

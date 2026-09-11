@@ -29,6 +29,8 @@ modules = [
   "crates/nvs-config/src/directive.rs",
   # Where the per-core workers start, and where the process map is made before them. Stage 3.
   "crates/nvs-cli/src/serve.rs",
+  # `Core\Session`'s rows (:135-215), which gain `setSecret` and `getSecret`. Stage 7.
+  "crates/nvs-stdlib/src/session.rs",
 ]
 
 # Every stage works inside these three: cross-request state is a named store, a store's bytes are its
@@ -114,6 +116,14 @@ rules = ["http-server/no-spelling-for-an-unbounded-wait"]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.7]
+# A session value lives as long as its session, and its record crosses the store as bytes.
+rules = [
+  "http-server/a-session-store-answers-four-operations",
+  "http-server/session-expiry-belongs-to-the-store",
+]
+shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.8]
 shapes = ["A rule fragment"]
 
 # The process map owns its bytes under the detached bracket and hands out copies, so no refcounted value
@@ -136,7 +146,7 @@ memoize_on = ["crates/nvs-syntax", "crates/nvs-types", "crates/nvs-ir", "crates/
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 7
+# Stage 2 -- the record. Goal prose stage 2. Each check names a bare id, which stays true after stage 8
 # flips the status.
 # ---------------------------------------------------------------------------------------------------
 
@@ -160,6 +170,13 @@ stage = "2 the record"
 name = "a secret fill running once per process is a rule"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
 want = ["concurrency/a-secret-fill-runs-once-per-process"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "a session holding a secret only sealed is a rule"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-session-holds-a-secret-only-sealed"]
+want = ["http-server/a-session-holds-a-secret-only-sealed"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the process tier. Goal prose stage 3.
@@ -255,26 +272,58 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 7 -- the rulebook. Goal prose stage 7.
+# Stage 7 -- a user's secret in the session. Goal prose stage 7. Needs Redis, which the floor starts.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "7 the session"
+name = "a user's secret round-trips sealed through the session and survives regenerate"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/session-a-secret-round-trips-sealed-and-survives-regenerate.nvst",
+  "tests/conformance/core/session-get-answers-null-for-a-sealed-value.nvst",
+  "tests/conformance/reject/session-set-refuses-a-secret-and-names-set-secret.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 the session"
+name = "the record holds ciphertext, and a value sealed for the cache does not open in a session"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "session_secret_is_stored_as_ciphertext_in_the_record",
+  "a_value_sealed_for_the_cache_does_not_open_as_a_session_secret",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the rulebook. Goal prose stage 8.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
-stage = "7 the rulebook"
+stage = "8 the rulebook"
 name = "the process tier is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/the-process-tier-is-one-store-per-process"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "7 the rulebook"
+stage = "8 the rulebook"
 name = "a secret cached only sealed is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-is-cached-only-sealed"]
 want = ["shipped"]
 
 [[check]]
 kind = "command"
-stage = "7 the rulebook"
+stage = "8 the rulebook"
 name = "a secret fill running once per process is shipped"
 argv = ["python", "tools/rules.py", "--show", "concurrency/a-secret-fill-runs-once-per-process"]
+want = ["shipped"]
+
+[[check]]
+kind = "command"
+stage = "8 the rulebook"
+name = "a session holding a secret only sealed is shipped"
+argv = ["python", "tools/rules.py", "--show", "http-server/a-session-holds-a-secret-only-sealed"]
 want = ["shipped"]
