@@ -46,11 +46,13 @@ const TAKES_A_PATH: &str = "FILE";
 
 /// Which question a case asks of its document.
 ///
-/// The roster is `rule:ide/the-request-set-is-closed`'s, and it is closed here
-/// for the same reason it is closed there: a case that could name a request no
-/// runner implements is a case that passes by being skipped. Each is spelled
-/// as LSP's own method name with the `textDocument/` prefix dropped, and
-/// `nvs/redactions` — the one request of Novis's own — as `redactions`.
+/// The roster is `rule:ide/the-request-set-is-closed`'s, plus the requests
+/// `rule:ide/five-features-are-one-reference-index` answers off the workspace
+/// index, and it is closed here for the same reason it is closed there: a case
+/// that could name a request no runner implements is a case that passes by
+/// being skipped. Each is spelled as LSP's own method name with the
+/// `textDocument/` prefix dropped, and `nvs/redactions` — the one request of
+/// Novis's own — as `redactions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Request {
     /// `textDocument/publishDiagnostics`, phase-gated unless `phase=all`.
@@ -73,6 +75,9 @@ pub enum Request {
     DocumentLink,
     /// `textDocument/codeAction`.
     CodeAction,
+    /// `textDocument/codeLens`, asked with `nvs.codeLens.enable` at the
+    /// roster's own default, which is on.
+    CodeLens,
     /// `nvs/redactions`.
     Redactions,
 }
@@ -90,6 +95,7 @@ impl Request {
         Self::FoldingRange,
         Self::DocumentLink,
         Self::CodeAction,
+        Self::CodeLens,
         Self::Redactions,
     ];
 
@@ -107,6 +113,7 @@ impl Request {
             Self::FoldingRange => "foldingRange",
             Self::DocumentLink => "documentLink",
             Self::CodeAction => "codeAction",
+            Self::CodeLens => "codeLens",
             Self::Redactions => "redactions",
         }
     }

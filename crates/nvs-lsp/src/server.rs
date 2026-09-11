@@ -750,6 +750,42 @@ fn code_lens(
     )
 }
 
+/// The settings one `.lspt` case is answered under.
+///
+/// The roster's own defaults, except that the scope is the directory the
+/// runner materialised the case into: a case's `--FILE--` sections are the
+/// whole of its world, so `Workspace` over that directory is what makes the
+/// index hold exactly them and nothing of the host it ran on. Under the
+/// default scope the readers that are only correct at workspace scope would
+/// freeze an answer no case could have selected
+/// (`rule:ide/check-scope-defaults-to-open-documents`).
+fn case_settings(root: &Path) -> Settings {
+    Settings {
+        scope: CheckScope::Workspace,
+        root: Some(root.to_owned()),
+        ..Settings::default()
+    }
+}
+
+/// [`code_lens`] for one `.lspt` case, over an index built for that case alone.
+///
+/// The index is built here and not in [`crate::suite`] because this module is
+/// the one that owns one: a runner holding its own would be the second builder
+/// of the thing `rule:ide/five-features-are-one-reference-index` keeps to one,
+/// which is what `crates/nvs-lsp/tests/index.rs` counts. A case is one
+/// document at one moment, so this index is built for the question and dropped
+/// with the answer — the refresh a session needs has nothing to do here.
+pub(crate) fn lenses_of_case(
+    documents: &Documents,
+    root: &Path,
+    uri: &Uri,
+    encoding: PositionEncoding,
+) -> Option<Vec<CodeLens>> {
+    let settings = case_settings(root);
+    let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
+    code_lens(documents, &index, &settings, encoding, uri)
+}
+
 /// What a lens says above a declaration `count` things refer to.
 ///
 /// Singular, plural, and a word rather than a `0`: the line is read above a

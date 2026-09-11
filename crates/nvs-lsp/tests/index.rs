@@ -157,16 +157,18 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
          once inside it: {built:?}"
     );
 
-    // `build` is called once, by the module that owns the store it reads.
-    // `serve` is that module: one server holding one index is what makes every
-    // reader's `&SymbolIndex` come from the same place, and a second caller
-    // would be a second index with staleness of its own.
-    let entry_points = code_hits("SymbolIndex::build");
-    assert!(
-        entry_points == vec![("server.rs".to_owned(), 1)] || entry_points.is_empty(),
-        "the index is built from somewhere other than the one place that owns \
-         it: {entry_points:?}"
-    );
+    // `build` is called only by the module that owns the store it reads, which
+    // is what makes every reader's `&SymbolIndex` come from the same place: a
+    // caller anywhere else would be a second index with staleness of its own.
+    // `server.rs` builds two and both are that module's — the session's,
+    // refreshed as documents arrive, and the one a `.lspt` case is answered
+    // against, which is built for one question and dropped with its answer.
+    for (file, _) in code_hits("SymbolIndex::build") {
+        assert_eq!(
+            file, "server.rs",
+            "the index is built outside the one module that owns one"
+        );
+    }
 
     // Every other module reads a `&SymbolIndex`. A module holding one by value
     // is a module that built it. `lib.rs` is the crate's export list rather

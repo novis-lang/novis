@@ -12,9 +12,10 @@
 //! nothing with `nvs test`'s**: two suites answering two questions, and a
 //! summary that meant both would mean neither.
 //!
-//! `--coverage` prints [`crate::coverage`]'s matrix **instead of** that line,
-//! never under it: the driver reads the last line, so a run reports one thing
-//! or the other. The matrix comes out of the same pass — a case is answered
+//! `--coverage` prints [`crate::coverage`]'s matrix **above** that line and
+//! never in place of it: a run whose report ended in a matrix would be a run
+//! with no verdict in it, and what a coverage run is gated on is still the
+//! corpus passing. The matrix comes out of the same pass — a case is answered
 //! once and its constructs are read off the analysis that answered it — which
 //! is why [`Outcome`] carries both.
 //!
@@ -107,15 +108,15 @@ pub struct Outcome {
 
 /// What a run prints when it is done.
 ///
-/// The two are alternatives rather than one plus the other: `tools/loop.py`'s
-/// `nvs-suite` check reads the last line as `N passed, M failed`, so a matrix
-/// printed under it would be a summary the driver could not find, and a matrix
-/// printed over it is a report for a person.
+/// Whether the matrix comes first, never whether the verdict comes at all:
+/// `tools/loop.py`'s `nvs-suite` check reads the last line as `N passed, M
+/// failed`, so the matrix goes above it, where it is a report for a person and
+/// the line under it is still the one the driver finds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Report {
-    /// `N passed, M failed`, the line the loop parses.
+    /// The verdict alone.
     Summary,
-    /// The request × construct matrix instead.
+    /// The request × construct matrix, and the verdict under it.
     Coverage,
 }
 
@@ -192,14 +193,14 @@ pub fn run(paths: &[PathBuf], out: &mut dyn Write, report: Report) -> io::Result
             }
         }
     }
-    match report {
-        Report::Summary => writeln!(
-            out,
-            "{} passed, {} failed",
-            outcome.summary.passed, outcome.summary.failed
-        )?,
-        Report::Coverage => write!(out, "{}", outcome.matrix.render())?,
+    if report == Report::Coverage {
+        write!(out, "{}", outcome.matrix.render())?;
     }
+    writeln!(
+        out,
+        "{} passed, {} failed",
+        outcome.summary.passed, outcome.summary.failed
+    )?;
     Ok(outcome)
 }
 
@@ -270,6 +271,7 @@ pub(crate) fn answer(case: &Case) -> Result<Answered, String> {
         Request::FoldingRange => folding_range(&analysed),
         Request::DocumentLink => document_link(&analysed, &files),
         Request::CodeAction => code_action(&analysed, at(case)),
+        Request::CodeLens => code_lens(&documents, &files, &entry),
         Request::Redactions => redactions(&analysed),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
@@ -540,6 +542,24 @@ fn code_action(analysed: &Analysed, offset: BytePos) -> Response {
 /// [`crate::redactions::for_document`] call the server makes answers it.
 fn redactions(analysed: &Analysed) -> Response {
     Response::Redactions(crate::redactions::for_document(analysed, COLUMNS))
+}
+
+/// `textDocument/codeLens` — what the index counts above every declaration the
+/// entry document makes.
+///
+/// The one arm that is not answered from the analysis: a lens is a count of
+/// uses across the workspace, so it comes from the index `crate::server`'s
+/// `lenses_of_case` builds over this case and its `--FILE--` sections. No
+/// cursor and no arguments, on [`folding_range`]'s terms.
+///
+/// The runner asks with `nvs.codeLens.enable` at the roster's default, which
+/// is on, so the `None` that setting buys is never what a case freezes — a
+/// case writes a document and a question, never a setting, and the refusal has
+/// a `-p nvs-lsp` test of its own.
+fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Response {
+    Response::CodeLens(
+        crate::server::lenses_of_case(documents, &files.dir, entry, COLUMNS).unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]

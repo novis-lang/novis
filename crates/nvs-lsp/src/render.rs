@@ -32,8 +32,8 @@
 use std::fmt;
 
 use lsp_types::{
-    CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents, MarkedString,
-    Position, Range, SelectionRange, SemanticToken,
+    CodeLens, CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents,
+    MarkedString, Position, Range, SelectionRange, SemanticToken,
 };
 
 use crate::case::Request;
@@ -155,6 +155,11 @@ pub enum Response {
     DocumentLink(Vec<Link>),
     /// `textDocument/codeAction`.
     CodeAction(Vec<Action>),
+    /// `textDocument/codeLens`, as the server answers it with
+    /// `nvs.codeLens.enable` on. The refusal that setting buys is a `None`
+    /// answer and not an empty list, and it is nothing this renders: no case
+    /// can write a setting.
+    CodeLens(Vec<CodeLens>),
     /// `nvs/redactions`.
     Redactions(Vec<Redaction>),
 }
@@ -174,6 +179,7 @@ impl Response {
             Self::FoldingRange(_) => Request::FoldingRange,
             Self::DocumentLink(_) => Request::DocumentLink,
             Self::CodeAction(_) => Request::CodeAction,
+            Self::CodeLens(_) => Request::CodeLens,
             Self::Redactions(_) => Request::Redactions,
         }
     }
@@ -196,6 +202,7 @@ impl Response {
             Self::FoldingRange(items) => lines(items.iter().map(folding_range).collect()),
             Self::DocumentLink(items) => lines(items.iter().map(link).collect()),
             Self::CodeAction(items) => lines(sorted(items.iter().map(action))),
+            Self::CodeLens(items) => lines(sorted(items.iter().map(lens))),
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
         }
     }
@@ -457,6 +464,21 @@ fn redaction(item: &Redaction) -> String {
     format!("{} {}", range(item.range), item.kind)
 }
 
+/// `L:C title`, keyed by the bytes the lens is anchored to.
+///
+/// Where those bytes start and not how far they run: they are the
+/// declaration's own name, whose extent `documentSymbol` already freezes, and
+/// two lenses above two members written on one line have to be two entries a
+/// reader can tell apart. A lens whose command nobody set renders [`ABSENT`],
+/// which is also what an editor shows above one.
+fn lens(item: &CodeLens) -> ((u32, u32, u32, u32), String) {
+    let title = or_absent(item.command.as_ref(), |command| command.title.clone());
+    (
+        span_key(item.range),
+        format!("{} {title}", position(item.range.start)),
+    )
+}
+
 /// `L:C-L:C kind title -> "replacement"`.
 ///
 /// The replacement is the one field a rendering quotes, and it is quoted
@@ -611,6 +633,15 @@ mod tests {
                 range: span(1, 6, 18),
                 replacement: "UserAccount".to_owned(),
             }]),
+            Response::CodeLens(vec![CodeLens {
+                range: span(1, 6, 10),
+                command: Some(lsp_types::Command {
+                    title: "2 references".to_owned(),
+                    command: String::new(),
+                    arguments: None,
+                }),
+                data: None,
+            }]),
             Response::Redactions(vec![Redaction {
                 range: span(3, 18, 30),
                 kind: "secretLiteral".to_owned(),
@@ -631,6 +662,7 @@ mod tests {
             Response::FoldingRange(Vec::new()),
             Response::DocumentLink(Vec::new()),
             Response::CodeAction(Vec::new()),
+            Response::CodeLens(Vec::new()),
             Response::Redactions(Vec::new()),
         ]
     }
