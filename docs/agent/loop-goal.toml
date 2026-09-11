@@ -126,6 +126,11 @@ modules = [
   "crates/nvs-lsp/src/index.rs",
   # A position on the wire, and the byte offset under it.
   "crates/nvs-lsp/src/position.rs",
+  # Which of an analysis's diagnostics an editor is shown, and what one looks like once it is on
+  # the wire.
+  "crates/nvs-lsp/src/diagnostics.rs",
+  # The `nvs.*` settings the client configured, and what they mean when it configured nothing.
+  "crates/nvs-lsp/src/settings.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
