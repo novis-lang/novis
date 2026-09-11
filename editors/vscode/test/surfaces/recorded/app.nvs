@@ -1,7 +1,7 @@
 <?nvs
-// The program `check.txt` beside this file is a recording of. It is written to put three
-// diagnostics under two codes into one rendering, with the last of them past line 9 so the
-// gutter widens and its `-->` line is indented one column further than the others'.
+// The program `check.txt` and `ast.json` beside this file are recordings of. Three diagnostics
+// under two codes, the last past line 9 so the `-->` gutter widens by a column; then an operator
+// and a bool, which are the two shapes of scalar field a node of the AST document carries.
 function total(): int {
     return 1;
 }
@@ -9,3 +9,6 @@ function total(): int {
 echo $total;
 
 echo $missing;
+
+echo 1 + 2;
+echo true;

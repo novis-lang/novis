@@ -1265,16 +1265,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   real editor holds. Stub the missing scope in `editors/vscode/test/grammar/tokenize.ts` as
   `text.html.basic` already is, rather than hunting a regex that looks wrong.
   [until: gone editors/vscode/test/grammar/tokenize.ts:PHP_STUB]
-- **`editors/vscode`'s headless gate is red on purpose, and exactly two names are the whole of
-  it.** `contributions.test.ts` asserts that every contributed command reaches a `registerCommand`
-  call and every contributed setting reaches a reader, which `nvs.showAst` and `nvs.lsp.debounce` do
-  not — the manifest is a frozen roster rather than a list of what works, so an identifier is
-  contributed early to keep a keybinding stable and
-  `rule:ide/contributions-are-frozen-and-only-ever-added` forbids the repair that would delete one.
-  Read the two failure lists before treating a red `extension` step as yours: those two names are
-  the designed state, goal `editor-surfaces`' stage 4 and the server half of its stage 0 are what
-  close them, and widening either assertion is the same refused repair in a different file.
-  [until: exists editors/vscode/src/extension.ts:nvs.showAst]
 - **`session.py --wrap` cannot commit a rename: a `## commit:` naming the path that went away is
   refused with "no such path", and naming only the new one leaves the deletion uncommitted.** Every
   named path is checked against the disk before a byte is written, and the commit it makes is
@@ -1658,6 +1648,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   spelling as a `Subcommand` variant first: the enum, `args()`, the parser arm, that arm's error
   message and the section table in `crates/nvs-test/src/lib.rs`, which is five edits in two files.
   [until: gone crates/nvs-test/src/case.rs:pub enum Subcommand]
+- **A `surfaces` suite assertion runs over the client's source as text, so a comment can fail it.**
+  Those tests assert what a module does *not* do — `tasks.ts` spawns no `child_process`, the AST
+  panel never passes `--strict` — by matching the file, and the module doc explaining why it does
+  not do that names the very string the assertion refuses. Strip the comments before matching, the
+  way `editors/vscode/test/surfaces/ast.test.ts` does, or keep the prose off that spelling.
+  [until: gone editors/vscode/test/surfaces/tasks.test.ts:child_process]
 
 ## Running things
 

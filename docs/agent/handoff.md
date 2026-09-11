@@ -2,52 +2,53 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Stage 3 is landed whole.** `contributes` now holds
-`taskDefinitions` (one type, `nvs`, requiring `command` and `file`) and one `problemMatchers` entry
-named `nvs`, a two-line regex over the renderer's format. `src/tasks.ts` builds the Task both entry
-points run, `src/binary.ts` is the one home for which `nvs` is spawned — the server in
-`extension.ts` reads it too — and `nvs.run`/`nvs.test` are registered beside the other four
-commands. `rule:ide/tasks-carry-a-problem-matcher` is `shipped` and names that suite as its guard.
+**Goal `editor-surfaces` — milestone M10. Stage 4 is landed whole.** `nvs.showAst` is registered
+beside the other five commands, `editors/vscode/src/ast.ts` is the panel — it shells out to
+`nvs ast --json`, reads standard output whatever the exit status was, and hangs the document in a
+`TreeDataProvider` — and `editors/vscode/src/nodes.ts` is the vscode-free half that decides what a
+node reads as. The manifest contributes one `views.explorer` entry, `nvs.ast`, collapsed, with a
+`viewsWelcome` that runs the command.
 
-**The `surfaces:` suite exists**, at `editors/vscode/test/surfaces/`, printing `surfaces: 8
-passing`. It runs the contributed matcher over `recorded/check.txt`, which is byte-identical to what
-`target/debug/nvs` prints for `recorded/app.nvs` — three diagnostics under two codes, one of them
-past line 9 so the widened gutter is covered, and the `aborting due to` summary asserted to start no
-entry. Stages 4 to 6 add files to that directory rather than a suite of their own.
+**Stage 0's command half is closed.** Every contributed command now reaches a `registerCommand`,
+and headless is `205 passing, 1 failing` — the one is `nvs.lsp.debounce`, contributed and nothing
+reads it, which is the next group below. `docs/agent/playbook.md:1268` is still what says the
+`extension` step of the gate is red on purpose.
 
-**Stage 0 is down to two names, and neither is stage 3's.** `nvs.showAst` is stage 4 and
-`nvs.lsp.debounce` is the server half; headless is `192 passing, 2 failing` and
-`docs/agent/playbook.md:1268` is what says the `extension` step is red on purpose. Nothing else in
-the gate is red.
+**The `surfaces:` suite is 20 passing.** `recorded/ast.json` is byte-identical to what
+`target/debug/nvs` prints for `recorded/app.nvs`, which now ends in `echo 1 + 2;` and `echo true;`
+so the recording carries both shapes of scalar field the schema has — a word and a flag.
+`check.txt` is unchanged by that edit and was re-recorded to prove it, so stage 3's assertions
+still stand on the same program.
+
+**A span is bytes; every editor position is UTF-16 code units.** `nodes.ts`'s `index()` converts,
+and the suite pins it over an accented letter and an astral character. Anything else in this
+client that turns a compiler offset into a `Position` owes the same conversion.
 
 **`nvs test --list` still has no consumer** — stage 5's explorer is its only one, per
 `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`.
 
 ## Next group
 
-**Stage 4: the AST panel** — one file set: `editors/vscode/src/extension.ts`, a new
-`editors/vscode/src/ast.ts` beside `tasks.ts`, and `editors/vscode/test/surfaces/`. It answers the
-last of stage 0's three unanswered commands, and closes the command half of stage 0's check.
+**Stage 0: the last unanswered setting** — one file set: `crates/nvs-lsp/src/settings.rs` and
+`crates/nvs-lsp/src/server.rs`. It closes the check the driver is red on, whose other half landed
+this session; `editors/vscode/test/contributions/contributions.test.ts` is the gate and needs no
+edit.
 
-- [ ] **`nvs.showAst` registered, beside the two this session answered**, per
-      `rule:ide/the-ast-panel-shells-out-to-the-cli`: the roster's last unanswered id, joining
-      `editors/vscode/src/extension.ts:78`. It shells out rather than parsing anything in the
-      client, so what it needs from `tasks.ts` is only the binary — `src/binary.ts:15`.
-- [ ] **The panel renders `nvs ast --json` for the active file as a tree**, per
-      `rule:ide/ast-json-schema-is-frozen`: the document is `kind`, `span`, the node's own scalars
-      and `children`, built at `crates/nvs-cli/src/ast.rs:101`, and resilient by default so the
-      panel works on a file that does not compile. No second schema and no parser in the client;
-      `rule:ide/the-extension-builds-no-ui-the-editor-already-has` puts it in a `TreeView`.
-- [ ] **A recorded `nvs ast --json` in the `surfaces` suite**, the way the matcher is recorded:
-      a fixture beside `editors/vscode/test/surfaces/recorded/app.nvs`, and an `ast.test.ts` beside
-      `editors/vscode/test/surfaces/tasks.test.ts:1` asserting the shape the panel walks. Record it
-      from the built binary and diff it back, rather than hand-writing what it should print.
+- [ ] **`Settings` learns `nvs.lsp.debounce`**, per
+      `rule:ide/contributions-are-frozen-and-only-ever-added`: a contributed setting is answered,
+      never removed. It joins the three reads at `crates/nvs-lsp/src/settings.rs:113`, and the
+      contributions suite matches the literal `&["lsp", "debounce"]`, so the path is spelled that
+      way or the gate stays red however the value is read.
+- [ ] **The change notification defers re-analysis by it**, at `crates/nvs-lsp/src/server.rs:1290`,
+      which is `DidChangeTextDocument`'s arm. No rule specifies what the interval *means* —
+      `python tools/brief.py --where debounce` finds none — so take the roster's own sentence and
+      that module doc's "a setting reaches this server exactly once": hold the analysis for that
+      many milliseconds after the last change, publish once, and treat `0` as no wait.
 
 ## Backlog
 
-- `nvs.lsp.debounce` is contributed and read by nobody: the client forwards the whole `nvs` section
-  already, so the half that is missing is `crates/nvs-lsp/src/settings.rs` reading
-  `&["lsp", "debounce"]` and the analysis scheduler honouring it. Goal stage 0, second half.
-- Stage 5's Test Explorer over `nvs test --list` and `--format=json` `schemaVersion: 2`.
-- Stage 6's `nvs/regions` request and the embedded HTML/CSS/JS services.
-- A `.vscodeignore` is still absent, so `vsce package` ships `test/` and its recordings.
+- Stage 5, the Test Explorer, and the only consumer `nvs test --list` has — `docs/agent/loop-goal.md` § *Stage 5*.
+- Stage 6, the inline-HTML region and `nvs/regions` — `rule:ide/a-template-region-gets-services-but-no-second-formatter`.
+- The AST panel re-reads on save of the file it is showing and on nothing else — `editors/vscode/src/ast.ts`.
+- `[context] modules` does not name `crates/nvs-lsp/src/server.rs`, which the next group edits; the pack printed only `settings.rs` for that crate.
+- `docs/decisions/` still owes this goal's one ADR, for stage 2's schemas and stage 5's explorer shape — `docs/agent/loop-goal.md` § *Standing decisions*.
