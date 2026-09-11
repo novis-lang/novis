@@ -1,0 +1,11 @@
+--TEST--
+the run of markup is one production, so expanding from inside it selects the whole region and stops — the tag structure within it is the editor's HTML service's, `rule:ide/a-template-region-gets-services-but-no-second-formatter`
+--FILE--
+<?nvs
+var $name = "world";
+?>
+<p>hel<|>lo</p>
+--REQUEST--
+selectionRange
+--EXPECT--
+4:1-5:1

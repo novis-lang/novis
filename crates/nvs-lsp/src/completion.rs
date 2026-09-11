@@ -294,8 +294,8 @@ enum Asked {
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
-    /// Nothing this module answers: the receiver half of an access, or one
-    /// whose receiver resolved to no class.
+    /// Nothing this module answers: a cursor in a run of markup, the receiver
+    /// half of an access, or one whose receiver resolved to no class.
     Nothing,
 }
 
@@ -319,6 +319,17 @@ fn members_of(analysed: &Analysed, class: &QName, reach: Reach) -> Vec<Completio
 /// below nothing and buys the receiver half of `Core\Str::` an answer it would
 /// otherwise be refused for standing before the receiver's end.
 fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
+    // A cursor inside a run of markup is not writing a program, and a keyword
+    // list offered there inserts text the page would render rather than run.
+    // The editor's own HTML service answers here instead, inside the region
+    // `crate::regions` reports
+    // (`rule:ide/a-template-region-gets-services-but-no-second-formatter`) —
+    // which is what makes this an answer rather than a gap, and what separates
+    // markup from the other three spellings in `NOT_CODE`: a cursor in a string
+    // has nothing else to ask.
+    if path.innermost().is_some_and(|node| node.kind == MARKUP) {
+        return Asked::Nothing;
+    }
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);
     }
@@ -370,7 +381,11 @@ fn ended_at(analysed: &Analysed, offset: BytePos) -> Option<(IndexNode, Reach)> 
 /// the one question only the tree can answer is whether the cursor is writing
 /// a program at all. `Whitespace` is `nvs_syntax::walk`'s node for a comment
 /// too, which is why a comment needs no entry of its own.
-const NOT_CODE: &[&str] = &["Str", "Interpolated", "InlineHtml", "Whitespace"];
+const NOT_CODE: &[&str] = &["Str", "Interpolated", MARKUP, "Whitespace"];
+
+/// `nvs_syntax::walk`'s name for a run of inline markup, which is the one
+/// entry of [`NOT_CODE`] that another language service answers inside.
+const MARKUP: &str = "InlineHtml";
 
 /// The namespace the name being written at `offset` reaches into, as its
 /// segments, or `None` where that name carries no separator.
