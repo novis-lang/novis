@@ -66,6 +66,13 @@
 //! so a connection isolate's loop is straight-line code and not a second
 //! `async` seam.
 //!
+//! [`sse`] is the other door's framing, and it is the opposite shape: a
+//! function over bytes, holding no descriptor and no clock, because an event
+//! is framed by whoever has the payload and written by whoever has the body.
+//! Its own docs are why a payload is normalized before it is split, which is
+//! what stops a program escaping its own event; nothing there is re-exported
+//! at the crate root, so an event is written `sse::Event` wherever one is.
+//!
 //! [`schedule`] is the other thing this core runs, and it is a **second task on
 //! the same scheduler** rather than a second scheduler: `rule:config/a-scheduled-run-is-a-root-isolate`'s ticker,
 //! sleeping until the soonest `[[schedule]]` fire and spawning each one as a
@@ -114,6 +121,7 @@ pub mod schedule;
 pub mod secure;
 pub mod serve;
 pub mod socket;
+pub mod sse;
 pub mod statics;
 pub mod trace;
 

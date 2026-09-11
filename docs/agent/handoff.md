@@ -2,60 +2,61 @@
 
 ## State
 
-**Goal `event-streams` — stages 0 and 1 are landed, and nothing of stages 2 to 6 is.** A response
-body can now be written over time in Rust; no Novis program can reach one yet.
+**Goal `event-streams` — stages 0, 1 and 2 are landed, and nothing of stages 3 to 6 is.** A response
+body can be written over time in Rust and an event can be framed into bytes; no Novis program can
+reach either yet.
 
 **The cell is `crates/nvs-runtime/src/stream.rs`**: `stream::open(send_timeout) -> (Emit, Drain)`,
-one chunk in flight, the writer parked until the connection has taken it, the wait bounded by the
-send timeout and ended at once by a dropped consumer. Its module doc is the home of why it holds two
-kinds of wake and one `Rc`. **Neither half is re-exported at the crate root** — `nvs_runtime::Drain`
-is the server's drain bit — so both are written `stream::` at every call site.
+one chunk in flight, the writer parked until the connection has taken it. `Emit::send` takes a
+`Vec<u8>`, which is what stage 2's framing returns. Neither half is re-exported at the crate root,
+so both are written `stream::` at every call site.
+
+**The framing is `crates/nvs-server/src/sse.rs`**, new and pure: `sse::Event { data, event, id,
+retry }` with `frame() -> Result<Vec<u8>, sse::Refused>`, and `sse::KEEPALIVE`. It holds no socket
+and no clock, so it needs no server to prove, and its module doc is the home of why a payload is
+normalized to `\n` before it is split. It is **not re-exported** at the crate root either —
+`nvs_server::Event` would be a name with no subject — so it is written `sse::Event`.
 
 **`Answer` is two-valued** at `crates/nvs-server/src/serve.rs:116`: `Whole(Option<Bytes>)`, whose
-exact `size_hint` and `Content-Length` are untouched, and `Streaming(stream::Drain)`, which reports
-no exact size and is chunk-framed on the wire. `Answer::stream(&bounds::Connection)` is the only
-place the send timeout is read, and `Answer::bytes` still answers the whole arm's buffer, which
-`crates/nvs-server/src/statics.rs`'s cases depend on.
+exact `size_hint` and `Content-Length` are untouched, and `Streaming(stream::Drain)`.
+`Answer::stream(&bounds::Connection)` is the only place the send timeout is read.
 
-**Nothing outside a test constructs a streaming `Answer`.** No route answers one and no `Core` member
-opens one, so `Core\Sse::upgrade` still starts an isolate with nothing wired to a body
-(`crates/nvs-server/src/serve.rs:938`). The doors are stages 3 and 4.
+**Nothing outside a test constructs a streaming `Answer` or frames an event.** No route answers one
+and no `Core` member opens one, so `Core\Sse::upgrade` still starts an isolate with nothing wired to
+a body (`crates/nvs-server/src/serve.rs:938`). The doors are stages 3 and 4.
 
-**Record `docs/decisions/0176.md` is open** with the stage 0 correction and nothing else: its
-`changes:` names no rule yet, and stage 6 is where the rules it modifies are named on both sides.
-
-`Phase::Write`'s trap (`crates/nvs-server/src/io.rs:116-129`) is still ahead of this work and
-unchanged — a heartbeat is derived from `write_idle`, never configured beside it. The goal's
-§ *Standing decisions* stayed authoritative; none of it was re-opened.
+**Record `docs/decisions/0176.md` is open** with the stage 0 correction and nothing else; stage 6 is
+where the rules it modifies are named on both sides. `Phase::Write`'s trap
+(`crates/nvs-server/src/io.rs:116-129`) is still ahead of this work and unchanged.
 
 ## Next group
 
-**Stage 2: the framing, as a function over bytes** — one file set: `crates/nvs-server/src/sse.rs`,
-new and registered beside `pub mod socket;` at `crates/nvs-server/src/lib.rs:116`, with
-`crates/nvs-server/src/socket.rs:148`'s `Framed` as the sibling shape it is written against. It
-shares no file with stage 1 and needs no server to prove.
+**Stage 3: door two, the surface half** — one file set: the two registries and the type checker's
+body-writer table. `serve.rs`'s head-early path (goal prose stage 3 item 12, the largest change in
+the goal) is deliberately **not** in this group: it shares no file with these three and is the group
+after.
 
-- [ ] **Normalize every payload to `\n`, then split it, one `data:` line per line.** The client
-      parser terminates a line on `\r\n`, on `\r` **and** on `\n`, so a lone `\r` in a payload splits
-      into two events on the far side; normalizing first is what makes the taint call in the goal's
-      § *Standing decisions* sound rather than hopeful. Shape it on
-      `crates/nvs-server/src/socket.rs:148`.
-- [ ] **The three refusals, each named in its own message** — an `$event` or `$id` carrying `\n`,
-      `\r` or NUL, and an empty `$data`, all `LogicError` and all the framing's rather than the
-      member's. The reasoning is the goal's § *Standing decisions*; `docs/decisions/0176.md` is where
-      stage 6 writes it down. Register the module at `crates/nvs-server/src/lib.rs:116`.
-- [ ] **The optional fields, the terminator and the keepalive** — `event:`, `id:`, `retry:` as ASCII
-      milliseconds, one blank line to terminate, no BOM ever. The keepalive `:\n\n` is written by the
-      connection side alone, since only it knows the wire is idle;
-      `rule:concurrency/connection-bounds-are-finite` is the table its period joins in stage 5, next
-      to `crates/nvs-server/src/bounds.rs:86`.
+- [ ] **`Core\Response::stream(string $contentType): Core\Response\Stream`, and that class's one
+      member `write(string|bytes $chunk): void`.** The head goes out when `stream` is called and the
+      body ends when the isolate does. `$contentType` is a sink and `$chunk` is not
+      (`rule:security/sink-predicate`); the row goes beside `json`'s at
+      `crates/nvs-stdlib/src/response.rs:239`, whose marks are the ones to copy.
+- [ ] **`Core\Sse::stream(): Core\Sse`** — the same door with `text/event-stream` over it and
+      `crates/nvs-server/src/sse.rs`'s framing behind it, answering the same handle `current()` will,
+      so a helper taking `Core\Sse` works from either side (goal § *Standing decisions*, one type
+      across both doors). The rows are `crates/nvs-stdlib/src/sse.rs:63`.
+- [ ] **Both members are body writers, so `echo` beside one is a compile error.** One entry each in
+      `crates/nvs-types/src/response.rs:68`'s `BODY_MEMBERS`, installed by
+      `crates/nvs-types/src/check.rs:665` — `rule:security/response-body-is-one-typed-member`'s
+      existing machinery and nothing new. This is what turns the stage's `nvs-types` check green:
+      `echo_beside_a_response_stream_is_a_diagnostic`,
+      `echo_beside_an_event_stream_is_a_diagnostic`, `two_body_writers_on_one_response_is_a_diagnostic`.
 
 ## Backlog
 
-- Stage 3 is where a streaming `Answer` first reaches a route, and it opens `serve.rs` again —
-  `docs/agent/loop-goal.md` § *Stage 3*.
-- `0176`'s `changes:` block and the four rules it modifies are stage 6's — `docs/agent/loop-goal.md`
-  § *Stage 6*.
-- The derived heartbeat reads `write_idle` at `crates/nvs-config/src/server.rs:97` — stage 5.
-- `Emit` reports a truncated stream as a clean end; a writer that failed has no separate word yet —
-  `crates/nvs-runtime/src/stream.rs`.
+- `serve.rs` answers a head while the isolate still runs — goal prose stage 3 item 12, its own group.
+- The three stage 3 `.nvst` cases need both halves landed — `docs/agent/loop-goal.toml:8441`.
+- `setStatus` on a path that opens an event stream is refused — goal § *Standing decisions*.
+- The goal's per-stage prose (`docs/agent/loop-goal.md` § *Stage N*, the numbered items) is not in
+  the pack and no `[context]` field selects it; `sed -n '/## Stage 3/,/## Stage 4/p'` is one call.
+- Carried gaps that outlive this goal: `docs/agent/carried-gaps.md`.
