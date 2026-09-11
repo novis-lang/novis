@@ -143,6 +143,9 @@ modules = [
   # `write_idle`'s default (:97) and the parser that accepts an operator's own value. Stage 5 item
   # 19 derives the heartbeat from this and asserts the relation across everything it accepts.
   "crates/nvs-config/src/server.rs",
+  # A response body written over time, at the one seam where it crosses between two tasks: the
+  # isolate that writes it, and the connection that frames it onto the wire.
+  "crates/nvs-runtime/src/stream.rs",
 ]
 
 # The rules every stage of this goal works inside.
