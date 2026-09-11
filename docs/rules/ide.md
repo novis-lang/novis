@@ -230,11 +230,12 @@ rather than new work.
 
 <a id="ide-the-request-set-is-closed"></a>
 
-## M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing  *(designed — not yet in the compiler)*
+## M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing  *(designed — not yet in the compiler)*
 
 `rule:ide/the-request-set-is-closed`
 
-M4B answers nine standard requests and no more, plus exactly one of Novis's own. Each is named because
+M4B answers nine standard requests plus exactly one of Novis's own, and M10 adds eight more, each one
+admitted on the same test: the data structure the milestone already builds *is* the answer. Each is named because
 "minimal" without a list is how scope grows: `publishDiagnostics` (the existing `nvs check` pipeline, at
 the negotiated encoding, `code` set, phase-gated per [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated)); `hover`
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
@@ -248,12 +249,33 @@ The one non-standard request is `nvs/redactions`
 ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
 show this to the room".
 
-The last three standard ones are admitted on one test — the data structure M4B already builds *is* the
-answer — and that test is what keeps the list from drifting toward M10's catalog, where `documentHighlight`,
-inlay hints and everything else stay. `codeDescription` is not set: it takes a URL per code and there is
-no site to point one at.
+The last three standard ones are admitted on that test rather than on being useful, and the test is what
+keeps the list from growing: a candidate either reads a structure the milestone already built or waits for
+the milestone that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
+point one at.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
+M10's eight are admitted the same way, and the structure each one reads is named for the same reason the
+nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
+and narrowed to the open file; `codeLens` counts that index's uses and walks its extends edge; and
+`typeHierarchy` — `prepare`, `supertypes` and `subtypes`, one request in three methods — walks the same
+edge both ways. Those four, with unused-member dimming, are
+[`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s five readers of the one index. `signatureHelp`,
+`typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
+eighth, and it is where ADR 0099 § 3's deferral is reversed — for the two idioms
+that stopped moving and no others, a `var` declaration's inferred type and a bare literal argument's
+parameter name, both read out of the type phase's own tables and never re-derived.
+
+Four of the eight carry `.lspt` vocabulary — `codeLens`, `references`, `documentHighlight` and `inlayHint`
+are rows in the coverage matrix. The other four are answered on the wire and held by a Rust test, because
+`nvs_lsp::render` has no canonical spelling for the shapes they answer and a case may not invent one
+([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)). Giving one of them a rendering makes it a case and
+changes nothing about the answer.
+
+`textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
+definition, so it would answer identically to `textDocument/definition`, and the crate names neither
+spelling of it.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 

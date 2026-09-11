@@ -28,11 +28,12 @@
 //!
 //! # What is answered
 //!
-//! The request set is closed: `rule:ide/the-request-set-is-closed` names nine
-//! standard requests, two code actions and exactly one of Novis's own, and
-//! [`capabilities`] is the single place that declaration is written.
-//! A tenth request is a decision, not an addition — ADR 0099 § 3
-//! holds the test a candidate has to pass.
+//! The request set is closed: `rule:ide/the-request-set-is-closed` names every
+//! standard request answered here, two code actions and exactly one of Novis's
+//! own, and [`capabilities`] is the single place that declaration is written.
+//! A request that is not on that list is a decision, not an addition — ADR 0099
+//! § 3 holds the test a candidate has to pass, and ADR 0171 § 2 is what it
+//! looks like applied to eight of them.
 //!
 //! # The open documents
 //!
