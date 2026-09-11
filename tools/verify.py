@@ -414,10 +414,9 @@ def steps_for(opts):
         # it, the file is accepted, and the setting silently does nothing. Sub-second, and
         # unscoped: it reads one Rust file and greps the rest, so `-p` has nothing to narrow.
         #
-        # It is red on purpose until stage 1 of goal `config-is-written` has decided each of the
-        # keys it names -- a reader, a deletion, or an `[unread: … owner: …]` trailer. Landing it
-        # green by pre-marking every key is how a gate becomes a rubber stamp. `--fast` and `-p`
-        # skip it while that holds.
+        # Every key the tree parses is decided one of three ways -- a reader, a deletion, or an
+        # `[unread: … owner: …]` trailer on the field's own doc comment -- and pre-marking a key
+        # to keep this step green is how a gate becomes a rubber stamp.
         steps.append(Step("directives", ["tools/directives.py", "--check"],
                           summarize_directives, exe=sys.executable))
     steps.append(Step("build", ["build", *scope], summarize_build))
