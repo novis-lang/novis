@@ -924,6 +924,27 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         let record = nvs_runtime::floor::uncaught(thrown);
         crate::ladder::escalate(isolate_ctx, &record);
     }
+    // `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`'s order, at the isolate root, which is
+    // where a served request ends: every `finally` has run, tiers 2 and 3 have
+    // had the failure above, and the queue comes after them so a misbehaving
+    // hook cannot starve the report. It is before `end_session` below because a
+    // hook is user code that may still write the record, and before the buffer
+    // is taken because what a hook writes is the child's own output and crosses
+    // at the await with the rest of it. It is also before the deferred work
+    // both callers run, which is that rule's last paragraph.
+    //
+    // A cancellation runs none of it (`rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`), and which of the
+    // remaining endings this is comes from the status the program recorded
+    // (`Ctx::set_ending`) — a `FATAL` among them, which the seam refuses. A
+    // pending throw with no status recorded is a `Program` written in Rust
+    // rather than compiled, and it is the same ending.
+    if !cancelled {
+        let outcome = match isolate_ctx.ending() {
+            Ok(()) if failed => Err(nvs_runtime::THROWN),
+            ending => ending,
+        };
+        isolate_ctx.drain_exit_hooks(outcome, thrown.as_ref());
+    }
     // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, at the end of the program that opened the
     // record: an HTTP request is a root isolate, so this is the line where a
     // request ends, and `Ctx::end_session` is the no-op an isolate that started
