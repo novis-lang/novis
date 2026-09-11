@@ -370,6 +370,19 @@ enum Command {
         // `rule:testing/inline-snapshots`.
         #[arg(long)]
         update: bool,
+        /// Report which `#[Test]` methods the program declares, and where each
+        /// one is written, without running any of them.
+        ///
+        /// This is what an editor's Test Explorer populates its tree from, and
+        /// it is answered from the table the compile already built — so a
+        /// program whose tests fail, hang or `exit` lists exactly as a passing
+        /// one does. It excludes `--update`, which rewrites what a run
+        /// produced, and a `.nvst` tree, which is discovered by walking a
+        /// directory rather than by compiling a program.
+        // `rule:testing/report-formats`, and `rule:ide/every-feature-is-staged-behind-its-dependency`
+        // is why the CLI surface lands before the client that reads it.
+        #[arg(long, conflicts_with = "update")]
+        list: bool,
     },
     /// Produce a build artifact from a checked program.
     ///
@@ -936,7 +949,8 @@ fn main() -> ExitCode {
             jobs,
             format,
             update,
-        } => run_test(&paths, filter, php, jobs, format, update, &cli.config),
+            list,
+        } => run_test(&paths, filter, php, jobs, format, update, list, &cli.config),
         Command::Build {
             file,
             openapi,
@@ -2026,6 +2040,10 @@ fn run_run(
 /// Each case is run by spawning **this** binary — `nvs_test::run` documents
 /// why a subprocess rather than an in-process compile — so a debug build
 /// tests itself and a release build tests itself, with nothing to configure.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one parameter per `Command::Test` flag; a struct here would be a second spelling of that variant"
+)]
 fn run_test(
     paths: &[PathBuf],
     filter: Option<String>,
@@ -2033,6 +2051,7 @@ fn run_test(
     jobs: Option<std::num::NonZeroUsize>,
     format: runner::Format,
     update: bool,
+    list: bool,
     config: &[PathBuf],
 ) -> ExitCode {
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
@@ -2063,9 +2082,17 @@ fn run_test(
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match front_end(path) {
-            Ok(checked) => runner::run(checked, &snapshot, format, filter, update),
+            Ok(checked) => runner::run(checked, &snapshot, format, filter, update, list),
             Err(code) => code,
         };
+    }
+    if list {
+        // A `.nvst` tree is discovered by walking directories, which is what
+        // the caller already did to name it, and a case file has no `#[Test]`
+        // table to locate. Refused rather than ignored, for `--update`'s reason
+        // just below.
+        eprintln!("error: `--list` locates a program's `#[Test]` methods, not a `.nvst` tree");
+        return ExitCode::FAILURE;
     }
     if update {
         // § 14's updater rewrites a `#[Test]` method's own snapshot literal,

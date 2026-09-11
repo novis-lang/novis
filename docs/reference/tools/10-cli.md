@@ -200,11 +200,17 @@ final class MathTest {
   program's `Class::method` — so `--filter Class::` selects one class's `#[Test]` methods.
 - `--format` chooses how a *program's* run is reported: `human` (the default — one line per test as
   it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
-  on standard output at the end: `schemaVersion`, `summary`, and one `tests[]` entry per test with
-  `class`, `method`, `verdict`, `durationMs`, and `reason`/`failures`/`attempts` where they apply),
+  on standard output at the end: `schemaVersion` is `2`, then `summary`, and one `tests[]` entry per
+  test with `class`, `method`, `file`, `line`, `column`, `verdict`, `durationMs`, and
+  `reason`/`failures`/`attempts` where they apply),
   or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
   error so that standard output is the document alone. Naming a machine format beside a `.nvst`
   tree is refused.
+- `--list` writes what the program declares without running any of it: under `human`, one
+  `Class::method  file:line` per test; under `json`, a `schemaVersion: 2` document whose `listed`
+  array holds one `{class, method, file, line, column}` per test and no summary, because nothing
+  ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
+  and a `.nvst` tree are each refused beside it.
 - `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
   (default `php`).
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that

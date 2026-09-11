@@ -1,0 +1,35 @@
+--TEST--
+`nvs test --list` says which tests a program declares and where each is written, without running one (`rule:testing/report-formats`)
+--RUN--
+test --list --format=json
+--FILE--
+<?nvs
+// § 22's discovery, which is what an editor's test tree is populated from: the
+// table the compile already built, read out and located. Both tests below
+// would say so if they ran -- the first echoes and fails, the second is a skip
+// the report would carry a reason for -- and the document has neither a
+// verdict nor a summary, because nothing ran.
+use Core\Test;
+
+final class ListedTest {
+    #[Test]
+    public function itWouldSayItRan(): void {
+        echo "this test ran\n";
+        Test::assertSame(1, 2);
+    }
+
+    // § 20's skip is a verdict, and a verdict is a property of a run: a
+    // skipped test is declared like any other, so it is listed like any other.
+    #[Test(skip: "still declared, so still listed")]
+    public function aSkippedTestIsDeclaredToo(): void {
+        Test::assertTrue(true);
+    }
+}
+--EXPECTF--
+{
+  "schemaVersion": 2,
+  "listed": [
+    {"class": "ListedTest", "method": "itWouldSayItRan", "file": "case.nvs", "line": 11, "column": 21},
+    {"class": "ListedTest", "method": "aSkippedTestIsDeclaredToo", "file": "case.nvs", "line": 19, "column": 21}
+  ]
+}

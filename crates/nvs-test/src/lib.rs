@@ -49,7 +49,7 @@
 //! | `--CLIENT_IP--` | the address the request's peer resolved to, on one line |
 //! | `--SCHEME--` | `http` or `https`, the scheme that request arrived over |
 //! | `--FILE <relative/path>--` | another file, written beside `--FILE--`; repeatable |
-//! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit` or `config dump --origin`: the command line `--FILE--` goes through |
+//! | `--RUN--` | `run` (the default), `test`, `test --format=json`, `test --format=junit`, `test --list --format=json` or `config dump --origin`: the command line `--FILE--` goes through |
 //!
 //! ## Which subcommand a case is run through
 //!
@@ -61,7 +61,11 @@
 //! and its order are visible nowhere else. § 22's machine formats are further
 //! spellings of the same thing — `test --format=json` and
 //! `test --format=junit` — because a report is observable only by being read,
-//! and a format nothing pins is a format that can drift. The roster is closed
+//! and a format nothing pins is a format that can drift.
+//! `test --list --format=json` is the same argument about the document that
+//! says what a program declares *without* running it: what it pins is that a
+//! case whose tests would fail produces the same listing a passing one does.
+//! The roster is closed
 //! to those spellings, so a misspelling is a parse error rather than a
 //! case quietly run the other way, and the section applies to `--FILE--`
 //! alone: `--SKIPIF--` and `--CLEAN--` are the runner's own scaffolding and

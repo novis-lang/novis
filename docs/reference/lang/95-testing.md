@@ -346,14 +346,21 @@ live wherever a class does: beside the code in one file, or in an entry file of 
 `autoload`s or `require`s the code under test — `nvs test tests.nvs` compiles that graph and runs
 only the `#[Test]` methods it declares.
 
-- `--format json` writes one JSON document to standard output at the end: `schemaVersion`, a
+- `--format json` writes one JSON document to standard output at the end: `schemaVersion` (`2`), a
   `summary` (`total`, `passed`, `failed`, `skipped`, `flaky`, `durationMs`) and a `tests` array
-  with one `{class, method, verdict, durationMs}` per case, plus `reason` for a skip, `failures`
+  with one `{class, method, file, line, column, verdict, durationMs}` per case — `file`, `line` and
+  `column` being where the `#[Test]` method's name is written, one-based, the same location
+  `nvs check --json` carries for a diagnostic — plus `reason` for a skip, `failures`
   (every message) for a failure, and `attempts` for a flaky test. `--format junit` writes JUnit
   XML: one `<testsuite>` per class, a `<testcase>` per test, `<skipped>`, `<failure>` with the
   first message as its attribute and all of them as its body, and `<flakyFailure>` for a flaky
   one. Under either machine format what the tests themselves `echo` goes to standard error, so
   standard output is the document alone.
+- `--list` answers which tests the program declares and where each is written, without running one:
+  a line per test under the human format, and under `--format json` a `schemaVersion: 2` document
+  whose `listed` array holds one `{class, method, file, line, column}` per test. It carries no
+  summary and no verdict — a listing is not a run — and it is what an editor's test tree is
+  populated from.
 - The exit status is `1` if any test failed, `0` otherwise, in every format.
 - `--filter <text>` runs only the tests whose name contains that text, case-sensitively: a `#[Test]`
   method's name is `Class::method` (`Class::method#0` for a data-provider row), so `--filter Class::`

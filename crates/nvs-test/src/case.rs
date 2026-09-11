@@ -163,6 +163,10 @@ pub enum Subcommand {
     TestJson,
     /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
     TestJunit,
+    /// `nvs test --list --format=json case.nvs` — § 22's discovery document is
+    /// the case, and what it says is that the program's tests were located
+    /// without being run.
+    TestListJson,
     /// `nvs config dump --origin` — the configuration tree the case wrote into
     /// its working directory is the case, and `rule:config/check-and-dump-audit-the-tree-offline`
     /// 's listing is the expectation.
@@ -179,6 +183,7 @@ impl Subcommand {
             Self::Test => &["test"],
             Self::TestJson => &["test", "--format=json"],
             Self::TestJunit => &["test", "--format=junit"],
+            Self::TestListJson => &["test", "--list", "--format=json"],
             Self::ConfigDumpOrigin => &["config", "dump", "--origin"],
         }
     }
@@ -492,12 +497,14 @@ pub fn parse(path: &Path, text: &str) -> Result<Case, ParseError> {
             "test" => Subcommand::Test,
             "test --format=json" => Subcommand::TestJson,
             "test --format=junit" => Subcommand::TestJunit,
+            "test --list --format=json" => Subcommand::TestListJson,
             "config dump --origin" => Subcommand::ConfigDumpOrigin,
             other => {
                 return Err(err(
                     format!(
                         "`--RUN--` is `run`, `test`, `test --format=json`, \
-                         `test --format=junit` or `config dump --origin`, not `{other}`"
+                         `test --format=junit`, `test --list --format=json` or \
+                         `config dump --origin`, not `{other}`"
                     ),
                     Some(line),
                 ));
