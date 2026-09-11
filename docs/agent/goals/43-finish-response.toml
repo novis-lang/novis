@@ -8654,7 +8654,17 @@ kind = "cargo-named"
 stage = "5 the record"
 name = "the spec rows this goal adds are registered under the names the spec writes"
 args = ["test", "-p", "nvs-stdlib"]
-tests = ["spec_registry_coverage"]
+# Test FUNCTIONS, never the target file: `cargo-named` looks the name up in the run's output, and
+# the driver runs each test executable directly rather than through cargo, so a target's name is
+# never printed at all and `spec_registry_coverage` could only ever read "did not run" -- the same
+# correction the stage 1 floor copy of this check already carries. These two are the walks that read
+# this goal's row: § 16's class table entry for `Core\Script`, whose surface column now spells
+# `finish(): void`, and the one that holds every registered row's names against the spec's own
+# signature column.
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
 
 [[check]]
 kind = "command"

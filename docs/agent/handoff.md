@@ -2,53 +2,40 @@
 
 ## State
 
-**Goal `finish-response` — stages 2 and 3's refusal are green, and stage 4's `-p nvs-stdlib` check is
-closed.** `Core\Script::finish()` inside a `Core\Task` child is pinned in
-`crates/nvs-stdlib/src/script.rs:1388`: the marker lands on the child's own pending slot, the request's
-queue is still undrained and its hooks still registered, and the request's own ordinary end is what the
-report names. The child is sealed besides, which is `nvs_runtime::deferred`'s *only the request's own
-task may register* read for this ending.
+**Goal `finish-response` is met — `python tools/loop.py --goal-only` answers `GOAL REACHED: every
+acceptance check passes`, and `python tools/verify.py` is 11 of 11 green.** Every stage of the goal is
+closed: the ending exists, it unwinds through every `finally`, no `catch` arm admits it, the report
+names it, and the spec and the rulebook say so.
 
-**`E0814` is the arm refusal**, `nvs_diagnostics::code::E_CATCH_ARM_NAMES_THE_FINISH_MARKER`, reported
-by `reject_finish_marker_arm` (`crates/nvs-types/src/expr/members.rs:479`) from both call sites — the
-block form at `crates/nvs-types/src/locals.rs:1290` and the expression arm at
-`crates/nvs-types/src/expr/mod.rs:864`. A clause's type is now lowered whether or not it binds, because
-a clause that binds nothing names a class just as loudly and nothing lowered one before. A clause
-naming the marker *and* another class is `E0245` before it is this.
+**Stage 3's unwind is now asserted in the backend** — six tests in
+`crates/nvs-codegen/tests/throwing.rs:327` onward, written against the `THROWS` fixture's shape and a
+`FINISHES` sibling whose three frames each hold a `finally` of their own. The lowering needed nothing:
+`nvs_ir::lower`'s `lower_finish` already seals the block with a `Terminator::Throw` of the marker, so
+what landed is the unwind observed rather than built.
 
-**A `throw` of the marker needed nothing**: it descends from `Throwable` not at all, so `E0780` already
-reports it as an operand outside the tree, and `crates/nvs-types/tests/finish_marker.rs` pins both ends
-in one file so the day the marker is given a parent both fail together.
-
-**Stage 3's unwind is still red** — the six `nvs-codegen` tests below — and stage 4 still owes three
-`.nvst` cases and `examples/finish.nvs`. The `-p nvs-host` half of stage 4 was not looked at this
-session.
+**Stage 5's last red check was a name, not missing work.** `spec_registry_coverage` is a test *file*
+and `cargo-named` looks for test *functions*, so it could only ever read "did not run" — the same
+correction the goal's own stage 1 floor copy already carried. It now names
+`every_part_two_spec_member_is_registered` and
+`every_registry_rows_names_are_the_specs_signature_column`, and the spec row those walks read carries
+`finish(): void` and the fourth `ExitReason`.
 
 ## Next group
 
-**Stage 3: the unwind, in the codegen backend** — one file set,
-`crates/nvs-codegen/tests/throwing.rs`, whose `a_frame_that_throws_releases_the_strings_it_still_held`
-and `a_fatal_releases_the_frames_locals` are the shapes both items below are written against.
+**The chain's next goal `markup-literal`, whose own starting handoff is already on disk** — one file
+set, `crates/nvs-syntax/`. A goal switch installs that handoff over this one, so these two items are
+what to take if the switch has not happened yet.
 
-- [ ] **Write the three `a_finish_…` tests of stage 3's first check** — that every `finally` between
-      the call and the root runs, innermost first, three frames deep — at
-      `crates/nvs-codegen/tests/throwing.rs:326`. The lowering already seals the block with a
-      `Terminator::Throw` of the marker (`crates/nvs-stdlib/src/script.rs:1009` names the interception),
-      so this is the unwind asserted rather than built. `rule:errors/propagation` and
-      `rule:observability/three-endings-fire-the-exit-queue`.
-- [ ] **Write the three cases of stage 3's second check** — a `catch (Throwable)` arm does not admit a
-      finish, a finish inside a `try` releases every local of that frame, and a finish that has passed a
-      `catch` region is still a finish — at `crates/nvs-codegen/tests/throwing.rs:326`, beside the leak
-      cases above. The mechanism is that the marker is a root of its own
-      (`crates/nvs-hir/src/errors.rs:83`), so what is asserted is the arm falling through with the
-      frame's locals released. `rule:errors/propagation`.
+- [ ] **Stage 2's delimiter and closer** — `crates/nvs-syntax/src/token.rs`, beside `DoubleQuoteOpen`
+      and `ComplexInterpClose`: `` html` `` opens and `` ` `` closes, the mode between them being the
+      double-quoted one with those two swapped in. `rule:core-classes/html-literal`, and
+      `docs/agent/goals/44-markup-literal.handoff.md:21` is the group in full.
+- [ ] **Stage 2's unterminated arm** — `crates/nvs-syntax/src/lexer.rs:210-232`, one more `Mode` row,
+      so an unterminated literal reports `E0002` at the delimiter that opened it. No new diagnostic
+      code; `rule:core-classes/html-literal` and ADR 0169 § *Diagnostics* are why.
 
 ## Backlog
 
-- Stage 4's three remaining `.nvst` cases — `docs/agent/loop-goal.toml:8643` names them.
-- Stage 4's `examples/finish.nvs` exact check — `docs/agent/loop-goal.toml:8655`.
-- Stage 4's `-p nvs-host` check was not re-run this session — `docs/agent/loop-goal.toml:8620`.
-- Stage 5: the goal's record and the rule fragment for the fourth ending and the refusal —
-  `docs/agent/loop-goal.md` § *Stage 5*.
-- `[context] modules` names no `crates/nvs-types/**` pattern, so the map printed nothing for the crate
-  this session edited; the driver sweeps that field from the commits below.
+- Nothing of `finish-response` is outstanding; `docs/agent/goals/43-finish-response.toml` is the
+  acceptance list a switch carries forward as the next goal's floor.
+- **Nothing measures what spec §§ 13–20 still owe** — `docs/agent/carried-gaps.md:280`.
