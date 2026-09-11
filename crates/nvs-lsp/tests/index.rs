@@ -1,18 +1,20 @@
 //! One workspace symbol index, built in one place and invalidated by what
 //! changed.
 //!
-//! `rule:ide/five-features-are-one-reference-index` asks for three things a
-//! test can hold: exactly one construction site, an invalidation that stops at
-//! the file that changed and the files that read it, and a scope that selects
-//! which files are indexed rather than which code does the indexing. The bound
-//! the index has to stay under with all of that warm is `tests/latency.rs`'s,
-//! beside the cold one it already measured.
+//! `rule:ide/five-features-are-one-reference-index` asks for four things a
+//! test can hold: exactly one construction site, five readers of it and no
+//! sixth, an invalidation that stops at the file that changed and the files
+//! that read it, and a scope that selects which files are indexed rather than
+//! which code does the indexing. The bound the index has to stay under with
+//! all of that warm is `tests/latency.rs`'s, beside the cold one it already
+//! measured.
 //!
 //! The fixtures are on disk rather than buffers alone, on
 //! `tests/publish.rs`'s terms: a `require` resolves against the requiring
 //! file's own directory, and a workspace pass walks a directory for `.nvs`
 //! files, so both halves need files to find.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -179,6 +181,83 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
     }
 }
 
+/// The index's read-only methods that answer nobody's feature: how much it
+/// holds, and whether it holds one file.
+///
+/// The refresh path and this suite ask these; a feature asks the queries
+/// beside them, which is what [`all_five_readers_query_the_one_index`] counts.
+const BOOKKEEPING: [&str; 4] = ["files", "holds", "len", "is_empty"];
+
+/// Five features, and each one of them is a query against the one index.
+///
+/// The count is half of `rule:ide/five-features-are-one-reference-index`,
+/// which names exactly five and excludes call hierarchy with a reason — so a
+/// sixth is a decision and not a slice. The other half is that each of the
+/// five *reads* the index: a feature that walks the front end for names of its
+/// own is what the rule refuses, and the construction-site test above cannot
+/// see one, because such a feature builds no index at all.
+///
+/// The two sets have to match in both directions. A query nothing outside
+/// `index.rs` calls is a reader that was quietly dropped; a read-only method
+/// the table below does not name is a sixth reader that arrived without the
+/// decision. A sixth feature answered from a query one of these five already
+/// makes is the one case this cannot see, and `tests/handshake.rs`'s closed
+/// capability set is what catches that one.
+#[test]
+fn all_five_readers_query_the_one_index() {
+    // Each reader, and what it answers from. Four of them answer a request and
+    // the fifth is published unasked, which is why it names no method.
+    let readers: [(&str, &[&str]); 5] = [
+        ("textDocument/references", &["occurrences", "declaration"]),
+        ("textDocument/documentHighlight", &["occurrences_in"]),
+        ("textDocument/codeLens", &["declarations_in", "occurrences"]),
+        (
+            "textDocument/prepareTypeHierarchy",
+            &["supertypes", "subtypes"],
+        ),
+        ("unused-member dimming", &["unused_private"]),
+    ];
+
+    let mut queried: BTreeSet<&str> = BTreeSet::new();
+    for (reader, queries) in readers {
+        for query in queries {
+            let callers: Vec<(String, usize)> = code_hits(&format!(".{query}("))
+                .into_iter()
+                .filter(|(file, _)| file != "index.rs")
+                .collect();
+            assert!(
+                !callers.is_empty(),
+                "{reader} is one of the five readers and nothing outside \
+                 index.rs calls `{query}`"
+            );
+            queried.insert(query);
+        }
+    }
+
+    // Every read-only method the index offers. `build`, `refresh` and
+    // `invalidate` are not among them: they take the index mutably, and holding
+    // one that way is the construction site's business rather than a feature's.
+    let source = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("index.rs"),
+    )
+    .expect("the index's own source");
+    let offered: BTreeSet<&str> = source
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix("pub fn "))
+        .filter_map(|rest| rest.split_once("(&self"))
+        .map(|(name, _)| name)
+        .filter(|name| !BOOKKEEPING.contains(name))
+        .collect();
+
+    assert_eq!(
+        offered, queried,
+        "the index's read side and the five readers' queries are not the same \
+         set, so a reader was dropped or a sixth one was added"
+    );
+}
+
 /// Call hierarchy is not answered, and nothing here is keeping the edges that
 /// would answer it.
 ///
@@ -192,8 +271,7 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 /// `answer`'s refusal arm like any other method outside the list.
 #[test]
 fn call_hierarchy_is_not_answered() {
-    let declared = serde_json::to_value(nvs_lsp::server_capabilities(PositionEncodingKind::UTF8))
-        .expect("the capabilities serialize");
+    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
     assert!(
         declared.get("callHierarchyProvider").is_none(),
         "`callHierarchyProvider` is declared, so a client will ask: {declared}"
