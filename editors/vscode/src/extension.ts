@@ -36,6 +36,7 @@ import * as ast from "./ast";
 import { binary } from "./binary";
 import * as redactions from "./redactions";
 import * as tasks from "./tasks";
+import * as testing from "./tests";
 import { refusal } from "./version";
 
 // The subcommand that is the server, and the whole of the command line. `nvs lsp` speaks the
@@ -99,6 +100,9 @@ export async function activate(context: ExtensionContext): Promise<void> {
   // The view exists from activation rather than from the first `nvs.showAst`, because a tree view
   // is created once and the editor decides when to draw it; what the command does is fill it.
   ast.install(context);
+  // The controller likewise exists from activation and holds nothing: discovery is a compile per
+  // program, so the editor asks for it when the Testing view is opened rather than now.
+  testing.install(context);
   await start(context);
 }
 
