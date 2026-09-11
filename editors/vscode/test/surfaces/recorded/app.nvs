@@ -1,0 +1,11 @@
+<?nvs
+// The program `check.txt` beside this file is a recording of. It is written to put three
+// diagnostics under two codes into one rendering, with the last of them past line 9 so the
+// gutter widens and its `-->` line is indented one column further than the others'.
+function total(): int {
+    return 1;
+}
+
+echo $total;
+
+echo $missing;

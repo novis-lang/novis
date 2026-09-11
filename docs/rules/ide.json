@@ -837,7 +837,7 @@
     {
       "id": "ide/tasks-carry-a-problem-matcher",
       "title": "`nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0099"
       ],
@@ -845,7 +845,9 @@
         "errors/renderings",
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "editors/vscode/test/surfaces/tasks.test.ts"
+      ]
     },
     {
       "id": "ide/the-extension-is-a-workspace-extension",

@@ -3,7 +3,7 @@
 
 # The editor
 
-*66 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*65 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1192,7 +1192,7 @@ contributions test asserts `package.json` declares exactly what the roster names
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 
-## `nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry  *(designed — not yet in the compiler)*
+## `nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry
 
 `rule:ide/tasks-carry-a-problem-matcher`
 

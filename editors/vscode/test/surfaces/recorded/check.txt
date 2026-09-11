@@ -1,0 +1,21 @@
+error[E0215]: a function must be a method
+  --> test/surfaces/recorded/app.nvs:5:1
+  |
+5 | function total(): int {
+  | ^^^^^^^^^^^^^^^^^^^^^^^... not inside any class
+  | (continues to line 7)
+  = help: wrap it in a class as `public static function` (`rule:classes/no-free-functions-or-constants`)
+
+error[E0301]: `$total` is not declared
+  --> test/surfaces/recorded/app.nvs:9:6
+  |
+9 | echo $total;
+  |      ^^^^^^ no declaration for this name
+
+error[E0301]: `$missing` is not declared
+   --> test/surfaces/recorded/app.nvs:11:6
+   |
+11 | echo $missing;
+   |      ^^^^^^^^ no declaration for this name
+
+error: aborting due to 3 errors
