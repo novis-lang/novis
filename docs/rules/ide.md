@@ -3,7 +3,7 @@
 
 # The editor
 
-*66 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+*66 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -360,14 +360,16 @@ below it does. A `.lspt` case pins it in both directions, with `phase=all` defea
 
 <a id="ide-check-json-is-the-diagnostic-record-as-a-document"></a>
 
-## `nvs check --json` writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema  *(designed — not yet in the compiler)*
+## `nvs check --json` writes the same diagnostic records the terminal renderer prints, as one `schemaVersion: 1` document
 
 `rule:ide/check-json-is-the-diagnostic-record-as-a-document`
 
 `nvs check --json` writes the same `Diagnostic` records the terminal renderer prints — code, spans,
 severity, help and `suggestions` ([`errors/diagnostic-record`](errors.md#errors-diagnostic-record)) — as one machine-readable document. Its
 schema is frozen the way `nvs ast --json`'s is, and snapshot-tested the same way; it is part of the CLI
-surface the version contract covers.
+surface the version contract covers. The document is `schemaVersion: 1` at its root, which is the key a
+consumer reads first and the whole of what a version buys — every other key means what that number says
+it means.
 
 The text rendering stays the default and is what the Tasks `problemMatcher` reads; nothing about the
 terminal output changes. The document exists for CI and for the agents that increasingly drive this
@@ -377,7 +379,7 @@ diagnostic the text renderer prints, with the same codes and spans.
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
 [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents) is the editor's, not the CLI's.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md), [0172](../decisions/0172.md).</sub>
 
 <a id="ide-check-scope-defaults-to-open-documents"></a>
 
@@ -1304,6 +1306,33 @@ priority applied directly. The extension's own code is the descriptor factory, t
 the test provider and the command that hands a file to a viewer.
 
 <sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+
+<a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
+
+## The Test Explorer is `nvs test --list` and `nvs test --format=json` projected: the client matches records to items and derives nothing  *(designed — not yet in the compiler)*
+
+`rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`
+
+The Test Explorer is a projection of two documents the CLI writes: `nvs test --list --format=json`
+fills the tree, and `nvs test --format=json --filter` runs a selection. A record is matched to a
+`TestItem` by its `class` and `method`, and the file each item opens at is the `file`, `line` and
+`column` the record carries — the client derives none of it.
+
+Discovery must not run anything, which is why it is a flag on the runner rather than a run with every
+test skipped: `--list` answers from the table the compile already built, so a workspace whose tests
+fail, hang or `exit` populates a tree exactly as a passing one does.
+
+Coverage is not wired, because `nvs test --coverage` does not produce anything yet. When it does,
+the counts reach VS Code's own `FileCoverage` model and the extension still draws no gutter of its
+own ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). An explorer without coverage is
+the whole feature minus one column, not a stub.
+
+This is the shape [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli) already gives a view over compiler
+tables: the binary answers, and the client renders. A client that scanned the workspace for test
+classes itself would be a second implementation of the `#[Test]` table, free to disagree with the one
+that runs.
+
+<sub>See also [`testing/report-formats`](testing.md#testing-report-formats), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0172](../decisions/0172.md).</sub>
 
 <a id="ide-the-ast-panel-shells-out-to-the-cli"></a>
 

@@ -12,4 +12,16 @@ asking for one over a `.nvst` tree is refused rather than silently ignored: the 
 so there is no document for it to be about.
 
 The JSON schema is versioned and carries what XML has nowhere to put: a structured diff, per-row
-results, a shrunk counterexample and per-test coverage.
+results, a shrunk counterexample and per-test coverage. It is at `schemaVersion: 2`, where every record
+says where its test is written — `file`, `line` and `column`, one-based, the same location
+`nvs check --json` carries for a diagnostic — because a `class` and a `method` are enough to print a
+line and not enough to open a file, and nothing below the compiler can recover the rest. The JUnit and
+plaintext renderings are unchanged: JUnit has no version to raise, and a path on every line is noise for
+the reader the plaintext one is written for.
+
+**`--list` is the same run's table, without the run.** It answers from the `#[Test]` table the compile
+already built, so a program whose tests fail, hang or `exit` lists exactly as a passing one does, and its
+document carries one `{class, method, file, line, column}` per call under `listed` — no verdict and no
+summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
+its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
+`--update` and a `.nvst` tree are each refused beside it rather than ignored.

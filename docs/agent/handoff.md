@@ -2,57 +2,50 @@
 
 ## State
 
-**Goal `editor-surfaces` — milestone M10. Stage 2's first CLI surface is landed; stage 0 is where it
-was.** `nvs check --json` writes one record per diagnostic the text renderer prints:
-`crates/nvs-cli/src/check.rs` is the renderer, `Sink` at `crates/nvs-cli/src/main.rs:2096` is what
-picks it, and the three tests stage 2's `[[check]]` names pass in `crates/nvs-cli/tests/check.rs`.
-The text rendering is untouched and is still the default — `rule:ide/tasks-carry-a-problem-matcher`'s
-`problemMatcher` reads it, and stage 3 has not been written yet.
+**Goal `editor-surfaces` — milestone M10. Stage 2 is landed whole, and the ADR that freezes it is
+0172.** `nvs test --format=json` is `schemaVersion: 2` with `file`, `line` and `column` on every
+record; `nvs test --list` writes the discovery document, whose records sit under `listed` and carry
+no verdict; `nvs check --json` is version 1 and unchanged. The three tests stage 2's second
+`[[check]]` names pass in `crates/nvs-cli/src/runner.rs`, and two conformance cases pin both
+documents. JUnit and the plaintext report are byte-identical to what they were.
 
-**`tools/verify.py`'s `extension` step is still red on purpose**, the same two contributions tests
-as before (`nvs.run`, `nvs.test`, `nvs.showAst`, answered by stages 3 and 4), and the playbook bullet
-at `docs/agent/playbook.md:1268` is what says so. Nothing else in the gate is red.
+**Stage 0 is where it was, and stages 3 and 4 are what close it.** `tools/verify.py`'s `extension`
+step and the goal's earliest acceptance check are the same two contributions tests — `nvs.run`,
+`nvs.test` and `nvs.showAst` are contributed and unanswered — and `docs/agent/playbook.md:1268` is
+what says so. Nothing else in the gate is red.
 
-**Stage 2's second surface is wider than its item claimed.** The declaring file and line a Test
-Explorer needs are not in `runner.rs` to render: `nvs_types::testing::TestCase` carries no span at
-all, so the row has to grow one before the document can print it. `crates/nvs-types/src/testing.rs`
-is in the goal's `[context] modules` as of this session for that reason.
+**`nvs test --list` is on the CLI and nothing reads it yet.** Stage 5's explorer is its only
+consumer, and its shape is `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`.
 
 ## Next group
 
-**Stage 2: the test report, and the ADR that freezes both schemas** — one file set:
-`crates/nvs-types/src/testing.rs`, `crates/nvs-cli/src/runner.rs` and `crates/nvs-cli/src/main.rs`.
-The first item is what makes the second possible, so they go in this order.
+**Stage 3: the Tasks, and the Problems panel** — one file set: `editors/vscode/package.json`,
+`editors/vscode/src/extension.ts`, `editors/vscode/scripts/headless.mjs` and a new
+`editors/vscode/test/surfaces/`. The first two answer two of stage 0's three unanswered commands;
+the third is the suite the stage's own `[[check]]` greps for as `surfaces:`.
 
-- [ ] **A `#[Test]` row carries where it was declared**, per `rule:testing/test-attribute`'s table:
-      `crates/nvs-types/src/testing.rs:417` pushes the row and `crates/nvs-types/src/testing.rs:423`
-      pushes the method's own span into `case_spans`, which only diagnostics read. The span is in
-      hand at both lines; the struct is `crates/nvs-types/src/testing.rs:243`.
-- [ ] **The report to `schemaVersion: 2`, with that file and line on each record**, per
-      `rule:testing/report-formats`: `json_document` at `crates/nvs-cli/src/runner.rs:1653` is the
-      document and `Case` at `crates/nvs-cli/src/runner.rs:237` is what it renders; the runner reaches
-      a `SourceMap` through `crate::Checked`. JUnit and the human format stay byte-identical. Test
-      names `every_json_test_record_carries_its_declaring_file_and_line` and
-      `the_schema_version_is_two_and_junit_and_human_are_byte_identical`.
-- [ ] **A listing mode that discovers without executing**, same rule: a flag on `Command::Test` at
-      `crates/nvs-cli/src/main.rs:335`, answered where `runner::run` at
-      `crates/nvs-cli/src/runner.rs:258` has the compiled table and before it runs anything. Test
-      name `the_listing_mode_discovers_without_executing`. **The open decision is what the listing
-      document is** — one `schemaVersion: 2` document whose records carry `class`, `method`, `file`
-      and `line` and no verdict, versus a `summary` of zeros that reads as a run where nothing
-      passed. Decide it in the ADR below rather than in the emitter.
-- [ ] **One ADR**, covering `nvs check --json`'s schema (landed, version 1), the test report's
-      version 2 and stage 5's explorer shape — the only record this goal opens. Re-derive the next
-      free number from `docs/decisions/` immediately before creating it; it was 0172 at this commit.
-      The shape, and the `changes:`/`because` relation it writes twice, is
-      `docs/agent/conventions.md:443`.
+- [ ] **`nvs run` and `nvs test` contributed as Tasks, each with a `problemMatcher`**, per
+      `rule:ide/tasks-carry-a-problem-matcher`: `contributes` at `editors/vscode/package.json:28`
+      holds neither `taskDefinitions` nor `problemMatchers` today. The pattern is two lines over the
+      renderer's existing format — `error[E0301]: message`, then `  --> file:line:col`
+      (`rule:errors/renderings`) — and nothing in the client parses a diagnostic itself.
+- [ ] **`nvs.run` and `nvs.test` answered as the commands that start those Tasks**, per
+      `rule:ide/contributions-are-frozen-and-only-ever-added`: register them beside the three at
+      `editors/vscode/src/extension.ts:72`, and let them execute the contributed Task rather than
+      spawning a second process. The roster the contributions test asserts is
+      `editors/vscode/test/contributions/contributions.test.ts:96`.
+- [ ] **The `surfaces:` suite exists and is discovered**, per the stage's own check: `ORDER` at
+      `editors/vscode/scripts/headless.mjs:21` lists three suites and the check wants four. Its
+      first case is the `problemMatcher`'s regex against a recorded `nvs check` rendering carrying a
+      real `error[E0301]` and its `-->` line — a regex over recorded text, so no editor runs.
 
 ## Backlog
 
-- The pack prints `loop-goal.md`'s `## Standing decisions` and not the current stage's own prose,
-  which is where an item's specification actually is — stage 2's listing mode is named there and
-  nowhere else. No `[context]` field selects it; the fix is in `orient.py`, not the manifest.
-- Stage 0's two failing contributions tests close in stages 3 and 4 — `docs/agent/loop-goal.md`
-  § *Stage 0*.
-- `nvs check --json` prints no document when the entry file or the configuration cannot be read;
-  both say so on standard error, as `nvs ast --json` does — `crates/nvs-cli/src/main.rs:@run_check`.
+- Stage 4: `nvs.showAst`, per `rule:ide/the-ast-panel-shells-out-to-the-cli` — the last of stage 0's
+  three unanswered commands, and the AST panel's whole client half.
+- Stage 5: the `TestController`, per `rule:ide/the-test-tree-is-discovered-and-run-through-the-cli`
+  — discovery from `--list`, runs through `--format=json --filter`, and `.nvst` as a second suite.
+- Stage 6: `nvs/regions` and the template services, per
+  `rule:ide/a-template-region-gets-services-but-no-second-formatter`.
+- `nvs test --coverage` exports nothing, so the explorer ships without coverage; `docs/plan/m10.md`
+  owns when the Clover/lcov exporters land.

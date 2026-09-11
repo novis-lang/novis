@@ -20,7 +20,9 @@ way the route table is built — so discovery costs nothing at startup, and four
 compile errors rather than tests that silently never run: two methods of one class sharing a name, a
 `static` method, one returning anything but `void`, and one that is not `public`. The runner
 constructs the class and calls the member, so each of those is one question about what shape a test
-method has, asked once.
+method has, asked once. Each row also carries the span of its method's **name** — where every refusal
+about that test already points — because that is the one fact about a test nothing downstream can
+recompute, and it is what locates a test in a report and in an editor's test tree.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
 `because` — every field optional and every field checked at its own type. An option the roster does
@@ -31,7 +33,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -434,7 +436,7 @@ worth a great deal.
 
 <a id="testing-report-formats"></a>
 
-## One verdict, three renderings, and a machine format owns stdout alone
+## One verdict, three renderings, a machine format owns stdout alone, and the JSON one locates every test it reports
 
 `rule:testing/report-formats`
 
@@ -452,9 +454,21 @@ asking for one over a `.nvst` tree is refused rather than silently ignored: the 
 so there is no document for it to be about.
 
 The JSON schema is versioned and carries what XML has nowhere to put: a structured diff, per-row
-results, a shrunk counterexample and per-test coverage.
+results, a shrunk counterexample and per-test coverage. It is at `schemaVersion: 2`, where every record
+says where its test is written — `file`, `line` and `column`, one-based, the same location
+`nvs check --json` carries for a diagnostic — because a `class` and a `method` are enough to print a
+line and not enough to open a file, and nothing below the compiler can recover the rest. The JUnit and
+plaintext renderings are unchanged: JUnit has no version to raise, and a path on every line is noise for
+the reader the plaintext one is written for.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md).</sub>
+**`--list` is the same run's table, without the run.** It answers from the `#[Test]` table the compile
+already built, so a program whose tests fail, hang or `exit` lists exactly as a passing one does, and its
+document carries one `{class, method, file, line, column}` per call under `listed` — no verdict and no
+summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
+its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
+`--update` and a `.nvst` tree are each refused beside it rather than ignored.
+
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 

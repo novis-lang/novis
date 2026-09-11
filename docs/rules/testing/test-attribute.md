@@ -7,7 +7,9 @@ way the route table is built — so discovery costs nothing at startup, and four
 compile errors rather than tests that silently never run: two methods of one class sharing a name, a
 `static` method, one returning anything but `void`, and one that is not `public`. The runner
 constructs the class and calls the member, so each of those is one question about what shape a test
-method has, asked once.
+method has, asked once. Each row also carries the span of its method's **name** — where every refusal
+about that test already points — because that is the one fact about a test nothing downstream can
+recompute, and it is what locates a test in a report and in an editor's test tree.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
 `because` — every field optional and every field checked at its own type. An option the roster does

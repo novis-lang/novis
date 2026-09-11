@@ -265,10 +265,11 @@
     },
     {
       "id": "ide/check-json-is-the-diagnostic-record-as-a-document",
-      "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema",
-      "status": "designed",
+      "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one `schemaVersion: 1` document",
+      "status": "shipped",
       "because": [
-        "0108"
+        "0108",
+        "0172"
       ],
       "seeAlso": [
         "errors/diagnostic-record",
@@ -277,7 +278,9 @@
         "packaging/a-dependency-break-is-absorbed-never-forwarded",
         "ide/ast-json-schema-is-frozen"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/check.rs"
+      ]
     },
     {
       "id": "ide/check-scope-defaults-to-open-documents",
@@ -907,6 +910,23 @@
         "ide/the-debugger-ui-is-as-deep-as-the-adapter"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "ide/the-test-tree-is-discovered-and-run-through-the-cli",
+      "title": "The Test Explorer is `nvs test --list` and `nvs test --format=json` projected: the client matches records to items and derives nothing",
+      "status": "designed",
+      "because": [
+        "0172"
+      ],
+      "seeAlso": [
+        "testing/report-formats",
+        "ide/the-extension-builds-no-ui-the-editor-already-has",
+        "ide/the-ast-panel-shells-out-to-the-cli",
+        "ide/every-feature-is-staged-behind-its-dependency"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/a-test-run-lists-what-it-declares-without-running-it.nvst"
+      ]
     },
     {
       "id": "ide/the-ast-panel-shells-out-to-the-cli",
