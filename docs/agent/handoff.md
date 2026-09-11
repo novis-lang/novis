@@ -2,40 +2,45 @@
 
 ## State
 
-**Goal `finish-response` is met — `python tools/loop.py --goal-only` answers `GOAL REACHED: every
-acceptance check passes`, and `python tools/verify.py` is 11 of 11 green.** Every stage of the goal is
-closed: the ending exists, it unwinds through every `finally`, no `catch` arm admits it, the report
-names it, and the spec and the rulebook say so.
+**Goal 44 — markup is written as a literal, not composed with an operator — has just started; nothing of it has landed yet.** Goal `finish-response`'s whole list is this goal's Stage 1 floor.
 
-**Stage 3's unwind is now asserted in the backend** — six tests in
-`crates/nvs-codegen/tests/throwing.rs:327` onward, written against the `THROWS` fixture's shape and a
-`FINISHES` sibling whose three frames each hold a `finally` of their own. The lowering needed nothing:
-`nvs_ir::lower`'s `lower_finish` already seals the block with a `Terminator::Throw` of the marker, so
-what landed is the unwind observed rather than built.
+**The design is already decided and landed.** [ADR 0169](../decisions/0169.md) holds all of it and
+`rule:core-classes/html-literal` states it at `designed`; no session writes a record for this goal, and
+the last stage is what flips that rule to `shipped`. The three things not to re-decide are in
+§ *Standing decisions*, and the first of them is the one that matters: **the compiler learns no HTML.**
+No tag tracking, no attribute model, no refusal that depends on where a hole sits.
 
-**Stage 5's last red check was a name, not missing work.** `spec_registry_coverage` is a test *file*
-and `cargo-named` looks for test *functions*, so it could only ever read "did not run" — the same
-correction the goal's own stage 1 floor copy already carried. It now names
-`every_part_two_spec_member_is_registered` and
-`every_registry_rows_names_are_the_specs_signature_column`, and the spec row those walks read carries
-`finish(): void` and the fourth `ExitReason`.
+The literal is the double-quoted-string lexer with a different delimiter. Every frame it needs already
+exists — `{$` opens an ordinary code frame at `crates/nvs-syntax/src/lexer.rs:1260-1264`, brace depth is
+counted at `:1064-1090` so a closure inside a hole does not close it, and
+`crates/nvs-syntax/src/parser/expr.rs:2505-2527` already builds the `Vec<StringPart>`. A session that
+finds itself writing a scanner has taken a wrong turn.
 
 ## Next group
 
-**The chain's next goal `markup-literal`, whose own starting handoff is already on disk** — one file
-set, `crates/nvs-syntax/`. A goal switch installs that handoff over this one, so these two items are
-what to take if the switch has not happened yet.
+**Stage 2: the literal lexes** — one file set: `crates/nvs-syntax/`, all of it.
 
-- [ ] **Stage 2's delimiter and closer** — `crates/nvs-syntax/src/token.rs`, beside `DoubleQuoteOpen`
-      and `ComplexInterpClose`: `` html` `` opens and `` ` `` closes, the mode between them being the
-      double-quoted one with those two swapped in. `rule:core-classes/html-literal`, and
-      `docs/agent/goals/44-markup-literal.handoff.md:21` is the group in full.
-- [ ] **Stage 2's unterminated arm** — `crates/nvs-syntax/src/lexer.rs:210-232`, one more `Mode` row,
-      so an unterminated literal reports `E0002` at the delimiter that opened it. No new diagnostic
-      code; `rule:core-classes/html-literal` and ADR 0169 § *Diagnostics* are why.
+- [ ] **The delimiter and the closer** — `crates/nvs-syntax/src/token.rs`, beside `DoubleQuoteOpen` and
+      `ComplexInterpClose`: `` html` `` opens, `` ` `` closes, and the mode between them is the
+      double-quoted one with those two swapped in.
+- [ ] **The two escapes** — `crates/nvs-syntax/src/lexer.rs`, in the segment scanner: `` \` `` is a
+      backtick and `\{` is a brace. Nothing else gains an escape, because a segment is opaque bytes.
+- [ ] **The unterminated arm** — `crates/nvs-syntax/src/lexer.rs:210-232`, one more `Mode` row, so an
+      unterminated literal reports `E0002` at the delimiter that opened it rather than running to end
+      of file unnamed. No new diagnostic code; ADR 0169 § *Diagnostics* is why.
+- [ ] **The node** — `crates/nvs-syntax/src/ast.rs`, carrying the same `StringPart` vector the
+      interpolated string carries, with the carrier type attached. One node, not a tree.
 
 ## Backlog
 
-- Nothing of `finish-response` is outstanding; `docs/agent/goals/43-finish-response.toml` is the
-  acceptance list a switch carries forward as the next goal's floor.
-- **Nothing measures what spec §§ 13–20 still owe** — `docs/agent/carried-gaps.md:280`.
+- **Stage 3, the type** — `crates/nvs-types/`. The literal is a `Core\Html\Markup`; a hole faces
+  exactly an interpolation's checks and a `Markup`-typed hole needs no conversion. Cheap to take
+  beside stage 2 only if stage 2 landed the node cleanly.
+- **Stage 4, the lowering** — `crates/nvs-ir/`, `crates/nvs-codegen/`. The constant fold and the
+  write-through. A different file set; its own session.
+- **Stage 5, `Core\Html::join`** — `crates/nvs-stdlib/src/html.rs`, `crates/nvs-types/src/core_lib.rs`.
+  One member on the five-edit shape, and the conformance case that is a `foreach` and a join.
+- **Stage 6, the rulebook** — flip `core-classes/html-literal` to `shipped`, fill its `guardedBy`,
+  `python tools/rules.py --render`, and correct stage 0's four sentences in
+  `crates/nvs-stdlib/src/html.rs`. Cheap beside stage 5, which is already in that file.
+- When this goal's last check goes green the driver takes goal `gap-zero`.
