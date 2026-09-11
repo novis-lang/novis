@@ -2,61 +2,49 @@
 
 ## State
 
-**Goal `resource-ceilings` — stage 5 is landed on both halves.** The string half was the session
-before this one; the array half is now in: `nvs_array_set`, `nvs_array_set_index`, `nvs_array_append`
-and `nvs_array_spread` all ask the ceiling in front of the allocation. All three of stage 5's named
-array cases are green (`cargo test -p nvs-runtime --test refusal`: 9 passed), and so is the stage 1
-floor that had been failing — `crates/nvs-cli/src/serve.rs`'s known gap now names `— owner: M6`,
-which is the milestone whose acceptance list already carries the config snapshot a served request
-reads.
+**Goal `resource-ceilings` — stage 6 is landed, and only stage 7 is left.** `budget::Detached`
+(`crates/nvs-runtime/src/budget.rs:216`) is the accounting bracket: an allocation or a release made
+while one is held moves `budget::detached_bytes` and leaves `live_bytes`, every request's reading and
+every armed ceiling where it found them. `Core\Cache`'s local tier takes it at
+`crates/nvs-stdlib/src/cache.rs:@store_put`, which now copies the entry into an allocation of its own
+so that the store's bytes are allocated and freed on the same balance — the symmetry a bracket owes,
+and the playbook's newest bullet. Both stage 6 checks are green.
 
-**`NvsArray::affords_write` (`crates/nvs-runtime/src/array.rs:875`) is the pre-check**, and it prices
-one write rather than the whole array: `Table::growth_cost` is what the entry storage's amortized
-doubling asks for and `0` while it has room, `Table::separation_cost` is what a copy-on-write copy
-asks for, and a shared handle is charged the copy *and* one growth of it because `Table::separate`
-reserves the live entries exactly. The ask is made whatever it costs, zero included — a balance
-already past the ceiling is a request that is over.
+**The store this goal did not name is the compiled-pattern cache, and it must stay unbracketed** —
+`crates/nvs-stdlib/src/regex.rs`'s gap 4 is the finding in full: its entry is an `Rc` the compiling
+request holds too, so nothing can put the allocation and the release on one balance, and bracketing it
+anyway turns a credit bounded by `CACHE_CAPACITY` into an unbounded one. It waits on M6's arena, which
+is the standing decision's *does not solve provenance* reaching a second store.
 
-**The refusal has two shapes, one per signature.** A ctx-less write answers its array unchanged and
-releases the key and value it was handed (`nvs_array_set`'s key is the reference a leak would hide
-in). A write that already carries a status answers `crate::FATAL` through
-`crate::abi::report_refusal` (`crates/nvs-runtime/src/abi.rs:512`), which is `run_helper`'s own two
-lines — the tier-1 handler, then the breach as a fault no `catch` sees — reached from a helper with
-no `Fault` to hand back. `nvs_array_spread` asks per entry, so a large subject is bounded entry by
-entry and stops partway with what it had already copied.
-
-Stages 6 and 7 are untouched, and the goal's own record is still unopened — `0174` was the next free
-number at this commit; re-derive it.
+**The stage 1 floor is red on a file no session of this goal wrote.** `python tools/rules.py --check`
+fails on `docs/agent/goals/47-webcrypto.toml:146` and `:153`, which cite the two rules that goal
+ships; the tree does not hold them yet, and nothing in this goal can write them.
 
 ## Next group
 
-**Stage 6: the detached-accounting bracket** — one file set, `crates/nvs-runtime/src/budget.rs` with
-`crates/nvs-runtime/tests/` for the cases, then `crates/nvs-stdlib/src/cache.rs` for the first store
-that takes it. `rule:programs/memory-priority`'s *bounded, attributable* is what it owes, and the
-goal's § *Standing decisions* settles the scope: bracket the known stores, do not solve provenance,
-and record in the goal's record that the general property waits for M6's arena.
+**Stage 7: the record and the rulebook** — one file set, `docs/decisions/` and `docs/rules/`, with
+`docs/agent/loop-goal.md` § *Standing decisions* as the specification for every claim in both. No
+code: the three conformance cases stage 7's suite check names are already on disk.
 
-- [ ] **The bracket itself, in `crates/nvs-runtime/src/budget.rs:201`** — a guard type shaped like
-      `Reporting` beside it (`crates/nvs-runtime/src/budget.rs:498` is the `add` it has to divert):
-      allocations and frees inside it move the process counters and not the running request's
-      measured usage, and `Drop` restores, so the obligation arrives with the shape rather than
-      being one to remember. Test names the check wants:
-      `a_detached_bracket_moves_the_process_counter_and_not_the_request_reading`,
-      `a_bracket_restores_on_unwind_as_well_as_on_return` and
-      `a_request_that_frees_inherited_memory_gains_no_ceiling`.
-- [ ] **`Core\Cache::local`'s store takes it** — `crates/nvs-stdlib/src/cache.rs:477` is the
-      `thread_local` map and `crates/nvs-stdlib/src/cache.rs:582` the second one beside it; the
-      entries must still count against `[cache.local] max_size`
-      (`crates/nvs-stdlib/src/cache.rs:501`), which is a different ceiling from the request's. Test
-      names: `a_cache_write_is_charged_to_the_process_and_not_to_the_request`,
-      `an_eviction_from_a_later_request_lowers_no_ceiling` and
-      `a_cache_entry_still_counts_against_the_local_tier_max_size`.
+- [ ] **The record, at `docs/decisions/0174.md`** — 0174 is the next free number at this commit
+      (`docs/decisions/0173.md:1` is the highest on disk, so re-derive before claiming it). Its shape
+      is `docs/agent/conventions.md` § *A decision record*, its load-bearing claim is the standing
+      decision's — a ctx-less primitive's degenerate return is sound because the request is already
+      dead — and it cites `rule:errors/on-limit` and `rule:programs/memory-priority` as the rules it
+      works inside. No existing record is amended.
+- [ ] **The fragments its `changes.creates` names, under `docs/rules/`** — the refusal and its
+      degenerate return, the accounting boundary, and the expansion rule, each a JSON entry plus a
+      `<topic>/<slug>.md`, then `python tools/rules.py --render`. What the accounting boundary states
+      is `crates/nvs-runtime/src/budget.rs:216`, and it sits beside
+      `docs/rules/concurrency/cache-memory-is-charged-to-the-core.md:1`, which says the same thing
+      about the tier alone and is what the bracket now enforces.
 
 ## Backlog
 
-- Stage 7's record and rules — the refusal and its degenerate return, the accounting boundary, the
-  expansion rule; the goal's § *Standing decisions* is the brief, `docs/agent/conventions.md` the shape.
-- Any other process-lifetime store a session finds unbracketed: bracket it and say so, per the goal's
-  standing decision on stage 6.
-- `NvsArray::set`/`set_index` (the Rust API the `Core` producers use) stay infallible on purpose —
-  `run_helper` asks ahead of a member's body, and `try_reserve` is the fallible seam a producer takes.
+- The floor above: goal `webcrypto`'s two undesigned rules, at `docs/agent/loop-goal.toml:6497`.
+- `crates/nvs-stdlib/src/queue.rs` and `queue_sqlite.rs` were not examined for a store that outlives a
+  request — `docs/agent/loop-goal.md` § *Standing decisions* says a session that finds one brackets it.
+- One allocation larger than the whole remaining budget is still made before anything notices —
+  `crates/nvs-runtime/src/budget.rs`'s own `# Known gap`, owner `resource-ceilings`.
+- The stack ceiling is asserted rather than discovered until M6 sizes the request's stack —
+  `docs/agent/loop-goal.md` § *Standing decisions*, *out of scope*.

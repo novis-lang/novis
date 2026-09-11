@@ -6076,6 +6076,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reporting path answers the immortal empty and the handler gets a record whose keys are `""`. Hold
   `nvs_runtime::budget::Reporting` across the whole escalation, as `Ctx::run_limit_handler` and
   `nvs_host::ladder` do. [until: gone crates/nvs-runtime/src/budget.rs:pub struct Reporting]
+- **A `budget::Detached` bracket around a store that is *handed* its bytes corrupts both balances.**
+  The caller's `Vec` was allocated under the request, so releasing it inside the bracket charges the
+  process for what the request was charged — `live_bytes` drifts up and `detached_bytes` down without
+  bound, each wrong alone though the sum is right. Copy into an allocation the bracket makes and
+  release the caller's temporary outside it (`crates/nvs-stdlib/src/cache.rs:@store_put`); a store
+  whose entry is an `Rc` the request also holds cannot be bracketed at all.
+  [until: gone crates/nvs-runtime/src/budget.rs:pub struct Detached]
 
 ## Divergences and refusals already pinned
 
