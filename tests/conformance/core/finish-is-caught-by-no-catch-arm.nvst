@@ -1,0 +1,39 @@
+--TEST--
+No `catch` arm admits the ending `Core\Script::finish()` raises, and the exit report names it `Finish` with status `0` and no error — `rule:observability/three-endings-fire-the-exit-queue`
+--FILE--
+<?nvs
+// The other half of the mechanism. The value raised is a root of its own in the
+// exception tree — it descends from `Throwable` and from nothing else does
+// either — so the self-or-ancestor walk every arm is selected by is false for
+// all of them, including the widest one a program can write. An implementation
+// that made the marker a `Throwable` subclass would print `caught` here and
+// hand a request's cleanup handler an ending it has no business seeing.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $reason = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "Normal",
+        Core\Script\ExitReason::ExitCall => "ExitCall",
+        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReason::Finish => "Finish",
+    };
+    // Status `0` and no error, asserted together: a finished script has not
+    // failed, and the `UncaughtThrow` reading of the same arrival would report
+    // `1` and carry the marker as the report's own `error`.
+    echo "onExit: ", $reason, " ", $report->status(), " ",
+        $report->error() == null ? "no error" : "an error", "\n";
+});
+
+try {
+    Core\Script::finish();
+} catch (Throwable $e) {
+    echo "caught by Throwable\n";
+} catch (RuntimeError $runtime) {
+    echo "caught by RuntimeError\n";
+} finally {
+    // The `finally` of the very region whose arms all declined it. Both are
+    // asserted at once here: declining the value is not declining the region.
+    echo "finally of the region that caught nothing\n";
+}
+echo "this line never runs\n";
+--EXPECT--
+finally of the region that caught nothing
+onExit: Finish 0 no error

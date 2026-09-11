@@ -1,0 +1,26 @@
+--TEST--
+A script that ended with `Core\Script::finish()` is an ordinary end, so its `Core\Task::afterResponse` work still runs — `rule:concurrency/after-response-outlives-the-connection` and `rule:observability/three-endings-fire-the-exit-queue`
+--FILE--
+<?nvs
+// The classification, asserted where it is observable. § 6 gives deferred work
+// to a request that ended ordinarily and to no other: a throw, an `exit` and a
+// `FATAL` each run none of it, because the host is about to report that status
+// and script running over it would lose one of the two. A finish arrives on the
+// same path a throw does and is *not* that — the handler is done answering, not
+// failing — so the queue drains and the deferred closure runs.
+Core\Task::afterResponse(fn (): void => {
+    echo "then the receipt\n";
+});
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "the queue, before the deferred work\n";
+});
+
+// A CLI run has no response, so the script's own frame returning is when
+// "after the response" is — and `finish` is what brings that moment forward.
+echo "answered\n";
+Core\Script::finish();
+echo "this line never runs\n";
+--EXPECT--
+answered
+the queue, before the deferred work
+then the receipt

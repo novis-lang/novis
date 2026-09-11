@@ -2,59 +2,53 @@
 
 ## State
 
-**Goal `finish-response` — stage 3's marker class is on disk, and the raise is not.**
-`nvs_hir::errors::FINISH_MARKER` is `Core\Script\Finished`, a second, parentless root of `TREE`
-(`crates/nvs-hir/src/errors.rs:121`). It is above and below nothing: `conforms_to` answers an empty
-set, it declares no properties and no constructor, and no row extends it — so every `catch` arm in
-the tree is false against it through the ordinary self-or-ancestor walk, with no case in the arm
-walk and none in `InstanceOf`. Guard: `the_finish_marker_is_a_root_of_its_own_and_is_above_and_below_nothing`.
+**Goal `finish-response` — stage 4's member is on disk and runs end to end under `nvs run`.**
+`Core\Script::finish()` is a registered row (`crates/nvs-stdlib/src/script.rs:164`) whose symbol no
+call site ever calls: `Lowering::lower_finish` (`crates/nvs-ir/src/lower/exception.rs:68`) seals the
+block with a `Terminator::Throw` of a `Core\Script\Finished` instance, recognised at
+`crates/nvs-ir/src/lower/expr.rs:3505` by `nvs_types::CORE_SCRIPT_FINISH`. Every `finally` between
+the call and the root runs, no `catch` arm admits it, the report names a fourth
+`ExitReason::Finish` with status `0` and no error, `afterResponse` work runs and the process exits
+`0`. `examples/finish.nvs` prints the acceptance's five lines exactly.
 
-**`TREE`'s consumers took the second root unedited.** `hierarchy::seed_exception_tree`
-(`crates/nvs-hir/src/hierarchy.rs:297`) maps `parent.iter()`, `members::default`
-(`crates/nvs-hir/src/members.rs:191`) seeds the root's members off `ROOT` alone,
-`nvs_types::error_lib::seed` (`crates/nvs-types/src/error_lib.rs:79`) branches on `qname == root`,
-and `build_class_layouts` (`crates/nvs-types/src/layout.rs:185`) builds from `own_properties`, which
-is empty for the marker. Only the two tests that spelled the single root needed rewriting — the tree
-test in `crates/nvs-hir/src/errors.rs` and the roster test in `crates/nvs-types/src/layout.rs:626`,
-where the marker is the one row with no `backtrace` slot. `nvs meta`'s `exceptions` roster carries
-the marker last, so `exceptions[0]` is still `Throwable`.
+**Two spellings of the marker's name, held together by a test.** `nvs-stdlib` depends on
+`nvs-runtime` and on no part of the compiler, so it carries `FINISH_MARKER_NAME`
+(`crates/nvs-stdlib/src/script.rs:392`) and `nvs_types`'s
+`the_marker_the_runtime_classifies_by_is_the_one_the_compiler_declares` pins it to
+`nvs_hir::errors::FINISH_MARKER`. `script::is_finish` (`:560`) takes the *name*, not the object, so
+a host can ask while the exception is still pending and leave the real one for the ladder.
 
-**Stage 3's remaining item cannot land alone, and the next group is why.** The raise from `lower`
-has no caller until `Core\Script::finish()` is a registered member: a lowering helper with no call
-site is dead code, and stage 3's own `-p nvs-codegen` checks
-(`a_finish_runs_every_finally_between_the_call_and_the_root` and its two siblings) compile Novis
-source, so they need the member too. The raise and stage 4's member therefore land as one group,
-below.
+**Only `nvs run` classifies the ending.** `crates/nvs-cli/src/main.rs` asks before it takes anything
+and reports `Ok(())`; the served path still reads a finish as a failure, which is the next group.
 
 ## Next group
 
-**Stage 4: the member, its raise, and the fourth ending** — one file set:
-`crates/nvs-stdlib/src/script.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-host/src/isolate.rs`.
-Tag it stage 4 so `[context.stage.4]`'s overlay applies.
+**Stage 4: the served path and the two refusals** — one file set:
+`crates/nvs-host/src/isolate.rs`, `crates/nvs-runtime/src/ctx/hooks.rs`,
+`crates/nvs-stdlib/src/script.rs`. Tag it stage 4 so `[context.stage.4]`'s overlay applies.
 
-- [ ] **Register `Core\Script::finish()` beside `onExit`**, whose row is at
-      `crates/nvs-stdlib/src/script.rs:894` and whose symbol table is `:387`. It takes no argument
-      and returns nothing; `rule:concurrency/after-response-outlives-the-connection` is the trigger
-      it brings forward, and the goal's stage 4 is the classification it owes.
-- [ ] **Lower the call to an ordinary `Terminator::Throw` of a `FINISH_MARKER` instance**
-      (`crates/nvs-hir/src/errors.rs:121`), against `crates/nvs-ir/src/lower/mod.rs:239`'s
-      `TryFrame::handler`: every enclosing region's finally-and-re-raise block then runs and the
-      dispatch's no-arm-matched default hands the same reference onward. `Terminator::Throw`'s
-      operand doc (`crates/nvs-ir/src/ir.rs:2586`) already describes this operand.
-      `rule:errors/propagation`.
-- [ ] **Add the fourth ending to the report and keep the request an ordinary end**: a case beside
-      `EXIT_CALL` in `crates/nvs-stdlib/src/script.rs:209` and an arm beside the `Err(EXITED)` one in
-      `run_exit_hooks` at `crates/nvs-stdlib/src/script.rs:457`, status `0` with `error` null; the
-      request root's `Completion::ok` stays `true` (`crates/nvs-host/src/isolate.rs:747`, the goal's
-      own anchor) so both drain gates pass unedited.
-      `rule:observability/three-endings-fire-the-exit-queue`.
+- [ ] **Make a finished request an ordinary end on the served path.**
+      `crates/nvs-host/src/isolate.rs:899` sets `failed` from `pending().is_some()`, so the marker
+      currently gives `Completion::ok == false` and the deferred gate at `:884` refuses. Ask
+      `nvs_stdlib::script::is_finish` off `Ctx::pending_class` before that line, take the marker so
+      nothing downstream sees a pending failure, and leave both gates unedited.
+      `rule:concurrency/after-response-outlives-the-connection`.
+- [ ] **Refuse `finish` inside an exit hook, beside the `EXITED` arm.**
+      `abandon_exit_hook` (`crates/nvs-runtime/src/ctx/hooks.rs:281`) already turns an `exit` into a
+      `RuntimeError`; a finish owes the same and for the same reason. **The wrinkle to decide first:**
+      `nvs-runtime` cannot name `nvs-stdlib`, so either the marker's name moves down into
+      `nvs-runtime` with `script::FINISH_MARKER_NAME` delegating to it, or the arm asks
+      `Ctx::pending_class` against a constant declared there. Prefer the move — one spelling below
+      both readers. `rule:observability/a-hook-observes-and-never-steers`.
+- [ ] **Write stage 4's three `-p nvs-stdlib` acceptance tests**, whose claims are now all
+      reachable: `the_exit_report_names_the_finish_ending_with_a_zero_status_and_no_error` drives
+      `run_exit_hooks` (`crates/nvs-stdlib/src/script.rs:485`) with a marker `Thrown`, built the way
+      `crates/nvs-runtime/src/ctx/error.rs:687`'s test builds one;
+      `finish_inside_an_exit_hook_throws_and_the_drain_continues` and
+      `finish_in_a_task_child_ends_that_child_and_not_the_request` follow the two items above.
 
 ## Backlog
 
-- Stage 3's two refusals — a `catch` arm and a `throw` naming the marker — are `E0780`'s siblings
-  in `crates/nvs-diagnostics/src/lib.rs`, and their checks are filed under `-p nvs-types`.
-- `QName::is_reserved_global_class`'s doc (`crates/nvs-hir/src/qname.rs:125`) counts `TREE`'s
-  namespaced rows as one and there are now five; a count in a comment is what
-  `docs/agent/conventions.md` § *A code comment* refuses.
-- Stage 5's record and the rule fragments it creates are untouched — `docs/agent/loop-goal.md`
-  § *Stage 5* is the list.
+- The `catch`-arm refusal naming the marker class is unwritten — `tests/conformance/reject/a-catch-arm-naming-the-finish-marker-is-refused.nvst`, stage 3's `E0780` sibling (`docs/agent/loop-goal.md` § stage 3).
+- Stage 5's record and rulebook edits, including the fourth row on `rule:observability/three-endings-fire-the-exit-queue` (`docs/agent/loop-goal.md` § stage 5).
+- A `match` over `Core\Script\ExitReason` with three arms still compiles after a fourth case landed; whether enum `match` owes exhaustiveness is its own question (`docs/rules/types/`).

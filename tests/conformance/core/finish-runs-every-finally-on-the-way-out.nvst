@@ -1,0 +1,45 @@
+--TEST--
+`Core\Script::finish()` ends the script and every `finally` between the call and the root runs on the way — `rule:observability/three-endings-fire-the-exit-queue` and `rule:errors/propagation`
+--FILE--
+<?nvs
+// The whole point of the ending, and the one thing that makes it not `exit`
+// under another name: the marker is raised on the *throw* path, which is the
+// path a `finally` body lives on, so every enclosing region runs its own copy
+// on the way out. A design that reached the root by a fifth status would print
+// only `start` and the hook line.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "the queue still drains\n";
+});
+
+class Deeper {
+    public static function run(): void {
+        try {
+            Core\Script::finish();
+        } finally {
+            // A `finally` one frame *below* the one that named the ending. The
+            // re-propagate carries the marker frame by frame, so this runs
+            // before its caller's does rather than going with the frame.
+            echo "callee finally\n";
+        }
+    }
+}
+
+echo "start\n";
+try {
+    try {
+        Deeper::run();
+    } finally {
+        echo "inner finally\n";
+    }
+} finally {
+    echo "outer finally\n";
+}
+// Nothing after the call runs: the block the call sits in is sealed by the
+// raise, so this is dead in every frame the marker passed through.
+echo "this line never runs\n";
+--EXPECT--
+start
+callee finally
+inner finally
+outer finally
+the queue still drains

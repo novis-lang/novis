@@ -15489,12 +15489,13 @@ a handle is awaited once
 <a id="core-core-script"></a>
 ### `Core\Script`
 
-Keywords: args, onExit
+Keywords: args, onExit, finish
 
 | Member | Signature |
 |---|---|
 | [`Core\Script::args`](#core-core-script-args) | `args(): mixed` |
 | [`Core\Script::onExit`](#core-core-script-onexit) | `onExit(callable(Core\Script\ExitReport): mixed $hook): void` |
+| [`Core\Script::finish`](#core-core-script-finish) | `finish(): void` |
 
 <a id="core-core-script-args"></a>
 #### `Core\Script::args`
@@ -15521,6 +15522,17 @@ Registers a closure to run as the last user code of this script — at a normal 
 | `$hook` | `callable(Core\Script\ExitReport): mixed` | What to run. It is handed one readonly `Core\Script\ExitReport` saying which ending this was, and answers nothing; declaring no parameter is allowed. A hook that throws is logged and abandoned, and the hooks behind it still run. |
 
 **Returns** `void` — Nothing. Registering is request-local, registering twice registers twice, and a hook registered by a hook joins the tail of the same drain. Nothing a hook does changes the ending: the report is fixed before the first one runs, and `exit` inside a hook is a `RuntimeError` rather than a second ending.
+
+<a id="core-core-script-finish"></a>
+#### `Core\Script::finish`
+
+```nvs skip
+Core\Script::finish(): void
+```
+
+Ends this script here and does not return. Every `finally` between the call and the root runs, then the exit queue drains — so it is the ending `exit` is not, and the one a request handler reaches for when it is done answering.
+
+**Returns** `void` — Nothing, and nothing after the call runs. No `catch` arm sees the ending — the value raised is outside the `Throwable` tree — and the report each exit hook is handed names it `Finish` with status `0` and no error. Under a server the response the handler declared is the one sent and `Core\Task::afterResponse` work still runs; under `nvs run` it is the end of the script.
 
 <a id="core-core-script-exitreport"></a>
 ### `Core\Script\ExitReport`
@@ -21978,13 +21990,14 @@ Which of CLDR's six plural forms a count selects. The names are CLDR's own label
 <a id="enum-core-script-exitreason"></a>
 #### `Core\Script\ExitReason`
 
-Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have no case here because they run no hook at all.
+Which ending ran the exit hooks. A `FATAL` and a cancellation have no case here because they run no hook at all.
 
 | Case | Meaning |
 |---|---|
 | `Core\Script\ExitReason::Normal` | The last top-level statement ran and the script ended of its own accord. |
 | `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script — the one ending no `finally` observes. |
 | `Core\Script\ExitReason::UncaughtThrow` | A throw reached the root of the script with nothing left to catch it; the report carries the `Throwable` itself. |
+| `Core\Script\ExitReason::Finish` | `Core\Script::finish()` ended the script from inside it — the ending every `finally` observes and no `catch` arm does. The status is `0` and there is no error, because a script that finished has not failed. |
 
 <a id="enum-core-db-driver"></a>
 #### `Core\Db\Driver`
