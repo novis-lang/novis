@@ -53,6 +53,12 @@
 //! `inout` marker writes one too, so all three are skipped rather than
 //! annotated twice.
 //!
+//! The document is walked whole and never bounded by a range, which is not a
+//! gap: `textDocument/inlayHint` is asked over the visible region and asked
+//! again for every region a reader scrolls onto, so a walk bounded by the range
+//! would repeat most of itself per frame to save a filter. `crate::server`'s
+//! `inlay_hints` is where the answer is narrowed.
+//!
 //! # Known gaps
 //!
 //! 1. **A call the checker recorded as anything but
@@ -62,12 +68,6 @@
 //!    `param_names` at all. Widening is a table question rather than a walk
 //!    one.
 //!    — owner: unowned
-//!
-//! The document is walked whole and never bounded by a range, which is not a
-//! gap: `textDocument/inlayHint` is asked over the visible region and asked
-//! again for every region a reader scrolls onto, so a walk bounded by the range
-//! would repeat most of itself per frame to save a filter. `crate::server`'s
-//! `inlay_hints` is where the answer is narrowed.
 
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
