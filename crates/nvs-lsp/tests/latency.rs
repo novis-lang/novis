@@ -49,7 +49,7 @@
 
 use std::time::{Duration, Instant};
 
-use nvs_lsp::{Documents, analyse_current, uri_of};
+use nvs_lsp::{CheckScope, Documents, SymbolIndex, analyse_current, path_of, uri_of};
 
 /// The ceiling one full analysis must stay under.
 ///
@@ -167,5 +167,52 @@ fn a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound() {
         "a full re-analysis of {lines} lines took {ms:.1} ms, over the {CEILING_MS} ms bound \
          `rule:ide/a-full-reanalysis-stays-under-a-bound` names; the answer is item-level \
          caching over the parse, never a larger number here",
+    );
+}
+
+/// A keystroke against a **warm** workspace index stays under the same bound.
+///
+/// The bound above is what one analysis costs, and
+/// `rule:ide/five-features-are-one-reference-index`'s index is a thing that
+/// analyses files — so the question this answers is whether having one turns
+/// every keystroke into a walk of the workspace. It does not:
+/// `nvs_lsp::SymbolIndex::refresh` re-indexes the file that changed and the
+/// files whose analysis read it, which for a document requiring nothing is one
+/// re-analysis and the map write that follows it.
+///
+/// Measured through the same `best_ms`, against the same document, so the two
+/// figures printed by this file are directly comparable: the headroom between
+/// them is what the index itself costs.
+#[test]
+fn a_warm_index_answers_within_the_reanalysis_bound() {
+    let text = document(CLASSES);
+    let uri = uri_of(&std::env::temp_dir().join("nvs-latency-index/main.nvs"))
+        .expect("a temp path is UTF-8");
+    let path = path_of(&uri).expect("a file URI names a file");
+    let mut documents = Documents::new();
+    documents.open(uri, 1, text);
+
+    let mut index = SymbolIndex::build(&documents, CheckScope::Open, None);
+    assert_eq!(index.len(), 1, "the open document is the whole tree here");
+    assert!(
+        index.declaration("App\\User0").is_some(),
+        "the index is warm before it is measured, and holds what the document \
+         declares",
+    );
+
+    let ms = best_ms(5, || {
+        let dropped = index.refresh(&documents, &path);
+        assert_eq!(dropped.len(), 1, "one file changed and nothing reads it");
+    });
+
+    println!(
+        "a warm index after one change: {ms:.1} ms{}",
+        under(ms, CEILING_MS)
+    );
+    assert!(
+        ms < CEILING_MS,
+        "re-indexing one changed document took {ms:.1} ms, over the {CEILING_MS} ms bound \
+         `rule:ide/a-full-reanalysis-stays-under-a-bound` names; an index that costs more \
+         than the analysis under it is one that rebuilds more than what changed",
     );
 }

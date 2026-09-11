@@ -2,49 +2,64 @@
 
 ## State
 
-**Goal `workspace-index`, stage 0 is closed and green.** A receiver whose access ends at the cursor now
-offers its class's members: the parser has no token to make a member name from before a `}`, a `)`, a `]`
-or the end of the file, so the access stops at the arrow and `SyntaxIndex::at`'s half-open containment put
-the cursor outside every node of it. `crates/nvs-lsp/src/completion.rs:246` reaches such an access by
-asking the index about the byte before the cursor and keeping it only where it ends *at* the cursor; the
-containment itself is untouched, because `selectionRange` is frozen on a cursor being outside the node it
-touches.
+**Goal `workspace-index`, stage 2 is closed and green.** `crates/nvs-lsp/src/index.rs` is the one
+workspace symbol index: `SymbolIndex::build` walks the tree `CheckScope` selects, `absorb` is the only
+place a file's entry is built, `refresh` drops the file that changed and the files whose analysis read it
+and rebuilds exactly those, and the queries are `declaration`, `occurrences`, `declarations_in` and
+`occurrences_in`. Its module doc carries the four decisions behind that shape; the known gaps are in it
+too, and the one stage 3 needs is that nothing records member **visibility** yet.
 
-**The `\` defect is still live and is stage 5's**, exactly as `docs/agent/loop-goal.md:30` says. Its check
-`every_trigger_character_reaches_an_arm_that_is_not_the_position_list` moved from stage 0 to stage 5's
-arms block, where its fix is: a catch-up failure returns before every other check in the sweep
-(`tools/loop.py:2639`), so gating a stage-5 fix at stage 0 would have reported no other stage until it
-landed. `capabilities.rs:174`'s trigger list is deliberately not trimmed.
+**The index has no home in the server.** Nothing in `crates/nvs-lsp/src/server.rs` holds one, so it is
+built by `tests/index.rs` and `tests/latency.rs` and by nobody else. Giving it one — beside `Documents`
+in `serve`, refreshed from `apply`'s `Changed` — is stage 3's first slice and its first design question.
 
-Nothing is blocked. Stages 2, 3, 4, 5 and 6 are all open; stage 1 is goal `editor-install`'s floor.
+`analyse` is now two functions: `analyse_file(documents, path, version)` at
+`crates/nvs-lsp/src/document.rs:381` is the walk with the entry named by path, and `analyse` is that call
+with the open buffer's own version. That is what lets a file nobody opened be indexed.
+
+**The `\` defect is still live and is stage 5's**, exactly as `docs/agent/loop-goal.md:30` says;
+`capabilities.rs:174`'s trigger list is deliberately not trimmed. Nothing is blocked. Stages 3, 4, 5 and
+6 are open; stage 1 is goal `editor-install`'s floor.
 
 ## Next group
 
-**Stage 2: the one workspace symbol index** — one file set: `crates/nvs-lsp/src/document.rs`,
-`crates/nvs-lsp/src/lib.rs`, `crates/nvs-lsp/tests/latency.rs`. Read
-`rule:ide/a-full-reanalysis-stays-under-a-bound` before choosing the invalidation shape: the bound has to
-hold with the index warm, which is what rules out rebuilding it per keystroke.
+**Stage 3: the five readers, and only five** — one file set: `crates/nvs-lsp/src/index.rs`,
+`crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/capabilities.rs`, `crates/nvs-lsp/src/render.rs`,
+`crates/nvs-lsp/tests/index.rs`. `rule:ide/five-features-are-one-reference-index` names the five and
+excludes call hierarchy with a reason; every item below is one query against the index that already
+exists, and none of them walks the front end.
 
-- [ ] **One construction site, beside `Analysed`** at `crates/nvs-lsp/src/document.rs:254`, exported from
-      the module list at `crates/nvs-lsp/src/lib.rs:96`. `rule:ide/five-features-are-one-reference-index`
-      is the whole specification and the test is `the_crate_has_exactly_one_symbol_index_construction_site`.
-- [ ] **Invalidate the file and its readers and nothing else.** `Documents` at
-      `crates/nvs-lsp/src/document.rs:94` already holds the version per URI, so what changed is a fact it
-      has; the test is `a_change_invalidates_the_file_and_its_readers_and_nothing_else`.
-- [ ] **The warm bound**, copied from the guard shape already in the crate —
-      `crates/nvs-lsp/tests/latency.rs:130` is `a_full_reanalysis_of_a_thousand_lines_stays_under_the_bound`
-      and is `#[cfg(debug_assertions)]` for the reason the playbook's `cargo-named` bullet gives. Test:
-      `a_warm_index_answers_within_the_reanalysis_bound`.
-- [ ] **Scope selects the tree, never the construction site** —
-      `rule:ide/check-scope-defaults-to-open-documents`, at the walk `crates/nvs-lsp/src/document.rs:381`.
-      Test: `check_scope_selects_the_tree_and_never_the_construction_site`.
+- [ ] **The index gets a home, and references and highlight are one query.** Hold a `SymbolIndex`
+      beside `Documents` in `serve` at `crates/nvs-lsp/src/server.rs:111` and refresh it from the
+      `Changed` an edit produces at `crates/nvs-lsp/src/server.rs:559`; dispatch the two requests from
+      `answer` at `crates/nvs-lsp/src/server.rs:171`, declaring them at
+      `crates/nvs-lsp/src/capabilities.rs:152`. The cursor becomes a symbol through
+      `crate::definition::named_at` at `crates/nvs-lsp/src/definition.rs:271` and the symbol becomes an
+      answer through `SymbolIndex::occurrences` at `crates/nvs-lsp/src/index.rs:306` — highlight is the
+      same query filtered to the open file, which is the whole of why it waited for this.
+- [ ] **CodeLens and type hierarchy**, behind `nvs.codeLens.enable`. The reference count is
+      `occurrences` again; implementors and overrides are `nvs_hir::ClassLinks` at
+      `crates/nvs-hir/src/hierarchy.rs:89`, read back rather than re-derived. Test:
+      `all_five_readers_query_the_one_index`, in `crates/nvs-lsp/tests/index.rs:136` beside the
+      structural one it extends.
+- [ ] **Unused-member dimming, silent at the default scope.** `rule:ide/check-scope-defaults-to-open-documents`
+      is why it is silent rather than wrong under `"open"`. It needs the visibility the index does not
+      record yet — add it where the member is already read, at `crates/nvs-lsp/src/index.rs:170`'s
+      `Declaration`, not in a second walk. Test:
+      `unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope`.
+- [ ] **`call_hierarchy_is_not_answered`**, in `crates/nvs-lsp/tests/index.rs:136`: the rule excludes it
+      because it is a different index, and a test is what keeps the five from becoming six. A `.lspt`
+      case per added request lands with each item above, answered from
+      `crates/nvs-lsp/src/suite.rs:258`.
 
 ## Backlog
 
-- The corpus owes 15 cells before `}`, `)` and `]` can each hold a case: `docs/agent/loop-goal.md:26`
-  asks for one per closing delimiter, and `crates/nvs-lsp/src/coverage.rs` § *Decision* prices it.
-- Stage 4 opens this goal's one record, next free 0171 — `docs/agent/loop-goal.md` § *Standing decisions*.
-- Inherited members and visibility are still not applied to a member list —
-  `crates/nvs-lsp/src/completion.rs` § *Known gaps*.
-- `[context] modules` gained `crates/nvs-lsp/src/coverage.rs` this session; the pack never printed what a
-  `.lspt` case costs, which is what made stage 0 wider than its item read.
+- `nvs.check.scope` and `nvs.checkWorkspace` are not contributed in `editors/vscode/package.json` yet;
+  they are frozen in `rule:ide/contributions-are-frozen-and-only-ever-added`'s roster and are added once
+  the server reads a scope from the client, not before.
+- This goal's one ADR is still unopened — `docs/agent/loop-goal.md:149` says it covers stage 2's index
+  shape with stages 4, 5 and 6. Stage 2's shape is in `crates/nvs-lsp/src/index.rs`'s module doc until
+  it is written; the record is frozen once, so it waits for the other three stages.
+- `rule:ide/five-features-are-one-reference-index` is still `designed`; it ships when the five readers
+  do, and its `guardedBy` should name `crates/nvs-lsp/tests/index.rs` then.
+- An enum case occurrence is recorded against its enum — `crates/nvs-lsp/src/index.rs`'s known gaps.
