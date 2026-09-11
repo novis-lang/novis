@@ -14,4 +14,4 @@ cached value is a claim by the author rather than a computation by us. VBA and e
 are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
 `tainted`.
 
-**Not shipped.** There is no spreadsheet package in the tree, and no milestone owns it.
+**Not shipped.** There is no spreadsheet package in the tree; M17 builds it.

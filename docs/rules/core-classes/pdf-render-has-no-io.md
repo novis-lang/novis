@@ -15,4 +15,4 @@ read through a `<img src>` — is thereby absent by construction: there is nothi
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
 so a plain document renders out of the box, and the guest needs no clock.
 
-**Not shipped.** There is no PDF package in the tree, and no milestone owns it.
+**Not shipped.** There is no PDF package in the tree; M17 builds it.

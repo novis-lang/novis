@@ -1872,7 +1872,7 @@ read through a `<img src>` — is thereby absent by construction: there is nothi
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
 so a plain document renders out of the box, and the guest needs no clock.
 
-**Not shipped.** There is no PDF package in the tree, and no milestone owns it.
+**Not shipped.** There is no PDF package in the tree; M17 builds it.
 
 <sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0121](../decisions/0121.md), [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
@@ -2031,7 +2031,7 @@ cached value is a claim by the author rather than a computation by us. VBA and e
 are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
 `tainted`.
 
-**Not shipped.** There is no spreadsheet package in the tree, and no milestone owns it.
+**Not shipped.** There is no spreadsheet package in the tree; M17 builds it.
 
 <sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
 
