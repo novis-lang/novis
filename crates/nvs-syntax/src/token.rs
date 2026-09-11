@@ -172,6 +172,19 @@ pub enum TokenKind {
     /// Closes a `{$ … }` interpolation: the matching `}`.
     ComplexInterpClose,
 
+    /// Opens a markup literal: the prefix and the delimiter together,
+    /// `` html` `` (`rule:core-classes/html-literal`). Between this and
+    /// [`MarkupClose`](Self::MarkupClose) the lexer is in a double-quoted
+    /// string's body mode with the delimiter swapped — the same
+    /// [`StringPart`](Self::StringPart) runs and the same
+    /// [`ComplexInterpOpen`](Self::ComplexInterpOpen) holes — so it scans for
+    /// nothing but those and the closing backtick, and learns no HTML.
+    MarkupOpen,
+    /// Closes a markup literal: the `` ` `` itself. A backtick in the body is
+    /// written `` \` ``, which the body scanner takes as an escape like any
+    /// other and leaves for the cooking pass.
+    MarkupClose,
+
     // --- punctuation and operators ------------------------------------------
     /// `(`
     LParen,

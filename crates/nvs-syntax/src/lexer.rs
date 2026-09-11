@@ -12,9 +12,15 @@
 //! tag is legal to run to end of file"
 //! ([`docs/spec/00-overview.md` § 1](/docs/spec/00-overview.md)).
 //! Everything nested inside that outer state — a double-quoted string, a
-//! heredoc/nowdoc, a `{$…}` interpolation site — is a genuine push/pop frame,
-//! and reaching end of input with any of those still open is
-//! [`code::E_UNTERMINATED`].
+//! markup literal, a heredoc/nowdoc, a `{$…}` interpolation site — is a
+//! genuine push/pop frame, and reaching end of input with any of those still
+//! open is [`code::E_UNTERMINATED`].
+//!
+//! A markup literal, ``html`…` ``, is [`Mode::DoubleQuoted`] with the
+//! delimiter swapped: the same segments, the same `{$` holes counting brace
+//! depth, the same escapes. The lexer scans for the closing backtick and for
+//! `{$`, and for nothing else — it learns no HTML
+//! (`rule:core-classes/html-literal`).
 //!
 //! # What the lexer does not do
 //!
@@ -55,6 +61,12 @@ enum Mode {
     /// Inside `"…"`, between [`TokenKind::DoubleQuoteOpen`] and
     /// [`TokenKind::DoubleQuoteClose`].
     DoubleQuoted { start: BytePos },
+    /// Inside ``html`…` ``, between [`TokenKind::MarkupOpen`] and
+    /// [`TokenKind::MarkupClose`]. This is [`Mode::DoubleQuoted`] with the
+    /// delimiter swapped and nothing else changed: the segments, the `{$`
+    /// holes and the escapes are a double-quoted string's
+    /// (`rule:core-classes/html-literal`).
+    Markup { start: BytePos },
     /// Inside a heredoc/nowdoc body, between its open and close delimiters.
     /// `interpolation` is false for a nowdoc (`<<<'LABEL'`).
     Heredoc {
@@ -195,7 +207,9 @@ impl<'a> Lexer<'a> {
         match self.modes.last() {
             Some(Mode::Html) => self.lex_html(diags),
             Some(Mode::Code { .. }) => self.lex_code(diags),
-            Some(Mode::DoubleQuoted { .. } | Mode::Heredoc { .. }) => self.lex_quoted_body(diags),
+            Some(Mode::DoubleQuoted { .. } | Mode::Markup { .. } | Mode::Heredoc { .. }) => {
+                self.lex_quoted_body(diags)
+            }
             None => unreachable!("mode stack is never empty"),
         }
     }
@@ -214,6 +228,9 @@ impl<'a> Lexer<'a> {
                 start,
                 TokenKind::DoubleQuoteClose,
             ),
+            Mode::Markup { start } => {
+                ("unterminated markup literal", start, TokenKind::MarkupClose)
+            }
             Mode::Heredoc { start, .. } => (
                 "unterminated heredoc/nowdoc",
                 start,
@@ -570,6 +587,18 @@ impl<'a> Lexer<'a> {
 
         if self.starts_with("<<<") {
             self.lex_heredoc_open(diags);
+            return;
+        }
+
+        // The prefix and the delimiter are one token, so the backtick has to
+        // follow `html` immediately; anywhere else a backtick is an
+        // unexpected character, Novis having no shell-execution form
+        // (`rule:core-classes/process-is-argv-only`).
+        if self.starts_with("html`") {
+            let start = self.pos;
+            self.pos += 5;
+            self.push(TokenKind::MarkupOpen, self.mk_span(start, self.pos));
+            self.modes.push(Mode::Markup { start });
             return;
         }
 
@@ -1233,15 +1262,26 @@ impl<'a> Lexer<'a> {
     // --- double-quoted / heredoc / nowdoc body -----------------------------
 
     fn lex_quoted_body(&mut self, diags: &mut Diagnostics) {
-        let (is_heredoc, interpolation, label) = match self.modes.last() {
-            Some(Mode::DoubleQuoted { .. }) => (false, true, String::new()),
+        // What ends the body is all that separates the three: one character
+        // for `"…"` and ``html`…` ``, a label line for a heredoc/nowdoc. The
+        // scan itself -- segments, `{$` holes, simple `$name`, escapes -- is
+        // one scan, which is the whole of `rule:core-classes/html-literal`'s
+        // lexing.
+        let (delimiter, interpolation, label) = match self.modes.last() {
+            Some(Mode::DoubleQuoted { .. }) => (
+                Some(('"', TokenKind::DoubleQuoteClose)),
+                true,
+                String::new(),
+            ),
+            Some(Mode::Markup { .. }) => (Some(('`', TokenKind::MarkupClose)), true, String::new()),
             Some(Mode::Heredoc {
                 label,
                 interpolation,
                 ..
-            }) => (true, *interpolation, label.clone()),
-            _ => unreachable!("lex_quoted_body called outside a string/heredoc mode"),
+            }) => (None, *interpolation, label.clone()),
+            _ => unreachable!("lex_quoted_body called outside a string/heredoc/markup mode"),
         };
+        let is_heredoc = delimiter.is_none();
 
         if is_heredoc && self.heredoc_terminator_here(&label) {
             let span = self.consume_heredoc_terminator(&label);
@@ -1249,10 +1289,12 @@ impl<'a> Lexer<'a> {
             self.modes.pop();
             return;
         }
-        if !is_heredoc && self.peek() == Some('"') {
+        if let Some((closer, close_kind)) = delimiter
+            && self.peek() == Some(closer)
+        {
             let start = self.pos;
             self.bump();
-            self.push(TokenKind::DoubleQuoteClose, self.mk_span(start, self.pos));
+            self.push(close_kind, self.mk_span(start, self.pos));
             self.modes.pop();
             return;
         }
@@ -1282,7 +1324,9 @@ impl<'a> Lexer<'a> {
             if is_heredoc && self.at_line_start() && self.heredoc_terminator_here(&label) {
                 break;
             }
-            if !is_heredoc && self.peek() == Some('"') {
+            if let Some((closer, _)) = delimiter
+                && self.peek() == Some(closer)
+            {
                 break;
             }
             if interpolation {
@@ -2020,6 +2064,160 @@ mod tests {
                 Eof,
             ]
         );
+    }
+
+    #[test]
+    fn a_markup_literal_lexes_as_parts_the_way_a_double_quoted_string_does() {
+        // The same shape a `"…"` produces with the delimiter swapped: segments
+        // and `{$` holes, and nothing in the lexer that knows what a tag is
+        // (`rule:core-classes/html-literal`).
+        assert_eq!(
+            kinds_ok("<?nvs echo html`<span>posted by </span>{$name}`;"),
+            vec![
+                OpenTagNvs,
+                Keyword(super::Keyword::Echo),
+                MarkupOpen,
+                StringPart,
+                ComplexInterpOpen,
+                Variable,
+                ComplexInterpClose,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_markup_hole_tracks_nested_braces_so_a_closure_does_not_close_it() {
+        // The hole opens the same `Mode::Code` frame a string's does, so the
+        // closure's braces are counted rather than mistaken for the closer.
+        assert_eq!(
+            kinds_ok("<?nvs html`<p>{$f(function () { return 1; })}</p>`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                ComplexInterpOpen,
+                Variable,
+                LParen,
+                Keyword(super::Keyword::Function),
+                LParen,
+                RParen,
+                LBrace,
+                Keyword(super::Keyword::Return),
+                IntLiteral,
+                Semicolon,
+                RBrace,
+                RParen,
+                ComplexInterpClose,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_brace_before_a_non_dollar_stays_a_segment_byte() {
+        // A `<style>` block needs no escape and `{Money::format(…)}` is text,
+        // because only `{$` opens a hole (ADR 0169 § 3). The `$c` inside that
+        // text still interpolates in the simple syntax, which is the same
+        // answer a double-quoted string gives.
+        assert_eq!(
+            kinds_ok("<?nvs html`<style>.a{color:red}</style>{Money::format($c)}`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                Variable,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_bare_dollar_name_interpolates_in_a_markup_literal() {
+        assert_eq!(
+            kinds_ok("<?nvs html`<b>$name</b>`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                Variable,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_backslash_backtick_is_a_literal_backtick_in_a_markup_segment() {
+        // The escape is consumed with the segment, so the delimiter it names
+        // never reaches the closer check and the body stays one part.
+        assert_eq!(
+            kinds_ok(r"<?nvs html`<code>\`</code>`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_backslash_brace_is_a_literal_brace_before_a_dollar() {
+        // `\{` is what writes a literal brace where `{$` would otherwise open
+        // a hole; what follows is then an ordinary simple interpolation.
+        assert_eq!(
+            kinds_ok(r"<?nvs html`\{$name}`;"),
+            vec![
+                OpenTagNvs,
+                MarkupOpen,
+                StringPart,
+                Variable,
+                StringPart,
+                MarkupClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unterminated_markup_literal_reports_e0002_at_the_delimiter_that_opened_it() {
+        // The code an unterminated string, heredoc and interpolation already
+        // carry -- the literal adds no diagnostic of its own
+        // (`rule:core-classes/html-literal`).
+        let src = "<?nvs echo html`<p>hello";
+        let (kinds, diags) = kinds(src);
+        assert_eq!(
+            kinds,
+            vec![
+                OpenTagNvs,
+                Keyword(super::Keyword::Echo),
+                MarkupOpen,
+                StringPart,
+                MarkupClose,
+                Eof,
+            ]
+        );
+        let reported = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_UNTERMINATED))
+            .expect("an open literal at end of file is reported");
+        let opener = u32::try_from(src.find("html`").expect("the opener is in the source"))
+            .expect("test sources are short");
+        assert_eq!(reported.labels[0].span.start, opener);
     }
 
     #[test]
