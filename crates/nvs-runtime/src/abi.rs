@@ -509,6 +509,26 @@ fn report_memory_breach(ctx: &mut Ctx, breach: Fault) -> i32 {
     record_fault(ctx, breach)
 }
 
+/// The status a write refused by `rule:errors/on-limit`'s memory ceiling
+/// becomes, for a primitive whose signature already carries one.
+///
+/// The same two lines [`run_helper`] takes ahead of a member's body — the
+/// handler, then the breach as a `FATAL` no `catch` sees — reached from a
+/// helper that holds a `ctx` and a status but has no [`Fault`] of its own to
+/// hand back. `crate::array::nvs_array_append` and `nvs_array_spread` are the
+/// callers: the array writes that do not have to answer a degenerate value,
+/// because they can say what happened.
+pub(crate) fn report_refusal(ctx: &mut Ctx) -> i32 {
+    match ctx.memory_breach() {
+        Some(breach) => report_memory_breach(ctx, breach),
+        // The refusal has already been taken from the request — `take_refusal`'s
+        // two callers are the context that ends and the handler lent a slice to
+        // report with — so there is nothing left to record and the only thing
+        // the caller owes is the write it did not make.
+        None => OK,
+    }
+}
+
 /// Records `fault` on `ctx` and answers the status it becomes.
 ///
 /// [`run_helper`]'s own translation, extracted because a second caller reaches

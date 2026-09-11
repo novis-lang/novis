@@ -18,8 +18,10 @@
 //! built from.
 
 use nvs_runtime::{
-    Ctx, IMMORTAL_REFCOUNT, NvsStr, OutputSink, SafepointFlags, budget, nvs_str_append,
-    nvs_str_concat, nvs_str_concat_n, nvs_str_release,
+    ArrayHeader, Ctx, FATAL, IMMORTAL_REFCOUNT, NvsArray, NvsStr, OutputSink, SafepointFlags,
+    Value, budget, nvs_array_append, nvs_array_next_slot, nvs_array_release, nvs_array_set,
+    nvs_array_set_index, nvs_array_value_at, nvs_str_append, nvs_str_concat, nvs_str_concat_n,
+    nvs_str_release, prime_empty_array,
 };
 
 /// A request under `bytes` of ceiling, holding nothing of its own yet.
@@ -341,5 +343,213 @@ fn a_refused_operation_balances_every_reference_it_was_handed() {
         budget::live_bytes(),
         before,
         "a refused operation left bytes behind, which is a leak charged to whichever request runs next",
+    );
+}
+
+/// A refused write hands back the array it was given, with nothing written into
+/// it and — the half only a pointer comparison catches — nothing separated
+/// either.
+///
+/// The array here is shared, which is the state a write is expensive in and the
+/// one the no-op has to hold in. A copy made and then not written into is the
+/// failure this is written around: the pointer the caller is handed looks
+/// served, the counts on both handles still read right, and every other owner
+/// goes on reading an original the program believes it has just written to.
+///
+/// Both primitives, because the string-keyed one owes one thing more: the key's
+/// reference, which a served write takes over and a refused one has to release
+/// rather than keep.
+#[test]
+fn an_array_set_past_the_ceiling_neither_writes_nor_separates() {
+    // The two per-thread costs the playbook names, paid before any balance
+    // below is read: the empty array's singleton, and a thread's first `Ctx`.
+    prime_empty_array();
+    drop(ctx_under(1 << 20));
+
+    let mut array = NvsArray::new();
+    for entry in 0..16 {
+        array.append(Value::int(entry));
+    }
+    let shared = array.clone();
+    let raw = array.into_raw();
+    // Allocated while there is still a budget to allocate it out of: the case
+    // is about the write's refusal, not the key's.
+    let key = NvsStr::new(b"k").into_raw();
+
+    let ctx = ctx_under(64);
+    let held = budget::live_bytes();
+
+    #[expect(
+        unsafe_code,
+        reason = "`raw` is live for the whole case, holding the one reference \
+                  each primitive consumes and hands back, `key` owns the one \
+                  reference it transfers, and each `Value` is an `int` owning \
+                  nothing"
+    )]
+    unsafe {
+        let answered = nvs_array_set_index(raw, 3, &Value::int(99));
+        assert_eq!(
+            answered, raw,
+            "a refused write separated, so it allocated the copy it had just been refused the room for",
+        );
+        assert_eq!(
+            budget::live_bytes(),
+            held,
+            "a refused write moved the balance, so something was allocated on the way to refusing it",
+        );
+
+        let answered = nvs_array_set(answered, key, &Value::int(99));
+        assert_eq!(
+            answered, raw,
+            "a refused string-keyed write separated, the half of the no-op only the pointer says",
+        );
+        assert!(
+            budget::live_bytes() < held,
+            "a refused write kept the key it was handed, which is a leak charged to whichever request runs next",
+        );
+        drop(NvsArray::from_raw(answered));
+    }
+
+    assert_eq!(
+        shared.get_index(3).and_then(Value::as_int),
+        Some(3),
+        "a refused write landed in the array it answered unchanged",
+    );
+    assert_eq!(
+        shared.count(),
+        16,
+        "a refused write changed what the array holds",
+    );
+    assert!(
+        ctx.safepoint_flags().contains(SafepointFlags::MEMORY_LIMIT),
+        "the write was served rather than refused, so nothing above is about a refusal",
+    );
+}
+
+/// A primitive that carries a status says so instead of answering a degenerate
+/// value: the append hands back its array unchanged, releases the reference it
+/// was given, and reports the ceiling as the `FATAL` no `catch` can see.
+///
+/// `rule:errors/on-limit`'s tier, in other words, rather than the "no room" a
+/// fallible producer would word as a throw. The array coming back untouched is
+/// the other half: `$a[] = …`'s error path releases whatever `out` names, so an
+/// append that separated and then refused would leave the caller's own pointer
+/// dangling.
+///
+/// The balance is the one thing not asserted here. Reporting the breach builds
+/// the message the status carries, which is an allocation the request makes
+/// *because* it was refused; that the write itself takes none is what the cases
+/// above pin, on the primitives that answer no status at all.
+#[test]
+fn an_array_append_past_the_ceiling_refuses_through_the_status_it_already_has() {
+    prime_empty_array();
+    drop(ctx_under(1 << 20));
+
+    let mut array = NvsArray::new();
+    for entry in 0..16 {
+        array.append(Value::int(entry));
+    }
+    let shared = array.clone();
+    let raw = array.into_raw();
+
+    let mut ctx = ctx_under(64);
+    let mut answered: *mut ArrayHeader = std::ptr::null_mut();
+
+    #[expect(
+        unsafe_code,
+        reason = "`raw` holds the one reference the append consumes and writes \
+                  back, `ctx` is the live context of the request making the \
+                  call, and the `Value` is an `int` owning nothing"
+    )]
+    unsafe {
+        let status = nvs_array_append(&raw mut ctx, raw, &Value::int(99), &mut answered);
+        assert_eq!(
+            status, FATAL,
+            "a refused append answered something a program can carry on from, which is the tier `rule:errors/on-limit` puts a limit above",
+        );
+        assert_eq!(
+            answered, raw,
+            "a refused append separated, so the reference its caller holds is not the one it was handed back",
+        );
+        drop(NvsArray::from_raw(answered));
+    }
+
+    assert_eq!(
+        shared.count(),
+        16,
+        "a refused append landed in the array it answered unchanged",
+    );
+    assert!(
+        ctx.pending()
+            .is_some_and(|message| message.contains("memory limit")),
+        "a refused append recorded a member's own error in place of the ceiling that stopped it",
+    );
+}
+
+/// A `foreach` whose body writes walks the snapshot it started on: the loop
+/// holds its own reference, so the write separates and leaves the cursor on the
+/// original. A refused write has to leave that true from the other side — it
+/// separates nothing, so the cursor's snapshot and the program's array stay one
+/// allocation, and it writes nothing into that allocation, so every slot the
+/// cursor has still to reach names a live entry.
+///
+/// The failure this is written around is not a wrong answer but a panic:
+/// `nvs_array_value_at` expects the slot it is handed to be live, and a refusal
+/// that wrote into the shared original would be a contained `FATAL` where
+/// `rule:errors/on-limit` says the request is stopped by its ceiling.
+#[test]
+fn a_refused_write_leaves_a_live_foreach_cursor_on_its_own_snapshot() {
+    prime_empty_array();
+    drop(ctx_under(1 << 20));
+
+    let mut array = NvsArray::new();
+    for entry in 0..8 {
+        array.append(Value::int(entry));
+    }
+    // What `foreach` retains for the walk, and what the program's own variable
+    // holds — the same allocation until a served write separates them.
+    let cursor = array.clone().into_raw();
+    let raw = array.into_raw();
+    let ctx = ctx_under(64);
+    let mut walked = Vec::new();
+
+    #[expect(
+        unsafe_code,
+        reason = "both handles are live until the releases that end them, the \
+                  slot passed to `nvs_array_value_at` is the one \
+                  `nvs_array_next_slot` just named, and the `Value` is an \
+                  `int` owning nothing"
+    )]
+    unsafe {
+        let mut from = 0;
+        loop {
+            let slot = nvs_array_next_slot(cursor, from);
+            let Ok(slot) = usize::try_from(slot) else {
+                break;
+            };
+            let mut seen = Value::null();
+            nvs_array_value_at(cursor, slot, &mut seen);
+            walked.push(seen.as_int().expect("the case stored ints"));
+
+            // The body's own `$a[0] = 99`, refused.
+            let answered = nvs_array_set_index(raw, 0, &Value::int(99));
+            assert_eq!(
+                answered, cursor,
+                "a refused write separated under a live cursor, which leaves the walk on an allocation nothing else holds",
+            );
+            from = slot + 1;
+        }
+        nvs_array_release(cursor);
+        nvs_array_release(raw);
+    }
+
+    assert_eq!(
+        walked,
+        (0..8).collect::<Vec<i64>>(),
+        "the walk over a refused write's array missed an entry or answered a written one",
+    );
+    assert!(
+        ctx.safepoint_flags().contains(SafepointFlags::MEMORY_LIMIT),
+        "the writes were served rather than refused, so nothing above is about a refusal",
     );
 }

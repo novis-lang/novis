@@ -295,6 +295,25 @@ impl Default for Table {
     }
 }
 
+/// One bucket of a key index, its control byte included — what a `HashMap`
+/// holds per entry, and so the stride that prices the index's growth.
+const INDEX_BUCKET: usize = size_of::<NvsStr>() + size_of::<usize>() + 1;
+
+/// The slots a store's first allocation takes, however few are asked of it.
+const FIRST_SLOTS: usize = 4;
+
+/// What a store of `capacity` slots holding `len` of them, each `stride` bytes
+/// wide, asks the allocator for when one more entry goes in: nothing at all
+/// while there is room, and its own size again where the amortized growth
+/// doubles it. An empty store asks for the floor its first allocation takes
+/// rather than a double of nothing.
+fn amortized(len: usize, capacity: usize, stride: usize) -> usize {
+    if len < capacity {
+        return 0;
+    }
+    capacity.max(FIRST_SLOTS).saturating_mul(stride)
+}
+
 /// The `i64` a canonical decimal key denotes, or `None` if the key is not one.
 ///
 /// Canonical means what PHP means by it: an optional `-`, then either `0` or a
@@ -495,6 +514,48 @@ impl Table {
         match &mut self.shape {
             Shape::Packed(values) => values.try_reserve(additional).is_ok(),
             Shape::Hashed(hashed) => hashed.try_reserve(additional),
+        }
+    }
+
+    /// The bytes one more entry asks the allocator for — the ask
+    /// [`crate::budget::affords`] is given in front of a write, and `0` while
+    /// the storage it lands in already has room for it.
+    ///
+    /// Both stores an insert grows are counted, because the hash form grows
+    /// the order and the index together. Each doubles, so one that is full
+    /// moves the balance by what it already holds while one with room moves it
+    /// by nothing: the difference between two sizes that `StrWriter::grow`
+    /// asks against, rather than the whole store.
+    ///
+    /// A write landing on a key already present is priced as the insert it
+    /// might be. Telling the two apart costs the lookup the write is about to
+    /// make anyway, and the whole difference between the two answers is one
+    /// growth.
+    fn growth_cost(&self) -> usize {
+        match &self.shape {
+            Shape::Packed(values) => amortized(values.len(), values.capacity(), size_of::<Value>()),
+            Shape::Hashed(hashed) => amortized(
+                hashed.entries.len(),
+                hashed.entries.capacity(),
+                size_of::<Option<Entry>>(),
+            )
+            .saturating_add(amortized(
+                hashed.index.len(),
+                hashed.index.capacity(),
+                INDEX_BUCKET,
+            )),
+        }
+    }
+
+    /// The bytes a copy-on-write separation of this table asks for: the live
+    /// entries and no room past them, which is what [`Table::separate`]
+    /// reserves.
+    fn separation_cost(&self) -> usize {
+        match &self.shape {
+            Shape::Packed(values) => values.len().saturating_mul(size_of::<Value>()),
+            Shape::Hashed(hashed) => hashed
+                .live
+                .saturating_mul(size_of::<Option<Entry>>() + INDEX_BUCKET),
         }
     }
 
@@ -846,6 +907,37 @@ impl NvsArray {
     #[must_use]
     pub fn has_key(&self, key: &[u8]) -> bool {
         self.get(key).is_some()
+    }
+
+    /// Whether the running request can afford one write here — the copy this
+    /// handle separates into where it shares its storage, and the growth that
+    /// storage takes where it is full.
+    ///
+    /// `rule:errors/on-limit`'s memory ceiling asked in front of the write
+    /// rather than behind it: [`crate::budget::add`] compares once the block is
+    /// already held, which bounds a *loop* of writes and cannot bound one of
+    /// them. A `false` has already recorded the breach and asked for the poll
+    /// that reports it, so what the caller owes is an operation that allocates
+    /// nothing and an answer that costs nothing — for [`nvs_array_set`] and
+    /// [`nvs_array_set_index`], the array unchanged.
+    ///
+    /// A shared handle is priced at the copy **and** one growth of it, because
+    /// [`Table::separate`] reserves room for the live entries exactly, so the
+    /// write that follows grows what the separation just made. An unshared one
+    /// is priced at the growth alone, which is the whole of what the common
+    /// write allocates.
+    ///
+    /// The ask is made whatever it costs, zero included: a balance already
+    /// past the ceiling is a request that is over, and a write it makes after
+    /// that is one it is not entitled to however little it would take.
+    fn affords_write(&self) -> bool {
+        let table = self.header().table.borrow();
+        let ask = if self.refcount() == 1 {
+            table.growth_cost()
+        } else {
+            size_of::<ArrayHeader>().saturating_add(table.separation_cost().saturating_mul(2))
+        };
+        crate::budget::affords(ask)
     }
 
     /// Writes `value` at `key`, taking over both references and separating
@@ -1501,6 +1593,14 @@ pub unsafe extern "C" fn nvs_array_has_key(array: *mut ArrayHeader, key: *const 
 /// returns the one reference to the array that now holds the entry: the same
 /// pointer when `array` was uniquely owned, a separated copy otherwise.
 ///
+/// Where [`NvsArray::affords_write`] refuses, `array` comes back exactly as it
+/// arrived and the other two references are released — the degenerate answer a
+/// primitive with no status channel has in place of one. The refusal is a
+/// **complete no-op**, the separation included: a copy that was made but not
+/// written, or a write into the original a `foreach` is still walking, is the
+/// one way a refused write reaches [`nvs_array_value_at`]'s live-entry
+/// expectation.
+///
 /// # Safety
 ///
 /// `array` must refer to a live Novis array allocation whose reference the
@@ -1524,6 +1624,11 @@ pub unsafe extern "C" fn nvs_array_set(
     )]
     unsafe {
         let mut handle = NvsArray::from_raw(array);
+        if !handle.affords_write() {
+            drop(NvsStr::from_raw(key));
+            crate::release::release_value(value.read());
+            return handle.into_raw();
+        }
         handle.set(NvsStr::from_raw(key), value.read());
         handle.into_raw()
     }
@@ -1538,6 +1643,10 @@ pub unsafe extern "C" fn nvs_array_set(
 /// `$a[]` land at `9`. Consumes one reference to `array` and one to `value`,
 /// and returns the one reference to the array that now holds the entry — see
 /// [`nvs_array_set`]. The index owns nothing, so nothing about it is consumed.
+///
+/// A refused write answers the same way [`nvs_array_set`]'s does — the array
+/// unchanged, `value`'s reference released, and neither a growth nor a
+/// separation taken.
 ///
 /// # Safety
 ///
@@ -1561,6 +1670,10 @@ pub unsafe extern "C" fn nvs_array_set_index(
     )]
     unsafe {
         let mut handle = NvsArray::from_raw(array);
+        if !handle.affords_write() {
+            crate::release::release_value(value.read());
+            return handle.into_raw();
+        }
         handle.set_index(index, value.read());
         handle.into_raw()
     }
@@ -1584,6 +1697,12 @@ pub unsafe extern "C" fn nvs_array_set_index(
 /// and stays owned and there is nothing for the error path to re-point — see
 /// this module's *the append is the one array write with a fault channel* for
 /// why the signature is this shape at all.
+///
+/// Or [`crate::FATAL`] where [`NvsArray::affords_write`] refuses the entry: the
+/// same unchanged array and the same released reference, reported through the
+/// status this signature already carries rather than as a degenerate value.
+/// That is what [`nvs_array_set`] cannot do and why the two answer a ceiling
+/// differently.
 ///
 /// # Safety
 ///
@@ -1611,6 +1730,11 @@ pub unsafe extern "C" fn nvs_array_append(
     )]
     unsafe {
         let mut handle = NvsArray::from_raw(array);
+        if !handle.affords_write() {
+            crate::release::release_value(value.read());
+            out.write(handle.into_raw());
+            return crate::abi::report_refusal(&mut *ctx);
+        }
         let outcome = handle.try_append(value.read());
         out.write(handle.into_raw());
         match outcome {
@@ -1651,6 +1775,13 @@ pub unsafe extern "C" fn nvs_array_append(
 /// channel because it shares the write. See this module's *the append is the
 /// one array write with a fault channel*.
 ///
+/// Or [`crate::FATAL`] where [`NvsArray::affords_write`] refuses an entry, which
+/// is asked per entry rather than for the spread as a whole: a subject large
+/// enough to cross a ceiling crosses it partway through, and stopping there is
+/// what bounds the copy instead of the loop around it. The entries already
+/// copied stay in the array written to `out`, which the error path this status
+/// branches to is the only reader of.
+///
 /// # Safety
 ///
 /// `ctx` must refer to the live [`Ctx`](crate::Ctx) of the request this call
@@ -1685,9 +1816,19 @@ pub unsafe extern "C" fn nvs_array_spread(
         // arrays in any case: the destination is the literal under
         // construction and nothing else can name it yet.
         let mut refused = None;
+        let mut over_ceiling = false;
         let mut from = 0;
         while let Some(slot) = source.next_slot(from) {
             from = slot + 1;
+            // Asked once per entry and ahead of the retain, so a spread of a
+            // large subject is bounded entry by entry rather than as the one
+            // operation a program wrote. What the destination already took is
+            // left in it: the literal under construction is reached by nothing
+            // but the error path this `FATAL` branches to.
+            if !handle.affords_write() {
+                over_ceiling = true;
+                break;
+            }
             let value = source.value_at(slot).expect("next_slot names a live entry");
             let key = source.slot_key(slot).expect("next_slot names a live entry");
             value.retain();
@@ -1708,6 +1849,9 @@ pub unsafe extern "C" fn nvs_array_spread(
             }
         }
         out.write(handle.into_raw());
+        if over_ceiling {
+            return crate::abi::report_refusal(&mut *ctx);
+        }
         match refused {
             None => crate::OK,
             Some(value) => {
