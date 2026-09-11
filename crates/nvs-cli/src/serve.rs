@@ -87,6 +87,7 @@
 //! is the rule that is not met — "a request clones the `Arc` when it starts and
 //! reads from that clone for its whole life" — and closing it is what makes
 //! every ceiling on this path live, not the publication.
+//! — owner: M6
 //!
 
 use std::cell::Cell;
