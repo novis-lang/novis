@@ -1,4 +1,4 @@
-//! `initialize`, and the two things a client reads out of it.
+//! `initialize`, what a client reads out of it, and what it configured in it.
 //!
 //! The capability set and the negotiated encoding are both decided once, at the
 //! handshake, and cached by the client for the life of the session. A mistake
@@ -7,18 +7,28 @@
 //! non-ASCII line is off by a little. Neither produces an error anywhere, so
 //! both are pinned here.
 //!
+//! The settings travel the same way and are invisible in the same way. A
+//! spelling this server does not look for is a setting a developer wrote and
+//! nothing acts on, with no error anywhere to say so, and
+//! `rule:ide/contributions-are-frozen-and-only-ever-added` makes correcting one
+//! later a break in somebody's `settings.json` rather than a fix. What
+//! `nvs_lsp::Settings` reads out of `initializationOptions`, and what it falls
+//! back to, is therefore pinned here beside them.
+//!
 //! The handshake is driven over `lsp_server::Connection::memory()` rather than
 //! a subprocess. That is the same code path `run` takes — `serve` is the whole
 //! of it, and only the descriptors differ — and it keeps this file from being a
 //! test of process spawning.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::{
     ClientCapabilities, GeneralClientCapabilities, InitializeParams, InitializeResult,
-    PositionEncodingKind,
+    PositionEncodingKind, WorkspaceFolder,
 };
+use nvs_lsp::{CheckScope, Settings};
 
 /// Run one full `initialize`/`initialized`/`shutdown`/`exit` exchange against a
 /// server in this process, and hand back what it declared.
@@ -211,5 +221,116 @@ fn a_client_offering_only_utf16_gets_utf16() {
     assert_eq!(
         handshake(exotic).capabilities.position_encoding,
         Some(PositionEncodingKind::UTF16)
+    );
+}
+
+/// A client that sent `options` as its `initializationOptions` and nothing
+/// else.
+///
+/// The JSON is written the way the extension holds it — the `nvs` section as a
+/// nested object, which is what `workspace.getConfiguration("nvs")` is — so a
+/// case here reads as the `settings.json` it comes from.
+fn configured(options: serde_json::Value) -> InitializeParams {
+    InitializeParams {
+        initialization_options: Some(options),
+        ..InitializeParams::default()
+    }
+}
+
+/// A client that opened `path` as its one workspace folder.
+fn rooted_at(path: &Path) -> InitializeParams {
+    InitializeParams {
+        workspace_folders: Some(vec![WorkspaceFolder {
+            uri: nvs_lsp::uri_of(path).expect("a temp path is UTF-8"),
+            name: "workspace".to_owned(),
+        }]),
+        ..InitializeParams::default()
+    }
+}
+
+#[test]
+fn the_two_settings_are_read_off_initialization_options() {
+    // The spellings are `rule:ide/contributions-are-frozen-and-only-ever-added`'s
+    // roster verbatim, which is the whole of what this pins: a server reading
+    // `checkScope` or `nvs.check.scope` would find nothing in what the editor
+    // sends and report no error about it.
+    let settings = Settings::from_initialize(&configured(serde_json::json!({
+        "check": { "scope": "workspace" },
+        "codeLens": { "enable": false },
+    })));
+
+    assert_eq!(settings.scope, CheckScope::Workspace);
+    assert!(
+        !settings.code_lens,
+        "`nvs.codeLens.enable` was turned off and the server did not notice"
+    );
+}
+
+#[test]
+fn a_client_that_configured_nothing_gets_the_roster_defaults() {
+    // `rule:ide/check-scope-defaults-to-open-documents`: the default does not
+    // change what the editor did before the setting existed, so an unconfigured
+    // client and a client that sent `"open"` are the same server.
+    assert_eq!(
+        Settings::from_initialize(&InitializeParams::default()),
+        Settings::default()
+    );
+    assert_eq!(Settings::default().scope, CheckScope::Open);
+    assert!(
+        Settings::default().code_lens,
+        "a lens is offered unless it was turned off"
+    );
+    assert_eq!(Settings::default().root, None);
+
+    assert_eq!(
+        Settings::from_initialize(&configured(serde_json::json!({
+            "check": { "scope": "open" },
+        })))
+        .scope,
+        CheckScope::Open
+    );
+}
+
+#[test]
+fn a_value_neither_setting_can_hold_leaves_it_at_its_default() {
+    // A typo in a `settings.json` must not be the reason a developer has no
+    // language server: there is no place to report one from at `initialize`
+    // time, so the only two outcomes are this and a session that never starts.
+    let nonsense = Settings::from_initialize(&configured(serde_json::json!({
+        "check": { "scope": "everything" },
+        "codeLens": { "enable": "yes" },
+    })));
+
+    assert_eq!(nonsense, Settings::default());
+
+    // And a section that is not an object at all, which is what an editor sends
+    // for a setting whose schema a user's own JSON disagrees with.
+    assert_eq!(
+        Settings::from_initialize(&configured(serde_json::json!({ "check": 7 }))),
+        Settings::default()
+    );
+}
+
+#[test]
+fn the_workspace_root_is_the_folder_the_client_named() {
+    // Without this the `Workspace` scope above has no tree to walk and quietly
+    // degrades to the open documents, which reads as a setting that does
+    // nothing rather than as a client that named no folder.
+    let dir = std::env::temp_dir().join("nvs-handshake-root");
+    assert_eq!(
+        Settings::from_initialize(&rooted_at(&dir)).root.as_deref(),
+        Some(dir.as_path())
+    );
+
+    // A client too old for `workspaceFolders` names the same directory in the
+    // deprecated field, and gets a workspace pass rather than silence.
+    #[allow(deprecated)]
+    let old = InitializeParams {
+        root_uri: Some(nvs_lsp::uri_of(&dir).expect("a temp path is UTF-8")),
+        ..InitializeParams::default()
+    };
+    assert_eq!(
+        Settings::from_initialize(&old).root.as_deref(),
+        Some(dir.as_path())
     );
 }

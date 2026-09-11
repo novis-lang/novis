@@ -29,7 +29,8 @@
 //! the store, and every open document it made stale is analysed and published
 //! for. Which documents those are is [`Documents::to_republish`]'s answer
 //! rather than this module's, and what goes into one is
-//! [`crate::diagnostics::for_document`]'s.
+//! [`crate::diagnostics::for_document`]'s and, at workspace scope,
+//! [`crate::diagnostics::dimming`]'s.
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -61,7 +62,7 @@ use crate::actions;
 use crate::capabilities::initialize_result;
 use crate::completion;
 use crate::definition;
-use crate::diagnostics::{Phases, for_document};
+use crate::diagnostics::{Phases, dimming, for_document};
 use crate::document::{Documents, analyse, path_of, uri_of};
 use crate::folding;
 use crate::hover;
@@ -71,6 +72,7 @@ use crate::position::{encoding_of, offset_at, range_of};
 use crate::redactions;
 use crate::selection;
 use crate::semantic;
+use crate::settings::Settings;
 use crate::symbols;
 
 /// What a failure on the wire is reported as.
@@ -137,13 +139,21 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // `rule:ide/the-server-is-synchronous`: one place holds what the client has
     // open, and it is the place that reads the channel.
     let mut documents = Documents::new();
+    // What the client configured, read once because `initialize` is the one
+    // message that carries it ([`crate::settings`]). Both settings decide what
+    // this server builds rather than what an answer says, so they are read
+    // here and not at a request: `scope` and the root are the tree the index
+    // below is constructed over, and `code_lens` is whether a lens is offered
+    // at all.
+    let settings = Settings::from_initialize(&params);
+
     // The one index `rule:ide/five-features-are-one-reference-index` names,
     // held here because this is what owns the store it is built from. Empty at
-    // this point — nothing is open yet — and filled by the refresh below as
-    // documents arrive. `nvs.check.scope` and the workspace root a `Workspace`
-    // pass walks belong to the reader that needs them, which is unused-member
-    // dimming and not this.
-    let mut index = SymbolIndex::build(&documents, CheckScope::default(), None);
+    // this point under the default scope — nothing is open yet — and filled by
+    // the refresh below as documents arrive; under
+    // `rule:ide/check-scope-defaults-to-open-documents`'s `Workspace` it
+    // already holds every `.nvs` file under the root the client named.
+    let mut index = SymbolIndex::build(&documents, settings.scope, settings.root.as_deref());
 
     for message in &connection.receiver {
         match message {
@@ -170,7 +180,14 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     if let Some(path) = &changed.path {
                         index.refresh(&documents, path);
                     }
-                    publish(connection, &mut documents, encoding, &changed)?;
+                    publish(
+                        connection,
+                        &mut documents,
+                        &index,
+                        settings.scope,
+                        encoding,
+                        &changed,
+                    )?;
                 }
             }
             // A response is an answer to a request this server has not yet
@@ -780,6 +797,12 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
 /// last sent until it is told otherwise, so the empty list is the only thing
 /// that clears a squiggle the edit fixed.
 ///
+/// The index joins that list at the end, which is unused-member dimming
+/// (`rule:ide/five-features-are-one-reference-index`) and the one thing here a
+/// compiler phase did not report. It is empty unless `scope` is
+/// `CheckScope::Workspace`, so the default publishes exactly what it published
+/// before the setting existed.
+///
 /// # Errors
 ///
 /// Fails when the writer thread is gone, which is terminal for the same reason
@@ -787,6 +810,8 @@ fn apply(documents: &mut Documents, notification: Notification) -> Option<Change
 fn publish(
     connection: &Connection,
     documents: &mut Documents,
+    index: &SymbolIndex,
+    scope: CheckScope,
     encoding: PositionEncoding,
     changed: &Changed,
 ) -> Result<(), ServerError> {
@@ -812,7 +837,15 @@ fn publish(
         // Rebuilt from the walk that has just run, which is what makes the
         // *next* edit to a file this document requires reach this document.
         documents.record_graph(&uri, analysed.files());
-        let diagnostics = for_document(&analysed, Phases::Gated, encoding);
+        let mut diagnostics = for_document(&analysed, Phases::Gated, encoding);
+        if let Some(path) = path_of(&uri) {
+            diagnostics.extend(dimming(
+                &index.unused_private(&path),
+                scope,
+                &analysed,
+                encoding,
+            ));
+        }
         // Asked again, immediately before the send: `analyse_current` refuses
         // to start a walk for a version already superseded, and this is the
         // other end of the same claim, for one that was overtaken while it ran

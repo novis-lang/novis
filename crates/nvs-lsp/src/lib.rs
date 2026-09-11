@@ -111,6 +111,7 @@ mod render;
 pub mod selection;
 pub mod semantic;
 mod server;
+pub mod settings;
 pub mod suite;
 pub mod symbols;
 
@@ -123,7 +124,10 @@ pub use diagnostics::{Phases, SOURCE, for_document, phase_gated, to_wire};
 pub use document::{
     Analysed, Document, Documents, analyse, analyse_current, analyse_file, path_of, uri_of,
 };
-pub use index::{CheckScope, DeclKind, Declaration, Occurrence, Site, SymbolIndex, symbol_at};
+pub use index::{
+    CheckScope, DeclKind, Declaration, Occurrence, Site, SymbolIndex, Visibility, symbol_at,
+};
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
 pub use render::{Action, Link, Place, Redaction, Response};
 pub use server::{ServerError, run, serve};
+pub use settings::Settings;

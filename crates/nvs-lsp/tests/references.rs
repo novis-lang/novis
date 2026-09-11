@@ -18,6 +18,7 @@ use lsp_types::notification::{DidChangeTextDocument, DidOpenTextDocument, Notifi
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, Location,
     TextDocumentContentChangeEvent, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
+    WorkspaceFolder,
 };
 
 /// The class, declaring `$count` on line 2 and using it on line 4.
@@ -27,6 +28,14 @@ const LIB: &str = "<?nvs\nclass Counter {\n    public int $count = 0;\n    \
 /// The open document, using `$count` on line 4.
 const MAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
                     echo $c->bump();\necho $c->count;\n";
+
+/// A third file, using `$count` on line 3 and required by nothing.
+///
+/// It resolves `Counter` through `lib.nvs` exactly as [`MAIN`] does, so the
+/// only thing keeping its use out of a reference list is that no open
+/// document's `require` graph reaches it — which is precisely what
+/// `nvs.check.scope` decides.
+const OTHER: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\necho $c->count;\n";
 
 /// [`MAIN`] with a second use of `$count`, on line 5.
 const MAIN_AGAIN: &str = "<?nvs\nrequire 'lib.nvs';\nvar $c = new Counter();\n\
@@ -58,6 +67,20 @@ impl TempDir {
     fn uri(&self, name: &str) -> Uri {
         nvs_lsp::uri_of(&self.path.join(name)).expect("a temp path is UTF-8")
     }
+
+    /// One more file beside the fixtures, for the test that needs a file no
+    /// open document's graph reaches.
+    fn write(&self, name: &str, text: &str) {
+        fs::write(self.path.join(name), text).expect("a fixture file");
+    }
+
+    /// This directory as the one workspace folder a client named.
+    fn folder(&self) -> WorkspaceFolder {
+        WorkspaceFolder {
+            uri: nvs_lsp::uri_of(&self.path).expect("a temp path is UTF-8"),
+            name: "workspace".to_owned(),
+        }
+    }
 }
 
 impl Drop for TempDir {
@@ -70,6 +93,15 @@ impl Drop for TempDir {
 /// `initialize`, then shuts it down and asserts it served without a protocol
 /// error.
 fn served(exchange: impl FnOnce(&Connection)) {
+    served_with(InitializeParams::default(), exchange);
+}
+
+/// The same, against a server handed `params` at the handshake.
+///
+/// That is how a test says what the client configured: `initialize` is the one
+/// message a setting travels in (`nvs_lsp::settings`), so a scope is chosen
+/// before the first document is opened or it is not chosen at all.
+fn served_with(params: InitializeParams, exchange: impl FnOnce(&Connection)) {
     let (server, client) = Connection::memory();
     let serving = std::thread::spawn(move || nvs_lsp::serve(&server));
 
@@ -77,7 +109,7 @@ fn served(exchange: impl FnOnce(&Connection)) {
         &client,
         1,
         "initialize",
-        serde_json::to_value(InitializeParams::default()).expect("params"),
+        serde_json::to_value(params).expect("params"),
     );
     notify(
         &client,
@@ -253,6 +285,54 @@ fn references_cross_a_file_the_client_never_opened() {
             ],
             "`includeDeclaration` adds the property's own declaration and \
              nothing else"
+        );
+    });
+}
+
+/// `nvs.check.scope` is what decides whether a file nothing requires is in the
+/// index at all.
+///
+/// The two halves are one fixture and one difference: the same directory, the
+/// same open document, the same cursor, and a handshake that either named
+/// `"workspace"` or did not. Under the default of
+/// `rule:ide/check-scope-defaults-to-open-documents` `other.nvs` is not there —
+/// nothing opened it and nothing requires it — and under `"workspace"` it is,
+/// which is the setting reaching `SymbolIndex::build` and nothing else.
+#[test]
+fn the_configured_scope_decides_whether_an_unrequired_file_is_indexed() {
+    let dir = TempDir::new("scope");
+    dir.write("other.nvs", OTHER);
+    let main = dir.uri("main.nvs");
+
+    let open_scope = |client: &Connection| {
+        open(client, &main, MAIN);
+        assert_eq!(
+            references(client, 2, &main, false),
+            vec![("lib.nvs".to_owned(), 4), ("main.nvs".to_owned(), 4)],
+            "`other.nvs` is under the workspace root and in no open document's \
+             graph, so the default scope must not reach it"
+        );
+    };
+    served(open_scope);
+
+    let workspace = InitializeParams {
+        workspace_folders: Some(vec![dir.folder()]),
+        initialization_options: Some(serde_json::json!({
+            "check": { "scope": "workspace" },
+        })),
+        ..InitializeParams::default()
+    };
+    served_with(workspace, |client| {
+        open(client, &main, MAIN);
+        assert_eq!(
+            references(client, 2, &main, false),
+            vec![
+                ("lib.nvs".to_owned(), 4),
+                ("main.nvs".to_owned(), 4),
+                ("other.nvs".to_owned(), 3),
+            ],
+            "at workspace scope the index holds every `.nvs` file under the \
+             root the client named"
         );
     });
 }
