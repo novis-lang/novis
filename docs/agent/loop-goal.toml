@@ -124,6 +124,8 @@ modules = [
   "crates/nvs-lsp/src/coverage.rs",
   # One workspace symbol index, built in one place.
   "crates/nvs-lsp/src/index.rs",
+  # A position on the wire, and the byte offset under it.
+  "crates/nvs-lsp/src/position.rs",
 ]
 
 # The rules this goal implements, and the one its record amends.
