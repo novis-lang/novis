@@ -8382,7 +8382,7 @@ tests = ["a_stalled_reader_closes_the_stream_at_the_send_timeout_and_reports_as_
 kind = "cargo-named"
 stage = "2 the framing"
 name = "a payload cannot escape its own event, whatever line endings it carries"
-args = ["test", "-p", "nvs-server"]
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "a_payload_carrying_a_lone_carriage_return_is_one_event_and_not_two",
   "every_line_of_a_multiline_payload_becomes_its_own_data_line",
@@ -8393,7 +8393,7 @@ tests = [
 kind = "cargo-named"
 stage = "2 the framing"
 name = "the three refusals, each named in its own message"
-args = ["test", "-p", "nvs-server"]
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "an_event_name_carrying_a_line_break_is_refused",
   "an_id_carrying_a_line_break_or_a_nul_is_refused",
@@ -8404,7 +8404,7 @@ tests = [
 kind = "cargo-named"
 stage = "2 the framing"
 name = "the optional fields, and the keepalive that carries no data"
-args = ["test", "-p", "nvs-server"]
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "an_event_name_and_an_id_are_their_own_lines_before_the_data",
   "a_retry_line_is_milliseconds_in_ascii_digits",
@@ -8444,10 +8444,14 @@ kind = "nvs-suite"
 stage = "3 door two"
 name = "conformance (a request-scoped event stream, whole body frozen)"
 args = ["test", "tests/conformance/"]
+# The status contradiction is a `core/` case and not a `reject/` one: § *Standing decisions* makes
+# all of this door's refusals `LogicError`, which is a throw a program catches and never a
+# diagnostic, so the claim is pinned where the other three are.
 cases = [
   "tests/conformance/core/an-event-stream-that-ends-with-its-request-frames-every-event.nvst",
   "tests/conformance/core/a-response-stream-writes-chunks-and-declares-its-own-type.nvst",
-  "tests/conformance/reject/set-status-on-a-path-that-opens-an-event-stream-is-refused.nvst",
+  "tests/conformance/core/an-event-streams-payload-cannot-escape-its-own-event.nvst",
+  "tests/conformance/core/an-event-stream-refuses-what-a-client-could-not-act-on.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
