@@ -131,6 +131,10 @@ modules = [
   "crates/nvs-cli/src/check.rs",
   # Parsing one `.nvst` file into a `Case`.
   "crates/nvs-test/src/case.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/binary.ts",
+  # TODO: why a session opens this.
+  "editors/vscode/src/tasks.ts",
 ]
 
 # The rules this goal implements. Every one of them is already landed; none is amended here.
