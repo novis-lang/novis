@@ -135,6 +135,13 @@ modules = [
   # `E0780` (:2891-2898) -- the throw-operand refusal whose sibling stage 3 adds for a `catch` arm
   # naming the marker, and the band the new code is allocated from.
   "crates/nvs-diagnostics/src/lib.rs",
+  # `nvs-cli`'s half of `nvs_runtime::script`: the path a `spawn script` wrote, compiled into a
+  # `Program` an isolate can run.
+  "crates/nvs-cli/src/script.rs",
+  # The per-request context: the first argument of every compiled function and every helper.
+  "crates/nvs-runtime/src/ctx/mod.rs",
+  # What a host writes into a context before any Novis code runs.
+  "crates/nvs-runtime/src/ctx/wiring.rs",
 ]
 
 # The three every stage works inside: the queue this ending joins, the queue it makes drain, and the
