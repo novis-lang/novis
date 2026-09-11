@@ -2,65 +2,67 @@
 
 ## State
 
-**Goal `config-is-written` — stage 3's first check is green and its second is 3 of 4 tests in.**
-A project command that resolves no tree now writes the shipped default file into the working
-directory and reads that file back: `crates/nvs-cli/src/config.rs:126`'s `Init` is the gate,
-`crates/nvs-cli/src/main.rs:214`'s `initializes` is the table of the five project commands that
-produces it, and `crates/nvs-cli/src/config.rs:180`'s `write_default_file` is the write.
+**Goal `config-is-written` — stage 3 is complete on disk.** Each of its three checks names tests
+that now exist and pass: the write, the four refusals, and the declined record.
 
-**`nvs_config::resolve::Roots` already reported which step won**, so `nvs-config` owed this slice
-only `LOCAL_FILE` — one home for the name step 2 looks for and step 3 writes. `--no-init` is a
-global flag and `NOVIS_NO_INIT` disables on presence; a named `--config` needs no gate of its own,
-because step 1 is then the answer whether or not the files exist.
+**A declined write carries its reason as a value.** `crates/nvs-cli/src/config.rs:178`'s `Declined`
+is the three answers the write can give — `Untrusted`, `Exists`, `Unwritable` — and its `note`
+renders the one line each.
 
-**Two things stage 3 still owes.** A declined write is silent — `write_default_file` answers
-`Option<PathBuf>` and says nothing about why — so the boot line is unchanged, and there is still no
-`nvs init`: `crates/nvs-cli/src/main.rs:193`'s `Command` has no `Init` variant.
+**`nvs init` is the explicit door, and the only place that reason is reported.**
+`crates/nvs-cli/src/main.rs:471`'s `Command::Init` reaches `crates/nvs-cli/src/config.rs:261`'s
+`init` — the same write with the opposite failure policy, an `error:` and a non-zero exit, because
+this command exists only to produce the file. It is deliberately not in the `initializes` table.
 
-**One open design consequence, and it is not a slice.** `nvs check` is in the writing table, so a
-directory it has run in once holds a tree, and
-`rule:config/no-configuration-file-is-a-complete-configuration` says a tree that was read and says
-nothing about capabilities is an operator's written `no`. The *second* `nvs check` in a fresh
-directory therefore refuses a literal `Core\Db::open` host that the first one passed.
-`crates/nvs-cli/src/config.rs:296`'s `grants` handles only the run that did the writing — it asks
-about the roots as they were **found**, so a file this very invocation manufactured is still no
-tree, which is what keeps `crates/nvs-cli/tests/check_grants.rs:88` true. Run two is not covered and
-cannot be without deciding which of two landed statements gives way: that rule's sentence, or
-`nvs_config::default_file`'s claim that writing the file does not change the run that takes it.
-Stage 4's record is where that belongs.
+**Stage 3 § 7 is what stage 3 still owes, and it is blocked on another rule.**
+`crates/nvs-cli/src/config.rs:331`'s `boot_in` stays silent either way: nothing in `nvs-cli` prints
+a configuration line at boot, because `rule:config/the-resolved-root-is-announced-and-stored` is
+`designed`. A `note:` of its own was written and taken back out — see the playbook bullet under
+*Running things*. Where it belongs is that rule's boot line, not a second printing site.
+
+**One open design consequence, carried for stage 4's record.** `nvs check` is in the writing table,
+so the *second* `nvs check` in a fresh directory reads a tree that grants nothing and refuses a
+literal `Core\Db::open` host the first one passed —
+`rule:config/no-configuration-file-is-a-complete-configuration`'s last paragraph.
+`crates/nvs-cli/src/config.rs:404`'s `grants` asks about the roots as they were **found**, so a file
+this invocation manufactured is still no tree, which is what keeps
+`crates/nvs-cli/tests/check_grants.rs:88` true for run one. Run two is covered only by deciding
+which landed statement gives way.
+
+**The floor check is red on a file no session wrote.** `python tools/chain.py --check` fails on
+`docs/agent/goals/50-outbound-proxy.toml` — empty `tests`, TODO markers, no README row — an
+uncommitted by-hand scaffold. Filling it in is its author's call.
 
 ## Next group
 
-**Stage 3: the last refusal and the declined record — one file set:**
-`crates/nvs-cli/src/config.rs` and `crates/nvs-cli/src/main.rs`, with
-`crates/nvs-cli/src/cache.rs:1480` read for its fixture.
+**Stage 4: the records and the rulebook — one file set:** `docs/decisions/`,
+`docs/rules/config.json` with its fragments under `docs/rules/config/`, and `nvs.toml`.
 
-- [ ] **`a_working_directory_that_fails_the_ownership_check_is_not_written_to`.**
-      `crates/nvs-cli/src/config.rs:180` asks `nvs_config::trust::check` about the directory before
-      it creates anything, per `rule:config/ownership-is-the-trust-boundary`; what is missing is the
-      case. The fixture it needs is `crates/nvs-cli/src/cache.rs:1480`'s `open_to_the_world`, which
-      is private to that module's `mod tests` — decide there whether to make that module
-      `pub(crate)` or to lift the helper into one test-support module, and do it once.
-- [ ] **The declined write says which reason applied, and the run stays green.**
-      `a_read_only_working_directory_leaves_the_run_green_on_the_shipped_defaults` and
-      `a_declined_write_says_which_reason_applied`. Widen
-      `crates/nvs-cli/src/config.rs:180`'s return to carry the reason and emit the one `Info` record
-      the goal's stage 3 § 5 and § 7 ask for, surfaced through
-      `crates/nvs-cli/src/config.rs:252`'s `boot_in`. `rule:config/the-resolved-root-is-announced-and-stored`
-      is the boot line this joins, and it is `designed` rather than shipped — check whether that
-      announcement exists at all before adding a second place that prints one.
-- [ ] **`nvs init` writes the same file and refuses to overwrite one.**
-      A new `Command::Init` beside `crates/nvs-cli/src/main.rs:193`'s other arms, calling
-      `write_default_file` and reporting what every refusal above points an operator at.
-      `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 is what it
-      writes; it is not a project command and does not go through the `initializes` table.
+- [ ] **The decision record this goal owes.** Stage 2's commented-versus-live argument, stage 3's
+      command split and its four refusals, stage 1's `cache.dir` migration, and the run-two
+      consequence above under `## Consequences`. The shape is `docs/agent/conventions.md:1`
+      § *A decision record*; re-derive the next free number from `docs/decisions/` before claiming
+      it, because this tree has more than one writer. The code it describes is
+      `crates/nvs-cli/src/config.rs:178` and `crates/nvs-cli/src/main.rs:471`.
+- [ ] **`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` gains step 3's
+      write.** `docs/rules/config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults.md:1`,
+      with step 2 and *never a walk upward* left exactly as they stand — the goal adds what happens
+      *at* step 3 and adds no lookup. Its `because` gains the new record's number, and the record's
+      `changes.modifies` names it back.
+- [ ] **`rule:config/no-configuration-file-is-a-complete-configuration` gains one sentence.**
+      `docs/rules/config/no-configuration-file-is-a-complete-configuration.md:1`: the shipped
+      defaults stay a complete configuration, and are what a run uses whenever the file could not be
+      written.
+- [ ] **Stage 0's gate becomes a fragment, and the repository's own configuration file stops citing
+      ADR numbers.** The fragment joins `docs/rules/config.json:1`'s array at the position
+      `docs/agent/conventions.md:1` § *Where a rule sits in the order* gives it; the tree's root
+      `nvs.toml` still carries `ADR 0103 § 1 step 2` and `ADR 0118 § 2` from before the docs
+      migration. Then `python tools/rules.py --render`, which `session.py --wrap` runs for any
+      session that touched `docs/rules/` — a fragment written without one refuses the wrap.
 
 ## Backlog
 
-- Stage 4's record owes the second-`nvs check`-run consequence in § *State* a decision, not a
-  paragraph — `docs/agent/loop-goal.md` § *Stage 4*.
-- `nvs build` is in the `initializes` table and resolves no tree, so it writes nothing today —
-  `crates/nvs-cli/src/main.rs:214`.
-- The pack printed only § *Standing decisions* from `docs/agent/loop-goal.md`; the stage's own
-  numbered prose is what specifies the write, and `[context]` has no selector for it.
-- Carried gaps that outlive this goal: `docs/agent/carried-gaps.md`.
+- Stage 3 § 7's boot line, blocked on `rule:config/the-resolved-root-is-announced-and-stored`.
+- `docs/agent/goals/50-outbound-proxy.*` is an unfilled scaffold; `chain.py --check` is red on it.
+- `docs/agent/goals/45-fmt.toml` and `46-template-format.toml` hold prose to a rule no `rules` entry
+  reaches (`chain.py --check` notes).
