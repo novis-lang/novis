@@ -109,8 +109,14 @@
 //! as stated. What the `Cell` actually needs is narrower and does still hold:
 //! **no refcount two threads can reach is ever written.** A word that is only
 //! ever read races with nothing whatever its type, and every word that *is*
-//! written belongs to an allocation [`NvsStr::alloc_uninit`] made on the
+//! written belongs to an allocation [`NvsStr::try_alloc_uninit`] made on the
 //! request's own thread and reachable from nowhere else.
+//!
+//! Two immortal headers exist, for two unrelated reasons. A literal's is in
+//! the compiled unit, written by [`immortal_header_bytes`]; [`EMPTY_IMMORTAL`]
+//! is this crate's own static, and it is the value every constructor here
+//! answers with when the running request has been refused the memory it asked
+//! for. Neither is ever written, so the paragraph above covers them alike.
 //!
 //! What it costs is one compare and a not-taken branch per release — the
 //! hottest operation in the runtime — against a sentinel every allocated
@@ -259,6 +265,49 @@ pub fn immortal_header_bytes(payload: &[u8]) -> [u8; PAYLOAD_OFFSET] {
     header
 }
 
+/// A [`StrHeader`] in this crate's own static data, shareable because nothing
+/// ever writes it.
+///
+/// A `StrHeader`'s counts are `Cell`s and a `static`'s type has to be `Sync`,
+/// so the argument is made once here rather than at each use. The only header
+/// this wraps is [`EMPTY_IMMORTAL`]'s: its reference count is
+/// [`IMMORTAL_REFCOUNT`], which takes every retain and release down a path
+/// that writes nothing, and its grapheme count is already known, so the lazy
+/// fill an allocated string uses never reaches it either. That is this
+/// module's docs § *An immortal string* verbatim, for a header in this crate
+/// instead of in a compiled unit.
+#[repr(transparent)]
+struct SharedHeader(StrHeader);
+
+#[expect(
+    unsafe_code,
+    reason = "every word of the wrapped header is read and none is written, \
+              which is what the interior mutability would otherwise have to \
+              be synchronized for"
+)]
+// SAFETY: as the type's own doc comment argues.
+unsafe impl Sync for SharedHeader {}
+
+/// The empty string every constructor here answers with when the request has
+/// been refused the allocation it asked for.
+///
+/// It costs no allocation, which is the whole point of answering it on the
+/// path where an allocation was refused, and it is immortal in
+/// [`IMMORTAL_REFCOUNT`]'s sense — so compiled code owns it, transfers it into
+/// an array or a `Value` and releases it exactly as it does an allocated
+/// string, and nothing is ever freed. That is what lets a ctx-less `extern
+/// "C"` primitive refuse by *returning a value* rather than by acquiring a
+/// status its signature has nowhere to put.
+static EMPTY_IMMORTAL: SharedHeader = SharedHeader(StrHeader {
+    refcount: Cell::new(IMMORTAL_REFCOUNT),
+    len: Cell::new(0),
+    cap: 0,
+    // Known rather than [`COUNT_UNKNOWN`], for [`immortal_header_bytes`]'s
+    // reason: nothing may write this header, so the lazy fill is not available
+    // to it. An empty payload has no clusters, so there is nothing to scan.
+    graphemes: Cell::new(0),
+});
+
 /// The allocation shape for a string with room for `cap` payload bytes.
 ///
 /// Takes the *capacity*, never the length: this is the layout an allocation is
@@ -400,6 +449,19 @@ impl NvsStr {
         })
     }
 
+    /// A handle on [`EMPTY_IMMORTAL`] — the degenerate return every allocating
+    /// path in this module takes when the request has been refused.
+    ///
+    /// Owned exactly as an allocated string is: dropping it frees nothing and
+    /// retaining it writes nothing, so no caller learns the difference from
+    /// the handle alone, and none has to.
+    #[must_use]
+    pub fn empty_immortal() -> Self {
+        Self {
+            ptr: NonNull::from(&EMPTY_IMMORTAL.0),
+        }
+    }
+
     /// Allocates a fresh string with room for `capacity` bytes and lets
     /// `write` fill it in place, with a reference count of one. The result's
     /// length is what was written.
@@ -418,16 +480,32 @@ impl NvsStr {
     /// hand; this is the case where a loop produces them, and it costs no
     /// scratch buffer to hold them in.
     ///
+    /// # A refused allocation
+    ///
+    /// Answers [`NvsStr::empty_immortal`] and **does not run `write`**, which
+    /// is what leaves this signature — and so the whole of `nvs-stdlib` that
+    /// reaches it — unchanged by the refusal. It is sound because the request
+    /// is already over by then: until its next poll it can build wrong values
+    /// and compare them, and it can write no output and reach no `Core`
+    /// member, every one of those passing [`crate::run_helper`]'s question
+    /// first.
+    ///
+    /// [`NvsStr::try_build`] is the half that says which of the two happened.
+    ///
     /// # Panics
     ///
-    /// Aborts through [`handle_alloc_error`] if the allocator fails, per
-    /// [`NvsStr::new`]. [`NvsStr::try_build`] is the half that answers instead.
+    /// Aborts through [`handle_alloc_error`] if the allocator fails for a
+    /// reason no ceiling explains — see [`NvsStr::alloc_or_refusal`].
     #[must_use]
     pub fn build(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> Self {
-        Self::written_into(Self::alloc_uninit(0, capacity), capacity, write)
+        let Some(ptr) = Self::alloc_or_refusal(0, capacity) else {
+            return Self::empty_immortal();
+        };
+        Self::written_into(ptr, capacity, write)
     }
 
-    /// [`NvsStr::build`], answering `None` where that one aborts.
+    /// [`NvsStr::build`], answering `None` where that one answers an empty
+    /// string or aborts.
     ///
     /// The seam for a producer whose capacity is a **count off a call site**
     /// rather than a bound on something already in memory. `crate::affordable`
@@ -438,9 +516,17 @@ impl NvsStr {
     /// Asking is both exact and the whole difference between a throw and that.
     ///
     /// **Only the first allocation is fallible.** A writer that exceeds
-    /// `capacity` still grows through [`StrWriter::grow`], which aborts, so
-    /// this is for a producer whose capacity is *exact* — which is the same
-    /// set of producers as the ones whose capacity is a count.
+    /// `capacity` grows through [`StrWriter::grow`], which stops writing
+    /// rather than answering here, so this is for a producer whose capacity is
+    /// *exact* — which is the same set of producers as the ones whose capacity
+    /// is a count.
+    ///
+    /// A `None` the running request was **refused** is not the throw the
+    /// paragraph above is about: the breach is recorded by then, so
+    /// [`crate::run_helper`] reports the ceiling rather than the member's own
+    /// error, and a resource limit stays `rule:errors/escalation-ladder`'s
+    /// uncatchable tier instead of becoming a `catch` a program can carry on
+    /// from.
     #[must_use]
     pub fn try_build(capacity: usize, write: impl FnOnce(&mut StrWriter<'_>)) -> Option<Self> {
         let ptr = Self::try_alloc_uninit(0, capacity)?;
@@ -472,32 +558,69 @@ impl NvsStr {
         Self { ptr }
     }
 
-    /// A fresh allocation with room for `cap` payload bytes, a reference count
-    /// of one, and a length of `len` whose bytes are **left uninitialized**.
+    /// [`NvsStr::try_alloc_uninit`], answering `None` only where the running
+    /// request has been **refused** the memory and owes a degenerate return.
     ///
-    /// The one place an Novis string allocation is made, so [`str_layout`] is
-    /// called with a capacity here and in [`Drop`] and nowhere else. The
-    /// caller must write all `len` payload bytes before the handle escapes.
+    /// The seam every primitive in this module allocates through, and what
+    /// replaced an aborting wrapper: a refusal this runtime makes on purpose
+    /// must not reach [`handle_alloc_error`], which takes the process and
+    /// every other in-flight request with it.
+    ///
+    /// So the three answers below it collapse to the two a caller can act on.
+    /// An allocation is `Some`. A failure the request was refused —
+    /// [`crate::budget::affords`] having already recorded the breach and asked
+    /// for the poll that reports it — is `None`, and what the caller owes is a
+    /// value that cost nothing. A failure **no ceiling explains** is neither:
+    /// the allocator itself said no, which is [`NvsStr::new`]'s known gap and
+    /// not a thing this request can be brought back from, so it aborts here
+    /// exactly where it aborted before.
+    ///
+    /// The caller must write all `len` payload bytes before the handle
+    /// escapes.
     ///
     /// # Panics
     ///
-    /// Debug-asserts `len <= cap`; aborts through [`handle_alloc_error`] if
-    /// the allocator fails, per [`NvsStr::new`].
-    fn alloc_uninit(len: usize, cap: usize) -> NonNull<StrHeader> {
-        Self::try_alloc_uninit(len, cap).unwrap_or_else(|| handle_alloc_error(str_layout(cap)))
+    /// Aborts through [`handle_alloc_error`] for that third case.
+    fn alloc_or_refusal(len: usize, cap: usize) -> Option<NonNull<StrHeader>> {
+        match Self::try_alloc_uninit(len, cap) {
+            Some(ptr) => Some(ptr),
+            None if crate::budget::refused() => None,
+            None => handle_alloc_error(str_layout(cap)),
+        }
     }
 
-    /// [`NvsStr::alloc_uninit`], answering `None` where that one aborts.
+    /// A fresh allocation with room for `cap` payload bytes, a reference count
+    /// of one, and a length of `len` whose bytes are **left uninitialized** —
+    /// `None` for a capacity this request cannot be given.
     ///
-    /// The `alloc` call itself is here rather than in both, so the layout an
-    /// allocation is made with stays the single expression [`Drop`] frees it
-    /// with.
+    /// The one place an Novis string allocation is made, so [`str_layout`] is
+    /// called with a capacity here and in [`Drop`] and nowhere else, and so
+    /// this is where the ceiling is asked about a *fresh* string.
+    /// [`StrWriter::grow`] is the other side of that, for one already in hand.
+    ///
+    /// Fallible rather than aborting because each of its two callers has
+    /// somewhere to put the answer: [`NvsStr::try_build`] hands it to a `Core`
+    /// member that throws, and [`NvsStr::alloc_or_refusal`] sorts it into a
+    /// refusal and an abort.
+    ///
+    /// # Panics
+    ///
+    /// Debug-asserts `len <= cap`.
     fn try_alloc_uninit(len: usize, cap: usize) -> Option<NonNull<StrHeader>> {
         debug_assert!(
             len <= cap,
             "an Novis string's length never exceeds its capacity"
         );
         let layout = try_str_layout(cap)?;
+        // `rule:errors/on-limit`'s memory ceiling, asked in front of the
+        // allocation rather than behind it: `crate::budget::add` compares once
+        // the block is already held, which bounds a *loop* of allocations and
+        // cannot bound a single one. A `false` has already recorded the breach
+        // and asked for the poll that reports it, so every degenerate return
+        // below this is answered by a request that is already over.
+        if !crate::budget::affords(layout.size()) {
+            return None;
+        }
         #[expect(
             unsafe_code,
             reason = "a flexible-array-member allocation cannot be expressed \
@@ -781,8 +904,13 @@ impl StrWriter<'_> {
             .written
             .checked_add(piece.len())
             .expect("an Novis string's length cannot overflow a usize");
-        if needed > self.capacity {
-            self.grow(needed);
+        if needed > self.capacity && !self.grow(needed) {
+            // The writer's half of the degenerate return: refused the room, it
+            // writes no more, and [`NvsStr::build`] publishes the prefix that
+            // did fit. A wrong value the request is already too dead to act on
+            // — and the only answer that keeps the write below inside the
+            // payload its `#[expect]` argues it stays inside.
+            return;
         }
         #[expect(
             unsafe_code,
@@ -804,15 +932,26 @@ impl StrWriter<'_> {
         self.push(piece.as_bytes());
     }
 
-    /// Grows the allocation to hold `needed` bytes.
+    /// Grows the allocation to hold `needed` bytes, answering `false` where the
+    /// request has been refused the extra room.
     ///
     /// The same doubling `nvs_str_append` grows by, so a producer whose
     /// capacity is a guess pays exactly what the `String` it replaces would,
     /// and one whose capacity is exact never reaches here at all.
+    ///
+    /// The second place a string allocation is asked for, so the pre-check
+    /// [`NvsStr::try_alloc_uninit`] makes is made here too — against the
+    /// *difference* between the two layouts, which is what the balance moves by
+    /// when `realloc` answers. Without it a producer whose capacity is a guess
+    /// could double its way past the ceiling inside one member call, reaching
+    /// no poll and no [`crate::run_helper`] question on the way.
     #[cold]
-    fn grow(&mut self, needed: usize) {
+    fn grow(&mut self, needed: usize) -> bool {
         let capacity = grown_capacity(self.capacity, needed);
         let bigger = str_layout(capacity);
+        if !crate::budget::affords(bigger.size() - str_layout(self.capacity).size()) {
+            return false;
+        }
         // `realloc` and not an allocate-copy-free of our own, for the reason
         // `Vec` uses it: an allocator that can extend the block in place does,
         // and the bytes already written are then not moved at all. Copying
@@ -837,7 +976,7 @@ impl StrWriter<'_> {
         #[expect(
             unsafe_code,
             reason = "`ptr` is the reallocated block, which begins with the \
-                      header `alloc_uninit` wrote; the capacity it will be \
+                      header `try_alloc_uninit` wrote; the capacity it will be \
                       freed with has to be the one it now has"
         )]
         unsafe {
@@ -845,6 +984,7 @@ impl StrWriter<'_> {
         }
         self.ptr = ptr;
         self.capacity = capacity;
+        true
     }
 }
 
@@ -901,7 +1041,7 @@ impl Drop for NvsStr {
             unsafe_code,
             reason = "this handle held the last reference, so nothing else can \
                       observe the allocation; `layout` is recomputed from the \
-                      same `cap` `alloc_uninit` allocated with — never from \
+                      same `cap` `try_alloc_uninit` allocated with — never from \
                       `len`, which `nvs_str_append` may have left smaller — \
                       before the header is freed"
         )]
@@ -1061,6 +1201,11 @@ pub unsafe extern "C" fn nvs_str_concat(
 /// loops here are that function's two, over `bytes_of` instead of over
 /// borrowed slices.
 ///
+/// **A refused allocation answers a static empty string** rather than
+/// acquiring a status this `extern "C"` signature has nowhere to put — see
+/// [`NvsStr::empty_immortal`]. [`nvs_str_concat`] reaches the same answer
+/// through [`NvsStr::build`], which is why only this one spells it out.
+///
 /// # Safety
 ///
 /// `pieces` must point at `count` consecutive `*const StrHeader`, each
@@ -1091,7 +1236,9 @@ pub unsafe extern "C" fn nvs_str_concat_n(
                 total.checked_add(NvsStr::bytes_of(*piece).len())
             })
             .expect("an Novis string's length cannot overflow a usize");
-        let out = NvsStr::alloc_uninit(len, len);
+        let Some(out) = NvsStr::alloc_or_refusal(len, len) else {
+            return NvsStr::empty_immortal().into_raw();
+        };
         let dst = out.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
         let mut written = 0_usize;
         for piece in pieces {
@@ -1150,6 +1297,12 @@ pub unsafe extern "C" fn nvs_str_concat_n(
 /// - **Too little room**, in which case [`grown_capacity`] decides how much to
 ///   ask for and the payload moves once.
 ///
+/// **A refused allocation answers `target` unchanged**, which is the one
+/// degenerate return that balances here: the reference consumed and the
+/// reference yielded are then the same reference, so a refusal neither leaks
+/// the accumulation nor over-releases it, and the slot the caller writes the
+/// result into ends up holding exactly what it already held.
+///
 /// # Safety
 ///
 /// `target` must refer to a live Novis string allocation whose reference this
@@ -1204,7 +1357,9 @@ pub unsafe extern "C" fn nvs_str_append(
             }
             return target;
         }
-        let grown = NvsStr::alloc_uninit(needed, grown_capacity(len, needed));
+        let Some(grown) = NvsStr::alloc_or_refusal(needed, grown_capacity(len, needed)) else {
+            return target;
+        };
         let dst = grown.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
         std::ptr::copy_nonoverlapping(target.cast::<u8>().add(PAYLOAD_OFFSET), dst, len);
         std::ptr::copy_nonoverlapping(src, dst.add(len), added);
@@ -1341,6 +1496,45 @@ mod tests {
         assert!(s.is_empty());
         assert_eq!(s.as_bytes(), b"");
         assert_eq!(s.refcount(), 1);
+    }
+
+    /// The degenerate return the ctx-less primitives refuse with, from the
+    /// side this module owns: it is empty, it costs no allocation, and it
+    /// survives being released more times than there were references — which
+    /// is what lets it stand in for an allocation compiled code already owns a
+    /// reference to.
+    #[test]
+    fn the_refused_empty_string_is_immortal_and_costs_no_allocation() {
+        use crate::counting_alloc::allocated_bytes;
+
+        let before = allocated_bytes();
+        let s = NvsStr::empty_immortal();
+        assert!(s.is_empty());
+        assert_eq!(s.as_bytes(), b"");
+        assert_eq!(s.refcount(), IMMORTAL_REFCOUNT);
+        assert_eq!(s.grapheme_count(), 0, "answered without a scan or a write");
+
+        let t = s.clone();
+        assert_eq!(t.refcount(), IMMORTAL_REFCOUNT, "a retain writes nothing");
+        drop(t);
+
+        let raw = s.into_raw();
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_str_release(raw);
+            // One release past the references there were: a primitive that
+            // refuses hands this to a caller that will release it, and that
+            // caller must not be the one to free a static.
+            nvs_str_release(raw);
+            assert_eq!((*raw).refcount.get(), IMMORTAL_REFCOUNT);
+            assert_eq!(NvsStr::bytes_of(raw), b"");
+        }
+
+        assert_eq!(
+            allocated_bytes(),
+            before,
+            "the value answered on a refusal must not itself allocate"
+        );
     }
 
     #[test]
