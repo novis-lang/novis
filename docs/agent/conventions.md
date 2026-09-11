@@ -15,12 +15,12 @@ for its reasoning, the crate's module doc for how a subsystem works, [playbook.m
 ## A commit message
 
 ```
-<type>(<scope>): <lowercase clause>, and <a second clause>
+<type>(<scope>): <the concrete change, named>, and <a second one>
 
-Prose paragraphs. What changed and why this shape rather than the obvious
-alternative. Name the rule (`rule:types/conversion`) or the module doc that
-owns the rule, rather than restating it. No bullet lists unless the content
-is genuinely a list.
+The next most useful fact. Then, only if the diff does not say it, why this
+shape rather than the obvious alternative. Name the rule (`rule:types/conversion`)
+or the module doc that owns the rule, rather than restating it. No bullet lists
+unless the content is genuinely a list.
 ```
 
 `type` is `feat`, `fix`, `docs`, `refactor`, `perf` or `test`. `scope` is the subsystem, not the crate
@@ -28,6 +28,13 @@ path — `lang`, `types`, `ir`, `runtime`, `stdlib`, `codegen`, `syntax`, `test`
 `abi-probe`. The subject is one line, lower case after the colon, no trailing period, and it reads as a
 statement of what is now true rather than an instruction. Two clauses joined by `, and ` is the house
 style when a commit does two things; one clause is fine when it does one.
+
+**The first lines carry the information.** The subject names the concrete thing — the file, the goal by
+slug, the request, the construct — so `git log --oneline` alone says what each commit did, and two
+commits of one kind never share a subject. The body's first line is the next most useful fact. Why comes
+after, and only what the diff and the owning module doc do not already say. The shortest message that
+carries the same information is the right one, and a message a tool writes is held to the same bar: no
+paragraph is repeated from one commit to the next.
 
 **No trailers, ever.** A commit message documents the work and stops. No `Co-Authored-By`, no
 `Signed-off-by`, no `Generated-with`, no tool or model attribution in any spelling. Who or what wrote a
